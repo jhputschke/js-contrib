@@ -34,8 +34,14 @@ target_link_libraries(FnoModule
   ${ROOT_LIBRARIES}
 )
 set_property(TARGET FnoModule PROPERTY CXX_STANDARD 17)
+# Place the shared lib in the top-level build dir alongside libJetScape.dylib.
+# This is set per-target (not via CMAKE_LIBRARY_OUTPUT_DIRECTORY) to avoid
+# breaking ROOT_GENERATE_DICTIONARY's install() DESTINATION computation.
+set_target_properties(FnoModule PROPERTIES
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
 
-message(STATUS "FnoHydro: building FnoModule shared library")
+message(STATUS "FnoHydro: building FnoModule shared library -> ${CMAKE_BINARY_DIR}")
 
 # --- root_bulk utilities ---
 add_subdirectory(root_bulk)

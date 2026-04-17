@@ -5,12 +5,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ---------------------------------------------------------------------------
-# Route all shared libraries built by js-contrib to the top-level build
-# directory so they sit next to libJetScape.dylib and are easy to locate
-# for both CMake consumers and Python/RPATH searches.
-# Per-target LIBRARY_OUTPUT_DIRECTORY can still override this default.
+# Route all executables built by js-contrib to the top-level build directory
+# so they sit next to runJetscape etc.
+# NOTE: CMAKE_LIBRARY_OUTPUT_DIRECTORY is intentionally NOT set globally here
+# because ROOT_GENERATE_DICTIONARY computes install() DESTINATION as the
+# relative path from CMAKE_BINARY_DIR to CMAKE_LIBRARY_OUTPUT_DIRECTORY;
+# setting both to the same path yields an empty string → CMake error.
+# Shared library destinations are set per-target instead.
 # ---------------------------------------------------------------------------
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # ---------------------------------------------------------------------------
