@@ -50,6 +50,20 @@ cmake .. -DUSE_MUSIC=ON -DUSE_ISS=ON -DUSE_PYTHON=ON -USE_ROOT=ON \
 make -j$(nproc)
 ```
 
+After building `pyjetscape_core`, make the `jetscape` Python package importable
+in one of two ways:
+
+- **PYTHONPATH** (no install step, works immediately):
+  ```bash
+  export PYTHONPATH="$PWD/../external_packages/js-contrib/contribs/PyJetscape/python:$PYTHONPATH"
+  ```
+- **Editable pip install** (recommended for Jupyter / persistent use):
+  ```bash
+  pip install -e external_packages/js-contrib/contribs/PyJetscape
+  ```
+  Or let CMake do this automatically on every build by adding
+  `-DJS_PIP_INSTALL_PYJETSCAPE=ON` to the `cmake` command above.
+
 > **pybind11 discovery** — CMake first searches `CMAKE_PREFIX_PATH` / `pybind11_DIR`
 > (system or conda install), then falls back to asking the active Python interpreter
 > (`python -c "import pybind11; print(pybind11.get_cmake_dir())"`), so a plain

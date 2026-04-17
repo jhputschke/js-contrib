@@ -143,12 +143,23 @@ make -j$(nproc) pyjetscape_core
 The compiled extension `pyjetscape_core.so` (or `.pyd` on Windows) is written
 to `contribs/PyJetscape/python/jetscape/` inside the js-contrib source tree.
 
-**Step 4**: Add the package to `PYTHONPATH`:
+**Step 4**: Make the package importable — choose one of:
+
+**Option A — PYTHONPATH** (no install, works immediately):
 
 ```bash
 # Add to your shell configuration (~/.zshrc, ~/.bashrc):
 export PYTHONPATH="/path/to/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python:$PYTHONPATH"
 ```
+
+**Option B — editable pip install** (recommended for persistent use, e.g. Jupyter):
+
+```bash
+pip install -e /path/to/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape
+```
+
+Or let CMake do this automatically on every build by adding
+`-DJS_PIP_INSTALL_PYJETSCAPE=ON` to the `cmake` command above.
 
 Verify:
 
@@ -178,7 +189,9 @@ cmake .. \
 make -j$(nproc) pyjetscape_core
 ```
 
-Then set `PYTHONPATH` as shown in [Path A Step 4](#path-a---via-x-scape-cmake).
+Then make the package importable via PYTHONPATH or `pip install -e` as shown
+in [Path A Step 4](#path-a---via-x-scape-cmake).
+To have CMake run `pip install -e` automatically, add `-DJS_PIP_INSTALL_PYJETSCAPE=ON`.
 
 ---
 

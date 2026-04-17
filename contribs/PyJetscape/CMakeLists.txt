@@ -60,18 +60,26 @@ target_include_directories(pyjetscape_core PRIVATE
 
 target_link_libraries(pyjetscape_core PRIVATE JetScape)
 
-# Primary output in the top-level build directory (next to libJetScape.dylib).
-# A post-build copy also places the .so inside python/jetscape/ so that
-# `sys.path.insert(0, ".../PyJetscape/python"); import jetscape` keeps working.
+# The compiled extension lives inside the contrib source tree so that the
+# jetscape Python package works directly via sys.path or PYTHONPATH without
+# any installation step.
 set_target_properties(pyjetscape_core PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape"
 )
 
-add_custom_command(TARGET pyjetscape_core POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    $<TARGET_FILE:pyjetscape_core>
-    "${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape/$<TARGET_FILE_NAME:pyjetscape_core>"
-  COMMENT "Copying pyjetscape_core -> python/jetscape/ for Python import path"
-)
+# Optional: install the jetscape package in editable mode so that
+# `import jetscape` works without any PYTHONPATH / sys.path setup.
+# Enable with -DJS_PIP_INSTALL_PYJETSCAPE=ON at cmake configure time.
+option(JS_PIP_INSTALL_PYJETSCAPE
+  "Run 'pip install -e' on the PyJetscape package after every build (requires pip)" OFF)
 
-message(STATUS "pyjetscape_core will be built to ${CMAKE_BINARY_DIR} (also copied to python/jetscape/)")
+if(JS_PIP_INSTALL_PYJETSCAPE)
+  add_custom_command(TARGET pyjetscape_core POST_BUILD
+    COMMAND "${Python3_EXECUTABLE}" -m pip install -e
+            "${CMAKE_CURRENT_SOURCE_DIR}" --quiet --no-build-isolation
+    COMMENT "JS_PIP_INSTALL_PYJETSCAPE=ON: installing jetscape package in editable mode"
+  )
+  message(STATUS "pyjetscape_core: pip install -e enabled (JS_PIP_INSTALL_PYJETSCAPE=ON)")
+else()
+  message(STATUS "pyjetscape_core: output -> python/jetscape/ (set JS_PIP_INSTALL_PYJETSCAPE=ON to auto pip-install)")
+endif()
