@@ -54,6 +54,18 @@ cmake .. \
 make -j$(nproc)
 ```
 
+## Environment setup (Mac Silicon / Linux aarch64)
+
+The official JETSCAPE Docker images target Linux x86_64. On **Mac Silicon
+(`arm64`)** the MPS (Metal Performance Shaders) PyTorch backend is not
+available inside containers, and on **Linux `aarch64`** (AWS Graviton, ARM
+servers) several JETSCAPE C++ dependencies are absent from most package
+managers and container registries. For both cases the recommended approach is
+a native conda environment.
+
+See [contribs/README.md](contribs/README.md) for the step-by-step setup:
+dry-run package check, full build-environment install, and CMake integration.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
