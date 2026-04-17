@@ -5,6 +5,15 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ---------------------------------------------------------------------------
+# Route all shared libraries built by js-contrib to the top-level build
+# directory so they sit next to libJetScape.dylib and are easy to locate
+# for both CMake consumers and Python/RPATH searches.
+# Per-target LIBRARY_OUTPUT_DIRECTORY can still override this default.
+# ---------------------------------------------------------------------------
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+# ---------------------------------------------------------------------------
 # Locate JetScape.  When included via add_subdirectory from X-SCAPE/JETSCAPE
 # the JetScape target already exists in scope; otherwise locate it via the
 # build-tree export written to JETSCAPE_DIR (= path to the build directory).

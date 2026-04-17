@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
+# Place executables in the top-level build directory alongside runJetscape etc.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
 include(${ROOT_USE_FILE})
 
 foreach(_exe bulkTest bulkRootWriter bulkRootWriterFull)

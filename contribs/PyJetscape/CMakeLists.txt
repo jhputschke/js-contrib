@@ -60,9 +60,18 @@ target_include_directories(pyjetscape_core PRIVATE
 
 target_link_libraries(pyjetscape_core PRIVATE JetScape)
 
-# Output the .so directly into python/jetscape/ for easy import
+# Primary output in the top-level build directory (next to libJetScape.dylib).
+# A post-build copy also places the .so inside python/jetscape/ so that
+# `sys.path.insert(0, ".../PyJetscape/python"); import jetscape` keeps working.
 set_target_properties(pyjetscape_core PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
 )
 
-message(STATUS "pyjetscape_core will be built to ${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape/")
+add_custom_command(TARGET pyjetscape_core POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    $<TARGET_FILE:pyjetscape_core>
+    "${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape/$<TARGET_FILE_NAME:pyjetscape_core>"
+  COMMENT "Copying pyjetscape_core -> python/jetscape/ for Python import path"
+)
+
+message(STATUS "pyjetscape_core will be built to ${CMAKE_BINARY_DIR} (also copied to python/jetscape/)")
