@@ -15,7 +15,7 @@ analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJe
 
 The source files in this repository were copied from
 [JETSCAPE-FNO](https://github.com/JETSCAPE/JETSCAPE-FNO) at commit
-\`jhputschke/JETSCAPE-FNO @ PythonTest\` (April 2026).
+`jhputschke/JETSCAPE-FNO @ PythonTest` (April 2026).
 JETSCAPE-FNO remains the upstream source of truth; changes should be made there
 and synced here.
 
@@ -29,7 +29,7 @@ and synced here.
 
 ### Path A — via X-SCAPE CMake (recommended)
 
-\`\`\`bash
+```bash
 # 1. Fetch js-contrib into X-SCAPE
 cd X-SCAPE
 ./external_packages/get_js_contrib.sh
@@ -37,22 +37,22 @@ cd X-SCAPE
 # 2. Rebuild with desired contribs
 cd build
 cmake .. -DUSE_JS_CONTRIB=ON -DUSE_JS_FNO_HYDRO=ON   # or -DUSE_JS_PYJETSCAPE=ON
-make -j\$(nproc)
-\`\`\`
+make -j$(nproc)
+```
 
 ### Path B — standalone (fastjet-contrib style)
 
-\`\`\`bash
+```bash
 git clone https://github.com/jhputschke/js-contrib
 cd js-contrib && mkdir build && cd build
 
-cmake .. \\
-  -DJETSCAPE_DIR=/path/to/X-SCAPE/build \\
-  -DBUILD_FNO_HYDRO=ON \\
-  -DCMAKE_PREFIX_PATH=\$(python -c "import torch; print(torch.utils.cmake_prefix_path)")
+cmake .. \
+  -DJETSCAPE_DIR=/path/to/X-SCAPE/build \
+  -DBUILD_FNO_HYDRO=ON \
+  -DCMAKE_PREFIX_PATH=$(python -c "import torch; print(torch.utils.cmake_prefix_path)")
 
-make -j\$(nproc)
-\`\`\`
+make -j$(nproc)
+```
 
 ## Contributing
 
