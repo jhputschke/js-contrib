@@ -15,9 +15,7 @@ include(${ROOT_USE_FILE})
 # --- Sources ---
 set(FNO_SOURCES
   src/FnoHydro.cc
-  src/FnoHydro_beta.cc
   src/FnoRooIn.cc
-  src/FnoRooIn_beta.cc
   src/PGunFno.cc
 )
 

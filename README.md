@@ -134,6 +134,53 @@ if(USE_JS_CONTRIB)
 endif(USE_JS_CONTRIB)
 ```
 
+#### Step 3 — patch `src/CMakeLists.txt` and the top-level `CMakeLists.txt` (build-tree export)
+
+js-contrib discovers JetScape via a build-tree `export()`. The key constraint is
+that `export()` must be called **after** every optional `add_subdirectory()` that
+defines an in-tree target that `JetScape` links to (e.g. `music`, `iSS`). Because
+`add_subdirectory(./src)` is processed before those optional subdirectories in the
+top-level `CMakeLists.txt`, the `export()` call must be placed at the **end of
+the top-level `CMakeLists.txt`**, not inside `src/CMakeLists.txt`.
+
+**Remove** any existing `export(…)` / `configure_file(…JetScapeConfig…)` lines
+from `src/CMakeLists.txt`, then **append** the following block at the very end
+of the top-level `CMakeLists.txt`:
+
+```cmake
+# Build-tree export for js-contrib and other out-of-tree consumers.
+# Must live here — AFTER all optional add_subdirectory() calls — so every
+# in-tree target already exists when export() is invoked.
+set(_js_export_targets JetScape JetScapeThird GTL libtrento Cornelius)
+if(${HDF5_FOUND})
+  list(APPEND _js_export_targets hydroFromFile)
+endif()
+if(USE_IPGLASMA)
+  list(APPEND _js_export_targets ipglasma_lib)
+endif()
+if(USE_3DGlauber)
+  list(APPEND _js_export_targets 3dMCGlb)
+endif()
+if(USE_MUSIC)
+  list(APPEND _js_export_targets music)
+endif()
+if(USE_ISS)
+  list(APPEND _js_export_targets iSS)
+endif()
+if(OPENCL_FOUND AND USE_CLVISC)
+  list(APPEND _js_export_targets clviscwrapper)
+endif()
+export(TARGETS ${_js_export_targets} FILE "${CMAKE_BINARY_DIR}/JetScapeTargets.cmake")
+configure_file(${CMAKE_SOURCE_DIR}/cmake/JetScapeConfig.cmake.in
+               "${CMAKE_BINARY_DIR}/JetScapeConfig.cmake" @ONLY)
+```
+
+> **Why not in `src/CMakeLists.txt`?** CMake processes `add_subdirectory(./src)`
+> before the `if(USE_MUSIC) add_subdirectory(./external_packages/music) endif()`
+> block, so `music`, `iSS`, etc. do not exist yet when `src/CMakeLists.txt` runs.
+> Placing `export()` after those blocks avoids the
+> *"target X which is not built by this project"* error.
+
 After applying both blocks, run the fetch script and build normally:
 
 ```bash

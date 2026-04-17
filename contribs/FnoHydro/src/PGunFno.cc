@@ -105,7 +105,8 @@ void PGunFno::Exec() {
         << "No initial state module, setting the starting location to 0. ";
   } else {
     double x, y;
-    ini->SampleABinaryCollisionPoint(x, y);
+    //ini->SampleABinaryCollisionPoint(x, y); // for JETSCAPE, changed in X-SCAPE
+    ini->SampleABinaryCollisionPoint(0.0, x, y, 0.0); // for X-SCAPE
     xLoc[1] = x;
     xLoc[2] = y;
   }
