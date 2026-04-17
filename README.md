@@ -9,7 +9,7 @@ analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJe
 | Contrib | Description | Extra deps |
 |---------|-------------|------------|
 | [FnoHydro](contribs/FnoHydro/) | Neural-network (FNO) hydrodynamics via LibTorch | ROOT, libtorch (~2 GB) |
-| [PyJetscape](contribs/PyJetscape/) | pybind11 Python bindings + PyFNOHydro trampoline | pybind11, PyTorch |
+| [PyJetscape](contribs/PyJetscape/) | pybind11 Python bindings + PyFNOHydro trampoline | pybind11 (pip/conda auto-detected), PyTorch |
 
 ## Source provenance
 
@@ -44,11 +44,20 @@ make -j$(nproc)
 # For example to use FNO and new Python Interface, but w/o jet energy loss modudels,
 # but they can be attached to use the FNO hydro history for jet quenching
 cd build
-cmake .. -DUSE_MUSIC=ON -DUSE_ISS=ON -DUSE_PYTHON=ON -USE_ROOT=ON
-          -DUSE_JS_CONTRIB=ON -DUSE_JS_FNO_HYDRO=ON -DUSE_JS_PYJETSCAPE=ON
+cmake .. -DUSE_MUSIC=ON -DUSE_ISS=ON -DUSE_PYTHON=ON -USE_ROOT=ON \
+          -DUSE_JS_CONTRIB=ON -DUSE_JS_FNO_HYDRO=ON -DUSE_JS_PYJETSCAPE=ON \
           -DCMAKE_PREFIX_PATH=$(python -c "import torch; print(torch.utils.cmake_prefix_path)")
 make -j$(nproc)
 ```
+
+> **pybind11 discovery** — CMake first searches `CMAKE_PREFIX_PATH` / `pybind11_DIR`
+> (system or conda install), then falls back to asking the active Python interpreter
+> (`python -c "import pybind11; print(pybind11.get_cmake_dir())"`), so a plain
+> `pip install pybind11` or `conda install -c conda-forge pybind11` is sufficient.
+> If auto-detection still fails, pass the path explicitly:
+> ```bash
+> -Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())")
+> ```
 
 ### Path A′ — manual integration into older X-SCAPE checkouts
 
@@ -140,10 +149,14 @@ cd js-contrib && mkdir build && cd build
 cmake .. \
   -DJETSCAPE_DIR=/path/to/X-SCAPE/build \
   -DBUILD_FNO_HYDRO=ON \
+  -DBUILD_PYJETSCAPE=ON \
   -DCMAKE_PREFIX_PATH=$(python -c "import torch; print(torch.utils.cmake_prefix_path)")
 
 make -j$(nproc)
 ```
+
+pybind11 is auto-detected from a pip or conda install (see note in Path A above).
+If needed, add `-Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())")` to the cmake line.
 
 ## Environment setup (Mac Silicon / Linux aarch64)
 
