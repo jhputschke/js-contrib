@@ -1,5 +1,7 @@
 # Environment Setup for js-contrib / PyJetscape
 
+#### REMARK: Docker/Singularity containers for Linux x86 and arm64 will be provided asap. Mac Silicon containers, once there is MPS provided (maybe for testing purposes a CPU container will be provided soon).
+
 The `conda_install/` subdirectory contains scripts to create and verify the
 `js_fno` conda environment, which provides all Python and C++ build
 dependencies needed by the [PyJetscape](PyJetscape/README.md) and

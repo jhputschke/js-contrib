@@ -137,6 +137,8 @@ make -j$(nproc)
 
 ## Environment setup (Mac Silicon / Linux aarch64)
 
+#### REMARK: Docker/Singularity containers for Linux x86 and arm64 will be provided asap. Mac Silicon containers, once there is MPS provided (maybe for testing purposes a CPU container will be provided soon).
+
 The official JETSCAPE Docker images target Linux x86_64. On **Mac Silicon
 (`arm64`)** the MPS (Metal Performance Shaders) PyTorch backend is not
 available inside containers, and on **Linux `aarch64`** (AWS Graviton, ARM
