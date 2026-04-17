@@ -221,6 +221,94 @@ a native conda environment.
 See [contribs/README.md](contribs/README.md) for the step-by-step setup:
 dry-run package check, full build-environment install, and CMake integration.
 
+## XML configuration requirements for new modules
+
+Every JETSCAPE/X-SCAPE module class that reads parameters from XML
+(i.e. any class that inherits from `JetScapeModuleBase` and calls
+`GetXMLElement` / `GetXMLElementValue`) **must** have a corresponding
+default entry in the framework's main XML file (`config/jetscape_main.xml`).
+
+### Why this is required
+
+`JetScape::Init()` calls `CompareElementsFromXML()` →
+`recurseToSearch()` (see `src/framework/JetScape.cc`).
+This function iterates every element in the *user* XML and looks for a
+matching tag in the *main* XML.
+If **any** user XML tag has no matching default in the main XML the
+framework prints a `JSWARN` and immediately calls **`exit(-1)`** —
+the process terminates with no further output.
+
+> **This is not merely a warning.** The check is a hard requirement
+> enforced at startup; there is no way to suppress it at runtime.
+
+### What you must do when adding a new module
+
+1. **Add default XML blocks to `config/jetscape_main.xml`** in the
+   target X-SCAPE / JETSCAPE checkout, covering every tag your module
+   reads via `GetXMLElement*`.
+   The defaults should be safe fallback values — they are overridden
+   by whatever the user specifies in their user XML.
+
+2. **Place the block in the correct section** of `jetscape_main.xml`
+   (within `<IS>`, `<Hard>`, `<Hydro>`, `<SoftParticlization>`, etc.)
+   matching the lifecycle stage of the module.
+
+3. **Document the required additions** in your contrib's own `README.md`
+   so that users who integrate with an older X-SCAPE checkout know which
+   blocks to add by hand.
+
+### Example — FnoHydro
+
+The `FnoHydro` contrib registers two module classes (`FnoHydro` and
+`FnoRooIn`).  Both live in the `<Hydro>` section.  The required default
+blocks that must be present in `config/jetscape_main.xml` are:
+
+```xml
+<FNO>
+  <model_file>../fno_hydro/models/default.pt</model_file>
+  <centrality-low>0</centrality-low>
+  <centrality-high>10</centrality-high>
+  <EOS_id_MUSIC>91</EOS_id_MUSIC>
+  <n_features>3</n_features>
+  <freezeout_temperature>0.136</freezeout_temperature>
+  <nx>60</nx>
+  <ny>60</ny>
+  <ntau>50</ntau>
+  <x_min>-15.0</x_min>
+  <y_min>-15.0</y_min>
+  <dtau>0.1</dtau>
+  <neta>1</neta>
+  <deta>0</deta>
+</FNO>
+
+<FNOROOIN>
+  <model_file>../fno_hydro/models/default.pt</model_file>
+  <root_file>default.root</root_file>
+  <fullHydroIn>0</fullHydroIn>
+  <bulkHadroFull>0</bulkHadroFull>
+  <QAoutput>0</QAoutput>
+  <centrality-low>0</centrality-low>
+  <centrality-high>10</centrality-high>
+  <EOS_id_MUSIC>91</EOS_id_MUSIC>
+  <n_features>3</n_features>
+  <tau0>0.5</tau0>
+  <freezeout_temperature>0.136</freezeout_temperature>
+  <nx>60</nx>
+  <ny>60</ny>
+  <neta>1</neta>
+  <ntau>50</ntau>
+  <x_min>-15.0</x_min>
+  <y_min>-15.0</y_min>
+  <dtau>0.1</dtau>
+  <deta>0</deta>
+</FNOROOIN>
+```
+
+These blocks are already included in the `js-contrib-test` branch of
+[JETSCAPE/X-SCAPE](https://github.com/JETSCAPE/X-SCAPE).
+Users of older checkouts must add them manually as described in
+[Path A′](#path-a--manual-integration-into-older-x-scape-checkouts) above.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
