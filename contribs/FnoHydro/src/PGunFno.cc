@@ -106,7 +106,8 @@ void PGunFno::Exec() {
   } else {
     double x, y;
     //ini->SampleABinaryCollisionPoint(x, y); // for JETSCAPE, changed in X-SCAPE
-    ini->SampleABinaryCollisionPoint(0.0, x, y, 0.0); // for X-SCAPE
+    double t = 0.0; double z = 0.0;
+    ini->SampleABinaryCollisionPoint(t, x, y, z); // for X-SCAPE
     xLoc[1] = x;
     xLoc[2] = y;
   }
