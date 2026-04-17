@@ -1,0 +1,91 @@
+<?xml version="1.0" ?>
+<jetscape>
+
+  <enableAutomaticTaskListDetermination
+    > false </enableAutomaticTaskListDetermination>
+
+  <nEvents> 2000 </nEvents>
+
+  <Random>
+    <seed>1</seed>
+  </Random>
+
+  <vlevel> 0 </vlevel>
+
+  <setReuseHydro> false </setReuseHydro>
+  <nReuseHydro> 0 </nReuseHydro>
+
+  <JetScapeWriterAscii> on </JetScapeWriterAscii>
+
+  <write_pthat> 1 </write_pthat>
+
+  <!--Preequilibrium Dynamics Module -->
+  <Preequilibrium>
+      <tau0>0.5</tau0>
+      <NullPreDynamics> </NullPreDynamics>
+  </Preequilibrium>
+
+  <!-- Hydro  Module  -->
+  <Hydro>
+      <MUSIC>
+          <beastMode>1</beastMode>
+          <output_evolution_to_file>0</output_evolution_to_file>
+          <!--  <output_evolution_every_N_timesteps>10</output_evolution_every_N_timesteps> -->
+          <output_evolution_to_memory>1</output_evolution_to_memory>
+          <surface_in_memory>1</surface_in_memory>
+          <Initial_time_tau_0>0.5</Initial_time_tau_0>
+          <shear_viscosity_eta_over_s>0</shear_viscosity_eta_over_s>
+
+          <freezeout_temperature>0.136</freezeout_temperature>
+      </MUSIC>
+
+      <FNOROOIN>
+        <model_file
+            >../fno_hydro/models/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt</model_file>
+        <root_file
+            > ../fno_hydro/input_root/sample2K_40_60_nw9p6.root </root_file>
+
+        <fullHydroIn> 1 </fullHydroIn>
+        <bulkHadroFull> 1 </bulkHadroFull>
+        <QAoutput> 0 </QAoutput>
+
+        <!-- Not really used yet ...  !!! -->
+        <centrality-low>0</centrality-low>
+        <centrality-high>10</centrality-high>
+        <EOS_id_MUSIC>91</EOS_id_MUSIC>
+         <!--Trained on model/hydro grid parameters, explore super resolution later !!! -->
+        <n_features>3</n_features>
+        <tau0>0.5</tau0>
+        <freezeout_temperature>0.136</freezeout_temperature>
+        <nx>60</nx>
+        <ny>60</ny>
+        <neta>1</neta>
+        <ntau>59</ntau>
+        <x_min>-15.0</x_min>
+        <y_min>-15.0</y_min>
+         <!-- <dx>0.5</dx>
+        <dy>0.5</dy> -->
+        <dtau>0.1</dtau>
+        <deta>0</deta>
+
+      </FNOROOIN>
+
+  </Hydro>
+
+  <SoftParticlization>
+     <iSS>
+         <!-- file path for the default input file  -->
+         <iSS_input_file>iSS_parameters.dat</iSS_input_file>
+         <!-- directory path where the hydro surface is stored  -->
+         <iSS_table_path>iSS_tables</iSS_table_path>
+         <!-- file path for the default particle table files  -->
+         <iSS_particle_table_path>iSS_tables</iSS_particle_table_path>
+         <afterburner_type>2</afterburner_type>
+         <number_of_repeated_sampling>1</number_of_repeated_sampling>
+         <include_deltaf_shear>0</include_deltaf_shear>
+         <include_deltaf_bulk>0</include_deltaf_bulk>
+         <Perform_resonance_decays>0</Perform_resonance_decays>
+     </iSS>
+   </SoftParticlization>
+
+</jetscape>

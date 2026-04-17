@@ -1,0 +1,133 @@
+<?xml version="1.0" ?>
+<jetscape>
+
+  <enableAutomaticTaskListDetermination
+    > false </enableAutomaticTaskListDetermination>
+
+  <nEvents> 20000 </nEvents>
+
+  <Random>
+    <seed>1</seed>
+  </Random>
+
+  <vlevel> 0 </vlevel>
+
+  <setReuseHydro> true </setReuseHydro>
+  <nReuseHydro> 10 </nReuseHydro>
+
+  <outputFilename>test2.dat</outputFilename>
+  <JetScapeWriterAscii> on </JetScapeWriterAscii>
+
+  <write_pthat> 1 </write_pthat>
+
+  <!-- Hard Process  -->
+  <Hard>
+    <PGun>
+        <name>PGun</name>
+        <pT>20</pT>
+        <parID>21</parID>
+    </PGun>
+
+    <PGunFno>
+        <name>PGunFno</name>
+        <pT>20</pT>
+        <parID>21</parID>
+    </PGunFno>
+
+     <PythiaGun>
+       <pTHatMin>20</pTHatMin>
+       <pTHatMax>21</pTHatMax>
+       <eCM>200</eCM>
+     </PythiaGun>
+   </Hard>
+
+  <!--Preequilibrium Dynamics Module -->
+  <Preequilibrium>
+      <tau0>0.5</tau0>
+      <NullPreDynamics> </NullPreDynamics>
+  </Preequilibrium>
+
+  <!-- Hydro  Module  -->
+  <Hydro>
+      <MUSIC>
+          <beastMode>1</beastMode>
+          <output_evolution_to_file>0</output_evolution_to_file>
+          <!--  <output_evolution_every_N_timesteps>10</output_evolution_every_N_timesteps> -->
+          <output_evolution_to_memory>1</output_evolution_to_memory>
+          <surface_in_memory>1</surface_in_memory>
+          <Initial_time_tau_0>0.5</Initial_time_tau_0>
+          <shear_viscosity_eta_over_s>0</shear_viscosity_eta_over_s>
+
+          <freezeout_temperature>0.136</freezeout_temperature>
+      </MUSIC>
+
+      <FNOROOIN>
+        <model_file
+            >../fno_hydro/models/traced_JS3.7_10k_3feat_fno_model_cpu_0_10_59bins.pt</model_file>
+        <root_file> ../fno_hydro/input_root/sample2K_0_10.root </root_file>
+
+        <fullHydroIn> 0 </fullHydroIn>
+        <bulkHadroFull> 0 </bulkHadroFull>
+        <QAoutput> 0 </QAoutput>
+
+        <!-- Not really used yet ...  !!! -->
+        <centrality-low>0</centrality-low>
+        <centrality-high>10</centrality-high>
+        <EOS_id_MUSIC>91</EOS_id_MUSIC>
+         <!--Trained on model/hydro grid parameters, explore super resolution later !!! -->
+        <n_features>3</n_features>
+        <tau0>0.5</tau0>
+        <freezeout_temperature>0.136</freezeout_temperature>
+        <nx>60</nx>
+        <ny>60</ny>
+        <neta>1</neta>
+        <ntau>59</ntau>
+        <x_min>-15.0</x_min>
+        <y_min>-15.0</y_min>
+         <!-- <dx>0.5</dx>
+        <dy>0.5</dy> -->
+        <dtau>0.1</dtau>
+        <deta>0</deta>
+
+      </FNOROOIN>
+
+  </Hydro>
+
+  <!--Eloss Modules -->
+    <Eloss>
+        <maxT>100</maxT>
+      <Matter>
+          <!-- if not using lbt, use Q0=1; if using lbt use 2 -->
+        <Q0> 2.0 </Q0>
+        <in_vac> 0 </in_vac>
+        <vir_factor> 0.25 </vir_factor>
+        <recoil_on> 1 </recoil_on>
+        <broadening_on> 0 </broadening_on>
+        <!-- <brick_med> 1 </brick_med> -->
+        <!-- <!-1- maybe 4. is too long, but we can try 1 -> 2 -> 3 -> 5 etc... to see the change -->
+        <!-- based on the modification, using the same density--> -->
+        <!-- <brick_length> 14 </brick_length> -->
+        <hydro_Tc> 0.16 </hydro_Tc>
+      </Matter>
+
+      <!-- can run SMASH if I want, but not needed because we are using a separate backgound,
+      but when it's used, then it needs to run SMASH separately after JETSCAPE, can add later if wanted for correct background-->
+
+      <Lbt>
+        <name> Lbt </name>
+        <Q0> 2.0 </Q0>
+        <in_vac> 0 </in_vac>
+        <only_leading> 0 </only_leading>
+        <hydro_Tc> 0.16 </hydro_Tc>
+        <alphas> 0.2 </alphas>
+        <run_alphas>1</run_alphas>
+      </Lbt>
+
+    </Eloss>
+
+    <!-- Jet Hadronization Module -->
+    <JetHadronization>
+      <name>colorless</name>
+    </JetHadronization>
+
+</jetscape>

@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61", "pybind11>=2.11"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "pyjetscape"
+version = "0.1.0"
+description = "Python bindings for the JETSCAPE/X-SCAPE framework"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+dependencies = [
+    "numpy",
+    "torch",
+]
+
+[tool.setuptools.packages.find]
+where = ["python"]

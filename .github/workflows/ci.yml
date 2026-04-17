@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: jetscape/base:v1.8
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clone X-SCAPE
+        run: |
+          git clone https://github.com/JETSCAPE/X-SCAPE.git /work/X-SCAPE
+          cd /work/X-SCAPE
+          ./external_packages/get_music.sh || true
+
+      - name: Build X-SCAPE (base)
+        run: |
+          cmake -B /work/X-SCAPE/build /work/X-SCAPE
+          cmake --build /work/X-SCAPE/build --target JetScape -j\$(nproc)
+
+      - name: Build PyJetscape contrib
+        run: |
+          cmake -B build . \\
+            -DJETSCAPE_DIR=/work/X-SCAPE/build \\
+            -DBUILD_PYJETSCAPE=ON
+          cmake --build build --target pyjetscape_core -j\$(nproc)

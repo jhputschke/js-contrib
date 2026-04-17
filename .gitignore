@@ -1,0 +1,22 @@
+# Build artifacts
+build/
+*.so
+*.a
+*.o
+*.pcm
+*.rootmap
+
+# PyTorch model weights (large binary files — download separately)
+contribs/FnoHydro/models/*.pt
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
