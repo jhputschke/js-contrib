@@ -34,9 +34,19 @@ and synced here.
 cd X-SCAPE
 ./external_packages/get_js_contrib.sh
 
-# 2. Rebuild with desired contribs
+# 2. Rebuild with desired contribs in addition to other physics modules
 cd build
-cmake .. -DUSE_JS_CONTRIB=ON -DUSE_JS_FNO_HYDRO=ON   # or -DUSE_JS_PYJETSCAPE=ON
+cmake .. -DUSE_JS_CONTRIB=ON -DUSE_JS_FNO_HYDRO=ON ...  # or -DUSE_JS_PYJETSCAPE=ON
+make -j$(nproc)
+```
+
+```bash
+# For example to use FNO and new Python Interface, but w/o jet energy loss modudels,
+# but they can be attached to use the FNO hydro history for jet quenching
+cd build
+cmake .. -DUSE_MUSIC=ON -DUSE_ISS=ON -DUSE_PYTHON=ON -USE_ROOT=ON
+          -DUSE_JS_CONTRIB=ON -DUSE_JS_FNO_HYDRO=ON -DUSE_JS_PYJETSCAPE=ON
+          -DCMAKE_PREFIX_PATH=$(python -c "import torch; print(torch.utils.cmake_prefix_path)")
 make -j$(nproc)
 ```
 
