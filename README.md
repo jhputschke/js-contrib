@@ -54,6 +54,8 @@ make -j$(nproc)
 > (system or conda install), then falls back to asking the active Python interpreter
 > (`python -c "import pybind11; print(pybind11.get_cmake_dir())"`), so a plain
 > `pip install pybind11` or `conda install -c conda-forge pybind11` is sufficient.
+> `Python3` with the `Development.Module` component (CMake ≥ 3.18) is found
+> automatically before pybind11 to avoid the `python3_add_library` error.
 > If auto-detection still fails, pass the path explicitly:
 > ```bash
 > -Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())")

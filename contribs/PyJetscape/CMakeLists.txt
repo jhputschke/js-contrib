@@ -1,4 +1,13 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.18)
+
+# ---------------------------------------------------------------------------
+# Python3 must be found with Development.Module BEFORE pybind11 is loaded.
+# pybind11 >= 2.6 "new tools" mode delegates to python3_add_library(), which
+# is only registered when FindPython3 has been invoked with that component.
+# (Development.Module was introduced in CMake 3.18.)
+# ---------------------------------------------------------------------------
+find_package(Python3 COMPONENTS Interpreter Development.Module REQUIRED)
+message(STATUS "Python3: ${Python3_EXECUTABLE} (${Python3_VERSION})")
 
 # ---------------------------------------------------------------------------
 # Locate pybind11.
@@ -9,19 +18,16 @@ cmake_minimum_required(VERSION 3.15)
 # ---------------------------------------------------------------------------
 find_package(pybind11 CONFIG QUIET)
 if(NOT pybind11_FOUND)
-  find_package(Python3 COMPONENTS Interpreter QUIET)
-  if(Python3_FOUND)
-    execute_process(
-      COMMAND "${Python3_EXECUTABLE}" -c
-              "import pybind11; print(pybind11.get_cmake_dir())"
-      OUTPUT_VARIABLE _pybind11_cmake_dir
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-      RESULT_VARIABLE _pybind11_cmd_result
-    )
-    if(_pybind11_cmd_result EQUAL 0 AND _pybind11_cmake_dir)
-      list(APPEND CMAKE_PREFIX_PATH "${_pybind11_cmake_dir}")
-      find_package(pybind11 CONFIG QUIET)
-    endif()
+  execute_process(
+    COMMAND "${Python3_EXECUTABLE}" -c
+            "import pybind11; print(pybind11.get_cmake_dir())"
+    OUTPUT_VARIABLE _pybind11_cmake_dir
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE _pybind11_cmd_result
+  )
+  if(_pybind11_cmd_result EQUAL 0 AND _pybind11_cmake_dir)
+    list(APPEND CMAKE_PREFIX_PATH "${_pybind11_cmake_dir}")
+    find_package(pybind11 CONFIG QUIET)
   endif()
 endif()
 
