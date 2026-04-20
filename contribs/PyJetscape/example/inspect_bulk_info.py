@@ -37,6 +37,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import numpy as np
 
 # Suppress duplicate OpenMP runtime warning on macOS (PyTorch ships its own libomp)
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
@@ -101,7 +102,7 @@ def run_simulation(args: argparse.Namespace):
         The initial-state module used; TrentoInitial if --use-trento, else
         a GaussianIC instance.  Useful for accessing event geometry info.
     """
-    import numpy as np
+    #import numpy as np
     from jetscape import create_module, InitialState
     from jetscape.run_jetscape import run_manual
 
@@ -220,7 +221,7 @@ def plot_energy_density_slices(
     outdir  : output directory
     plt     : matplotlib.pyplot module
     """
-    import numpy as np
+    #import numpy as np
 
     ntau, nx, ny, _ = arr.shape
     tau_values = tau_min + dtau * np.arange(ntau)
@@ -269,7 +270,7 @@ def plot_temperature_profile(
         print("  [!] n_features < 2 — skipping temperature plot.")
         return
 
-    import numpy as np
+    #import numpy as np
 
     ntau  = arr.shape[0]
     tau_v = tau_min + dtau * np.arange(ntau)
@@ -308,7 +309,7 @@ def plot_velocity_field(
         print("  [!] n_features < 4 — skipping velocity quiver plot.")
         return
 
-    import numpy as np
+    #import numpy as np
 
     ntau      = arr.shape[0]
     tau_step  = max(0, min(ntau - 1, tau_step))
@@ -381,7 +382,7 @@ def plot_torch_tensor_summary(bulk_info, n_features: int, outdir: str, plt) -> N
 
 def print_summary(arr: "np.ndarray", n_features: int) -> None:
     """Print a concise summary of the bulk_info array to stdout."""
-    import numpy as np
+    #import numpy as np
 
     ntau, nx, ny, _ = arr.shape
     feature_names = ["energy_density", "temperature", "vx", "vy",
@@ -408,8 +409,6 @@ def print_summary(arr: "np.ndarray", n_features: int) -> None:
 
 def main() -> None:
     args = parse_args()
-
-    import numpy as np
 
     os.makedirs(args.outdir, exist_ok=True)
 
