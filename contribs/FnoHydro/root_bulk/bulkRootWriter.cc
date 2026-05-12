@@ -204,6 +204,10 @@ void BulkRootWriter::Init() {
 
     f=new TFile(oName.c_str(),"RECREATE");
     t=new TTree("t","Tree");
+    // Flush branch buffers to disk after every Fill() so each event is its own basket.
+    // Without this ROOT accumulates all events in one basket and uproot must load the
+    // entire basket (= all events) even when only a slice is requested.
+    t->SetAutoFlush(1);
 }
 
 BulkRootWriter::~BulkRootWriter() {
