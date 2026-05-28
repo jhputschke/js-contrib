@@ -42,7 +42,7 @@ Original development repository:
 | `python/jetscape/__init__.py` | Package entry point; re-exports key symbols from `pyjetscape_core` |
 | `python/jetscape/fno_hydro.py` | `PyFNOHydro` — Python FluidDynamics backed by a PyTorch FNO model |
 | `python/jetscape/utils.py` | NumPy/PyTorch ↔ JETSCAPE bulk-info conversion helpers |
-| `python/jetscape/run_jetscape.py` | High-level simulation drivers: `run_automatic()` (Mode A) and `run_manual()` (Mode B) |
+| `python/jetscape/run_jetscape.py` | High-level simulation drivers: `run_automatic()` (Mode A), `run_manual()` (Mode B), `per_event_loop()` / `run_per_event()` (Mode C) |
 | `python/jetscape/bulk_root_writer.py` | Python ROOT bulk-evolution writer via uproot |
 | `conda_install/` | Conda environment installation scripts for the `js_fno` environment |
 | `pyproject.toml` | Source-only Python package metadata (`name = "pyjetscape"`) |
@@ -261,6 +261,65 @@ js.Exec()
 js.Finish()
 ```
 
+### Mode C — Per-Event External Loop
+
+`JetScapePerEvent` exposes the event loop one event at a time, so the loop runs
+in Python and the per-event module results can be read *after* each event
+executes and *before* its memory is released.  Because the data is still intact
+at that point, no `set_preserve_bulk_info()` workaround is needed.  Works with
+either XML configuration (automatic or manual task list).
+
+Generator form (`per_event_loop`):
+
+```python
+import torch
+from jetscape import JetScapeSignalManager
+from jetscape.run_jetscape import per_event_loop
+
+for js in per_event_loop("config/jetscape_main.xml",
+                         "config/jetscape_user_MUSIC.xml"):
+    hydro = JetScapeSignalManager.Instance().GetHydroPointer()
+    if hydro is not None:
+        info = hydro.get_bulk_info()   # live results for this event
+    # ... analyse this event ...
+# Finish() is called automatically when the loop ends.
+```
+
+Callback form (`run_per_event`):
+
+```python
+from jetscape.run_jetscape import run_per_event
+
+def analyse(js):
+    hydro = JetScapeSignalManager.Instance().GetHydroPointer()
+    ...
+
+run_per_event("config/jetscape_main.xml",
+              "config/jetscape_user_MUSIC.xml",
+              on_event=analyse)
+```
+
+For a manual pipeline, pass `modules=[...]` (validated like `run_manual()`).
+`SetStartEvent(n)` / `start_event=n` shifts the global event counter.  Driving
+the object directly is also supported:
+
+```python
+from jetscape import JetScapePerEvent
+
+js = JetScapePerEvent()
+js.SetXMLMainFileName("config/jetscape_main.xml")
+js.SetXMLUserFileName("config/jetscape_user_MUSIC.xml")
+js.Init()
+for _ in range(js.GetNumberOfEvents()):
+    js.ExecPerEvent()       # run one event; data stays in memory
+    # ... read module data here ...
+    js.ClearPerEvent()      # release memory, advance counter
+js.Finish()
+```
+
+> Note: `Exec()` is disabled on `JetScapePerEvent` (it warns and exits); use the
+> `ExecInit` / `ExecPerEvent` / `ClearPerEvent` API instead.
+
 ---
 
 ## `PyFNOHydro` — Python FNO Hydro Module
@@ -351,17 +410,46 @@ writer.close()
 
 ## Pipeline Mode Comparison
 
-| Feature | Mode A (XML-driven) | Mode B (manual) |
-|---------|--------------------|--------------------|
-| `enableAutomaticTaskListDetermination` | `true` | `false` |
-| Module instantiation | C++ factory from XML | Python list |
-| Python trampoline modules (e.g. `PyFNOHydro`) | Not supported | **Supported** |
-| Parameter changes without recompile | XML edit | Python dict / XML parse |
-| Typical use | Standard JETSCAPE workflow | Research, ML integration |
+| Feature | Mode A (XML-driven) | Mode B (manual) | Mode C (per-event) |
+|---------|--------------------|--------------------|--------------------|
+| `enableAutomaticTaskListDetermination` | `true` | `false` | either |
+| Module instantiation | C++ factory from XML | Python list | XML or Python list |
+| Python trampoline modules (e.g. `PyFNOHydro`) | Not supported | **Supported** | **Supported** (manual) |
+| Event loop driven by | `JetScape::Exec()` | `JetScape::Exec()` | **Python loop** |
+| Per-event data accessible before clear | No | No | **Yes** |
+| Typical use | Standard JETSCAPE workflow | Research, ML integration | Per-event analysis / streaming |
 
 ---
 
 ## Example Script
+
+A per-event (Mode C) example is included at `example/per_event_loop.py`. It
+runs the event loop in Python and reads the live hydro module for each event.
+It supports both the XML task list and a manual pipeline:
+
+```bash
+conda activate js_fno
+export PYTHONPATH="/path/to/js-contrib/contribs/PyJetscape/python:$PYTHONPATH"
+
+# XML-driven task list (user XML: enableAutomaticTaskListDetermination = true)
+python example/per_event_loop.py \
+  --main config/jetscape_main.xml \
+  --user config/jetscape_user.xml \
+  --events 5
+
+# Manual pipeline (user XML: enableAutomaticTaskListDetermination = false)
+python example/per_event_loop.py --manual \
+  --user config/jetscape_user_MUSIC.xml \
+  --initial-state TrentoInitial \
+  --preequilibrium NullPreDynamics \
+  --hydro-module MUSIC \
+  --events 5
+```
+
+In `--manual` mode the example builds `[initial-state, pre-equilibrium, hydro]`
+via `create_module()` and hands the list to `per_event_loop(..., modules=[...])`;
+swap in a Python trampoline module (e.g. `PyFNOHydro`) for the hydro stage as
+needed.
 
 A full end-to-end example (Mode B with PyFNOHydro) is included in the
 JETSCAPE-FNO repository at

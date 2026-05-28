@@ -8,6 +8,8 @@
  *                        subclasses can override Init(), Exec(), Clear(),
  *                        and Finish().
  *   - JetScape (Init, Exec, Finish, SetNumberOfEvents, SetReuseHydro, …)
+ *   - JetScapePerEvent (ExecInit, ExecPerEvent, ClearPerEvent, SetStartEvent)
+ *                       — drive the event loop one event at a time from Python.
  *   - create_module(name) — wraps JetScapeModuleFactory::createInstance
  ******************************************************************************/
 
@@ -17,6 +19,7 @@
 #include "FluidDynamics.h"
 #include "InitialState.h"
 #include "JetScape.h"
+#include "JetScapePerEvent.h"
 #include "JetScapeModuleBase.h"
 #include "JetScapeTask.h"
 #include "JetScapeXML.h"
@@ -164,6 +167,12 @@ void bind_framework(py::module_ &m) {
            "Clear per-event state (called between events).")
       .def("Finish", &JetScapeModuleBase::Finish,
            "Finalise the module (called by JetScape::Finish()).")
+      .def_static("GetCurrentEvent", &JetScapeModuleBase::GetCurrentEvent,
+           "Return the framework-global current event number (advanced by "
+           "ClearPerEvent() / per-event execution).")
+      .def_static("IncrementCurrentEvent",
+           &JetScapeModuleBase::IncrementCurrentEvent,
+           "Increment the framework-global current event number.")
       // ── JetScapeXML accessors (user file first, then main file) ────────────
       // Mirrors JetScapeModuleBase::GetXMLElement{Text,Int,Double} but accepts
       // a Python list of tag names instead of a C++ initializer_list.
@@ -289,6 +298,65 @@ void bind_framework(py::module_ &m) {
            py::arg("n"))
       .def("GetNReuseHydro", &JetScape::GetNReuseHydro,
            "Return the hydro-reuse count.");
+
+  // ── JetScapePerEvent ──────────────────────────────────────────────────────
+  // JetScape driver that exposes the event loop one event at a time, so the
+  // loop can be steered from Python and the per-event module results can be
+  // read before their memory is released:
+  //
+  //   js = JetScapePerEvent()
+  //   js.SetXMLMainFileName("config/jetscape_main.xml")
+  //   js.SetXMLUserFileName("config/jetscape_user.xml")
+  //   js.Init()
+  //   js.ExecInit()                       # optional; ExecPerEvent lazy-inits
+  //   for _ in range(js.GetNumberOfEvents()):
+  //       js.ExecPerEvent()               # run one event; data stays in memory
+  //       sm = JetScapeSignalManager.Instance()   # ... read module data here ...
+  //       js.ClearPerEvent()              # release memory, advance counter
+  //   js.Finish()
+  //
+  // Note: Exec() is disabled on this class (it warns and exits); use the
+  // ExecInit/ExecPerEvent/ClearPerEvent API instead.
+  py::class_<JetScapePerEvent, JetScape, std::shared_ptr<JetScapePerEvent>>(
+      m, "JetScapePerEvent",
+      R"pbdoc(
+        JetScape driver that runs the event loop one event at a time.
+
+        Unlike JetScape (whose Exec() owns the whole loop and clears each
+        event's memory before the next), JetScapePerEvent lets the external
+        Python loop run a single event, inspect the live module results, and
+        then explicitly release the memory:
+
+            js = JetScapePerEvent()
+            js.SetXMLMainFileName(main_xml)
+            js.SetXMLUserFileName(user_xml)
+            js.Init()
+            for _ in range(js.GetNumberOfEvents()):
+                js.ExecPerEvent()
+                # ... read module data for the current event here ...
+                js.ClearPerEvent()
+            js.Finish()
+
+        SetStartEvent(n) shifts the (framework-global) event counter so the
+        first event runs as event n (default 0). Exec() is disabled on this
+        class and will warn-and-exit if called.
+      )pbdoc")
+      .def(py::init<>())
+      .def("ExecInit", &JetScapePerEvent::ExecInit,
+           "One-time pre-loop setup (collect writers, CheckExec, snapshot "
+           "active flags). Idempotent; ExecPerEvent() also calls it lazily.")
+      .def("ExecPerEvent", &JetScapePerEvent::ExecPerEvent,
+           "Run a single event, leaving all module data in memory for "
+           "inspection. The event number is taken from the global counter.")
+      .def("ClearPerEvent", &JetScapePerEvent::ClearPerEvent,
+           "Release the per-event module memory and advance the event "
+           "counter. Call after reading the data for the current event.")
+      .def("SetStartEvent", &JetScapePerEvent::SetStartEvent,
+           "Set the starting event number (default 0). Must be called before "
+           "the first ExecPerEvent().",
+           py::arg("start_event"))
+      .def("GetStartEvent", &JetScapePerEvent::GetStartEvent,
+           "Return the configured starting event number.");
 
   // ── Module factory ──────────────────────────────────────────────────────────
   // Instantiate any C++ module that is registered via RegisterJetScapeModule<T>.

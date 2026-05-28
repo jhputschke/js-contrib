@@ -18,6 +18,7 @@ from .pyjetscape_core import (  # noqa: F401
     JetScapeTask,
     JetScapeModuleBase,
     JetScape,
+    JetScapePerEvent,
     create_module,
     # Signal manager — global access to all registered pipeline modules
     JetScapeSignalManager,
