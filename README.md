@@ -221,6 +221,49 @@ make -j$(nproc)
 pybind11 is auto-detected from a pip or conda install (see note in Path A above).
 If needed, add `-Dpybind11_DIR=$(python -c "import pybind11; print(pybind11.get_cmake_dir())")` to the cmake line.
 
+### Path C — standalone against an installed X-SCAPE prefix
+
+If X-SCAPE has been installed with `cmake --install` (≥ X-SCAPE `music4gpu_test`
+branch), js-contrib can link against the installed libraries without keeping the
+build tree around:
+
+```bash
+# 1. Build and install X-SCAPE once
+cd X-SCAPE && mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=/opt/xscape \
+         -DUSE_MUSIC=ON -DUSE_ISS=ON -DUSE_3DGlauber=ON
+make -j$(nproc)
+cmake --install .
+
+# 2. Build js-contrib against the installed prefix
+git clone https://github.com/jhputschke/js-contrib
+cd js-contrib && mkdir build && cd build
+
+cmake .. \
+  -DCMAKE_PREFIX_PATH=/opt/xscape \
+  -DBUILD_FNO_HYDRO=ON \
+  -DBUILD_PYJETSCAPE=ON \
+  -DCMAKE_PREFIX_PATH="$(python -c "import torch; print(torch.utils.cmake_prefix_path)"):/opt/xscape"
+
+make -j$(nproc)
+```
+
+`find_package(XSCAPE)` is resolved automatically from
+`/opt/xscape/lib/cmake/XSCAPE/`.  `XSCAPE::JetScape` is aliased to the
+plain `JetScape` target so no changes to individual contrib `CMakeLists.txt`
+files are required.
+
+> **No build tree needed** — you can delete the X-SCAPE build directory after
+> `cmake --install` completes.
+
+### Integration modes summary
+
+| Mode | Trigger | JetScape resolved via |
+|------|---------|-----------------------|
+| Path A — in-tree | `-DUSE_JS_CONTRIB=ON` inside X-SCAPE build | target already in CMake scope |
+| Path B — build-tree standalone | `JETSCAPE_DIR=/path/to/xscape/build` | `JetScapeConfig.cmake` in build dir |
+| Path C — installed prefix | `CMAKE_PREFIX_PATH=/opt/xscape` | `find_package(XSCAPE)` → `XSCAPE::JetScape` alias |
+
 ## Environment setup (Mac Silicon / Linux aarch64)
 
 #### REMARK: Docker/Singularity containers for Linux x86 and arm64 will be provided asap. Mac Silicon containers, once there is MPS provided (maybe for testing purposes a CPU container will be provided soon).
