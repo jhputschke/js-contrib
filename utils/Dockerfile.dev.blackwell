@@ -46,19 +46,38 @@ RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
 
 RUN /opt/miniforge3/bin/mamba create -n xscape python=3.11 -y -c conda-forge
 
+# Split into smaller solves to stay within GitHub Actions runner memory (~7 GB).
+# Each step pins already-installed packages, reducing subsequent solve sizes.
+
+# Step 1: build tools + common C++ libs
 RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
     cmake make compilers \
-    boost-cpp zlib hdf5 gsl \
+    boost-cpp zlib hdf5 gsl openmpi \
+  && /opt/miniforge3/bin/mamba clean -afy
+
+# Step 2: HEP packages (boost/hdf5/gsl already pinned — smaller solve)
+RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
     pythia8 hepmc3 fastjet \
+  && /opt/miniforge3/bin/mamba clean -afy
+
+# Step 3: ROOT alone (large tree; isolated solve avoids combined OOM)
+RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
     root \
-    openmpi "pybind11>=2.11" \
+  && /opt/miniforge3/bin/mamba clean -afy
+
+# Step 4: pybind11 + core Python scientific stack
+RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
+    "pybind11>=2.11" \
     "numpy>=2.0" matplotlib scipy h5py zarr uproot awkward \
+  && /opt/miniforge3/bin/mamba clean -afy
+
+# Step 5: remaining Python tools
+RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
     opt-einsum tensorly scikit-image psutil seaborn tqdm \
     ruamel-yaml wandb \
     gcsfs google-cloud-storage \
-    jupyterlab ipykernel
-
-RUN /opt/miniforge3/bin/mamba clean -afy
+    jupyterlab ipykernel \
+  && /opt/miniforge3/bin/mamba clean -afy
 
 # Notes:
 # - 'compilers' installs the arch-specific conda cross-compiler (CXX) for
@@ -68,7 +87,8 @@ RUN /opt/miniforge3/bin/mamba clean -afy
 # ── Phase 3: PyTorch (CUDA 13.2) + pip-only FNO4d packages ───────────────
 RUN /opt/miniforge3/envs/xscape/bin/pip install \
     torch torchvision \
-    --index-url https://download.pytorch.org/whl/cu132
+    --index-url https://download.pytorch.org/whl/cu132 \
+  && /opt/miniforge3/envs/xscape/bin/pip cache purge
 
 # pip-only packages from FNO4d/requirements-base.txt
 # (all other FNO4d deps already installed via conda above)

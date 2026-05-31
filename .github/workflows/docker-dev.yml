@@ -22,6 +22,7 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180   # 3 h hard cap; a hung download won't burn 6 h of quota
     strategy:
       fail-fast: false
       matrix:
@@ -69,9 +70,19 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/xscape-fno4d-dev:${{ matrix.tag }}-${{ matrix.suffix }}
-          # Scoped cache: each of the 4 jobs has its own GHA cache slot
+          # Pass Docker Hub credentials into the build so the base image (nvidia/cuda)
+          # is pulled as an authenticated user — avoids the 100-pull/6h rate limit.
+          build-args: |
+            BUILDKIT_INLINE_CACHE=1
+          secret: |
+            id=dockerhub_token,env=DOCKERHUB_TOKEN
+          # Scoped cache: each of the 4 jobs has its own GHA cache slot.
+          # GHA cache is capped at 10 GB total — layers are evicted LRU when full,
+          # so the first build after eviction is a cold build (not a failure).
           cache-from: type=gha,scope=${{ matrix.tag }}-${{ matrix.suffix }}
           cache-to:   type=gha,scope=${{ matrix.tag }}-${{ matrix.suffix }},mode=max
+        env:
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   # ── Merge ────────────────────────────────────────────────────────────────
   # After all 4 build jobs succeed, combine the arch-specific images into a
