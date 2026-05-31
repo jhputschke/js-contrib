@@ -31,7 +31,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # - cmake, boost, hdf5, gsl, pythia8 come from conda-forge (consistent ABI).
 
 # ── Phase 2: miniforge3 + conda environment ───────────────────────────────
-ARG TARGETARCH
 RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
   && wget -q "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${ARCH}.sh" \
        -O /tmp/miniforge.sh \
@@ -69,7 +68,7 @@ RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
 # Step 5: remaining Python tools
 RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
     opt-einsum tensorly scikit-image psutil seaborn tqdm \
-    ruamel-yaml wandb \
+    ruamel.yaml wandb \
     gcsfs google-cloud-storage \
     jupyterlab ipykernel \
   && /opt/miniforge3/bin/mamba clean -afy
@@ -89,7 +88,8 @@ RUN /opt/miniforge3/envs/xscape/bin/pip install \
 # (all other FNO4d deps already installed via conda above)
 RUN /opt/miniforge3/envs/xscape/bin/pip install \
     tensorly-torch \
-    "zencfg>=0.3.0" configmypy
+    "zencfg>=0.3.0" configmypy \
+    pelicanfs
 
 # Notes:
 # - neuraloperator is NOT installed here; FNO4d vendors its own pinned fork
@@ -106,7 +106,7 @@ ENV CONDA_ENV=/opt/miniforge3/envs/xscape \
     ROOTSYS=/opt/miniforge3/envs/xscape \
     CMAKE_PREFIX_PATH=/opt/miniforge3/envs/xscape \
     CUDAHOSTCXX=/usr/bin/g++ \
-    LD_LIBRARY_PATH=/opt/miniforge3/envs/xscape/lib
+    LD_LIBRARY_PATH=/opt/miniforge3/envs/xscape/lib:$LD_LIBRARY_PATH
 
 WORKDIR /workspace
 EXPOSE 8888

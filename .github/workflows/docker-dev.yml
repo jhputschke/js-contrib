@@ -54,35 +54,32 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build and push (${{ matrix.tag }}-${{ matrix.suffix }})
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: utils/
           file: ${{ matrix.dockerfile }}
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/xscape-fno4d-dev:${{ matrix.tag }}-${{ matrix.suffix }}
-          # Pass Docker Hub credentials into the build so the base image (nvidia/cuda)
-          # is pulled as an authenticated user — avoids the 100-pull/6h rate limit.
+          # The nvidia/cuda base image is pulled as an authenticated Docker Hub user
+          # via the docker/login-action step above (buildx reuses those credentials),
+          # which avoids the anonymous 100-pull/6h rate limit.
           build-args: |
             BUILDKIT_INLINE_CACHE=1
-          secret: |
-            id=dockerhub_token,env=DOCKERHUB_TOKEN
           # Scoped cache: each of the 4 jobs has its own GHA cache slot.
           # GHA cache is capped at 10 GB total — layers are evicted LRU when full,
           # so the first build after eviction is a cold build (not a failure).
           cache-from: type=gha,scope=${{ matrix.tag }}-${{ matrix.suffix }}
           cache-to:   type=gha,scope=${{ matrix.tag }}-${{ matrix.suffix }},mode=max
-        env:
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   # ── Merge ────────────────────────────────────────────────────────────────
   # After all 4 build jobs succeed, combine the arch-specific images into a
@@ -100,13 +97,13 @@ jobs:
 
     steps:
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Create multi-arch manifest (${{ matrix.tag }})
         run: |
