@@ -45,12 +45,15 @@ RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
 
 RUN /opt/miniforge3/bin/mamba create -n xscape python=3.11 -y -c conda-forge
 
-# Split into smaller solves to stay within GitHub Actions runner memory (~7 GB).
-# Each step pins already-installed packages, reducing subsequent solve sizes.
+# conda owns ONLY the C++/HEP/ABI layer + python + numpy. Every pure-Python leaf
+# package (scientific/viz/cloud/ML) is installed via pip in Phase 3 — pip's
+# resolver + precompiled wheels sidestep the conda SAT backtracking that the heavy
+# metapackages (Qt via matplotlib, protobuf via wandb/google-cloud) trigger.
+# The conda steps stay split so ROOT's large tree solves in isolation.
 
-# Step 1: build tools + common C++ libs
+# Step 1: build tools + C++ build/runtime libs (+ pybind11 for find_package)
 RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
-    cmake make compilers \
+    cmake make compilers "pybind11>=2.11" \
     boost-cpp zlib hdf5 gsl openmpi \
   && /opt/miniforge3/bin/mamba clean -afy
 
@@ -67,24 +70,10 @@ RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
 # notebook/metakernel/ipython/numba/compilers — none needed here (compilers +
 # jupyterlab are installed separately; numba is unused) — and its numba->llvmlite
 # LLVM pin fights ROOT's cling LLVM, bloating the solve.
-# Pin numpy>=2.0 so a numpy-2-compatible build is chosen up front; otherwise
-# Step 4's numpy>=2.0 forces an expensive ROOT re-solve/backtrack.
+# Pin numpy>=2.0: this is the single numpy for the whole env (ROOT/PyROOT link it,
+# and the pip layer in Phase 3 is constrained to it), so fix the floor here.
 RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
     root_base "numpy>=2.0" \
-  && /opt/miniforge3/bin/mamba clean -afy
-
-# Step 4: pybind11 + core Python scientific stack
-RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
-    "pybind11>=2.11" \
-    "numpy>=2.0" matplotlib scipy h5py zarr uproot awkward \
-  && /opt/miniforge3/bin/mamba clean -afy
-
-# Step 5: remaining Python tools
-RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
-    opt-einsum tensorly scikit-image psutil seaborn tqdm \
-    ruamel.yaml wandb \
-    gcsfs google-cloud-storage \
-    jupyterlab ipykernel \
   && /opt/miniforge3/bin/mamba clean -afy
 
 # Notes:
@@ -92,18 +81,35 @@ RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
 #   C++ TUs; ensures ABI compatibility with conda-forge Pythia8/ROOT/HDF5.
 # - nvcc uses CUDAHOSTCXX=/usr/bin/g++ (system GCC 13) — set in Phase 4.
 
-# ── Phase 3: PyTorch (CUDA 13.2) + pip-only FNO4d packages ───────────────
+# ── Phase 3: pip layer — PyTorch + ALL pure-Python packages ───────────────
+# conda above owns only the C++/HEP/ABI layer + python + numpy. Everything that
+# does not link the conda C++ stack is installed here: pip's resolver and
+# precompiled wheels avoid the conda SAT backtracking that the ML/viz/cloud
+# metapackages (Qt via matplotlib, protobuf via wandb/google-cloud) trigger.
+#
+# numpy is left unconstrained: pip may upgrade the conda-installed numpy to suit
+# the leaf wheels. That can break PyROOT's bindings, but the C++ ROOT libraries
+# (libRIO/libTree, used by the X-SCAPE build) don't depend on Python numpy, and
+# PyROOT is unused here — so this is intentionally acceptable.
+
+# PyTorch (CUDA 13.2) from the dedicated index (numpy already present from conda).
 RUN /opt/miniforge3/envs/xscape/bin/pip install \
     torch torchvision \
     --index-url https://download.pytorch.org/whl/cu132 \
   && /opt/miniforge3/envs/xscape/bin/pip cache purge
 
-# pip-only packages from FNO4d/requirements-base.txt
-# (all other FNO4d deps already installed via conda above)
+# Scientific / viz / cloud / FNO4d stack from PyPI in one resolution.
+# matplotlib here is the pip wheel (Agg backend, no Qt). h5py's wheel bundles its
+# own HDF5 — independent of the conda hdf5 the C++ build links, which is fine for
+# Python-side I/O (the HDF5 file format is stable across the two).
 RUN /opt/miniforge3/envs/xscape/bin/pip install \
-    tensorly-torch \
-    "zencfg>=0.3.0" configmypy \
-    pelicanfs
+    matplotlib scipy h5py zarr uproot awkward \
+    opt-einsum tensorly scikit-image psutil seaborn tqdm \
+    "ruamel.yaml" wandb \
+# gcsfs google-cloud-storage   <- disabled for now; pelicanfs (below) is the planned production data layer
+    jupyterlab ipykernel \
+    tensorly-torch "zencfg>=0.3.0" configmypy pelicanfs \
+  && /opt/miniforge3/envs/xscape/bin/pip cache purge
 
 # Notes:
 # - PyTorch 2.12+ ships native cu132 wheels; no CUDA backward-compat layer needed.
