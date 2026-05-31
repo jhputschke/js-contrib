@@ -53,6 +53,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Free disk space
+        # Removes pre-installed Android SDK, .NET, Haskell, tool cache, etc.
+        # Recovers ~30-40 GB → leaves ~45 GB free for the ~18 GB image build.
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false   # keep swap; helps if mamba briefly spikes RAM
+
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
         with:
