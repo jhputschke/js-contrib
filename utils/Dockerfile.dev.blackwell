@@ -59,9 +59,18 @@ RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
     pythia8 hepmc3 fastjet \
   && /opt/miniforge3/bin/mamba clean -afy
 
-# Step 3: ROOT alone (large tree; isolated solve avoids combined OOM)
+# Step 3: ROOT alone (large tree; isolated solve avoids combined OOM).
+# Use root_base, not the full 'root' metapackage. root_base IS the complete ROOT
+# build (Core/RIO/Tree/Hist/Graf/Gpad/PyROOT) and ships ROOTConfig.cmake for
+# find_package(ROOT) — it covers everything X-SCAPE uses (TFile, TTree, TH1/2/3,
+# TF1, TCanvas, TString, TSystem, TRandom, TMath). The full 'root' only adds
+# notebook/metakernel/ipython/numba/compilers — none needed here (compilers +
+# jupyterlab are installed separately; numba is unused) — and its numba->llvmlite
+# LLVM pin fights ROOT's cling LLVM, bloating the solve.
+# Pin numpy>=2.0 so a numpy-2-compatible build is chosen up front; otherwise
+# Step 4's numpy>=2.0 forces an expensive ROOT re-solve/backtrack.
 RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
-    root \
+    root_base "numpy>=2.0" \
   && /opt/miniforge3/bin/mamba clean -afy
 
 # Step 4: pybind11 + core Python scientific stack
