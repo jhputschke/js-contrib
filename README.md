@@ -77,9 +77,10 @@ in one of two ways:
 
 ### Path A′ — manual integration into older X-SCAPE checkouts
 
-If your X-SCAPE checkout predates the js-contrib integration, apply the two
-steps below by hand (they mirror exactly what the up-to-date `CMakeLists.txt`
-and `external_packages/get_js_contrib.sh` already contain).
+If your X-SCAPE checkout predates the js-contrib integration, apply the three
+steps below by hand (they mirror exactly what the up-to-date `CMakeLists.txt`,
+`cmake/JetScapeConfig.cmake.in`, and `external_packages/get_js_contrib.sh`
+already contain).
 
 #### Step 1 — add `external_packages/get_js_contrib.sh`
 
@@ -148,7 +149,7 @@ if(USE_JS_CONTRIB)
 endif(USE_JS_CONTRIB)
 ```
 
-#### Step 3 — patch `src/CMakeLists.txt` and the top-level `CMakeLists.txt` (build-tree export)
+#### Step 3 — patch `src/CMakeLists.txt`, `cmake/JetScapeConfig.cmake.in`, and the top-level `CMakeLists.txt` (build-tree export)
 
 js-contrib discovers JetScape via a build-tree `export()`. The key constraint is
 that `export()` must be called **after** every optional `add_subdirectory()` that
@@ -157,7 +158,34 @@ defines an in-tree target that `JetScape` links to (e.g. `music`, `iSS`). Becaus
 top-level `CMakeLists.txt`, the `export()` call must be placed at the **end of
 the top-level `CMakeLists.txt`**, not inside `src/CMakeLists.txt`.
 
-**Remove** any existing `export(…)` / `configure_file(…JetScapeConfig…)` lines
+**3a — update `cmake/JetScapeConfig.cmake.in`**
+
+Older checkouts contain only `include(...)`. Replace the entire file with:
+
+```cmake
+include("${CMAKE_CURRENT_LIST_DIR}/JetScapeTargets.cmake")
+
+# Provide JetScape_INCLUDE_DIRS so that standalone consumers (e.g. js-contrib
+# built with JETSCAPE_DIR pointing at this build directory) can locate the
+# X-SCAPE / JETSCAPE framework headers without relying on global
+# include_directories() from the parent CMake scope.
+set(JetScape_INCLUDE_DIRS
+  "@CMAKE_SOURCE_DIR@/src/framework"
+  "@CMAKE_SOURCE_DIR@/src/initialstate"
+  "@CMAKE_SOURCE_DIR@/src/preequilibrium"
+  "@CMAKE_SOURCE_DIR@/src/hydro"
+  "@CMAKE_SOURCE_DIR@/src/liquefier"
+  "@CMAKE_SOURCE_DIR@/src/jet"
+  "@CMAKE_SOURCE_DIR@/src/hadronization"
+  "@CMAKE_SOURCE_DIR@/src/afterburner"
+  "@CMAKE_SOURCE_DIR@/external_packages"
+  "@CMAKE_SOURCE_DIR@/external_packages/gtl/include"
+  "@CMAKE_SOURCE_DIR@/external_packages/trento/src"
+)
+set(JetScape_FOUND TRUE)
+```
+
+**3b — Remove** any existing `export(…)` / `configure_file(…JetScapeConfig…)` lines
 from `src/CMakeLists.txt`, then **append** the following block at the very end
 of the top-level `CMakeLists.txt`:
 
