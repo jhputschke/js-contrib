@@ -1,0 +1,99 @@
+# Dockerfile.dev.blackwell — X-SCAPE + music4gpu + js-contrib + FNO4d development image
+#
+# Target:  Blackwell generation (CUDA 13.2, sm_75–sm_100)
+#          GB200, GB10 (sm_100) in addition to RTX 20/30/40xx, A100, H100, GH200
+#
+# Build (multi-arch):
+#   docker buildx build --platform linux/amd64,linux/arm64 \
+#     -t xscape-fno4d-dev:cu132 -f Dockerfile.dev.blackwell .
+#
+# Build (local arch only):
+#   docker build -t xscape-fno4d-dev:cu132 -f Dockerfile.dev.blackwell .
+#
+# This image contains only build/runtime dependencies.
+# Source trees are mounted at runtime; the user performs configure/build/install.
+# See PlanContainerDev.md for the full user workflow.
+#
+# Differences from Dockerfile.dev:
+#   Phase 1 FROM:  nvidia/cuda:13.2.1-devel-ubuntu24.04  (CUDA 13.2 nvcc, sm_100 support)
+#   Phase 3 PyTorch: cu132 wheel (native CUDA 13.2; no backward-compat layer needed)
+#   cmake -DCMAKE_CUDA_ARCHITECTURES should include 100 for Blackwell targets.
+
+# ── Phase 1: Base layer ────────────────────────────────────────────────────
+FROM nvidia/cuda:13.2.1-devel-ubuntu24.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git wget curl ca-certificates ninja-build pkg-config \
+    libx11-dev libxft-dev libxext-dev libxpm-dev libssl-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Notes:
+# - build-essential (GCC 13, g++, make) and nvcc are already in the devel base.
+# - X11 dev headers required by ROOT even in headless/batch mode.
+# - cmake, boost, hdf5, gsl, pythia8 come from conda-forge (consistent ABI).
+
+# ── Phase 2: miniforge3 + conda environment ───────────────────────────────
+ARG TARGETARCH
+RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
+  && wget -q "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${ARCH}.sh" \
+       -O /tmp/miniforge.sh \
+  && bash /tmp/miniforge.sh -b -p /opt/miniforge3 \
+  && rm /tmp/miniforge.sh \
+  && /opt/miniforge3/bin/conda config --set auto_activate_base false
+
+RUN /opt/miniforge3/bin/mamba create -n xscape python=3.11 -y -c conda-forge
+
+RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
+    cmake make compilers \
+    boost-cpp zlib hdf5 gsl \
+    pythia8 hepmc3 fastjet \
+    root \
+    openmpi "pybind11>=2.11" \
+    "numpy>=2.0" matplotlib scipy h5py zarr uproot awkward \
+    opt-einsum tensorly scikit-image psutil seaborn tqdm \
+    ruamel-yaml wandb \
+    gcsfs google-cloud-storage \
+    jupyterlab ipykernel
+
+RUN /opt/miniforge3/bin/mamba clean -afy
+
+# Notes:
+# - 'compilers' installs the arch-specific conda cross-compiler (CXX) for
+#   C++ TUs; ensures ABI compatibility with conda-forge Pythia8/ROOT/HDF5.
+# - nvcc uses CUDAHOSTCXX=/usr/bin/g++ (system GCC 13) — set in Phase 4.
+
+# ── Phase 3: PyTorch (CUDA 13.2) + pip-only FNO4d packages ───────────────
+RUN /opt/miniforge3/envs/xscape/bin/pip install \
+    torch torchvision \
+    --index-url https://download.pytorch.org/whl/cu132
+
+# pip-only packages from FNO4d/requirements-base.txt
+# (all other FNO4d deps already installed via conda above)
+RUN /opt/miniforge3/envs/xscape/bin/pip install \
+    tensorly-torch \
+    "zencfg>=0.3.0" configmypy
+
+# Notes:
+# - PyTorch 2.12+ ships native cu132 wheels; no CUDA backward-compat layer needed.
+# - neuraloperator is NOT installed here; FNO4d vendors its own pinned fork
+#   (neuraloperator-4d-2.0.0) installed as an editable install at runtime.
+# - libtorch for FnoHydro cmake find_package(Torch) is provided by the torch
+#   wheel above. Locate at configure time with:
+#     python -c "import torch; print(torch.utils.cmake_prefix_path)"
+
+# ── Phase 4: Environment variables ────────────────────────────────────────
+ENV CONDA_ENV=/opt/miniforge3/envs/xscape \
+    PATH=/opt/miniforge3/envs/xscape/bin:/opt/miniforge3/bin:$PATH \
+    PYTHIA8=/opt/miniforge3/envs/xscape \
+    PYTHIA8DIR=/opt/miniforge3/envs/xscape \
+    ROOTSYS=/opt/miniforge3/envs/xscape \
+    CMAKE_PREFIX_PATH=/opt/miniforge3/envs/xscape \
+    CUDAHOSTCXX=/usr/bin/g++ \
+    LD_LIBRARY_PATH=/opt/miniforge3/envs/xscape/lib
+
+WORKDIR /workspace
+EXPOSE 8888
+CMD ["bash"]
