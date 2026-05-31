@@ -1,0 +1,105 @@
+name: Build & push dev images
+
+# Triggers:
+#   - push to main that changes either Dockerfile
+#   - manual "Run workflow" button in the Actions UI
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'utils/Dockerfile.dev'
+      - 'utils/Dockerfile.dev.blackwell'
+  workflow_dispatch:
+
+# ── Build ──────────────────────────────────────────────────────────────────
+# 4 jobs run in parallel (2 arches × 2 CUDA variants), each on a native runner.
+# Each job pushes an arch-tagged image, e.g. yourname/xscape-fno4d-dev:cu126-arm64
+#
+# Runner notes:
+#   ubuntu-latest        → native x86_64 (free tier)
+#   ubuntu-24.04-arm     → native arm64  (billed 2× but no QEMU; ~same wall time)
+# ──────────────────────────────────────────────────────────────────────────
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── CUDA 12.6 / GH200 ─────────────────────────────────────────
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+            dockerfile: utils/Dockerfile.dev
+            tag: cu126
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+            dockerfile: utils/Dockerfile.dev
+            tag: cu126
+          # ── CUDA 13.2 / Blackwell ──────────────────────────────────────
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            suffix: amd64
+            dockerfile: utils/Dockerfile.dev.blackwell
+            tag: cu132
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            suffix: arm64
+            dockerfile: utils/Dockerfile.dev.blackwell
+            tag: cu132
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push (${{ matrix.tag }}-${{ matrix.suffix }})
+        uses: docker/build-push-action@v6
+        with:
+          context: utils/
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/xscape-fno4d-dev:${{ matrix.tag }}-${{ matrix.suffix }}
+          # Scoped cache: each of the 4 jobs has its own GHA cache slot
+          cache-from: type=gha,scope=${{ matrix.tag }}-${{ matrix.suffix }}
+          cache-to:   type=gha,scope=${{ matrix.tag }}-${{ matrix.suffix }},mode=max
+
+  # ── Merge ────────────────────────────────────────────────────────────────
+  # After all 4 build jobs succeed, combine the arch-specific images into a
+  # single multi-arch manifest for each CUDA variant.
+  # Result: docker pull yourname/xscape-fno4d-dev:cu126  → correct arch automatically
+  # ─────────────────────────────────────────────────────────────────────────
+  merge:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - tag: cu126
+          - tag: cu132
+
+    steps:
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create multi-arch manifest (${{ matrix.tag }})
+        run: |
+          docker buildx imagetools create \
+            -t ${{ secrets.DOCKERHUB_USERNAME }}/xscape-fno4d-dev:${{ matrix.tag }} \
+            ${{ secrets.DOCKERHUB_USERNAME }}/xscape-fno4d-dev:${{ matrix.tag }}-amd64 \
+            ${{ secrets.DOCKERHUB_USERNAME }}/xscape-fno4d-dev:${{ matrix.tag }}-arm64
