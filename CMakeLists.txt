@@ -16,16 +16,31 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 # ---------------------------------------------------------------------------
-# Locate JetScape.  When included via add_subdirectory from X-SCAPE/JETSCAPE
-# the JetScape target already exists in scope; otherwise locate it via the
-# build-tree export written to JETSCAPE_DIR (= path to the build directory).
+# Locate JetScape.  Three modes (in preference order):
+#
+#  1. In-tree:  parent add_subdirectory already has JetScape target in scope.
+#  2. Installed prefix:  find_package(XSCAPE) via CMAKE_PREFIX_PATH pointing
+#     at a "cmake --install" prefix.  XSCAPE::JetScape is aliased to the
+#     plain JetScape target for backward compatibility.
+#  3. Build-tree standalone:  JETSCAPE_DIR env/cmake var points at a build
+#     directory that contains the JetScapeConfig.cmake export.
 # ---------------------------------------------------------------------------
 if(NOT TARGET JetScape)
-  find_package(JetScape REQUIRED
-    HINTS $ENV{JETSCAPE_DIR} ${JETSCAPE_DIR}
-    PATH_SUFFIXES . build
-  )
-  message(STATUS "js-contrib: found JetScape package in ${JetScape_DIR}")
+  # --- mode 2: installed X-SCAPE prefix (find_package(XSCAPE)) ---
+  find_package(XSCAPE QUIET)
+  if(XSCAPE_FOUND AND TARGET XSCAPE::JetScape AND NOT TARGET JetScape)
+    add_library(JetScape ALIAS XSCAPE::JetScape)
+    set(JetScape_INCLUDE_DIRS "${XSCAPE_INCLUDE_DIR}")
+    set(JetScape_FOUND TRUE)
+    message(STATUS "js-contrib: using installed XSCAPE::JetScape (prefix: ${XSCAPE_DATA_DIR})")
+  else()
+    # --- mode 3: build-tree via JETSCAPE_DIR ---
+    find_package(JetScape REQUIRED
+      HINTS $ENV{JETSCAPE_DIR} ${JETSCAPE_DIR}
+      PATH_SUFFIXES . build
+    )
+    message(STATUS "js-contrib: found JetScape package in ${JetScape_DIR}")
+  endif()
 else()
   message(STATUS "js-contrib: using in-tree JetScape target")
   # When built in-tree the include dirs come from the parent CMake scope.
