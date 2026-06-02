@@ -509,20 +509,45 @@ def _beam_camera(plotter, azimuth: float, elevation: float) -> None:
     plotter.reset_camera()
 
 
-def _add_frame_actors(plotter, grid, args, clim, label: str, overlay, t: float):
-    """Add the volume / isosurface / glyph actors for one frame (named for reuse)."""
+def _e_bar_args() -> dict:
+    """Scalar-bar styling for the energy-density colour bar (fresh dict each call)."""
+    return dict(title=E_UNITS, color="white",
+                title_font_size=16, label_font_size=13, n_labels=5, fmt="%.2f",
+                vertical=True, position_x=0.88, position_y=0.12,
+                width=0.05, height=0.6)
+
+
+def _add_colorbar_proxy(plotter, clim, cmap) -> None:
+    """Add a persistent energy colour bar (built ONCE), independent of the
+    per-frame volume.
+
+    The energy scale (clim) is global and fixed, but the GPU volume mapper won't
+    update scalars in place — the volume actor is re-added each frame.  So we
+    suppress the volume's own bar and show this fixed bar instead, backed by an
+    invisible 2-point proxy spanning clim; it is never rebuilt across frames.
+    """
+    import pyvista as pv
+    proxy = pv.PolyData(np.zeros((2, 3)))
+    proxy["e"] = np.asarray(clim, dtype=np.float32)
+    plotter.add_mesh(proxy, scalars="e", cmap=cmap, clim=clim, opacity=0.0,
+                     name="cbar_proxy", reset_camera=False, show_scalar_bar=True,
+                     scalar_bar_args=_e_bar_args())
+
+
+def _add_frame_actors(plotter, grid, args, clim, label: str, overlay, t: float,
+                      scalar_bar: bool = True):
+    """Add the volume / isosurface / glyph actors for one frame (named for reuse).
+
+    scalar_bar=False suppresses the volume's own colour bar — used when a
+    persistent _add_colorbar_proxy() bar is already on the plotter.
+    """
     import pyvista as pv  # noqa: F401  (ensures pyvista is importable here)
     if args.field in ("e", "both") and clim[1] > 0:
-        plotter.add_volume(
-            grid, scalars="e", cmap=args.cmap, opacity=VOLUME_OPACITY, clim=clim,
-            name="vol", reset_camera=False,
-            scalar_bar_args=dict(
-                title=E_UNITS, color="white",
-                title_font_size=16, label_font_size=13, n_labels=5,
-                fmt="%.2f", vertical=True,
-                position_x=0.88, position_y=0.12, width=0.05, height=0.6,
-            ),
-        )
+        vol_kw = dict(scalars="e", cmap=args.cmap, opacity=VOLUME_OPACITY, clim=clim,
+                      name="vol", reset_camera=False, show_scalar_bar=scalar_bar)
+        if scalar_bar:
+            vol_kw["scalar_bar_args"] = _e_bar_args()
+        plotter.add_volume(grid, **vol_kw)
     if args.field in ("T", "both"):
         contour = grid.contour(args.freeze_temp, scalars="T")
         if contour.n_points:
@@ -604,15 +629,18 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
                 plotter.open_gif(movie)
         else:
             plotter.open_gif(movie)
-        scene_bounds = _scene_bounds(axes)
+        # Static scene (background, axes, box, energy colour bar): built ONCE.
+        _decorate_scene(plotter, _scene_bounds(axes))
+        if args.field in ("e", "both") and clim[1] > 0:
+            _add_colorbar_proxy(plotter, clim, args.cmap)
         cam = None
         t0 = time.perf_counter()
         for fi, (t, fields) in enumerate(zip(ts, frames)):
             grid = make_image_data(fields, axes)
-            plotter.clear()
-            _decorate_scene(plotter, scene_bounds)
+            _clear_frame_actors(plotter)                       # swap only data actors
             _add_frame_actors(plotter, grid, args, clim,
-                              _frame_label(event_id, t), overlay, float(t))
+                              _frame_label(event_id, t), overlay, float(t),
+                              scalar_bar=False)
             if cam is None:
                 _beam_camera(plotter, args.azimuth, args.elevation)
                 cam = plotter.camera_position
@@ -640,18 +668,14 @@ def _write_pvd(pvd_path: str, entries) -> None:
 
 
 def _clear_frame_actors(plotter) -> None:
-    """Remove only the per-frame actors (and the energy colour bar), leaving the
-    static scene (background, axes, box) and any interactor widgets intact.
+    """Remove only the per-frame data actors, leaving the static scene
+    (background, axes, box, persistent colour bar) and interactor widgets intact.
 
     NOTE: do NOT call plotter.clear() inside a slider callback — clearing the
     widget's own representation crashes the VTK interactor (segfault).
     """
     for name in ("vol", "cont", "vel"):
         plotter.remove_actor(name, reset_camera=False)
-    try:
-        plotter.remove_scalar_bar(title=E_UNITS, render=False)
-    except Exception:
-        pass  # no energy bar present yet (e.g. --field T)
 
 
 def _show_interactive(frames, axes, ts, args, event_id, clim, overlay) -> None:
@@ -661,12 +685,15 @@ def _show_interactive(frames, axes, ts, args, event_id, clim, overlay) -> None:
     bounds = _scene_bounds(axes)
     plotter = pv.Plotter(window_size=(1000, 800))
     _decorate_scene(plotter, bounds)            # background/axes/box: added ONCE
+    if args.field in ("e", "both") and clim[1] > 0:
+        _add_colorbar_proxy(plotter, clim, args.cmap)   # colour bar: added ONCE
 
     def render_idx(value):
         idx = max(0, min(len(grids) - 1, int(round(value))))
         _clear_frame_actors(plotter)
         _add_frame_actors(plotter, grids[idx], args, clim,
-                          _frame_label(event_id, ts[idx]), overlay, float(ts[idx]))
+                          _frame_label(event_id, ts[idx]), overlay, float(ts[idx]),
+                          scalar_bar=False)
 
     plotter.add_slider_widget(render_idx, [0, len(grids) - 1],
                               value=len(grids) // 2, title="frame index", fmt="%.0f")
