@@ -7,6 +7,8 @@ build/
 *.o
 *.pcm
 *.rootmap
+*.gif
+*.npz
 
 # PyTorch model weights (large binary files — download separately)
 contribs/FnoHydro/models/*.pt
