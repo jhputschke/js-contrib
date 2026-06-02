@@ -67,6 +67,8 @@ import argparse
 import json
 import os
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
@@ -172,6 +174,10 @@ def parse_args() -> argparse.Namespace:
                    help="Base output directory (default hydro_pyvista_out/).")
     p.add_argument("--framerate", type=int, default=10,
                    help="Movie frames per second (default 10).")
+    p.add_argument("--jobs", "-j", type=int, default=min(os.cpu_count() or 1, 8),
+                   help="Threads for the Milne→Cartesian resampling (the dominant "
+                        "cost). scipy releases the GIL so threads scale ~linearly; "
+                        f"default min(cores,8). Use 1 to disable.")
     return p.parse_args()
 
 
@@ -411,6 +417,21 @@ def cartesian_frame(interp, t: float, axes, meta: dict, want_velocity: bool) -> 
 # PyVista rendering
 # ──────────────────────────────────────────────────────────────────────────────
 
+def resample_frames(interp, ts, axes, meta, want_velocity, jobs: int):
+    """Resample all lab-time frames, in parallel across threads.
+
+    Frames are independent and the dominant cost is the scipy interpolation,
+    which releases the GIL — so a thread pool scales nearly linearly with no
+    array copying (the big Milne grid is shared, not pickled).
+    """
+    def one(t):
+        return cartesian_frame(interp, float(t), axes, meta, want_velocity)
+    if jobs <= 1 or len(ts) <= 1:
+        return [one(t) for t in ts]
+    with ThreadPoolExecutor(max_workers=jobs) as ex:
+        return list(ex.map(one, ts))      # ex.map preserves input order
+
+
 def make_image_data(fields: dict, axes):
     """Wrap the Cartesian fields in a pyvista.ImageData (VTK Fortran ordering)."""
     import pyvista as pv
@@ -540,11 +561,14 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
     axes   = cartesian_axes(meta, args, t_max, xy_max)
     interp = build_interpolator(arr, meta)
 
+    jobs = max(1, min(args.jobs, len(ts)))
     print(f"  resampling {len(ts)} lab-time frames onto a "
           f"({len(axes[0])}, {len(axes[1])}, {args.nz}) Cartesian grid "
-          f"(x,y in ±{xy_max:.1f} fm, t in [{t_min:.2f}, {t_max:.2f}] fm/c) ...")
-    frames = [cartesian_frame(interp, float(t), axes, meta, args.velocity)
-              for t in ts]
+          f"(x,y in ±{xy_max:.1f} fm, t in [{t_min:.2f}, {t_max:.2f}] fm/c) "
+          f"using {jobs} thread(s) ...")
+    t0 = time.perf_counter()
+    frames = resample_frames(interp, ts, axes, meta, args.velocity, jobs)
+    print(f"  resampled in {time.perf_counter() - t0:.1f} s")
     e_max = max((f["e"].max() for f in frames), default=0.0)
     clim  = (0.0, float(e_max) if e_max > 0 else 1.0)
     print(f"  energy-density max = {e_max:.4g} GeV/fm^3")
@@ -582,6 +606,7 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
             plotter.open_gif(movie)
         scene_bounds = _scene_bounds(axes)
         cam = None
+        t0 = time.perf_counter()
         for fi, (t, fields) in enumerate(zip(ts, frames)):
             grid = make_image_data(fields, axes)
             plotter.clear()
@@ -595,7 +620,8 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
                 plotter.camera_position = cam
             plotter.write_frame()
         plotter.close()
-        print(f"  wrote movie -> {movie}")
+        print(f"  wrote movie -> {movie}  "
+              f"(rendered {len(ts)} frames in {time.perf_counter() - t0:.1f} s)")
 
     # ── Interactive (time slider) ─────────────────────────────────────────────
     if args.interactive:

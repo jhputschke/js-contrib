@@ -59,6 +59,12 @@ Smoothness note: the render resolution is decoupled from the hydro grid. The Mil
 Cartesian resampling is linear, so increasing `--nxy/--nz` gives a smoother volume
 without changing the physics; lower them (e.g. `--nxy 48 --nz 48`) for quick previews.
 
+Performance: the Milne→Cartesian resampling is the dominant cost and is parallelised
+across lab-time frames with threads (`--jobs`, default `min(cores, 8)`; scipy releases
+the GIL so it scales ~linearly — e.g. 50 frames at 96³ drop from ~15 s to ~3 s). The
+GPU volume rendering is sequential. Each run prints a `resampled in … s` / `rendered …
+frames in … s` breakdown so you can see where time goes and tune `--nxy/--nz/--nt/--jobs`.
+
 The scene uses a dark-grey gradient background, an x/y/z orientation triad, a
 labelled bounding box in fm, an upper-left event/lab-time read-out, and an
 energy-density colour bar in `GeV/fm³` (held at a fixed scale across the animation).
