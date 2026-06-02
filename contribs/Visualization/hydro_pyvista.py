@@ -156,6 +156,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--cmap", default="inferno", help="Colormap (default inferno).")
     p.add_argument("--velocity", action="store_true",
                    help="Add lab-frame flow-velocity arrow glyphs.")
+    p.add_argument("--azimuth", type=float, default=35.0,
+                   help="Camera azimuth in deg from the beam-side view (default 35). "
+                        "Beam axis z is horizontal; azimuth tilts in the transverse x.")
+    p.add_argument("--elevation", type=float, default=20.0,
+                   help="Camera elevation in deg (default 20); looks down on the x–y plane.")
     # ── Output (at least one required) ────────────────────────────────────────
     p.add_argument("--movie", default=None,
                    help="Animation path; .gif (default-friendly) or .mp4.")
@@ -466,6 +471,23 @@ def _decorate_scene(plotter, bounds) -> None:
     )
 
 
+def _beam_camera(plotter, azimuth: float, elevation: float) -> None:
+    """Heavy-ion convention: beam axis z runs left↔right (horizontal), the
+    transverse x–y plane is tilted toward the viewer so its evolution is visible.
+
+    Starts from a side view (look along +x, y up → z horizontal, y vertical) and
+    rotates by ``azimuth`` (reveals the transverse x depth) and ``elevation``
+    (look down on the x–y plane).  reset_camera() then fits the box, preserving
+    the orientation.
+    """
+    plotter.camera_position = [(1.0, 0.0, 0.0),    # position (refit below)
+                               (0.0, 0.0, 0.0),    # focal point
+                               (0.0, 1.0, 0.0)]    # view up = +y
+    plotter.camera.azimuth = azimuth
+    plotter.camera.elevation = elevation
+    plotter.reset_camera()
+
+
 def _add_frame_actors(plotter, grid, args, clim, label: str, overlay, t: float):
     """Add the volume / isosurface / glyph actors for one frame (named for reuse)."""
     import pyvista as pv  # noqa: F401  (ensures pyvista is importable here)
@@ -549,7 +571,6 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
             else os.path.join(args.outdir, args.movie)
         _maybe_start_xvfb(off_screen=True)
         plotter = pv.Plotter(off_screen=True, window_size=(1000, 800))
-        plotter.camera_position = "iso"
         if movie.lower().endswith(".mp4"):
             try:
                 plotter.open_movie(movie, framerate=args.framerate)
@@ -568,7 +589,7 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
             _add_frame_actors(plotter, grid, args, clim,
                               _frame_label(event_id, t), overlay, float(t))
             if cam is None:
-                plotter.reset_camera()
+                _beam_camera(plotter, args.azimuth, args.elevation)
                 cam = plotter.camera_position
             else:
                 plotter.camera_position = cam
@@ -624,7 +645,7 @@ def _show_interactive(frames, axes, ts, args, event_id, clim, overlay) -> None:
     plotter.add_slider_widget(render_idx, [0, len(grids) - 1],
                               value=len(grids) // 2, title="frame index", fmt="%.0f")
     render_idx(len(grids) // 2)
-    plotter.reset_camera()
+    _beam_camera(plotter, args.azimuth, args.elevation)
     plotter.show()
 
 

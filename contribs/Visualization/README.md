@@ -63,6 +63,11 @@ The scene uses a dark-grey gradient background, an x/y/z orientation triad, a
 labelled bounding box in fm, an upper-left event/lab-time read-out, and an
 energy-density colour bar in `GeV/fm³` (held at a fixed scale across the animation).
 
+Camera: the heavy-ion convention — beam axis **z runs left↔right** (horizontal),
+with the transverse **x–y** plane tilted toward the viewer so its evolution is
+visible. Tune with `--azimuth` (default 35°, tilts in the transverse x) and
+`--elevation` (default 20°, looks down on the x–y plane).
+
 ## How the Milne → Cartesian mapping works
 
 For each lab time `t`, the script sweeps `z` and maps back to Milne, mirroring C++
