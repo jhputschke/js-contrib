@@ -83,6 +83,14 @@ sys.path.insert(0, os.path.join(_PYJETSCAPE, "python"))
 # Feature layout returned by bulk_info_to_numpy / EvolutionHistory.to_numpy.
 FEAT_E, FEAT_T, FEAT_VX, FEAT_VY = 0, 1, 2, 3
 
+# Scene aesthetics.
+DARK_GREY  = (0.16, 0.17, 0.19)   # plot background
+PANEL_GREY = (0.10, 0.11, 0.13)   # bottom of the gradient background
+E_UNITS    = "energy density  [GeV/fm³]"
+# Opacity transfer function for the energy-density volume: ramps up quickly so the
+# warm/dilute medium stays visible (plain "sigmoid" makes most cells transparent).
+VOLUME_OPACITY = [0.0, 0.22, 0.45, 0.65, 0.82, 0.95]
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CLI
@@ -122,9 +130,16 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--preequilibrium", default="NullPreDynamics")
     p.add_argument("--hydro-module", default="MUSIC", dest="hydro_module")
     # ── Cartesian grid / lab-time sampling ────────────────────────────────────
-    p.add_argument("--nz", type=int, default=64, help="z grid points (default 64).")
+    p.add_argument("--nxy", type=int, default=96,
+                   help="Transverse (x,y) display grid points per axis (default 96). "
+                        "Sampled finer than the hydro grid via interpolation, so "
+                        "higher = smoother (and slower).")
+    p.add_argument("--nz", type=int, default=96, help="z grid points (default 96).")
     p.add_argument("--z-max", type=float, default=None, dest="z_max",
                    help="z half-extent in fm (default 0.8*t_max).")
+    p.add_argument("--xy-max", type=float, default=None, dest="xy_max",
+                   help="Transverse half-extent in fm to display "
+                        "(default: auto-crop to the medium + 2 fm margin).")
     p.add_argument("--nt", type=int, default=None,
                    help="Number of lab-time frames (default = ntau).")
     p.add_argument("--t-min", type=float, default=None, dest="t_min",
@@ -280,10 +295,42 @@ def build_interpolator(arr: np.ndarray, meta: dict):
         grid_axes, arr, method="linear", bounds_error=False, fill_value=0.0)
 
 
-def cartesian_axes(meta: dict, args, t_max: float):
-    """Cartesian sampling axes: reuse hydro (x, y); choose z extent for display."""
+def medium_xy_max(arr: np.ndarray, meta: dict, frac: float = 0.02,
+                  margin: float = 2.0) -> float:
+    """Transverse half-extent (fm) covering the energy-bearing region + margin.
+
+    The OO/AA fireball is only a few fm across while the hydro grid spans ~30 fm,
+    so showing the whole grid buries the medium.  This finds the |x|,|y| where the
+    energy density exceeds ``frac`` of its peak and adds a margin.
+    """
+    e = arr[..., FEAT_E]                                   # (ntau,nx,ny[,neta])
+    other = tuple(i for i in range(e.ndim) if i not in (1, 2))
+    e_xy = e.max(axis=other)                               # (nx, ny)
+    if e_xy.max() <= 0:
+        return min(abs(meta["x_min"]), abs(meta["y_min"]))
+    xi, yi = np.where(e_xy > frac * e_xy.max())
     xs = meta["x_min"] + meta["dx"] * np.arange(meta["nx"])
     ys = meta["y_min"] + meta["dy"] * np.arange(meta["ny"])
+    reach = max(np.abs(xs[xi]).max(), np.abs(ys[yi]).max()) + margin
+    grid_reach = min(abs(meta["x_min"]), meta["x_min"] + (meta["nx"] - 1) * meta["dx"])
+    return float(min(reach, abs(grid_reach)))
+
+
+def cartesian_axes(meta: dict, args, t_max: float, xy_max=None):
+    """Cartesian sampling axes, with display resolution decoupled from the hydro grid.
+
+    The transverse axes use args.nxy points (and z uses args.nz) so the volume can
+    be sampled finer than the hydro spacing — the Milne→Cartesian interpolation is
+    linear, so a finer display grid renders smoothly instead of blocky.
+    """
+    if xy_max is None:
+        x_lo, x_hi = meta["x_min"], meta["x_min"] + (meta["nx"] - 1) * meta["dx"]
+        y_lo, y_hi = meta["y_min"], meta["y_min"] + (meta["ny"] - 1) * meta["dy"]
+    else:
+        x_lo, x_hi = -xy_max, xy_max
+        y_lo, y_hi = -xy_max, xy_max
+    xs = np.linspace(x_lo, x_hi, args.nxy)
+    ys = np.linspace(y_lo, y_hi, args.nxy)
     z_max = args.z_max if args.z_max is not None else 0.8 * t_max
     zs = np.linspace(-z_max, z_max, args.nz)
     return xs, ys, zs
@@ -392,27 +439,69 @@ def _maybe_start_xvfb(off_screen: bool) -> None:
             print(f"  [!] start_xvfb failed ({exc}); off-screen render may fail.")
 
 
+def _scene_bounds(axes):
+    """(xmin, xmax, ymin, ymax, zmin, zmax) of the Cartesian sampling box [fm]."""
+    xs, ys, zs = axes
+    return (float(xs[0]), float(xs[-1]),
+            float(ys[0]), float(ys[-1]),
+            float(zs[0]), float(zs[-1]))
+
+
+def _decorate_scene(plotter, bounds) -> None:
+    """Background, orientation triad, and a labelled x/y/z bounding box (fm).
+
+    Called once per frame (after plotter.clear()).  ``bounds`` is passed
+    explicitly so the labelled box is stable even on near-empty frames.
+    """
+    plotter.set_background(DARK_GREY, top=PANEL_GREY)
+    # Corner orientation triad (x=red, y=green, z=blue arrows with labels).
+    plotter.add_axes(xlabel="x", ylabel="y", zlabel="z",
+                     line_width=3, labels_off=False, color="white")
+    # Labelled bounding box with physical units.
+    plotter.show_grid(
+        bounds=bounds,
+        xtitle="x  [fm]", ytitle="y  [fm]", ztitle="z  [fm]",
+        color="white", grid="back", location="outer", ticks="both",
+        font_size=10,
+    )
+
+
 def _add_frame_actors(plotter, grid, args, clim, label: str, overlay, t: float):
     """Add the volume / isosurface / glyph actors for one frame (named for reuse)."""
     import pyvista as pv  # noqa: F401  (ensures pyvista is importable here)
     if args.field in ("e", "both") and clim[1] > 0:
-        plotter.add_volume(grid, scalars="e", cmap=args.cmap, opacity="sigmoid",
-                           clim=clim, name="vol", reset_camera=False)
+        plotter.add_volume(
+            grid, scalars="e", cmap=args.cmap, opacity=VOLUME_OPACITY, clim=clim,
+            name="vol", reset_camera=False,
+            scalar_bar_args=dict(
+                title=E_UNITS, color="white",
+                title_font_size=16, label_font_size=13, n_labels=5,
+                fmt="%.2f", vertical=True,
+                position_x=0.88, position_y=0.12, width=0.05, height=0.6,
+            ),
+        )
     if args.field in ("T", "both"):
         contour = grid.contour(args.freeze_temp, scalars="T")
         if contour.n_points:
-            plotter.add_mesh(contour, color="cyan", opacity=0.35, name="cont",
-                             smooth_shading=True, reset_camera=False)
+            plotter.add_mesh(contour, color="deepskyblue", opacity=0.30, name="cont",
+                             smooth_shading=True, reset_camera=False,
+                             show_scalar_bar=False)
     if args.velocity and "v" in grid.point_data:
         active = grid.threshold(max(1e-3, 0.02 * clim[1]), scalars="e")
         if active.n_points:
             active.set_active_vectors("v")
             glyphs = active.glyph(orient="v", scale=False, factor=0.6, tolerance=0.04)
             plotter.add_mesh(glyphs, color="white", opacity=0.7, name="vel",
-                             reset_camera=False)
-    plotter.add_text(label, name="label", font_size=11)
+                             reset_camera=False, show_scalar_bar=False)
+    # Time / event read-out, upper-left.
+    plotter.add_text(label, name="label", position="upper_left",
+                     font_size=14, color="white", shadow=True)
     if overlay is not None:
         overlay(plotter, t)
+
+
+def _frame_label(event_id, t: float) -> str:
+    return f"event {event_id}\nt = {t:6.2f} fm/c"
 
 
 def render_event(event_id, arr, meta, args, overlay=None) -> None:
@@ -425,12 +514,13 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
     nt    = args.nt if args.nt is not None else min(meta["ntau"], 50)
     ts    = np.linspace(t_min, t_max, max(1, nt))
 
-    axes   = cartesian_axes(meta, args, t_max)
+    xy_max = args.xy_max if args.xy_max is not None else medium_xy_max(arr, meta)
+    axes   = cartesian_axes(meta, args, t_max, xy_max)
     interp = build_interpolator(arr, meta)
 
     print(f"  resampling {len(ts)} lab-time frames onto a "
-          f"({meta['nx']}, {meta['ny']}, {args.nz}) Cartesian grid "
-          f"(t in [{t_min:.2f}, {t_max:.2f}] fm/c) ...")
+          f"({len(axes[0])}, {len(axes[1])}, {args.nz}) Cartesian grid "
+          f"(x,y in ±{xy_max:.1f} fm, t in [{t_min:.2f}, {t_max:.2f}] fm/c) ...")
     frames = [cartesian_frame(interp, float(t), axes, meta, args.velocity)
               for t in ts]
     e_max = max((f["e"].max() for f in frames), default=0.0)
@@ -458,8 +548,7 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
         movie = args.movie if os.path.isabs(args.movie) \
             else os.path.join(args.outdir, args.movie)
         _maybe_start_xvfb(off_screen=True)
-        plotter = pv.Plotter(off_screen=True, window_size=(960, 760))
-        plotter.set_background("black")
+        plotter = pv.Plotter(off_screen=True, window_size=(1000, 800))
         plotter.camera_position = "iso"
         if movie.lower().endswith(".mp4"):
             try:
@@ -470,12 +559,14 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
                 plotter.open_gif(movie)
         else:
             plotter.open_gif(movie)
+        scene_bounds = _scene_bounds(axes)
         cam = None
         for fi, (t, fields) in enumerate(zip(ts, frames)):
             grid = make_image_data(fields, axes)
             plotter.clear()
+            _decorate_scene(plotter, scene_bounds)
             _add_frame_actors(plotter, grid, args, clim,
-                              f"event {event_id}   t = {t:.2f} fm/c", overlay, float(t))
+                              _frame_label(event_id, t), overlay, float(t))
             if cam is None:
                 plotter.reset_camera()
                 cam = plotter.camera_position
@@ -501,27 +592,39 @@ def _write_pvd(pvd_path: str, entries) -> None:
         fh.write("\n".join(lines))
 
 
+def _clear_frame_actors(plotter) -> None:
+    """Remove only the per-frame actors (and the energy colour bar), leaving the
+    static scene (background, axes, box) and any interactor widgets intact.
+
+    NOTE: do NOT call plotter.clear() inside a slider callback — clearing the
+    widget's own representation crashes the VTK interactor (segfault).
+    """
+    for name in ("vol", "cont", "vel"):
+        plotter.remove_actor(name, reset_camera=False)
+    try:
+        plotter.remove_scalar_bar(title=E_UNITS, render=False)
+    except Exception:
+        pass  # no energy bar present yet (e.g. --field T)
+
+
 def _show_interactive(frames, axes, ts, args, event_id, clim, overlay) -> None:
+    """On-screen viewer with a lab-time slider (static scene set up once)."""
     import pyvista as pv
-    grids = [make_image_data(f, axes) for f in frames]
+    grids  = [make_image_data(f, axes) for f in frames]
+    bounds = _scene_bounds(axes)
     plotter = pv.Plotter(window_size=(1000, 800))
-    plotter.set_background("black")
+    _decorate_scene(plotter, bounds)            # background/axes/box: added ONCE
 
     def render_idx(value):
-        idx = int(round(value))
-        idx = max(0, min(len(grids) - 1, idx))
-        plotter.remove_actor("vol", reset_camera=False)
-        plotter.remove_actor("cont", reset_camera=False)
-        plotter.remove_actor("vel", reset_camera=False)
+        idx = max(0, min(len(grids) - 1, int(round(value))))
+        _clear_frame_actors(plotter)
         _add_frame_actors(plotter, grids[idx], args, clim,
-                          f"event {event_id}   t = {ts[idx]:.2f} fm/c",
-                          overlay, float(ts[idx]))
+                          _frame_label(event_id, ts[idx]), overlay, float(ts[idx]))
 
     plotter.add_slider_widget(render_idx, [0, len(grids) - 1],
-                              value=len(grids) // 2, title="frame", fmt="%.0f")
+                              value=len(grids) // 2, title="frame index", fmt="%.0f")
     render_idx(len(grids) // 2)
-    plotter.show_axes()
-    plotter.show_grid()
+    plotter.reset_camera()
     plotter.show()
 
 

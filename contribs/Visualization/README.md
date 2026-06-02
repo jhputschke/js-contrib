@@ -47,10 +47,21 @@ python hydro_pyvista.py --load /tmp/milne.npz --interactive
 ```
 
 Key options: `--field {e,T,both}`, `--freeze-temp 0.155` (isosurface, repeatable),
-`--velocity` (lab-frame flow arrows), `--nz/--nt/--z-max/--t-min/--t-max` (grid &
-lab-time sampling), `--main/--user/--workdir` (run config), `--manual` (explicit
-pipeline). At least one of `--movie`, `--vtk-dir`, `--interactive` is produced
-(defaults to `evolution.gif`).
+`--velocity` (lab-frame flow arrows), `--nxy/--nz` (display grid resolution; the
+Cartesian box is sampled finer than the hydro grid via interpolation, so higher =
+smoother and slower — default 96³), `--nt/--z-max/--t-min/--t-max` (lab-time
+sampling & z extent), `--xy-max` (transverse half-extent in fm; default auto-crops
+to the fireball + 2 fm so it isn't lost in the ~30 fm hydro grid), `--cmap`,
+`--main/--user/--workdir` (run config), `--manual` (explicit pipeline). At least one
+of `--movie`, `--vtk-dir`, `--interactive` is produced (defaults to `evolution.gif`).
+
+Smoothness note: the render resolution is decoupled from the hydro grid. The Milne→
+Cartesian resampling is linear, so increasing `--nxy/--nz` gives a smoother volume
+without changing the physics; lower them (e.g. `--nxy 48 --nz 48`) for quick previews.
+
+The scene uses a dark-grey gradient background, an x/y/z orientation triad, a
+labelled bounding box in fm, an upper-left event/lab-time read-out, and an
+energy-density colour bar in `GeV/fm³` (held at a fixed scale across the animation).
 
 ## How the Milne → Cartesian mapping works
 
