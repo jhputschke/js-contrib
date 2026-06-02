@@ -5,7 +5,19 @@
 The `conda_install/` subdirectory contains scripts to create and verify the
 `js_fno` conda environment, which provides all Python and C++ build
 dependencies needed by the [PyJetscape](PyJetscape/README.md) and
-[FnoHydro](FnoHydro/README.md) contribs.
+[FnoHydro](FnoHydro/README.md) contribs.  The
+[Visualization](Visualization/README.md) contrib additionally needs a small
+PyVista stack in its own env — see
+[Visualization contrib — PyVista dependencies](#visualization-contrib--pyvista-dependencies)
+below.
+
+## Contribs at a glance
+
+| Contrib | What it does |
+|---------|--------------|
+| [FnoHydro](FnoHydro/README.md) | Neural-network (FNO) surrogate hydrodynamics (C++/LibTorch). |
+| [PyJetscape](PyJetscape/README.md) | pybind11 Python bindings for the framework + per-event Python workflow. |
+| [Visualization](Visualization/README.md) | 3D PyVista rendering of the hydro medium evolution, resampled from Milne `(τ,x,y,η_s)` to Cartesian lab spacetime `(t,x,y,z)`; emits movies, ParaView VTK series, and an interactive viewer. |
 
 ## Why conda instead of pip / system packages?
 
@@ -190,6 +202,43 @@ bash conda_install/pinned/install_js_fno_pinned.sh               # ML stack only
 Pinned scripts specify explicit package versions and are tested against the
 environment used for the results in
 [Phys. Rev. C 113 (2026) 1, 014904](https://doi.org/10.48550/arXiv.2507.23598).
+
+---
+
+## Visualization contrib — PyVista dependencies
+
+The [Visualization](Visualization/) contrib (`hydro_pyvista.py`) renders the hydro
+medium evolution in 3D.  It is **pure Python** — no CMake build of its own — but it
+reuses the PyJetscape bindings to read the live hydro `EvolutionHistory`, so a
+current `pyjetscape_core` build is required.  In particular it uses the
+`EvolutionHistory.to_numpy_full()` binding (full `(ntau,nx,ny,neta,nf)` grid) for
+genuine 3+1D data; if you pull a fresh tree, rebuild it:
+
+```bash
+cmake --build <build-dir> --target pyjetscape_core   # e.g. build_gpu
+```
+
+Its Python packages are **not** part of `js_fno`; install them into a dedicated
+environment (referred to here as `fno_pyvista_env`):
+
+| Package | Use |
+|---------|-----|
+| pyvista | 3D volume + isosurface rendering, movie and VTK export |
+| vtk | rendering backend (installed with pyvista) |
+| scipy | `RegularGridInterpolator` for the Milne→Cartesian resampling |
+| imageio (+ `imageio-ffmpeg` for `.mp4`) | writes the `.gif` / `.mp4` animation |
+| numpy | array handling |
+
+```bash
+conda create -n fno_pyvista_env python=3.13 numpy scipy
+conda activate fno_pyvista_env
+pip install pyvista imageio imageio-ffmpeg        # vtk is pulled in by pyvista
+```
+
+The compiled `pyjetscape_core` must match this env's Python (e.g. built for
+CPython 3.13 → importable in a 3.13 `fno_pyvista_env`).  Live runs execute from the
+X-SCAPE build directory (e.g. `build_gpu`) so MUSIC finds its inputs.  Full usage
+and options are in [Visualization/README.md](Visualization/README.md).
 
 ---
 
