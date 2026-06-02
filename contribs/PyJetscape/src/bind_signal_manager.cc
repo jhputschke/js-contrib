@@ -108,6 +108,14 @@ void bind_signal_manager(py::module_ &m) {
           },
           "Return the registered PreequilibriumDynamics module, or None if not set.")
 
+      .def("GetJetEnergyLossManagerPointer",
+          [](JetScapeSignalManager &sm)
+              -> std::shared_ptr<JetEnergyLossManager> {
+            return sm.GetJetEnergyLossManagerPointer().lock();
+          },
+          "Return the registered JetEnergyLossManager (holds the per-event "
+          "parton showers), or None if not set.")
+
       // ── Module pointer setters ─────────────────────────────────────────────
       // These mirror the C++ API.  In normal use, JetScape::Init() calls them
       // automatically.  They are exposed here for completeness and for unit

@@ -10,7 +10,7 @@ analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJe
 |---------|-------------|------------|
 | [FnoHydro](contribs/FnoHydro/) | Neural-network (FNO) hydrodynamics via LibTorch | ROOT, libtorch (~2 GB) |
 | [PyJetscape](contribs/PyJetscape/) | pybind11 Python bindings + PyFNOHydro trampoline | pybind11 (pip/conda auto-detected), PyTorch |
-| [Visualization](contribs/Visualization/) | 3D PyVista visualization of the hydro medium evolution, resampled Milne→Cartesian `(t,x,y,z)` (sets up the parton-shower overlay) | pyvista, scipy, vtk, imageio (e.g. conda `fno_pyvista_env`); reuses PyJetscape |
+| [Visualization](contribs/Visualization/) | 3D PyVista visualization of the hydro medium evolution, resampled Milne→Cartesian `(t,x,y,z)`, with a jet parton-shower overlay | pyvista, scipy, vtk, imageio (`imageio-ffmpeg` for `.mp4` output); reuses PyJetscape |
 
 The **Visualization** contrib is pure Python (no CMake build of its own) but reads
 the *live* hydro `EvolutionHistory` through the PyJetscape bindings, so it needs a

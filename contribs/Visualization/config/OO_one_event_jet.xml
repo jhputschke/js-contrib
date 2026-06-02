@@ -73,7 +73,15 @@
     <grid_step_z> 0.2 </grid_step_z>
   </IS>
 
-  
+  <!-- Hard Process -->
+  <Hard>
+    <PythiaGun>
+      <pTHatMin>50</pTHatMin>
+      <pTHatMax>70</pTHatMax>
+      <eCM>5020</eCM>
+    </PythiaGun>
+  </Hard>
+
   <Preequilibrium>
 
     <tau0>0.0</tau0>
@@ -146,26 +154,32 @@
 
   </Hydro>
 
- 
-    <RootBulkWriter>
-        <name> RootBulkWriter </name>
-        
-        <out_file_name> OO_test.root </out_file_name>
-        <ntau> 0 </ntau> 
-        
-        <tau_min> 0.524 </tau_min>
-        <dtau> 0.1 </dtau>
+  <!--Eloss Modules -->
+  <Eloss>
+    <Matter>
+      <in_vac> 0 </in_vac>
+    </Matter>
+  </Eloss>
+  
+  <!-- <RootBulkWriter>
+      <name> RootBulkWriter </name>
+      
+      <out_file_name> OO_test.root </out_file_name>
+      <ntau> 0 </ntau> 
+      
+      <tau_min> 0.524 </tau_min>
+      <dtau> 0.1 </dtau>
 
-        <eta_min> -5.  </eta_min> 
-        <deta> 0.3125 </deta> #32
+      <eta_min> -5.  </eta_min> 
+      <deta> 0.3125 </deta> #32
 
-        <x_min> -10  </x_min>
-        <dx> 0.3125 </dx> #64
+      <x_min> -10  </x_min>
+      <dx> 0.3125 </dx> #64
 
-        <y_min> -10 </y_min>
-        <dy> 0.3125 </dy> #64
-    
-        <ensure_MusicWrapper_output> 1 </ensure_MusicWrapper_output>
-    </RootBulkWriter>
+      <y_min> -10 </y_min>
+      <dy> 0.3125 </dy> #64
+  
+      <ensure_MusicWrapper_output> 1 </ensure_MusicWrapper_output>
+  </RootBulkWriter> -->
 
 </jetscape>

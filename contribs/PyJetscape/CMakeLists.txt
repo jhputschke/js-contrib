@@ -49,6 +49,7 @@ set(PYJETSCAPE_SOURCES
   src/bind_initial_state.cc
   src/bind_fluid_dynamics.cc
   src/bind_music.cc
+  src/bind_jet.cc
   src/bind_signal_manager.cc
 )
 

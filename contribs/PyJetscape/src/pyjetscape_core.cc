@@ -16,6 +16,7 @@ void bind_evolution(py::module_ &m);
 void bind_initial_state(py::module_ &m);
 void bind_fluid_dynamics(py::module_ &m);
 void bind_music(py::module_ &m);
+void bind_jet(py::module_ &m);
 void bind_signal_manager(py::module_ &m);
 
 PYBIND11_MODULE(pyjetscape_core, m) {
@@ -40,6 +41,10 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   // that pybind11 can resolve the inheritance chain (MpiMusic : FluidDynamics,
   // TrentoInitial : InitialState).
   bind_music(m);
+  // Jet sector: Parton, Vertex, PartonShower, JetEnergyLossManager. Must come
+  // before bind_signal_manager so GetJetEnergyLossManagerPointer()'s return type
+  // is already registered.
+  bind_jet(m);
   // Singleton signal manager — must come AFTER all module base-class bindings
   // (FluidDynamics, InitialState, PreequilibriumDynamics) so that the return
   // types of GetHydroPointer() etc. are already registered.

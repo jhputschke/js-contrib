@@ -98,7 +98,8 @@ VOLUME_OPACITY = [0.0, 0.22, 0.45, 0.65, 0.82, 0.95]
 # CLI
 # ──────────────────────────────────────────────────────────────────────────────
 
-def parse_args() -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the CLI parser (exposed so extensions can add arguments)."""
     p = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -165,20 +166,30 @@ def parse_args() -> argparse.Namespace:
                    help="Camera elevation in deg (default 20); looks down on the x–y plane.")
     # ── Output (at least one required) ────────────────────────────────────────
     p.add_argument("--movie", default=None,
-                   help="Animation path; .gif (default-friendly) or .mp4.")
+                   help="Animation path; .gif (always works) or .mp4 "
+                        "(needs the imageio-ffmpeg package).")
     p.add_argument("--vtk-dir", default=None, dest="vtk_dir",
                    help="Write one .vti per frame + a .pvd collection for ParaView.")
     p.add_argument("--interactive", action="store_true",
                    help="Open a live window with a time-frame slider.")
     p.add_argument("--outdir", default="hydro_pyvista_out",
                    help="Base output directory (default hydro_pyvista_out/).")
-    p.add_argument("--framerate", type=int, default=10,
-                   help="Movie frames per second (default 10).")
+    p.add_argument("--framerate", type=float, default=6.0,
+                   help="Movie frames per second (default 6). Applies to both "
+                        ".gif and .mp4.")
+    p.add_argument("--frame-duration", type=float, default=None,
+                   dest="frame_duration", metavar="SECONDS",
+                   help="Seconds to show each frame (slower playback to follow "
+                        "the evolution); overrides --framerate. e.g. 0.5 = 2 fps.")
     p.add_argument("--jobs", "-j", type=int, default=min(os.cpu_count() or 1, 8),
                    help="Threads for the Milne→Cartesian resampling (the dominant "
                         "cost). scipy releases the GIL so threads scale ~linearly; "
                         f"default min(cores,8). Use 1 to disable.")
-    return p.parse_args()
+    return p
+
+
+def parse_args() -> argparse.Namespace:
+    return build_parser().parse_args()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -619,16 +630,21 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
         movie = args.movie if os.path.isabs(args.movie) \
             else os.path.join(args.outdir, args.movie)
         _maybe_start_xvfb(off_screen=True)
-        plotter = pv.Plotter(off_screen=True, window_size=(1000, 800))
+        # Window size divisible by 16 (macro_block_size) so the ffmpeg .mp4 writer
+        # doesn't resize/pad the frames (1000 -> 1008) and warn.
+        plotter = pv.Plotter(off_screen=True, window_size=(1008, 800))
+        # Playback speed: --frame-duration (seconds/frame) overrides --framerate.
+        fps = (1.0 / args.frame_duration) if args.frame_duration else float(args.framerate)
         if movie.lower().endswith(".mp4"):
             try:
-                plotter.open_movie(movie, framerate=args.framerate)
+                plotter.open_movie(movie, framerate=max(1, int(round(fps))))
             except Exception as exc:
                 movie = os.path.splitext(movie)[0] + ".gif"
                 print(f"  [!] mp4 unavailable ({exc}); falling back to {movie}")
-                plotter.open_gif(movie)
+                plotter.open_gif(movie, fps=fps)
         else:
-            plotter.open_gif(movie)
+            plotter.open_gif(movie, fps=fps)
+        print(f"  playback: {fps:.2g} fps ({1.0 / fps:.2g} s/frame)")
         # Static scene (background, axes, box, energy colour bar): built ONCE.
         _decorate_scene(plotter, _scene_bounds(axes))
         if args.field in ("e", "both") and clim[1] > 0:
@@ -683,7 +699,7 @@ def _show_interactive(frames, axes, ts, args, event_id, clim, overlay) -> None:
     import pyvista as pv
     grids  = [make_image_data(f, axes) for f in frames]
     bounds = _scene_bounds(axes)
-    plotter = pv.Plotter(window_size=(1000, 800))
+    plotter = pv.Plotter(window_size=(1008, 800))
     _decorate_scene(plotter, bounds)            # background/axes/box: added ONCE
     if args.field in ("e", "both") and clim[1] > 0:
         _add_colorbar_proxy(plotter, clim, args.cmap)   # colour bar: added ONCE

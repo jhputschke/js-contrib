@@ -6,26 +6,40 @@
 `PyJetscape/python/jetscape/bulk_root_writer.py`).
 
 The hydro is evolved in **Milne** coordinates `(τ, x, y, η_s)`, but this tool
-resamples it into **Cartesian lab spacetime** `(t, x, y, z)` so that the next
-phase — overlaying **parton-shower propagation**, which is naturally Cartesian —
-shares one coordinate system with the medium.
+resamples it into **Cartesian lab spacetime** `(t, x, y, z)`. The companion
+[`hydro_jet_pyvista.py`](hydro_jet_pyvista.py) overlays the **jet parton shower**
+in that same `(t,x,y,z)` frame.
 
 ## Files
 
-- [`hydro_pyvista.py`](hydro_pyvista.py) — the visualizer (data acquisition →
+- [`hydro_pyvista.py`](hydro_pyvista.py) — the medium visualizer (data acquisition →
   Milne→Cartesian resampling → PyVista rendering).
+- [`hydro_jet_pyvista.py`](hydro_jet_pyvista.py) — medium **plus the jet parton
+  shower** as accumulating arrows (see [Jet overlay](#jet-overlay)).
+- [`config/`](config/) — bundled example MUSIC configs (`OO_one_event.xml`,
+  `OO_one_event_jet.xml`).
 - [`PlanVisualization.md`](PlanVisualization.md) — the design plan.
 
 ## Environment
 
 ```bash
 conda activate fno_pyvista_env      # pyvista, scipy, vtk, imageio, numpy
+pip install imageio-ffmpeg          # only needed for .mp4 output (.gif works without)
 ```
 
 The compiled `pyjetscape_core` module must match this env's Python (built for
 CPython 3.13). Live hydro runs execute from the X-SCAPE build directory
 (default `<repo>/build_gpu`) so MUSIC can find `music_input`, `EOS/`, and the
 tables — the script `chdir`'s there for you.
+
+### Movie output & playback speed
+
+`--movie out.gif` writes a GIF (always available); `--movie out.mp4` writes an MP4
+(smaller, smoother — needs the `imageio-ffmpeg` package above, otherwise it falls
+back to `.gif`). Control the speed with `--framerate` (frames/sec, default 6, applies
+to both) or the more intuitive `--frame-duration SECONDS` (seconds each frame is
+shown, e.g. `--frame-duration 0.5` for 2 fps to follow the evolution closely).
+`--vtk-dir DIR` instead writes a `.vti`+`.pvd` time series for ParaView.
 
 ## Usage
 
@@ -109,12 +123,62 @@ The script auto-detects the data kind from `bulk.boost_invariant` / `neta`:
 The full 3+1D grid can be ~GB in memory; `--save-milne` compresses it well (the
 vacuum rapidity tails are mostly zero — a 643 MB grid → ~37 MB `.npz`).
 
-## Next phase: parton-shower overlay
+## Jet overlay
 
-`render_event(..., overlay=callback)` accepts an `overlay(plotter, t)` callback
-invoked at each lab time `t`. A future parton visualizer passes a callback that
-adds `pyvista.PolyData` lines/points for the parton tracks at time `t` — they land
-in the same Cartesian `(t, x, y, z)` frame as the medium volume. The `.vti`+`.pvd`
-ParaView export reuses the identical grid, so the overlay can also be done in
-ParaView.
+[`hydro_jet_pyvista.py`](hydro_jet_pyvista.py) renders the medium **and** the jet
+parton shower together. It reuses everything in `hydro_pyvista.py` via the
+`render_event(..., overlay=callback)` hook — the medium is identical; the overlay
+adds the partons as arrows in the same Cartesian `(t,x,y,z)` frame, accumulating
+over lab time (earlier partons are not removed, so the shower tree builds up).
+
+```bash
+# Live: run MUSIC + jets (config/OO_one_event_jet.xml) and render medium + shower
+python hydro_jet_pyvista.py --events 1 --movie evt_jet.gif
+
+# Non-live: medium from a dump + shower from the ASCII writer output
+python hydro_jet_pyvista.py --load hydro.npz --jet-ascii test_out.dat --movie evt_jet.gif
+```
+
+How the shower is obtained:
+
+- **Live (default):** read from the framework via pybind11 bindings at the
+  per-event yield point — the same place the hydro is read, no file parsing:
+  ```python
+  jm = JetScapeSignalManager.Instance().GetJetEnergyLossManagerPointer()
+  for ps in jm.get_showers():        # one PartonShower per shower-initiating parton
+      edges = ps.to_numpy()          # (n_partons, 12)
+      # [source_id, target_id, pid, pstat, px, py, pz, E, x, y, z, t]
+  ```
+  These bindings (`Parton`, `Vertex`, `PartonShower`, `JetEnergyLossManager`,
+  `JetScapeSignalManager.GetJetEnergyLossManagerPointer`) live in
+  `PyJetscape/src/bind_jet.cc`; rebuild `pyjetscape_core` after pulling. The full
+  shower is only complete *after* the `JetEnergyLossManager` has executed (its
+  child `JetEnergyLoss` copies each hold a finished shower).
+- **Non-live (`--load`):** the shower is parsed from the `JetScapeWriterAscii`
+  output (`--jet-ascii`, default `<workdir>/test_out.dat`). This path also serves
+  to verify the bindings (it produces the identical graph).
+
+Each parton is a graph edge between two space-time vertices; only those endpoints
+are recorded, so a parton's position at an intermediate lab time `t` is the
+straight-line (constant-velocity) interpolation between its start and end vertex.
+
+Partons are colour-coded by **pT** (default colormap `cool`, contrasting the
+inferno medium) on a fixed scale whose maximum is the hardest parton's pT — shown
+as a second colour bar (left), separate from the energy-density bar (right).
+
+Jet options: `--jet-radius`/`--jet-width` (arrow width in fm, default 0.04),
+`--jet-cmap` (pT colormap), `--jet-color` (one fixed colour instead of the pT
+scale), `--jet-min-energy` (drop soft partons), `--jet-ascii`. By default the
+animation runs from **t=0** (when the jets are born at the hard vertex) to the
+medium lifetime `τ_max`: the jets first evolve **in vacuum**, then the medium
+appears once it forms (`t ≥ τ₀`, below which the hydro resampler returns an empty
+volume).
+
+The **medium box matches the medium-only script exactly** — it is *not* widened
+for the jets, so the medium evolution renders identically (widening `z` would
+otherwise reveal the early-proper-time medium near the light-cone edge at large
+`|z|`, and the last frame would not look cooled). The jets are instead kept in
+frame by an invisible camera anchor and may extend past the box. Use `--t-max` to
+follow the jets further out (the forward, high-energy partons escape to large
+`z`), `--t-min` to start later, or `--z-max`/`--xy-max` to enlarge the box.
 ```
