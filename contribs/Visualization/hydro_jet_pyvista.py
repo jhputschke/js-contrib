@@ -249,20 +249,44 @@ def _add_jet_actors(plotter, starts, tips, dirs, pT, args, max_pT) -> None:
                          name="jet_heads", **common)
 
 
-def make_jet_overlay(seg, args, max_pT):
+def _add_cam_anchor(plotter, lo, hi) -> None:
+    """Invisible 8-corner box at the jet extent so the camera frames the jets
+    even though the (untouched) medium box is smaller.  Added once."""
+    import pyvista as pv
+    corners = np.array([[x, y, z] for x in (lo[0], hi[0])
+                        for y in (lo[1], hi[1]) for z in (lo[2], hi[2])], dtype=float)
+    plotter.add_mesh(pv.PolyData(corners), opacity=0.0, name="cam_anchor",
+                     reset_camera=False, show_scalar_bar=False)
+
+
+def make_jet_overlay(seg, args, max_pT, t_max):
     """Return overlay(plotter, t) drawing the shower accumulated up to lab time t.
 
     Partons are coloured by pT against a fixed scale [0, max_pT] (max_pT = the
-    hardest shower-initiating parton), with a persistent pT colour bar.
+    hardest shower-initiating parton), with a persistent pT colour bar.  An
+    invisible camera anchor at the jet extent (evaluated at t_max) keeps the jets
+    in frame without enlarging the medium box.
     """
     if seg is None:
         return None
     starts, ends = seg["starts"], seg["ends"]
     t0, t1, dirs, pT = seg["t0"], seg["t1"], seg["dirs"], seg["pT"]
     span = np.where(t1 > t0, t1 - t0, 1.0)
-    state = {"cbar": False}
+
+    # Jet bounding box at the final displayed time (for the camera anchor).
+    tips_tm = starts + (ends - starts) * np.clip((t_max - t0) / span, 0.0, 1.0)[:, None]
+    seen = t_max >= t0
+    anchor = None
+    if seen.any():
+        pts = np.concatenate([starts[seen], tips_tm[seen]], axis=0)
+        anchor = (pts.min(axis=0), pts.max(axis=0))
+
+    state = {"cbar": False, "anchor": False}
 
     def overlay(plotter, t):
+        if not state["anchor"] and anchor is not None:
+            _add_cam_anchor(plotter, anchor[0], anchor[1])
+            state["anchor"] = True
         if not state["cbar"] and not args.jet_color:
             _add_jet_colorbar(plotter, max_pT, args.jet_cmap)
             state["cbar"] = True
@@ -315,32 +339,6 @@ def build_parser():
     return p
 
 
-def _extent_for(args, arr, meta, seg):
-    """Pick a Cartesian display box + lab-time span covering medium AND jets.
-
-    By default the animation spans the medium lifetime (τ_max); the box is sized
-    to where partons are *at that final time* (not their far-future endpoints), so
-    one forward high-energy parton doesn't blow the box up.  Extend with --t-max
-    to watch the jets fly out further (the box grows to match).
-    """
-    tau_max = meta["tau_min"] + (meta["ntau"] - 1) * meta["dtau"]
-    med_xy = hp.medium_xy_max(arr, meta)
-    t_max = args._user_t_max if args._user_t_max is not None else tau_max
-    jx = jz = 0.0
-    if seg is not None:
-        span = np.where(seg["t1"] > seg["t0"], seg["t1"] - seg["t0"], 1.0)
-        frac = np.clip((t_max - seg["t0"]) / span, 0.0, 1.0)
-        tips = seg["starts"] + (seg["ends"] - seg["starts"]) * frac[:, None]
-        active = t_max >= seg["t0"]
-        if active.any():
-            ta = tips[active]
-            jx = float(np.abs(ta[:, :2]).max())
-            jz = float(np.abs(ta[:, 2]).max())
-    xy_max = args._user_xy_max if args._user_xy_max is not None else max(med_xy, jx) + 1.0
-    z_max  = args._user_z_max  if args._user_z_max  is not None else max(0.8 * tau_max, jz) + 1.0
-    return float(xy_max), float(z_max), float(t_max)
-
-
 def _render(event_id, arr, meta, shower_arrays, args):
     seg = build_segments(shower_arrays, args.jet_min_energy)
     n_part = 0 if seg is None else len(seg["t0"])
@@ -348,16 +346,19 @@ def _render(event_id, arr, meta, shower_arrays, args):
     max_pT = float(seg["pT"].max()) if seg is not None else 1.0
     print(f"  jets: {len(shower_arrays)} shower(s), {n_part} parton segments, "
           f"max pT = {max_pT:.1f} GeV")
-    args.xy_max, args.z_max, args.t_max = _extent_for(args, arr, meta, seg)
-    overlay = make_jet_overlay(seg, args, max_pT)
+    # IMPORTANT: do NOT widen the medium box for the jets — leave args.xy_max/z_max
+    # at hydro_pyvista's defaults so the medium evolution renders identically (a
+    # wider z would otherwise reveal the early-tau, light-cone-edge medium at large
+    # |z| and the last frame would not look cooled). The jets are framed instead by
+    # an invisible camera anchor inside make_jet_overlay.
+    tau_max = meta["tau_min"] + (meta["ntau"] - 1) * meta["dtau"]
+    t_max = args.t_max if args.t_max is not None else tau_max
+    overlay = make_jet_overlay(seg, args, max_pT, t_max)
     hp.render_event(event_id, arr, meta, args, overlay=overlay)
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    # Remember which extents the user fixed (so jet auto-extent doesn't override).
-    args._user_xy_max, args._user_z_max, args._user_t_max = \
-        args.xy_max, args.z_max, args.t_max
 
     if not (args.movie or args.vtk_dir or args.interactive):
         args.movie = "evolution_jet.gif"

@@ -172,7 +172,13 @@ scale), `--jet-min-energy` (drop soft partons), `--jet-ascii`. By default the
 animation runs from **t=0** (when the jets are born at the hard vertex) to the
 medium lifetime `τ_max`: the jets first evolve **in vacuum**, then the medium
 appears once it forms (`t ≥ τ₀`, below which the hydro resampler returns an empty
-volume). The box is sized to where partons are at `τ_max`; use `--t-max` to follow
-the jets further out (the forward, high-energy partons escape to large `z`), or
-`--t-min` to start later.
+volume).
+
+The **medium box matches the medium-only script exactly** — it is *not* widened
+for the jets, so the medium evolution renders identically (widening `z` would
+otherwise reveal the early-proper-time medium near the light-cone edge at large
+`|z|`, and the last frame would not look cooled). The jets are instead kept in
+frame by an invisible camera anchor and may extend past the box. Use `--t-max` to
+follow the jets further out (the forward, high-energy partons escape to large
+`z`), `--t-min` to start later, or `--z-max`/`--xy-max` to enlarge the box.
 ```
