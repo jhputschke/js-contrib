@@ -630,7 +630,9 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
         movie = args.movie if os.path.isabs(args.movie) \
             else os.path.join(args.outdir, args.movie)
         _maybe_start_xvfb(off_screen=True)
-        plotter = pv.Plotter(off_screen=True, window_size=(1000, 800))
+        # Window size divisible by 16 (macro_block_size) so the ffmpeg .mp4 writer
+        # doesn't resize/pad the frames (1000 -> 1008) and warn.
+        plotter = pv.Plotter(off_screen=True, window_size=(1008, 800))
         # Playback speed: --frame-duration (seconds/frame) overrides --framerate.
         fps = (1.0 / args.frame_duration) if args.frame_duration else float(args.framerate)
         if movie.lower().endswith(".mp4"):
@@ -697,7 +699,7 @@ def _show_interactive(frames, axes, ts, args, event_id, clim, overlay) -> None:
     import pyvista as pv
     grids  = [make_image_data(f, axes) for f in frames]
     bounds = _scene_bounds(axes)
-    plotter = pv.Plotter(window_size=(1000, 800))
+    plotter = pv.Plotter(window_size=(1008, 800))
     _decorate_scene(plotter, bounds)            # background/axes/box: added ONCE
     if args.field in ("e", "both") and clim[1] > 0:
         _add_colorbar_proxy(plotter, clim, args.cmap)   # colour bar: added ONCE
