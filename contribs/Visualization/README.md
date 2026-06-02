@@ -24,12 +24,22 @@ in that same `(t,x,y,z)` frame.
 
 ```bash
 conda activate fno_pyvista_env      # pyvista, scipy, vtk, imageio, numpy
+pip install imageio-ffmpeg          # only needed for .mp4 output (.gif works without)
 ```
 
 The compiled `pyjetscape_core` module must match this env's Python (built for
 CPython 3.13). Live hydro runs execute from the X-SCAPE build directory
 (default `<repo>/build_gpu`) so MUSIC can find `music_input`, `EOS/`, and the
 tables — the script `chdir`'s there for you.
+
+### Movie output & playback speed
+
+`--movie out.gif` writes a GIF (always available); `--movie out.mp4` writes an MP4
+(smaller, smoother — needs the `imageio-ffmpeg` package above, otherwise it falls
+back to `.gif`). Control the speed with `--framerate` (frames/sec, default 6, applies
+to both) or the more intuitive `--frame-duration SECONDS` (seconds each frame is
+shown, e.g. `--frame-duration 0.5` for 2 fps to follow the evolution closely).
+`--vtk-dir DIR` instead writes a `.vti`+`.pvd` time series for ParaView.
 
 ## Usage
 
