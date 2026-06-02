@@ -108,10 +108,10 @@ def parse_args() -> argparse.Namespace:
                    default=os.path.join(_REPO_ROOT, "config", "jetscape_main.xml"),
                    help="Main XML config (default: <repo>/config/jetscape_main.xml).")
     p.add_argument("--user",
-                   default=os.path.join(_REPO_ROOT, "config", "BulkFastTest",
-                                        "OO_one_event.xml"),
-                   help="User XML config (default: BulkFastTest/OO_one_event.xml, "
-                        "which runs MUSIC with output_evolution_to_memory=1).")
+                   default=os.path.join(_THIS_DIR, "config", "OO_one_event.xml"),
+                   help="User XML config (default: the contrib's bundled "
+                        "config/OO_one_event.xml, which runs MUSIC with "
+                        "output_evolution_to_memory=1).")
     p.add_argument("--workdir",
                    default=os.path.join(_REPO_ROOT, "build_gpu"),
                    help="Directory to run from so MUSIC finds music_input/EOS/tables "

@@ -32,7 +32,7 @@ tables — the script `chdir`'s there for you.
 ```bash
 cd external_packages/js-contrib/contribs/Visualization
 
-# Live per-event run (BulkFastTest/OO_one_event.xml drives MUSIC with
+# Live per-event run (the bundled config/OO_one_event.xml drives MUSIC with
 # output_evolution_to_memory=1) → movie + ParaView time series:
 python hydro_pyvista.py --events 1 \
     --movie evt.gif --vtk-dir vti

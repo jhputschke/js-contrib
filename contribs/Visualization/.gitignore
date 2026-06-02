@@ -6,3 +6,7 @@ __pycache__/
 *.vti
 *.pvd
 *.npz
+
+# macOS
+.DS_Store
+**/.DS_Store
