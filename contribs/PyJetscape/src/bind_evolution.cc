@@ -267,5 +267,53 @@ void bind_evolution(py::module_ &m) {
              Returns
              -------
              np.ndarray, shape (ntau, nx, ny, n_features), dtype float32
+           )pbdoc")
+      // Full 3+1D export: keeps the eta (space-time rapidity) axis and exposes
+      // vz, so a Milne->Cartesian resampler can map different z to different
+      // eta.  to_numpy() collapses to id_eta=0 and has no vz, which is only
+      // correct for boost-invariant data.
+      .def("to_numpy_full",
+           [](const EvolutionHistory &h, int n_features) -> py::array_t<float> {
+             if (n_features < 1 || n_features > 6)
+               throw std::invalid_argument(
+                   "to_numpy_full: n_features must be 1-6, got " +
+                   std::to_string(n_features));
+             if (h.data.empty())
+               throw std::runtime_error(
+                   "to_numpy_full: bulk_info.data is empty — run EvolveHydro() first.");
+
+             const int neta = (h.neta > 0) ? h.neta : 1;
+             py::array_t<float> arr({h.ntau, h.nx, h.ny, neta, n_features});
+             auto buf = arr.mutable_unchecked<5>();
+
+             for (int k = 0; k < h.ntau; ++k)
+               for (int i = 0; i < h.nx; ++i)
+                 for (int j = 0; j < h.ny; ++j)
+                   for (int l = 0; l < neta; ++l) {
+                     const auto &c = h.data[h.CellIndex(k, i, j, l)];
+                     if (n_features >= 1) buf(k, i, j, l, 0) = c.energy_density;
+                     if (n_features >= 2) buf(k, i, j, l, 1) = c.temperature;
+                     if (n_features >= 3) buf(k, i, j, l, 2) = c.vx;
+                     if (n_features >= 4) buf(k, i, j, l, 3) = c.vy;
+                     if (n_features >= 5) buf(k, i, j, l, 4) = c.vz;
+                     if (n_features >= 6) buf(k, i, j, l, 5) = c.entropy_density;
+                   }
+             return arr;
+           },
+           py::arg("n_features") = 5,
+           R"pbdoc(
+             Convert bulk_info.data to a numpy float32 array keeping the full
+             eta (rapidity) axis, in a single C++ pass.
+
+             Parameters
+             ----------
+             n_features : int (1–6, default 5)
+                 Number of fields per cell.
+                 Layout: [energy_density, temperature, vx, vy, vz,
+                          entropy_density]
+
+             Returns
+             -------
+             np.ndarray, shape (ntau, nx, ny, neta, n_features), dtype float32
            )pbdoc");
 }

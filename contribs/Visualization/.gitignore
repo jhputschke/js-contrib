@@ -1,0 +1,7 @@
+# Render outputs / artifacts produced by hydro_pyvista.py
+hydro_pyvista_out/
+*.gif
+*.mp4
+*.vti
+*.pvd
+*.npz
