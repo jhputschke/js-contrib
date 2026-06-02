@@ -98,7 +98,8 @@ VOLUME_OPACITY = [0.0, 0.22, 0.45, 0.65, 0.82, 0.95]
 # CLI
 # ──────────────────────────────────────────────────────────────────────────────
 
-def parse_args() -> argparse.Namespace:
+def build_parser() -> argparse.ArgumentParser:
+    """Construct the CLI parser (exposed so extensions can add arguments)."""
     p = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -178,7 +179,11 @@ def parse_args() -> argparse.Namespace:
                    help="Threads for the Milne→Cartesian resampling (the dominant "
                         "cost). scipy releases the GIL so threads scale ~linearly; "
                         f"default min(cores,8). Use 1 to disable.")
-    return p.parse_args()
+    return p
+
+
+def parse_args() -> argparse.Namespace:
+    return build_parser().parse_args()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
