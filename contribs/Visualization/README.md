@@ -152,9 +152,14 @@ Each parton is a graph edge between two space-time vertices; only those endpoint
 are recorded, so a parton's position at an intermediate lab time `t` is the
 straight-line (constant-velocity) interpolation between its start and end vertex.
 
-Jet options: `--jet-radius` (tube radius, fm), `--jet-color`, `--jet-cmap` (colour
-by energy instead), `--jet-min-energy` (drop soft partons), `--jet-ascii`. By
-default the animation spans the medium lifetime (`τ_max`) and the box is sized to
-where partons are at that time; use `--t-max` to follow the jets further out (the
+Partons are colour-coded by **pT** (default colormap `cool`, contrasting the
+inferno medium) on a fixed scale whose maximum is the hardest parton's pT — shown
+as a second colour bar (left), separate from the energy-density bar (right).
+
+Jet options: `--jet-radius`/`--jet-width` (arrow width in fm, default 0.04),
+`--jet-cmap` (pT colormap), `--jet-color` (one fixed colour instead of the pT
+scale), `--jet-min-energy` (drop soft partons), `--jet-ascii`. By default the
+animation spans the medium lifetime (`τ_max`) and the box is sized to where
+partons are at that time; use `--t-max` to follow the jets further out (the
 forward, high-energy partons escape to large `z`).
 ```

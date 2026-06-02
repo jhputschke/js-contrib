@@ -147,7 +147,7 @@ def _segments_from_edges(edges: np.ndarray, min_energy: float):
             vpos[src[i]] = pos[i]
             vtime[src[i]] = tim[i]
 
-    starts, ends, t0, t1, energy, dirs = [], [], [], [], [], []
+    starts, ends, t0, t1, energy, pT, dirs = [], [], [], [], [], [], []
     for i in range(len(edges)):
         if E[i] < min_energy:
             continue
@@ -168,12 +168,14 @@ def _segments_from_edges(edges: np.ndarray, min_energy: float):
             d = np.array([0.0, 0.0, 1.0])
         starts.append(s); ends.append(e); t0.append(ta); t1.append(tb)
         energy.append(E[i]); dirs.append(d)
+        pT.append(float(np.hypot(p[0], p[1])))        # transverse momentum
 
     if not starts:
         return None
     return dict(starts=np.asarray(starts), ends=np.asarray(ends),
                 t0=np.asarray(t0), t1=np.asarray(t1),
-                energy=np.asarray(energy), dirs=np.asarray(dirs))
+                energy=np.asarray(energy), pT=np.asarray(pT),
+                dirs=np.asarray(dirs))
 
 
 def build_segments(shower_arrays, min_energy: float = 0.0):
@@ -189,14 +191,33 @@ def build_segments(shower_arrays, min_energy: float = 0.0):
 # Overlay: accumulating parton arrows at lab time t
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _add_jet_actors(plotter, starts, tips, dirs, energy, args) -> None:
+def _jet_bar_args():
+    return dict(title="parton pT  [GeV]", color="white",
+                title_font_size=15, label_font_size=12, n_labels=5, fmt="%.0f",
+                vertical=True, position_x=0.045, position_y=0.30,
+                width=0.04, height=0.5)
+
+
+def _add_jet_colorbar(plotter, max_pT, cmap) -> None:
+    """Persistent parton-pT colour bar (added once), on the left so it doesn't
+    collide with the energy-density bar on the right.  Backed by an invisible
+    2-point proxy spanning [0, max_pT]."""
+    import pyvista as pv
+    proxy = pv.PolyData(np.zeros((2, 3)))
+    proxy["pT"] = np.array([0.0, max_pT], dtype=float)
+    plotter.add_mesh(proxy, scalars="pT", cmap=cmap, clim=(0.0, max_pT),
+                     opacity=0.0, name="jet_cbar_proxy", reset_camera=False,
+                     show_scalar_bar=True, scalar_bar_args=_jet_bar_args())
+
+
+def _add_jet_actors(plotter, starts, tips, dirs, pT, args, max_pT) -> None:
     import pyvista as pv
     plotter.remove_actor("jets", reset_camera=False)
     plotter.remove_actor("jet_heads", reset_camera=False)
     m = len(starts)
     if m == 0:
         return
-    # Shafts: one line per parton (start → current tip), thickened to tubes.
+    # Shafts: one line per parton (start → current tip), thickened to thin tubes.
     pts = np.empty((2 * m, 3), dtype=float)
     pts[0::2] = starts
     pts[1::2] = tips
@@ -205,37 +226,46 @@ def _add_jet_actors(plotter, starts, tips, dirs, energy, args) -> None:
     lines[:, 1] = np.arange(0, 2 * m, 2)
     lines[:, 2] = np.arange(1, 2 * m, 2)
     poly = pv.PolyData(pts, lines=lines.ravel())
-    poly["energy"] = np.repeat(energy, 2)
+    poly["pT"] = np.repeat(pT, 2)
     shafts = poly.tube(radius=args.jet_radius, n_sides=8)
 
-    head_geom = pv.Cone(radius=args.jet_radius * 3.2, height=args.jet_radius * 8.0,
-                        resolution=12)
+    # Small cone arrowheads at the moving tips, oriented along the parton.
+    head_geom = pv.Cone(radius=args.jet_radius * 2.4, height=args.jet_radius * 5.0,
+                        resolution=14)
     heads = pv.PolyData(np.asarray(tips, dtype=float))
     heads["dir"] = np.asarray(dirs, dtype=float)
-    heads["energy"] = np.asarray(energy, dtype=float)
+    heads["pT"]  = np.asarray(pT, dtype=float)
     glyphs = heads.glyph(orient="dir", scale=False, factor=1.0, geom=head_geom)
 
     common = dict(reset_camera=False, show_scalar_bar=False)
-    if args.jet_cmap:
-        clim = (max(0.1, float(np.min(energy))), float(np.max(energy)))
-        plotter.add_mesh(shafts, scalars="energy", cmap=args.jet_cmap, clim=clim,
-                         log_scale=True, name="jets", **common)
-        plotter.add_mesh(glyphs, scalars="energy", cmap=args.jet_cmap, clim=clim,
-                         log_scale=True, name="jet_heads", **common)
-    else:
+    if args.jet_color:                                    # fixed colour override
         plotter.add_mesh(shafts, color=args.jet_color, name="jets", **common)
         plotter.add_mesh(glyphs, color=args.jet_color, name="jet_heads", **common)
+    else:                                                 # colour by pT
+        clim = (0.0, max_pT)
+        plotter.add_mesh(shafts, scalars="pT", cmap=args.jet_cmap, clim=clim,
+                         name="jets", **common)
+        plotter.add_mesh(glyphs, scalars="pT", cmap=args.jet_cmap, clim=clim,
+                         name="jet_heads", **common)
 
 
-def make_jet_overlay(seg, args):
-    """Return overlay(plotter, t) drawing the shower accumulated up to lab time t."""
+def make_jet_overlay(seg, args, max_pT):
+    """Return overlay(plotter, t) drawing the shower accumulated up to lab time t.
+
+    Partons are coloured by pT against a fixed scale [0, max_pT] (max_pT = the
+    hardest shower-initiating parton), with a persistent pT colour bar.
+    """
     if seg is None:
         return None
     starts, ends = seg["starts"], seg["ends"]
-    t0, t1, dirs, energy = seg["t0"], seg["t1"], seg["dirs"], seg["energy"]
+    t0, t1, dirs, pT = seg["t0"], seg["t1"], seg["dirs"], seg["pT"]
     span = np.where(t1 > t0, t1 - t0, 1.0)
+    state = {"cbar": False}
 
     def overlay(plotter, t):
+        if not state["cbar"] and not args.jet_color:
+            _add_jet_colorbar(plotter, max_pT, args.jet_cmap)
+            state["cbar"] = True
         active = t >= t0
         if not active.any():
             plotter.remove_actor("jets", reset_camera=False)
@@ -244,7 +274,7 @@ def make_jet_overlay(seg, args):
         frac = np.clip((t - t0) / span, 0.0, 1.0)        # straight-line in time
         tips = starts + (ends - starts) * frac[:, None]
         _add_jet_actors(plotter, starts[active], tips[active],
-                        dirs[active], energy[active], args)
+                        dirs[active], pT[active], args, max_pT)
 
     return overlay
 
@@ -263,12 +293,16 @@ def build_parser():
     g.add_argument("--jet-ascii", default=None, dest="jet_ascii",
                    help="JetScape ASCII shower file for --load mode "
                         "(default <workdir>/test_out.dat).")
-    g.add_argument("--jet-radius", type=float, default=0.06, dest="jet_radius",
-                   help="Parton tube radius in fm (default 0.06).")
-    g.add_argument("--jet-color", default="#1cf5a0", dest="jet_color",
-                   help="Parton colour when not colouring by energy (default green).")
-    g.add_argument("--jet-cmap", default=None, dest="jet_cmap",
-                   help="Colour partons by energy with this colormap (e.g. cool).")
+    g.add_argument("--jet-radius", "--jet-width", type=float, default=0.04,
+                   dest="jet_radius",
+                   help="Parton arrow shaft radius/width in fm (default 0.04); "
+                        "arrowheads scale with it.")
+    g.add_argument("--jet-cmap", default="cool", dest="jet_cmap",
+                   help="Colormap for colouring partons by pT (default 'cool', "
+                        "contrasts the inferno medium). Try 'winter', 'YlGnBu'.")
+    g.add_argument("--jet-color", default=None, dest="jet_color",
+                   help="Fixed parton colour, overriding the pT colour scale "
+                        "(e.g. '#1cf5a0').")
     g.add_argument("--jet-min-energy", type=float, default=0.0, dest="jet_min_energy",
                    help="Drop partons below this energy in GeV (default 0).")
     return p
@@ -303,9 +337,12 @@ def _extent_for(args, arr, meta, seg):
 def _render(event_id, arr, meta, shower_arrays, args):
     seg = build_segments(shower_arrays, args.jet_min_energy)
     n_part = 0 if seg is None else len(seg["t0"])
-    print(f"  jets: {len(shower_arrays)} shower(s), {n_part} drawable parton segments")
+    # pT colour scale anchored to the hardest parton (≈ hardest incoming parton).
+    max_pT = float(seg["pT"].max()) if seg is not None else 1.0
+    print(f"  jets: {len(shower_arrays)} shower(s), {n_part} parton segments, "
+          f"max pT = {max_pT:.1f} GeV")
     args.xy_max, args.z_max, args.t_max = _extent_for(args, arr, meta, seg)
-    overlay = make_jet_overlay(seg, args)
+    overlay = make_jet_overlay(seg, args, max_pT)
     hp.render_event(event_id, arr, meta, args, overlay=overlay)
 
 
