@@ -159,7 +159,10 @@ as a second colour bar (left), separate from the energy-density bar (right).
 Jet options: `--jet-radius`/`--jet-width` (arrow width in fm, default 0.04),
 `--jet-cmap` (pT colormap), `--jet-color` (one fixed colour instead of the pT
 scale), `--jet-min-energy` (drop soft partons), `--jet-ascii`. By default the
-animation spans the medium lifetime (`τ_max`) and the box is sized to where
-partons are at that time; use `--t-max` to follow the jets further out (the
-forward, high-energy partons escape to large `z`).
+animation runs from **t=0** (when the jets are born at the hard vertex) to the
+medium lifetime `τ_max`: the jets first evolve **in vacuum**, then the medium
+appears once it forms (`t ≥ τ₀`, below which the hydro resampler returns an empty
+volume). The box is sized to where partons are at `τ_max`; use `--t-max` to follow
+the jets further out (the forward, high-energy partons escape to large `z`), or
+`--t-min` to start later.
 ```

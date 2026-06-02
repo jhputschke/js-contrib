@@ -266,15 +266,18 @@ def make_jet_overlay(seg, args, max_pT):
         if not state["cbar"] and not args.jet_color:
             _add_jet_colorbar(plotter, max_pT, args.jet_cmap)
             state["cbar"] = True
-        active = t >= t0
-        if not active.any():
+        frac = np.clip((t - t0) / span, 0.0, 1.0)        # straight-line in time
+        tips = starts + (ends - starts) * frac[:, None]
+        # Draw partons that exist and have already moved a little (at their birth
+        # they are a single point → zero-length, which can't be tubed).
+        seglen = np.linalg.norm(tips - starts, axis=1)
+        draw = (t >= t0) & (seglen > 1e-4)
+        if not draw.any():
             plotter.remove_actor("jets", reset_camera=False)
             plotter.remove_actor("jet_heads", reset_camera=False)
             return
-        frac = np.clip((t - t0) / span, 0.0, 1.0)        # straight-line in time
-        tips = starts + (ends - starts) * frac[:, None]
-        _add_jet_actors(plotter, starts[active], tips[active],
-                        dirs[active], pT[active], args, max_pT)
+        _add_jet_actors(plotter, starts[draw], tips[draw],
+                        dirs[draw], pT[draw], args, max_pT)
 
     return overlay
 
@@ -288,7 +291,11 @@ def build_parser():
     p.description = __doc__
     # Default to the jet config (Hard + Eloss/Matter); the base script defaults
     # to the hydro-only OO_one_event.xml which produces no showers.
-    p.set_defaults(user=os.path.join(_THIS_DIR, "config", "OO_one_event_jet.xml"))
+    # Start the animation at t=0 (when the jets are born at the hard vertex) so the
+    # jets first evolve in vacuum; the medium appears once it forms (t >= tau_min,
+    # where the hydro resampler returns an empty volume below tau_min).
+    p.set_defaults(user=os.path.join(_THIS_DIR, "config", "OO_one_event_jet.xml"),
+                   t_min=0.0)
     g = p.add_argument_group("jet overlay")
     g.add_argument("--jet-ascii", default=None, dest="jet_ascii",
                    help="JetScape ASCII shower file for --load mode "
