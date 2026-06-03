@@ -138,6 +138,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "Sampled finer than the hydro grid via interpolation, so "
                         "higher = smoother (and slower).")
     p.add_argument("--nz", type=int, default=96, help="z grid points (default 96).")
+    p.add_argument("--z-oversample", type=int, default=3, dest="z_oversample",
+                   help="Longitudinal anti-aliasing density (default 3). Adds "
+                        "tau-uniform z-samples (dense at the tau=tau_min light-cone "
+                        "edge, which would otherwise alias and flicker frame to "
+                        "frame), bin-pooled onto the z-grid. Higher = smoother & "
+                        "slower; 1 disables.")
     p.add_argument("--z-max", type=float, default=None, dest="z_max",
                    help="z half-extent in fm (default 0.8*t_max).")
     p.add_argument("--xy-max", type=float, default=None, dest="xy_max",
@@ -358,7 +364,23 @@ def cartesian_axes(meta: dict, args, t_max: float, xy_max=None):
     return xs, ys, zs
 
 
-def cartesian_frame(interp, t: float, axes, meta: dict, want_velocity: bool) -> dict:
+def _binpool(a: np.ndarray, idx: np.ndarray, nz: int, how: str) -> np.ndarray:
+    """Pool irregular z-samples a(nx,ny,nzw) into uniform cells out(nx,ny,nz).
+
+    idx[j] is the output cell of sample j.  how='max' for intensities, 'mean' for
+    velocity.  Loops over the (few) output cells — each does one masked reduce.
+    """
+    out = np.zeros((a.shape[0], a.shape[1], nz), dtype=np.float32)
+    for k in range(nz):
+        m = idx == k
+        if m.any():
+            sub = a[:, :, m]
+            out[:, :, k] = sub.max(axis=2) if how == "max" else sub.mean(axis=2)
+    return out
+
+
+def cartesian_frame(interp, t: float, axes, meta: dict, want_velocity: bool,
+                    oversample_z: int = 1) -> dict:
     """Resample the Milne fields onto the Cartesian (x, y, z) box at lab time t.
 
     Returns dict of (nx, ny, nz) float32 arrays: {"e", "T"[, "v"(...,3)]}.
@@ -368,59 +390,81 @@ def cartesian_frame(interp, t: float, axes, meta: dict, want_velocity: bool) -> 
     so different z sample different rapidity slices; velocity is read directly.
     For boost-invariant data the field is eta-independent and the transverse flow
     is boosted to the lab frame (vz = z/t, vx,vy /= gamma_L), mirroring get_tz().
+
+    Longitudinal anti-aliasing (oversample_z > 1): the medium begins at tau_min —
+    a razor-thin, very hot surface — and in the Cartesian lab frame that sharp
+    surface sweeps the z-grid, so a plain uniform sampling makes the captured peak
+    flicker frame-to-frame.  We therefore add z-samples that are **uniform in tau**
+    (hence dense exactly at the tau_min light-cone edge, and always including
+    tau_min itself) and bin them onto the uniform output cells: max for the
+    intensities (e, T), mean for the velocity.  This keeps the hot edge captured
+    consistently every frame.
     """
     xs, ys, zs = axes
     nx, ny, nz = len(xs), len(ys), len(zs)
     has_eta = bool(meta.get("has_eta", False))
     tau_min = meta["tau_min"]
     tau_max = meta["tau_min"] + (meta["ntau"] - 1) * meta["dtau"]
+    z0, zN = float(zs[0]), float(zs[-1])
+    dz = (zN - z0) / (nz - 1) if nz > 1 else 1.0
 
-    # tau, eta depend on z only (constant across the x-y plane at fixed t).
-    inside = t * t > zs * zs
-    tau_z = np.zeros(nz)
-    tau_z[inside] = np.sqrt(t * t - zs[inside] ** 2)
+    S = max(1, int(oversample_z))
+    binned = nz > 1 and S > 1 and t * t > tau_min * tau_min
+    if binned:
+        # tau-uniform samples (dense at the tau_min edge) + the uniform baseline.
+        tau_u = np.linspace(tau_min, min(t, tau_max), nz * S)
+        zc = np.sqrt(np.clip(t * t - tau_u * tau_u, 0.0, None))
+        zw = np.concatenate([zs, zc, -zc])
+        zw = zw[(zw >= z0) & (zw <= zN)]
+    else:
+        zw = zs
+    nzw = len(zw)
 
-    TAU = np.broadcast_to(tau_z[:, None, None], (nz, nx, ny))
-    X   = np.broadcast_to(xs[None, :, None],    (nz, nx, ny))
-    Y   = np.broadcast_to(ys[None, None, :],    (nz, nx, ny))
+    inside = t * t > zw * zw
+    tau_z = np.zeros(nzw)
+    tau_z[inside] = np.sqrt(t * t - zw[inside] ** 2)
+
+    TAU = np.broadcast_to(tau_z[:, None, None], (nzw, nx, ny))
+    X   = np.broadcast_to(xs[None, :, None],    (nzw, nx, ny))
+    Y   = np.broadcast_to(ys[None, None, :],    (nzw, nx, ny))
     if has_eta:
-        eta_z = np.zeros(nz)
-        zin = zs[inside]
+        eta_z = np.zeros(nzw)
+        zin = zw[inside]
         eta_z[inside] = 0.5 * np.log((t + zin) / (t - zin))
-        ETA = np.broadcast_to(eta_z[:, None, None], (nz, nx, ny))
+        ETA = np.broadcast_to(eta_z[:, None, None], (nzw, nx, ny))
         pts = np.stack([TAU, X, Y, ETA], axis=-1).reshape(-1, 4)
     else:
         pts = np.stack([TAU, X, Y], axis=-1).reshape(-1, 3)
-    vals = interp(pts).reshape(nz, nx, ny, -1)          # (nz,nx,ny,nf)
-    vals = np.transpose(vals, (1, 2, 0, 3))             # (nx,ny,nz,nf)
+    vals = interp(pts).reshape(nzw, nx, ny, -1)         # (nzw,nx,ny,nf)
+    vals = np.transpose(vals, (1, 2, 0, 3))             # (nx,ny,nzw,nf)
 
-    valid = inside & (tau_z >= tau_min) & (tau_z <= tau_max)   # (nz,)
-    mask = valid[None, None, :]                                # broadcast to (nx,ny,nz)
+    valid = inside & (tau_z >= tau_min) & (tau_z <= tau_max)   # (nzw,)
+    mask = valid[None, None, :]                                # broadcast to (nx,ny,nzw)
 
-    fields = {
-        "e": np.ascontiguousarray(vals[..., FEAT_E] * mask, dtype=np.float32),
-        "T": np.ascontiguousarray(vals[..., FEAT_T] * mask, dtype=np.float32),
-    }
+    e = vals[..., FEAT_E] * mask
+    T = vals[..., FEAT_T] * mask
+    vxyz = None
     if want_velocity:
         nf = vals.shape[-1]
-        if has_eta and nf >= 5:
-            # 3+1D: vx, vy, vz are the stored lab-frame flow components.
-            vx = vals[..., 2] * mask
-            vy = vals[..., 3] * mask
-            vz = vals[..., 4] * mask
-            fields["v"] = np.ascontiguousarray(
-                np.stack([vx, vy, vz], axis=-1), dtype=np.float32)
-        elif (not has_eta) and nf > FEAT_VY:
-            # Boost-invariant: synthesize vz and boost transverse flow (get_tz).
-            vx = vals[..., FEAT_VX]
-            vy = vals[..., FEAT_VY]
-            vz = np.broadcast_to(zs[None, None, :] / t, (nx, ny, nz))
+        if has_eta and nf >= 5:                          # 3+1D: stored lab-frame v
+            vxyz = (vals[..., 2] * mask, vals[..., 3] * mask, vals[..., 4] * mask)
+        elif (not has_eta) and nf > FEAT_VY:             # boost-invariant: synth vz
+            vz = np.broadcast_to(zw[None, None, :] / t, (nx, ny, nzw))
             gammaL = 1.0 / np.sqrt(np.clip(1.0 - vz ** 2, 1e-6, None))
-            vx = (vx / gammaL) * mask
-            vy = (vy / gammaL) * mask
-            vz = vz * mask
-            fields["v"] = np.ascontiguousarray(
-                np.stack([vx, vy, vz], axis=-1), dtype=np.float32)
+            vxyz = ((vals[..., FEAT_VX] / gammaL) * mask,
+                    (vals[..., FEAT_VY] / gammaL) * mask, vz * mask)
+
+    if binned:
+        idx = np.clip(np.floor((zw - z0) / dz + 0.5).astype(int), 0, nz - 1)
+        e = _binpool(e, idx, nz, "max")
+        T = _binpool(T, idx, nz, "max")
+        if vxyz is not None:
+            vxyz = tuple(_binpool(c, idx, nz, "mean") for c in vxyz)
+
+    fields = {"e": np.ascontiguousarray(e, dtype=np.float32),
+              "T": np.ascontiguousarray(T, dtype=np.float32)}
+    if vxyz is not None:
+        fields["v"] = np.ascontiguousarray(np.stack(vxyz, axis=-1), dtype=np.float32)
     return fields
 
 
@@ -428,7 +472,8 @@ def cartesian_frame(interp, t: float, axes, meta: dict, want_velocity: bool) -> 
 # PyVista rendering
 # ──────────────────────────────────────────────────────────────────────────────
 
-def resample_frames(interp, ts, axes, meta, want_velocity, jobs: int):
+def resample_frames(interp, ts, axes, meta, want_velocity, jobs: int,
+                    oversample_z: int = 1):
     """Resample all lab-time frames, in parallel across threads.
 
     Frames are independent and the dominant cost is the scipy interpolation,
@@ -436,7 +481,8 @@ def resample_frames(interp, ts, axes, meta, want_velocity, jobs: int):
     array copying (the big Milne grid is shared, not pickled).
     """
     def one(t):
-        return cartesian_frame(interp, float(t), axes, meta, want_velocity)
+        return cartesian_frame(interp, float(t), axes, meta, want_velocity,
+                               oversample_z)
     if jobs <= 1 or len(ts) <= 1:
         return [one(t) for t in ts]
     with ThreadPoolExecutor(max_workers=jobs) as ex:
@@ -603,7 +649,8 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
           f"(x,y in ±{xy_max:.1f} fm, t in [{t_min:.2f}, {t_max:.2f}] fm/c) "
           f"using {jobs} thread(s) ...")
     t0 = time.perf_counter()
-    frames = resample_frames(interp, ts, axes, meta, args.velocity, jobs)
+    frames = resample_frames(interp, ts, axes, meta, args.velocity, jobs,
+                             oversample_z=getattr(args, "z_oversample", 1))
     print(f"  resampled in {time.perf_counter() - t0:.1f} s")
     e_max = max((f["e"].max() for f in frames), default=0.0)
     clim  = (0.0, float(e_max) if e_max > 0 else 1.0)
