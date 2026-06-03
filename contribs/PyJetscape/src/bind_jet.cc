@@ -101,9 +101,37 @@ void bind_jet(py::module_ &m) {
                [source_id, target_id, pid, pstat, px, py, pz, E, x, y, z, t]
 
              Momentum (px,py,pz,E) in GeV; position (x,y,z) in fm; t in fm/c.
-             (x,y,z,t) is the parton's recorded endpoint (its target vertex);
-             reconstruct each segment's start from the parent edge via the
-             source/target ids.
+             (x,y,z,t) is the parton's production position (source vertex);
+             use source_id / target_id to correlate with vertices_to_numpy().
+           )pbdoc")
+      .def("vertices_to_numpy",
+           [](PartonShower &s) -> py::array_t<double> {
+             const int nv = s.GetNumberOfVertices();
+             py::array_t<double> arr({nv, 5});
+             auto b = arr.mutable_unchecked<2>();
+             int i = 0;
+             for (auto it = s.nodes_begin(); it != s.nodes_end() && i < nv;
+                  ++it, ++i) {
+               node n = *it;
+               auto v = s.GetVertex(n);
+               b(i, 0) = n.id();
+               b(i, 1) = v ? v->x_in().x() : 0.0;  // x
+               b(i, 2) = v ? v->x_in().y() : 0.0;  // y
+               b(i, 3) = v ? v->x_in().z() : 0.0;  // z
+               b(i, 4) = v ? v->x_in().t() : 0.0;  // t
+             }
+             return arr;
+           },
+           R"pbdoc(
+             Flatten the shower's nodes to a numpy float64 array, one row per
+             splitting vertex, shape (n_vertices, 5):
+
+               [node_id, x, y, z, t]
+
+             Position (x,y,z) in fm; t in fm/c.  node_id matches the
+             source_id / target_id columns in to_numpy(), allowing the two
+             arrays to be joined into a directed graph (see
+             jetscape.utils.shower_to_networkx).
            )pbdoc");
 
   // ── JetEnergyLossManager — per-event access to the finished showers ───────

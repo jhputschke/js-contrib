@@ -12,6 +12,7 @@ instead of:
 """
 
 from .fno_hydro import fno_config_from_xml  # noqa: F401
+from .utils import shower_to_networkx  # noqa: F401
 
 from .pyjetscape_core import (  # noqa: F401
     # Framework

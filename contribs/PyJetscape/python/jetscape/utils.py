@@ -25,6 +25,10 @@ preeq_to_numpy(preeq, ini)
 rebin_preeq_to_fno_grid(preeq_arr, preeq_grid, fno_grid)
     Nearest-neighbour rebinning from the pre-equilibrium grid to the FNO grid.
     Returns a numpy array shaped (n_features, nx_fno, ny_fno, 1).
+
+shower_to_networkx(ps)
+    Convert a PartonShower to a networkx.DiGraph where nodes are splitting
+    vertices and edges are partons.
 """
 
 from __future__ import annotations
@@ -272,3 +276,82 @@ def rebin_preeq_to_fno_grid(
                 )
 
     return out
+
+
+# ─── Parton shower → NetworkX ─────────────────────────────────────────────────
+
+def shower_to_networkx(ps):
+    """
+    Convert a PartonShower to a networkx.DiGraph.
+
+    Each **node** is a splitting vertex; each **edge** is a parton propagating
+    between two vertices.  Node and edge integer IDs match the GTL node IDs
+    returned by vertices_to_numpy() and to_numpy() so the graph topology is
+    preserved exactly.
+
+    Node attributes
+    ---------------
+    x, y, z : float  [fm]
+        Space position of the splitting vertex.
+    t : float  [fm/c]
+        Time of the splitting vertex.
+
+    Edge attributes
+    ---------------
+    pid : int
+        PDG particle ID.
+    pstat : int
+        Particle status code.
+    px, py, pz : float  [GeV]
+        3-momentum components.
+    E : float  [GeV]
+        Energy.
+    x, y, z : float  [fm]
+        Production position (= source vertex position).
+    t : float  [fm/c]
+        Production time (= source vertex time).
+
+    Parameters
+    ----------
+    ps : PartonShower
+        A C++ PartonShower object, e.g. from
+        ``JetEnergyLossManager.get_showers()``.
+
+    Returns
+    -------
+    networkx.DiGraph
+
+    Examples
+    --------
+    >>> from jetscape.utils import shower_to_networkx
+    >>> sm = JetScapeSignalManager.Instance()
+    >>> jm = sm.GetJetEnergyLossManagerPointer()
+    >>> for ps in jm.get_showers():
+    ...     G = shower_to_networkx(ps)
+    ...     print(G.number_of_nodes(), G.number_of_edges())
+    ...     final = [n for n, d in G.out_degree() if d == 0]
+    ...     print("final-state partons:", len(final))
+    """
+    import networkx as nx
+
+    verts = ps.vertices_to_numpy()   # (n_vertices, 5): [node_id, x, y, z, t]
+    edges = ps.to_numpy()            # (n_partons, 12): [src, tgt, pid, pstat, px, py, pz, E, x, y, z, t]
+
+    G = nx.DiGraph()
+
+    for row in verts:
+        nid = int(row[0])
+        G.add_node(nid, x=float(row[1]), y=float(row[2]),
+                        z=float(row[3]), t=float(row[4]))
+
+    for row in edges:
+        src = int(row[0])
+        tgt = int(row[1])
+        G.add_edge(src, tgt,
+                   pid=int(row[2]),   pstat=int(row[3]),
+                   px=float(row[4]),  py=float(row[5]),
+                   pz=float(row[6]),  E=float(row[7]),
+                   x=float(row[8]),   y=float(row[9]),
+                   z=float(row[10]),  t=float(row[11]))
+
+    return G
