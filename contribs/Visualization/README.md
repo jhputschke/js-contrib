@@ -73,18 +73,24 @@ Smoothness note: the render resolution is decoupled from the hydro grid. The Mil
 Cartesian resampling is linear, so increasing `--nxy/--nz` gives a smoother volume
 without changing the physics; lower them (e.g. `--nxy 48 --nz 48`) for quick previews.
 
-Longitudinal anti-aliasing (`--z-oversample`, default 3): the medium begins at
-`τ_min` — a razor-thin, very hot surface — and in the Cartesian lab frame that sharp
-`τ = √(t²−z²) = τ_min` surface sweeps the discrete z-grid, so a plain uniform sampling
-makes the captured peak **flicker** frame-to-frame (it aliases as the surface falls on
-vs between grid points). The fix is **non-uniform z sampling**: extra z-samples that
-are *uniform in τ* — hence dense exactly at the τ_min light-cone edge and always
-including τ_min itself — are added and bin-pooled onto the z-grid (max for the
-intensities e, T; mean for the velocity), so the hot edge is captured consistently
-every frame. This cut the hot-phase peak's variation from ~11 % to ~0.3 % in testing
-(full dynamic range kept), at ~3–5× the resampling cost; set `--z-oversample 1` to
-disable. (Plain uniform supersampling or capping the colour scale do **not** fix it —
-`e(τ)` is intrinsically steep near `τ_min`, so only resolving that surface works.)
+Longitudinal aliasing / flicker: the medium begins at `τ_min` — a razor-thin, very
+hot surface — and in the Cartesian lab frame that sharp `τ = √(t²−z²) = τ_min` surface
+sweeps the discrete z-grid, so an under-resolved z-axis makes the captured peak
+**flicker** frame-to-frame (it aliases as the surface falls on vs between grid
+points). Two ways to suppress it:
+
+- **High `--nz` (≳ 256)** — simply resolves the edge in z; visually the cleanest and
+  often preferable.
+- **`--z-oversample N`** (default `1` = off) — adds non-uniform z-samples that are
+  *uniform in τ* (dense exactly at the τ_min edge, always including τ_min) and
+  bin-pools them onto the z-grid (max for e, T; mean for velocity). Cheaper than a
+  huge `nz` (cut the hot-phase peak variation from ~11 % to ~0.3 % at `N=3`, ~3–5×
+  the resampling cost) but a high `nz` can look slightly better.
+
+The run prints a warning if **both** are inactive (`--z-oversample 1` and `nz < 256`),
+since the flicker is then likely. (Note: plain uniform supersampling or capping the
+colour scale do **not** fix it — `e(τ)` is intrinsically steep near `τ_min`, so only
+resolving that surface works.)
 
 Performance: the Milne→Cartesian resampling is the dominant cost and is parallelised
 across lab-time frames with threads (`--jobs`, default `min(cores, 8)`; scipy releases

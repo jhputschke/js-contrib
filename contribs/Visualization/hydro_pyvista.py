@@ -138,12 +138,12 @@ def build_parser() -> argparse.ArgumentParser:
                         "Sampled finer than the hydro grid via interpolation, so "
                         "higher = smoother (and slower).")
     p.add_argument("--nz", type=int, default=96, help="z grid points (default 96).")
-    p.add_argument("--z-oversample", type=int, default=3, dest="z_oversample",
-                   help="Longitudinal anti-aliasing density (default 3). Adds "
-                        "tau-uniform z-samples (dense at the tau=tau_min light-cone "
-                        "edge, which would otherwise alias and flicker frame to "
-                        "frame), bin-pooled onto the z-grid. Higher = smoother & "
-                        "slower; 1 disables.")
+    p.add_argument("--z-oversample", type=int, default=1, dest="z_oversample",
+                   help="Longitudinal anti-aliasing density (default 1 = off). When "
+                        ">1, adds tau-uniform z-samples (dense at the tau=tau_min "
+                        "light-cone edge, which otherwise aliases and flickers frame "
+                        "to frame) bin-pooled onto the z-grid. Alternatively just "
+                        "use a high --nz (>=256), which resolves the edge directly.")
     p.add_argument("--z-max", type=float, default=None, dest="z_max",
                    help="z half-extent in fm (default 0.8*t_max).")
     p.add_argument("--xy-max", type=float, default=None, dest="xy_max",
@@ -644,6 +644,11 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
     interp = build_interpolator(arr, meta)
 
     jobs = max(1, min(args.jobs, len(ts)))
+    z_os = int(getattr(args, "z_oversample", 1))
+    if z_os <= 1 and args.nz < 256:
+        print(f"  [!] z-oversample off and nz={args.nz} < 256 — the medium may "
+              f"flicker (Milne→Cartesian aliasing of the sharp tau_min light-cone "
+              f"edge). Suppress with --nz 256+ or --z-oversample 3.")
     print(f"  resampling {len(ts)} lab-time frames onto a "
           f"({len(axes[0])}, {len(axes[1])}, {args.nz}) Cartesian grid "
           f"(x,y in ±{xy_max:.1f} fm, t in [{t_min:.2f}, {t_max:.2f}] fm/c) "
