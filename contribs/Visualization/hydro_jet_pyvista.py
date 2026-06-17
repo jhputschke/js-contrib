@@ -21,8 +21,11 @@ The shower graph: nodes (vertices) carry a time, edges (partons) carry a
 space-time position (x,y,z,t in fm / fm/c) and momentum.  Only the recorded
 vertex points exist, so a parton's position at an intermediate lab time t is the
 straight-line interpolation between its start and end vertex (i.e. motion at the
-parton velocity).  As lab time advances the shower is NOT cleared — earlier
-partons persist, so the full tree accumulates.
+parton velocity).  A *final* parton (a leaf: one that never splits) has no later
+vertex, so past its last recorded time it is free-streamed along its momentum
+(v = p/E) — it keeps propagating every time slice instead of freezing at that
+vertex.  As lab time advances the shower is NOT cleared — earlier partons
+persist, so the full tree accumulates.
 
 Non-live mode
 -------------
@@ -137,6 +140,7 @@ def _segments_from_edges(edges: np.ndarray, min_energy: float):
     tim = edges[:, C_T]
     mom = edges[:, C_PX:C_PZ + 1]
     E   = edges[:, C_E]
+    src_set = set(src.tolist())                       # vertices that emit an edge
 
     vpos, vtime = {}, {}
     for i in range(len(edges)):                       # vertex b ← edge a→b endpoint
@@ -147,7 +151,7 @@ def _segments_from_edges(edges: np.ndarray, min_energy: float):
             vpos[src[i]] = pos[i]
             vtime[src[i]] = tim[i]
 
-    starts, ends, t0, t1, energy, pT, dirs = [], [], [], [], [], [], []
+    starts, ends, t0, t1, energy, pT, dirs, vel, leaf = ([] for _ in range(9))
     for i in range(len(edges)):
         if E[i] < min_energy:
             continue
@@ -166,16 +170,21 @@ def _segments_from_edges(edges: np.ndarray, min_energy: float):
             d = seg / seg_len
         else:
             d = np.array([0.0, 0.0, 1.0])
+        # Velocity (fm/c) used to free-stream a final parton past its last
+        # vertex; v = p/E (|v|→1 for a massless parton), falling back to dir.
+        v = p / E[i] if E[i] > 1e-9 else d
         starts.append(s); ends.append(e); t0.append(ta); t1.append(tb)
-        energy.append(E[i]); dirs.append(d)
+        energy.append(E[i]); dirs.append(d); vel.append(v)
         pT.append(float(np.hypot(p[0], p[1])))        # transverse momentum
+        leaf.append(b not in src_set)                 # final parton: never splits
 
     if not starts:
         return None
     return dict(starts=np.asarray(starts), ends=np.asarray(ends),
                 t0=np.asarray(t0), t1=np.asarray(t1),
                 energy=np.asarray(energy), pT=np.asarray(pT),
-                dirs=np.asarray(dirs))
+                dirs=np.asarray(dirs), vel=np.asarray(vel),
+                is_leaf=np.asarray(leaf, dtype=bool))
 
 
 def build_segments(shower_arrays, min_energy: float = 0.0):
@@ -271,10 +280,22 @@ def make_jet_overlay(seg, args, max_pT, t_max):
         return None
     starts, ends = seg["starts"], seg["ends"]
     t0, t1, dirs, pT = seg["t0"], seg["t1"], seg["dirs"], seg["pT"]
+    vel, is_leaf = seg["vel"], seg["is_leaf"]
     span = np.where(t1 > t0, t1 - t0, 1.0)
 
+    def tips_at(t):
+        """Parton tips at lab time t: straight-line between recorded vertices,
+        and — for final (leaf) partons past their last vertex — free-streamed
+        along the momentum (v = p/E) so the jet keeps advancing every frame."""
+        frac = np.clip((t - t0) / span, 0.0, 1.0)
+        tips = starts + (ends - starts) * frac[:, None]
+        stream = is_leaf & (t > t1)
+        if stream.any():
+            tips[stream] = ends[stream] + vel[stream] * (t - t1[stream])[:, None]
+        return tips
+
     # Jet bounding box at the final displayed time (for the camera anchor).
-    tips_tm = starts + (ends - starts) * np.clip((t_max - t0) / span, 0.0, 1.0)[:, None]
+    tips_tm = tips_at(t_max)
     seen = t_max >= t0
     anchor = None
     if seen.any():
@@ -290,8 +311,7 @@ def make_jet_overlay(seg, args, max_pT, t_max):
         if not state["cbar"] and not args.jet_color:
             _add_jet_colorbar(plotter, max_pT, args.jet_cmap)
             state["cbar"] = True
-        frac = np.clip((t - t0) / span, 0.0, 1.0)        # straight-line in time
-        tips = starts + (ends - starts) * frac[:, None]
+        tips = tips_at(t)
         # Draw partons that exist and have already moved a little (at their birth
         # they are a single point → zero-length, which can't be tubed).
         seglen = np.linalg.norm(tips - starts, axis=1)

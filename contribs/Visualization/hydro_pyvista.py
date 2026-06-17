@@ -681,6 +681,9 @@ def render_event(event_id, arr, meta, args, overlay=None) -> None:
     if args.movie:
         movie = args.movie if os.path.isabs(args.movie) \
             else os.path.join(args.outdir, args.movie)
+        if getattr(args, "events", 1) > 1:                 # keep per-event movies distinct
+            base, ext = os.path.splitext(movie)
+            movie = f"{base}_evt{event_id}{ext}"
         _maybe_start_xvfb(off_screen=True)
         # Window size divisible by 16 (macro_block_size) so the ffmpeg .mp4 writer
         # doesn't resize/pad the frames (1000 -> 1008) and warn.
