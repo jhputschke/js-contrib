@@ -1,7 +1,7 @@
 # js-contrib
 
 Community contributions for the [JETSCAPE](https://github.com/JETSCAPE/JETSCAPE) /
-[X-SCAPE](https://github.com/JETSCAPE/X-SCAPE) heavy-ion simulation framework,
+[X-SCAPE](https://github.com/JETSCAPE/X-SCAPE) and C-SCAPE (in development) heavy-ion simulation framework,
 analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJet.
 
 ## Available contribs
