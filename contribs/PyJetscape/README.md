@@ -37,13 +37,16 @@ Original development repository:
 | `src/bind_evolution.cc` | Bindings for `JetEnergyLoss`, `JetEnergyLossManager`, `Hadronization`, `HadronizationManager` |
 | `src/bind_initial_state.cc` | Bindings for `InitialState` |
 | `src/bind_fluid_dynamics.cc` | `FluidDynamics` trampoline — enables Python subclasses as JETSCAPE hydro modules |
-| `src/bind_music.cc` | Bindings for the MUSIC module |
+| `src/bind_music.cc` | Bindings for the MUSIC module (incl. native-store numpy export for `dump_hydro_only`) |
+| `src/bind_root_bulk_writer.cc` | Binding for the C++ `FastRootBulkWriter` (ROOT builds only, see `HAS_ROOT`) |
 | `src/bind_signal_manager.cc` | Bindings for `JetScapeSignalManager` |
 | `python/jetscape/__init__.py` | Package entry point; re-exports key symbols from `pyjetscape_core` |
 | `python/jetscape/fno_hydro.py` | `PyFNOHydro` — Python FluidDynamics backed by a PyTorch FNO model |
 | `python/jetscape/utils.py` | NumPy/PyTorch ↔ JETSCAPE bulk-info conversion helpers |
 | `python/jetscape/run_jetscape.py` | High-level simulation drivers: `run_automatic()` (Mode A), `run_manual()` (Mode B), `per_event_loop()` / `run_per_event()` (Mode C) |
 | `python/jetscape/bulk_root_writer.py` | Python ROOT bulk-evolution writer via uproot |
+| `python/jetscape/fast_root_bulk.py` | Reader for `FastRootBulkWriter` ROOT files (uproot) |
+| `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
 | `conda_install/` | Conda environment installation scripts for the `js_fno` environment |
 | `pyproject.toml` | Source-only Python package metadata (`name = "pyjetscape"`) |
 
@@ -59,7 +62,7 @@ Original development repository:
 | PyTorch | ≥ 2.0 | Required for `PyFNOHydro`; `pyjetscape_core` itself is pure C++ |
 | pybind11 | ≥ 2.11 | Fetched automatically by CMake if not found on system |
 | numpy | ≥ 1.21 | |
-| uproot | ≥ 5 | Only needed for `bulk_root_writer.py` |
+| uproot | ≥ 5 | Only needed for `bulk_root_writer.py` and `fast_root_bulk.py` |
 
 > **Important — import order:** `torch` must be imported **before**
 > `pyjetscape_core` (i.e., before `import jetscape`).  Both ROOT (loaded by
@@ -404,6 +407,111 @@ writer.open()
 # ... inside the event loop:
 writer.write_event(bulk_info)
 writer.close()
+```
+
+---
+
+## C++ `FastRootBulkWriter` from Python
+
+`FastRootBulkWriter` is X-SCAPE's hydro-only ROOT dump (see `README_BulkFast.md`
+in X-SCAPE). It reads MUSIC's native in-memory store directly and never builds
+`bulk_info.data`, so it is much faster and lighter than `PyBulkRootWriter`. It
+is a C++ module configured from the XML; the bindings let Python add it to a
+pipeline and read its state.
+
+It is compiled only when X-SCAPE is built with `USE_ROOT`. In-tree builds
+(Path A) pick this up automatically; `jetscape.HAS_ROOT` tells you at runtime.
+
+The user XML needs:
+
+```xml
+<Hydro>
+  <MUSIC>
+    <output_evolution_to_memory>1</output_evolution_to_memory>
+    <dump_hydro_only>1</dump_hydro_only>
+    <skip_surface>1</skip_surface>          <!-- optional -->
+  </MUSIC>
+</Hydro>
+<FastRootBulkWriter>
+  <out_file_name>hydro_evo_fast.root</out_file_name>
+  <grid_mode>native</grid_mode>             <!-- native | grid -->
+  <tau_stride>1</tau_stride>
+</FastRootBulkWriter>
+```
+
+**XML task list** (`enableAutomaticTaskListDetermination = true`): the writer
+is created from the `<FastRootBulkWriter>` block. pybind11 returns it as a
+`FastRootBulkWriter`, so you can find it in the task list:
+
+```python
+import jetscape as js
+
+jetscape = js.JetScape()
+jetscape.SetXMLMainFileName("../config/jetscape_main.xml")
+jetscape.SetXMLUserFileName("../config/BulkFastTest/OO_one_event_fast.xml")
+jetscape.Init()
+writer = next(t for t in jetscape.GetTaskList()
+              if isinstance(t, js.FastRootBulkWriter))
+jetscape.Exec()
+jetscape.Finish()        # writes the tree and closes the ROOT file
+print(writer.get_event_layout())
+```
+
+**Manual pipeline**: add it after the hydro module:
+
+```python
+writer = js.create_module("FastRootBulkWriter")
+for mod in (js.create_module("TrentoInitial"), js.create_module("NullPreDynamics"),
+            js.create_module("MUSIC"), writer):
+    jetscape.Add(mod)
+```
+
+The file is written and closed in `Finish()`, which `JetScape.Finish()` passes
+on to active tasks. If you deactivate the writer (`SetActive(False)`), call
+`writer.Finish()` yourself.
+
+Read the output back with `fast_root_bulk.read_fast_root_bulk()`. Events have
+different numbers of tau steps, so it returns a list:
+
+```python
+from jetscape.fast_root_bulk import read_fast_root_bulk
+
+d   = read_fast_root_bulk("hydro_evo_fast.root", entry_stop=1)
+evo = d["events"][0]         # (ntau, nx, ny, neta, 4): energy_density, vx, vy, vz
+x   = d["grid"]["x"]         # MUSIC grid in native mode, user grid in grid mode
+```
+
+### MUSIC's native store in numpy (no ROOT needed)
+
+With `dump_hydro_only`, `MpiMusic` can also copy its native store straight into
+numpy. This path does not need ROOT. The array matches one `FastRootBulkWriter`
+native-mode event exactly:
+
+```python
+for jse in per_event_loop(main_xml, user_xml):     # user XML without a writer
+    hydro = JetScapeSignalManager.Instance().GetHydroPointer()
+    evo   = hydro.get_native_evolution_numpy(tau_stride=1)  # (ntau, nx, ny, neta, 4)
+    grid  = hydro.get_bulk_info()                         # nx, dx, tau_min, dtau, ...
+```
+
+A `FastRootBulkWriter` frees the store at the end of its `Exec()`. If both are
+in the same pipeline, read the store before the writer runs (see
+`--check-numpy` in the example). Other accessors: `get_dump_hydro_only()`,
+`get_skip_surface()`, `get_number_of_fluid_cells()`,
+`get_native_fluid_cell(idx)`, `clear_hydro_info_from_memory()`.
+
+### Example
+
+`example/python_fast_bulk_root_writer.py` runs the writer from Python, reads the
+file back and saves a quick-look plot. With `--check-numpy` it also checks the
+numpy export against the ROOT file. Run it from the X-SCAPE build directory:
+
+```bash
+cd X-SCAPE/build_gpu
+python ../external_packages/js-contrib/contribs/PyJetscape/example/python_fast_bulk_root_writer.py \
+  --user ../config/BulkFastTest/OO_one_event_fast.xml            # XML task list
+#  --manual --user <xml with enableAutomaticTaskListDetermination=false>
+#  --check-numpy                                                   # numpy == ROOT
 ```
 
 ---

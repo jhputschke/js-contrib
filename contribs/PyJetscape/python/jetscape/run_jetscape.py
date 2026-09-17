@@ -203,10 +203,11 @@ def run_manual(
     for mod in modules:
         js.Add(mod)
 
+    js.Init()
+    # Init() sets the event count from <nEvents>, so override it afterwards.
     if n_events is not None:
         js.SetNumberOfEvents(n_events)
 
-    js.Init()
     js.Exec()
     js.Finish()
     return js
@@ -240,10 +241,10 @@ def _build_per_event_driver(
         for mod in modules:
             js.Add(mod)
 
+    js.Init()
+    # Init() sets the event count from <nEvents>, so override it afterwards.
     if n_events is not None:
         js.SetNumberOfEvents(n_events)
-
-    js.Init()
 
     if start_event:
         js.SetStartEvent(start_event)
