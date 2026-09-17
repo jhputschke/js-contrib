@@ -37,4 +37,10 @@ from .pyjetscape_core import (  # noqa: F401
     # Hydro status enum and Parameter struct
     HydroStatus,
     Parameter,
+    # True when built against a ROOT-enabled X-SCAPE
+    HAS_ROOT,
 )
+
+# C++ ROOT writers — only compiled into X-SCAPE with USE_ROOT
+if HAS_ROOT:
+    from .pyjetscape_core import FastRootBulkWriter  # noqa: F401

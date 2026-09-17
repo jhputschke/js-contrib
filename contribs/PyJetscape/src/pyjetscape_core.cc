@@ -16,6 +16,7 @@ void bind_evolution(py::module_ &m);
 void bind_initial_state(py::module_ &m);
 void bind_fluid_dynamics(py::module_ &m);
 void bind_music(py::module_ &m);
+void bind_root_bulk_writer(py::module_ &m);
 void bind_jet(py::module_ &m);
 void bind_signal_manager(py::module_ &m);
 
@@ -28,6 +29,7 @@ PYBIND11_MODULE(pyjetscape_core, m) {
       * Instantiate registered C++ modules by name (create_module)
       * Subclass FluidDynamics in Python (PyFNOHydro trampoline)
       * Subclass JetScapeModuleBase in Python (PyBulkRootWriter and similar)
+      * Add the C++ FastRootBulkWriter to a pipeline (ROOT builds, HAS_ROOT)
       * Access InitialState and PreequilibriumDynamics data as numpy arrays
       * Read EvolutionHistory and SurfaceCellInfo after hydro finishes
       * Query globally registered modules via JetScapeSignalManager
@@ -41,6 +43,9 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   // that pybind11 can resolve the inheritance chain (MpiMusic : FluidDynamics,
   // TrentoInitial : InitialState).
   bind_music(m);
+  // C++ ROOT writers (FastRootBulkWriter) — JetScapeModuleBase subclasses, only
+  // bound when X-SCAPE was built with USE_ROOT; always sets HAS_ROOT.
+  bind_root_bulk_writer(m);
   // Jet sector: Parton, Vertex, PartonShower, JetEnergyLossManager. Must come
   // before bind_signal_manager so GetJetEnergyLossManagerPointer()'s return type
   // is already registered.

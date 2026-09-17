@@ -19,6 +19,9 @@
  *   ...
  *   bulk = hydro.get_bulk_info()
  *
+ *   # with <dump_hydro_only>1: read MUSIC's native store (no bulk_info.data)
+ *   evo = hydro.get_native_evolution_numpy()   # (ntau, nx, ny, neta, 4)
+ *
  *   ini = create_module("TrentoInitial")  # returns TrentoInitial typed object
  *   ...
  *   s   = ini.get_entropy_density_numpy()
@@ -26,8 +29,10 @@
  ******************************************************************************/
 
 #include <pybind11/pybind11.h>
+#include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include "FluidCellInfo.h"
 #include "FluidDynamics.h"
 #include "InitialState.h"
 #include "MusicWrapper.h"
@@ -80,7 +85,109 @@ void bind_music(py::module_ &m) {
       // ── Freeze-out temperature accessor ───────────────────────────────────
       .def("GetHydroFreezeOutTemperature",
            &MpiMusic::GetHydroFreezeOutTemperature,
-           "Return the freeze-out temperature set in the XML [GeV].");
+           "Return the freeze-out temperature set in the XML [GeV].")
+
+      // ── Hydro-only dump: MUSIC's native in-memory store ────────────────────
+      // With <Hydro><MUSIC><dump_hydro_only>1 MUSIC keeps its own evolution
+      // store and never fills bulk_info.data (only the grid metadata).  These
+      // read that store directly, the same way FastRootBulkWriter does.  Both
+      // flags are read from the XML in InitializeHydro(), so only getters are
+      // exposed.
+      .def("get_dump_hydro_only", &MpiMusic::get_dump_hydro_only,
+           "Return whether <dump_hydro_only> is enabled (native store kept, "
+           "bulk_info.data not built).")
+      .def("get_skip_surface", &MpiMusic::get_skip_surface,
+           "Return whether <skip_surface> is enabled (freeze-out surface not "
+           "exported to the framework).")
+      .def("get_number_of_fluid_cells", &MpiMusic::get_number_of_fluid_cells,
+           "Return the number of cells in MUSIC's native evolution store "
+           "(0 before InitializeHydro() or after the store was released).")
+      .def("clear_hydro_info_from_memory",
+           &MpiMusic::clear_hydro_info_from_memory,
+           "Release MUSIC's native evolution store.  FastRootBulkWriter does "
+           "this after writing each event.")
+      .def("get_native_fluid_cell",
+           [](MpiMusic &h, int idx) {
+             const int n = h.get_number_of_fluid_cells();
+             if (idx < 0 || idx >= n)
+               throw py::index_error("native cell index " +
+                                     std::to_string(idx) + " out of range [0, " +
+                                     std::to_string(n) + ")");
+             FluidCellInfo cell;
+             h.get_native_fluid_cell(idx, cell);
+             return cell;
+           },
+           R"pbdoc(
+             Return one cell of MUSIC's native store as a FluidCellInfo.
+
+             ``idx`` is the flat tau-major (tau, x, y, eta) index, i.e.
+             ``((it*nx + ix)*ny + iy)*neta + ieta`` with the grid sizes from
+             ``get_bulk_info()``.
+           )pbdoc",
+           py::arg("idx"))
+      .def("get_native_evolution_numpy",
+           [](MpiMusic &h, int tau_stride) -> py::array_t<float> {
+             if (tau_stride < 1)
+               throw std::invalid_argument(
+                   "get_native_evolution_numpy: tau_stride must be >= 1, got " +
+                   std::to_string(tau_stride));
+             const auto &g = h.get_bulk_info();
+             const long n_per_step = (long)g.nx * g.ny * g.neta;
+             const int num_cells = h.get_number_of_fluid_cells();
+             if (num_cells <= 0 || n_per_step <= 0)
+               throw std::runtime_error(
+                   "get_native_evolution_numpy: MUSIC native store is empty. "
+                   "Needs <dump_hydro_only>1 and output_evolution_to_memory=1, "
+                   "and must be called before FastRootBulkWriter releases the "
+                   "store for this event.");
+
+             // Same tau thinning as FastRootBulkWriter native mode.
+             const int ntau_native = (int)(num_cells / n_per_step);
+             const int ntau_out = (ntau_native + tau_stride - 1) / tau_stride;
+             py::array_t<float> arr(std::vector<py::ssize_t>{
+                 ntau_out, g.nx, g.ny, g.neta, 4});
+             float *out = arr.mutable_data();
+             {
+               py::gil_scoped_release release;
+               FluidCellInfo cell;
+               for (int it = 0; it < ntau_native; it += tau_stride) {
+                 const long base = (long)it * n_per_step;
+                 for (long ic = 0; ic < n_per_step; ic++) {
+                   h.get_native_fluid_cell((int)(base + ic), cell);
+                   *out++ = (float)cell.energy_density;
+                   *out++ = (float)cell.vx;
+                   *out++ = (float)cell.vy;
+                   *out++ = (float)cell.vz;
+                 }
+               }
+             }
+             return arr;
+           },
+           py::arg("tau_stride") = 1,
+           R"pbdoc(
+             Copy MUSIC's native evolution store into a numpy array in one C++
+             pass (GIL released), without building bulk_info.data.
+
+             The values and layout are exactly what FastRootBulkWriter writes
+             in ``native`` mode, so ``arr.ravel()`` equals one ``user_res``
+             entry of its ROOT output.
+
+             Requires ``<Hydro><MUSIC><dump_hydro_only>1``.  If a
+             FastRootBulkWriter is in the pipeline it releases the store at the
+             end of its Exec(), so read the store before that runs.
+
+             Parameters
+             ----------
+             tau_stride : int, default 1
+                 Keep every N-th stored tau step.
+
+             Returns
+             -------
+             np.ndarray, shape (ntau, nx, ny, neta, 4), dtype float32
+                 Features: [energy_density, vx, vy, vz].  Grid spacing and
+                 origin are in ``get_bulk_info()`` (dtau is multiplied by
+                 ``tau_stride``).
+           )pbdoc");
 
   // ── TrentoInitial ───────────────────────────────────────────────────────────
   // Concrete TRENTo initial-state module.  Registered as "TrentoInitial".
