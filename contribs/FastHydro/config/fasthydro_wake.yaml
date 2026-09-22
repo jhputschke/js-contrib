@@ -66,8 +66,13 @@ initial_state:
 
 eos:
   kind: hotqcd_smash       # the lattice EoS is what gives Au+Au its ~9.5 fm lifetime
-  path: ./eos/hotQCD       # directory or the .dat itself; make_wake_data.py resolves it
-  download: false          # pre-fetched; see make_wake_data.py for where it looks
+  path: ./eos/hotQCD       # relative to the working directory (the X-SCAPE build tree)
+  download: true           # fetch MUSIC's table on first use if it is not there.
+                           # make_wake_data.py normally does this once, up front, so the run
+                           # itself finds it already in place; this is the fallback for using
+                           # the config directly. Pre-fetch for an offline machine with
+                           #   python -c "from fast_data.eos import download_hotqcd; \
+                           #              download_hotqcd('eos/hotQCD')"
   store_table: true        # so the file is self-contained and mach_angle() works
   n_points: 1500
 

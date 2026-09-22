@@ -317,9 +317,16 @@ python ../external_packages/js-contrib/contribs/FastHydro/example/make_wake_data
 ```
 
 About a minute per leg on MPS. `--device cpu` is slower and bitwise reproducible; `--dry-run`
-prints what it would do; `--legs ideal` does one. It preflights the build tree, the config pair
-and the hotQCD table (which it links from `$XSCAPE_BUILD/EOS/hotQCD` or an FNO4d checkout
-rather than re-downloading), then re-runs the notebook's own controls at the end.
+prints what it would do; `--legs ideal` does one. It preflights the build tree and the config
+pair, then re-runs the notebook's own controls at the end.
+
+**The EoS table it needs is resolved for you.** It looks for a copy the machine already has —
+where a previous run left one, then X-SCAPE's own `EOS/hotQCD`, then anything you point
+`--eos-dir` at — and otherwise downloads MUSIC's hotQCD/SMASH table (3.2 MB) with
+`fast_data`'s own fetcher: plain urllib, written to a `.part` file and renamed only once the
+size validates as a whole number of 32-byte records, so an interrupted fetch cannot leave half
+a table that silently loads. A truncated table already in place is detected and refetched.
+`--no-download` refuses the network and prints where it looked.
 
 The medium is central Au+Au 200 GeV on a 65×65×33 grid at 0.3125 fm with the hotQCD/SMASH
 lattice EoS, $\tau = 0.58 \ldots 11.0$ fm/c — the settings from FNO4d's

@@ -44,39 +44,79 @@ CONTRIB = os.path.dirname(HERE)
 
 LEGS = {"ideal": "ideal", "visc": "israel_stewart"}
 
-#: where the hotQCD table might already be, in preference order. The config asks for
-#: ./eos/hotQCD relative to the working directory; rather than download it again, link
-#: whichever copy the machine already has.
-EOS_CANDIDATES = (
-    os.path.join("EOS", "hotQCD"),                                    # the X-SCAPE build tree
-    os.path.join(os.path.expanduser("~"), "FNO4d", "workflow_fastdata", "eos", "hotQCD"),
-)
+#: The config asks for the hotQCD/SMASH table at ./eos/hotQCD relative to the working
+#: directory. Look for a copy already on the machine before fetching one; X-SCAPE ships its own
+#: under EOS/hotQCD, and a previous run of this script leaves one in place.
+EOS_SUBDIR = os.path.join("eos", "hotQCD")
 EOS_FILE = "hrg_hotqcd_eos_SMASH_binary.dat"
+EOS_FILETYPE = "SMASH_binary"
+RECORD_BYTES = 32           # 4 x float64 per row: e, p, s, T
 
 
-def find_eos(verbose=True):
-    """-> directory holding the SMASH table, or None."""
-    for d in EOS_CANDIDATES:
-        if os.path.exists(os.path.join(d, EOS_FILE)):
-            if verbose:
-                print(f"  EoS table: {os.path.join(d, EOS_FILE)}")
-            return os.path.abspath(d)
-    return None
+def _looks_like_a_table(path):
+    """A truncated download loads as a short table and quietly changes the physics."""
+    try:
+        n = os.path.getsize(path)
+    except OSError:
+        return False
+    return n > 0 and n % RECORD_BYTES == 0
 
 
-def link_eos(workdir, src, verbose=True):
-    """Put the table where the config expects it (./eos/hotQCD), without copying 1.7 MB."""
-    dst_dir = os.path.join(workdir, "eos", "hotQCD")
-    os.makedirs(dst_dir, exist_ok=True)
-    dst = os.path.join(dst_dir, EOS_FILE)
-    if not os.path.exists(dst):
-        try:
-            os.symlink(os.path.join(src, EOS_FILE), dst)
-        except OSError:
-            shutil.copy2(os.path.join(src, EOS_FILE), dst)
+def ensure_eos(build, *, eos_dir=None, allow_download=True, verbose=True):
+    """Make sure `<build>/eos/hotQCD/<table>` exists. -> its directory, or None.
+
+    Order: an explicit --eos-dir, then where this script would have put it, then X-SCAPE's own
+    EOS/hotQCD. Failing all of those, download it with fast_data's own fetcher -- plain urllib,
+    writing to a .part file and renaming only once the size validates as a whole number of
+    32-byte records, so an interrupted fetch cannot leave a half table that silently loads.
+    """
+    dest = os.path.join(build, EOS_SUBDIR)
+    target = os.path.join(dest, EOS_FILE)
+
+    if os.path.exists(target) and _looks_like_a_table(target):
         if verbose:
-            print(f"  linked  -> {dst}")
-    return dst_dir
+            print(f"  EoS table: {target}")
+        return dest
+    if os.path.exists(target):
+        print(f"  EoS table: {target} is not a whole number of {RECORD_BYTES} B records "
+              f"(truncated); refetching")
+        os.remove(target)
+
+    # a copy elsewhere on the machine
+    for d in ([eos_dir] if eos_dir else []) + [os.path.join(build, "EOS", "hotQCD")]:
+        cand = os.path.join(d, EOS_FILE) if os.path.isdir(d) else d
+        if os.path.exists(cand) and _looks_like_a_table(cand):
+            os.makedirs(dest, exist_ok=True)
+            try:
+                os.symlink(os.path.abspath(cand), target)
+            except OSError:
+                shutil.copy2(cand, target)
+            if verbose:
+                print(f"  EoS table: {cand}\n             linked -> {target}")
+            return dest
+
+    if not allow_download:
+        print(f"  MISS  EoS table   {EOS_FILE} not found, and --no-download was given.")
+        print(f"        Looked in: {dest}, {os.path.join(build, 'EOS', 'hotQCD')}"
+              + (f", {eos_dir}" if eos_dir else ""))
+        print( "        Fetch it with:  python -c \"from fast_data.eos import download_hotqcd;"
+              f" download_hotqcd('{dest}')\"")
+        return None
+
+    print(f"  EoS table not found locally; downloading {EOS_FILE} (~3.2 MB) -> {dest}")
+    sys.path.insert(0, os.path.join(CONTRIB, "python"))
+    from fast_data.eos import download_hotqcd
+    try:
+        out = download_hotqcd(dest, filetype=EOS_FILETYPE)
+    except Exception as exc:
+        print(f"  MISS  download failed: {exc}")
+        print( "        If this machine has no network, copy the table from any X-SCAPE build")
+        print(f"        ({os.path.join('EOS', 'hotQCD', EOS_FILE)}) into {dest},")
+        print( "        or pass --eos-dir <dir> pointing at one.")
+        return None
+    print(f"         got {os.path.getsize(out) / 1e6:.2f} MB, "
+          f"{os.path.getsize(out) // RECORD_BYTES} table rows")
+    return dest
 
 
 def replay_leg(cfg_path, drop_npz, out, transport_mode, overrides, build):
@@ -119,12 +159,18 @@ def main(argv=None):
                     help="default: <build>/../config/jetscape_main.xml")
     ap.add_argument("--set", action="append", default=[], metavar="k.p=v",
                     help="extra dotted override, passed through to every leg")
+    ap.add_argument("--eos-dir", default=None,
+                    help="directory holding the hotQCD/SMASH table, if you have one; "
+                         "otherwise it is taken from the build tree's EOS/hotQCD or downloaded")
+    ap.add_argument("--no-download", action="store_true",
+                    help="never fetch the EoS table from the network")
     ap.add_argument("--live", action="store_true",
                     help="run every leg end to end, letting each shower respond to its own "
                          "medium. Default: run the first leg live and REPLAY its droplets "
                          "through the others, so the comparison isolates the hydro.")
     ap.add_argument("--force", action="store_true", help="regenerate files that already exist")
-    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="print what would run; skips the EoS fetch")
     a = ap.parse_args(argv)
 
     build = os.path.abspath(a.build)
@@ -141,21 +187,13 @@ def main(argv=None):
         good = os.path.exists(p)
         ok &= good
         print(f"  {'ok  ' if good else 'MISS'}  {what:11s} {p}")
-    eos = find_eos()
-    if eos is None:
-        ok = False
-        print(f"  MISS  EoS table   {EOS_FILE} not found in:")
-        for d in EOS_CANDIDATES:
-            print(f"                      {d}")
-        print("        fetch it with:  bash "
-              f"{os.path.join(CONTRIB, 'python', 'fast_data', 'download_hotQCD.sh')} "
-              "SMASH_binary <dir>")
     if not ok:
+        return 1
+    if not a.dry_run and ensure_eos(build, eos_dir=a.eos_dir,
+                                    allow_download=not a.no_download) is None:
         return 1
 
     os.makedirs(outdir, exist_ok=True)
-    if not a.dry_run:
-        link_eos(build, eos)
 
     overrides = list(a.set)
     if a.device:
