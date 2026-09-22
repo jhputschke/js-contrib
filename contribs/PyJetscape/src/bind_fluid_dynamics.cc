@@ -24,6 +24,11 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <cmath>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "FluidDynamics.h"
 #include "FluidEvolutionHistory.h"
 #include "FluidCellInfo.h"
@@ -31,6 +36,7 @@
 #include "InitialState.h"
 #include "PreequilibriumDynamics.h"
 #include "JetScapeModuleBase.h"
+#include "LiquefierBase.h"
 
 namespace py = pybind11;
 using namespace Jetscape;
@@ -172,6 +178,228 @@ public:
           if (nf >= 6) cell.pressure        = ptr[idx(5, i, j, k)];
           bulk_info.data.push_back(cell);
         }
+  }
+
+  // ── Medium query (FastHydro / any 3+1D Python hydro) ───────────────────────
+  // FluidDynamics::GetHydroInfo() is a STUB: it range-checks and then never assigns
+  // fluid_cell_info_ptr (the bulk_info.get() call is commented out, FluidDynamics.h:546-564).
+  // Every caller dereferences the pointer unchecked -- LiquefierBase::filter_partons
+  // (LiquefierBase.cc:126-128), Matter.cc:495,777-779, LBT.cc:702-706 -- so the stub is a
+  // null dereference, not merely wrong data.  This override therefore ALWAYS allocates.
+  //
+  // Deliberately implemented in C++ and NOT exposed as a PYBIND11_OVERRIDE:
+  //   * it is called once per parton per energy-loss timestep, so a Python dispatch would
+  //     take the GIL and box a FluidCellInfo on every call;
+  //   * a Python exception raised here would propagate through sigslot out of
+  //     JetEnergyLoss::DoExecTime(), where nothing catches it.
+  // The body is fully general because a Python hydro owns bulk_info completely.
+  mutable std::size_t n_out_of_range_ = 0;
+
+  // Snap a query coordinate that sits a hair outside the grid back onto the boundary.
+  //
+  // This is not cosmetic.  bulk_info's grid metadata is stored as Jetscape::real, which is
+  // FLOAT (RealType.h), so a tau_min of 0.6 comes back as 0.6000000238418579.  A query at
+  // exactly tau0 -- which is where Matter starts, <Eloss><tStart> = tau0 -- is then *below*
+  // tau_min, CheckInRange returns 0, and EvolutionHistory::get() answers with a
+  // default-constructed (i.e. vacuum) cell (FluidEvolutionHistory.cc, get()).  The whole
+  // first frame, and the outermost cell on every axis, would be invisible: partons would
+  // traverse vacuum for their first step and quench too little, with nothing in the log.
+  //
+  // The tolerance is a ten-thousandth of a cell: orders of magnitude above the float32
+  // representation error at these magnitudes (~1e-7 fm) and far below anything physical, so
+  // a parton that has genuinely left the fireball still sees vacuum and still gets counted.
+  static double snap_(double v, double lo, double hi, double step) {
+    const double tol = 1e-4 * std::fabs(step);
+    if (v < lo && v > lo - tol) return lo;
+    if (v > hi && v < hi + tol) return hi;
+    return v;
+  }
+
+  void GetHydroInfo(Jetscape::real t, Jetscape::real x, Jetscape::real y, Jetscape::real z,
+                    std::unique_ptr<FluidCellInfo> &fluid_cell_info_ptr) override {
+    if (hydro_status != FINISHED ||
+        (bulk_info.data.empty() && bulk_info.data_vector.empty())) {
+      fluid_cell_info_ptr.reset(new FluidCellInfo());   // zero cell == vacuum
+      ++n_out_of_range_;
+      return;
+    }
+    try {
+      double c0, c1, c2, c3;      // (tau, x, y, eta), or (t, x, y, z) if the store is t-z
+      if (bulk_info.tau_eta_is_tz) {
+        c0 = t; c1 = x; c2 = y; c3 = z;
+      } else {
+        const double tz = double(t) * t - double(z) * z;
+        c0 = std::sqrt(std::max(0.0, tz));                       // tau
+        c1 = x; c2 = y;
+        c3 = (std::fabs(double(t)) > std::fabs(double(z)))       // eta
+                 ? 0.5 * std::log((double(t) + z) / (double(t) - z))
+                 : 0.0;
+      }
+      c0 = snap_(c0, bulk_info.tau_min, bulk_info.TauMax(), bulk_info.dtau);
+      c1 = snap_(c1, bulk_info.x_min,   bulk_info.XMax(),   bulk_info.dx);
+      c2 = snap_(c2, bulk_info.y_min,   bulk_info.YMax(),   bulk_info.dy);
+      if (!bulk_info.boost_invariant)
+        c3 = snap_(c3, bulk_info.eta_min, bulk_info.EtaMax(), bulk_info.deta);
+
+      // CheckInRange never throws -- the throws are commented out -- so this is purely the
+      // diagnostic counter. get() itself returns a zero cell when the point is outside.
+      if (!bulk_info.CheckInRange(c0, c1, c2, c3))
+        ++n_out_of_range_;
+
+      fluid_cell_info_ptr.reset(new FluidCellInfo(bulk_info.get(c0, c1, c2, c3)));
+    } catch (const std::exception &) {
+      fluid_cell_info_ptr.reset(new FluidCellInfo());
+    }
+  }
+
+  std::size_t get_out_of_range_count() const { return n_out_of_range_; }
+  void reset_out_of_range_count() { n_out_of_range_ = 0; }
+
+  // Convenience for tests: the same query, returned by value.
+  FluidCellInfo get_hydro_cell_by_value(Jetscape::real t, Jetscape::real x,
+                                        Jetscape::real y, Jetscape::real z) {
+    std::unique_ptr<FluidCellInfo> p;
+    GetHydroInfo(t, x, y, z, p);
+    return *p;
+  }
+
+  // ── 3+1D fluid-cell storage ────────────────────────────────────────────────
+  // store_fluid_cells_from_numpy() above is 2+1D only: it takes (F, nx, ny, ntau), has no
+  // eta axis and never sets vz, so it is correct only for neta == 1.  These two take
+  // (F, nx, ny, neta, ntau) and write in EvolutionHistory's own record order,
+  //     rec = id_tau*nx*ny*neta + id_x*ny*neta + id_y*neta + id_eta
+  // (FluidEvolutionHistory.h CellIndex).
+  //
+  // Both clear data_vector, data_info AND data first: clear_up_evolution_data() clears only
+  // `data` (FluidEvolutionHistory.h:222), so a stale data_vector would otherwise survive.
+  void check_3d_shape_(const py::buffer_info &buf, std::size_t n_names) const {
+    if (buf.ndim != 5)
+      throw std::runtime_error(
+          "expected an array of shape (n_features, nx, ny, neta, ntau), got ndim=" +
+          std::to_string(buf.ndim));
+    if ((std::size_t)buf.shape[0] != n_names)
+      throw std::runtime_error(
+          "n_features (" + std::to_string(buf.shape[0]) + ") != len(names) (" +
+          std::to_string(n_names) + ")");
+    if (buf.shape[1] != bulk_info.nx || buf.shape[2] != bulk_info.ny ||
+        buf.shape[3] != bulk_info.neta || buf.shape[4] != bulk_info.ntau)
+      throw std::runtime_error(
+          "array grid (" + std::to_string(buf.shape[1]) + "," + std::to_string(buf.shape[2]) +
+          "," + std::to_string(buf.shape[3]) + "," + std::to_string(buf.shape[4]) +
+          ") does not match bulk_info (" + std::to_string(bulk_info.nx) + "," +
+          std::to_string(bulk_info.ny) + "," + std::to_string(bulk_info.neta) + "," +
+          std::to_string(bulk_info.ntau) + "). Call set_hydro_grid_info() first.");
+  }
+
+  static void check_names_(const std::vector<std::string> &names) {
+    for (const auto &n : names)
+      if (ResolveEntryName(n) == ENTRY_INVALID)
+        throw std::runtime_error(
+            "unknown bulk_info field '" + n +
+            "'. Legal names: energy_density, entropy_density, temperature, pressure, "
+            "qgp_fraction, mu_b, mu_c, mu_s, vx, vy, vz, pi00..pi33, bulk_pi");
+  }
+
+  // SoA route (default): 4 B per stored field per cell.
+  void store_fluid_cells_from_numpy_3d(
+      py::array_t<float, py::array::c_style | py::array::forcecast> arr,
+      std::vector<std::string> names) {
+    auto buf = arr.request();
+    check_names_(names);
+    check_3d_shape_(buf, names.size());
+
+    const int F = (int)names.size();
+    const int nx_ = bulk_info.nx, ny_ = bulk_info.ny;
+    const int neta_ = bulk_info.neta, nt_ = bulk_info.ntau;
+    const std::size_t ncell = (std::size_t)nt_ * nx_ * ny_ * neta_;
+
+    bulk_info.data.clear();
+    bulk_info.data.shrink_to_fit();
+    bulk_info.data_vector.assign(ncell * F, 0.0f);
+    bulk_info.data_info = names;
+
+    const float *ptr = static_cast<float *>(buf.ptr);
+    // input is C-contiguous [f][ix][iy][ieta][itau]
+    const std::size_t s_f = (std::size_t)nx_ * ny_ * neta_ * nt_;
+    const std::size_t s_x = (std::size_t)ny_ * neta_ * nt_;
+    const std::size_t s_y = (std::size_t)neta_ * nt_;
+    const std::size_t s_e = (std::size_t)nt_;
+    for (int k = 0; k < nt_; ++k)
+      for (int i = 0; i < nx_; ++i)
+        for (int j = 0; j < ny_; ++j)
+          for (int l = 0; l < neta_; ++l) {
+            const std::size_t rec =
+                ((std::size_t)k * nx_ * ny_ * neta_) + (std::size_t)i * ny_ * neta_ +
+                (std::size_t)j * neta_ + l;
+            for (int f = 0; f < F; ++f)
+              bulk_info.data_vector[rec * F + f] =
+                  ptr[f * s_f + i * s_x + j * s_y + l * s_e + k];
+          }
+  }
+
+  // AoS route: 112 B per cell regardless of how many fields are used.  Kept for small grids
+  // and for consumers that want a populated FluidCellInfo without a data_info lookup.
+  void store_fluid_cells_aos_3d(
+      py::array_t<float, py::array::c_style | py::array::forcecast> arr,
+      std::vector<std::string> names) {
+    auto buf = arr.request();
+    check_names_(names);
+    check_3d_shape_(buf, names.size());
+
+    const int F = (int)names.size();
+    const int nx_ = bulk_info.nx, ny_ = bulk_info.ny;
+    const int neta_ = bulk_info.neta, nt_ = bulk_info.ntau;
+
+    bulk_info.data_vector.clear();
+    bulk_info.data_vector.shrink_to_fit();
+    bulk_info.data_info.clear();
+    bulk_info.data.clear();
+    bulk_info.data.reserve((std::size_t)nt_ * nx_ * ny_ * neta_);
+
+    std::vector<EntryName> ids;
+    ids.reserve(F);
+    for (const auto &n : names) ids.push_back(ResolveEntryName(n));
+
+    const float *ptr = static_cast<float *>(buf.ptr);
+    const std::size_t s_f = (std::size_t)nx_ * ny_ * neta_ * nt_;
+    const std::size_t s_x = (std::size_t)ny_ * neta_ * nt_;
+    const std::size_t s_y = (std::size_t)neta_ * nt_;
+    const std::size_t s_e = (std::size_t)nt_;
+    for (int k = 0; k < nt_; ++k)
+      for (int i = 0; i < nx_; ++i)
+        for (int j = 0; j < ny_; ++j)
+          for (int l = 0; l < neta_; ++l) {
+            FluidCellInfo cell;
+            for (int f = 0; f < F; ++f) {
+              const float v = ptr[f * s_f + i * s_x + j * s_y + l * s_e + k];
+              switch (ids[f]) {
+                case ENTRY_ENERGY_DENSITY:  cell.energy_density  = v; break;
+                case ENTRY_ENTROPY_DENSITY: cell.entropy_density = v; break;
+                case ENTRY_TEMPERATURE:     cell.temperature     = v; break;
+                case ENTRY_PRESSURE:        cell.pressure        = v; break;
+                case ENTRY_QGP_FRACTION:    cell.qgp_fraction    = v; break;
+                case ENTRY_MU_B:            cell.mu_B            = v; break;
+                case ENTRY_MU_C:            cell.mu_C            = v; break;
+                case ENTRY_MU_S:            cell.mu_S            = v; break;
+                case ENTRY_VX:              cell.vx              = v; break;
+                case ENTRY_VY:              cell.vy              = v; break;
+                case ENTRY_VZ:              cell.vz              = v; break;
+                case ENTRY_BULK_PI:         cell.bulk_Pi         = v; break;
+                case ENTRY_PI00: cell.pi[0][0] = v; break;
+                case ENTRY_PI01: cell.pi[0][1] = v; break;
+                case ENTRY_PI02: cell.pi[0][2] = v; break;
+                case ENTRY_PI03: cell.pi[0][3] = v; break;
+                case ENTRY_PI11: cell.pi[1][1] = v; break;
+                case ENTRY_PI12: cell.pi[1][2] = v; break;
+                case ENTRY_PI13: cell.pi[1][3] = v; break;
+                case ENTRY_PI22: cell.pi[2][2] = v; break;
+                case ENTRY_PI23: cell.pi[2][3] = v; break;
+                case ENTRY_PI33: cell.pi[3][3] = v; break;
+                default: break;
+              }
+            }
+            bulk_info.data.push_back(cell);
+          }
   }
 
   // ── Status helpers ─────────────────────────────────────────────────────────
@@ -434,6 +662,66 @@ void bind_fluid_dynamics(py::module_ &m) {
              * The array dimensions (nx, ny, ntau) must match the grid info.
            )pbdoc",
            py::arg("arr"))
+      // ── 3+1D storage (FastHydro); the 2+1D version above is neta == 1 only ──
+      .def("store_fluid_cells_from_numpy_3d",
+           [](PyFluidDynamics &fd,
+              py::array_t<float, py::array::c_style | py::array::forcecast> arr,
+              std::vector<std::string> names) {
+             fd.store_fluid_cells_from_numpy_3d(std::move(arr), std::move(names));
+           },
+           R"pbdoc(
+             Fill bulk_info.data_vector from a (n_features, nx, ny, neta, ntau) float32 array.
+
+             `names` must be as long as n_features and each entry must be one that
+             ResolveEntryName() accepts: energy_density, entropy_density, temperature,
+             pressure, qgp_fraction, mu_b, mu_c, mu_s, vx, vy, vz, pi00..pi33, bulk_pi.
+
+             Cells are written in EvolutionHistory record order
+             (tau, x, y, eta).  data_vector, data_info and data are all cleared first --
+             clear_up_evolution_data() clears only `data`.
+
+             Call set_hydro_grid_info() first; the grid is checked against it.
+
+             This is the memory-efficient route: 4 bytes per stored field per cell, against
+             112 bytes per cell for store_fluid_cells_aos_3d().
+           )pbdoc",
+           py::arg("arr"), py::arg("names"))
+      .def("store_fluid_cells_aos_3d",
+           [](PyFluidDynamics &fd,
+              py::array_t<float, py::array::c_style | py::array::forcecast> arr,
+              std::vector<std::string> names) {
+             fd.store_fluid_cells_aos_3d(std::move(arr), std::move(names));
+           },
+           "Same input as store_fluid_cells_from_numpy_3d(), but fills bulk_info.data "
+           "(array of FluidCellInfo) instead of data_vector.",
+           py::arg("arr"), py::arg("names"))
+      // ── Medium query ───────────────────────────────────────────────────────
+      .def("get_hydro_cell",
+           [](PyFluidDynamics &fd, Jetscape::real t, Jetscape::real x,
+              Jetscape::real y, Jetscape::real z) {
+             return fd.get_hydro_cell_by_value(t, x, y, z);
+           },
+           "GetHydroInfo() at Cartesian (t, x, y, z), returned by value. "
+           "Never raises and never returns null: out-of-range gives a zero cell.",
+           py::arg("t"), py::arg("x"), py::arg("y"), py::arg("z"))
+      .def("get_out_of_range_count",
+           [](PyFluidDynamics &fd) { return fd.get_out_of_range_count(); },
+           "Number of GetHydroInfo() queries that fell outside the stored grid (and so saw "
+           "vacuum). CheckInRange never throws, so this is the only signal.")
+      .def("reset_out_of_range_count",
+           [](PyFluidDynamics &fd) { fd.reset_out_of_range_count(); })
+      // ── Liquefier ──────────────────────────────────────────────────────────
+      .def("add_a_liquefier", &FluidDynamics::add_a_liquefier,
+           "Attach a LiquefierBase (or CausalLiquefier) to this hydro.",
+           py::arg("liquefier"))
+      .def("get_liquefier",
+           [](FluidDynamics &fd) -> std::shared_ptr<LiquefierBase> {
+             return fd.get_liquefier().lock();     // None if never attached
+           },
+           "The attached liquefier, or None.")
+      .def("SetHydroStartTime", &FluidDynamics::SetHydroStartTime,
+           "Set hydro_tau_0 (uninitialised by the FluidDynamics constructor).",
+           py::arg("tau0"))
       // ── Status control ─────────────────────────────────────────────────────
       .def("set_hydro_status_finished",
            [](PyFluidDynamics &fd) { fd.set_hydro_status_finished(); },

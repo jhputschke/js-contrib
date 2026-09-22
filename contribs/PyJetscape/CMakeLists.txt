@@ -48,6 +48,7 @@ set(PYJETSCAPE_SOURCES
   src/bind_evolution.cc
   src/bind_initial_state.cc
   src/bind_fluid_dynamics.cc
+  src/bind_liquefier.cc
   src/bind_music.cc
   src/bind_root_bulk_writer.cc
   src/bind_jet.cc
@@ -61,6 +62,19 @@ target_include_directories(pyjetscape_core PRIVATE
 )
 
 target_link_libraries(pyjetscape_core PRIVATE JetScape)
+
+# CausalLiquefier.h includes <gsl/gsl_sf_bessel.h> (the causal-diffusion kernel), so
+# bind_liquefier.cc needs GSL.  In-tree this is already satisfied: X-SCAPE's top-level
+# CMakeLists does include_directories(${GSL_INCLUDE_DIR}) before add_subdirectory(js-contrib),
+# and libJetScape itself links ${GSL_LIBRARIES}.  Note X-SCAPE ships its own
+# cmakemodules/FindGSL.cmake, which sets GSL_INCLUDE_DIR / GSL_LIBRARIES and does NOT create
+# a GSL::gsl imported target -- so do not ask for one.
+if(DEFINED GSL_INCLUDE_DIR AND GSL_INCLUDE_DIR)
+  target_include_directories(pyjetscape_core PRIVATE ${GSL_INCLUDE_DIR})
+endif()
+if(DEFINED GSL_LIBRARIES AND GSL_LIBRARIES)
+  target_link_libraries(pyjetscape_core PRIVATE ${GSL_LIBRARIES})
+endif()
 
 # The compiled extension lives inside the contrib source tree so that the
 # jetscape Python package works directly via sys.path or PYTHONPATH without

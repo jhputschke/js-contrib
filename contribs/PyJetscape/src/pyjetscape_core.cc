@@ -15,6 +15,7 @@ void bind_framework(py::module_ &m);
 void bind_evolution(py::module_ &m);
 void bind_initial_state(py::module_ &m);
 void bind_fluid_dynamics(py::module_ &m);
+void bind_liquefier(py::module_ &m);
 void bind_music(py::module_ &m);
 void bind_root_bulk_writer(py::module_ &m);
 void bind_jet(py::module_ &m);
@@ -39,6 +40,9 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   bind_evolution(m);
   bind_initial_state(m);
   bind_fluid_dynamics(m);
+  // Liquefier after FluidDynamics: FluidDynamics.add_a_liquefier() takes a
+  // shared_ptr<LiquefierBase>, and CausalLiquefier declares LiquefierBase as its base.
+  bind_liquefier(m);
   // Concrete module bindings — must come AFTER base-class bindings above so
   // that pybind11 can resolve the inheritance chain (MpiMusic : FluidDynamics,
   // TrentoInitial : InitialState).
