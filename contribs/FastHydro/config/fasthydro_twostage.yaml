@@ -59,21 +59,49 @@ output:
   stop_at_freezeout: false
 
 source:
-  # HOW a droplet is deposited onto the grid. Every key here is read, on every jet run --
-  # live (droplets from Matter+LBT) and replay (droplets from a dump) alike.
+  # ---------------------------------------------------------------------------
+  # HOW a droplet is spread onto this solver's grid.  Not WHERE droplets come from:
+  # they come from X-SCAPE's Matter + LBT, through the C++ CausalLiquefier, and nothing
+  # in this file chooses them.  Not the deposit PHYSICS either: the five kernel
+  # parameters live in <Liquefier><CausalLiquefier> in the user XML.
   #
-  # WHERE droplets come from is not configured here at all: they come from X-SCAPE's
-  # energy-loss chain. fast_data's schema also carries `enabled`, `model`, `partons`,
-  # `per_event` and `placement_weight` for its own generate.py, which synthesises droplets
-  # from a parton spec; none of them is read by FastHydro, so they are left at their
-  # defaults rather than written out as knobs that do nothing. (`enabled` defaults to
-  # false, and build_two_stage() refuses to run if it is true, because a `partons:` spec
-  # would then be silently ignored.)
-  # conservative, NOT xscape: point sampling loses the whole deposit for droplets at large
-  # |eta_d| on a grid this coarse (see fasthydro/liquefier_bridge.py for the measured table).
-  mode: conservative
-  renorm: grid
-  tau_eval_mode: dep
+  # Why a block like this exists at all, when the XML has no counterpart for it.
+  # The liquefier kernel is an analytic, continuous function -- the Green's function of
+  # causal diffusion.  Any solver has to map it onto its own discrete cells, and that
+  # mapping is a choice.  MUSIC never has to make it: it evaluates the C++ kernel at cell
+  # centres on a grid fine enough (dx ~ 0.1 fm) that point sampling is accurate, and the
+  # C++ offers no alternative.  This grid is 0.3125 fm, coarse against the kernel's 0.1 fm
+  # delta-shell, and point sampling there does not merely lose accuracy -- it loses the
+  # DEPOSIT.  Fraction of a droplet's momentum that lands (tau_d = 1, deposit at tau = 3):
+  #
+  #     eta_d                0      1      2      3      4
+  #     mode: xscape         1.000  1.009  2.561  0.000  0.000
+  #     mode: conservative   1.000  1.000  0.994  1.000  1.169
+  #
+  # So these are solver settings, in the same family as time.cfl -- numerics, not physics.
+  # They are read on every jet run, live and replay alike.
+  #
+  #   mode            conservative = clip each cell's quadrature to the causal support,
+  #                   place nodes inside it, and fall back to a trilinear scatter when the
+  #                   whole support fits in one cell.  xscape = sample at cell centres, as
+  #                   the C++ does, for reproducing a MUSIC run and for nothing else.
+  #   n_sub           quadrature nodes per cell edge; auto picks it from how finely the
+  #   n_sub_max       wave front needs resolving, capped at n_sub_max.  Higher costs time
+  #                   and buys deposit SHAPE, never total -- see renorm.
+  #   renorm          where the one scalar per droplet that makes the deposited
+  #                   four-momentum exact is computed.  grid = over the cells on this grid.
+  #                   Conservation comes from HERE, not from the quadrature: it is exact to
+  #                   ~1e-13 whatever n_sub does.
+  #   tau_eval_mode   dep = evaluate the kernel at tau_dep itself, so the deposit shape does
+  #                   not depend on the step sequence the adaptive solver happened to pick.
+  #                   step = snap to the hydro node, as the C++ does.
+  #   min_in_grid     flag a droplet whose support is not at least this well contained.
+  #   on_out_of_grid  what to do with one that is not: warn (keep it, renormalised onto
+  #                   what is inside) or drop.
+  # ---------------------------------------------------------------------------
+  mode: conservative       # every value below is fast_data's default; spelled out because
+  renorm: grid             # `mode` is the one setting whose wrong value silently destroys
+  tau_eval_mode: dep       # the deposit rather than failing.
   n_sub: auto
   n_sub_max: 16
   min_in_grid: 0.99
