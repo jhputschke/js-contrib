@@ -150,3 +150,38 @@ def test_ideal_mode_stays_ideal():
     a, _, _ = replay_event(cfg, e0, None, LiquefierParams())
     b, _, _ = replay_event(cfg, e0, None, LiquefierParams())
     assert np.array_equal(a, b)
+
+
+# --------------------------------------------------------------------------- overwrite
+def test_replay_pair_can_replace_an_existing_file(tmp_path):
+    """`--force` reached the LIVE leg (through run_two_stage's --overwrite) but stopped at the
+    replay leg, so the second leg of make_wake_data.py died on the file the first run of that
+    same script had written -- after the first leg had already been recomputed."""
+    pytest.importorskip("h5py")
+
+    from fasthydro.replay import replay_pair
+
+    cfg = _cfg()
+    cfg["eos"]["store_table"] = False
+    g = GridSpec.from_cfg(cfg)
+    e0, params = _ic(g), LiquefierParams(tau_delay=0.6)
+
+    p = str(tmp_path / "pair.h5")
+    replay_pair(p, cfg, e0, None, params)
+    with pytest.raises(FileExistsError):
+        replay_pair(p, cfg, e0, None, params)
+    assert replay_pair(p, cfg, e0, None, params, overwrite=True) == p
+
+
+def test_the_drivers_pass_force_through_to_the_replay_leg():
+    """A source check, because reproducing it end to end costs two full hydro runs."""
+    import pathlib
+    EXAMPLE = pathlib.Path(__file__).resolve().parent.parent / "example"
+    mwd = (EXAMPLE / "make_wake_data.py").read_text()
+    assert "def replay_leg(" in mwd and "force=False" in mwd
+    assert "replay_pair(out, cfg, ic, da, params, overwrite=force or None" in mwd
+    assert "force=a.force)" in mwd
+
+    rr = (EXAMPLE / "run_replay.py").read_text()
+    assert '"--overwrite"' in rr, "run_replay.py has no way to replace an existing file"
+    assert "overwrite=a.overwrite or None" in rr

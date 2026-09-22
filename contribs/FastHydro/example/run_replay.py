@@ -28,6 +28,9 @@ def main(argv=None):
                          "format -- by replaying BOTH legs, so the file holds arr (jet), "
                          "arr_bg (background) and source/S just like a live run. A .npz name "
                          "writes only the replayed jet evolution, for a quick look.")
+    ap.add_argument("--overwrite", action="store_true",
+                    help="replace an existing output file (default: run.overwrite in the "
+                         "YAML)")
     ap.add_argument("--check", action="store_true",
                     help="assert the replay reproduces the recorded arr_jet")
     ap.add_argument("--set", action="append", default=[], metavar="k.p=v")
@@ -59,7 +62,7 @@ def main(argv=None):
         # Both legs, so the result is a normal paired file: the same thing a live run
         # produces, and readable by PairBrowser and by FNO4d's loaders.
         os.makedirs(os.path.dirname(os.path.abspath(a.out)) or ".", exist_ok=True)
-        replay_pair(a.out, cfg, ic, da, params,
+        replay_pair(a.out, cfg, ic, da, params, overwrite=a.overwrite or None,
                     shower=showers_from_meta(meta, 0),
                     meta={"provenance_droplets": os.path.basename(a.droplets)})
         print(f"wrote {a.out}  (FNO4d HDF5 schema: arr = jet leg, source/S, "

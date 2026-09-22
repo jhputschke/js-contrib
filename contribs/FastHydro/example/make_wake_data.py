@@ -119,7 +119,7 @@ def ensure_eos(build, *, eos_dir=None, allow_download=True, verbose=True):
     return dest
 
 
-def replay_leg(cfg_path, drop_npz, out, transport_mode, overrides, build):
+def replay_leg(cfg_path, drop_npz, out, transport_mode, overrides, build, force=False):
     """One leg from a fixed droplet set: background + jet through this solver, into `out`."""
     sys.path.insert(0, os.path.join(CONTRIB, "python"))
     from fasthydro.config import load_config
@@ -138,7 +138,10 @@ def replay_leg(cfg_path, drop_npz, out, transport_mode, overrides, build):
         da = per_event[0]
         print(f"     {len(da)} droplets, {da.data[:, 4].sum():.2f} GeV, "
               f"tau_delay = {params.tau_delay} fm/c")
-        replay_pair(out, cfg, ic, da, params,
+        # --force has to reach here too: the live leg gets it via run_two_stage's
+        # --overwrite, and without this the second leg stops on the file the FIRST run of
+        # this very script left behind.
+        replay_pair(out, cfg, ic, da, params, overwrite=force or None,
                     shower=showers_from_meta(meta, 0),
                     meta={"provenance_droplets": os.path.basename(drop_npz)})
     finally:
@@ -284,7 +287,8 @@ def main(argv=None):
                 print(f"     FAILED: {drop_npz} not written by the first leg")
                 return 1
             t1 = time.time()
-            rc = replay_leg(cfg, drop_npz, out, LEGS[leg], overrides, build)
+            rc = replay_leg(cfg, drop_npz, out, LEGS[leg], overrides, build,
+                            force=a.force)
             if rc:
                 return rc
             print(f"     {time.time() - t1:.0f} s -> {out}")
