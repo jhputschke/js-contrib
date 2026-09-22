@@ -76,25 +76,39 @@ Run from the **X-SCAPE build tree** — the framework resolves several paths rel
 ```bash
 cd $XSCAPE_BUILD
 C=../external_packages/js-contrib/contribs/FastHydro
+export OMP_WAIT_POLICY=passive OMP_NUM_THREADS=8    # idle OpenMP threads otherwise spin
 
 # 0. smoke test: hydro only, then check GetHydroInfo against the stored grid
 python $C/example/run_hydro_only.py --config $C/config/fasthydro_twostage.yaml
 
-# 1. the real thing: background leg, Matter+LBT, jet leg
+# 1. the real thing: background leg, Matter+LBT, jet leg -> one HDF5 dataset
 python $C/example/run_two_stage.py \
     --config   $C/config/fasthydro_twostage.yaml \
     --user-xml $C/config/jetscape_user_fasthydro.xml \
     --main-xml ../config/jetscape_main.xml \
-    --events 1 --out out/pair.npz --dump-droplets out/run.droplets.npz
+    --events 1 --out out/pair.h5 --dump-droplets out/run.droplets.npz
 
-# 2. replay the same shower on different solver settings -- no X-SCAPE, no Matter/LBT
+# 2. replay the same shower on different solver settings -- no X-SCAPE, no Matter/LBT.
+#    Both legs are replayed, so this writes a normal paired dataset too.
 python $C/example/run_replay.py --droplets out/run.droplets.npz \
-    --config $C/config/fasthydro_twostage.yaml --check \
-    --set transport.mode=israel_stewart
+    --config $C/config/fasthydro_twostage.yaml \
+    --set transport.mode=israel_stewart --out out/pair_visc.h5
 ```
 
-`OMP_WAIT_POLICY=passive OMP_NUM_THREADS=8` is worth setting; idle OpenMP threads otherwise
-spin and inflate wall time.
+**`--out` dispatches on the extension, and `.h5` is what you want.** It writes FNO4d's HDF5
+schema — `arr` (jet leg), `arr_bg` (background), `source/S`, the droplets — streaming one event
+at a time, so peak memory is one pair however many events you ask for. A `.npz` name instead
+writes a single pair as plain arrays, which is only useful for eyeballing one event.
+
+Omitting `--out` altogether uses `run.out` from the YAML, which is already an `.h5`. The
+droplet dump (`--dump-droplets`) stays `.npz`: it is small, and keeping it numpy-only is what
+lets the replay path run on a machine with no h5py and no X-SCAPE build.
+
+For the wake notebook's data, one command does both legs:
+
+```bash
+python $C/example/make_wake_data.py        # -> out_wake/wake_{ideal,visc}.h5
+```
 
 ## The pipeline
 
@@ -295,9 +309,13 @@ file carries two evolutions rather than one evolution plus a source term.
 ### `.npz` is the convenience format, not the dataset
 
 Giving `--out` a `.npz` name writes one pair (`arr`, `arr_jet`, `src`, `tau`) for a quick
-look; with several events it writes `_ev0`, `_ev1`, … and holds them in memory. Use it to
-inspect a single event, not to build a training set. `run_replay.py` also reads and writes
-`.npz` for droplet dumps, which are small and need no h5py.
+look; with several events it writes `_ev0`, `_ev1`, … and holds them all in memory. Use it to
+inspect a single event, not to build a training set. From `run_replay.py` a `.npz` gives only
+the replayed jet evolution, where an `.h5` replays both legs into a full paired dataset.
+
+Droplet dumps (`--dump-droplets`) are the one place `.npz` is the right answer: they are small,
+and staying numpy-only is what lets the replay path run on a machine with no h5py, no X-SCAPE
+build and no `pyjetscape_core`.
 
 ### Diagnostics worth reading every run
 

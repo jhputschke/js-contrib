@@ -213,3 +213,31 @@ def test_liquefier_params_are_on_the_file(written):
             assert k in f.attrs, f"{k} missing; viz would silently use its default"
         assert float(f.attrs["liquefier_c_diff"]) == pytest.approx(
             np.sqrt(float(f.attrs["liquefier_d_diff"]) / float(f.attrs["liquefier_time_relax"])))
+
+
+def test_the_documented_commands_use_h5_for_the_hydro():
+    """The README's worked example must lead with the dataset format, not the npz one. An
+    example is what people copy, so an `--out ....npz` there quietly makes npz the default."""
+    import pathlib
+    import re
+
+    readme = (pathlib.Path(__file__).resolve().parent.parent / "README.md").read_text()
+    block = readme[readme.index("## Running"):readme.index("## The pipeline")]
+    outs = re.findall(r"--out\s+(\S+)", block)
+    assert outs, "the Running section shows no --out at all"
+    assert all(o.endswith((".h5", ".hdf5")) for o in outs), (
+        f"the Running section writes the hydro to {outs}; it should be .h5")
+    # the droplet dump is the one thing that stays npz, on purpose
+    dumps = re.findall(r"--dump-droplets\s+(\S+)", block)
+    assert all(d.endswith(".npz") for d in dumps), dumps
+
+
+def test_replay_cli_can_write_a_pair():
+    """run_replay.py --out *.h5 goes through replay_pair, so a replayed run is a normal
+    paired dataset rather than a single evolution."""
+    import pathlib
+
+    src = (pathlib.Path(__file__).resolve().parent.parent
+           / "example" / "run_replay.py").read_text()
+    assert "replay_pair" in src
+    assert 'endswith((".h5", ".hdf5"))' in src
