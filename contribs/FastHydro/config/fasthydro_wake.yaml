@@ -97,27 +97,11 @@ source:
   min_in_grid:    0.99
   on_out_of_grid: warn
 
-  # MIRROR ONLY -- never read; DropletBridge takes these off the live C++ CausalLiquefier,
-  # i.e. from <Liquefier><CausalLiquefier> in the XML. build_two_stage() errors if the two
-  # disagree, so the copy cannot drift. To change the physics, edit the XML.
-  params:
-    dtau:        0.02
-    tau_delay:   1.0       # THE knob that sets how sharp the wake looks, and a real trade-off:
-                           # the kernel is the Green's function of causal diffusion, so by the
-                           # time it fires a droplet has spread to c_diff*tau_delay, with
-                           # c_diff = sqrt(d_diff/time_relax) = 0.894.
-                           #   tau_delay   blob radius   in the thin delta-shell
-                           #      2.0 (X-SCAPE default)  1.79 fm      0.3 %
-                           #      1.0 (here)             0.89 fm     12.5 %
-                           #      0.5                    0.45 fm     54   %
-                           # 2.0 smears each deposit over a third of the fireball radius and
-                           # washes the wake out; 0.5 puts most of the momentum in a 0.1 fm
-                           # shell a 0.3125 fm cell cannot resolve (conservative mode keeps the
-                           # TOTAL exact by renormalising, but the SHAPE is then guesswork).
-    time_relax:  0.1
-    d_diff:      0.08
-    width_delta: 0.1
-
+  # The five deposit parameters (dtau, tau_delay, time_relax, d_diff, width_delta) are NOT
+  # here. They live in <Liquefier><CausalLiquefier> in the user XML, which is the only place
+  # they are set: DropletBridge reads them off the live C++ object, and build_two_stage()
+  # writes them back into this config so the output file's provenance records what actually
+  # ran. Keeping a copy here would be a value that looks like a knob and is not one.
 output:
   compression:        lzf
   source_compression: gzip

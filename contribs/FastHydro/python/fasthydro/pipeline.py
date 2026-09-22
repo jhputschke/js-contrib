@@ -29,6 +29,7 @@ Things that are not free choices
 
 from __future__ import annotations
 
+import dataclasses
 import xml.etree.ElementTree as ET
 
 from .grid import GridSpec
@@ -44,13 +45,12 @@ def check_xml_agrees_with_cfg(user_xml: str, cfg) -> None:
 
       grid            `<IS><grid_*>` for the framework, `grid:` for the solver
       hydro start     `<Preequilibrium><taus>` for NullPreDynamics, `time.tau0` for the solver
-      liquefier       `<Liquefier><CausalLiquefier>` is READ; `source.params` only mirrors it
       eloss start     `<Eloss><tStart>` has no YAML counterpart but must not precede tau0
 
-    For the liquefier the XML wins outright: `DropletBridge` reads the five parameters off the
-    live C++ `CausalLiquefier` object (`params_from_liquefier`), so the YAML copy changes
-    nothing.  It is checked here precisely because it would otherwise be a silent no-op --
-    editing `source.params.tau_delay` and seeing no effect is a nasty way to lose an afternoon.
+    The liquefier parameters are NOT among them.  They live in
+    `<Liquefier><CausalLiquefier>` only: `build_two_stage` reads them off the live C++ object
+    and writes them into `cfg["source"]["params"]`, so there is one source of truth and
+    nothing to keep in step.
     """
     g = GridSpec.from_cfg(cfg)
     root = ET.parse(user_xml).getroot()
@@ -72,19 +72,6 @@ def check_xml_agrees_with_cfg(user_xml: str, cfg) -> None:
     taus = val("Preequilibrium/taus")
     if taus is not None and abs(taus - g.tau0) > 1e-9:
         problems.append(f"  <Preequilibrium><taus> = {taus} but time.tau0 = {g.tau0}")
-
-    # The five liquefier parameters. The XML is authoritative; the YAML copy is documentation
-    # and is never read, so it must not be allowed to drift and imply otherwise.
-    xml_liq = {k: val(f"Liquefier/CausalLiquefier/{k}")
-               for k in ("dtau", "tau_delay", "time_relax", "d_diff", "width_delta")}
-    yaml_liq = ((cfg.get("source") or {}).get("params") or {})
-    for k, xv in xml_liq.items():
-        yv = yaml_liq.get(k)
-        if xv is not None and yv is not None and abs(float(yv) - xv) > 1e-12:
-            problems.append(
-                f"  <Liquefier><CausalLiquefier><{k}> = {xv} but source.params.{k} = {yv}. "
-                f"The XML is what is used (DropletBridge reads the live C++ object); the YAML "
-                f"copy is documentation, so make it match or drop it.")
 
     # Matter starts quenching at <Eloss><tStart>. Before tau0 there is no hydro to quench
     # against: GetHydroInfo returns vacuum, silently.
@@ -119,7 +106,7 @@ def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
 
     from .hydro import FastHydro
     from .initial_state import FastGlauberInitialState
-    from .liquefier_bridge import DropletBridge
+    from .liquefier_bridge import DropletBridge, params_from_liquefier
 
     if user_xml:
         check_xml_agrees_with_cfg(user_xml, cfg)
@@ -135,8 +122,13 @@ def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
     hyd_bg = FastHydro(cfg, stage=1, module_id="FastHydro_bg", ic=ini,
                        store=store, keep_arr=keep_bg_arr, verbose=verbose)
 
-    # The 0-argument constructor reads <Liquefier><CausalLiquefier> from the loaded XML.
+    # The 0-argument constructor reads <Liquefier><CausalLiquefier> from the loaded XML, and
+    # that block is the ONLY place the deposit's five parameters are set. DropletBridge takes
+    # them off this object, so rather than keeping a copy in the YAML and checking the two
+    # agree, overwrite whatever the YAML defaulted to. The config is then accurate -- which
+    # matters, because it is what gets written into the output file's provenance.
     liq = CausalLiquefier()
+    cfg["source"]["params"] = dataclasses.asdict(params_from_liquefier(liq))
 
     jloss = JetEnergyLoss()
     jloss.Add(create_module("Matter"))     # Matter first: it sets the virtuality

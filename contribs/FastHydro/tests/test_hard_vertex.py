@@ -170,13 +170,15 @@ def test_shipped_xml_and_yaml_agree():
 
 
 @pytest.mark.parametrize("mutate,expect", [
-    (lambda c: c["source"]["params"].__setitem__("tau_delay", 99.0), "tau_delay"),
     (lambda c: c["grid"].__setitem__("dx", 0.77), "grid_step_x"),
     (lambda c: c["time"].__setitem__("tau0", 9.0), "taus"),
 ])
 def test_disagreement_is_caught(mutate, expect):
-    """Each overlapping quantity must be checked, including source.params -- which is never
-    read, so a drift there would otherwise be a silent no-op."""
+    """Each quantity that genuinely appears in both files must be checked.
+
+    The liquefier parameters are deliberately NOT among them: they live in the XML only, and
+    build_two_stage() writes them into the config from the live C++ object, so there is
+    nothing to disagree about."""
     import pathlib
 
     from fasthydro.config import load_config

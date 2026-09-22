@@ -151,22 +151,25 @@ Overlap happens only where **two different consumers need the same number**.
 `build_two_stage()` calls `check_xml_agrees_with_cfg()` and refuses to run on a mismatch, so
 the duplication is enforced rather than hoped for.
 
-| quantity | XML | YAML | who wins |
+| quantity | XML | YAML | rule |
 |---|---|---|---|
 | transverse/longitudinal grid | `<IS><grid_max_*>`, `<grid_step_*>` | `grid:` | must agree; `grid_max = n·d/2` so `GetXSize()` recovers `n` |
 | hydro start time | `<Preequilibrium><taus>` | `time.tau0` | must agree |
-| liquefier parameters | `<Liquefier><CausalLiquefier>` | `source.params` | **XML wins** — see below |
 | energy-loss start | `<Eloss><tStart>` | (none) | must not precede `time.tau0`, or Matter quenches against vacuum |
 
-### The liquefier block is the one asymmetry
+That is the whole overlap — three quantities, each because two different consumers need the
+same number. The liquefier parameters used to be a fourth, mirrored into the YAML and checked;
+they are now XML-only (see below).
 
-`source.params` in the YAML is a **mirror and is never read.** `DropletBridge` takes the five
-parameters off the live C++ `CausalLiquefier` object (`params_from_liquefier`), so the XML is
-authoritative. Editing `source.params.tau_delay` changes nothing — which is exactly why the
-consistency check compares them and errors out, rather than letting the copy drift and imply
-it is doing something.
+### The liquefier parameters live in the XML only
 
-Within that XML block, only some knobs reach FastHydro at all:
+They are **not** duplicated. `<Liquefier><CausalLiquefier>` is the single place the five
+deposit parameters are set; `build_two_stage()` reads them off the live C++ object and writes
+them into `cfg["source"]["params"]`, so the resolved config — and therefore the `config_json`
+recorded in the output file — says what actually ran. There is nothing to keep in step, so the
+consistency check does not mention them.
+
+Within that block, only some entries reach FastHydro at all:
 
 | | effect |
 |---|---|
@@ -174,7 +177,7 @@ Within that XML block, only some knobs reach FastHydro at all:
 | `dtau` | provenance only; its `1/dtau` cancels against the hydro `dtau`, so the Python deposit contains no `dtau` |
 | `dx`, `dy`, `deta` | **inert here.** They size the C++ `smearing_kernel`, which FastHydro never calls — the C++ liquefier is used only as a droplet container |
 
-`<Liquefier><threshold_energy_switch>` and `<e_threshold>` are XML-only and *do* matter:
+`<Liquefier><threshold_energy_switch>` and `<e_threshold>` are also XML-only and *do* matter:
 `filter_partons` reads them live to decide which partons become droplets at all.
 
 ### Everything else is disjoint
