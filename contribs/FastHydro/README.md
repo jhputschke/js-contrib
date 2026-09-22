@@ -188,20 +188,30 @@ modules and the liquefier thresholds exist only in the XML. `--set` routes by pr
 `--set time.choose_ntau=41` goes to `fast_data`, `--set fasthydro.hard_vertex.mode=centre` to
 the adapters, and each is validated against its own schema.
 
-### `source.enabled: false` does not mean "no jet"
+### What the `source:` block is for
 
-The `source:` block is in two halves, and the key names do not say which is which:
+It configures **how** a droplet is deposited onto the grid — nothing else. All seven keys in it
+are read on every jet run, live and replay alike:
 
-| keys | read by |
-|---|---|
-| `mode`, `renorm`, `tau_eval_mode`, `n_sub`, `n_sub_max`, `min_in_grid`, `on_out_of_grid` | **FastHydro** — how a droplet is deposited onto the grid |
-| `enabled`, `model`, `partons`, `per_event`, `placement_weight` | **only `fast_data`'s own `generate.py`** — where droplets come from |
+```yaml
+source:
+  mode: conservative       # the deposit scheme
+  renorm: grid
+  tau_eval_mode: dep
+  n_sub: auto
+  n_sub_max: 16
+  min_in_grid: 0.99
+  on_out_of_grid: warn
+```
 
-`enabled` is the stock generator's switch for synthesising droplets from a `partons:` spec.
-FastHydro's droplets come from Matter+LBT, so it must stay `false`; the jet source is on
-regardless. `build_two_stage()` refuses to run with it true, because a `partons:` spec here
-would be read by nobody — and a silently ignored jet specification gives you a plausible wake
-from the wrong jet, which is worse than an error.
+**Where** droplets come from is not configured here at all: they come from Matter+LBT.
+`fast_data`'s schema also carries `enabled`, `model`, `partons`, `per_event` and
+`placement_weight` for its own `generate.py`, which synthesises droplets from a parton spec.
+FastHydro reads none of them, so the shipped configs leave them at their defaults rather than
+listing them as knobs that do nothing. In particular `enabled: false` would not mean "no jet
+source" — the jet source is always on — and `build_two_stage()` refuses to run with it true,
+because a `partons:` spec would then be silently ignored and you would get a plausible wake
+from the wrong jet.
 
 **`source.mode: conservative` is not a detail.** Point sampling on a cell-centred grid — what
 the C++ does on MUSIC's much finer grid — loses the deposit entirely for droplets at large

@@ -59,21 +59,16 @@ output:
   stop_at_freezeout: false
 
 source:
-  # This block is in two halves, and the split is not obvious from the key names.
+  # HOW a droplet is deposited onto the grid. Every key here is read, on every jet run --
+  # live (droplets from Matter+LBT) and replay (droplets from a dump) alike.
   #
-  # READ BY FastHydro (DropletBridge): mode, renorm, tau_eval_mode, n_sub, n_sub_max,
-  #   min_in_grid, on_out_of_grid.  These say HOW a droplet is deposited onto the grid.
-  #
-  # READ ONLY BY fast_data's own generate.py, never here: enabled, model, partons,
-  #   per_event, placement_weight.  Those are about where droplets COME FROM, and in
-  #   FastHydro they come from Matter+LBT, not from this file.
-  #
-  # So `enabled: false` does NOT mean "no jet source". The jet source is always on; this
-  # switch only tells the stock fast_data driver not to synthesise droplets from a
-  # `partons:` spec. build_two_stage() refuses to run if it is true, because a parton spec
-  # here would be read by nobody.
-  enabled: false
-  model: causal_liquefier
+  # WHERE droplets come from is not configured here at all: they come from X-SCAPE's
+  # energy-loss chain. fast_data's schema also carries `enabled`, `model`, `partons`,
+  # `per_event` and `placement_weight` for its own generate.py, which synthesises droplets
+  # from a parton spec; none of them is read by FastHydro, so they are left at their
+  # defaults rather than written out as knobs that do nothing. (`enabled` defaults to
+  # false, and build_two_stage() refuses to run if it is true, because a `partons:` spec
+  # would then be silently ignored.)
   # conservative, NOT xscape: point sampling loses the whole deposit for droplets at large
   # |eta_d| on a grid this coarse (see fasthydro/liquefier_bridge.py for the measured table).
   mode: conservative
@@ -83,11 +78,6 @@ source:
   n_sub_max: 16
   min_in_grid: 0.99
   on_out_of_grid: warn
-  # The five deposit parameters (dtau, tau_delay, time_relax, d_diff, width_delta) are NOT
-  # here. They live in <Liquefier><CausalLiquefier> in the user XML, which is the only place
-  # they are set: DropletBridge reads them off the live C++ object, and build_two_stage()
-  # writes them back into this config so the output file's provenance records what actually
-  # ran. Keeping a copy here would be a value that looks like a knob and is not one.
 # ---------------------------------------------------------------------------
 # FastHydro-only settings.
 #

@@ -210,6 +210,13 @@ def test_source_enabled_true_is_refused():
         build_two_stage(cfg)
 
 
+#: the only source keys FastHydro reads, live runs and replay alike
+LIVE_SOURCE_KEYS = ("mode", "renorm", "tau_eval_mode", "n_sub", "n_sub_max",
+                    "min_in_grid", "on_out_of_grid")
+#: fast_data schema keys its own generate.py uses and FastHydro never touches
+DEAD_SOURCE_KEYS = ("enabled", "model", "partons", "per_event", "placement_weight")
+
+
 def test_the_shipped_configs_do_not_enable_it():
     import pathlib
 
@@ -219,7 +226,22 @@ def test_the_shipped_configs_do_not_enable_it():
     for name in ("fasthydro_twostage.yaml", "fasthydro_wake.yaml"):
         cfg = load_config(root / "config" / name)
         assert cfg["source"]["enabled"] is False, name
-        # and the half that IS read must be present
-        for k in ("mode", "renorm", "tau_eval_mode", "n_sub", "n_sub_max",
-                  "min_in_grid", "on_out_of_grid"):
+        for k in LIVE_SOURCE_KEYS:
             assert k in cfg["source"], f"{name}: {k} missing"
+
+
+@pytest.mark.parametrize("name", ["fasthydro_twostage.yaml", "fasthydro_wake.yaml"])
+def test_shipped_configs_spell_out_only_the_keys_that_are_read(name):
+    """A setting written into a config file reads as a knob. The keys FastHydro never looks
+    at are left to fast_data's defaults instead of being listed as if they did something."""
+    import pathlib
+
+    import yaml
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    raw = yaml.safe_load((root / "config" / name).read_text())["source"]
+    assert set(raw) == set(LIVE_SOURCE_KEYS), (
+        f"{name}: source block should spell out exactly {sorted(LIVE_SOURCE_KEYS)}, "
+        f"got {sorted(raw)}")
+    for k in DEAD_SOURCE_KEYS:
+        assert k not in raw, f"{name}: {k} is never read by FastHydro; leave it defaulted"
