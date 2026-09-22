@@ -1,0 +1,110 @@
+{
+  "_comment": "Provenance of the vendored fast_data tree. Verified by tests/test_vendor_intact.py. Hard rule: no local patches -- every adapter need goes in python/fasthydro/.",
+  "upstream": {
+    "repo": "FNO4d",
+    "path": "loc_libs/fast_data",
+    "commit": "8d1ddb5359650d4a61f4b04d59228c64b10057ac",
+    "commit_short": "8d1ddb5",
+    "commit_date": "2026-09-21",
+    "repo_head_at_vendoring": "fd69fe42bd2ce09459c421ac1883f87352339866"
+  },
+  "vendored_on": "2026-09-22",
+  "local_patches": [],
+  "files": {
+    "__init__.py": {
+      "sha256": "989d983bb2cbf61f8aea3db14e65ce609dedbd2aae8e67a92d56ff993b3c10ee",
+      "bytes": 2737,
+      "lines": 69
+    },
+    "config.py": {
+      "sha256": "713755adb69495b836dbd75f6cadbda1b4ec309bb65f80c1aa16d876932dce51",
+      "bytes": 12355,
+      "lines": 276
+    },
+    "convert.py": {
+      "sha256": "f748d1abdb80091c22a0a97110219af8bd9d4ff12a72df30a028c8f6ccb3b0dd",
+      "bytes": 5542,
+      "lines": 120
+    },
+    "download_hotQCD.sh": {
+      "sha256": "e7451d32f506a1f857391e091b2b1c229f20b47cd2e5ef7c67fbe01f095c8f34",
+      "bytes": 649,
+      "lines": 26
+    },
+    "driver.py": {
+      "sha256": "8dfcc97d658ba6640fa53f4c96ceb58edff7c1cac0e7fad8cdb8f8de02019d67",
+      "bytes": 14907,
+      "lines": 305
+    },
+    "eos.py": {
+      "sha256": "7cd918faeed737e43d378e375af12fb3e832fd77b20455913f24f115698845ca",
+      "bytes": 7037,
+      "lines": 156
+    },
+    "evolve.py": {
+      "sha256": "238e422980477eead3594c5c6ddccf0c9fee915f3d51aa4494801dc2346aac1d",
+      "bytes": 12823,
+      "lines": 258
+    },
+    "fv.py": {
+      "sha256": "a3ece7585cf139f89cbedd6517606b139417e96684b528d82ed5df02804de54f",
+      "bytes": 108467,
+      "lines": 1926
+    },
+    "glauber.py": {
+      "sha256": "8dcdb93cab3416de9efaa27235015ac4d88f3ed295cc53495c28d7a317f88c1c",
+      "bytes": 40288,
+      "lines": 804
+    },
+    "gubser.py": {
+      "sha256": "31da778f667b082a11e9501555d403c2a753b7848396d7f6c5643bae072bd661",
+      "bytes": 27056,
+      "lines": 616
+    },
+    "liquefier/__init__.py": {
+      "sha256": "5a522eb308807a478d90116648cc96470072a67ec9f51de4ee9ff3b56aa74f3e",
+      "bytes": 1394,
+      "lines": 28
+    },
+    "liquefier/deposit.py": {
+      "sha256": "004c032a494e2d06322748e386c4deae7d87aacacb3e8a57d812e46156e2ffe5",
+      "bytes": 18741,
+      "lines": 390
+    },
+    "liquefier/droplets.py": {
+      "sha256": "c2169c1e0b37974849eec2641467b14ec720b6d8e1a422f85d5dc421fe9ca76e",
+      "bytes": 18339,
+      "lines": 366
+    },
+    "liquefier/kernel.py": {
+      "sha256": "f7d1c1d63e56b62819515f079aadf31d585f29d1571ccb9895a9e29c6f8e1bce",
+      "bytes": 13270,
+      "lines": 277
+    },
+    "liquefier/params.py": {
+      "sha256": "d2ed037dad83db0f9642dc0244c385e0b353e00800a3c687304c5373a46dc514",
+      "bytes": 3874,
+      "lines": 90
+    },
+    "liquefier/source.py": {
+      "sha256": "1844a33d7ab1418c29baae6ce2970074f1d462a9d8286487636eab4934de7bf4",
+      "bytes": 10120,
+      "lines": 228
+    },
+    "partons.py": {
+      "sha256": "3adab298e9c6a62394ffb2ab473bd9632142550d6d4642e3bbf73b17b15e946b",
+      "bytes": 6590,
+      "lines": 133
+    },
+    "viz.py": {
+      "sha256": "0019e382afd778bd7f1341e7ee48e41df4ca680c6d67eea3437e121bc07c5831",
+      "bytes": 32231,
+      "lines": 696
+    },
+    "writer.py": {
+      "sha256": "ca0fe1dddd1d0ab60c2fd3dca999a5f6558f41a643d04301bd73df421fd322f9",
+      "bytes": 12769,
+      "lines": 258
+    }
+  }
+}

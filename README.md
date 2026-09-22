@@ -8,14 +8,16 @@ analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJe
 
 | Contrib | Description | Extra deps |
 |---------|-------------|------------|
+| [FastHydro](contribs/FastHydro/) | MC-Glauber initial state + a fast 3+1D Milne FV hydro solver, with the Matter+LBT → CausalLiquefier jet-deposition workflow; paired background/jet evolutions on an identical IC | PyTorch, scipy, h5py, pyyaml; reuses PyJetscape (no build of its own) |
 | [FnoHydro](contribs/FnoHydro/) | Neural-network (FNO) hydrodynamics via LibTorch | ROOT, libtorch (~2 GB) |
 | [PyJetscape](contribs/PyJetscape/) | pybind11 Python bindings + PyFNOHydro trampoline | pybind11 (pip/conda auto-detected), PyTorch |
 | [Visualization](contribs/Visualization/) | 3D PyVista visualization of the hydro medium evolution, resampled Milne→Cartesian `(t,x,y,z)`, with a jet parton-shower overlay | pyvista, scipy, vtk, imageio (`imageio-ffmpeg` for `.mp4` output); reuses PyJetscape |
 
-The **Visualization** contrib is pure Python (no CMake build of its own) but reads
-the *live* hydro `EvolutionHistory` through the PyJetscape bindings, so it needs a
-current `pyjetscape_core` — including the `EvolutionHistory.to_numpy_full()` binding
-used for genuine 3+1D data — plus a Python env with PyVista. See
+The **FastHydro** and **Visualization** contribs are pure Python (no CMake build of
+their own, so neither needs a `USE_JS_*` flag), but both read the framework through the
+PyJetscape bindings and so need a current `pyjetscape_core`. Visualization additionally
+needs the `EvolutionHistory.to_numpy_full()` binding for genuine 3+1D data, plus a Python
+env with PyVista. See
 [contribs/README.md](contribs/README.md#visualization-contrib--pyvista-dependencies)
 and [contribs/Visualization/README.md](contribs/Visualization/README.md).
 

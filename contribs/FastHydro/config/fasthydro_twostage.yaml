@@ -1,0 +1,79 @@
+# FastHydro: solver / initial-state configuration.
+#
+# Everything the fast solver needs lives here rather than in the JETSCAPE XML, because a new
+# XML tag would have to be added to X-SCAPE's config/jetscape_main.xml or JetScape::Init()
+# exits(-1).  The two files overlap only in the grid and tau0, and build_two_stage() refuses
+# to run if they disagree.
+#
+# Schema and defaults: fast_data/config.py.
+
+run:
+  nevents: 1
+  seed: 20260922
+  device: cpu          # cpu | cuda | mps.  mps forces float32 (it has no float64).
+  dtype: float64       # float64 for reproducible/replayable runs; float32 for throughput
+  out: ./out/fasthydro.h5
+
+grid:                  # must match <IS><grid_*> in jetscape_user_fasthydro.xml
+  nx: 25
+  ny: 25
+  neta: 13
+  dx: 0.5
+  dy: 0.5
+  deta: 0.4
+
+time:
+  tau0: 0.6            # must equal <Preequilibrium><taus>
+  record_dtau: 0.2
+  choose_ntau: 21      # -> tau = 0.6 .. 4.6 fm/c
+  cfl: 0.4
+
+initial_state:
+  kind: mc_glauber
+  proj: Au
+  targ: Au
+  b: 2.0               # null -> sample P(b) ~ b
+  sigma_nn_mb: 42.0
+  quantity: energy
+  target_T: 0.45       # K is calibrated to this peak temperature at b = calib_b
+  calib_b: 0.0
+  calib_events: 10
+
+eos:
+  kind: conformal      # conformal | hotqcd (EOS 9/91); see fast_data/eos.py
+  dof: 42.25           # matches MUSIC's EOS_to_use 0
+
+transport:
+  mode: ideal          # ideal | israel_stewart
+  eta_over_s: 0.08
+
+output:
+  T_fo: 0.15
+  freezeout: max_T
+  zero_after_freezeout: true
+  # Both legs must span the same frames for the pair to be comparable, so do NOT stop the
+  # background leg early: the jet leg keeps evolving while droplets are still depositing.
+  stop_at_freezeout: false
+
+source:
+  # `enabled` means "the stock fast_data driver should build droplets from source.partons".
+  # It stays FALSE here: FastHydro's droplets come from Matter+LBT through the C++
+  # CausalLiquefier, and DropletBridge constructs the CausalLiquefierSource itself.  The
+  # settings below are still read -- by DropletBridge -- they just are not a parton spec.
+  enabled: false
+  model: causal_liquefier
+  # conservative, NOT xscape: point sampling loses the whole deposit for droplets at large
+  # |eta_d| on a grid this coarse (see fasthydro/liquefier_bridge.py for the measured table).
+  mode: conservative
+  renorm: grid
+  tau_eval_mode: dep
+  n_sub: auto
+  n_sub_max: 16
+  min_in_grid: 0.99
+  on_out_of_grid: warn
+  params:              # kept in step with <Liquefier><CausalLiquefier> in the XML;
+    dtau: 0.02         # DropletBridge reads the live C++ values, so these are documentation
+    tau_delay: 0.6
+    time_relax: 0.1
+    d_diff: 0.08
+    width_delta: 0.1
