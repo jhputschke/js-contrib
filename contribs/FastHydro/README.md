@@ -28,6 +28,7 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/liquefier_bridge.py` | `DropletBridge` — C++ droplets → the solver's source term |
 | `python/fasthydro/droplets_io.py` | droplet npz dump/load (no framework dependency) |
 | `python/fasthydro/replay.py` | re-run the jet leg from a dump, without X-SCAPE |
+| `python/fasthydro/h5_writer.py` | `PairedH5Writer` — the FNO4d HDF5 dataset format |
 | `python/fasthydro/pipeline.py` | `build_two_stage` |
 | `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml` |
 | `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py` |
@@ -221,26 +222,54 @@ Measured over 6 events at b = 6 fm, the distance of the shower origin from the f
 > default here; `build_two_stage()` warns if you pair `PGun` with a non-`centre` mode. This is
 > X-SCAPE core behaviour and FastHydro does not patch it.
 
-## Reading the output
+## Output format
 
-`run_two_stage.py` writes `arr` (background) and `arr_jet`, both
-`(4, nx, ny, neta, ntau)` float32 `= [e, vx, vy, vz]`, with `e` in GeV/fm³ and `vx,vy,vz`
-**Cartesian lab three-velocities**, plus the per-window source `src` in contravariant Milne.
-With `--events N > 1` it writes one file per event (`pair_ev0.npz`, `pair_ev1.npz`, …), since
-the module objects only ever hold the current event. For an actual dataset use
-`fast_data.writer.FnoH5Writer`, which streams one event at a time into the FNO4d HDF5 schema
-instead of holding them all in memory.
+**The dataset format is FNO4d's HDF5 schema** — `fast_data.writer.FnoH5Writer` used
+unmodified, so a file written here is interchangeable with one written by fast_data's own
+`generate.py` and loads in every existing FNO4d reader with no special case. Give `--out` an
+`.h5` name (or leave it to `run.out` in the YAML) and events stream in one at a time, so peak
+memory is one pair regardless of how many events you ask for.
 
-Two diagnostics are printed and worth reading every run:
+```
+arr               (N, 4, nx, ny, neta, ntau) f4   the JET leg   [e, vx, vy, vz]
+arr_bg            (N, 4, nx, ny, neta, ntau) f4   the background leg
+source/S          (N, 4, nx, ny, neta, ntau) f4   what was injected, contravariant Milne
+source/droplets   (M, 8) f8                       (tau, x, y, eta, E, px, py, pz)
+source/offsets    (N+1,) i8                       per-event slices into droplets
+source/P_cart     (N, ntau, 4) f8                 injected four-momentum per frame
+ntau_freezeout[_bg], tau_freezeout[_bg]           per leg
+diag/                                             per-event scalars, incl. n_droplets,
+                                                  n_late, E_in_window, ic_sha256
+```
+
+`e` is GeV/fm³ and `vx,vy,vz` are **Cartesian lab three-velocities** (the exact convention is
+recorded in the `velocity_convention` attribute). Provenance attributes record `generator`,
+`pairing`, `source_mode`, `hard_vertex` and the full resolved config as JSON.
+
+**`arr` is the jet leg, not the background.** That follows fast_data's own convention, stated
+in the file's `SOURCE_CONVENTION` attribute: *`arr[...,t]` already contains `S[...,t]` — `arr`
+is the single evolution with the source in it.* So `arr` + `source/S` is exactly what an FNO
+trained on deposition consumes, identical in shape and meaning to fast_data's `*_jet.yaml`
+datasets. `arr_bg` is the extra thing this contribution provides: the same initial condition
+with no jet, for a paired difference. Readers that do not know about it ignore it.
+
+### `.npz` is the convenience format, not the dataset
+
+Giving `--out` a `.npz` name writes one pair (`arr`, `arr_jet`, `src`, `tau`) for a quick
+look; with several events it writes `_ev0`, `_ev1`, … and holds them in memory. Use it to
+inspect a single event, not to build a training set. `run_replay.py` also reads and writes
+`.npz` for droplet dumps, which are small and need no h5py.
+
+### Diagnostics worth reading every run
 
 - **Droplets outside the τ window.** A droplet fires only if `τ_d + tau_delay` falls inside
   the solver's τ range; Matter and LBT happily produce droplets that deposit after the
-  fireball has been evolved. The run reports how much energy that loses — it is routinely
-  **20 % or more** with the shipped settings, and the fix is a longer `time.choose_ntau` or a
-  smaller `<CausalLiquefier><tau_delay>`.
+  fireball has been evolved. The run reports how much energy that loses — routinely **20 % or
+  more** with a short τ window — and the fix is a longer `time.choose_ntau` or a smaller
+  `<CausalLiquefier><tau_delay>`.
 - **Out-of-grid medium queries.** Partons that leave the fireball see vacuum, which is
   correct; but if the grid is too small this silently removes quenching. `CheckInRange` never
-  throws (the throws are commented out in X-SCAPE), so this counter is the only signal.
+  throws in X-SCAPE, so this counter is the only signal.
 
 ## Tests
 
@@ -260,6 +289,7 @@ so the suite runs on a machine with no X-SCAPE build.
 | `test_channels.py` | `T`, `s`, `p` match the EoS; vacuum cells stay finite |
 | `test_framework_gates.py` | `GetHydroInfo` reproduces stored nodes; **zero droplets ⇒ the jet leg equals the background bit for bit**; four-momentum conservation to 1e-10; wake linearity; drawn vertices follow the density handed over, and `centre` still pins them to the origin |
 | `test_cpp_vs_python_kernel.py` | the Python port against the **real C++** kernel, not a transcription |
+| `test_h5_output.py` | the written file is a valid `fast_data/hydro_evolution` dataset: grid attrs, `arr` = jet leg and `arr_bg` = background, per-event droplet slices, provenance, and FNO4d's own reader loads it |
 | `test_hard_vertex.py` | each vertex mode does what it claims; participants come out wider than binary collisions; smearing fills the holes a raw histogram leaves |
 | `test_replay.py` | the dump round-trips and replays deterministically |
 

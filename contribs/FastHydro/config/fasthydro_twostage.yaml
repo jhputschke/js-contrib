@@ -12,6 +12,9 @@ run:
   seed: 20260922
   device: cpu          # cpu | cuda | mps.  mps forces float32 (it has no float64).
   dtype: float64       # float64 for reproducible/replayable runs; float32 for throughput
+  # Default output. A .h5 name writes FNO4d's HDF5 schema (the dataset format,
+  # streamed one event at a time); a .npz name writes one pair for a quick look.
+  # Overridden by --out.
   out: ./out/fasthydro.h5
 
 grid:                  # must match <IS><grid_*> in jetscape_user_fasthydro.xml
