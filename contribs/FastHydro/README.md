@@ -335,8 +335,18 @@ so the suite runs on a machine with no X-SCAPE build.
 ## The wake notebook
 
 `notebooks/jet_wake.ipynb` is adapted from FNO4d's `viscous_vs_ideal.ipynb`, keeping the
-wake-relevant analysis: the Mach cone in the $\eta = 0$ plane, wake amplitude / total
-disturbance / front width against $\tau$, the Mach-angle check, and freeze-out.
+wake-relevant analysis: the Mach cone in the $\eta = 0$ plane, the same wake in
+$(\eta, \varphi)$ — both about the beam axis and re-centred on the jet — wake amplitude /
+total disturbance / front width against $\tau$, the Mach-angle check, and freeze-out.
+
+The $(\eta, \varphi)$ panels are **spatial** angles: $\eta_s$ is the cell's spacetime
+rapidity and $\varphi$ its azimuth. Turning them into the momentum-space $(\eta, \varphi)$ a
+detector reports would need a Cooper–Frye surface, which FastHydro does not compute. In the
+jet-centred panel $\varphi$ is measured about the **jet's own position at that $\tau$**, not
+about the beam: the vertex is sampled from the binary-collision density and sat 4.6 fm off
+centre here, so a beam-axis $\Delta\varphi$ would be dominated by that offset rather than by
+the wake. With the right origin the deposited energy shows up where it should — trailing the
+jet at $\Delta\varphi \approx 180°$, with the viscous run's peak visibly damped.
 
 **Generate its inputs with one command**, from the X-SCAPE build tree:
 
