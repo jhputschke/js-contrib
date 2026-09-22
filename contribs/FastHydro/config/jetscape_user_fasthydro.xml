@@ -74,9 +74,21 @@
     <NullPreDynamics> </NullPreDynamics>
   </Preequilibrium>
 
-  <!-- The liquefier. The 0-argument CausalLiquefier constructor reads this block.
-       dtau should match the C++ firing window; it does NOT enter the Python deposit
-       (its 1/dtau cancels against the hydro dtau), but it does set the window. -->
+  <!-- The liquefier. The 0-argument CausalLiquefier constructor reads this block, and THIS
+       IS THE SOURCE OF TRUTH for the deposit: DropletBridge reads the five parameters off
+       the live C++ object, so the source.params block in the YAML is only a mirror (and is
+       checked against this one).
+
+       Which of these actually do anything in FastHydro:
+         tau_delay, time_relax, d_diff, width_delta  : yes, they shape the Python deposit
+         dtau                                        : provenance only; its 1/dtau cancels
+                                                        against the hydro dtau, so the
+                                                        Python deposit has no dtau in it
+         dx, dy, deta                                : INERT here. They size the C++
+                                                        smearing_kernel, which FastHydro
+                                                        never calls: the C++ liquefier is
+                                                        used only as a droplet container.
+                                                        Kept equal to the grid for clarity. -->
   <Liquefier>
     <threshold_energy_switch> 1 </threshold_energy_switch>
     <e_threshold> 2.0 </e_threshold>

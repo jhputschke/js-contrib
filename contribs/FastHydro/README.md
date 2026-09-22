@@ -125,26 +125,62 @@ Four things in it are not free choices:
   what lets `FastHydro.Clear()` find it and empty the droplet list between events. **There is
   no double counting.**
 
-## Configuration
+## Configuration: how the XML and the YAML relate
 
-Split deliberately, and `build_two_stage()` refuses to run if the two disagree:
+They are **two schemas for two consumers**, not one split in half:
 
-| | |
+| | read by | holds |
+|---|---|---|
+| `config/jetscape_user_fasthydro.xml` | the **JETSCAPE framework** (C++) | `<IS>`, `<Preequilibrium>`, `<Hard>`, `<Eloss>`, `<Liquefier>` |
+| `config/fasthydro_twostage.yaml`, top level | the **solver** (`fast_data`) | grid, EoS, transport, τ axis, deposit mode, device |
+| the same YAML, `fasthydro:` section | **FastHydro's adapters** | hard-scattering vertices, `bulk_info` storage |
+
+Neither file is generated from the other and neither is loaded by the other. The XML exists
+because the framework insists on it; the YAML exists because the framework *cannot* hold
+solver settings — `JetScape::Init()` → `CompareElementsFromXML()` calls `exit(-1)` on any
+user-XML tag absent from `config/jetscape_main.xml`, so a `<FastHydro>` block would mean
+patching X-SCAPE core. The `fasthydro:` section is separate again because `fast_data`'s
+validator rejects keys it does not know, and `python/fast_data/` is vendored and never patched.
+
+### The four places they overlap
+
+Overlap happens only where **two different consumers need the same number**.
+`build_two_stage()` calls `check_xml_agrees_with_cfg()` and refuses to run on a mismatch, so
+the duplication is enforced rather than hoped for.
+
+| quantity | XML | YAML | who wins |
+|---|---|---|---|
+| transverse/longitudinal grid | `<IS><grid_max_*>`, `<grid_step_*>` | `grid:` | must agree; `grid_max = n·d/2` so `GetXSize()` recovers `n` |
+| hydro start time | `<Preequilibrium><taus>` | `time.tau0` | must agree |
+| liquefier parameters | `<Liquefier><CausalLiquefier>` | `source.params` | **XML wins** — see below |
+| energy-loss start | `<Eloss><tStart>` | (none) | must not precede `time.tau0`, or Matter quenches against vacuum |
+
+### The liquefier block is the one asymmetry
+
+`source.params` in the YAML is a **mirror and is never read.** `DropletBridge` takes the five
+parameters off the live C++ `CausalLiquefier` object (`params_from_liquefier`), so the XML is
+authoritative. Editing `source.params.tau_delay` changes nothing — which is exactly why the
+consistency check compares them and errors out, rather than letting the copy drift and imply
+it is doing something.
+
+Within that XML block, only some knobs reach FastHydro at all:
+
+| | effect |
 |---|---|
-| `config/jetscape_user_fasthydro.xml` | everything the **framework** reads: `<IS>`, `<Preequilibrium>`, `<Hard>`, `<Eloss>`, `<Liquefier>` |
-| `config/fasthydro_twostage.yaml`, top level | everything the **solver** reads: grid, EoS, transport, τ axis, deposit mode, device — `fast_data`'s schema |
-| the same YAML, `fasthydro:` section | everything **FastHydro** reads: hard-scattering vertices, `bulk_info` storage |
+| `tau_delay`, `time_relax`, `d_diff`, `width_delta` | shape the Python deposit |
+| `dtau` | provenance only; its `1/dtau` cancels against the hydro `dtau`, so the Python deposit contains no `dtau` |
+| `dx`, `dy`, `deta` | **inert here.** They size the C++ `smearing_kernel`, which FastHydro never calls — the C++ liquefier is used only as a droplet container |
 
-The `fasthydro:` section is separate because `fast_data`'s validator rejects any key it does
-not know — a good property, and not ours to change, since `python/fast_data/` is vendored and
-never patched. `fasthydro.config.load_config()` splits it off before `fast_data` sees the rest
-and validates it with the same strictness, so `--set fasthydro.hard_vertex.mode=centre` and
-`--set time.choose_ntau=41` both work and each is checked against its own schema.
+`<Liquefier><threshold_energy_switch>` and `<e_threshold>` are XML-only and *do* matter:
+`filter_partons` reads them live to decide which partons become droplets at all.
 
-Every XML tag used already exists in `config/jetscape_main.xml`. That is a hard requirement:
-`JetScape::Init()` → `CompareElementsFromXML()` → `recurseToSearch()` calls `exit(-1)` for any
-user-XML tag with no counterpart there, so a `<FastHydro>` block would mean patching X-SCAPE
-core. Hence the YAML.
+### Everything else is disjoint
+
+Deposit numerics (`source.mode`, `renorm`, `n_sub`, `min_in_grid`, …), the EoS, transport,
+device and dtype exist only in the YAML. The task list, the hard process, the energy-loss
+modules and the liquefier thresholds exist only in the XML. `--set` routes by prefix:
+`--set time.choose_ntau=41` goes to `fast_data`, `--set fasthydro.hard_vertex.mode=centre` to
+the adapters, and each is validated against its own schema.
 
 **`source.mode: conservative` is not a detail.** Point sampling on a cell-centred grid — what
 the C++ does on MUSIC's much finer grid — loses the deposit entirely for droplets at large

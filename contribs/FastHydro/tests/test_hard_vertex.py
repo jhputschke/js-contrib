@@ -152,3 +152,38 @@ def test_config_block_validates():
         resolve({"hard_vertex": {"typo": 1}})
     with pytest.raises(ConfigError, match="store"):
         resolve({"hydro": {"store": "weird"}})
+
+
+# ── XML / YAML consistency ───────────────────────────────────────────────────
+
+def test_shipped_xml_and_yaml_agree():
+    """The two files are independent schemas, but four quantities appear in both and
+    build_two_stage() refuses to run if they disagree. The shipped pair must pass."""
+    import pathlib
+
+    from fasthydro.config import load_config
+    from fasthydro.pipeline import check_xml_agrees_with_cfg
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    cfg = load_config(root / "config" / "fasthydro_twostage.yaml")
+    check_xml_agrees_with_cfg(str(root / "config" / "jetscape_user_fasthydro.xml"), cfg)
+
+
+@pytest.mark.parametrize("mutate,expect", [
+    (lambda c: c["source"]["params"].__setitem__("tau_delay", 99.0), "tau_delay"),
+    (lambda c: c["grid"].__setitem__("dx", 0.77), "grid_step_x"),
+    (lambda c: c["time"].__setitem__("tau0", 9.0), "taus"),
+])
+def test_disagreement_is_caught(mutate, expect):
+    """Each overlapping quantity must be checked, including source.params -- which is never
+    read, so a drift there would otherwise be a silent no-op."""
+    import pathlib
+
+    from fasthydro.config import load_config
+    from fasthydro.pipeline import check_xml_agrees_with_cfg
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    cfg = load_config(root / "config" / "fasthydro_twostage.yaml")
+    mutate(cfg)
+    with pytest.raises(ValueError, match=expect):
+        check_xml_agrees_with_cfg(str(root / "config" / "jetscape_user_fasthydro.xml"), cfg)

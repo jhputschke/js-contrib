@@ -71,8 +71,12 @@ source:
   n_sub_max: 16
   min_in_grid: 0.99
   on_out_of_grid: warn
-  params:              # kept in step with <Liquefier><CausalLiquefier> in the XML;
-    dtau: 0.02         # DropletBridge reads the live C++ values, so these are documentation
+  # MIRROR ONLY -- never read. DropletBridge takes these five off the live C++ CausalLiquefier,
+  # i.e. from <Liquefier><CausalLiquefier> in the XML. They are repeated here so the YAML shows
+  # the full deposit, and build_two_stage() errors if the two disagree, so the copy cannot
+  # quietly drift and imply it is doing something. To change the physics, edit the XML.
+  params:
+    dtau: 0.02
     tau_delay: 0.6
     time_relax: 0.1
     d_diff: 0.08
