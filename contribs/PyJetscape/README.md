@@ -63,6 +63,9 @@ Original development repository:
 | pybind11 | ≥ 2.11 | Fetched automatically by CMake if not found on system |
 | numpy | ≥ 1.21 | |
 | uproot | ≥ 5 | Only needed for `bulk_root_writer.py` and `fast_root_bulk.py` |
+| h5py | ≥ 3 | Only needed for `fast_h5_bulk.py` (HDF5 bulk writer); sets `jetscape.HAS_H5PY` |
+| — | — | `jetscape.HAS_CORE` reports whether the compiled extension is importable. The HDF5 tooling (`FnoH5Writer`, `grid_attrs`, `repad_to`, `read_fast_h5_bulk`) needs only h5py+numpy and stays usable without an X-SCAPE build; `H5BulkWriter` is a framework module and raises a clear error without one. |
+| scipy | ≥ 1.9 | Only needed for `fast_h5_bulk.py` in `grid` / `framework` source mode |
 
 > **Important — import order:** `torch` must be imported **before**
 > `pyjetscape_core` (i.e., before `import jetscape`).  Both ROOT (loaded by
@@ -512,6 +515,249 @@ python ../external_packages/js-contrib/contribs/PyJetscape/example/python_fast_b
   --user ../config/BulkFastTest/OO_one_event_fast.xml            # XML task list
 #  --manual --user <xml with enableAutomaticTaskListDetermination=false>
 #  --check-numpy                                                   # numpy == ROOT
+```
+
+---
+
+## Python HDF5 Bulk Writer (`fast_h5_bulk.py`)
+
+`H5BulkWriter` is a pure-Python JETSCAPE module that writes the bulk hydro evolution
+straight to the FNO4d training HDF5 schema. No C++ writer, no ROOT file, no conversion
+step. It covers **both** C++ bulk writer modules through three source modes:
+
+| `grid_mode` | source | C++ equivalent | agreement |
+|-------------|--------|----------------|-----------|
+| `native` | `MpiMusic.get_native_evolution_numpy()` | `FastRootBulkWriter`, native | **bitwise** |
+| `grid` | the same, resampled onto a user grid | `FastRootBulkWriter`, grid | ~1e-7 |
+| `framework` | `EvolutionHistory.to_numpy_full()`, resampled | `RootBulkWriter` | ~1e-7 |
+
+Measured on one O+O event: `native` is bit-for-bit equal to `FastRootBulkWriter`; `grid`
+agrees with it to 2.6e-7 (e), 6.1e-7 (vx), 6.8e-7 (vy), 3.6e-7 (vz) — float32 epsilon,
+since `Jetscape::real` is `float` so the C++ does its own blend in float32. On a matched
+event `framework` and `grid` agree **exactly** (0.0 on all four channels), which is what
+pins the `to_numpy_full` column mapping on real data.
+
+`framework` mode goes through `get_bulk_info()`, which is bound on the `FluidDynamics`
+base class, so it works with **any** hydro module — not just MUSIC.
+
+Why it exists:
+
+* `FastRootBulkWriter` writes one event as a single `std::vector<float>`, so events past
+  2^30−2 bytes trip ROOT's `TBufferFile::WriteByteCount` 30-bit length field. The O+O
+  native event is 1.29 GB and a 199-step one is 1.91 GB, close to ROOT's hard ~2 GB wall
+  (`README_BulkFast.md` §9, "Status: not fixed"). HDF5 has no such limit.
+* The FNO training pipeline reads HDF5 and currently gets there via
+  `root2hdf5/root_to_hdf5.py`. Writing the target schema directly removes that step and
+  the intermediate ROOT file.
+* Peak RSS drops from ~5.2–6.5 GB to ~3.9 GB on an O+O native event, because ROOT's
+  basket copy of the 1.29 GB event is gone.
+
+```python
+from jetscape.fast_h5_bulk import H5BulkWriter
+
+writer = H5BulkWriter(out_file_name="hydro_evo.h5", grid_mode="native")
+jetscape.Add(writer)          # must come AFTER the hydro module
+jetscape.Init(); jetscape.Exec(); jetscape.Finish()
+writer.Finish()               # JetScape::Finish() does not propagate to sub-tasks
+```
+
+`Finish()` is idempotent and the writer is a context manager, so `with H5BulkWriter(...)`
+is the safe form.
+
+### Output
+
+```
+/arr             (nevents, 4, nx, ny, neta, choose_ntau)  float32, lzf
+/ntau_freezeout  (nevents,)  int32
+/tau_freezeout   (nevents,)  float32
+root attrs: nFeatures nx ny neta choose_ntau nevents            (int64)
+            x_min y_min eta_min dx dy deta tau_min tau_min_MUSIC dtau  (float64)
+```
+
+FNO4d reads this directly — `read_3d_data_hdf5`, `MultiH5Array` — with no conversion.
+Read it back here with `read_fast_h5_bulk(path)`, which returns the same dict shape as
+`read_fast_root_bulk` (per event `(ntau, nx, ny, neta, 4)`), so the two are
+interchangeable for plotting. The reader does not need the compiled extension.
+
+### Output grid (`grid` and `framework` modes)
+
+Both resampling modes take the **same** nine keys as the C++ `<FastRootBulkWriter>` /
+`<RootBulkWriter>` XML blocks, with the same meaning:
+
+```python
+H5BulkWriter(grid_mode="framework", out_grid=dict(
+    x_min=-10, dx=0.3125, y_min=-10, dy=0.3125,
+    eta_min=-5, deta=0.3125, tau_min=0.524, dtau=0.1, ntau=0))
+```
+
+* A key that is missing, `None` or `0` falls back to the **source** grid's value.
+* Transverse counts are derived as `nx = 2*int(|x_min|/dx) + 1`, copied from
+  `FastRootBulkWriter::fill_grid` ([FastRootBulkWriter.cc:182-206](../../../../src/root/FastRootBulkWriter.cc#L182-L206))
+  so this reproduces the C++ rather than inventing a second convention. That derivation
+  assumes a grid symmetric about the origin, so it does **not** round-trip an even-sized
+  source axis: MUSIC's `nx=100, x_min=-15, dx=0.3` comes back as 101 cells spanning
+  ±15 rather than -15..+14.7.
+* Because that makes a poor default, an **empty spec — or one whose values are all 0 —
+  returns the source grid unchanged** instead.
+* `ntau=0` means "out to the end of the evolution".
+
+The example exposes all nine as flags (`--x-min --dx --y-min --dy --eta-min --deta
+--tau-min --dtau --ntau`).
+
+### Sharing `choose_ntau` across jobs
+
+`arr` is rectangular, so every event in a file is padded out to one `choose_ntau`. By
+default the tau axis **grows to the longest event in that file**, which means two jobs on
+the same physics routinely disagree:
+
+```
+jobA.h5: choose_ntau=14   arr=(2, 4, 8, 8, 2, 14)
+jobB.h5: choose_ntau=21   arr=(2, 4, 8, 8, 2, 21)
+```
+
+**Nothing pads automatically.** `MultiH5Array` checks
+`('nFeatures','nx','ny','neta','choose_ntau')` at construction and refuses rather than
+guessing; `read_3d_data_hdf5` does the same:
+
+```
+ValueError: Dimension mismatch for 'choose_ntau': jobA.h5 has 14, jobB.h5 has 21
+```
+
+The bad part is *when* you find out — at training time, after the jobs have run. Two fixes.
+
+#### Fix 1 (preferred): pin it generously — overestimating is free
+
+```python
+H5BulkWriter(..., choose_ntau=200)      # same value for every job in the campaign
+```
+
+Because the tau chunk extent is 1, padding chunks are never allocated, so a tau axis far
+longer than any event costs nothing on disk. Measured on a 2-event file whose longest
+event is 14 frames:
+
+| | shape | on disk |
+|---|---|---|
+| auto (grows to 14) | `(2, 4, 32, 32, 8, 14)` | 0.04 MB |
+| pinned at 200 | `(2, 4, 32, 32, 8, 200)` | 0.04 MB |
+
+The asymmetry is what matters: **over**-estimating is free, **under**-estimating clips real
+frames (one warning per event, plus a count at `Finish()`). In auto mode `Finish()` prints
+the value to pin for the next run.
+
+#### Fix 2: re-pad existing files in place — `repad_to()`
+
+`repad_to` is a **pure HDF5 utility**: it imports nothing from PyJetscape, needs no
+X-SCAPE build, and never loads the compiled extension. `jetscape/__init__.py` degrades
+gracefully when the extension is absent (`HAS_CORE` is False, and touching a core name
+raises a clear `ImportError`), so this works unchanged on a training machine:
+
+```python
+from jetscape import repad_to, FnoH5Writer, read_fast_h5_bulk   # h5py + numpy only
+```
+
+`fno_h5_writer.py` and `repad_h5.py` are also self-contained — copy the pair anywhere and
+run `python repad_h5.py *.h5` with no package at all.
+
+
+If the jobs have already run, nothing has to be regenerated. `arr` is created with
+`maxshape=(None, 4, nx, ny, neta, None)`, so reconciling a campaign is a metadata resize:
+
+```bash
+python -m jetscape.repad_h5 run*/hydro_evo.h5                  # to the largest
+python -m jetscape.repad_h5 run*/hydro_evo.h5 --choose-ntau 200
+python -m jetscape.repad_h5 run*/hydro_evo.h5 --dry-run
+```
+
+```
+  run00/hydro_evo.h5: choose_ntau 14 -> 21
+  run01/hydro_evo.h5: already at choose_ntau=21
+  run02/hydro_evo.h5: choose_ntau 18 -> 21
+choose_ntau = 21; 2 of 3 file(s) updated
+```
+
+or from Python:
+
+```python
+from jetscape import repad_to
+target, changed = repad_to(["jobA.h5", "jobB.h5"])     # or choose_ntau=200, dry_run=True
+```
+
+No data movement, no size change, and the per-event lifetimes survive — the new region is
+unallocated chunks that read back as exactly `0.0`, which is what `live_tau_lengths`
+requires:
+
+```
+jobA tau 14 -> 21, on disk 0.04 -> 0.04 MB
+MultiH5Array now: 4 events, item (4, 32, 32, 8, 21)
+live_tau_lengths preserved: [10, 14, 9, 21]
+```
+
+It refuses, rather than damaging anything, in three cases: the files disagree on
+`(nFeatures, nx, ny, neta)` and could never be concatenated; the target is *smaller* than
+some file, since shrinking an HDF5 dataset discards data permanently; or a file's tau axis
+has no `maxshape` — FNO4d's own `FnoH5Writer` pre-allocates, so its files must be
+rewritten rather than resized. Re-running with the same target is a no-op.
+
+This is the h5-to-h5 counterpart of `root2hdf5/root_to_hdf5.py --global-ntau`.
+
+### Things worth knowing
+
+* **`choose_ntau` is a cross-file contract** — see
+  [Sharing `choose_ntau` across jobs](#sharing-choose_ntau-across-jobs) below. It is the one
+  real cost of `arr` being rectangular, and the one thing most likely to bite a campaign.
+* **The tau chunk extent is 1.** That is what makes the frame-by-frame write cover exactly
+  one whole HDF5 chunk (no read-modify-write) and what makes the zero padding of short
+  events cost nothing on disk — unwritten chunks are never allocated and read back as the
+  fill value, which is exactly `0.0` as `live_tau_lengths` requires.
+* **This fixes a bug in the ROOT→HDF5 path for native-mode files.** In native mode
+  `FastRootBulkWriter` stores the *unused user-grid* `x_min`/`dx`/… TParameters (all zero
+  unless the XML sets them) and puts the real grid under the `*_MUSIC` keys
+  (`FastRootBulkWriter.cc:89-92`). `root_to_hdf5.py` copies the raw keys, so it produces
+  `x_min=0, dx=0`, which breaks the `cosh_etau75_3d` normalizer and the downsample
+  coordinate helpers. `H5BulkWriter` writes the real grid.
+* **`tau_freezeout` describes when the hydro ended, not the output grid.** It is taken
+  from the source grid (`tau_min_MUSIC + ntau_source*dtau_source`), matching
+  `FastRootBulkWriter.cc:133` and `:195`, so on a resampled grid it is *not*
+  `tau_min + ntau_freezeout*dtau`. The last written frame is at
+  `tau_min + (ntau_freezeout-1)*dtau`.
+* **Pick one source for the task list.** The writer is a Python object, so it cannot be in
+  the XML task list; it has to be added from Python. If you hand `per_event_loop()` or
+  `run_manual()` an explicit module list *while* the user XML still has
+  `enableAutomaticTaskListDetermination = true`, the pipeline is built **twice** — MUSIC
+  evolves in one instance and `JetScapeSignalManager::GetHydroPointer()` hands the writer
+  the other, which reports an empty store. Either let the XML build the list
+  (`modules=None`, the example's default, with the loop driven by `JetScapePerEvent`) or
+  set that flag to `false` and build it all in Python (`--manual`). The tell-tale in the
+  log is `Initialize PreequilibriumDynamics` appearing twice.
+* **XML prerequisites differ by mode and are mutually exclusive.** `native`/`grid` need
+  `<dump_hydro_only>1` plus `<output_evolution_to_memory>1`; `framework` needs
+  `<output_evolution_to_memory>1` *without* `dump_hydro_only`, since it reads
+  `bulk_info.data`.
+
+### Examples and tests
+
+```bash
+cd X-SCAPE/build_gpu
+
+# write HDF5 directly
+python ../external_packages/js-contrib/contribs/PyJetscape/example/python_bulk_h5_writer.py \
+  --user ../config/BulkFastTest/OO_one_event_fast.xml --out hydro_evo.h5
+
+# run the C++ ROOT writer and this one on the SAME events and compare
+python ../external_packages/js-contrib/contribs/PyJetscape/example/validate_h5_vs_root.py \
+  --user ../config/BulkFastTest/OO_one_event_fast.xml
+```
+
+`validate_h5_vs_root.py` needs no change to any C++ code: it uses the `JetScapePerEvent`
+driver, takes the C++ writer out of automatic execution with `SetActive(False)`, runs the
+HDF5 writer first with `clear_after_write=False` so it does not release MUSIC's store, and
+then calls the C++ writer by hand.
+
+`tests/test_h5_bulk.py` runs without MUSIC: it checks the interpolation against a literal
+transcription of the C++ `EvolutionHistory::get()` and the output against FNO4d's loaders.
+
+```bash
+pytest external_packages/js-contrib/contribs/PyJetscape/tests/test_h5_bulk.py -q
 ```
 
 ---
