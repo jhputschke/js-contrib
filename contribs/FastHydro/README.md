@@ -30,8 +30,8 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/replay.py` | re-run the jet leg from a dump, without X-SCAPE |
 | `python/fasthydro/h5_writer.py` | `PairedH5Writer` — the FNO4d HDF5 dataset format |
 | `python/fasthydro/pipeline.py` | `build_two_stage` |
-| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml` |
-| `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py` |
+| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook |
+| `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py` |
 | `python/fasthydro/browse.py` | `PairBrowser` — read both legs of a pair out of one file |
 | `notebooks/jet_wake.ipynb` | the wake analysis: Mach cone, damping, broadening, Mach angle |
 | `tests/` | the vendored `fast_data` suite plus the JETSCAPE-glue gates |
@@ -310,8 +310,25 @@ so the suite runs on a machine with no X-SCAPE build.
 wake-relevant analysis: the Mach cone in the $\eta = 0$ plane, wake amplitude / total
 disturbance / front width against $\tau$, the Mach-angle check, and freeze-out.
 
-It needs **two files where FNO4d needs four** — one per transport setting, each already
-carrying its own jet/no-jet pair — because `PairBrowser` reads both legs out of a single file:
+**Generate its inputs with one command**, from the X-SCAPE build tree:
+
+```bash
+python ../external_packages/js-contrib/contribs/FastHydro/example/make_wake_data.py
+```
+
+About a minute per leg on MPS. `--device cpu` is slower and bitwise reproducible; `--dry-run`
+prints what it would do; `--legs ideal` does one. It preflights the build tree, the config pair
+and the hotQCD table (which it links from `$XSCAPE_BUILD/EOS/hotQCD` or an FNO4d checkout
+rather than re-downloading), then re-runs the notebook's own controls at the end.
+
+The medium is central Au+Au 200 GeV on a 65×65×33 grid at 0.3125 fm with the hotQCD/SMASH
+lattice EoS, $\tau = 0.58 \ldots 11.0$ fm/c — the settings from FNO4d's
+`config_AuAu200_central_jet.yaml`, so this is the same medium its Mach-cone study was measured
+on. `config/fasthydro_wake.yaml` and `config/jetscape_user_fasthydro_wake.xml` are that pair.
+
+### Two files, where FNO4d needs four
+
+Each file already carries its own jet/no-jet pair, so `PairBrowser` reads both legs out of one:
 
 ```python
 from fasthydro.browse import PairBrowser
@@ -321,16 +338,39 @@ p.source_at(0, tau)   # where the jet was, from the droplet table
 p.summary()           # controls: IC identical, first differing frame, deposit, freeze-out
 ```
 
-`PairBrowser` *is* FNO4d's `DiffBrowser`, handed two views of the same file, so `diff`,
-`source_track`, `mach_angle` and `blob_radius` behave exactly as they do on an FNO4d pair.
+`PairBrowser` *is* `DiffBrowser`, handed two views of the same file, so `diff`, `source_track`,
+`mach_angle` and `blob_radius` behave exactly as they do on an FNO4d pair.
 
-Generate its inputs with two runs (`--set transport.mode=ideal` and `israel_stewart`); the
-first cell prints the exact commands if the files are missing. It ships with outputs cleared,
-following FNO4d's convention, and takes a couple of minutes.
+### The control that needs care
 
-On the shipped configuration both stated expectations hold: viscosity damps the wake
-amplitude to **0.797** of ideal and broadens the front by **+0.84 fm**, and the static-medium
-Mach angle comes out at 35.3° for $c_s = 1/\sqrt3$.
+**The shower responds to the medium it traverses.** Run Matter+LBT against an ideal background
+and against a viscous one and you get *two different droplet sets* — 26 droplets carrying
+31.2 GeV against 23 carrying 36.6 GeV, on the shipped configuration. That is real physics, not
+a defect, but it means a live `visc − ideal` mixes the hydrodynamic response to the wake with a
+different jet having been produced.
+
+So `make_wake_data.py` runs the **first** leg live and **replays its droplets** through the
+other solver, which is what the replay path exists for. `visc − ideal` is then the viscosity
+alone, and the notebook's §2 checks the two droplet tables really are identical. `--live` gives
+the uncontrolled version: the more complete physical statement, the less interpretable
+comparison.
+
+### What it shows
+
+On the shipped configuration, with both expectations stated before the numbers are read:
+
+| | |
+|---|---|
+| wake amplitude, viscous/ideal | **0.647** — damping |
+| front width, viscous − ideal | **+4.65 fm** — broadening |
+| static-medium Mach half-angle | **≈ 23°** ($c_s \approx 0.39$, lattice EoS) |
+| jet extends the medium's life by | **+0.20 fm/c** (ideal), **+0.30** (viscous) |
+
+The Mach angle is 23° rather than the 35° a conformal EoS gives, because the lattice equation
+of state is softer near the transition. Anything measured off the maps should exceed it: the
+fireball is expanding, and transverse flow at the front opens the cone.
+
+The notebook ships with outputs cleared, following FNO4d's convention.
 
 ## Limitations
 

@@ -20,7 +20,7 @@ import numpy as np
 from .cells import DEFAULT_FIELDS  # noqa: F401  (re-exported for symmetry)
 from .grid import GridSpec
 
-__all__ = ["replay_event", "verify_replay"]
+__all__ = ["replay_event", "replay_pair", "verify_replay"]
 
 
 def replay_event(cfg, e0, droplets, params, *, device=None, dtype=None, source_kw=None):
@@ -106,3 +106,46 @@ def verify_replay(arr, reference_sha256=None, reference_arr=None, *, exact=True)
         return ok, ("sha256 matches the dump" if ok
                     else f"sha256 {got[:16]} != recorded {reference_sha256[:16]}")
     return False, "nothing to compare against"
+
+
+def replay_pair(path, cfg, e0, droplets, params, *, device=None, dtype=None,
+                source_kw=None, meta=None):
+    """Replay BOTH legs of a pair and write them as an FNO4d-schema file.
+
+    This is what makes a controlled comparison possible. In a live run the shower responds to
+    the medium it traverses, so two runs that differ in `transport.mode` also differ in the
+    droplets Matter+LBT produce -- a real physical effect, but it means `visc - ideal` mixes
+    the hydrodynamic response with a different jet. Replaying one fixed droplet set through
+    both solvers separates them.
+
+    Returns the path written.
+    """
+    import numpy as np
+
+    from .grid import GridSpec
+    from .h5_writer import PairedH5Writer
+
+    g = GridSpec.from_cfg(cfg)
+    bg_arr, _, bg_diag = replay_event(cfg, e0, None, params,
+                                      device=device, dtype=dtype)
+    jet_arr, jet_src, jet_diag = replay_event(cfg, e0, droplets, params, device=device,
+                                              dtype=dtype, source_kw=source_kw)
+
+    class _Leg:
+        def __init__(self, arr, src, diag):
+            self.arr, self.src, self.diag, self.g = arr, src, diag, g
+            self.ic_sha256 = __import__("hashlib").sha256(
+                np.ascontiguousarray(e0, dtype=np.float64).tobytes()).hexdigest()
+
+    class _Bridge:
+        def __init__(self):
+            self.droplets = droplets
+            self.params = params
+
+    with PairedH5Writer(path, cfg, 1) as w:
+        w.append(0, _Leg(bg_arr, None, bg_diag), _Leg(jet_arr, jet_src, jet_diag), _Bridge())
+        f = w._w.f
+        f.attrs["provenance"] = "replayed droplets (fixed across legs)"
+        for k, v in (meta or {}).items():
+            f.attrs[k] = v
+    return str(path)
