@@ -145,7 +145,7 @@ user-XML tag absent from `config/jetscape_main.xml`, so a `<FastHydro>` block wo
 patching X-SCAPE core. The `fasthydro:` section is separate again because `fast_data`'s
 validator rejects keys it does not know, and `python/fast_data/` is vendored and never patched.
 
-### The four places they overlap
+### The three places they overlap
 
 Overlap happens only where **two different consumers need the same number**.
 `build_two_stage()` calls `check_xml_agrees_with_cfg()` and refuses to run on a mismatch, so
