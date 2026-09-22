@@ -168,6 +168,21 @@ void bind_initial_state(py::module_ &m) {
              from the matching energy-density node.
            )pbdoc",
            py::arg("arr"))
+      .def("sample_binary_collision_point",
+           [](InitialState &ini) {
+             double t = 0.0, x = 0.0, y = 0.0, z = 0.0;
+             ini.SampleABinaryCollisionPoint(t, x, y, z);
+             return py::make_tuple(t, x, y, z);
+           },
+           R"pbdoc(
+             Draw one hard-scattering vertex, exactly as the hard process does.
+
+             Returns (t, x, y, z) in fm.  With no density set this returns the origin (and the
+             framework prints a warning), which is the whole reason
+             set_num_of_binary_collisions_from_numpy() exists.
+
+             Coordinates come from CoordFromIdx, i.e. MUSIC's ``-grid_max + i*step`` axis.
+           )pbdoc")
       // ── 3+1D numpy view ────────────────────────────────────────────────────
       .def("get_entropy_density_numpy_3d",
            [](InitialState &ini) -> py::array_t<double> {
