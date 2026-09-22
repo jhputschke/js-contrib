@@ -42,8 +42,24 @@
     <grid_step_z> 0.4 </grid_step_z>
   </IS>
 
-  <!-- Hard process: the shower-initiating parton. Swap for <PythiaGun> for a real spectrum. -->
+  <!-- Hard process.
+       PythiaGun is the default because it is the one that USES the sampled hard-scattering
+       vertex: PGun samples it and then overwrites it with zeros (PGun.cc:117-120), so with
+       PGun every shower starts at the fireball centre no matter what
+       fasthydro.hard_vertex.mode says. Select PGun on the command line only for a fixed-pT probe,
+       where that does not matter. -->
   <Hard>
+    <PythiaGun>
+      <name>PythiaGun</name>
+      <FSR_on>0</FSR_on>
+      <pTHatMin>50</pTHatMin>
+      <pTHatMax>70</pTHatMax>
+      <eCM>200</eCM>
+      <softMomentumCutoff>2.0</softMomentumCutoff>
+      <LinesToRead>
+        HardQCD:all = on
+      </LinesToRead>
+    </PythiaGun>
     <PGun>
       <name>PGun</name>
       <pT>60</pT>

@@ -26,13 +26,11 @@ def main(argv=None):
     ap.add_argument("--set", action="append", default=[], metavar="k.p=v")
     a = ap.parse_args(argv)
 
-    from fast_data.config import apply_overrides, load_config
+    from fasthydro.config import load_config   # layers the fasthydro: block on fast_data's
     from fasthydro.hydro import FastHydro
     from fasthydro.initial_state import FastGlauberInitialState
 
-    cfg = load_config(a.config)
-    if a.set:
-        cfg = apply_overrides(cfg, a.set)
+    cfg = load_config(a.config, a.set)
 
     ini = FastGlauberInitialState(cfg)
     ini.Exec()

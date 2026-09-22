@@ -61,10 +61,14 @@ class FastHydro(_base()):
     """
 
     def __init__(self, cfg, *, stage=1, module_id=None, ic=None, source=None,
-                 device=None, dtype=None, store="vector", fields=DEFAULT_FIELDS,
+                 device=None, dtype=None, store=None, fields=None,
                  keep_arr=True, verbose=True):
         super().__init__()
         self.cfg = cfg
+        # fasthydro-only settings; see fasthydro/config.py for why they are a separate block
+        _fh = (cfg.get("fasthydro") or {}).get("hydro") or {}
+        store = store if store is not None else _fh.get("store", "vector")
+        fields = fields if fields is not None else (_fh.get("store_fields") or DEFAULT_FIELDS)
         self.stage = int(stage)
         self.SetId(module_id or f"FastHydro_{stage}")
         self.ic = ic
@@ -245,7 +249,7 @@ class FastHydro(_base()):
         `fv.initial_state_from_energy` starts from ``u = (1,0,0,0)``, ``pi = Pi = 0``, which is
         exactly what `NullPreDynamics` produces -- but not what FreestreamMilne produces.
         """
-        if self.cfg.get("hydro", {}).get("accept_preeq_flow_loss"):
+        if ((self.cfg.get("fasthydro") or {}).get("hydro") or {}).get("accept_preeq_flow_loss"):
             return
         worst, name = 0.0, None
         for field in ("ux", "uy", "ueta", "pi00", "pi01", "pi02", "pi11", "pi12", "pi22"):
@@ -263,4 +267,4 @@ class FastHydro(_base()):
                 f"(max |{name}| = {worst:.3e}), but the FV solver is initialised from energy "
                 "density alone with u = (1,0,0,0), pi = Pi = 0 -- that information would be "
                 "silently discarded. Use NullPreDynamics, or set "
-                "hydro.accept_preeq_flow_loss: true to proceed anyway.")
+                "fasthydro.hydro.accept_preeq_flow_loss: true to proceed anyway.")

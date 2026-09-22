@@ -30,20 +30,21 @@ def main(argv=None):
     ap.add_argument("--events", type=int, default=None)
     ap.add_argument("--out", default=None, help="npz with the paired evolutions")
     ap.add_argument("--dump-droplets", default=None, help="npz for the replay path")
-    ap.add_argument("--hard", default="PGun", help="PGun | PythiaGun | '' for none")
+    ap.add_argument("--hard", default="PythiaGun",
+                    help="PythiaGun uses the sampled hard-scattering vertex; PGun samples it "
+                         "and then zeroes it (PGun.cc:117-120), so every shower starts at the "
+                         "fireball centre. '' for no hard process.")
     ap.add_argument("--set", action="append", default=[], metavar="k.p=v",
                     help="dotted override of the YAML, repeatable")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(argv)
 
-    from fast_data.config import apply_overrides, load_config
+    from fasthydro.config import load_config   # layers the fasthydro: block on fast_data's
     from fasthydro.liquefier_bridge import save_droplets_npz
     from fasthydro.pipeline import build_two_stage
     from jetscape.run_jetscape import run_manual
 
-    cfg = load_config(a.config)
-    if a.set:
-        cfg = apply_overrides(cfg, a.set)
+    cfg = load_config(a.config, a.set)
     nev = a.events if a.events is not None else int(cfg["run"]["nevents"])
 
     modules, parts = build_two_stage(cfg, user_xml=a.user_xml, main_xml=a.main_xml,

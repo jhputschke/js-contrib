@@ -132,7 +132,14 @@ Split deliberately, and `build_two_stage()` refuses to run if the two disagree:
 | | |
 |---|---|
 | `config/jetscape_user_fasthydro.xml` | everything the **framework** reads: `<IS>`, `<Preequilibrium>`, `<Hard>`, `<Eloss>`, `<Liquefier>` |
-| `config/fasthydro_twostage.yaml` | everything the **solver** reads: grid, EoS, transport, τ axis, deposit mode, device |
+| `config/fasthydro_twostage.yaml`, top level | everything the **solver** reads: grid, EoS, transport, τ axis, deposit mode, device — `fast_data`'s schema |
+| the same YAML, `fasthydro:` section | everything **FastHydro** reads: hard-scattering vertices, `bulk_info` storage |
+
+The `fasthydro:` section is separate because `fast_data`'s validator rejects any key it does
+not know — a good property, and not ours to change, since `python/fast_data/` is vendored and
+never patched. `fasthydro.config.load_config()` splits it off before `fast_data` sees the rest
+and validates it with the same strictness, so `--set fasthydro.hard_vertex.mode=centre` and
+`--set time.choose_ntau=41` both work and each is checked against its own schema.
 
 Every XML tag used already exists in `config/jetscape_main.xml`. That is a hard requirement:
 `JetScape::Init()` → `CompareElementsFromXML()` → `recurseToSearch()` calls `exit(-1)` for any
@@ -150,6 +157,33 @@ momentum that lands (τ_d = 1, deposit at τ = 3, production grid):
 | `conservative` | 1.000 | 1.000 | 0.994 | 1.000 | 1.169 |
 
 Real Matter+LBT showers populate exactly that range.
+
+## Where hard scatterings happen
+
+`InitialState::SampleABinaryCollisionPoint` draws vertices from a density the initial state
+supplies. If none is supplied it **only warns** and returns the origin — so every shower
+starts at the fireball centre, which biases any path-length-dependent observable and makes all
+events look alike. `fasthydro.hard_vertex.mode` chooses the density:
+
+| mode | what it is |
+|---|---|
+| `ncoll` *(default)* | binary-collision (T_A T_B) density, each collision Gaussian-smeared by `smear` (0.4 fm, the nucleon width the medium is deposited with). What a hard process actually follows |
+| `ncoll_mc` | the same distribution unsmeared — a raw histogram of the MC collision points. Sparse on a coarse grid, so much of the overlap region has zero weight and cannot be drawn at all |
+| `npart` | wounded-nucleon density, smeared. Scales like the soft entropy rather than like a hard process; provided for comparison |
+| `centre` | set nothing, so every vertex is the origin. The behaviour before the setter existed, kept so it can be reproduced deliberately |
+
+Measured over 6 events at b = 6 fm, the distance of the shower origin from the fireball centre:
+
+| mode | mean \|r\| | max \|r\| |
+|---|---|---|
+| `ncoll` | 2.61 fm | 4.70 fm |
+| `centre` | 0.11 fm | 0.29 fm |
+
+> **`PGun` ignores the vertex.** `src/initialstate/PGun.cc:117-120` samples the point and then
+> overwrites `xLoc` with zeros, so with `PGun` every shower starts at (0,0,0) no matter what
+> `hard_vertex.mode` says. `PythiaGun` uses it (`PythiaGun.cc:293-297`) and is therefore the
+> default here; `build_two_stage()` warns if you pair `PGun` with a non-`centre` mode. This is
+> X-SCAPE core behaviour and FastHydro does not patch it.
 
 ## Reading the output
 
@@ -188,8 +222,9 @@ so the suite runs on a machine with no X-SCAPE build.
 | `test_fast_data_*.py` | the vendored solver still behaves (FNO4d's own suite) |
 | `test_adapter_grid.py` | `SetRanges` round-trips to `n`; the axes reproduce `fv.Grid` |
 | `test_channels.py` | `T`, `s`, `p` match the EoS; vacuum cells stay finite |
-| `test_framework_gates.py` | `GetHydroInfo` reproduces stored nodes; **zero droplets ⇒ the jet leg equals the background bit for bit**; four-momentum conservation to 1e-10; wake linearity |
+| `test_framework_gates.py` | `GetHydroInfo` reproduces stored nodes; **zero droplets ⇒ the jet leg equals the background bit for bit**; four-momentum conservation to 1e-10; wake linearity; drawn vertices follow the density handed over, and `centre` still pins them to the origin |
 | `test_cpp_vs_python_kernel.py` | the Python port against the **real C++** kernel, not a transcription |
+| `test_hard_vertex.py` | each vertex mode does what it claims; participants come out wider than binary collisions; smearing fills the holes a raw histogram leaves |
 | `test_replay.py` | the dump round-trips and replays deterministically |
 
 ## Limitations
@@ -222,6 +257,8 @@ All additive; **no X-SCAPE core changes**.
 | `load_xml(main, user)` | `CausalLiquefier`'s 0-argument constructor reads XML *in its constructor*, before `JetScape` exists to open it |
 | `get_entropy_density_numpy_3d()` | the 2D view is documented as boost-invariant only |
 | `set_num_of_binary_collisions_from_numpy()` | without it `SampleABinaryCollisionPoint` only warns and puts **every shower at the fireball centre** |
+| `sample_binary_collision_point()` | draws one vertex exactly as the hard process does, so the density handed over can be checked directly rather than inferred from droplet positions |
+| `load_xml(..., init_random=True)` | also seeds `JetScapeTaskSupport` from `<Random><seed>`; anything drawing random numbers before `JetScape::Init()` (the vertex sampler, for one) otherwise throws |
 
 ## Provenance and licence
 

@@ -29,13 +29,11 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     import _bootstrap_replay  # noqa: F401
-    from fast_data.config import apply_overrides, load_config
+    from fasthydro.config import load_config   # layers the fasthydro: block on fast_data's
     from fasthydro.droplets_io import load_droplets_npz
     from fasthydro.replay import replay_event, verify_replay
 
-    cfg = load_config(a.config)
-    if a.set:
-        cfg = apply_overrides(cfg, a.set)
+    cfg = load_config(a.config, a.set)
 
     per_event, params, meta = load_droplets_npz(a.droplets)
     if not 0 <= a.event < len(per_event):

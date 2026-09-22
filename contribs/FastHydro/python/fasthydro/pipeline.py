@@ -80,7 +80,7 @@ def check_xml_agrees_with_cfg(user_xml: str, cfg) -> None:
 
 
 def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
-                    verbose=True, store="vector", keep_bg_arr=True):
+                    verbose=True, store=None, keep_bg_arr=True):
     """-> (modules, parts) ready for `jetscape.run_jetscape.run_manual`.
 
     `parts` is a dict of the individual objects (ini, hyd_bg, hyd_jet, liq, bridge, ...) so a
@@ -121,6 +121,16 @@ def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
                         store=store, verbose=verbose)
     hyd_jet.add_a_liquefier(liq)           # bookkeeping; see the module docstring
     bridge = DropletBridge(liq, hyd_jet, cfg, verbose=verbose)
+
+    # PGun samples the hard-scattering vertex and then overwrites it with zeros
+    # (src/initialstate/PGun.cc:117-120), so every shower starts at the fireball centre
+    # regardless of fasthydro.hard_vertex.mode. PythiaGun uses it (PythiaGun.cc:293-297).
+    hv_mode = ((cfg.get("fasthydro") or {}).get("hard_vertex") or {}).get("mode", "ncoll")
+    if hard == "PGun" and hv_mode != "centre":
+        print(f"[build_two_stage] WARNING: hard=PGun ignores the sampled vertex "
+              f"(PGun.cc:117-120 zeroes it), so fasthydro.hard_vertex.mode={hv_mode!r} will "
+              f"have no effect and every shower will start at (0,0,0). Use hard='PythiaGun', "
+              f"or set mode: centre to say so deliberately.", flush=True)
 
     modules = [ini]
     if hard:

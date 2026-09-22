@@ -77,3 +77,36 @@ source:
     time_relax: 0.1
     d_diff: 0.08
     width_delta: 0.1
+
+# ---------------------------------------------------------------------------
+# FastHydro-only settings.
+#
+# fast_data's validator rejects any key it does not know, and python/fast_data/ is vendored
+# and never patched, so everything about the JETSCAPE side lives in its own section.
+# fasthydro.config.load_config() splits this off before fast_data sees the rest.
+# ---------------------------------------------------------------------------
+fasthydro:
+
+  # Where hard scatterings happen.  Without a density the framework only warns and puts
+  # EVERY shower at (0,0,0) -- the fireball centre -- which biases any path-length-dependent
+  # observable and makes all events look alike.
+  hard_vertex:
+    #   ncoll     binary-collision (T_A T_B) density, Gaussian-smeared. What a hard process
+    #             actually follows, and the default.
+    #   ncoll_mc  the same distribution unsmeared: a raw histogram of the MC collision
+    #             points, so sparse and noisy on a coarse grid.
+    #   npart     wounded-nucleon density, smeared. Scales like the soft entropy, not like a
+    #             hard process -- for comparison.
+    #   centre    set nothing; every vertex at the origin. The behaviour before the setter
+    #             existed, kept so it can be reproduced deliberately.
+    mode: ncoll
+    smear: 0.4         # fm; matches the nucleon width glauber deposits energy with
+
+  hydro:
+    # bulk_info storage: "vector" is 4 B per stored field per cell, "aos" is 112 B per cell
+    # regardless -- 390 MB against 1.56 GB at 65x65x33x100.
+    store: vector
+    store_fields: null            # null -> e, T, s, p, vx, vy, vz
+    # A pre-equilibrium module that carries flow or viscous stress (FreestreamMilne) would
+    # have it silently discarded, since the solver starts from u=(1,0,0,0), pi=Pi=0.
+    accept_preeq_flow_loss: false

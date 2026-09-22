@@ -67,8 +67,7 @@ class _FastInitialStateMixin:
     def Exec(self):
         made = self._make_event()
         e0, meta = made[0], made[1]
-        ev = made[2] if len(made) > 2 else None
-        coll = None if ev is None else ev.get("coll")   # (Ncoll, 2) transverse vertices
+        ev = made[2] if len(made) > 2 else None   # the raw Glauber event: coll, plus, minus
         e0 = np.ascontiguousarray(e0, dtype=np.float64)
         g = self.g
         if e0.shape != (g.nx, g.ny, g.neta):
@@ -86,7 +85,7 @@ class _FastInitialStateMixin:
 
         # ENERGY density, GeV/fm^3 -- see the module docstring.
         self.set_entropy_density_from_numpy(e0)
-        self._set_binary_collisions(coll)
+        self._set_binary_collisions(ev)
 
         self.e0, self.meta, self.ic_sha256 = e0, meta, _sha256(e0)
         if self.verbose:
@@ -94,40 +93,36 @@ class _FastInitialStateMixin:
             print(f"[{type(self).__name__}] event {self.event_index}: "
                   f"e_max={e0.max():.4f} GeV/fm^3 at {ijk}, "
                   f"Npart={meta.get('npart', '?')} Ncoll={meta.get('ncoll', '?')} "
-                  f"b={meta.get('b', float('nan')):.3f} fm  ic={self.ic_sha256[:12]}",
+                  f"b={meta.get('b', float('nan')):.3f} fm  ic={self.ic_sha256[:12]}"
+                  f"  vertex={getattr(self, 'hard_vertex_mode', '?')}",
                   flush=True)
         self.event_index += 1
 
-    def _set_binary_collisions(self, coll):
-        """Hand the Ta*Tb density to the framework so hard processes get real vertices.
+    def _set_binary_collisions(self, ev):
+        """Hand a hard-scattering vertex density to the framework, per `fasthydro.hard_vertex`.
 
-        Without this, `InitialState::SampleABinaryCollisionPoint` only warns and puts every
-        shower at (0,0,0) -- i.e. every jet starts at the fireball centre, which biases any
-        path-length-dependent observable.
-
-        The density is a transverse histogram of the binary-collision positions, broadcast
-        over eta (the sampler only uses x and y; it returns z = 0).
-
-        Note the half-cell offset: `CoordFromIdx` maps ix to ``-grid_max_x + ix*dx``, MUSIC's
-        axis, while the energy density here is cell-centred at ``-(nx-1)/2*dx + ix*dx``.
-        The histogram below is binned on the *sampler's* axis so a vertex lands where its
-        density says, accepting that this is half a cell from the matching e-node.
+        With no density set, `InitialState::SampleABinaryCollisionPoint` only warns and puts
+        every shower at (0,0,0) -- every jet starting at the fireball centre, which biases any
+        path-length-dependent observable.  ``mode: centre`` reproduces that deliberately;
+        ``ncoll`` (the default) draws from the smeared binary-collision density, which is what
+        a hard process actually follows.
         """
-        g = self.g
-        if coll is None or len(coll) == 0:
-            self.ncoll_density = None
+        from .hard_vertex import binary_collision_density
+
+        hv = self.cfg.get("fasthydro", {}).get("hard_vertex", {}) or {}
+        mode = hv.get("mode", "ncoll")
+        dens = binary_collision_density(ev, self.g, mode=mode,
+                                        width=float(hv.get("smear", 0.4)))
+        self.hard_vertex_mode = mode
+        self.ncoll_density = dens
+        if dens is None:
+            if self.verbose and mode != "centre":
+                n = 0 if ev is None else len(ev.get("coll", ()) or ())
+                print(f"[{type(self).__name__}] hard_vertex mode={mode!r} produced no density "
+                      f"({n} binary collisions); vertices fall back to the origin",
+                      flush=True)
             return
-        xr, yr, _ = g.is_ranges()
-        edges_x = -xr + g.dx * (np.arange(g.nx + 1) - 0.5)
-        edges_y = -yr + g.dy * (np.arange(g.ny + 1) - 0.5)
-        h2, _, _ = np.histogram2d(np.asarray(coll)[:, 0], np.asarray(coll)[:, 1],
-                                  bins=[edges_x, edges_y])
-        dens = np.repeat(h2[:, :, None], g.neta, axis=2)
-        if dens.sum() <= 0:
-            self.ncoll_density = None
-            return
-        self.ncoll_density = np.ascontiguousarray(dens, dtype=np.float64)
-        self.set_num_of_binary_collisions_from_numpy(self.ncoll_density)
+        self.set_num_of_binary_collisions_from_numpy(dens)
 
     def Clear(self):
         # Keep e0: the jet leg replays the identical IC from this object.
@@ -219,4 +214,7 @@ class FastFileInitialState(_FastInitialStateMixin, _base()):
             raise IndexError(f"{self.path} has no event {self.event_index}")
         scalar = {k: (v[0] if isinstance(v, np.ndarray) and v.size == 1 else v)
                   for k, v in meta.items()}
-        return e[0], scalar
+        # A stage-1 IC file stores the energy density only, not the nucleon or collision
+        # positions, so there is no binary-collision density to hand over: vertices will fall
+        # back to the origin. Regenerate with FastGlauberInitialState if that matters.
+        return e[0], scalar, None

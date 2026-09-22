@@ -34,6 +34,9 @@ def _cfg(**over):
     c["eos"].update(kind="conformal", dof=42.25)
     c["run"].update(device="cpu", dtype="float64", seed=99)
     c["output"].update(stop_at_freezeout=False)
+    # the fasthydro-only block; normally added by fasthydro.config.load_config
+    from fasthydro.config import resolve as _fh_resolve
+    c["fasthydro"] = _fh_resolve({})
     for k, v in over.items():
         c[k].update(v)
     return c
@@ -67,8 +70,46 @@ def test_ic_round_trips_through_the_framework(evolved):
 def test_binary_collision_density_is_set(evolved):
     """Without it SampleABinaryCollisionPoint puts every shower at the fireball centre."""
     _, ini, _ = evolved
+    assert ini.hard_vertex_mode == "ncoll"
     assert ini.ncoll_density is not None
     assert ini.ncoll_density.sum() > 0
+
+
+def _sample(ini, n=1500):
+    return np.array([ini.sample_binary_collision_point()[1:3] for _ in range(n)])
+
+
+def test_drawn_vertices_follow_the_density_we_handed_over(evolved):
+    """The end of the chain: what the framework actually draws must be our density, not the
+    origin. Compared against the density's own moments, within the sampling error."""
+    from fasthydro.hard_vertex import node_axes
+
+    _, ini, _ = evolved
+    pts = _sample(ini)
+    xs, ys = node_axes(ini.g)
+    w = ini.ncoll_density[:, :, 0] / ini.ncoll_density[:, :, 0].sum()
+    ex = float((w.sum(1) * xs).sum())
+    sx = float(np.sqrt((w.sum(1) * (xs - ex) ** 2).sum()))
+    tol = 5 * sx / np.sqrt(len(pts))            # 5 sigma on the mean
+    assert pts[:, 0].mean() == pytest.approx(ex, abs=tol)
+    assert pts[:, 0].std() == pytest.approx(sx, rel=0.15)
+    assert len(np.unique(pts, axis=0)) > 50, "vertices are not actually spread out"
+
+
+def test_centre_mode_reproduces_the_old_behaviour():
+    """Every vertex at the origin -- what happened before the setter existed. Kept as a
+    deliberate option, so it must keep working."""
+    from fasthydro.initial_state import FastGlauberInitialState
+
+    cfg = _cfg()
+    cfg["fasthydro"] = {"hard_vertex": {"mode": "centre", "smear": 0.4},
+                        "hydro": {"accept_preeq_flow_loss": False, "store": "vector",
+                                  "store_fields": None}}
+    ini = FastGlauberInitialState(cfg, seed=99, verbose=False)
+    ini.Exec()
+    assert ini.ncoll_density is None
+    pts = _sample(ini, 200)
+    assert np.array_equal(pts, np.zeros_like(pts))
 
 
 # ── the evolution store ──────────────────────────────────────────────────────
