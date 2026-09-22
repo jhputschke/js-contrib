@@ -91,3 +91,34 @@ def test_no_fno4d_dependency():
     code = "\n".join(l for l in src.splitlines() if not l.strip().startswith("#"))
     body = code.split('"""', 2)[-1]                      # drop the module docstring
     assert "FNO4d" not in body, "make_wake_data.py still reaches into an FNO4d checkout"
+
+
+# --------------------------------------------------------------------------- file locking
+def test_an_open_output_file_is_detected_before_anything_is_truncated(tmp_path):
+    """HDF5 truncates BEFORE it takes its lock, so a run started while a notebook holds the
+    output destroys the old file and only then fails, with a traceback that never mentions the
+    notebook. `_is_locked` is what turns that into a preflight refusal."""
+    import fcntl
+
+    p = tmp_path / "held.h5"
+    p.write_bytes(b"not empty")
+    assert not mwd._is_locked(str(p))
+
+    fd = os.open(str(p), os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert mwd._is_locked(str(p)), "a held file must be reported as locked"
+    finally:
+        os.close(fd)
+    assert not mwd._is_locked(str(p)), "the lock must clear when the holder goes away"
+    assert p.read_bytes() == b"not empty", "the probe must never truncate what it is probing"
+
+
+def test_a_missing_file_is_not_locked(tmp_path):
+    assert not mwd._is_locked(str(tmp_path / "nope.h5"))
+
+
+def test_holders_never_raises(tmp_path):
+    p = tmp_path / "x.h5"
+    p.write_bytes(b"")
+    assert isinstance(mwd._holders([str(p)]), str)

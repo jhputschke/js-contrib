@@ -383,7 +383,7 @@ build and no `pyjetscape_core`.
 ## Tests
 
 ```bash
-pytest tests -q                                  # 284 passed, 7 skipped
+pytest tests -q                                  # 287 passed, 7 skipped
 FAST_DATA_FULL_SELFTEST=1 pytest tests/test_fast_data_selftests.py   # the solver's 10 physics gates
 ```
 

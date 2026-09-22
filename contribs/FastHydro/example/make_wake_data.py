@@ -146,6 +146,48 @@ def replay_leg(cfg_path, drop_npz, out, transport_mode, overrides, build):
     return 0
 
 
+def _is_locked(path):
+    """True if `path` exists and some process holds it open, so HDF5 cannot truncate it.
+
+    Probed by opening the file for writing with an exclusive `flock`, which is what the HDF5
+    library itself does -- not by parsing lsof, which is only used afterwards to name the
+    culprit.  Absent or unreadable means "not locked": the point is to catch the common case
+    cleanly, never to block a run over a failed probe.
+    """
+    import fcntl
+
+    if not os.path.exists(path):
+        return False
+    try:
+        fd = os.open(path, os.O_RDWR)                # NOT O_TRUNC -- that is the whole point
+    except OSError:
+        return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        return False
+    except OSError:
+        return True
+    finally:
+        os.close(fd)
+
+
+def _holders(paths):
+    """A short description of what has these files open, or '' if lsof cannot say."""
+    try:
+        out = subprocess.run(["lsof", "-F", "cpn", *paths], capture_output=True, text=True,
+                             timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    seen, pid = [], ""
+    for line in out.splitlines():
+        if line[:1] == "p":
+            pid = line[1:]
+        elif line[:1] == "c" and (line[1:], pid) not in seen:
+            seen.append((line[1:], pid))
+    return ", ".join(f"{c} (pid {p})" for c, p in seen)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -195,6 +237,22 @@ def main(argv=None):
         return 1
 
     os.makedirs(outdir, exist_ok=True)
+
+    held = [p for p in (os.path.join(outdir, f"wake_{leg}.h5") for leg in a.legs)
+            if _is_locked(p)]
+    if held and not a.dry_run:
+        print("\n  BLOCKED: another process has these files open --\n" +
+              "".join(f"    {p}\n" for p in held) +
+              "  HDF5 refuses to truncate a file that is open elsewhere, even read-only, and\n"
+              "  the failure arrives as a 30-line traceback ending in\n"
+              "  `BlockingIOError: [Errno 35] ... unable to lock file`.\n"
+              "  It is almost always a notebook: a Jupyter/VS Code kernel that opened one of\n"
+              "  these keeps the handle for the life of the kernel, and closing the tab is not\n"
+              "  enough. Restart the kernel (or `PairBrowser.close()` in it) and re-run.\n"
+              "  Worse, HDF5 truncates BEFORE it takes the lock, so the old file is already\n"
+              "  destroyed by the time it fails -- which is why this checks first.\n"
+              f"  Holding it: {_holders(held) or 'unknown (lsof unavailable)'}")
+        return 1
 
     overrides = list(a.set)
     if a.device:
