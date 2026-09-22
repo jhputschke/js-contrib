@@ -131,7 +131,7 @@ source:
                            # the wake's shape is what the notebook measures, so pay for it
   min_in_grid:    0.99
   on_out_of_grid: warn
-  
+
 output:
   compression:        lzf
   source_compression: gzip
