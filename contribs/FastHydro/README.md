@@ -251,7 +251,16 @@ in the file's `SOURCE_CONVENTION` attribute: *`arr[...,t]` already contains `S[.
 is the single evolution with the source in it.* So `arr` + `source/S` is exactly what an FNO
 trained on deposition consumes, identical in shape and meaning to fast_data's `*_jet.yaml`
 datasets. `arr_bg` is the extra thing this contribution provides: the same initial condition
-with no jet, for a paired difference. Readers that do not know about it ignore it.
+with no jet, for a paired difference. Readers that do not know about it ignore it. Both legs
+are checked to have evolved the same IC (by sha256) before anything is written — otherwise
+`arr - arr_bg` would not be the jet's effect.
+
+**`arr` is not `arr_bg + S`.** The source is injected *into* the evolution, so the fluid keeps
+responding after the last droplet has fired and the response spreads well beyond the cells the
+source ever touched. In a typical run: at τ = 2.2 fm/c the source is nonzero in 68 cells while
+the two legs differ in 848; by τ = 7.0 the source is identically zero everywhere, yet 7186
+cells still differ. That propagating difference — the wake — is the physics, and it is why the
+file carries two evolutions rather than one evolution plus a source term.
 
 ### `.npz` is the convenience format, not the dataset
 

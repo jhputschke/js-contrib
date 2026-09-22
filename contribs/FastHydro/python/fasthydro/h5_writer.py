@@ -107,6 +107,18 @@ class PairedH5Writer:
         if hyd_jet.arr is None:
             raise ValueError("the jet leg has no arr; construct FastHydro with keep_arr=True")
 
+        # The pair is only worth anything if both legs evolved the SAME initial condition:
+        # arr - arr_bg is read as the jet's effect, so a different IC underneath would look
+        # like an enormous wake. They share an `ic` object by construction, but construction
+        # is exactly what a future edit changes, so check rather than assume.
+        if (hyd_bg.ic_sha256 and hyd_jet.ic_sha256
+                and hyd_bg.ic_sha256 != hyd_jet.ic_sha256):
+            raise ValueError(
+                f"event {i}: the two legs ran different initial conditions "
+                f"(background {hyd_bg.ic_sha256[:12]}, jet {hyd_jet.ic_sha256[:12]}). "
+                f"arr - arr_bg would not be the jet's effect. Both FastHydro instances must "
+                f"be given the same ic= object.")
+
         d = dict(hyd_jet.diag or {})
         droplets = None
         if bridge is not None and bridge.droplets is not None and len(bridge.droplets):
@@ -116,7 +128,7 @@ class PairedH5Writer:
             for k in ("n_late", "n_early", "E_in_window"):
                 if hasattr(bridge, k):
                     d[k] = getattr(bridge, k)
-        d["ic_sha256"] = hyd_jet.ic_sha256 or ""
+        d["ic_sha256"] = hyd_jet.ic_sha256 or ""          # identical for both legs; asserted above
 
         self._w.append_event(
             i, hyd_jet.arr, d.get("ntau_freezeout", self.g.ntau),

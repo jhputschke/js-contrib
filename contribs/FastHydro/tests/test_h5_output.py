@@ -113,6 +113,18 @@ def test_freezeout_bookkeeping_for_both_legs(written):
         assert int(f["ntau_freezeout"][0]) == g.ntau - 1
 
 
+def test_mismatched_initial_conditions_are_refused(tmp_path):
+    """arr - arr_bg is read as the jet's effect, so the two legs MUST share an IC. A
+    different one underneath would look like an enormous wake, silently."""
+    cfg = _cfg()
+    g = GridSpec.from_cfg(cfg)
+    bg, jet = _FakeHydro(g, 1, False), _FakeHydro(g, 2, True)
+    bg.ic_sha256, jet.ic_sha256 = "a" * 64, "b" * 64
+    with PairedH5Writer(tmp_path / "bad.h5", cfg, 1) as w:
+        with pytest.raises(ValueError, match="different initial conditions"):
+            w.append(0, bg, jet, None)
+
+
 def test_provenance_is_recorded(written):
     path, _, _, _ = written
     with h5py.File(path) as f:
