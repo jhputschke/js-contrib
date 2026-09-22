@@ -40,6 +40,8 @@ def main(argv=None):
                          "fireball centre. '' for no hard process.")
     ap.add_argument("--set", action="append", default=[], metavar="k.p=v",
                     help="dotted override of the YAML, repeatable")
+    ap.add_argument("--overwrite", action="store_true",
+                    help="replace an existing output file (default: run.overwrite in the YAML)")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(argv)
 
@@ -65,7 +67,8 @@ def main(argv=None):
         os.makedirs(os.path.dirname(os.path.abspath(out)) or ".", exist_ok=True)
         if as_h5:
             from fasthydro.h5_writer import PairedH5Writer
-            writer = PairedH5Writer(out, cfg, nev)
+            writer = PairedH5Writer(out, cfg, nev,
+                                    overwrite=True if a.overwrite else None)
         bridge_ref = parts["bridge"]
         _orig_clear = bridge_ref.Clear
 

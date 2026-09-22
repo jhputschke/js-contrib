@@ -188,6 +188,21 @@ modules and the liquefier thresholds exist only in the XML. `--set` routes by pr
 `--set time.choose_ntau=41` goes to `fast_data`, `--set fasthydro.hard_vertex.mode=centre` to
 the adapters, and each is validated against its own schema.
 
+### `source.enabled: false` does not mean "no jet"
+
+The `source:` block is in two halves, and the key names do not say which is which:
+
+| keys | read by |
+|---|---|
+| `mode`, `renorm`, `tau_eval_mode`, `n_sub`, `n_sub_max`, `min_in_grid`, `on_out_of_grid` | **FastHydro** — how a droplet is deposited onto the grid |
+| `enabled`, `model`, `partons`, `per_event`, `placement_weight` | **only `fast_data`'s own `generate.py`** — where droplets come from |
+
+`enabled` is the stock generator's switch for synthesising droplets from a `partons:` spec.
+FastHydro's droplets come from Matter+LBT, so it must stay `false`; the jet source is on
+regardless. `build_two_stage()` refuses to run with it true, because a `partons:` spec here
+would be read by nobody — and a silently ignored jet specification gives you a plausible wake
+from the wrong jet, which is worse than an error.
+
 **`source.mode: conservative` is not a detail.** Point sampling on a cell-centred grid — what
 the C++ does on MUSIC's much finer grid — loses the deposit entirely for droplets at large
 `|η_d|`, where the causal support can be a fraction of a cell. Fraction of the droplet

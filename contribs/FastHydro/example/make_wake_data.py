@@ -237,6 +237,8 @@ def main(argv=None):
                "--set", f"transport.mode={LEGS[leg]}"]
         if not a.live:
             cmd += ["--dump-droplets", drop_npz]
+        if a.force:
+            cmd.append("--overwrite")
         for o in overrides:
             cmd += ["--set", o]
         print(f"\n  --- {leg} (transport.mode={LEGS[leg]}) ---")

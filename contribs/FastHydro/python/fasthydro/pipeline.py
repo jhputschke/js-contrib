@@ -108,6 +108,18 @@ def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
     from .initial_state import FastGlauberInitialState
     from .liquefier_bridge import DropletBridge, params_from_liquefier
 
+    # `source.enabled` is fast_data's switch for ITS OWN driver building droplets from
+    # `source.partons`. FastHydro's droplets come from Matter+LBT, so a parton spec here would
+    # be read by nobody -- and a silently ignored physics specification is worse than a
+    # refusal, because the run produces a plausible wake from the wrong jet.
+    if (cfg.get("source") or {}).get("enabled"):
+        raise ValueError(
+            "source.enabled is true, but FastHydro does not build droplets from "
+            "source.partons -- they come from X-SCAPE's Matter+LBT through the C++ "
+            "CausalLiquefier, and a parton spec here would be silently ignored.\n"
+            "Set source.enabled: false. The rest of the source block (mode, renorm, n_sub, "
+            "min_in_grid, ...) is still read: it configures how those droplets are deposited.")
+
     if user_xml:
         check_xml_agrees_with_cfg(user_xml, cfg)
 

@@ -38,7 +38,8 @@ class PairedH5Writer:
             w.append(i, hyd_bg, hyd_jet, bridge)
     """
 
-    def __init__(self, path, cfg, nevents, *, compression=None, source_compression=None):
+    def __init__(self, path, cfg, nevents, *, compression=None, source_compression=None,
+                 overwrite=None):
         import h5py
 
         from fast_data.eos import resolve_eos
@@ -68,6 +69,9 @@ class PairedH5Writer:
             compression=compression or out["compression"],
             source_compression=source_compression or out["source_compression"],
             write_source=True, write_diagnostics=out["write_diagnostics"],
+            # FnoH5Writer refuses to clobber an existing file unless told to. Honour
+            # run.overwrite so a second run does not stop on a name it chose itself.
+            force=bool(cfg["run"].get("overwrite", False) if overwrite is None else overwrite),
             # Without the EoS group, viz's sound_speed() -- and so mach_angle() -- returns
             # None for anything but a conformal EoS, and glauber.load_eos() cannot rebuild
             # the table. write_eos_group makes the file self-contained.

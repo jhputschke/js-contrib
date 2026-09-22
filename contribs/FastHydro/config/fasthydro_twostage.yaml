@@ -59,10 +59,19 @@ output:
   stop_at_freezeout: false
 
 source:
-  # `enabled` means "the stock fast_data driver should build droplets from source.partons".
-  # It stays FALSE here: FastHydro's droplets come from Matter+LBT through the C++
-  # CausalLiquefier, and DropletBridge constructs the CausalLiquefierSource itself.  The
-  # settings below are still read -- by DropletBridge -- they just are not a parton spec.
+  # This block is in two halves, and the split is not obvious from the key names.
+  #
+  # READ BY FastHydro (DropletBridge): mode, renorm, tau_eval_mode, n_sub, n_sub_max,
+  #   min_in_grid, on_out_of_grid.  These say HOW a droplet is deposited onto the grid.
+  #
+  # READ ONLY BY fast_data's own generate.py, never here: enabled, model, partons,
+  #   per_event, placement_weight.  Those are about where droplets COME FROM, and in
+  #   FastHydro they come from Matter+LBT, not from this file.
+  #
+  # So `enabled: false` does NOT mean "no jet source". The jet source is always on; this
+  # switch only tells the stock fast_data driver not to synthesise droplets from a
+  # `partons:` spec. build_two_stage() refuses to run if it is true, because a parton spec
+  # here would be read by nobody.
   enabled: false
   model: causal_liquefier
   # conservative, NOT xscape: point sampling loses the whole deposit for droplets at large

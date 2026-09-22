@@ -189,3 +189,37 @@ def test_disagreement_is_caught(mutate, expect):
     mutate(cfg)
     with pytest.raises(ValueError, match=expect):
         check_xml_agrees_with_cfg(str(root / "config" / "jetscape_user_fasthydro.xml"), cfg)
+
+
+# ── source.enabled ───────────────────────────────────────────────────────────
+
+def test_source_enabled_true_is_refused():
+    """`source.enabled` is fast_data's switch for ITS driver synthesising droplets from
+    source.partons. FastHydro's come from Matter+LBT, so a parton spec here reaches nobody --
+    and a silently ignored physics specification produces a plausible wake from the wrong jet,
+    which is worse than a refusal."""
+    import pathlib
+
+    from fasthydro.config import load_config
+    from fasthydro.pipeline import build_two_stage
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    cfg = load_config(root / "config" / "fasthydro_twostage.yaml")
+    cfg["source"]["enabled"] = True
+    with pytest.raises(ValueError, match="source.partons"):
+        build_two_stage(cfg)
+
+
+def test_the_shipped_configs_do_not_enable_it():
+    import pathlib
+
+    from fasthydro.config import load_config
+
+    root = pathlib.Path(__file__).resolve().parent.parent
+    for name in ("fasthydro_twostage.yaml", "fasthydro_wake.yaml"):
+        cfg = load_config(root / "config" / name)
+        assert cfg["source"]["enabled"] is False, name
+        # and the half that IS read must be present
+        for k in ("mode", "renorm", "tau_eval_mode", "n_sub", "n_sub_max",
+                  "min_in_grid", "on_out_of_grid"):
+            assert k in cfg["source"], f"{name}: {k} missing"
