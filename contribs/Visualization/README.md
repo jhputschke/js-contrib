@@ -8,7 +8,9 @@
 The hydro is evolved in **Milne** coordinates `(τ, x, y, η_s)`, but this tool
 resamples it into **Cartesian lab spacetime** `(t, x, y, z)`. The companion
 [`hydro_jet_pyvista.py`](hydro_jet_pyvista.py) overlays the **jet parton shower**
-in that same `(t,x,y,z)` frame.
+in that same `(t,x,y,z)` frame, and [`wake_pyvista.py`](wake_pyvista.py) puts the
+no-jet, with-jet and difference evolutions **side by side** to isolate the jet
+wake.
 
 ## Files
 
@@ -16,6 +18,9 @@ in that same `(t,x,y,z)` frame.
   Milne→Cartesian resampling → PyVista rendering).
 - [`hydro_jet_pyvista.py`](hydro_jet_pyvista.py) — medium **plus the jet parton
   shower** as accumulating arrows (see [Jet overlay](#jet-overlay)).
+- [`wake_pyvista.py`](wake_pyvista.py) — the **jet wake**, three panels side by side
+  from one FastHydro file (see [Jet wake](#jet-wake)).
+- [`tests/`](tests/) — gates for the wake reader (`pytest tests -q`; no GPU needed).
 - [`config/`](config/) — bundled example MUSIC configs (`OO_one_event.xml`,
   `OO_one_event_jet.xml`).
 - [`PlanVisualization.md`](PlanVisualization.md) — the design plan.
@@ -40,6 +45,44 @@ back to `.gif`). Control the speed with `--framerate` (frames/sec, default 6, ap
 to both) or the more intuitive `--frame-duration SECONDS` (seconds each frame is
 shown, e.g. `--frame-duration 0.5` for 2 fps to follow the evolution closely).
 `--vtk-dir DIR` instead writes a `.vti`+`.pvd` time series for ParaView.
+
+## Jet wake
+
+```
+┌──────────────┬──────────────────┬──────────────────┐
+│  no jet      │  with jet        │  difference      │
+│  arr_bg      │  arr             │  arr - arr_bg    │
+└──────────────┴──────────────────┴──────────────────┘
+```
+
+The left and middle panels look the same, and that is the point: the jet deposits
+~31 GeV into a fireball whose peak energy density is 28 GeV/fm³, so the wake is
+invisible against it. The right panel is the subtraction, where the wake is the only
+thing left. All three carry the parton shower, and the three views share a camera.
+
+```bash
+conda activate fno_pyvista_env
+python wake_pyvista.py --file ../../../build_gpu/out_wake/wake_ideal.h5 \
+    --nt 48 --nz 160 --z-oversample 3 --movie wake_ideal.mp4
+```
+
+This reads a **FastHydro paired HDF5 file** — nothing is run. Produce one with
+[`../FastHydro/example/make_wake_data.py`](../FastHydro/example/make_wake_data.py).
+The file already holds everything the figure needs: both legs on one initial
+condition (`arr`, `arr_bg`), the EoS table (so temperature is read rather than
+assumed), and `shower/` for the overlay.
+
+**The difference panel is percentile-scaled, not max-scaled.** Measured on a central
+Au+Au event, `max|Δe|` over the whole evolution is 2.4 GeV/fm³ — but that is a single
+spike in one frame at τ ≈ 1.6 where the first droplets land, while the wake that
+follows runs at 0.1–0.3. Scaling to the max renders the wake at a few percent of full
+scale, i.e. invisible. The default is the 99.9th percentile of the non-zero cells; the
+run prints the peak it saturated and `--diff-clim` overrides it.
+
+Options: `--panels bg,jet,diff` (any subset, in display order), `--event`,
+`--diff-cmap`, `--diff-clim`, `--diff-pct`, `--no-jet`, plus everything
+`hydro_jet_pyvista.py` accepts. Resampling runs once per panel, so three panels cost
+three times one — keep `--nt` small while iterating.
 
 ## Usage
 

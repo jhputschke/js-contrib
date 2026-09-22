@@ -207,7 +207,7 @@ def _jet_bar_args():
                 width=0.04, height=0.5)
 
 
-def _add_jet_colorbar(plotter, max_pT, cmap) -> None:
+def _add_jet_colorbar(plotter, max_pT, cmap, suffix: str = "") -> None:
     """Persistent parton-pT colour bar (added once), on the left so it doesn't
     collide with the energy-density bar on the right.  Backed by an invisible
     2-point proxy spanning [0, max_pT]."""
@@ -215,14 +215,21 @@ def _add_jet_colorbar(plotter, max_pT, cmap) -> None:
     proxy = pv.PolyData(np.zeros((2, 3)))
     proxy["pT"] = np.array([0.0, max_pT], dtype=float)
     plotter.add_mesh(proxy, scalars="pT", cmap=cmap, clim=(0.0, max_pT),
-                     opacity=0.0, name="jet_cbar_proxy", reset_camera=False,
+                     opacity=0.0, name="jet_cbar_proxy" + suffix, reset_camera=False,
                      show_scalar_bar=True, scalar_bar_args=_jet_bar_args())
 
 
-def _add_jet_actors(plotter, starts, tips, dirs, pT, args, max_pT) -> None:
+def _add_jet_actors(plotter, starts, tips, dirs, pT, args, max_pT,
+                    suffix: str = "") -> None:
+    """`suffix` makes the actor names unique per subplot.
+
+    add_mesh(name=...) is scoped to the active renderer, but remove_actor(name) is
+    NOT -- it sweeps every renderer on the plotter.  So on a multi-panel figure each
+    panel's redraw deletes the previous panel's jets and only the last one keeps
+    them.  A per-panel suffix is what keeps the removals apart."""
     import pyvista as pv
-    plotter.remove_actor("jets", reset_camera=False)
-    plotter.remove_actor("jet_heads", reset_camera=False)
+    plotter.remove_actor("jets" + suffix, reset_camera=False)
+    plotter.remove_actor("jet_heads" + suffix, reset_camera=False)
     m = len(starts)
     if m == 0:
         return
@@ -248,27 +255,28 @@ def _add_jet_actors(plotter, starts, tips, dirs, pT, args, max_pT) -> None:
 
     common = dict(reset_camera=False, show_scalar_bar=False)
     if args.jet_color:                                    # fixed colour override
-        plotter.add_mesh(shafts, color=args.jet_color, name="jets", **common)
-        plotter.add_mesh(glyphs, color=args.jet_color, name="jet_heads", **common)
+        plotter.add_mesh(shafts, color=args.jet_color, name="jets" + suffix, **common)
+        plotter.add_mesh(glyphs, color=args.jet_color, name="jet_heads" + suffix,
+                         **common)
     else:                                                 # colour by pT
         clim = (0.0, max_pT)
         plotter.add_mesh(shafts, scalars="pT", cmap=args.jet_cmap, clim=clim,
-                         name="jets", **common)
+                         name="jets" + suffix, **common)
         plotter.add_mesh(glyphs, scalars="pT", cmap=args.jet_cmap, clim=clim,
-                         name="jet_heads", **common)
+                         name="jet_heads" + suffix, **common)
 
 
-def _add_cam_anchor(plotter, lo, hi) -> None:
+def _add_cam_anchor(plotter, lo, hi, suffix: str = "") -> None:
     """Invisible 8-corner box at the jet extent so the camera frames the jets
     even though the (untouched) medium box is smaller.  Added once."""
     import pyvista as pv
     corners = np.array([[x, y, z] for x in (lo[0], hi[0])
                         for y in (lo[1], hi[1]) for z in (lo[2], hi[2])], dtype=float)
-    plotter.add_mesh(pv.PolyData(corners), opacity=0.0, name="cam_anchor",
+    plotter.add_mesh(pv.PolyData(corners), opacity=0.0, name="cam_anchor" + suffix,
                      reset_camera=False, show_scalar_bar=False)
 
 
-def make_jet_overlay(seg, args, max_pT, t_max):
+def make_jet_overlay(seg, args, max_pT, t_max, suffix: str = "", colorbar: bool = True):
     """Return overlay(plotter, t) drawing the shower accumulated up to lab time t.
 
     Partons are coloured by pT against a fixed scale [0, max_pT] (max_pT = the
@@ -306,10 +314,10 @@ def make_jet_overlay(seg, args, max_pT, t_max):
 
     def overlay(plotter, t):
         if not state["anchor"] and anchor is not None:
-            _add_cam_anchor(plotter, anchor[0], anchor[1])
+            _add_cam_anchor(plotter, anchor[0], anchor[1], suffix)
             state["anchor"] = True
-        if not state["cbar"] and not args.jet_color:
-            _add_jet_colorbar(plotter, max_pT, args.jet_cmap)
+        if not state["cbar"] and colorbar and not args.jet_color:
+            _add_jet_colorbar(plotter, max_pT, args.jet_cmap, suffix)
             state["cbar"] = True
         tips = tips_at(t)
         # Draw partons that exist and have already moved a little (at their birth
@@ -317,11 +325,11 @@ def make_jet_overlay(seg, args, max_pT, t_max):
         seglen = np.linalg.norm(tips - starts, axis=1)
         draw = (t >= t0) & (seglen > 1e-4)
         if not draw.any():
-            plotter.remove_actor("jets", reset_camera=False)
-            plotter.remove_actor("jet_heads", reset_camera=False)
+            plotter.remove_actor("jets" + suffix, reset_camera=False)
+            plotter.remove_actor("jet_heads" + suffix, reset_camera=False)
             return
         _add_jet_actors(plotter, starts[draw], tips[draw],
-                        dirs[draw], pT[draw], args, max_pT)
+                        dirs[draw], pT[draw], args, max_pT, suffix)
 
     return overlay
 
