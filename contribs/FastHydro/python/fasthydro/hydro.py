@@ -145,6 +145,13 @@ class FastHydro(_base()):
             torch.as_tensor(e0, device=self._fvgrid.device,
                             dtype=self._fvgrid.dtype)[None], self.g.tau0, self._eos)
 
+        # The viscous sector is switched on by pi/Pi EXISTING, not by transport alone:
+        # strang_step does `viscous = transport is not None and pi is not None`, so passing
+        # pi=None runs ideal however transport is configured -- silently. fast_data's own
+        # driver allocates them the same way (driver.py:177-178).
+        pi = self._fvgrid.zeros(1, 10) if self._transport is not None else None
+        Pi = self._fvgrid.zeros(1, 1) if self._transport is not None else None
+
         src = None
         if self._source is not None:
             # A fresh accounting per event; the patch cache is shared by clone().
@@ -157,7 +164,7 @@ class FastHydro(_base()):
         src_out = np.zeros(shape, dtype=np.float32) if src is not None else None
 
         self.diag = evolve.evolve_event(
-            q, None, None, self._tau_grid, self._fvgrid, self._eos,
+            q, pi, Pi, self._tau_grid, self._fvgrid, self._eos,
             transport=self._transport, source=src,
             cfl=t["cfl"], hydro_dtau=t["hydro_dtau"], dtau_max=t["dtau_max"],
             out=out, src_out=src_out,

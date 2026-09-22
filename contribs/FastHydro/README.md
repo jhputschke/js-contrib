@@ -32,6 +32,8 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/pipeline.py` | `build_two_stage` |
 | `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml` |
 | `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py` |
+| `python/fasthydro/browse.py` | `PairBrowser` — read both legs of a pair out of one file |
+| `notebooks/jet_wake.ipynb` | the wake analysis: Mach cone, damping, broadening, Mach angle |
 | `tests/` | the vendored `fast_data` suite plus the JETSCAPE-glue gates |
 
 ---
@@ -301,6 +303,34 @@ so the suite runs on a machine with no X-SCAPE build.
 | `test_h5_output.py` | the written file is a valid `fast_data/hydro_evolution` dataset: grid attrs, `arr` = jet leg and `arr_bg` = background, per-event droplet slices, provenance, and FNO4d's own reader loads it |
 | `test_hard_vertex.py` | each vertex mode does what it claims; participants come out wider than binary collisions; smearing fills the holes a raw histogram leaves |
 | `test_replay.py` | the dump round-trips and replays deterministically |
+
+## The wake notebook
+
+`notebooks/jet_wake.ipynb` is adapted from FNO4d's `viscous_vs_ideal.ipynb`, keeping the
+wake-relevant analysis: the Mach cone in the $\eta = 0$ plane, wake amplitude / total
+disturbance / front width against $\tau$, the Mach-angle check, and freeze-out.
+
+It needs **two files where FNO4d needs four** — one per transport setting, each already
+carrying its own jet/no-jet pair — because `PairBrowser` reads both legs out of a single file:
+
+```python
+from fasthydro.browse import PairBrowser
+p = PairBrowser("out_wake/wake_ideal.h5")
+p.diff(0, k)          # e(jet) - e(background)
+p.source_at(0, tau)   # where the jet was, from the droplet table
+p.summary()           # controls: IC identical, first differing frame, deposit, freeze-out
+```
+
+`PairBrowser` *is* FNO4d's `DiffBrowser`, handed two views of the same file, so `diff`,
+`source_track`, `mach_angle` and `blob_radius` behave exactly as they do on an FNO4d pair.
+
+Generate its inputs with two runs (`--set transport.mode=ideal` and `israel_stewart`); the
+first cell prints the exact commands if the files are missing. It ships with outputs cleared,
+following FNO4d's convention, and takes a couple of minutes.
+
+On the shipped configuration both stated expectations hold: viscosity damps the wake
+amplitude to **0.797** of ideal and broadens the front by **+0.84 fm**, and the static-medium
+Mach angle comes out at 35.3° for $c_s = 1/\sqrt3$.
 
 ## Limitations
 

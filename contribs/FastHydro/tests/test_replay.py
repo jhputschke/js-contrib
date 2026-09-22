@@ -118,3 +118,35 @@ def test_grid_mismatch_is_refused():
     cfg = _cfg()
     with pytest.raises(ValueError, match="config grid"):
         replay_event(cfg, np.zeros((3, 3, 3)), None, LiquefierParams())
+
+
+def test_israel_stewart_actually_runs():
+    """Regression. strang_step decides viscosity by `transport is not None AND pi is not None`,
+    so passing pi=None runs IDEAL however transport is configured -- silently, with no warning
+    and a perfectly plausible fireball. transport.mode: israel_stewart was a no-op until the
+    pi/Pi buffers were allocated."""
+    ideal = _cfg()
+    visc = _cfg()
+    visc["transport"].update(mode="israel_stewart", eta_over_s=0.08)
+
+    g = GridSpec.from_cfg(ideal)
+    e0 = _ic(g)
+    a_ideal, _, _ = replay_event(ideal, e0, None, LiquefierParams())
+    a_visc, _, _ = replay_event(visc, e0, None, LiquefierParams())
+
+    assert not np.array_equal(a_ideal, a_visc), (
+        "the viscous run is bit-identical to the ideal one: shear is not being applied")
+    # and it must be a physical difference, not noise in the last bit
+    rel = np.abs(a_visc[0] - a_ideal[0]).max() / max(1e-12, np.abs(a_ideal[0]).max())
+    assert rel > 1e-4, f"viscous/ideal differ by only {rel:.2e}; shear is barely acting"
+
+
+def test_ideal_mode_stays_ideal():
+    """The other direction: transport.mode: ideal must not allocate pi/Pi and must reproduce
+    a run with no transport at all."""
+    cfg = _cfg()
+    g = GridSpec.from_cfg(cfg)
+    e0 = _ic(g)
+    a, _, _ = replay_event(cfg, e0, None, LiquefierParams())
+    b, _, _ = replay_event(cfg, e0, None, LiquefierParams())
+    assert np.array_equal(a, b)

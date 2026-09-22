@@ -70,12 +70,16 @@ def replay_event(cfg, e0, droplets, params, *, device=None, dtype=None, source_k
             min_in_grid=s["min_in_grid"], on_out_of_grid=s["on_out_of_grid"],
             device=dev, dtype=dt)
 
+    # see the note in hydro.py: pi/Pi must exist or strang_step runs ideal regardless
+    pi = grid.zeros(1, 10) if transport is not None else None
+    Pi = grid.zeros(1, 1) if transport is not None else None
+
     t, o = cfg["time"], cfg["output"]
     shape = (4, g.nx, g.ny, g.neta, g.ntau)
     arr = np.zeros(shape, np.float32)
     src_out = np.zeros(shape, np.float32) if src is not None else None
     diag = evolve.evolve_event(
-        q, None, None, g.tau_grid(), grid, eos, transport=transport, source=src,
+        q, pi, Pi, g.tau_grid(), grid, eos, transport=transport, source=src,
         cfl=t["cfl"], hydro_dtau=t["hydro_dtau"], dtau_max=t["dtau_max"],
         out=arr, src_out=src_out, T_fo=o["T_fo"], freezeout=o["freezeout"],
         zero_tail=o["zero_after_freezeout"], stop_at_freezeout=o["stop_at_freezeout"])

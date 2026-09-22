@@ -47,10 +47,14 @@ class _FakeHydro:
 
 class _FakeBridge:
     def __init__(self, n):
+        from fast_data.liquefier import LiquefierParams
         from fast_data.liquefier.droplets import DropletArray
         d = np.tile(np.array([[1.0, 0.2, -0.3, 0.1, 5.0, 1.0, 0.0, 0.5]]), (n, 1))
         self.droplets = DropletArray(d, np.array([0, n], dtype=np.int64))
         self.n_late, self.n_early, self.E_in_window = 0, 0, float(d[:, 4].sum())
+        # DropletBridge carries these, read off the live C++ liquefier; the writer stores
+        # them so viz does not fall back to its defaults
+        self.params = LiquefierParams(tau_delay=0.6)
 
 
 @pytest.fixture
@@ -146,3 +150,66 @@ def test_the_vendored_reader_loads_it(written):
     d = reader.read_3d_data_hdf5(str(path))
     assert d["arr"].shape == (2, 4, g.nx, g.ny, g.neta, g.ntau)
     assert float(d["dtau"]) == pytest.approx(g.record_dtau)
+
+
+# ── the single-file pair browser ─────────────────────────────────────────────
+
+def test_pair_browser_reads_both_legs_from_one_file(written):
+    """FNO4d's DiffBrowser needs two files; PairBrowser reads the pair out of one, which is
+    the point of the format. It must behave identically, because it IS DiffBrowser -- given
+    two views of the same file."""
+    from fasthydro.browse import PairBrowser
+
+    path, _, g, counts = written
+    with PairBrowser(path) as p:
+        assert (p.nx, p.ny, p.neta, p.ntau) == (g.nx, g.ny, g.neta, g.ntau)
+        assert p.nevents == 2
+        # the difference is jet - background, not something else
+        de = p.diff(0, 2)
+        assert de.shape == (g.nx, g.ny, g.neta)
+        import h5py
+        with h5py.File(path) as f:
+            expect = (f["arr"][0, 0, :, :, :, 2].astype(np.float64)
+                      - f["arr_bg"][0, 0, :, :, :, 2].astype(np.float64))
+        assert np.allclose(de, expect)
+        # the two legs must be bound to DIFFERENT datasets
+        assert not np.array_equal(p.jet.frame(0, 2), p.bg.frame(0, 2))
+
+
+def test_pair_browser_summary_and_droplets(written):
+    from fasthydro.browse import PairBrowser
+
+    path, _, _, counts = written
+    with PairBrowser(path) as p:
+        s = p.summary(0)
+        assert s["n_droplets"] == counts[0]
+        assert s["E_deposited_GeV"] > 0
+        assert s["events"] == 2
+        assert s["blob_radius_fm"] > 0
+
+
+def test_pair_browser_refuses_an_unpaired_file(tmp_path):
+    """A plain fast_data evolution has no arr_bg; say so rather than failing obscurely."""
+    import h5py
+
+    from fasthydro.browse import PairBrowser
+
+    p = tmp_path / "plain.h5"
+    with h5py.File(p, "w") as f:
+        f.create_dataset("arr", data=np.zeros((1, 4, 2, 2, 2, 2), np.float32))
+    with pytest.raises(KeyError, match="arr_bg"):
+        PairBrowser(p)
+
+
+def test_liquefier_params_are_on_the_file(written):
+    """viz's source_track()/blob_radius() read these and otherwise fall back to hardcoded
+    defaults, which would put the jet's track in the wrong place."""
+    import h5py
+
+    path, _, _, _ = written
+    with h5py.File(path) as f:
+        for k in ("liquefier_tau_delay", "liquefier_c_diff", "liquefier_time_relax",
+                  "liquefier_d_diff", "liquefier_width_delta"):
+            assert k in f.attrs, f"{k} missing; viz would silently use its default"
+        assert float(f.attrs["liquefier_c_diff"]) == pytest.approx(
+            np.sqrt(float(f.attrs["liquefier_d_diff"]) / float(f.attrs["liquefier_time_relax"])))

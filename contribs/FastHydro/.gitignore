@@ -4,3 +4,4 @@ __pycache__/
 out/
 *.npz
 *.h5
+notebooks/out_wake/

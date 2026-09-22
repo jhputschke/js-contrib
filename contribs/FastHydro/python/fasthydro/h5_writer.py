@@ -41,6 +41,7 @@ class PairedH5Writer:
     def __init__(self, path, cfg, nevents, *, compression=None, source_compression=None):
         import h5py
 
+        from fast_data.eos import resolve_eos
         from fast_data.writer import FnoH5Writer, grid_attrs
 
         from .grid import GridSpec
@@ -49,6 +50,14 @@ class PairedH5Writer:
         self.cfg = cfg
         self.g = g = GridSpec.from_cfg(cfg)
         self.nevents = int(nevents)
+
+        self._np_eos = None
+        if cfg["eos"].get("store_table", True):
+            try:
+                self._np_eos = resolve_eos(cfg["eos"])[0]
+            except Exception as exc:                      # a missing table must not lose a run
+                print(f"[PairedH5Writer] EoS table not stored ({exc}); "
+                      f"sound_speed()/mach_angle() will be unavailable", flush=True)
 
         attrs = grid_attrs(g.nx, g.ny, g.neta, g.dx, g.dy, g.deta,
                            tau_min=g.tau0, dtau=g.record_dtau, choose_ntau=g.ntau)
@@ -59,6 +68,10 @@ class PairedH5Writer:
             compression=compression or out["compression"],
             source_compression=source_compression or out["source_compression"],
             write_source=True, write_diagnostics=out["write_diagnostics"],
+            # Without the EoS group, viz's sound_speed() -- and so mach_angle() -- returns
+            # None for anything but a conformal EoS, and glauber.load_eos() cannot rebuild
+            # the table. write_eos_group makes the file self-contained.
+            np_eos=self._np_eos,
             # FnoH5Writer copies only SCALAR_KEYS out of `attrs`; anything else has to go
             # through extra_attrs or it is silently dropped.
             extra_attrs={**dict(out["extra_attrs"] or {}), **self._provenance()})
@@ -79,6 +92,10 @@ class PairedH5Writer:
             "arr_bg_is": "background leg, identical initial condition, no source",
             "source_model": "causal_liquefier (droplets from X-SCAPE Matter+LBT)",
             "source_mode": str(self.cfg["source"]["mode"]),
+            # viz.sound_speed() falls back on this when there is no table
+            "eos_kind": str(self.cfg["eos"]["kind"]),
+            "transport_mode": str(self.cfg["transport"]["mode"]),
+            "eta_over_s": float(self.cfg["transport"]["eta_over_s"]),
             "hard_vertex": str((self.cfg.get("fasthydro") or {})
                                .get("hard_vertex", {}).get("mode", "?")),
             "config_json": json.dumps(cfgj, sort_keys=True, default=str),
@@ -118,6 +135,22 @@ class PairedH5Writer:
                 f"(background {hyd_bg.ic_sha256[:12]}, jet {hyd_jet.ic_sha256[:12]}). "
                 f"arr - arr_bg would not be the jet's effect. Both FastHydro instances must "
                 f"be given the same ic= object.")
+
+        # viz's source_track()/blob_radius() read these off the file and otherwise fall back
+        # to hardcoded defaults (tau_delay 1.0, c_diff 0.894), which would put the jet's track
+        # and the deposition blob in the wrong place for any run not using them. fast_data's
+        # own driver never writes them; write them here, from the live C++ liquefier.
+        if bridge is not None and getattr(bridge, "params", None) is not None:
+            a = self._w.f.attrs
+            if "liquefier_tau_delay" not in a:
+                q = bridge.params
+                a["liquefier_dtau"] = float(q.dtau)
+                a["liquefier_tau_delay"] = float(q.tau_delay)
+                a["liquefier_time_relax"] = float(q.time_relax)
+                a["liquefier_d_diff"] = float(q.d_diff)
+                a["liquefier_width_delta"] = float(q.width_delta)
+                a["liquefier_c_diff"] = float(q.c_diff)
+                a["liquefier_gamma_relax"] = float(q.gamma_relax)
 
         d = dict(hyd_jet.diag or {})
         droplets = None
