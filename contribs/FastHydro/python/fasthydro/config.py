@@ -41,6 +41,10 @@ DEFAULTS = {
         # null -> fasthydro.cells.DEFAULT_FIELDS
         "store_fields": None,
     },
+    # The parton shower itself -- every parton and splitting vertex, written to `shower/`.
+    # Default on: measured at 9.4 kB/event against 5.5 MB for the hydro pair, and without it
+    # a file records only what the jet LOST (source/droplets), never where the jet was.
+    "store_showers": True,
 }
 
 

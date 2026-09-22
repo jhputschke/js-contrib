@@ -109,7 +109,7 @@ def verify_replay(arr, reference_sha256=None, reference_arr=None, *, exact=True)
 
 
 def replay_pair(path, cfg, e0, droplets, params, *, device=None, dtype=None,
-                source_kw=None, meta=None):
+                source_kw=None, meta=None, shower=None):
     """Replay BOTH legs of a pair and write them as an FNO4d-schema file.
 
     This is what makes a controlled comparison possible. In a live run the shower responds to
@@ -141,6 +141,10 @@ def replay_pair(path, cfg, e0, droplets, params, *, device=None, dtype=None,
         def __init__(self):
             self.droplets = droplets
             self.params = params
+            # The shower graph is not re-derived by a replay -- it is the ORIGINAL run's, and
+            # that is the point: the same jet through a different solver. Carried through from
+            # the npz so a replayed file stays animatable. None -> no shower/ group.
+            self.shower = shower
 
     with PairedH5Writer(path, cfg, 1) as w:
         w.append(0, _Leg(bg_arr, None, bg_diag), _Leg(jet_arr, jet_src, jet_diag), _Bridge())

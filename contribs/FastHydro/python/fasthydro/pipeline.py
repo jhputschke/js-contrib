@@ -152,7 +152,9 @@ def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
     hyd_jet = FastHydro(cfg, stage=2, module_id="FastHydro_jet", ic=ini,
                         store=store, verbose=verbose)
     hyd_jet.add_a_liquefier(liq)           # bookkeeping; see the module docstring
-    bridge = DropletBridge(liq, hyd_jet, cfg, verbose=verbose)
+    # The manager goes in so the bridge can also capture the shower graph itself, not just
+    # the droplets it gave up; see fasthydro/showers.py.
+    bridge = DropletBridge(liq, hyd_jet, cfg, manager=jmgr, verbose=verbose)
 
     # PGun samples the hard-scattering vertex and then overwrites it with zeros
     # (src/initialstate/PGun.cc:117-120), so every shower starts at the fireball centre

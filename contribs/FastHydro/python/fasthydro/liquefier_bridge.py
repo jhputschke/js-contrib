@@ -67,7 +67,7 @@ def droplets_from_liquefier(liq):
 class DropletBridge(_base()):
     """Read the liquefier after energy loss; hand a source to the jet-leg hydro."""
 
-    def __init__(self, liquefier, hydro_jet, cfg, *, verbose=True):
+    def __init__(self, liquefier, hydro_jet, cfg, *, manager=None, verbose=True):
         super().__init__()
         self.SetId("FastHydroDropletBridge")
         self.liq = liquefier
@@ -77,6 +77,12 @@ class DropletBridge(_base()):
         self.params = None
         self.droplets = None          # DropletArray of the current event
         self.history = []             # one DropletArray per event, for the npz dump
+        # The energy-loss manager, for capturing the shower graph. This task's position is
+        # the ONLY window where the showers exist and are finished: the manager builds them
+        # in its own Exec and drops them in ClearPerEvent.
+        self.manager = manager
+        self.shower = None            # ShowerRecord of the current event
+        self.shower_history = []
 
     def Init(self):
         self.params = params_from_liquefier(self.liq)
@@ -86,6 +92,8 @@ class DropletBridge(_base()):
 
         if self.params is None:                      # Init() may not have been called
             self.params = params_from_liquefier(self.liq)
+
+        self._capture_shower()
 
         da = droplets_from_liquefier(self.liq)
         self.droplets = da
@@ -109,6 +117,30 @@ class DropletBridge(_base()):
             dtype=getattr(__import__("torch"), self.cfg["run"]["dtype"])))
 
         self._report_window(da)
+
+    def _capture_shower(self):
+        """Flatten this event's parton showers, if there is a manager and it is wanted.
+
+        A failure here must not lose the event: the shower group is a bonus alongside the
+        hydro, and a binding that predates `get_showers()` should degrade to "no shower
+        group", not to "no run".
+        """
+        from .showers import empty_record, showers_from_manager
+
+        if self.manager is None or not (self.cfg.get("fasthydro") or {}).get(
+                "store_showers", True):
+            return
+        try:
+            rec = showers_from_manager(self.manager)
+        except Exception as exc:                                  # noqa: BLE001
+            print(f"[DropletBridge] WARNING: could not capture the parton shower ({exc}); "
+                  f"the file will have no shower/ group", flush=True)
+            rec = empty_record()
+        self.shower = rec
+        self.shower_history.append(rec)
+        if self.verbose and len(rec.partons):
+            print(f"[DropletBridge] {rec.n_showers} shower(s), {len(rec.partons)} partons, "
+                  f"{len(rec.vertices)} vertices", flush=True)
 
     def _report_window(self, da):
         """Say what fraction of the deposited momentum the hydro window can actually take.

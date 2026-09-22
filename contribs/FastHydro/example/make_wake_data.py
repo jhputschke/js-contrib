@@ -123,7 +123,7 @@ def replay_leg(cfg_path, drop_npz, out, transport_mode, overrides, build):
     """One leg from a fixed droplet set: background + jet through this solver, into `out`."""
     sys.path.insert(0, os.path.join(CONTRIB, "python"))
     from fasthydro.config import load_config
-    from fasthydro.droplets_io import load_droplets_npz
+    from fasthydro.droplets_io import load_droplets_npz, showers_from_meta
     from fasthydro.replay import replay_pair
 
     cwd = os.getcwd()
@@ -139,6 +139,7 @@ def replay_leg(cfg_path, drop_npz, out, transport_mode, overrides, build):
         print(f"     {len(da)} droplets, {da.data[:, 4].sum():.2f} GeV, "
               f"tau_delay = {params.tau_delay} fm/c")
         replay_pair(out, cfg, ic, da, params,
+                    shower=showers_from_meta(meta, 0),
                     meta={"provenance_droplets": os.path.basename(drop_npz)})
     finally:
         os.chdir(cwd)

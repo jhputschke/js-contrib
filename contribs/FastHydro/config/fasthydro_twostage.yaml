@@ -115,6 +115,12 @@ source:
 # ---------------------------------------------------------------------------
 fasthydro:
 
+  # Store the parton shower itself -- every parton and splitting vertex -- as `shower/`.
+  # `source/droplets` records only what the jet LOST; without this a file cannot say where the
+  # jet was, what survived, or how it developed, so an animation has nothing to draw.
+  # Measured cost: ~9 kB per event against 5.5 MB for the hydro pair.
+  store_showers: true
+
   # Where hard scatterings happen.  Without a density the framework only warns and puts
   # EVERY shower at (0,0,0) -- the fireball centre -- which biases any path-length-dependent
   # observable and makes all events look alike.

@@ -19,6 +19,11 @@ The background leg has no place in that schema, so it goes in alongside as `arr_
 own freeze-out bookkeeping.  Readers that do not know about it ignore it; readers that do get
 an exactly-paired no-jet reference on an identical initial condition, which is the thing this
 whole contribution exists to produce.
+
+The `shower/` group is added the same way and for the same reason: `source/droplets` records
+what the jet *lost*, and on its own a file cannot say where the jet was or what survived.  See
+`fasthydro/showers.py` for the layout.  It is ragged, accumulated here and flushed at close,
+because `FnoH5Writer` is vendored verbatim and knows only about droplets.
 """
 
 from __future__ import annotations
@@ -82,6 +87,10 @@ class PairedH5Writer:
         self._h5py = h5py
         self._bg = None                      # created lazily, on the first event
         self._closed = False
+        # shower/ is ragged like source/droplets: accumulate, write once at close.
+        self._sh = {"partons": [], "vertices": [], "initiators": []}
+        self._sh_off = {"partons": [0], "vertices": [0], "initiators": [0]}
+        self._sh_any = False
 
     # ------------------------------------------------------------------ provenance
     def _provenance(self):
@@ -166,6 +175,7 @@ class PairedH5Writer:
                 if hasattr(bridge, k):
                     d[k] = getattr(bridge, k)
         d["ic_sha256"] = hyd_jet.ic_sha256 or ""          # identical for both legs; asserted above
+        d.update(self._stash_shower(getattr(bridge, "shower", None)))
 
         self._w.append_event(
             i, hyd_jet.arr, d.get("ntau_freezeout", self.g.ntau),
@@ -181,8 +191,70 @@ class PairedH5Writer:
             self._w.f["tau_freezeout_bg"][i] = float(bd.get("tau_freezeout", float("nan")))
             self._w.f.flush()
 
+    # ------------------------------------------------------------------ shower/
+    def _stash_shower(self, rec):
+        """Queue one event's shower graph; -> the diagnostics it contributes.
+
+        Every event appends an offset even when there is no shower, so `parton_offsets` stays
+        one entry longer than the event count and `offsets[i]:offsets[i+1]` is always the
+        right slice -- an event with no shower is an empty one, not a missing one.
+        """
+        from .showers import PARTON_COLUMNS, VERTEX_COLUMNS, INITIATOR_COLUMNS
+
+        widths = {"partons": len(PARTON_COLUMNS), "vertices": len(VERTEX_COLUMNS),
+                  "initiators": len(INITIATOR_COLUMNS)}
+        for name, w in widths.items():
+            a = (np.zeros((0, w)) if rec is None
+                 else np.asarray(getattr(rec, name), dtype=np.float64).reshape(-1, w))
+            self._sh[name].append(a)
+            self._sh_off[name].append(self._sh_off[name][-1] + len(a))
+        if rec is None:
+            return {}
+        self._sh_any = True
+        return {"n_showers": int(rec.n_showers), "n_partons": int(len(rec.partons))}
+
+    def _write_shower(self):
+        from .showers import FATES, INITIATOR_COLUMNS, PARTON_COLUMNS, VERTEX_COLUMNS
+
+        if not self._sh_any:
+            return
+        g = self._w.f.require_group("shower")
+        spec = {"partons": (len(PARTON_COLUMNS), "parton_offsets"),
+                "vertices": (len(VERTEX_COLUMNS), "vertex_offsets"),
+                "initiators": (len(INITIATOR_COLUMNS), "initiator_offsets")}
+        for name, (w, off_name) in spec.items():
+            rows = self._sh[name]
+            data = np.concatenate(rows, 0) if rows else np.zeros((0, w))
+            for key, val in ((name, data),
+                             (off_name, np.asarray(self._sh_off[name], dtype=np.int64))):
+                if key in g:
+                    del g[key]
+                g.create_dataset(key, data=val)
+        g.attrs["parton_columns"] = list(PARTON_COLUMNS)
+        g.attrs["vertex_columns"] = list(VERTEX_COLUMNS)
+        g.attrs["initiator_columns"] = list(INITIATOR_COLUMNS)
+        g.attrs["units"] = "p in GeV; x, y, z in fm; t in fm/c"
+        g.attrs["coordinates"] = (
+            "CARTESIAN LAB (x, y, z) and lab time t -- NOT the Milne (tau, x, y, eta) the "
+            "hydro frames and source/droplets use. Convert with fasthydro.showers.to_milne: "
+            "tau = sqrt(t^2 - z^2), eta = atanh(z/t).")
+        g.attrs["vertex_positions"] = (
+            "ZERO BY CONSTRUCTION. X-SCAPE builds every vertex as Vertex(0,0,0,currentTime) "
+            "(JetEnergyLoss.cc:414-419), so only the `t` column is real. The geometry is on "
+            "the partons, which carry their own production point; use "
+            "fasthydro.showers.segments, which propagates each parton along p/E rather than "
+            "reading vertex positions.")
+        g.attrs["endpoint_convention"] = (
+            "i_src and i_tgt are ROW INDICES into this event's slice of `vertices` "
+            "(vertex_offsets[i] : vertex_offsets[i+1]), already offset across the event's "
+            "showers. They are not raw GTL node ids, which restart at 0 per shower; the raw "
+            "id is kept as the vertex `node_id` column.")
+        g.attrs["pstat_codes"] = [f"{k}: {v}" for k, v in sorted(FATES.items())]
+        self._w.f.attrs["has_shower"] = True
+
     def close(self, complete=None):
         if not self._closed:
+            self._write_shower()
             self._w.close(complete=complete)
             self._closed = True
 

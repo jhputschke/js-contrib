@@ -111,6 +111,100 @@ class PairBrowser:
         d = self.jet.droplets(event)
         return 0.0 if d is None or not len(d) else float(d[:, 4].sum())
 
+    # ------------------------------------------------------------------ shower/
+    @property
+    def has_shower(self):
+        return "shower/partons" in self.jet._f
+
+    def showers(self, event=0):
+        """-> (partons, vertices, initiators) for one event, or None.
+
+        The three come back together on purpose: a parton's ``i_src``/``i_tgt`` are row
+        indices into *this event's* vertex block, so slicing either one alone silently
+        produces segments drawn from the wrong vertices.  Columns are
+        `showers.PARTON_COLUMNS` / `VERTEX_COLUMNS` / `INITIATOR_COLUMNS`.
+        """
+        h = self.jet._f
+        if "shower/partons" not in h:
+            return None
+        out = []
+        for name, off in (("partons", "parton_offsets"), ("vertices", "vertex_offsets"),
+                          ("initiators", "initiator_offsets")):
+            o = h["shower/" + off][:]
+            out.append(h["shower/" + name][o[event]:o[event + 1]])
+        return tuple(out)
+
+    def shower_segments(self, event=0, *, milne=False):
+        """-> (start, end, splits) per parton: the finished segments.
+
+        Cartesian ``(x, y, z, t)`` by default; ``milne=True`` converts to ``(tau, x, y, eta)``
+        so the shower shares the hydro frames' clock and the droplets' coordinates.  `splits`
+        marks the partons whose segment actually ends somewhere -- see `showers.segments`.
+        """
+        from .showers import segments, to_milne
+
+        s = self.showers(event)
+        if s is None:
+            return None
+        a, b, sp = segments(s[0], s[1])
+        return (to_milne(a), to_milne(b), sp) if milne else (a, b, sp)
+
+    def shower_at(self, event, t):
+        """The shower as it stands at lab time `t` [fm/c]: (start, tip, alive) per parton.
+
+        `tip` is the point to draw each parton out to, and `alive` marks the ones that have
+        been produced by `t` -- the rest have not happened yet and do not belong on screen.
+
+        Three behaviours, which is the whole reason this is not a one-liner:
+
+        * a parton that **splits** is interpolated along its own segment and stops at the
+          splitting point -- both ends are stored data, so this is exact;
+        * one that was **absorbed** (`showers.ABSORBED`: dropped into the medium, or missed)
+          stops at its production point -- its energy is in `source/droplets` from then on,
+          and drawing it onward would double-count the jet;
+        * anything else -- a final-state parton, or a hole -- is still travelling when the
+          graph runs out, so it is carried at ``p/E`` to `t`.  That is the only case where
+          anything is extrapolated.
+        """
+        from .showers import ABSORBED, velocities
+
+        s = self.showers(event)
+        if s is None:
+            return None
+        p = s[0]
+        a, b, splits = self.shower_segments(event)
+        t = float(t)
+        t0 = a[:, 3]
+
+        # splitting: interpolate on the segment, exact at both ends
+        span = np.where(splits, b[:, 3] - t0, 0.0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            f = np.clip(np.where(span > 0, (t - t0) / np.where(span > 0, span, 1.0), 0.0),
+                        0.0, 1.0)
+        # `a + 1.0*(b-a)` is not bit-exactly `b`, and a finished parton should land on the
+        # stored child point, not a rounding away from it.
+        tip = np.where(f[:, None] >= 1.0, b, a + f[:, None] * (b - a))
+
+        # not splitting, not absorbed: still in flight, so extrapolate along p/E
+        flying = ~splits & ~np.isin(p[:, 4].astype(int), ABSORBED)
+        dt = np.where(flying, np.maximum(t - t0, 0.0), 0.0)[:, None]
+        tip = np.where(flying[:, None],
+                       np.column_stack([a[:, :3] + velocities(p) * dt, t0 + dt[:, 0]]), tip)
+        return a, tip, t0 <= t
+
+    def parton_fates(self, event=0):
+        """-> {fate name: count} over the event's partons; see `showers.FATES`.
+
+        ``drop`` is the interesting one: those are the partons the liquefier absorbed into the
+        medium, i.e. the ones that became the droplets in `source/droplets`.
+        """
+        import collections
+
+        from .showers import fates
+
+        s = self.showers(event)
+        return None if s is None else dict(collections.Counter(fates(s[0])))
+
     def wake_energy(self, event, itau):
         """int |de| dV over the frame [GeV] -- the size of the disturbance, wake included."""
         de = self.diff(event, itau)
@@ -135,6 +229,11 @@ class PairBrowser:
             "blob_radius_fm": self.blob_radius(),
             "source_mode": str(self.attrs.get("source_mode", "?")),
             "hard_vertex": str(self.attrs.get("hard_vertex", "?")),
+            "n_showers": None if not self.has_shower
+                         else int(len(self.showers(event)[2])),
+            "n_partons": None if not self.has_shower
+                         else int(len(self.showers(event)[0])),
+            "parton_fates": self.parton_fates(event),
         }
 
     def close(self):

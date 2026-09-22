@@ -9,7 +9,48 @@ from __future__ import annotations
 
 import numpy as np
 
-__all__ = ["save_droplets_npz", "load_droplets_npz"]
+__all__ = ["save_droplets_npz", "load_droplets_npz", "showers_from_meta"]
+
+#: keys `_flatten_showers` writes, so `load_droplets_npz` can keep them out of `meta`
+_SHOWER_KEYS = ("shower_partons", "shower_vertices", "shower_initiators",
+                "shower_parton_offsets", "shower_vertex_offsets",
+                "shower_initiator_offsets")
+
+
+def _flatten_showers(history):
+    """Per-event `ShowerRecord`s -> flat blocks + offsets, or empty blocks if there are none.
+
+    Kept here rather than in `showers.py` so the npz side needs nothing but numpy; the widths
+    are read from `showers` only when there is something to write.
+    """
+    if not history:
+        return {}
+    from .showers import INITIATOR_COLUMNS, PARTON_COLUMNS, VERTEX_COLUMNS
+
+    out = {}
+    for name, cols, off in (("partons", PARTON_COLUMNS, "parton_offsets"),
+                            ("vertices", VERTEX_COLUMNS, "vertex_offsets"),
+                            ("initiators", INITIATOR_COLUMNS, "initiator_offsets")):
+        blocks = [np.asarray(getattr(r, name), dtype=np.float64).reshape(-1, len(cols))
+                  for r in history]
+        out["shower_" + name] = (np.concatenate(blocks, 0) if blocks
+                                 else np.zeros((0, len(cols))))
+        out["shower_" + off] = np.cumsum([0] + [len(b) for b in blocks]).astype(np.int64)
+    return out
+
+
+def showers_from_meta(meta, event=0):
+    """-> `ShowerRecord` for one event out of `load_droplets_npz`'s `meta`, or None."""
+    from .showers import ShowerRecord
+
+    if "shower_partons" not in meta:
+        return None
+    parts = []
+    for name, off in (("partons", "parton_offsets"), ("vertices", "vertex_offsets"),
+                      ("initiators", "initiator_offsets")):
+        o = meta["shower_" + off]
+        parts.append(meta["shower_" + name][o[event]:o[event + 1]])
+    return ShowerRecord(*parts)
 
 
 
@@ -30,8 +71,14 @@ def save_droplets_npz(path, bridge, *, cfg_sha256="", ic_sha256=(), seeds=(),
              if hist else np.zeros((0,), np.uint32))
     p = bridge.params
     g = bridge.hydro_jet.g
+
+    # The shower graph travels with the droplets so a replayed file can still be animated.
+    # Stored as three flat blocks plus offsets, same shape as the h5 `shower/` group; absent
+    # (zero-row) when the run did not capture it.
+    sh = _flatten_showers(getattr(bridge, "shower_history", None))
+
     payload = dict(
-        droplets=data, offsets=offsets, flags=flags,
+        droplets=data, offsets=offsets, flags=flags, **sh,
         columns=np.array(["tau", "x", "y", "eta", "E", "px", "py", "pz"]),
         params=np.array([p.dtau, p.tau_delay, p.time_relax, p.d_diff, p.width_delta]),
         grid=np.array([g.nx, g.ny, g.neta, g.dx, g.dy, g.deta], dtype=np.float64),

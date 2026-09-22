@@ -35,7 +35,7 @@ def main(argv=None):
 
     import _bootstrap_replay  # noqa: F401
     from fasthydro.config import load_config   # layers the fasthydro: block on fast_data's
-    from fasthydro.droplets_io import load_droplets_npz
+    from fasthydro.droplets_io import load_droplets_npz, showers_from_meta
     from fasthydro.replay import replay_event, replay_pair, verify_replay
 
     cfg = load_config(a.config, a.set)
@@ -60,6 +60,7 @@ def main(argv=None):
         # produces, and readable by PairBrowser and by FNO4d's loaders.
         os.makedirs(os.path.dirname(os.path.abspath(a.out)) or ".", exist_ok=True)
         replay_pair(a.out, cfg, ic, da, params,
+                    shower=showers_from_meta(meta, 0),
                     meta={"provenance_droplets": os.path.basename(a.droplets)})
         print(f"wrote {a.out}  (FNO4d HDF5 schema: arr = jet leg, source/S, "
               f"arr_bg = background)")

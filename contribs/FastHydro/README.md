@@ -26,7 +26,8 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/hydro.py` | `FastHydro` — the `FluidDynamics` module |
 | `python/fasthydro/cells.py` | solver frame → `FluidCellInfo` features (EoS-derived `T`, `s`, `p`) |
 | `python/fasthydro/liquefier_bridge.py` | `DropletBridge` — C++ droplets → the solver's source term |
-| `python/fasthydro/droplets_io.py` | droplet npz dump/load (no framework dependency) |
+| `python/fasthydro/droplets_io.py` | droplet + shower npz dump/load (no framework dependency) |
+| `python/fasthydro/showers.py` | the parton shower as a space-time graph: capture, layout, segments |
 | `python/fasthydro/replay.py` | re-run the jet leg from a dump, without X-SCAPE |
 | `python/fasthydro/h5_writer.py` | `PairedH5Writer` — the FNO4d HDF5 dataset format |
 | `python/fasthydro/pipeline.py` | `build_two_stage` |
@@ -281,9 +282,15 @@ source/S          (N, 4, nx, ny, neta, ntau) f4   what was injected, contravaria
 source/droplets   (M, 8) f8                       (tau, x, y, eta, E, px, py, pz)
 source/offsets    (N+1,) i8                       per-event slices into droplets
 source/P_cart     (N, ntau, 4) f8                 injected four-momentum per frame
+shower/partons    (P, 13) f8                      shower, i_src, i_tgt, pid, pstat,
+                                                  px,py,pz,E, x,y,z,t
+shower/vertices   (V, 6) f8                       shower, node_id, x, y, z, t
+shower/initiators (K, 11) f8                      the hard parton, one per shower
+shower/{parton,vertex,initiator}_offsets (N+1,) i8
 ntau_freezeout[_bg], tau_freezeout[_bg]           per leg
 diag/                                             per-event scalars, incl. n_droplets,
-                                                  n_late, E_in_window, ic_sha256
+                                                  n_late, E_in_window, ic_sha256,
+                                                  n_showers, n_partons
 ```
 
 `e` is GeV/fm³ and `vx,vy,vz` are **Cartesian lab three-velocities** (the exact convention is
@@ -305,6 +312,51 @@ source ever touched. In a typical run: at τ = 2.2 fm/c the source is nonzero in
 the two legs differ in 848; by τ = 7.0 the source is identically zero everywhere, yet 7186
 cells still differ. That propagating difference — the wake — is the physics, and it is why the
 file carries two evolutions rather than one evolution plus a source term.
+
+### The shower itself — `shower/`
+
+`source/droplets` records what the jet **lost**. On its own a file cannot say where the jet
+was, what survived it, or how it developed — so the parton shower is stored too, as a
+space-time graph. It costs about **9 kB per event** against 5.5 MB for the hydro pair, so it
+is written by default; set `fasthydro.store_showers: false` to turn it off.
+
+```python
+from fasthydro.browse import PairBrowser
+b = PairBrowser("out/pair.h5")
+par, ver, ini  = b.showers(0)          # always take the three together — see below
+b.parton_fates(0)                      # {'0': 23, 'drop': 23, 'miss': 12, 'neg': 10}
+start, tip, alive = b.shower_at(0, 3.0)   # the shower as it stands at t = 3 fm/c
+```
+
+`shower_at` is the animation primitive: `alive` masks the partons that exist yet, and `tip` is
+the point to draw each one out to. Step `t` over the frames and the shower branches on screen.
+
+Three properties of X-SCAPE's graph are worth knowing, because each one produces a *plausible*
+picture when handled naively:
+
+- **Vertices carry no position.** `JetEnergyLoss.cc:414-419` constructs every one of them as
+  `Vertex(0,0,0,currentTime)` — only `t` is real. Measured on a live event, all 72 vertices sat
+  at the origin while the partons had 18 distinct production points. The geometry is on the
+  **partons**; building segments from vertex positions gives every parton zero length.
+  `showers.segments` does not touch those columns.
+- **Negative ("hole") partons are attached backwards.** `JetEnergyLoss.cc:413-416` runs the
+  edge `new_vertex -> vStart`, so a hole's target is its own parent's source vertex and a
+  naive child lookup walks it back up the parent's track.
+- **A final-state parton has no end time in the graph.** It is still travelling when the
+  record stops, so `shower_at` carries it at `p/E`; a parton that split is interpolated along
+  its own segment, whose endpoints are both stored data.
+
+`pstat` is what ties this group to `source/droplets`: **−11 `drop`** is a parton the liquefier
+absorbed into the medium — those are the ones that became droplets — alongside −17 `neg`,
+−13 `miss`, 22 photon and 101 Matter's hand-off to LBT. Colouring segments by fate shows energy
+leaving the jet and arriving in the fluid.
+
+Positions here are **Cartesian lab** `(x,y,z,t)`, not the Milne `(τ,x,y,η)` the hydro frames
+and droplets use. `b.shower_segments(0, milne=True)` converts; space-like points (`|z| > t`,
+which the framework does produce) come back as NaN rather than as a wrong number.
+
+The shower travels with `--dump-droplets`, so a replayed run — the same jet through a different
+solver — stays animatable.
 
 ### `.npz` is the convenience format, not the dataset
 
@@ -331,7 +383,7 @@ build and no `pyjetscape_core`.
 ## Tests
 
 ```bash
-pytest tests -q                                  # 207 passed, 6 skipped
+pytest tests -q                                  # 284 passed, 7 skipped
 FAST_DATA_FULL_SELFTEST=1 pytest tests/test_fast_data_selftests.py   # the solver's 10 physics gates
 ```
 
