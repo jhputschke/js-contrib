@@ -213,3 +213,32 @@ def test_the_panel_titles_do_not_claim_a_jetless_run():
     assert wp.PANELS["bg"][1] == "arr_bg" and wp.PANELS["jet"][1] == "arr"
     assert "same quenched shower" in wp.SHOWER_NOTE
     assert "one-way" in wp.SHOWER_NOTE
+
+
+def test_the_leading_parton_is_the_initiator_not_the_hardest_stored_parton(tmp_path):
+    """The initiators are what JetScape handed to JetEnergyLoss -- the hard partons before
+    any quenching. The maximum over shower/partons is the same parton a step later, after
+    Matter has taken some of its energy: on the wake event that reads 50.9 GeV against the
+    initiator's 52.0."""
+    p = _write_pair(tmp_path / "p.h5")
+    with h5py.File(p, "r+") as f:
+        ini = f["shower/initiators"]
+        ini[0, 3], ini[0, 4], ini[0, 6], ini[0, 1] = 30.0, 40.0, 60.0, 21   # pT = 50
+        f["shower/partons"][:, 5] = 3.0                                     # far softer
+    pT, E, pid = wp.leading_parton(p, 0)
+    assert pytest.approx(50.0) == pT and pytest.approx(60.0) == E and pid == 21
+
+
+def test_leading_parton_is_none_without_a_shower(tmp_path):
+    assert wp.leading_parton(_write_pair(tmp_path / "p.h5", with_shower=False), 0) is None
+
+
+def test_the_text_is_sized_for_a_narrow_viewport():
+    """A three-panel window is not three times a one-panel window with three times the
+    text: the viewports shrink and the fonts do not. hydro_pyvista's defaults (axis
+    font_size 10, bar title 16 at position_x 0.88) come out a third too small and clipped."""
+    assert wp.AXIS_FONT > 10 and wp.BAR_TITLE_FONT >= 14 and wp.LABEL_FONT >= 14
+    assert wp.PANEL_W % 16 == 0 and wp.PANEL_H % 16 == 0, \
+        "ffmpeg's macro_block_size is 16; other sizes get resized and blurred"
+    # every bar sits at the right edge: the left is where show_grid puts the y labels
+    assert wp._bar_args("t")["position_x"] > 0.5

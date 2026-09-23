@@ -98,6 +98,18 @@ follows runs at 0.1–0.3. Scaling to the max renders the wake at a few percent 
 scale, i.e. invisible. The default is the 99.9th percentile of the non-zero cells; the
 run prints the peak it saturated and `--diff-clim` overrides it.
 
+The top-left read-out carries the **leading parton** — the hardest
+shower-*initiating* parton, i.e. before any quenching. That is deliberately not the
+maximum over `shower/partons`, which is the same parton a step later after Matter has
+taken some of its energy: on this event, 52.0 GeV against 50.9.
+
+Text is sized for a narrow viewport. A three-panel window is not a one-panel window
+with three times the text — the viewports shrink and the fonts do not — so the axis,
+label and colour-bar fonts are all larger here than `hydro_pyvista.py`'s defaults, the
+panels are 640 px wide rather than a third of 1008, and the camera pulls back a little
+so `show_grid`'s outer axis titles stay inside the frame. Every colour bar sits at the
+panel's right edge, because the left is where the `y [fm]` labels go.
+
 Options: `--panels bg,jet,diff` (any subset, in display order), `--event`,
 `--diff-cmap`, `--diff-clim`, `--diff-pct`, `--no-jet`, plus everything
 `hydro_jet_pyvista.py` accepts. Resampling runs once per panel, so three panels cost

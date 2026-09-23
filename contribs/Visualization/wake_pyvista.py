@@ -93,6 +93,25 @@ import hydro_pyvista as hp                                            # noqa: E4
 #: feature layout hydro_pyvista expects, which is NOT FastHydro's (e, vx, vy, vz)
 FEATURES = ("e", "T", "vx", "vy", "vz")
 
+#: Text sizes. A three-panel window is not three times a one-panel window with three
+#: times the text: the viewports shrink and the fonts do not, so everything hydro_pyvista
+#: sizes for a full window comes out a third too small here.
+BAR_TITLE_FONT = 16
+BAR_LABEL_FONT = 14
+AXIS_FONT = 16
+LABEL_FONT = 16
+NOTE_FONT = 12
+
+#: Per-panel viewport, width x height. Both divisible by 16 so ffmpeg's macro_block_size
+#: does not resize and blur the frames. Wider than a third of hydro_pyvista's 1008 because
+#: the axis titles and bar titles need the room at these font sizes.
+PANEL_W, PANEL_H = 640, 864
+
+#: The camera is fitted to the medium box, which puts the outer axis titles ("y [fm]")
+#: just outside the viewport; pulling back this much brings them in without shrinking the
+#: fireball noticeably.
+CAMERA_ZOOM = 0.82
+
 PANELS = {
     "bg":   ("medium, no deposit", "arr_bg"),
     "jet":  ("medium + deposit",   "arr"),
@@ -241,6 +260,29 @@ def load_shower(path, event=0, min_energy=0.0):
         is_leaf=~splits & ~absorbed)
 
 
+def leading_parton(path, event=0):
+    """-> (pT, E, pid) of the hardest SHOWER-INITIATING parton, or None.
+
+    The initiators are what JetScape handed to JetEnergyLoss, i.e. the hard partons
+    before any quenching -- so this is "the leading parton" in the sense a jet analysis
+    means it.  Deliberately not the maximum over `shower/partons`, which is the same
+    parton a step later, after Matter has already taken some of its energy: on the wake
+    event that reads 50.9 GeV against the initiator's 54.6 GeV.
+    """
+    import h5py
+
+    with h5py.File(str(path), "r") as f:
+        if "shower/initiators" not in f:
+            return None
+        o = f["shower/initiator_offsets"][:]
+        ini = f["shower/initiators"][o[event]:o[event + 1]]
+    if not len(ini):
+        return None
+    pT = np.hypot(ini[:, 3], ini[:, 4])            # px, py
+    i = int(np.argmax(pT))
+    return float(pT[i]), float(ini[i, 6]), int(ini[i, 1])
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Rendering
 # ──────────────────────────────────────────────────────────────────────────────
@@ -288,7 +330,7 @@ def _panel_args(args, name):
     return a
 
 
-def render(panel_arrays, meta, args, seg=None, event_id=0):
+def render(panel_arrays, meta, args, seg=None, event_id=0, lead=None):
     """Resample every panel and emit the movie / VTK series / interactive window."""
     import pyvista as pv
 
@@ -332,7 +374,8 @@ def render(panel_arrays, meta, args, seg=None, event_id=0):
             clims[n] = (0.0, top)
     bar_on = {"leg": legs[-1] if legs else None,
               "diff": "diff" if "diff" in names else None,
-              "max_pT": max_pT}
+              "max_pT": max_pT,
+              "lead": lead}
     for n in names:
         extra = ""
         if n == "diff":
@@ -364,22 +407,25 @@ def _bar_args(title, fmt="%.2f", x=0.84):
     bar near an edge is clipped rather than wrapped. Hence explicit geometry, a shorter
     title, and a smaller title font than hydro_pyvista uses.
     """
-    return dict(title=title, color="white", title_font_size=12, label_font_size=10,
-                n_labels=5, fmt=fmt, vertical=True,
-                position_x=x, position_y=0.16, width=0.04, height=0.58)
+    return dict(title=title, color="white", title_font_size=BAR_TITLE_FONT,
+                label_font_size=BAR_LABEL_FONT, n_labels=5, fmt=fmt, vertical=True,
+                position_x=x, position_y=0.16, width=0.055, height=0.58)
 
 
 #: shorter than hydro_pyvista's E_UNITS, which is clipped at a third of the window width
-E_TITLE = "e  [GeV/fm^3]"
-DIFF_TITLE = "Delta e  [GeV/fm^3]"
-PT_TITLE = "parton pT  [GeV]"
+E_TITLE = "e [GeV/fm3]"
+DIFF_TITLE = "de [GeV/fm3]"
+PT_TITLE = "parton pT [GeV]"
 
 
 def _add_pt_bar(plotter, max_pT, cmap, name="pt_bar"):
-    """The parton-pT bar, on the LEFT of the first panel so it clears the medium bar.
+    """The parton-pT bar, at the right of the first panel -- same place as every other bar.
 
-    Drawn here rather than through hjp._add_jet_colorbar because that one's geometry is
-    tuned for a full-window single panel and its title is clipped in a narrow viewport.
+    hjp puts it on the LEFT to clear the energy bar, which works in a full-width window.
+    Here the left edge is where show_grid draws the y tick labels and the "y [fm]" title,
+    so the bar lands on top of them; the right edge is clear because each panel carries at
+    most one bar. Drawn here rather than through hjp._add_jet_colorbar for the same reason
+    its geometry is set locally: that one is tuned for a single full-window panel.
     """
     import pyvista as pv
 
@@ -387,7 +433,7 @@ def _add_pt_bar(plotter, max_pT, cmap, name="pt_bar"):
     proxy["pT"] = np.array([0.0, max_pT], dtype=float)
     plotter.add_mesh(proxy, scalars="pT", cmap=cmap, clim=(0.0, max_pT), opacity=0.0,
                      name=name, reset_camera=False, show_scalar_bar=True,
-                     scalar_bar_args=_bar_args(PT_TITLE, "%.0f", x=0.10))
+                     scalar_bar_args=_bar_args(PT_TITLE, "%.0f"))
 
 
 def _draw(plotter, names, frames, axes, args, clims, overlays, ti, t, event_id, bar_on):
@@ -428,15 +474,21 @@ def _draw(plotter, names, frames, axes, args, clims, overlays, ti, t, event_id, 
                                  color="white", opacity=0.7, name="vel_" + n,
                                  reset_camera=False, show_scalar_bar=False)
 
-        label = (f"{PANELS[n][0]}   ({PANELS[n][1]})\n"
-                 + (hp._frame_label(event_id, t) if k == 0 else f"t = {t:6.2f} fm/c"))
+        label = f"{PANELS[n][0]}   ({PANELS[n][1]})\n"
+        if k == 0:
+            label += hp._frame_label(event_id, t)
+            if bar_on.get("lead"):
+                pT, E, _pid = bar_on["lead"]
+                label += f"\nleading parton  pT = {pT:.1f} GeV,  E = {E:.1f} GeV"
+        else:
+            label += f"t = {t:6.2f} fm/c"
         plotter.add_text(label, name="label_" + n, position="upper_left",
-                         font_size=11, color="white", shadow=True)
+                         font_size=LABEL_FONT, color="white", shadow=True)
         if k == 0 and any(o is not None for o in overlays.values()):
             # Without this the titles read as "a run with no jet" vs "a run with a jet",
             # which is not what the panels are: there is one shower and it is in all three.
             plotter.add_text(SHOWER_NOTE, name="shower_note", position="lower_left",
-                             font_size=9, color="#9fb6c4", shadow=False)
+                             font_size=NOTE_FONT, color="#9fb6c4", shadow=False)
         if overlays[n] is not None:
             overlays[n](plotter, t)
 
@@ -449,7 +501,7 @@ def _movie(names, frames, axes, ts, args, clims, overlays, event_id, bar_on):
     hp._maybe_start_xvfb(off_screen=True)
     # width divisible by 16 per panel keeps ffmpeg from resizing (macro_block_size)
     plotter = pv.Plotter(off_screen=True, shape=(1, len(names)),
-                         window_size=(528 * len(names), 800), border=False)
+                         window_size=(PANEL_W * len(names), PANEL_H), border=False)
     fps = (1.0 / args.frame_duration) if args.frame_duration else float(args.framerate)
     if movie.lower().endswith(".mp4"):
         try:
@@ -464,8 +516,9 @@ def _movie(names, frames, axes, ts, args, clims, overlays, event_id, bar_on):
     bounds = hp._scene_bounds(axes)
     for k in range(len(names)):
         plotter.subplot(0, k)
-        hp._decorate_scene(plotter, bounds)
+        hp._decorate_scene(plotter, bounds, font_size=AXIS_FONT)
         hp._beam_camera(plotter, args.azimuth, args.elevation)
+        plotter.camera.zoom(CAMERA_ZOOM)
     plotter.link_views()                       # one camera: the panels stay comparable
     if overlays[names[0]] is not None and not args.jet_color:
         plotter.subplot(0, 0)
@@ -484,13 +537,14 @@ def _movie(names, frames, axes, ts, args, clims, overlays, event_id, bar_on):
 def _interactive(names, frames, axes, ts, args, clims, overlays, event_id, bar_on):
     import pyvista as pv
 
-    plotter = pv.Plotter(shape=(1, len(names)), window_size=(528 * len(names), 800),
-                         border=False)
+    plotter = pv.Plotter(shape=(1, len(names)),
+                         window_size=(PANEL_W * len(names), PANEL_H), border=False)
     bounds = hp._scene_bounds(axes)
     for k in range(len(names)):
         plotter.subplot(0, k)
-        hp._decorate_scene(plotter, bounds)
+        hp._decorate_scene(plotter, bounds, font_size=AXIS_FONT)
         hp._beam_camera(plotter, args.azimuth, args.elevation)
+        plotter.camera.zoom(CAMERA_ZOOM)
     plotter.link_views()
     if overlays[names[0]] is not None and not args.jet_color:
         plotter.subplot(0, 0)
@@ -571,7 +625,8 @@ def main(argv=None):
                   f"{int((~seg['is_leaf']).sum())} ending in a splitting or the medium, "
                   f"max pT {seg['pT'].max():.1f} GeV")
 
-    render(panel_arrays, meta, args, seg=seg, event_id=args.event)
+    render(panel_arrays, meta, args, seg=seg, event_id=args.event,
+           lead=leading_parton(args.file, args.event))
     return 0
 
 
