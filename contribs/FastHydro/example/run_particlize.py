@@ -111,6 +111,17 @@ def main(argv=None):
             P = hyd.diag.get("P_cart")
             if P is not None:          # the four-momentum the source deposited, [E, px, py, pz]
                 rec["deposited_P"] = np.asarray(P, dtype=float).sum(axis=0).tolist()
+            bridge = parts.get("bridge")
+            if bridge is not None:
+                # the jet axes: the partons each shower started from, and what was shed
+                if bridge.shower is not None:
+                    from fasthydro.showers import INITIATOR_COLUMNS
+                    rec["initiator_columns"] = list(INITIATOR_COLUMNS)
+                    rec["initiators"] = np.asarray(bridge.shower.initiators).tolist()
+                if bridge.droplets is not None and len(bridge.droplets):
+                    d = np.asarray(bridge.droplets.data)          # tau x y eta E px py pz
+                    rec["n_droplets"] = int(len(d))
+                    rec["droplet_P"] = d[:, 4:8].sum(axis=0).tolist()
             events.append(rec)
             hyd.ic_sha256 = None       # so a repeated Clear() does not record the event twice
         _orig_clear()

@@ -34,9 +34,11 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/pipeline.py` | `build_two_stage`, `build_bg_only` |
 | `python/fasthydro/particlization.py` | the checks that a leg can give a closed Cooper–Frye surface; iSS's `music_input` |
 | `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook; `*_particlize.*` for hadrons |
-| `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py`, `run_particlize.py`, `delta_spectra.py` |
+| `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py`, `run_particlize.py`, `delta_spectra.py`, `make_hadron_wake_data.py` |
 | `python/fasthydro/browse.py` | `PairBrowser` — read both legs of a pair out of one file |
 | `notebooks/jet_wake.ipynb` | the wake analysis: Mach cone, damping, broadening, Mach angle |
+| `notebooks/hadron_wake.ipynb` | the wake at hadron level: spectra, ⟨p_T⟩(η), azimuth; the jet-induced excess and depletion, their balance and significance |
+| `python/fasthydro/hadrons.py` | hadron files → compact npz; oversample-averaged histograms with compound-Poisson errors |
 | `tests/` | the vendored `fast_data` suite plus the JETSCAPE-glue gates |
 
 ---
@@ -554,6 +556,48 @@ of state is softer near the transition. Anything measured off the maps should ex
 fireball is expanding, and transverse flow at the front opens the cone.
 
 The notebook ships with outputs cleared, following FNO4d's convention.
+
+## The hadron-wake notebook
+
+`notebooks/hadron_wake.ipynb` asks whether the deposit survives particlization, and what it
+looks like in the hadrons. It reads two particlized runs of the same events, both viscous
+(Israel–Stewart, η/s = 0.08):
+
+```bash
+cd $XSCAPE_BUILD
+python ../external_packages/js-contrib/contribs/FastHydro/example/make_hadron_wake_data.py
+#   -> out_hadron_wake/hadrons_{jet,bg}.npz, {jet,bg}_events.json   (~4.5 min, 8 threads)
+HADRON_WAKE_OUT=$PWD/out_hadron_wake jupyter lab \
+    ../external_packages/js-contrib/contribs/FastHydro/notebooks/hadron_wake.ipynb
+```
+
+The default is 4 events × 1000 oversamples with **PGun**: one 60 GeV parton from the fireball
+centre along +x, so every wake sits in the same place and the events stack. `--hard
+PythiaGun` gives dijets, aligned on each event's leading initiator. `--events` and
+`--oversample` buy statistics. The hadron text files (~110 MB per event at 1000
+oversamples) are converted to `.npz` and removed unless you pass `--keep-ascii`.
+
+The notebook shows:
+
+- the bulk: identified spectra, dN/dy, dN_ch/dη, ⟨p_T⟩(η) per species, and the azimuth;
+- the difference jet − bg around the jet axis: the Δφ and (Δη, Δφ) maps with significance,
+  the difference in p_T slices, and the excess's spectrum;
+- a characterization of the near-side excess and the away-side depletion: yield, energy,
+  momentum, width, ⟨p_T⟩ and composition;
+- the energy-momentum balance against the deposit, and the statistics needed for 5σ.
+
+**What the default run shows:**
+
+- The momentum balance closes: Δp_T along the jet is 11.74 ± 0.56 GeV per event, against
+  12.13 GeV deposited.
+- The near-side wake is identified at 12σ in N_ch and 23σ in p_T. It is compact (RMS ≈ 0.5 in
+  both Δφ and Δη).
+- It is flow-boosted: ⟨p_T⟩ is 1.0 against the bulk's 0.56 GeV, the relative excess grows with
+  p_T, and K/π and p/π are enhanced.
+- The away-side diffusion wake is not resolved (1.2σ). It needs ~15–20× the statistics.
+
+The Cooper–Frye is ideal (no δf, since π^{μν} is not stored) and there is no SMASH stage;
+see the notebook's §6.
 
 ## Limitations
 
