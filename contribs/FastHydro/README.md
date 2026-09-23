@@ -503,6 +503,59 @@ The notebook ships with outputs cleared, following FNO4d's convention.
 - **`stop_at_freezeout: false`** in the shipped YAML, so both legs span the same frames. With
   it on, the two legs can stop at different times and the pair is not comparable.
 
+## Possible extension: the same writer for a MUSIC two-stage run
+
+`PairedH5Writer` is not tied to the fast solver, and a MUSIC two-stage run could in
+principle be written into the same paired file. Two of the three pieces already exist;
+this is a sketch of what is left, not a plan of record.
+
+**The droplet and shower capture is already hydro-agnostic.** `params_from_liquefier`,
+`droplets_from_liquefier` and `showers_from_manager` read the C++ `CausalLiquefier` and
+`JetEnergyLossManager`; neither knows FastHydro exists. X-SCAPE's own
+`examples/custom_examples/TwoStagesHydro.cc` already has the shape — one shared
+`CausalLiquefier`, `MUSIC_1` added before the energy-loss manager, `MUSIC_2` after it with
+the liquefier attached — including the ordering constraint FastHydro documents above, since
+only the first `FluidDynamics` is registered as the framework's hydro.
+
+**Pulling `arr` out of MUSIC is already solved.** `jetscape.bulk_sources.event_array(hydro,
+grid_mode=…)` returns `(ntau, nx, ny, neta, 4)` from *any* `FluidDynamics` through
+`get_bulk_info()`, and `attrs_from_grids` emits the FNO4d scalar keys. That is how
+`PyJetscape`'s `H5BulkWriter` already writes MUSIC runs into this schema.
+
+What a MUSIC leg would have to grow is small: an object exposing `.arr`, `.src`, `.diag`,
+`.g` and `.ic_sha256` (what `PairedH5Writer.append` reads), a `GridSpec` built from
+`bulk_info` rather than from the YAML — `bulk_sources.Grid` already has `from_bulk_info` —
+and a config-shaped dict. The writer's only hard uses of the fast_data config are
+`GridSpec.from_cfg`, `cfg["eos"]`, `cfg["output"]` and `cfg["run"]`; `source.mode` and
+`transport.*` are provenance strings.
+
+Three things would actually bite, and they are the reason this is a sketch:
+
+1. **There is no `source/S` to read out of MUSIC.** `MUSIC::add_hydro_source_terms`
+   (`external_packages/MUSIC/src/music.cpp:53`) takes a `HydroSourceBase` pointer and MUSIC
+   evaluates it inside its own loop, per cell per substep; nothing accumulates a source
+   grid. Either write the pair without it — the schema allows `write_source=False` — or
+   re-deposit the same droplets with fast_data's `CausalLiquefierSource`. That
+   reconstruction would **not** reproduce what MUSIC applied: MUSIC point-samples where
+   conservative mode does sub-cell quadrature, and the measured gap is total, not marginal
+   (point sampling loses the whole deposit at `|eta_d| >= 3` — the table under
+   [What the `source:` block is for](#what-the-source-block-is-for)). Putting an
+   approximation of the source into a training file is a decision, not a detail.
+2. **The two legs would not be the same length.** FastHydro evolves both on a fixed tau grid
+   with zero tails, so `arr` and `arr_bg` share a shape by construction. MUSIC stops at
+   freeze-out and the jet leg outlives the background — 10.78 against 10.58 fm/c on the
+   wake event — so the legs would need padding to a common `choose_ntau`.
+   `FnoH5Writer` leaves the tau axis extendible and `PyJetscape`'s `repad_h5.py` exists for
+   exactly this, but `PairedH5Writer` currently sizes `arr_bg` from the first background
+   array it sees and would need to learn about the mismatch.
+3. **Memory.** Both evolutions are live at once. `H5BulkWriter`'s own notes put the O+O
+   native event at 1.29 GB, so two legs plus their arrays on a native MUSIC grid is where
+   this stops being free; `grid_mode="grid"` downsampling is the lever.
+
+Everything else — the `shower/` group, the droplet dump, `PairBrowser`, the wake notebook
+and `Visualization/wake_pyvista.py` — reads the file, not the solver, and would work
+unchanged on such a pair.
+
 ## What FastHydro added to PyJetscape
 
 All additive; **no X-SCAPE core changes**.
