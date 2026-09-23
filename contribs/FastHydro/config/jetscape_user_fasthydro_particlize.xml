@@ -151,8 +151,8 @@
     <!-- FastHydro_jet or FastHydro_bg (run_particlize.py overrides this) -->
     <hydro_id>FastHydro_jet</hydro_id>
     <!-- The Cooper-Frye surface: T_sw, and the Cornelius lattice SurfaceFinder interpolates
-         bulk_info onto. 2x the hydro spacing keeps the finder at ~1 min per event on this
-         grid while it runs single-threaded; 0 = the defaults 0.1 fm / 0.2 fm / 0.2. -->
+         bulk_info onto. 2x the hydro spacing: ~10 s per event on this grid with 8 OpenMP
+         threads (~40 s on one). 0 = the defaults 0.1 fm / 0.2 fm / 0.2, ~60x more cubes. -->
     <T_sw>0.15</T_sw>
     <surface_dtau>0.2</surface_dtau>
     <surface_dx>0.625</surface_dx>

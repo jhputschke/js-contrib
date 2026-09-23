@@ -174,9 +174,10 @@ With 200 oversamples per leg, `delta_spectra.py` gives:
 - The momentum balance closes within its error. That checks the surface's flow
   normalization as well as the pairing.
 - In |y| < 1, the charged p_T excess sits within ~90° of the deposit direction.
-- One event takes about 1 min per leg, and 200 oversamples cost almost nothing on top. Most
-  of the time is the surface finder, which runs single-threaded in a build where CMake did
-  not detect OpenMP (see [Limitations](#limitations)).
+- A background event with 200 oversamples takes 15 s wall on 8 threads, against 55 s
+  single-threaded. The surface and the hadrons are byte-identical either way. Oversamples
+  cost almost nothing; the surface finder dominates, and it scales with the thread count
+  (`OMP_NUM_THREADS`).
 
 ## The pipeline
 
@@ -562,11 +563,13 @@ The notebook ships with outputs cleared, following FNO4d's convention.
   ideal`, and an approximation for a viscous run.
 - **No SMASH in the default build.** With `-DUSE_SMASH=OFF`, an `<Afterburner>` block is
   refused and iSS decays the resonances itself (`Perform_resonance_decays 1`).
-- **The surface finder may run single-threaded.** Its OpenMP loops are only compiled in when
-  CMake's `find_package(OpenMP)` succeeds. On macOS the top-level `CMakeLists.txt` sets only
-  the C++ flags by hand, so the search fails for the C component. The shipped XML therefore
-  uses a Cornelius lattice at 2× the hydro spacing (`<surface_dtau>`, `<surface_dx>`,
-  `<surface_deta>`); 0 restores SurfaceFinder's defaults.
+- **The surface lattice is coarser than the hydro grid.** The shipped XML uses a Cornelius
+  lattice at 2× the hydro spacing (`<surface_dtau>`, `<surface_dx>`, `<surface_deta>`). At
+  the hydro's own spacing the finder does ~16× more cubes; at 0, SurfaceFinder's defaults,
+  ~60× more. It is threaded only in an X-SCAPE build whose CMake found C++ OpenMP. Before
+  the branch's `CMakeLists.txt` fix, macOS builds silently compiled it single-threaded.
+  Check with `nm -u <build>/src/CMakeFiles/JetScape.dir/framework/SurfaceFinder.cc.o | grep
+  __kmpc_fork_call`.
 - **Viscous components are stored as zero.** Matter, LBT and `filter_partons` read only
   `temperature`, `entropy_density` and `vx/vy/vz`, so this does not affect the jet chain.
 - **The half-cell offset on jet vertices.** `InitialState::CoordFromIdx` maps index `i` to
