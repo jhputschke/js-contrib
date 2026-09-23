@@ -18,7 +18,9 @@ Things that are not free choices
 * **Only the FIRST FluidDynamics is the framework's hydro.**  `JetScape::SetPointers()` stops
   at the first one, so Matter, LBT *and* the liquefier all query the background leg through
   `GetHydroCellSignal`, and the jet leg is invisible to signals.  That is exactly the
-  two-stage semantics, and it is why the background leg must come first.
+  two-stage semantics, and it is why the background leg must come first.  The one exception
+  is soft particlization: `<SoftParticlization><hydro_id>` wires iSS to the named leg (see
+  fasthydro/particlization.py), and only iSS.
 * **`hyd2.add_a_liquefier(liq)` is bookkeeping, not physics.**  FastHydro does not pull source
   terms through `FluidDynamics::get_source_term` the way MUSIC does -- it uses fast_data's own
   `CausalLiquefierSource` over the same droplets, via `DropletBridge`.  Attaching the
@@ -34,7 +36,7 @@ import xml.etree.ElementTree as ET
 
 from .grid import GridSpec
 
-__all__ = ["build_two_stage", "check_xml_agrees_with_cfg"]
+__all__ = ["build_bg_only", "build_two_stage", "check_xml_agrees_with_cfg"]
 
 
 def check_xml_agrees_with_cfg(user_xml: str, cfg) -> None:
@@ -80,10 +82,13 @@ def check_xml_agrees_with_cfg(user_xml: str, cfg) -> None:
         problems.append(f"  <Eloss><tStart> = {t_start} is before time.tau0 = {g.tau0}, so "
                         f"energy loss would run against vacuum until the hydro starts")
 
-    if root.find("SoftParticlization") is not None:
-        problems.append("  <SoftParticlization> is present, but FastHydro computes no "
-                        "Cooper-Frye surface: iSS would sample an empty surface and produce "
-                        "zero soft hadrons. Remove the block.")
+    from .particlization import LEGS, config_problems, read_xml
+    soft = read_xml(root)
+    if soft is not None:
+        problems += config_problems(cfg, soft)
+        if soft["hydro_id"] is not None and soft["hydro_id"] not in LEGS:
+            problems.append(f"  <SoftParticlization><hydro_id> = {soft['hydro_id']!r}; "
+                            f"FastHydro's legs are {', '.join(LEGS)}")
 
     auto = root.find("enableAutomaticTaskListDetermination")
     if auto is None or "false" not in (auto.text or "").lower():
@@ -95,7 +100,7 @@ def check_xml_agrees_with_cfg(user_xml: str, cfg) -> None:
 
 
 def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
-                    verbose=True, store=None, keep_bg_arr=True):
+                    verbose=True, store=None, keep_bg_arr=True, hadron_file=None):
     """-> (modules, parts) ready for `jetscape.run_jetscape.run_manual`.
 
     `parts` is a dict of the individual objects (ini, hyd_bg, hyd_jet, liq, bridge, ...) so a
@@ -173,4 +178,84 @@ def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
 
     parts = dict(ini=ini, preeq=preeq, hyd_bg=hyd_bg, liq=liq, jloss=jloss,
                  jmgr=jmgr, bridge=bridge, hyd_jet=hyd_jet)
+    if user_xml:
+        modules += _add_particlization(user_xml, {"FastHydro_bg": hyd_bg,
+                                                  "FastHydro_jet": hyd_jet},
+                                       parts, cfg, hadron_file=hadron_file, verbose=verbose)
     return modules, parts
+
+
+def build_bg_only(cfg, *, user_xml=None, main_xml=None, ic=None, verbose=True,
+                  store=None, keep_bg_arr=True, hadron_file=None):
+    """-> (modules, parts): IC -> NullPreDynamics -> FastHydro_bg [-> iSS -> SMASH -> writer].
+
+    The background half of a particlized wake measurement.  The background leg does not
+    depend on the jet, so on a fixed initial condition it only has to be run -- and heavily
+    oversampled -- once, and every jet event's hadrons are compared against it.  No hard
+    process, energy loss or second leg is built.
+    """
+    from jetscape.pyjetscape_core import create_module, load_xml
+
+    from .hydro import FastHydro
+    from .initial_state import FastGlauberInitialState
+
+    if user_xml:
+        check_xml_agrees_with_cfg(user_xml, cfg)
+    if main_xml or user_xml:
+        load_xml(main_xml or "", user_xml or "")
+
+    ini = ic or FastGlauberInitialState(cfg, verbose=verbose)
+    preeq = create_module("NullPreDynamics")
+    hyd_bg = FastHydro(cfg, stage=1, module_id="FastHydro_bg", ic=ini,
+                       store=store, keep_arr=keep_bg_arr, verbose=verbose)
+    modules = [ini, preeq, hyd_bg]
+    parts = dict(ini=ini, preeq=preeq, hyd_bg=hyd_bg)
+    if user_xml:
+        modules += _add_particlization(user_xml, {"FastHydro_bg": hyd_bg}, parts, cfg,
+                                       hadron_file=hadron_file, verbose=verbose)
+    return modules, parts
+
+
+def _add_particlization(user_xml, legs, parts, cfg, *, hadron_file=None, verbose=True):
+    """iSS [+ SMASH] + a final-state hadron writer, if the user XML has <SoftParticlization>.
+
+    The surface is not built here: iSS gets it in C++ from the chosen leg's bulk_info (see
+    fasthydro/particlization.py).  This only builds the modules, tells the sampled leg to check
+    that its surface closes, and records what was sampled in ``parts["particlization"]``.
+    """
+    from jetscape.pyjetscape_core import create_module, set_writer_output_file
+
+    from .particlization import ISS_EOS, read_xml, write_iss_music_input
+
+    soft = read_xml(user_xml)
+    if soft is None:
+        return []
+    write_iss_music_input(soft["iss_working_path"], ISS_EOS[cfg["eos"]["kind"]])
+    # hydro_id "first" (or absent) is the first FluidDynamics in the task list: the bg leg
+    leg_id = soft["hydro_id"] or "FastHydro_bg"
+    if leg_id not in legs:
+        raise ValueError(f"<SoftParticlization><hydro_id> = {leg_id!r}, but this pipeline has "
+                         f"only {', '.join(legs)}")
+    legs[leg_id].particlize_T_sw = soft["T_sw"]
+
+    modules = [create_module("iSS")]
+    if soft["afterburner"]:
+        try:
+            modules.append(create_module("SMASH"))
+        except ValueError as err:
+            raise ValueError("the user XML has an <Afterburner> block, but SMASH is not in "
+                             "this X-SCAPE build (configure with -DUSE_SMASH=ON), or remove "
+                             "the block to stop after iSS (+ its resonance decays)") from err
+    writer = create_module("JetScapeWriterFinalStateHadronsAscii")
+    hadron_file = hadron_file or f"{leg_id}_final_state_hadrons.dat"
+    set_writer_output_file(writer, hadron_file)
+    modules.append(writer)
+
+    parts["particlization"] = dict(soft, leg=leg_id, hadron_file=hadron_file)
+    parts["iss"] = modules[0]
+    if verbose:
+        print(f"[particlization] iSS samples {leg_id} at T_sw = {soft['T_sw']} GeV, "
+              f"{soft['n_oversample']} oversamples/event"
+              + (", then SMASH" if soft["afterburner"] else "")
+              + f" -> {hadron_file}", flush=True)
+    return modules

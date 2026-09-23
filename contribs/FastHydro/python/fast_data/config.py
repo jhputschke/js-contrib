@@ -96,6 +96,8 @@ DEFAULTS = {
         "pi_rho_max": 1.0,          # rescale pi above this |pi|/(e+p); null disables (see fv.regulate_pi)
         "pi_e_min": 1e-3,           # GeV/fm^3; freeze pi below this e and in capped cells; null disables
         "pi_advection": "centred",  # centred | upwind; the stencil pi is advected with (see fv._upwind_advect)
+        "Pi_p_bounds": [-0.9, 0.3], # bound bulk Pi/p after every step; null disables.  Inert at
+                                    # zeta_over_s = 0; needed above it (see fv.viscous_step)
     },
     "source": {
         "enabled": False,
@@ -240,6 +242,11 @@ def validate_config(cfg):
         raise ConfigError(f"unknown transport.mode {cfg['transport']['mode']!r}")
     if cfg["transport"]["pi_advection"] not in ("centred", "upwind"):
         raise ConfigError(f"unknown transport.pi_advection {cfg['transport']['pi_advection']!r}")
+    pb = cfg["transport"]["Pi_p_bounds"]
+    if pb is not None and (not isinstance(pb, (list, tuple)) or len(pb) != 2
+                           or not float(pb[0]) < 0.0 < float(pb[1])):
+        raise ConfigError(f"transport.Pi_p_bounds must be null or [lo, hi] with lo < 0 < hi "
+                          f"(got {pb!r})")
     if out["freezeout"] not in ("max_T", "central_T", "never"):
         raise ConfigError(f"unknown output.freezeout {out['freezeout']!r}")
 

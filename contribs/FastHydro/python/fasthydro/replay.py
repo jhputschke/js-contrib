@@ -52,7 +52,9 @@ def replay_event(cfg, e0, droplets, params, *, device=None, dtype=None, source_k
             tau_pi_coeff=tr["tau_pi_coeff"], delta_pipi=tr["delta_pipi"],
             delta_PiPi=tr["delta_PiPi"], tau_min=tr["tau_min"],
             pi_rho_max=tr["pi_rho_max"], pi_e_min=tr["pi_e_min"],
-            pi_advection=tr["pi_advection"])
+            pi_advection=tr["pi_advection"],
+            Pi_p_bounds=(tuple(tr["Pi_p_bounds"])
+                         if tr["Pi_p_bounds"] is not None else None))
 
     e0 = np.ascontiguousarray(e0, dtype=np.float64)
     if e0.shape != (g.nx, g.ny, g.neta):

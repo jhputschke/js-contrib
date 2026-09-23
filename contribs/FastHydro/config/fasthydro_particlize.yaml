@@ -1,0 +1,115 @@
+# ---------------------------------------------------------------------------
+# CENTRAL Au+Au 200 GeV, particlized with iSS: the medium of fasthydro_wake.yaml (read that
+# file for why each number is what it is), with the three output settings a Cooper-Frye
+# surface needs.  Pairs with config/jetscape_user_fasthydro_particlize.xml.
+#
+#   output.zero_after_freezeout: false   zeroed frames would fake a surface at the zeroing time
+#   output.stop_at_freezeout:    false   so would frames never computed
+#   eos.kind: hotqcd                     MUSIC EOS 9: the fluid ends on the UrQMD hadron gas,
+#                                        which iSS samples AND decays. hotqcd_smash (EOS 91)
+#                                        would leave the decays to SMASH, absent in this build.
+#
+# and one physics setting that differs from the wake medium: initial_state.target_T is raised
+# so that central Au+Au gives the measured dN_ch/deta ~ 650 at mid-rapidity (the wake config's
+# 0.30 gives ~230).  Measured with Israel-Stewart, eta/s = 0.08, 2 events x 200 oversamples:
+#     dN_ch/deta 637;  dN/dy  pi+ 292, K+ 56, p 17.4   (PHENIX 0-5%: ~286, ~49, ~18)
+#     <pT>       pi+ 0.51, K+ 0.74, p 1.03 GeV          (~10% harder than data: no delta-f,
+#                                                        no hadronic cascade)
+#
+# The grid (+-10 fm, |eta| <= 5) and the tau axis are what let the T = 0.15 GeV surface close
+# in tau and x, y.  The hotter medium freezes out near 12 fm/c, so the axis runs to 15 fm/c
+# (the wake config stops at 11).  It is open at the eta edges by construction, so analyse at
+# mid-rapidity.  EvolveHydro prints a warning if an event does not close.
+#
+# Run with:  example/run_particlize.py --leg jet   and   --leg bg   (same seed, same events)
+# ---------------------------------------------------------------------------
+
+run:
+  nevents: 1
+  seed:    20260919
+  device:  mps             # cpu | cuda | mps.  mps has no float64 -> dtype must be float32.
+  dtype:   float32
+  out:     null            # run_particlize.py writes hadrons, not the hydro pair
+
+grid:
+  nx:   65
+  ny:   65
+  neta: 33
+  dx:   0.3125
+  dy:   0.3125
+  deta: 0.3125
+
+time:
+  tau0:        0.58        # must equal <Preequilibrium><taus>
+  record_dtau: 0.1
+  choose_ntau: 145         # tau = 0.58 .. 15.0 fm/c: freeze-out is near 12 fm/c at target_T 0.39
+  cfl:         0.4
+  hydro_dtau:  null
+
+initial_state:
+  kind: mc_glauber
+  proj: Au
+  targ: Au
+  sigma_nn_mb: 42.0
+  b:    0.0
+  require_collision: true
+  quantity: entropy
+  target_T: 0.39           # -> dN_ch/deta = 637 at |eta| < 0.5, viscous (0.30 in fasthydro_wake.yaml)
+  calib_b:      0.0
+  calib_events: 25
+  e_floor: 1.0e-6
+  profile:
+    w:            0.4
+    alpha:        0.145
+    eta0:         1.5
+    sig_eta:      1.3
+    eta_m:        3.36
+    gamma_k:      null
+    string_fluct: false
+    edge:         0.3
+
+eos:
+  kind: hotqcd             # EOS 9 / UrQMD list: iSS decays the resonances (see the header)
+  path: ./eos/hotQCD       # relative to the working directory (the X-SCAPE build tree)
+  download: true
+  store_table: true
+  n_points: 1500
+
+transport:
+  mode: ideal              # pi and Pi are not handed to iSS either way (cells.py)
+  eta_over_s:   0.08
+  zeta_over_s:  0.0
+  tau_pi_coeff: 5.0
+  pi_e_min:     0.01       # GeV/fm^3 (fast_data default 1e-3): freeze pi in near-vacuum cells. With
+                           # target_T 0.39, event 3 of the default seed diverged at tau = 5.5 fm/c in the
+                           # dilute edge; at 0.01 it runs, and cells above 0.25 GeV/fm^3 (the surface is
+                           # at ~0.3) move by a median 2e-7, at most 0.4% (events 0-2).
+
+source:                    # how droplets are deposited; see fasthydro_wake.yaml
+  mode:    conservative
+  renorm:  grid
+  tau_eval_mode: dep
+  n_sub:     auto
+  n_sub_max: 24
+  min_in_grid:    0.99
+  on_out_of_grid: warn
+
+output:
+  compression:        lzf
+  source_compression: gzip
+  T_fo:               0.150      # only labels the freeze-out frame in the diagnostics
+  freezeout:          max_T
+  zero_after_freezeout: false
+  stop_at_freezeout:  false
+  write_source:       true
+  write_diagnostics:  true
+
+fasthydro:
+  hard_vertex:
+    mode: ncoll
+    smear: 0.4
+  store_showers: true
+  hydro:
+    store: vector
+    store_fields: null
+    accept_preeq_flow_loss: false
