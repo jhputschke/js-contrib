@@ -1,0 +1,181 @@
+<?xml version="1.0"?>
+<!--
+  0-10% Au+Au, FastHydro TUNED to 3D MC-Glauber + MUSIC, PARTICLIZED: iSS samples one leg.
+
+  Pairs with config/AuAu_FastHydro_tune_0_10_particles.yaml (the tune and its numbers are in
+  that file's header).  This is jetscape_user_fasthydro_particlize.xml with the hydro start
+  moved to the tune's tau0:
+      <Preequilibrium><taus>  0.58 -> 0.5   must equal time.tau0 (build_two_stage checks)
+      <Eloss><tStart>         0.58 -> 0.5   quenching starts with the hydro
+  Read that file for everything else: the hard process, the liquefier, Matter + LBT, and the
+  <SoftParticlization> block.
+
+  One run samples ONE leg, chosen by <hydro_id>; example/run_particlize.py writes a copy of
+  this file with hydro_id set from its leg argument.  For spectra alone, run the bg leg.
+
+  The pipeline is built in Python (fasthydro.pipeline), which is why automatic task-list
+  determination is off and there is no <Hydro> block.
+-->
+<jetscape>
+
+  <enableAutomaticTaskListDetermination>false</enableAutomaticTaskListDetermination>
+
+  <nEvents> 1 </nEvents>
+  <vlevel> 0 </vlevel>
+
+  <!-- Each event must regenerate its own IC; reuse would deactivate IS/preeq/hydro
+       for events 1..n-1 and every event would share one fireball. -->
+  <setReuseHydro> false </setReuseHydro>
+  <nReuseHydro> 1 </nReuseHydro>
+
+  <Random>
+    <seed>20260919</seed>
+  </Random>
+
+  <!-- The hadrons go to JetScapeWriterFinalStateHadronsAscii, which the pipeline creates
+       (writers are not read from the XML when the task list is built by hand). -->
+  <JetScapeWriterAscii> off </JetScapeWriterAscii>
+
+  <!-- Initial state: the grid the Python FastGlauberInitialState will assert against.
+       grid_max = n*d/2 so that GetXSize() = ceil(2*grid_max/grid_step) recovers n.
+       Keep these in step with grid: in the YAML - build_two_stage() checks and refuses. -->
+  <IS>
+    <grid_max_x> 10.15625 </grid_max_x>
+    <grid_max_y> 10.15625 </grid_max_y>
+    <grid_max_z> 5.15625 </grid_max_z>
+    <grid_step_x> 0.3125 </grid_step_x>
+    <grid_step_y> 0.3125 </grid_step_y>
+    <grid_step_z> 0.3125 </grid_step_z>
+  </IS>
+
+  <!-- Hard process.
+       PythiaGun is the default because it is the one that USES the sampled hard-scattering
+       vertex: PGun samples it and then overwrites it with zeros (PGun.cc:117-120), so with
+       PGun every shower starts at the fireball centre no matter what
+       fasthydro.hard_vertex.mode says. Select PGun on the command line only for a fixed-pT probe,
+       where that does not matter. -->
+  <Hard>
+    <PythiaGun>
+      <name>PythiaGun</name>
+      <FSR_on>0</FSR_on>
+      <pTHatMin>50</pTHatMin>
+      <pTHatMax>70</pTHatMax>
+      <eCM>200</eCM>
+      <softMomentumCutoff>2.0</softMomentumCutoff>
+      <LinesToRead>
+        HardQCD:all = on
+      </LinesToRead>
+    </PythiaGun>
+    <PGun>
+      <name>PGun</name>
+      <pT>60</pT>
+    </PGun>
+  </Hard>
+
+  <!-- NullPreDynamics is MANDATORY: FluidDynamics::Init() exempts only the module ids
+       "MUSIC" and "Brick" from needing pre-equilibrium and exit(-1)s otherwise.
+       <taus> is the hydro start time and must equal time.tau0 in the YAML. -->
+  <Preequilibrium>
+    <taus> 0.5 </taus>
+    <NullPreDynamics> </NullPreDynamics>
+  </Preequilibrium>
+
+  <!-- The liquefier. The 0-argument CausalLiquefier constructor reads this block, and THIS
+       IS THE SOURCE OF TRUTH for the deposit: DropletBridge reads the five parameters off
+       the live C++ object, so the source.params block in the YAML is only a mirror (and is
+       checked against this one).
+
+       Which of these actually do anything in FastHydro:
+         tau_delay, time_relax, d_diff, width_delta  : yes, they shape the Python deposit
+         dtau                                        : provenance only; its 1/dtau cancels
+                                                        against the hydro dtau, so the
+                                                        Python deposit has no dtau in it
+         dx, dy, deta                                : INERT here. They size the C++
+                                                        smearing_kernel, which FastHydro
+                                                        never calls: the C++ liquefier is
+                                                        used only as a droplet container.
+                                                        Kept equal to the grid for clarity. -->
+  <Liquefier>
+    <threshold_energy_switch> 1 </threshold_energy_switch>
+    <e_threshold> 2.0 </e_threshold>
+    <CausalLiquefier>
+      <name>CausalLiquefier</name>
+      <dtau> 0.02 </dtau>
+      <dx> 0.3125 </dx>
+      <dy> 0.3125 </dy>
+      <deta> 0.3125 </deta>
+      <tau_delay> 1.0 </tau_delay>
+      <time_relax> 0.1 </time_relax>
+      <d_diff> 0.08 </d_diff>
+      <width_delta> 0.1 </width_delta>
+    </CausalLiquefier>
+  </Liquefier>
+
+  <!-- Energy loss. Matter must be listed before Lbt (it sets the virtuality Lbt takes over
+       at Q0); <mutex>ON</mutex> arbitrates the handover. recoil_on=1 is what produces the
+       negative (pstat = -1) back-reaction partons the liquefier turns into droplets. -->
+  <Eloss>
+    <deltaT> 0.1 </deltaT>
+    <maxT> 20 </maxT>
+    <tStart> 0.5 </tStart>
+    <mutex> ON </mutex>
+    <AddLiquefier> true </AddLiquefier>
+
+    <Matter>
+      <name> Matter </name>
+      <matter_on> 1 </matter_on>
+      <Q0> 2.0 </Q0>
+      <in_vac> 0 </in_vac>
+      <recoil_on> 1 </recoil_on>
+      <broadening_on> 0 </broadening_on>
+      <brick_med> 0 </brick_med>
+      <hydro_Tc> 0.16 </hydro_Tc>
+      <qhat0> -2.0 </qhat0>
+      <alphas> 0.25 </alphas>
+      <QhatParametrizationType> 1 </QhatParametrizationType>
+    </Matter>
+
+    <Lbt>
+      <name> Lbt </name>
+      <Q0> 2.0 </Q0>
+      <in_vac> 0 </in_vac>
+      <only_leading> 0 </only_leading>
+      <hydro_Tc> 0.16 </hydro_Tc>
+      <alphas> 0.25 </alphas>
+      <run_alphas> 1 </run_alphas>
+    </Lbt>
+  </Eloss>
+
+  <SoftParticlization>
+    <!-- FastHydro_jet or FastHydro_bg (run_particlize.py overrides this) -->
+    <hydro_id>FastHydro_jet</hydro_id>
+    <!-- The Cooper-Frye surface: T_sw, and the Cornelius lattice SurfaceFinder interpolates
+         bulk_info onto. 2x the hydro spacing: ~10 s per event on this grid with 8 OpenMP
+         threads (~40 s on one). 0 = the defaults 0.1 fm / 0.2 fm / 0.2, ~60x more cubes. -->
+    <T_sw>0.15</T_sw>
+    <surface_dtau>0.2</surface_dtau>
+    <surface_dx>0.625</surface_dx>
+    <surface_deta>0.625</surface_deta>
+    <iSS>
+      <!-- 3+1D surface cells in MUSIC's conventions (forced to 2 anyway: this run is not
+           boost invariant) -->
+      <hydro_mode>2</hydro_mode>
+      <!-- iSS reads music_input here; fasthydro.particlization writes it from eos.kind -->
+      <iSS_working_path>./fasthydro_iss</iSS_working_path>
+      <!-- The hadron list follows the fluid's EoS through music_input's EOS_to_use (9 ->
+           UrQMD, decayed by iSS; 91 -> SMASH, decayed only by SMASH). 1 = UrQMD, stated to
+           match eos.kind: hotqcd; iSS overrides it from the EoS id anyway. -->
+      <afterburner_type>1</afterburner_type>
+      <!-- pi and Pi are stored as zero, so delta-f has nothing to act on -->
+      <include_deltaf_shear>0</include_deltaf_shear>
+      <include_deltaf_bulk>0</include_deltaf_bulk>
+      <!-- Oversamples per event. The background leg sets the noise on (jet - bg):
+           run it with many more (the oversample option of run_particlize.py). -->
+      <number_of_repeated_sampling>20</number_of_repeated_sampling>
+      <!-- No SMASH in this build: iSS decays the resonances itself. It does so only for
+           the UrQMD/PDG lists; with the SMASH list it leaves them to SMASH. -->
+      <Perform_resonance_decays>1</Perform_resonance_decays>
+    </iSS>
+  </SoftParticlization>
+
+</jetscape>

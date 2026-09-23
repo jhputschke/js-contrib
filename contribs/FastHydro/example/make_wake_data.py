@@ -6,6 +6,7 @@
     python make_wake_data.py --legs ideal         # just one
     python make_wake_data.py --dry-run            # print what it would do
     python make_wake_data.py --medium realistic   # the medium normalized to dN_ch/deta ~ 650
+    python make_wake_data.py --medium tune_0_10 --legs visc   # 0-10%, tuned to MUSIC
 
 Two media:
 
@@ -13,6 +14,9 @@ Two media:
                                                      ~2.5x too dilute for central Au+Au
     realistic  config/fasthydro_wake_realistic.yaml  the medium hadron_wake.ipynb runs on,
                                                      -> <build>/out_wake_realistic/
+    tune_0_10  config/AuAu_FastHydro_tune_0_10_wake.yaml  0-10%, tuned to 3D MC-Glauber +
+                                                     MUSIC (tau0 0.5, zeta/s 0.12); viscous,
+                                                     so --legs visc -> <build>/out_wake_tune_0_10/
 
 Two runs of central Au+Au 200 GeV differing in one switch, `transport.mode`:
 
@@ -52,9 +56,13 @@ CONTRIB = os.path.dirname(HERE)
 
 LEGS = {"ideal": "ideal", "visc": "israel_stewart"}
 
-#: --medium -> (config, default output directory)
-MEDIA = {"fno4d": ("fasthydro_wake.yaml", "out_wake"),
-         "realistic": ("fasthydro_wake_realistic.yaml", "out_wake_realistic")}
+#: --medium -> (config, default output directory, user XML)
+MEDIA = {"fno4d": ("fasthydro_wake.yaml", "out_wake", "jetscape_user_fasthydro_wake.xml"),
+         "realistic": ("fasthydro_wake_realistic.yaml", "out_wake_realistic",
+                       "jetscape_user_fasthydro_wake.xml"),
+         # tau0 = 0.5, so it needs its own XML (<taus>, <tStart>); run it with --legs visc
+         "tune_0_10": ("AuAu_FastHydro_tune_0_10_wake.yaml", "out_wake_tune_0_10",
+                       "AuAu_FastHydro_tune_0_10_wake.xml")}
 
 #: eos.kind -> the table ensure_eos must find
 EOS_TABLES = {"hotqcd_smash": ("hrg_hotqcd_eos_SMASH_binary.dat", "SMASH_binary"),
@@ -228,7 +236,8 @@ def main(argv=None):
                     help="X-SCAPE build tree to run in (default: the working directory)")
     ap.add_argument("--medium", choices=sorted(MEDIA), default="fno4d",
                     help="fno4d: fasthydro_wake.yaml, the reference medium (default); realistic: normalized to "
-                         "the measured dN_ch/deta, the one hadron_wake.ipynb uses")
+                         "the measured dN_ch/deta, the one hadron_wake.ipynb uses; tune_0_10: "
+                         "0-10%%, tuned to MUSIC + 3D Glauber (viscous: use --legs visc)")
     ap.add_argument("--out", default=None,
                     help="output directory, relative to --build (default: out_wake, or "
                          "out_wake_realistic for --medium realistic)")
@@ -255,10 +264,10 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     build = os.path.abspath(a.build)
-    cfg_name, out_default = MEDIA[a.medium]
+    cfg_name, out_default, uxml_name = MEDIA[a.medium]
     outdir = os.path.join(build, a.out or out_default)
     cfg = os.path.join(CONTRIB, "config", cfg_name)
-    uxml = os.path.join(CONTRIB, "config", "jetscape_user_fasthydro_wake.xml")
+    uxml = os.path.join(CONTRIB, "config", uxml_name)
     mxml = a.main_xml or os.path.join(build, "..", "config", "jetscape_main.xml")
     driver = os.path.join(HERE, "run_two_stage.py")
 

@@ -6,6 +6,9 @@
     python make_bulk_comparison_data.py --models music           # one model only
     python make_bulk_comparison_data.py --music-variants calibrated,matched
     python make_bulk_comparison_data.py --dry-run
+    # a retuned FastHydro medium, kept next to the others as hadrons_fasthydro_<tag>.npz:
+    python make_bulk_comparison_data.py --models fasthydro --fh-tag tau0.50_T0.445 \
+        --fh-set time.tau0=0.5 --fh-set initial_state.target_T=0.445
 
 The question: how realistic is the initial state that config/fasthydro_wake_realistic.yaml tunes
 (fast_data's tilted MC-Glauber, normalized by target_T = 0.39 at b = 0)?  On a SHARED initial
@@ -181,10 +184,11 @@ def run_music(variant, a, env, fh_cfg):
 
 
 def run_fasthydro(a, env):
-    out_sub = os.path.join(a.outdir, "fasthydro")
+    name = fh_name(a)
+    out_sub = os.path.join(a.outdir, name)
     os.makedirs(out_sub, exist_ok=True)
     cmd = [sys.executable, os.path.join(HERE, "run_particlize.py"), "--leg", "bg",
-           "--config", FH_CFG, "--user-xml", FH_XML, "--main-xml", a.main_xml,
+           "--config", a.fh_config, "--user-xml", a.fh_xml, "--main-xml", a.main_xml,
            "--events", str(a.events), "--oversample", str(a.oversample),
            "--out-dir", out_sub, "--quiet",
            "--set", "transport.mode=israel_stewart",
@@ -193,8 +197,10 @@ def run_fasthydro(a, env):
         cmd += ["--set", f"run.device={a.device}"]
         if a.device == "mps":
             cmd += ["--set", "run.dtype=float32"]
-    print(f"\n  --- fasthydro: {a.events} event(s) x {a.oversample} oversamples, "
-          f"b in [0, {a.b_max}] fm ---")
+    for o in a.fh_set:
+        cmd += ["--set", o]
+    print(f"\n  --- {name}: {a.events} event(s) x {a.oversample} oversamples, "
+          f"b in [0, {a.b_max}] fm" + (f", {' '.join(a.fh_set)}" if a.fh_set else "") + " ---")
     if a.dry_run:
         print("     " + " ".join(cmd))
         return 0
@@ -205,9 +211,14 @@ def run_fasthydro(a, env):
     if r.returncode != 0:
         return _failed(r.returncode, log)
     meta = json.load(open(os.path.join(out_sub, "bg_events.json")))
-    meta["model"] = "fasthydro"
+    meta["model"] = name
     meta["b_range"] = [0.0, a.b_max]
-    return _finish("fasthydro", os.path.join(out_sub, "bg_final_state_hadrons.dat"), meta, a, t1)
+    return _finish(name, os.path.join(out_sub, "bg_final_state_hadrons.dat"), meta, a, t1)
+
+
+def fh_name(a):
+    """fasthydro, or fasthydro_<tag> for a run with --fh-set overrides (kept side by side)."""
+    return f"fasthydro_{a.fh_tag}" if a.fh_tag else "fasthydro"
 
 
 def _failed(code, log):
@@ -248,6 +259,15 @@ def main(argv=None):
     ap.add_argument("--b-max", type=float, default=4.7,
                     help="FastHydro: b sampled on [0, b_max] fm, P(b) ~ b (0-10%%: 4.7)")
     ap.add_argument("--device", default=None, help="FastHydro: cpu | cuda | mps")
+    ap.add_argument("--fh-set", action="append", default=[], metavar="k.p=v",
+                    help="FastHydro: extra YAML override, repeatable (e.g. time.tau0=0.5; "
+                         "<Preequilibrium><taus> follows)")
+    ap.add_argument("--fh-config", default=FH_CFG,
+                    help="FastHydro YAML (default: fasthydro_particlize.yaml, the realistic IC)")
+    ap.add_argument("--fh-xml", default=FH_XML,
+                    help="FastHydro user XML paired with --fh-config")
+    ap.add_argument("--fh-tag", default=None,
+                    help="FastHydro: write hadrons_fasthydro_<tag>.npz, so tunings sit side by side")
     ap.add_argument("--main-xml", default=None,
                     help="default: <build>/../config/jetscape_main.xml")
     ap.add_argument("--root-bulk", action="store_true",
@@ -259,6 +279,7 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     a.build = os.path.abspath(a.build)
+    a.fh_config, a.fh_xml = os.path.abspath(a.fh_config), os.path.abspath(a.fh_xml)
     a.outdir = os.path.join(a.build, a.out)
     a.main_xml = os.path.abspath(a.main_xml or os.path.join(a.build, "..", "config",
                                                             "jetscape_main.xml"))
@@ -271,12 +292,16 @@ def main(argv=None):
     print("=== preflight ===")
     ok = True
     for what, p in (("build tree", a.build), ("runJetscape", os.path.join(a.build, "runJetscape")),
-                    ("MUSIC XML", MUSIC_XML), ("FH config", FH_CFG), ("FH XML", FH_XML),
+                    ("MUSIC XML", MUSIC_XML), ("FH config", a.fh_config), ("FH XML", a.fh_xml),
                     ("main XML", a.main_xml)):
         good = os.path.exists(p)
         ok &= good
         print(f"  {'ok  ' if good else 'MISS'}  {what:11s} {p}")
     bad, fh_cfg = check_same_medium()
+    if a.fh_config != FH_CFG:
+        # a different medium on purpose (e.g. the tune): the realistic-IC check is moot, and
+        # the matched MUSIC variant takes its transport from the default particlize config
+        bad = []
     print(f"  {'ok  ' if not bad else 'DIFF'}  medium      fasthydro_particlize.yaml == "
           f"fasthydro_wake_realistic.yaml" + (f"  (differ: {bad})" if bad else ""))
     ok &= not bad
@@ -295,7 +320,9 @@ def main(argv=None):
     jobs = [(f"music_{v}", lambda v=v: run_music(v, a, env, fh_cfg)) for v in variants
             if "music" in models]
     if "fasthydro" in models:
-        jobs.append(("fasthydro", lambda: run_fasthydro(a, env)))
+        if (a.fh_set or a.fh_config != FH_CFG) and not a.fh_tag:
+            ap.error("--fh-set / --fh-config change the medium: give it a --fh-tag")
+        jobs.append((fh_name(a), lambda: run_fasthydro(a, env)))
 
     print(f"\n=== {a.events} event(s) x {a.oversample} oversamples -> {a.outdir} ===")
     t0 = time.time()

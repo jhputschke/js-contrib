@@ -44,6 +44,8 @@ def replay_event(cfg, e0, droplets, params, *, device=None, dtype=None, source_k
     _np_eos, eos = resolve_eos(cfg["eos"], device=dev, dtype=dt)
     grid = g.to_fv_grid(dev, dt)
 
+    from .bulk_regulator import from_cfg as _bulk_clamp
+    _bulk_clamp(cfg)
     tr = cfg["transport"]
     transport = None
     if str(tr["mode"]).lower() in ("israel_stewart", "viscous", "is"):

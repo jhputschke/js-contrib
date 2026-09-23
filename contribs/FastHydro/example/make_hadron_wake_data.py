@@ -5,6 +5,7 @@
     python make_hadron_wake_data.py --events 8 --oversample 2000
     python make_hadron_wake_data.py --hard PythiaGun       # dijets instead of one parton
     python make_hadron_wake_data.py --dry-run
+    python make_hadron_wake_data.py --medium tune_0_10     # 0-10%, tuned to MUSIC
 
 Two runs of central Au+Au 200 GeV, Israel-Stewart hydro (eta/s = 0.08), on the SAME events:
 
@@ -60,13 +61,24 @@ def ensure_eos_9(build, *, allow_download=True):
 TRANSPORT = "israel_stewart"
 LEGS = ("jet", "bg")
 
+#: --medium -> (config, user XML, default output directory)
+MEDIA = {"realistic": ("fasthydro_particlize.yaml", "jetscape_user_fasthydro_particlize.xml",
+                       "out_hadron_wake"),
+         # 0-10%, tau0 0.5, zeta/s 0.12: tuned to 3D MC-Glauber + MUSIC (see its header)
+         "tune_0_10": ("AuAu_FastHydro_tune_0_10_particles.yaml",
+                       "AuAu_FastHydro_tune_0_10_particles.xml", "out_hadron_wake_tune_0_10")}
+
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--build", default=".",
                     help="X-SCAPE build tree to run in (default: the working directory)")
-    ap.add_argument("--out", default="out_hadron_wake", help="output directory, relative to --build")
+    ap.add_argument("--medium", choices=sorted(MEDIA), default="realistic",
+                    help="realistic: head-on, the default; tune_0_10: 0-10%%, tuned to MUSIC")
+    ap.add_argument("--out", default=None,
+                    help="output directory, relative to --build (default: out_hadron_wake, or "
+                         "out_hadron_wake_tune_0_10 for --medium tune_0_10)")
     ap.add_argument("--events", type=int, default=4)
     ap.add_argument("--oversample", type=int, default=1000, help="iSS samples per event, both legs")
     ap.add_argument("--oversample-bg", type=int, default=None,
@@ -85,9 +97,10 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     build = os.path.abspath(a.build)
-    outdir = os.path.join(build, a.out)
-    cfg = os.path.join(CONTRIB, "config", "fasthydro_particlize.yaml")
-    uxml = os.path.join(CONTRIB, "config", "jetscape_user_fasthydro_particlize.xml")
+    cfg_name, uxml_name, out_default = MEDIA[a.medium]
+    outdir = os.path.join(build, a.out or out_default)
+    cfg = os.path.join(CONTRIB, "config", cfg_name)
+    uxml = os.path.join(CONTRIB, "config", uxml_name)
     mxml = os.path.abspath(a.main_xml or os.path.join(build, "..", "config", "jetscape_main.xml"))
     driver = os.path.join(HERE, "run_particlize.py")
 

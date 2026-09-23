@@ -33,7 +33,8 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/h5_writer.py` | `PairedH5Writer` — the FNO4d HDF5 dataset format |
 | `python/fasthydro/pipeline.py` | `build_two_stage`, `build_bg_only` |
 | `python/fasthydro/particlization.py` | the checks that a leg can give a closed Cooper–Frye surface; iSS's `music_input` |
-| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook (`fasthydro_wake_realistic.yaml`: the same, on the realistic medium); `*_particlize.*` for hadrons; `AuAu_MCGlauber_MUSIC_0_10.xml`, the 3D MC-Glauber + MUSIC + iSS reference |
+| `python/fasthydro/bulk_regulator.py` | opt-in bound on fast_data's bulk pressure (`fasthydro.hydro.bulk_clamp`); needed for ζ/s > 0 |
+| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook (`fasthydro_wake_realistic.yaml`: the same, on the realistic medium); `*_particlize.*` for hadrons; `AuAu_MCGlauber_MUSIC_0_10.xml`, the 3D MC-Glauber + MUSIC + iSS reference; `AuAu_FastHydro_tune_0_10_{particles,wake}.{yaml,xml}`, FastHydro tuned to it for 0–10% |
 | `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py`, `run_particlize.py`, `delta_spectra.py`, `make_hadron_wake_data.py`, `make_bulk_comparison_data.py` |
 | `python/fasthydro/browse.py` | `PairBrowser` — read both legs of a pair out of one file |
 | `notebooks/jet_wake.ipynb` | the wake analysis: Mach cone, damping, broadening, Mach angle |
@@ -243,6 +244,113 @@ are from the event-to-event spread.
   density.
 - **The PHENIX values are approximate.** They average the published 0–5% and 5–10% values;
   ⟨p_T⟩ is 0–5% only. Check them against the tables before quoting.
+
+**τ₀ = 0.5 and `target_T` retuned to MUSIC calibrated.** The Trento-based 2+1D static medium
+starts at τ₀ = 0.5, not 0.58. `--fh-set` overrides the YAML (`<Preequilibrium><taus>`
+follows `time.tau0`), and `--fh-tag` keeps each tuning as its own `hadrons_fasthydro_<tag>.npz`,
+which the notebook picks up:
+
+```bash
+python $C/example/make_bulk_comparison_data.py --models fasthydro --device cuda \
+    --fh-set time.tau0=0.5 --fh-set initial_state.target_T=0.445 --fh-tag tau0.50_T0.445
+```
+
+The runs use the same 25 Glauber events as above, 0–10%:
+
+| FastHydro 0–10% | dN_ch/dη | vs MUSIC calibrated | ⟨p_T⟩ π / K / p [GeV] |
+|---|---|---|---|
+| τ₀ 0.58, `target_T` 0.39 | 497 ± 12 | −25% | 0.508 / 0.731 / 1.002 |
+| τ₀ 0.50, `target_T` 0.39 | 432 ± 11 | −35% | 0.497 / 0.708 / 0.973 |
+| **τ₀ 0.50, `target_T` 0.445** | **675 ± 17** | **+1%** | 0.547 / 0.794 / 1.104 |
+| MUSIC calibrated | 667 ± 18 | | 0.462 / 0.666 / 0.962 |
+
+- **Lowering τ₀ alone costs 13%**, which is the ratio 0.5/0.58: `target_T` fixes the peak
+  temperature, so the initial entropy per unit rapidity scales with τ₀.
+- **`target_T` = 0.445 matches MUSIC calibrated** at mid-rapidity (0.3σ). The value came from
+  s(T_new) = s(T_old)·N_MUSIC/N_FH on the EoS table. A fit through both runs gives
+  N ∝ s(T)^1.03 and 0.443, which is within the statistical error. The π and K yields match to
+  1–2%, and all surfaces close (latest freeze-out 12.2 fm/c).
+- **Away from mid-rapidity, FastHydro is 3–6% higher.** Its dN/dη tails are slightly wider
+  (FWHM 3.55 vs 3.51).
+- **⟨p_T⟩ does not match: 15–19% harder than MUSIC calibrated** (4–6% against MUSIC matched).
+  The hotter start gives more radial flow, and FastHydro has no bulk viscosity and no δf to
+  soften it. Matching the multiplicity moves ⟨p_T⟩ further from MUSIC and from data; only the
+  transport can fix that, not `target_T`.
+- **The realistic configs are unchanged**: still τ₀ = 0.58 and `target_T` = 0.39, the medium of
+  the wake notebooks. The 0–10% tune has its own configs; see
+  [The 0–10% tune](#the-010-tune-auau_fasthydro_tune_0_10).
+
+**Viscosity, to bring ⟨p_T⟩ down.** All runs: 0–10%, τ₀ = 0.5, the same 25 events.
+
+| FastHydro | dN_ch/dη | vs MUSIC cal | ⟨p_T⟩ / MUSIC cal, π / K / p |
+|---|---|---|---|
+| η/s 0.08, `target_T` 0.445 | 675 ± 17 | +1% | 1.18 / 1.20 / 1.15 |
+| η/s 0.16, `target_T` 0.445 | 722 ± 18 | +8% | 1.21 / 1.23 / 1.18 |
+| η/s 0.08, ζ/s 0.04, `target_T` 0.445 | 730 ± 18 | +10% | 1.13 / 1.14 / 1.08 |
+| η/s 0.08, ζ/s 0.08, `target_T` 0.445 | 776 ± 19 | +16% | 1.09 / 1.09 / 1.02 |
+| η/s 0.08, ζ/s 0.08, `target_T` 0.425 | 664 ± 16 | −0.5% | 1.06 / 1.05 / 0.98 |
+| **η/s 0.08, ζ/s 0.12, `target_T` 0.418** | **659 ± 16** | **−1%** | **1.02 / 0.99 / 0.93** |
+
+- **Shear goes the wrong way.** Doubling η/s adds 7% multiplicity and hardens ⟨p_T⟩ by
+  another 2–4%, as expected: the shear stress adds transverse pressure early. (There is no δf
+  to soften the spectra either.)
+- **Bulk viscosity does the job.** It lowers ⟨p_T⟩ and adds entropy, so `target_T` comes back
+  down, which lowers ⟨p_T⟩ further. **ζ/s ≈ 0.12 with `target_T` ≈ 0.418** matches MUSIC
+  calibrated in dN_ch/dη at mid-rapidity (−1%) and in π and K ⟨p_T⟩ (+1.5%, −0.6%). The pion
+  spectrum ratio is flat to ~1.3 GeV, the kaon ratio to ~1.5 GeV.
+- **What bulk does not fix:**
+  - protons are 7% softer, with fewer of them at high p_T, so charged ⟨p_T⟩ is 2–3% low;
+  - dN/dη widens, +7–9% at |η| ≈ 2.5–3 (FWHM 3.60 vs 3.51). A retune would narrow the
+    profile (`eta0` / `sig_eta`).
+
+  Part of both is MUSIC's own bulk δf and its peaked ζ/s(T); FastHydro has constant ζ/s and no δf.
+- **The bulk runs needed a fix fast_data does not have.** Its bulk sector was never exercised
+  (ζ/s = 0 everywhere until now). With ζ/s = 0.04, 1 event in 5 diverges. Cells below
+  `pi_e_min` keep their last Π while p keeps falling, so Π/p drifts to −6 and p + Π < 0.
+  The regulator bounds |Π| by e + p, which does not prevent that; the primitive recovery is
+  validated only for Π/p ∈ [−0.9, 0.3] (`fv.py:324`). The runs above clamp Π to that range
+  after every viscous step; fluid cells stay above −0.66, so only the dilute corona is
+  touched. The clamp is now in FastHydro's own code as an opt-in setting,
+  `fasthydro.hydro.bulk_clamp: [-0.9, 0.3]` (`python/fasthydro/bulk_regulator.py`). It is a
+  stopgap: the real fix belongs upstream in FNO4d's `fast_data` (`fv.viscous_step`), after
+  which the setting can go. FastHydro warns when ζ/s > 0 runs without it.
+
+### The 0–10% tune: `AuAu_FastHydro_tune_0_10`
+
+The best point above, **τ₀ = 0.5, `target_T` = 0.418, ζ/s = 0.12**, with η/s = 0.08,
+b ∈ [0, 4.7] fm and the Π clamp. It comes as two YAML + XML pairs on the same medium:
+
+| pair | for | differs in |
+|---|---|---|
+| `config/AuAu_FastHydro_tune_0_10_particles.{yaml,xml}` | spectra: iSS on one leg | every frame kept for the Cooper–Frye surface; `<SoftParticlization>` in the XML |
+| `config/AuAu_FastHydro_tune_0_10_wake.{yaml,xml}` | jet-wake studies: the paired HDF5 (`arr`, `arr_bg`, `source/`) | frames zeroed after freeze-out; parton level, no iSS |
+
+Each XML is its realistic counterpart with `<Preequilibrium><taus>` and `<Eloss><tStart>` set
+to 0.5, the tune's τ₀; `build_two_stage` refuses a mismatch.
+
+```bash
+cd $XSCAPE_BUILD
+# spectra (background leg); or next to MUSIC in bulk_vs_music.ipynb, tagged tune_0_10:
+python $C/example/run_particlize.py --leg bg --events 25 --oversample 100 --set run.device=cuda \
+    --config $C/config/AuAu_FastHydro_tune_0_10_particles.yaml \
+    --user-xml $C/config/AuAu_FastHydro_tune_0_10_particles.xml
+python $C/example/make_bulk_comparison_data.py --models fasthydro --device cuda --fh-tag tune_0_10 \
+    --fh-config $C/config/AuAu_FastHydro_tune_0_10_particles.yaml \
+    --fh-xml    $C/config/AuAu_FastHydro_tune_0_10_particles.xml
+# the jet wake, parton level -> out_wake_tune_0_10/wake_visc.h5
+python $C/example/make_wake_data.py --medium tune_0_10 --legs visc --device cuda
+# the jet wake at hadron level (jet and bg legs) -> out_hadron_wake_tune_0_10/
+python $C/example/make_hadron_wake_data.py --medium tune_0_10 --device cuda
+```
+
+- **Wake runs: use the viscous leg only.** `make_wake_data.py` normally pairs an ideal and a
+  viscous leg. On this medium the ideal leg drops shear and bulk viscosity from the same IC, so
+  it is not the tuned medium.
+- **b follows 0–10%, and the hard vertex follows N_coll.** The realistic wake medium was head-on
+  so that events stack. `target_T` is tuned to the 0–10% average, so at b = 0 this medium is
+  hotter than data's most central events. Set `initial_state.b: 0.0` for head-on events.
+- **The same caveats as the tune itself:** protons 7% soft, dN/dη 7–9% wide at |η| ≈ 3, no δf
+  handed to iSS, no hadronic afterburner.
 
 ## The pipeline
 

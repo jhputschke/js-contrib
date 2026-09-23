@@ -35,11 +35,13 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _CFG = os.path.join(os.path.dirname(_HERE), "config")
 
 
-def derived_xml(user_xml, leg, oversample, path):
+def derived_xml(user_xml, leg, oversample, path, taus=None):
     """A copy of ``user_xml`` with <SoftParticlization><hydro_id> (and the oversampling) set.
 
     The C++ side reads hydro_id from the XML itself (JetScape::SetPointers), so the leg has to
-    be in the file, not just in Python.
+    be in the file, not just in Python.  ``taus`` sets <Preequilibrium><taus>: main() passes it
+    only when ``--set time.tau0=...`` overrides the YAML, so that the hydro start time can be
+    changed from the command line.  Unmodified files still meet build_two_stage's check.
     """
     tree = ET.parse(user_xml)
     sp = tree.getroot().find("SoftParticlization")
@@ -49,6 +51,11 @@ def derived_xml(user_xml, leg, oversample, path):
     if hid is None:
         hid = ET.SubElement(sp, "hydro_id")
     hid.text = f"FastHydro_{leg}"
+    if taus is not None:
+        t = tree.getroot().find("Preequilibrium/taus")
+        if t is None:
+            raise SystemExit(f"{user_xml} has no <Preequilibrium><taus>")
+        t.text = f" {float(taus)} "
     if oversample is not None:
         n = sp.find("iSS/number_of_repeated_sampling")
         if n is None:
@@ -85,8 +92,10 @@ def main(argv=None):
     os.makedirs(a.out_dir, exist_ok=True)
     cfg = load_config(a.config, a.set)
     nev = a.events if a.events is not None else int(cfg["run"]["nevents"])
+    tau0_set = any(o.split("=", 1)[0].strip() == "time.tau0" for o in a.set)
     user_xml = derived_xml(a.user_xml, a.leg, a.oversample,
-                           os.path.join(a.out_dir, f"jetscape_user_{a.leg}.xml"))
+                           os.path.join(a.out_dir, f"jetscape_user_{a.leg}.xml"),
+                           taus=cfg["time"]["tau0"] if tau0_set else None)
     hadron_file = os.path.join(a.out_dir, f"{a.leg}_final_state_hadrons.dat")
 
     common = dict(user_xml=user_xml, main_xml=a.main_xml, verbose=not a.quiet,
