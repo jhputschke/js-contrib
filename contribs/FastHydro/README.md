@@ -5,10 +5,11 @@ droplets** — on top of a fast, pure-Python finite-volume Milne hydro solver, a
 **paired background / jet evolution on an identical initial condition**. That pair is what
 energy-deposition FNO studies need, and the per-event cost makes large samples practical.
 
-> **Parton level only.** FastHydro computes no Cooper–Frye surface, so there is no soft
-> particlization: do not add a `<SoftParticlization>` block, iSS would sample an empty surface
-> and produce zero soft hadrons. It produces bulk evolution and jet observables.
-> See [Limitations](#limitations).
+> **Hadron level, one leg at a time.** With a `<SoftParticlization>` block, iSS samples the
+> chosen leg's freeze-out surface, which X-SCAPE builds in C++ from the stored evolution.
+> The jet-induced hadrons are then (jet run) − (background run) on the same events. This
+> needs X-SCAPE branch `fasthydro_hadronization`. See
+> [Soft particlization](#soft-particlization-hadron-level) and [Limitations](#limitations).
 
 The solver and the initial state come from [FNO4d](https://github.com/JETSCAPE)'s `fast_data`,
 vendored verbatim under `python/fast_data/` — see [VENDORING.md](VENDORING.md). On the same
@@ -30,9 +31,10 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/showers.py` | the parton shower as a space-time graph: capture, layout, segments |
 | `python/fasthydro/replay.py` | re-run the jet leg from a dump, without X-SCAPE |
 | `python/fasthydro/h5_writer.py` | `PairedH5Writer` — the FNO4d HDF5 dataset format |
-| `python/fasthydro/pipeline.py` | `build_two_stage` |
-| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook |
-| `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py` |
+| `python/fasthydro/pipeline.py` | `build_two_stage`, `build_bg_only` |
+| `python/fasthydro/particlization.py` | the checks that a leg can give a closed Cooper–Frye surface; iSS's `music_input` |
+| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook; `*_particlize.*` for hadrons |
+| `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py`, `run_particlize.py`, `delta_spectra.py` |
 | `python/fasthydro/browse.py` | `PairBrowser` — read both legs of a pair out of one file |
 | `notebooks/jet_wake.ipynb` | the wake analysis: Mach cone, damping, broadening, Mach angle |
 | `tests/` | the vendored `fast_data` suite plus the JETSCAPE-glue gates |
@@ -110,6 +112,56 @@ For the wake notebook's data, one command does both legs:
 ```bash
 python $C/example/make_wake_data.py        # -> out_wake/wake_{ideal,visc}.h5
 ```
+
+## Soft particlization (hadron level)
+
+FastHydro needs no surface code of its own. It fills `bulk_info`. When iSS finds that the hydro
+handed over no surface, it asks the hydro to build one from that stored evolution. The chain is
+`SoftParticlization::FindHydroHyperSurface` → `FluidDynamics::FindSurfaceFromEvolution` →
+`SurfaceFinder` (Cornelius), all C++ in X-SCAPE core. Any hydro that fills `bulk_info` gets
+the same path.
+
+```bash
+cd $XSCAPE_BUILD
+C=../external_packages/js-contrib/contribs/FastHydro
+# jet leg: IC -> Matter+LBT -> liquefier -> FastHydro_jet -> iSS
+python $C/example/run_particlize.py --leg jet --events 10 --out-dir out_particlize
+# background leg: the SAME events (same seed), no jets; oversample it more
+python $C/example/run_particlize.py --leg bg  --events 10 --out-dir out_particlize --oversample 200
+python $C/example/delta_spectra.py --out-dir out_particlize --npz out_particlize/delta.npz
+```
+
+**One run particlizes one leg.** `<SoftParticlization><hydro_id>` picks `FastHydro_jet` or
+`FastHydro_bg`. `run_particlize.py` writes a copy of the XML with the leg set. Only the
+soft-particlization signals follow `hydro_id`; Matter, LBT and the liquefier keep querying
+the background leg. An event's IC depends only on `(run.seed, event index)`, so event *k*
+of the background run is the background of event *k* of the jet run. Both runs record the
+IC's sha256, and `delta_spectra.py` refuses to pair events whose hashes differ.
+
+**What makes the surface meaningful.** `check_xml_agrees_with_cfg` refuses a run that
+cannot give one:
+
+- `output.zero_after_freezeout` / `stop_at_freezeout` must be off, or the zeroed frames fake a
+  surface.
+- The EoS must be `hotqcd_smash`, the hadron gas iSS samples (`EOS_to_use 91`).
+
+`EvolveHydro` warns if the fireball is still above T_sw at the last frame or on a transverse
+boundary. The η edges are open by construction, so analyse at mid-rapidity. The shipped
+`fasthydro_particlize.yaml` is the wake medium: ±10 fm, |η| ≤ 5, τ to 11 fm/c.
+
+**The noise is the background's.** Tens of GeV of wake hadrons sit on top of ~10⁴ GeV of
+bulk. iSS's Poisson fluctuations on the (jet − bg) difference fall only as 1/√(oversamples).
+`delta_spectra.py` prints each difference with its compound-Poisson error, so you can see
+how many oversamples a signal needs.
+
+**Checked.** On the shipped config with 2 oversamples:
+
+- The sampled hadrons carry 87% of the hydro's energy at τ₀. The rest leaves through the open
+  η edges (T there is 0.159 GeV > T_sw) or falls outside iSS's rapidity window.
+- The jet run deposited 27.0 GeV in 23 droplets, and the two runs' IC hashes agree.
+- One event takes about 1 min per leg. Most of that is the surface finder, which runs
+  single-threaded in a build where CMake did not detect OpenMP (see
+  [Limitations](#limitations)).
 
 ## The pipeline
 
@@ -489,11 +541,19 @@ The notebook ships with outputs cleared, following FNO4d's convention.
 
 ## Limitations
 
-- **No Cooper–Frye surface, no soft particlization.** `JetHadronization` does not need the
-  surface and may well work, but that is **unverified** — treat v1 as parton level.
+- **Soft hadrons only, and ideal Cooper–Frye.** The jet's own surviving partons are not
+  hadronized, and `JetHadronization` is still **unverified**. π^{μν} and Π are stored as
+  zero, so iSS's δf switches have nothing to act on. That is exact for `transport.mode:
+  ideal`, and an approximation for a viscous run.
+- **No SMASH in the default build.** With `-DUSE_SMASH=OFF`, an `<Afterburner>` block is
+  refused and iSS decays the resonances itself (`Perform_resonance_decays 1`).
+- **The surface finder may run single-threaded.** Its OpenMP loops are only compiled in when
+  CMake's `find_package(OpenMP)` succeeds. On macOS the top-level `CMakeLists.txt` sets only
+  the C++ flags by hand, so the search fails for the C component. The shipped XML therefore
+  uses a Cornelius lattice at 2× the hydro spacing (`<surface_dtau>`, `<surface_dx>`,
+  `<surface_deta>`); 0 restores SurfaceFinder's defaults.
 - **Viscous components are stored as zero.** Matter, LBT and `filter_partons` read only
-  `temperature`, `entropy_density` and `vx/vy/vz`, so this does not affect the jet chain; it
-  would matter for Cooper–Frye, which is absent anyway.
+  `temperature`, `entropy_density` and `vx/vy/vz`, so this does not affect the jet chain.
 - **The half-cell offset on jet vertices.** `InitialState::CoordFromIdx` maps index `i` to
   `-grid_max + i*step` (MUSIC's axis), while the energy density is cell-centred at
   `-(n-1)/2*step + i*step`. Sampled hard-scattering vertices therefore sit half a cell from

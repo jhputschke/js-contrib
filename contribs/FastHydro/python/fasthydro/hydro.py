@@ -86,6 +86,11 @@ class FastHydro(_base()):
         self.diag = {}
         self.ic_sha256 = None
 
+        # Set by the pipeline when iSS samples THIS leg's surface (fasthydro/particlization.py).
+        # The surface itself is built in C++ from bulk_info; this only checks it can close.
+        self.particlize_T_sw = None
+        self.closure = None
+
         if store not in ("vector", "aos"):
             raise ValueError(f"store must be 'vector' or 'aos', got {store!r}")
         # NOT set_preserve_bulk_info(True) -- see the module docstring.
@@ -187,6 +192,21 @@ class FastHydro(_base()):
             self.store_fluid_cells_from_numpy_3d(cells, list(self.fields))
         else:
             self.store_fluid_cells_aos_3d(cells, list(self.fields))
+
+        if self.particlize_T_sw is not None:
+            from .particlization import closure_report
+            self.closure = closure_report(out, self._eos, self.particlize_T_sw)
+            c = self.closure
+            if not c["closed"]:
+                print(f"[{self.GetId()}] WARNING: the T = {c['T_sw']} GeV surface is not "
+                      f"closed inside the stored evolution: T_max = "
+                      f"{c['T_max_last_frame']:.4f} GeV at the last frame, "
+                      f"{c['T_max_transverse_boundary']:.4f} GeV on the transverse boundary. "
+                      f"Extend time.choose_ntau or the grid.", flush=True)
+            elif self.verbose:
+                print(f"[{self.GetId()}] surface at T = {c['T_sw']} GeV closes in tau and "
+                      f"x,y (eta edges open, T_max there = {c['T_max_eta_boundary']:.4f} GeV)",
+                      flush=True)
         self.set_hydro_status_finished()
         self.reset_out_of_range_count()
 

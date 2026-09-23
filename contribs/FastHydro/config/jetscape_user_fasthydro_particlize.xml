@@ -1,15 +1,21 @@
 <?xml version="1.0"?>
 <!--
-  FastHydro two-stage jet-deposition run.
+  FastHydro two-stage run, PARTICLIZED: central Au+Au with iSS sampling one leg.
 
-  Every tag below already exists in config/jetscape_main.xml.  That is a hard requirement, not
-  a style choice: JetScape::Init() -> CompareElementsFromXML() -> recurseToSearch() calls
-  exit(-1) for any user-XML tag with no counterpart there, so introducing a <FastHydro> block
-  would mean patching X-SCAPE core.  Everything specific to the solver (grid, EoS, transport,
-  tau axis, deposit mode, device) lives in fasthydro_twostage.yaml instead.
+  Pairs with config/fasthydro_particlize.yaml. Everything up to <Eloss> is
+  jetscape_user_fasthydro_wake.xml unchanged; read that file for the reasoning.
 
-  The pipeline itself is built in Python (fasthydro.pipeline.build_two_stage), which is why
-  automatic task-list determination is off and there is no <Hydro> block.
+  What is new is <SoftParticlization>. FastHydro builds no surface itself: iSS finds that the
+  hydro handed over none and asks it to build one from its stored evolution
+  (SoftParticlization::FindHydroHyperSurface -> FluidDynamics::FindSurfaceFromEvolution ->
+  SurfaceFinder, all C++ in X-SCAPE core, branch fasthydro_hadronization).
+
+  One run samples ONE leg, chosen by <hydro_id>. example/run_particlize.py writes a copy of
+  this file with hydro_id set from its leg argument, so it is enough to keep FastHydro_jet here.
+  The jets keep seeing the background leg either way.
+
+  The pipeline is built in Python (fasthydro.pipeline), which is why automatic task-list
+  determination is off and there is no <Hydro> block.
 -->
 <jetscape>
 
@@ -24,22 +30,23 @@
   <nReuseHydro> 1 </nReuseHydro>
 
   <Random>
-    <seed>20260922</seed>
+    <seed>20260919</seed>
   </Random>
 
-  <!-- FastHydro writes its own HDF5; the framework writers stay off. -->
+  <!-- The hadrons go to JetScapeWriterFinalStateHadronsAscii, which the pipeline creates
+       (writers are not read from the XML when the task list is built by hand). -->
   <JetScapeWriterAscii> off </JetScapeWriterAscii>
 
   <!-- Initial state: the grid the Python FastGlauberInitialState will assert against.
        grid_max = n*d/2 so that GetXSize() = ceil(2*grid_max/grid_step) recovers n.
        Keep these in step with grid: in the YAML - build_two_stage() checks and refuses. -->
   <IS>
-    <grid_max_x> 6.25 </grid_max_x>
-    <grid_max_y> 6.25 </grid_max_y>
-    <grid_max_z> 2.6 </grid_max_z>
-    <grid_step_x> 0.5 </grid_step_x>
-    <grid_step_y> 0.5 </grid_step_y>
-    <grid_step_z> 0.4 </grid_step_z>
+    <grid_max_x> 10.15625 </grid_max_x>
+    <grid_max_y> 10.15625 </grid_max_y>
+    <grid_max_z> 5.15625 </grid_max_z>
+    <grid_step_x> 0.3125 </grid_step_x>
+    <grid_step_y> 0.3125 </grid_step_y>
+    <grid_step_z> 0.3125 </grid_step_z>
   </IS>
 
   <!-- Hard process.
@@ -70,7 +77,7 @@
        "MUSIC" and "Brick" from needing pre-equilibrium and exit(-1)s otherwise.
        <taus> is the hydro start time and must equal time.tau0 in the YAML. -->
   <Preequilibrium>
-    <taus> 0.6 </taus>
+    <taus> 0.58 </taus>
     <NullPreDynamics> </NullPreDynamics>
   </Preequilibrium>
 
@@ -95,10 +102,10 @@
     <CausalLiquefier>
       <name>CausalLiquefier</name>
       <dtau> 0.02 </dtau>
-      <dx> 0.5 </dx>
-      <dy> 0.5 </dy>
-      <deta> 0.4 </deta>
-      <tau_delay> 0.6 </tau_delay>
+      <dx> 0.3125 </dx>
+      <dy> 0.3125 </dy>
+      <deta> 0.3125 </deta>
+      <tau_delay> 1.0 </tau_delay>
       <time_relax> 0.1 </time_relax>
       <d_diff> 0.08 </d_diff>
       <width_delta> 0.1 </width_delta>
@@ -111,7 +118,7 @@
   <Eloss>
     <deltaT> 0.1 </deltaT>
     <maxT> 20 </maxT>
-    <tStart> 0.6 </tStart>
+    <tStart> 0.58 </tStart>
     <mutex> ON </mutex>
     <AddLiquefier> true </AddLiquefier>
 
@@ -140,7 +147,33 @@
     </Lbt>
   </Eloss>
 
-  <!-- NO <SoftParticlization>: this run is parton level. For hadrons, see
-       jetscape_user_fasthydro_particlize.xml and example/run_particlize.py. -->
+  <SoftParticlization>
+    <!-- FastHydro_jet or FastHydro_bg (run_particlize.py overrides this) -->
+    <hydro_id>FastHydro_jet</hydro_id>
+    <!-- The Cooper-Frye surface: T_sw, and the Cornelius lattice SurfaceFinder interpolates
+         bulk_info onto. 2x the hydro spacing keeps the finder at ~1 min per event on this
+         grid while it runs single-threaded; 0 = the defaults 0.1 fm / 0.2 fm / 0.2. -->
+    <T_sw>0.15</T_sw>
+    <surface_dtau>0.2</surface_dtau>
+    <surface_dx>0.625</surface_dx>
+    <surface_deta>0.625</surface_deta>
+    <iSS>
+      <!-- 3+1D surface cells in MUSIC's conventions (forced to 2 anyway: this run is not
+           boost invariant) -->
+      <hydro_mode>2</hydro_mode>
+      <!-- iSS reads music_input here; fasthydro.particlization writes one (EOS_to_use 91) -->
+      <iSS_working_path>./fasthydro_iss</iSS_working_path>
+      <!-- 2 = the SMASH hadron list, which is what hotqcd_smash ends on -->
+      <afterburner_type>2</afterburner_type>
+      <!-- pi and Pi are stored as zero, so delta-f has nothing to act on -->
+      <include_deltaf_shear>0</include_deltaf_shear>
+      <include_deltaf_bulk>0</include_deltaf_bulk>
+      <!-- Oversamples per event. The background leg sets the noise on (jet - bg):
+           run it with many more (the oversample option of run_particlize.py). -->
+      <number_of_repeated_sampling>20</number_of_repeated_sampling>
+      <!-- No SMASH in this build: let iSS decay the resonances itself -->
+      <Perform_resonance_decays>1</Perform_resonance_decays>
+    </iSS>
+  </SoftParticlization>
 
 </jetscape>

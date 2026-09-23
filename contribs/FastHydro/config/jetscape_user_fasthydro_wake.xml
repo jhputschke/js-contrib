@@ -144,7 +144,7 @@
     </Lbt>
   </Eloss>
 
-  <!-- NO <SoftParticlization>: FastHydro computes no Cooper-Frye surface, so iSS would
-       sample an empty surface and produce zero soft hadrons. This run is parton-level. -->
+  <!-- NO <SoftParticlization>: this run is parton level. For hadrons, see
+       jetscape_user_fasthydro_particlize.xml and example/run_particlize.py. -->
 
 </jetscape>
