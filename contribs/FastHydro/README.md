@@ -33,11 +33,12 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/h5_writer.py` | `PairedH5Writer` — the FNO4d HDF5 dataset format |
 | `python/fasthydro/pipeline.py` | `build_two_stage`, `build_bg_only` |
 | `python/fasthydro/particlization.py` | the checks that a leg can give a closed Cooper–Frye surface; iSS's `music_input` |
-| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook (`fasthydro_wake_realistic.yaml`: the same, on the realistic medium); `*_particlize.*` for hadrons |
-| `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py`, `run_particlize.py`, `delta_spectra.py`, `make_hadron_wake_data.py` |
+| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook (`fasthydro_wake_realistic.yaml`: the same, on the realistic medium); `*_particlize.*` for hadrons; `AuAu_MCGlauber_MUSIC_0_10.xml`, the 3D MC-Glauber + MUSIC + iSS reference |
+| `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py`, `run_particlize.py`, `delta_spectra.py`, `make_hadron_wake_data.py`, `make_bulk_comparison_data.py` |
 | `python/fasthydro/browse.py` | `PairBrowser` — read both legs of a pair out of one file |
 | `notebooks/jet_wake.ipynb` | the wake analysis: Mach cone, damping, broadening, Mach angle |
 | `notebooks/hadron_wake.ipynb` | the wake at hadron level: spectra, ⟨p_T⟩(η), azimuth; the jet-induced excess and depletion, their balance and significance |
+| `notebooks/bulk_vs_music.ipynb` | the realistic medium's bulk observables (p_T spectra, ⟨p_T⟩, dN/dη) against 3D MC-Glauber + MUSIC, 0–10% |
 | `python/fasthydro/hadrons.py` | hadron files → compact npz; oversample-averaged histograms with compound-Poisson errors |
 | `tests/` | the vendored `fast_data` suite plus the JETSCAPE-glue gates |
 
@@ -183,6 +184,65 @@ how many oversamples a signal needs.
 - An ideal background event with 200 oversamples takes 15 s wall on 8 threads, against 55 s
   single-threaded, with byte-identical output. The surface finder dominates the cost and
   scales with `OMP_NUM_THREADS`; the oversamples cost almost nothing.
+
+## Bulk comparison with MUSIC + 3D MC-Glauber
+
+How realistic is the initial state that `fasthydro_wake_realistic.yaml` tunes? On a shared IC,
+FastHydro and MUSIC agree to 1–3%, so running each on its own IC isolates the IC.
+`notebooks/bulk_vs_music.ipynb` compares the hadrons, 0–10% Au+Au, from:
+
+- **MUSIC calibrated**: `config/AuAu_MCGlauber_MUSIC_0_10.xml`, 3D MC-Glauber strings → MUSIC
+  → iSS, with its calibrated η/s(T), ζ/s(T) and δf;
+- **MUSIC matched** (optional): the same strings, with FastHydro's transport and no δf. It
+  differs from FastHydro only in the IC;
+- **FastHydro**: `fasthydro_particlize.yaml` (the realistic IC, which the driver checks), with b
+  sampled over 0–10%.
+
+```bash
+cd $XSCAPE_BUILD
+python $C/example/make_bulk_comparison_data.py --device cuda --music-variants calibrated,matched
+```
+
+- **0–10% is selected on b, in both models.** Inside X-SCAPE, 3dMCGlauber's `cenMin`/`cenMax`
+  cut is never applied: `MCGlauberWrapper` calls `generate_pre_events()`, which only samples b
+  on `[b_min, b_max]`. The XML therefore sets `b_max` = 4.7 fm, and FastHydro gets the same range.
+- **MUSIC runs EOS 9**, not 91, because iSS decays resonances only for the UrQMD list and SMASH
+  is not built.
+- **The driver switches off MUSIC's stored evolution**, which iSS does not need. With it on, one
+  central event takes ~65 GB RSS; without it, ~1.5 GB and ~40 s per event on the GB10.
+
+**Result.** `--events 25 --oversample 100` per model, 2026-09-23. Mid-rapidity values; errors
+are from the event-to-event spread.
+
+| | dN_ch/dη | ⟨p_T⟩ π / K / p [GeV] | dN/dη FWHM |
+|---|---|---|---|
+| MUSIC calibrated | 667 ± 18 | 0.462 / 0.666 / 0.962 | 3.51 |
+| MUSIC matched | 544 ± 15 | 0.526 / 0.762 / 1.039 | 3.53 |
+| FastHydro 0–10% | 497 ± 12 | 0.508 / 0.731 / 1.002 | 3.56 |
+| FastHydro b = 0 (the tuning point) | 634 ± 3 | 0.513 / 0.737 / 1.011 | 3.56 |
+| PHENIX (approx.) | ~624 | 0.45 / 0.67 / 0.95 | |
+
+- **The initial state alone is close.** FastHydro against MUSIC matched:
+  - multiplicity is 9% lower;
+  - ⟨p_T⟩ is 3–4% softer for every species, and the spectrum ratio falls from ~0.97 at low
+    p_T to ~0.8 at 2.5 GeV. The fast_data IC gives slightly less radial flow; it is not too
+    compact;
+  - the dN/dη shape agrees to 1% in FWHM. FastHydro's tails are ~5% higher at |η| ≈ 3, so
+    `eta0` / `sig_eta` need at most a small trim.
+- **The normalization is what is off.** `target_T` = 0.39 was set at b = 0. Over 0–10%
+  (⟨b⟩ = 3.4 fm) it gives 497: 20% below the data's ~624, and 9% below MUSIC matched.
+  - To first order (s ∝ T³), 0–10% needs `target_T` ≈ 0.42 to match data, or ≈ 0.40 to match
+    MUSIC matched.
+  - At b = 0, where the wake runs are made, it gives 634, 8% under PHENIX 0–5% (687).
+- **The calibrated transport matters more than the initial state.** Bulk viscosity and δf add
+  23% multiplicity (entropy production) and lower ⟨p_T⟩ by 7–13%. That brings MUSIC to within
+  ~2% of the data's ⟨p_T⟩. FastHydro's 5–13% ⟨p_T⟩ excess over data therefore comes from its
+  transport (no bulk viscosity, no δf), not from its IC.
+- **Protons test neither IC here.** MUSIC calibrated gives 25.6 p per unit rapidity against
+  ~17 in data, with p̄ = p. There is no SMASH (so no p p̄ annihilation) and no net baryon
+  density.
+- **The PHENIX values are approximate.** They average the published 0–5% and 5–10% values;
+  ⟨p_T⟩ is 0–5% only. Check them against the tables before quoting.
 
 ## The pipeline
 

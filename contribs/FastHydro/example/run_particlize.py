@@ -108,6 +108,10 @@ def main(argv=None):
             rec = {"event": len(events), "ic_sha256": hyd.ic_sha256,
                    "tau_freezeout": hyd.diag.get("tau_freezeout"),
                    "closure": hyd.closure}
+            ini_meta = getattr(parts.get("ini"), "meta", None) or {}
+            for k in ("b", "npart", "ncoll"):          # the Glauber event this IC came from
+                if k in ini_meta:
+                    rec[k] = float(ini_meta[k])
             P = hyd.diag.get("P_cart")
             if P is not None:          # the four-momentum the source deposited, [E, px, py, pz]
                 rec["deposited_P"] = np.asarray(P, dtype=float).sum(axis=0).tolist()
