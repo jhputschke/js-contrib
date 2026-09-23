@@ -310,7 +310,7 @@ The runs use the same 25 Glauber events as above, 0–10%:
   p + Π < 0. The `pi_rho_max·(e + p)` bound does not prevent that; the primitive recovery is
   validated only for Π/p ∈ [−0.9, 0.3]. FNO4d's fast_data now holds Π/p to that range after
   every viscous step, via `transport.Pi_p_bounds` (default [−0.9, 0.3]; inert at ζ = 0, bit for
-  bit). It is vendored here from FNO4d `f212654`. The runs above used the same bound, applied
+  bit). It is vendored here from FNO4d `b4a9fcd` (PR #24). The runs above used the same bound, applied
   by an interim wrapper, which gives identical results.
 - **The bound also regulates early near-T_c bulk.** At ζ/s = 0.12 the unbounded step reaches
   Π/p ≈ −1.1 for τ < 3 fm/c, and the bound trims 20–30% of the cells at e = 0.24–1 GeV/fm³.
