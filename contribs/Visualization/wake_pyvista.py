@@ -3,17 +3,32 @@ contribs/Visualization/wake_pyvista.py
 
 The jet wake, side by side, from ONE FastHydro paired HDF5 file:
 
-    ┌──────────────┬──────────────────┬──────────────────┐
-    │  no jet      │  with jet        │  difference      │
-    │  arr_bg      │  arr             │  arr - arr_bg    │
-    │  + shower    │  + shower        │  + shower        │
-    └──────────────┴──────────────────┴──────────────────┘
+    ┌────────────────────┬────────────────────┬────────────────────┐
+    │  medium,no deposit │  medium + deposit  │  the wake          │
+    │  arr_bg            │  arr               │  arr - arr_bg      │
+    │  + shower          │  + the SAME shower │  + the SAME shower │
+    └────────────────────┴────────────────────┴────────────────────┘
 
-The left panel is the fireball that would have existed anyway.  The middle one is the
-same fireball with the jet's energy deposited into it.  Neither shows the wake clearly --
-it is a per-mille disturbance on a 28 GeV/fm^3 background.  The right panel is the
-subtraction, where the wake is the *only* thing left, and it is why FastHydro writes both
-legs of one initial condition into a single file (see FastHydro/README.md).
+The left panel is **not** a no-jet scenario.  There is exactly one shower in the run and
+it is drawn, unchanged, in all three panels: a real Matter+LBT shower, already quenched.
+What the left panel leaves out is only the medium's *back-reaction* to the energy that
+shower gave up.  So left-to-middle adds the response, not the jet.
+
+That the left panel is the medium the shower actually traversed is not incidental -- it
+is the mechanism.  `JetScape::SetPointers()` registers only the FIRST FluidDynamics in the
+task list as the framework's hydro, and FastHydro puts the background leg there, so Matter
+and LBT query `arr_bg` through `GetHydroCellSignal` and the jet leg is invisible to them.
+Measured on a run: 119831 medium queries against the background leg, 0 against the jet leg.
+
+The coupling is therefore **one-way**.  The shower is quenched by the undisturbed medium,
+its droplets are deposited into the second leg, and nothing feeds the wake back into the
+shower -- which is what makes `arr - arr_bg` a clean linear response rather than a mixture
+of two different jets, and is also its limitation.
+
+Neither of the first two panels shows the wake: it is a per-mille disturbance on a
+28 GeV/fm^3 background, and they are deliberately drawn on ONE colour scale so that is
+visible as a fact rather than hidden by rescaling.  The right panel is the subtraction,
+where the wake is all that is left.
 
 The three views share a camera, so they rotate and zoom together.
 
@@ -79,10 +94,14 @@ import hydro_pyvista as hp                                            # noqa: E4
 FEATURES = ("e", "T", "vx", "vy", "vz")
 
 PANELS = {
-    "bg":   ("no jet",     "arr_bg"),
-    "jet":  ("with jet",   "arr"),
-    "diff": ("difference", "arr - arr_bg"),
+    "bg":   ("medium, no deposit", "arr_bg"),
+    "jet":  ("medium + deposit",   "arr"),
+    "diff": ("the wake",           "arr - arr_bg"),
 }
+
+#: printed under every figure, because the panel titles alone invite the wrong reading
+SHOWER_NOTE = ("same quenched shower in all panels -- it traversed arr_bg "
+               "(one-way coupling)")
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -413,6 +432,11 @@ def _draw(plotter, names, frames, axes, args, clims, overlays, ti, t, event_id, 
                  + (hp._frame_label(event_id, t) if k == 0 else f"t = {t:6.2f} fm/c"))
         plotter.add_text(label, name="label_" + n, position="upper_left",
                          font_size=11, color="white", shadow=True)
+        if k == 0 and any(o is not None for o in overlays.values()):
+            # Without this the titles read as "a run with no jet" vs "a run with a jet",
+            # which is not what the panels are: there is one shower and it is in all three.
+            plotter.add_text(SHOWER_NOTE, name="shower_note", position="lower_left",
+                             font_size=9, color="#9fb6c4", shadow=False)
         if overlays[n] is not None:
             overlays[n](plotter, t)
 

@@ -49,16 +49,35 @@ shown, e.g. `--frame-duration 0.5` for 2 fps to follow the evolution closely).
 ## Jet wake
 
 ```
-┌──────────────┬──────────────────┬──────────────────┐
-│  no jet      │  with jet        │  difference      │
-│  arr_bg      │  arr             │  arr - arr_bg    │
-└──────────────┴──────────────────┴──────────────────┘
+┌────────────────────┬────────────────────┬────────────────────┐
+│ medium, no deposit │  medium + deposit  │      the wake      │
+│ arr_bg             │  arr               │   arr - arr_bg     │
+│ + shower           │  + the SAME shower │  + the SAME shower │
+└────────────────────┴────────────────────┴────────────────────┘
 ```
 
-The left and middle panels look the same, and that is the point: the jet deposits
-~31 GeV into a fireball whose peak energy density is 28 GeV/fm³, so the wake is
-invisible against it. The right panel is the subtraction, where the wake is the only
-thing left. All three carry the parton shower, and the three views share a camera.
+**The left panel is not a no-jet scenario.** There is exactly one shower in the run,
+and it is drawn unchanged in all three panels: a real Matter+LBT shower, already
+quenched. What the left panel leaves out is only the medium's *back-reaction* to the
+energy that shower gave up. Left-to-middle adds the response, not the jet.
+
+That the left panel shows the medium the shower actually traversed is the mechanism,
+not a coincidence. `JetScape::SetPointers()` registers only the **first**
+`FluidDynamics` in the task list as the framework's hydro, and FastHydro puts the
+background leg there — so Matter and LBT query `arr_bg` through `GetHydroCellSignal`
+and the jet leg is invisible to them. Measured on a run: **119 831** medium queries
+against the background leg, **0** against the jet leg.
+
+The coupling is therefore **one-way**. The shower is quenched by the undisturbed
+medium, its droplets are deposited into the second leg, and nothing feeds the wake
+back into the shower. That is what makes `arr - arr_bg` a clean linear response
+rather than a mixture of two different jets — and it is equally the limitation.
+
+The first two panels look the same, and that is the point: the jet deposits ~31 GeV
+into a fireball whose peak energy density is 28 GeV/fm³. They are deliberately drawn
+on **one** colour scale so that is visible as a fact rather than hidden by rescaling.
+The right panel is the subtraction, where the wake is all that is left. The three
+views share a camera.
 
 ```bash
 conda activate fno_pyvista_env

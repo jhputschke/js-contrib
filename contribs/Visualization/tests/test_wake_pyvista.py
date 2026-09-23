@@ -199,3 +199,17 @@ def test_a_leg_is_scaled_from_zero_to_its_max():
 def test_an_all_zero_difference_does_not_produce_a_degenerate_scale():
     lo, hi = wp._clim(_frames([np.zeros(10, np.float32)]), "diff")
     assert lo < hi, "a zero clim makes add_volume raise rather than draw nothing"
+
+
+# --------------------------------------------------------------------------- labelling
+def test_the_panel_titles_do_not_claim_a_jetless_run():
+    """There is ONE shower and it is in all three panels, quenched by arr_bg. Titling the
+    left panel "no jet" reads as a jet/no-jet comparison, which is not what is drawn: the
+    difference between the first two panels is the medium's back-reaction, not the jet.
+    JetScape::SetPointers registers only the FIRST FluidDynamics as the framework's hydro,
+    so Matter and LBT query the background leg and never see the jet leg at all."""
+    titles = " ".join(t for t, _ in wp.PANELS.values()).lower()
+    assert "no jet" not in titles and "with jet" not in titles
+    assert wp.PANELS["bg"][1] == "arr_bg" and wp.PANELS["jet"][1] == "arr"
+    assert "same quenched shower" in wp.SHOWER_NOTE
+    assert "one-way" in wp.SHOWER_NOTE
