@@ -85,8 +85,32 @@ is invisible in the first two panels because it is small against the *global pea
 (typical |Δe| ≈ 0.2 against 28 GeV/fm³), not because it is a small perturbation where
 it lands: locally `|Δe|/e` reaches 0.66 in cells above a tenth of the peak density, and
 3.0 in the dilute tail at τ ≈ 6.3, where `e = 0.067` makes the ratio meaningless. A
-relative panel would therefore need a density floor to say anything; the absolute
-difference needs none, which is why it is what gets drawn.
+relative panel therefore needs a density floor to say anything; the absolute
+difference needs none, which is why it is the default.
+
+### The relative panel
+
+If you do want `Δe/e`, it is there as a fourth panel — opt-in, because the floor is a
+judgement call baked into the picture:
+
+```bash
+python wake_pyvista.py --file wake_ideal.h5 --panels bg,jet,diff,reldiff
+```
+
+Cells whose background density is below `--rel-floor` (default **0.1**) times **that
+frame's** peak are drawn as zero. Per frame, not globally, and that matters: the
+fireball cools by two orders of magnitude over a run — peak 28 GeV/fm³ at τ = 0.6,
+0.72 by τ = 6.3 — so one global floor high enough to mean anything early blanks the
+panel after mid-evolution, and one low enough to keep it alive late is no floor at all
+when it counts. A fraction of each frame's own peak tracks *where the medium is still
+dense now*, which is the question the ratio is asking. `--rel-floor-abs` adds a hard
+GeV/fm³ floor on top; the effective floor is the larger of the two.
+
+The mask is applied on the **Milne** grid, before the Cartesian resampling — the
+resampler interpolates, and interpolating across the mask edge would smear the
+dilute-tail values back in. Masked cells are set to `0`, not `NaN`: the volume mapper
+renders NaN as a hole in the data rather than as "no wake here", and it would poison
+the percentile the colour limit is built from. `--rel-clim` sets the limit by hand.
 
 ```bash
 conda activate fno_pyvista_env

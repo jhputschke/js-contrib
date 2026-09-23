@@ -113,10 +113,14 @@ PANEL_W, PANEL_H = 640, 864
 CAMERA_ZOOM = 0.82
 
 PANELS = {
-    "bg":   ("medium, no deposit", "arr_bg"),
-    "jet":  ("medium + deposit",   "arr"),
-    "diff": ("the wake",           "arr - arr_bg"),
+    "bg":      ("medium, no deposit", "arr_bg"),
+    "jet":     ("medium + deposit",   "arr"),
+    "diff":    ("the wake",           "arr - arr_bg"),
+    "reldiff": ("relative wake",      "(arr - arr_bg) / arr_bg"),
 }
+
+#: panels whose field is SIGNED: diverging colour map, symmetric limits, their own bar
+SIGNED = ("diff", "reldiff")
 
 #: printed under every figure, because the panel titles alone invite the wrong reading
 SHOWER_NOTE = ("same quenched shower in all panels -- it traversed arr_bg "
@@ -166,7 +170,24 @@ def _temperature(e, f):
     return (np.maximum(e, 0.0) / a_sb) ** 0.25
 
 
-def load_pair(path, event=0, panels=("bg", "jet", "diff")):
+def relative_floor(e_bg, frac=0.1, absolute=0.0):
+    """-> (ntau,1,1,1) density below which `de/e` is not worth forming, per FRAME.
+
+    Per frame, not globally, because the fireball cools by two orders of magnitude over
+    a run: the peak is 28 GeV/fm^3 at tau = 0.6 and 0.72 by tau = 6.3.  A single global
+    floor set high enough to be meaningful early blanks the whole panel after mid
+    evolution; one set low enough to keep it alive late is no floor at all when it
+    matters.  A fraction of each frame's own peak tracks "where the medium is still
+    dense NOW", which is the question the ratio is asking.
+
+    `absolute` is a hard GeV/fm^3 floor applied on top, for "only where e > 1" cuts.
+    """
+    peak = np.asarray(e_bg, np.float32).reshape(len(e_bg), -1).max(axis=1)
+    return np.maximum(float(frac) * peak, float(absolute))[:, None, None, None]
+
+
+def load_pair(path, event=0, panels=("bg", "jet", "diff"),
+              rel_floor=0.1, rel_floor_abs=0.0):
     """-> (dict of panel name -> (ntau,nx,ny,neta,5) array, meta, attrs).
 
     The arrays are built in hydro_pyvista's feature order (e, T, vx, vy, vz).
@@ -210,6 +231,21 @@ def load_pair(path, event=0, panels=("bg", "jet", "diff")):
             d = assemble(jet[..., 0] - bg[..., 0], jet)
             d[..., 1] = _temperature(jet[..., 0], f)
             out["diff"] = d
+        if "reldiff" in panels:
+            # de/e, masked where the background is too thin for the ratio to mean
+            # anything. Masked cells are set to 0, not NaN: the volume mapper renders
+            # NaN as a hole in the data rather than as "no wake here".
+            #
+            # The mask is applied HERE, on the Milne grid, and not after resampling --
+            # the Cartesian resampler interpolates, and interpolating across the mask
+            # edge would smear the dilute-tail values it exists to exclude back in.
+            e, de = bg[..., 0], jet[..., 0] - bg[..., 0]
+            floor = relative_floor(e, rel_floor, rel_floor_abs)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                r = np.where(e > floor, de / np.maximum(e, 1e-30), 0.0)
+            rd = assemble(np.asarray(r, np.float32), jet)
+            rd[..., 1] = _temperature(jet[..., 0], f)
+            out["reldiff"] = rd
     return out, meta, attrs
 
 
@@ -299,7 +335,7 @@ def _clim(frames_by_panel, name, pct=99.9):
     overrides it when the saturation matters more than the contrast.
     """
     fr = frames_by_panel[name]
-    if name != "diff":
+    if name not in SIGNED:
         m = max((f["e"].max() for f in fr), default=0.0)
         return (0.0, float(m) if m > 0 else 1.0)
 
@@ -321,7 +357,7 @@ def _panel_args(args, name):
     import copy
 
     a = copy.copy(args)
-    if name == "diff":
+    if name in SIGNED:
         a.cmap = args.diff_cmap
         # T and v belong to the jet leg on this panel, not to the difference; drawing
         # them here would put a freeze-out surface around a field that has none.
@@ -352,7 +388,7 @@ def render(panel_arrays, meta, args, seg=None, event_id=0, lead=None):
     for n in names:
         frames[n] = hp.resample_frames(
             hp.build_interpolator(panel_arrays[n], meta), ts, axes, meta,
-            args.velocity and n != "diff", max(1, min(args.jobs, len(ts))),
+            args.velocity and n not in SIGNED, max(1, min(args.jobs, len(ts))),
             oversample_z=int(getattr(args, "z_oversample", 1)))
         print(f"    {n:5s} done")
     print(f"  resampled in {time.perf_counter() - t0:.1f} s")
@@ -362,29 +398,33 @@ def render(panel_arrays, meta, args, seg=None, event_id=0, lead=None):
         max_pT = float(seg["pT"].max())
 
     clims = {n: _clim(frames, n, args.diff_pct) for n in names}
-    if args.diff_clim is not None and "diff" in clims:
-        clims["diff"] = (-abs(args.diff_clim), abs(args.diff_clim))
+    for key, override in (("diff", args.diff_clim), ("reldiff", args.rel_clim)):
+        if override is not None and key in clims:
+            clims[key] = (-abs(override), abs(override))
     # The two legs MUST share a colour scale. The whole claim of the figure is that the
     # left and middle panels look alike and the wake only shows up in the subtraction;
     # two independently-scaled panels would make that claim untestable by eye.
-    legs = [n for n in names if n != "diff"]
+    legs = [n for n in names if n not in SIGNED]
     if len(legs) > 1:
         top = max(clims[n][1] for n in legs)
         for n in legs:
             clims[n] = (0.0, top)
-    bar_on = {"leg": legs[-1] if legs else None,
-              "diff": "diff" if "diff" in names else None,
+    # Each signed panel carries its own bar (their units differ); the legs share one,
+    # drawn on the rightmost of them.
+    bar_on = {"panels": {n for n in names if n in SIGNED} | ({legs[-1]} if legs else set()),
               "max_pT": max_pT,
               "lead": lead}
     for n in names:
         extra = ""
-        if n == "diff":
+        if n in SIGNED:
             peak = max((np.abs(f["e"]).max() for f in frames[n]), default=0.0)
             if peak > clims[n][1]:
-                extra = (f"   (peak |de| = {peak:.3g}, saturated above "
-                         f"{clims[n][1]:.3g}; --diff-clim to change)")
-        print(f"  {PANELS[n][0]:11s} ({PANELS[n][1]:>13s})  clim = "
-              f"[{clims[n][0]:.4g}, {clims[n][1]:.4g}] GeV/fm^3{extra}")
+                flag = "--rel-clim" if n == "reldiff" else "--diff-clim"
+                extra = (f"   (peak {peak:.3g}, saturated above "
+                         f"{clims[n][1]:.3g}; {flag} to change)")
+        unit = "" if n == "reldiff" else " GeV/fm^3"
+        print(f"  {PANELS[n][0]:18s} ({PANELS[n][1]:>23s})  clim = "
+              f"[{clims[n][0]:.4g}, {clims[n][1]:.4g}]{unit}{extra}")
 
     # A per-panel actor-name suffix; the pT bar is added once by _add_pt_bar instead
     # (hjp's own bar geometry is tuned for a full-window single panel).
@@ -415,6 +455,7 @@ def _bar_args(title, fmt="%.2f", x=0.84):
 #: shorter than hydro_pyvista's E_UNITS, which is clipped at a third of the window width
 E_TITLE = "e [GeV/fm3]"
 DIFF_TITLE = "de [GeV/fm3]"
+REL_TITLE = "de/e"          # dimensionless: 1.0 means the wake doubled the local density
 PT_TITLE = "parton pT [GeV]"
 
 
@@ -447,16 +488,16 @@ def _draw(plotter, names, frames, axes, args, clims, overlays, ti, t, event_id, 
         plotter.subplot(0, k)
         grid = hp.make_image_data(frames[n][ti], axes)
         pa = _panel_args(args, n)
-        show_bar = (n == bar_on["diff"]) if n == "diff" else (n == bar_on["leg"])
+        show_bar = n in bar_on["panels"]
 
         if clims[n][1] > clims[n][0]:
             kw = dict(scalars="e", cmap=pa.cmap, clim=clims[n], name="vol_" + n,
                       reset_camera=False, show_scalar_bar=show_bar,
-                      opacity=(DIVERGING_OPACITY if n == "diff" else hp.VOLUME_OPACITY))
+                      opacity=(DIVERGING_OPACITY if n in SIGNED else hp.VOLUME_OPACITY))
             if show_bar:
-                kw["scalar_bar_args"] = _bar_args(
-                    DIFF_TITLE if n == "diff" else E_TITLE,
-                    "%.2g" if n == "diff" else "%.2f")
+                title, fmt = {"diff": (DIFF_TITLE, "%.2g"),
+                              "reldiff": (REL_TITLE, "%.2g")}.get(n, (E_TITLE, "%.2f"))
+                kw["scalar_bar_args"] = _bar_args(title, fmt)
             plotter.add_volume(grid, **kw)
 
         if pa.field in ("T", "both"):
@@ -581,8 +622,10 @@ def build_parser():
                    help="a FastHydro paired HDF5 file (it must carry arr_bg)")
     g.add_argument("--event", type=int, default=0)
     g.add_argument("--panels", default="bg,jet,diff",
-                   help="comma-separated subset of bg,jet,diff in display order "
-                        "(default all three)")
+                   help="comma-separated subset of bg,jet,diff,reldiff in display order "
+                        "(default bg,jet,diff). 'reldiff' is de/e, floored by "
+                        "--rel-floor; it is off by default because the floor is a "
+                        "judgement call that the absolute difference does not need")
     g.add_argument("--diff-cmap", default="coolwarm", dest="diff_cmap",
                    help="diverging colormap for the difference panel (default coolwarm)")
     g.add_argument("--diff-clim", type=float, default=None, dest="diff_clim",
@@ -590,7 +633,18 @@ def build_parser():
                         "by default the 99.9th percentile of the non-zero cells, which "
                         "clips the initial deposit spike so the wake stays visible")
     g.add_argument("--diff-pct", type=float, default=99.9, dest="diff_pct",
-                   help="percentile used for that automatic limit (default 99.9)")
+                   help="percentile used for that automatic limit (default 99.9); "
+                        "applies to both signed panels")
+    g.add_argument("--rel-clim", type=float, default=None, dest="rel_clim",
+                   help="symmetric colour limit for the relative panel (dimensionless)")
+    g.add_argument("--rel-floor", type=float, default=0.1, dest="rel_floor",
+                   help="on the 'reldiff' panel, blank cells whose background density is "
+                        "below this fraction of THAT FRAME's peak (default 0.1). de/e is "
+                        "meaningless where e -> 0: unfloored it peaks at 3.0 in a cell "
+                        "with e = 0.067 GeV/fm^3. 0 disables the floor")
+    g.add_argument("--rel-floor-abs", type=float, default=0.0, dest="rel_floor_abs",
+                   help="additional hard floor in GeV/fm^3 for the 'reldiff' panel "
+                        "(default 0); the effective floor is the larger of the two")
     g.add_argument("--no-jet", action="store_true", dest="no_jet",
                    help="do not overlay the parton shower")
     p.set_defaults(movie="wake.mp4", t_min=0.0)
@@ -605,7 +659,12 @@ def main(argv=None):
         raise SystemExit(f"unknown panel(s) {bad}; choose from {sorted(PANELS)}")
 
     print(f"=== {args.file}  event {args.event} ===")
-    panel_arrays, meta, attrs = load_pair(args.file, args.event, tuple(args.panels))
+    panel_arrays, meta, attrs = load_pair(args.file, args.event, tuple(args.panels),
+                                          rel_floor=args.rel_floor,
+                                          rel_floor_abs=args.rel_floor_abs)
+    if "reldiff" in args.panels:
+        print(f"  relative panel: de/e where e_bg > max({args.rel_floor:g} x the frame "
+              f"peak, {args.rel_floor_abs:g} GeV/fm^3); elsewhere drawn as zero")
     print(f"  grid {meta['nx']}x{meta['ny']}x{meta['neta']}x{meta['ntau']}, "
           f"tau {meta['tau_min']:.2f}.."
           f"{meta['tau_min'] + (meta['ntau'] - 1) * meta['dtau']:.2f} fm/c")

@@ -242,3 +242,70 @@ def test_the_text_is_sized_for_a_narrow_viewport():
         "ffmpeg's macro_block_size is 16; other sizes get resized and blurred"
     # every bar sits at the right edge: the left is where show_grid puts the y labels
     assert wp._bar_args("t")["position_x"] > 0.5
+
+
+# --------------------------------------------------------------------------- reldiff
+def test_the_floor_is_computed_per_frame_not_globally():
+    """The fireball cools by two orders of magnitude over a run -- peak 28 GeV/fm^3 at
+    tau = 0.6, 0.72 by tau = 6.3. A single global floor high enough to mean anything early
+    blanks the panel after mid-evolution; low enough to keep it alive late, it is no floor
+    at all when it matters."""
+    e = np.zeros((3, 2, 2, 2), np.float32)
+    e[0], e[1], e[2] = 100.0, 10.0, 1.0            # a cooling fireball
+    f = wp.relative_floor(e, frac=0.1)
+    assert f.shape == (3, 1, 1, 1)
+    assert np.allclose(f.ravel(), [10.0, 1.0, 0.1])
+
+
+def test_the_absolute_floor_is_taken_on_top_of_the_fractional_one():
+    e = np.full((2, 2, 2, 2), 10.0, np.float32)
+    assert np.allclose(wp.relative_floor(e, 0.1, absolute=5.0).ravel(), [5.0, 5.0])
+    assert np.allclose(wp.relative_floor(e, 0.1, absolute=0.5).ravel(), [1.0, 1.0])
+
+
+def test_the_relative_panel_is_the_ratio_above_the_floor_and_zero_below(tmp_path):
+    p = _write_pair(tmp_path / "p.h5")
+    pa, _, _ = wp.load_pair(p, 0, ("bg", "jet", "reldiff"), rel_floor=0.5)
+    e, de = pa["bg"][..., 0], pa["jet"][..., 0] - pa["bg"][..., 0]
+    floor = wp.relative_floor(e, 0.5)
+    above = e > floor
+    assert np.allclose(pa["reldiff"][..., 0][above], (de / e)[above], rtol=1e-5)
+    assert (pa["reldiff"][..., 0][~above] == 0).all()
+
+
+def test_masked_cells_are_zero_not_nan(tmp_path):
+    """NaN renders as a hole in the data rather than as 'no wake here', and it poisons the
+    percentile the colour limit is built from."""
+    p = _write_pair(tmp_path / "p.h5")
+    pa, _, _ = wp.load_pair(p, 0, ("reldiff",), rel_floor=0.99)
+    assert np.isfinite(pa["reldiff"]).all()
+
+
+def test_the_floor_actually_suppresses_a_dilute_tail_blow_up(tmp_path):
+    """Unfloored, |de/e| peaks at 3.0 on the real event in a cell holding 0.067 GeV/fm^3 --
+    arithmetic, not physics. The floor is the whole reason this panel is opt-in."""
+    p = _write_pair(tmp_path / "p.h5")
+    with h5py.File(p, "r+") as f:
+        f["arr_bg"][0, 0, 1, 1, 1, 1] = 1e-6        # a near-vacuum cell
+        f["arr"][0, 0, 1, 1, 1, 1] = 1e-3           # with a tiny absolute difference
+    unfloored, _, _ = wp.load_pair(p, 0, ("reldiff",), rel_floor=0.0)
+    floored, _, _ = wp.load_pair(p, 0, ("reldiff",), rel_floor=0.1)
+    assert abs(unfloored["reldiff"][1, 1, 1, 1, 0]) > 100, "the blow-up must be reproduced"
+    assert floored["reldiff"][1, 1, 1, 1, 0] == 0.0, "and the floor must remove it"
+
+
+def test_a_relative_panel_gets_a_symmetric_percentile_scale():
+    lo, hi = wp._clim(_frames_named("reldiff", [np.array([-4.0, 0.5], np.float32)]),
+                      "reldiff")
+    assert hi > 0 and lo == -hi
+    assert "reldiff" in wp.SIGNED and "diff" in wp.SIGNED
+
+
+def test_the_relative_bar_is_dimensionless():
+    """de/e in GeV/fm^3 would be exactly the confusion this panel was added to resolve."""
+    assert "fm" not in wp.REL_TITLE and "GeV" not in wp.REL_TITLE
+    assert "GeV/fm3" in wp.DIFF_TITLE
+
+
+def _frames_named(name, vals):
+    return {name: [{"e": np.asarray(v, np.float32)} for v in vals]}
