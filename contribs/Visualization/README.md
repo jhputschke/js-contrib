@@ -79,6 +79,15 @@ on **one** colour scale so that is visible as a fact rather than hidden by resca
 The right panel is the subtraction, where the wake is all that is left. The three
 views share a camera.
 
+**The difference is absolute, in GeV/fm³ — not a percentage.** The panel and its
+colour bar show `Δe = e(jet) − e(no jet)`; nothing here divides by anything. The wake
+is invisible in the first two panels because it is small against the *global peak*
+(typical |Δe| ≈ 0.2 against 28 GeV/fm³), not because it is a small perturbation where
+it lands: locally `|Δe|/e` reaches 0.66 in cells above a tenth of the peak density, and
+3.0 in the dilute tail at τ ≈ 6.3, where `e = 0.067` makes the ratio meaningless. A
+relative panel would therefore need a density floor to say anything; the absolute
+difference needs none, which is why it is what gets drawn.
+
 ```bash
 conda activate fno_pyvista_env
 python wake_pyvista.py --file ../../../build_gpu/out_wake/wake_ideal.h5 \
