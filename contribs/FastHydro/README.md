@@ -154,14 +154,29 @@ bulk. iSS's Poisson fluctuations on the (jet − bg) difference fall only as 1/�
 `delta_spectra.py` prints each difference with its compound-Poisson error, so you can see
 how many oversamples a signal needs.
 
-**Checked.** On the shipped config with 2 oversamples:
+**Checked.** On the shipped config, one central event:
 
 - The sampled hadrons carry 87% of the hydro's energy at τ₀. The rest leaves through the open
   η edges (T there is 0.159 GeV > T_sw) or falls outside iSS's rapidity window.
-- The jet run deposited 27.0 GeV in 23 droplets, and the two runs' IC hashes agree.
-- One event takes about 1 min per leg. Most of that is the surface finder, which runs
-  single-threaded in a build where CMake did not detect OpenMP (see
-  [Limitations](#limitations)).
+- The jet run deposited E = 27.0 GeV and p_T = 7.56 GeV in 23 droplets. The two runs' IC
+  hashes agree.
+
+With 200 oversamples per leg, `delta_spectra.py` gives:
+
+| (jet − bg), per oversample | value | significance |
+|---|---|---|
+| p_T along the deposit, all hadrons | 8.8 ± 2.3 GeV | 3.9σ; deposited: 7.56 GeV |
+| p_T along the deposit, \|y\| < 1 | 6.7 ± 1.4 GeV | 4.9σ |
+| E, \|y\| < 1 | 17.6 ± 3.2 GeV | 5.5σ |
+| N_ch, \|y\| < 1 | 5.8 ± 1.6 | 3.7σ |
+| E, all hadrons | 29 ± 56 GeV | not resolved: the bulk's total-energy noise |
+
+- The momentum balance closes within its error. That checks the surface's flow
+  normalization as well as the pairing.
+- In |y| < 1, the charged p_T excess sits within ~90° of the deposit direction.
+- One event takes about 1 min per leg, and 200 oversamples cost almost nothing on top. Most
+  of the time is the surface finder, which runs single-threaded in a build where CMake did
+  not detect OpenMP (see [Limitations](#limitations)).
 
 ## The pipeline
 
