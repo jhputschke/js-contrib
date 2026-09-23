@@ -411,9 +411,15 @@ public:
   // Calls the public FluidDynamics::FindAConstantTemperatureSurface() and
   // stores the result in the protected surfaceCellVector_ member so that
   // the framework can retrieve it via getSurfaceCellVector().
-  void find_freezeout_surface(Jetscape::real T_sw) {
+  void find_freezeout_surface(Jetscape::real T_sw, Jetscape::real dtau = 0.,
+                              Jetscape::real dx = 0., Jetscape::real deta = 0.) {
     clearSurfaceCellVector();
-    FindAConstantTemperatureSurface(T_sw, surfaceCellVector_);
+    SurfaceFinderParams params;
+    params.T_sw = T_sw;
+    params.dtau = dtau;
+    params.dx = dx;
+    params.deta = deta;
+    FindSurfaceFromEvolution(params, surfaceCellVector_);
   }
 };
 
@@ -734,8 +740,9 @@ void bind_fluid_dynamics(py::module_ &m) {
            "Return the raw HydroStatus integer.")
       // ── Freeze-out surface ─────────────────────────────────────────────────
       .def("find_freezeout_surface",
-           [](PyFluidDynamics &fd, Jetscape::real T_sw) {
-             fd.find_freezeout_surface(T_sw);
+           [](PyFluidDynamics &fd, Jetscape::real T_sw, Jetscape::real dtau,
+              Jetscape::real dx, Jetscape::real deta) {
+             fd.find_freezeout_surface(T_sw, dtau, dx, deta);
            },
            R"pbdoc(
              Find the iso-temperature freeze-out surface and store it.
@@ -749,8 +756,12 @@ void bind_fluid_dynamics(py::module_ &m) {
              ----------
              T_sw : float
                  Switch (freeze-out) temperature [GeV].
+             dtau, dx, deta : float, optional
+                 Cornelius lattice spacing (dy = dx).  0 keeps SurfaceFinder's
+                 defaults (0.1 fm, 0.2 fm, 0.2).
            )pbdoc",
-           py::arg("T_sw"))
+           py::arg("T_sw"), py::arg("dtau") = 0., py::arg("dx") = 0.,
+           py::arg("deta") = 0.)
       // ── clear evolution data ───────────────────────────────────────────────
       .def("clear_up_evolution_data",
            &FluidDynamics::clear_up_evolution_data,
