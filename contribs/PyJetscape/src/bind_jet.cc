@@ -30,6 +30,8 @@
 #include "PartonShower.h"           // PartonShower (: GTL graph)
 #include "JetEnergyLoss.h"          // JetEnergyLoss::GetShower()
 #include "JetEnergyLossManager.h"
+#include "JetScapeModuleBase.h"
+#include "LiquefierBase.h"
 
 namespace py = pybind11;
 using namespace Jetscape;
@@ -134,10 +136,39 @@ void bind_jet(py::module_ &m) {
              jetscape.utils.shower_to_networkx).
            )pbdoc");
 
+  // ── JetEnergyLoss — the per-shower energy-loss task ───────────────────────
+  // Not in the module factory (JetScape.cc:651-652 hand-constructs it), so
+  // create_module("JetEnergyLoss") does not work; a hand-wired Python pipeline needs this.
+  py::class_<JetEnergyLoss, JetScapeModuleBase, std::shared_ptr<JetEnergyLoss>>(
+      m, "JetEnergyLoss",
+      "One energy-loss task. Add the algorithm modules (Matter, then LBT) to it with Add(), "
+      "then add it to a JetEnergyLossManager.\n\n"
+      "Matter must be added BEFORE LBT: Matter sets the virtuality that LBT hands off at Q0, "
+      "and <Eloss><mutex>ON</mutex> arbitrates the handover.")
+      .def(py::init<>())
+      .def("add_a_liquefier", &JetEnergyLoss::add_a_liquefier,
+           "Attach the liquefier that collects droplets from this shower. The framework "
+           "calls liquefier->add_hydro_sources() centrally in DoExecTime(), so Matter and "
+           "LBT need no changes.",
+           py::arg("liquefier"))
+      .def("get_liquefier",
+           [](JetEnergyLoss &j) -> std::shared_ptr<LiquefierBase> {
+             return j.get_liquefier().lock();
+           },
+           "The attached liquefier, or None.")
+      .def("GetShower", &JetEnergyLoss::GetShower,
+           "The finished PartonShower for this task (valid after Exec).");
+
   // ── JetEnergyLossManager — per-event access to the finished showers ───────
-  py::class_<JetEnergyLossManager, std::shared_ptr<JetEnergyLossManager>>(
+  // NOTE: this binding previously declared no base class, so the type was not a
+  // JetScapeTask in Python and JetScape.Add(mgr) could not convert it -- the class was
+  // read-only by accident. JetScapeModuleBase is added here so the manager can be placed
+  // in a hand-wired pipeline. Existing read-only uses are unaffected.
+  py::class_<JetEnergyLossManager, JetScapeModuleBase,
+             std::shared_ptr<JetEnergyLossManager>>(
       m, "JetEnergyLossManager",
       "Energy-loss manager; one JetEnergyLoss child per shower-initiating parton.")
+      .def(py::init<>())
       .def("get_showers",
            [](JetEnergyLossManager &mgr) {
              std::vector<std::shared_ptr<PartonShower>> out;

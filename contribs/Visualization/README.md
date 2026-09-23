@@ -8,7 +8,9 @@
 The hydro is evolved in **Milne** coordinates `(τ, x, y, η_s)`, but this tool
 resamples it into **Cartesian lab spacetime** `(t, x, y, z)`. The companion
 [`hydro_jet_pyvista.py`](hydro_jet_pyvista.py) overlays the **jet parton shower**
-in that same `(t,x,y,z)` frame.
+in that same `(t,x,y,z)` frame, and [`wake_pyvista.py`](wake_pyvista.py) puts the
+no-jet, with-jet and difference evolutions **side by side** to isolate the jet
+wake.
 
 ## Files
 
@@ -16,6 +18,9 @@ in that same `(t,x,y,z)` frame.
   Milne→Cartesian resampling → PyVista rendering).
 - [`hydro_jet_pyvista.py`](hydro_jet_pyvista.py) — medium **plus the jet parton
   shower** as accumulating arrows (see [Jet overlay](#jet-overlay)).
+- [`wake_pyvista.py`](wake_pyvista.py) — the **jet wake**, three panels side by side
+  from one FastHydro file (see [Jet wake](#jet-wake)).
+- [`tests/`](tests/) — gates for the wake reader (`pytest tests -q`; no GPU needed).
 - [`config/`](config/) — bundled example MUSIC configs (`OO_one_event.xml`,
   `OO_one_event_jet.xml`).
 - [`PlanVisualization.md`](PlanVisualization.md) — the design plan.
@@ -40,6 +45,108 @@ back to `.gif`). Control the speed with `--framerate` (frames/sec, default 6, ap
 to both) or the more intuitive `--frame-duration SECONDS` (seconds each frame is
 shown, e.g. `--frame-duration 0.5` for 2 fps to follow the evolution closely).
 `--vtk-dir DIR` instead writes a `.vti`+`.pvd` time series for ParaView.
+
+## Jet wake
+
+```
+┌────────────────────┬────────────────────┬────────────────────┐
+│ medium, no deposit │  medium + deposit  │      the wake      │
+│ arr_bg             │  arr               │   arr - arr_bg     │
+│ + shower           │  + the SAME shower │  + the SAME shower │
+└────────────────────┴────────────────────┴────────────────────┘
+```
+
+**The left panel is not a no-jet scenario.** There is exactly one shower in the run,
+and it is drawn unchanged in all three panels: a real Matter+LBT shower, already
+quenched. What the left panel leaves out is only the medium's *back-reaction* to the
+energy that shower gave up. Left-to-middle adds the response, not the jet.
+
+That the left panel shows the medium the shower actually traversed is the mechanism,
+not a coincidence. `JetScape::SetPointers()` registers only the **first**
+`FluidDynamics` in the task list as the framework's hydro, and FastHydro puts the
+background leg there — so Matter and LBT query `arr_bg` through `GetHydroCellSignal`
+and the jet leg is invisible to them. Measured on a run: **119 831** medium queries
+against the background leg, **0** against the jet leg.
+
+The coupling is therefore **one-way**. The shower is quenched by the undisturbed
+medium, its droplets are deposited into the second leg, and nothing feeds the wake
+back into the shower. That is what makes `arr - arr_bg` a clean linear response
+rather than a mixture of two different jets — and it is equally the limitation.
+
+The first two panels look the same, and that is the point: the jet deposits ~31 GeV
+into a fireball whose peak energy density is 28 GeV/fm³. They are deliberately drawn
+on **one** colour scale so that is visible as a fact rather than hidden by rescaling.
+The right panel is the subtraction, where the wake is all that is left. The three
+views share a camera.
+
+**The difference is absolute, in GeV/fm³ — not a percentage.** The panel and its
+colour bar show `Δe = e(jet) − e(no jet)`; nothing here divides by anything. The wake
+is invisible in the first two panels because it is small against the *global peak*
+(typical |Δe| ≈ 0.2 against 28 GeV/fm³), not because it is a small perturbation where
+it lands: locally `|Δe|/e` reaches 0.66 in cells above a tenth of the peak density, and
+3.0 in the dilute tail at τ ≈ 6.3, where `e = 0.067` makes the ratio meaningless. A
+relative panel therefore needs a density floor to say anything; the absolute
+difference needs none, which is why it is the default.
+
+### The relative panel
+
+If you do want `Δe/e`, it is there as a fourth panel — opt-in, because the floor is a
+judgement call baked into the picture:
+
+```bash
+python wake_pyvista.py --file wake_ideal.h5 --panels bg,jet,diff,reldiff
+```
+
+Cells whose background density is below `--rel-floor` (default **0.1**) times **that
+frame's** peak are drawn as zero. Per frame, not globally, and that matters: the
+fireball cools by two orders of magnitude over a run — peak 28 GeV/fm³ at τ = 0.6,
+0.72 by τ = 6.3 — so one global floor high enough to mean anything early blanks the
+panel after mid-evolution, and one low enough to keep it alive late is no floor at all
+when it counts. A fraction of each frame's own peak tracks *where the medium is still
+dense now*, which is the question the ratio is asking. `--rel-floor-abs` adds a hard
+GeV/fm³ floor on top; the effective floor is the larger of the two.
+
+The mask is applied on the **Milne** grid, before the Cartesian resampling — the
+resampler interpolates, and interpolating across the mask edge would smear the
+dilute-tail values back in. Masked cells are set to `0`, not `NaN`: the volume mapper
+renders NaN as a hole in the data rather than as "no wake here", and it would poison
+the percentile the colour limit is built from. `--rel-clim` sets the limit by hand.
+
+```bash
+conda activate fno_pyvista_env
+python wake_pyvista.py --file ../../../build_gpu/out_wake/wake_ideal.h5 \
+    --nt 48 --nz 160 --z-oversample 3 --movie wake_ideal.mp4
+```
+
+This reads a **FastHydro paired HDF5 file** — nothing is run. Produce one with
+[`../FastHydro/example/make_wake_data.py`](../FastHydro/example/make_wake_data.py).
+The file already holds everything the figure needs: both legs on one initial
+condition (`arr`, `arr_bg`), the EoS table (so temperature is read rather than
+assumed), and `shower/` for the overlay.
+
+**The difference panel is percentile-scaled, not max-scaled.** Measured on a central
+Au+Au event, `max|Δe|` over the whole evolution is 2.4 GeV/fm³ — but that is a single
+spike in one frame at τ ≈ 1.6 where the first droplets land, while the wake that
+follows runs at 0.1–0.3. Scaling to the max renders the wake at a few percent of full
+scale, i.e. invisible. The default is the 99.9th percentile of the non-zero cells; the
+run prints the peak it saturated and `--diff-clim` overrides it.
+
+The top-left read-out carries the **leading parton** — the hardest
+shower-*initiating* parton, i.e. before any quenching. That is deliberately not the
+maximum over `shower/partons`, which is the same parton a step later after Matter has
+taken some of its energy: on this event, 52.0 GeV against 50.9.
+
+Text is sized for a narrow viewport. A three-panel window is not a one-panel window
+with three times the text — the viewports shrink and the fonts do not — so the axis,
+label and colour-bar fonts are all larger here than `hydro_pyvista.py`'s defaults, the
+panels are 640 px wide rather than a third of 1008, and the camera pulls back a little
+so `show_grid`'s outer axis titles stay inside the frame. Every colour bar sits at the
+panel's right edge, because the left is where the `y [fm]` labels go.
+
+Options: `--panels bg,jet,diff` (any subset, in display order), `--event`,
+`--diff-cmap`, `--diff-clim`, `--diff-pct`, `--no-jet`, plus everything
+`hydro_jet_pyvista.py` accepts. Resampling runs once per panel, so three panels cost
+three times one — keep `--nt` small while iterating.
 
 ## Usage
 

@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+out/
+*.npz
+*.h5
+notebooks/out_wake/

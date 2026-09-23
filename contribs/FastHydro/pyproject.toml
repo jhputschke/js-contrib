@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jetscape-fasthydro"
+version = "0.1.0"
+description = "MC-Glauber initial state + fast 3+1D Milne FV hydro as JETSCAPE modules, with the CausalLiquefier jet-source workflow"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+dependencies = [
+    "numpy>=1.25",
+    "scipy>=1.10",      # scipy.special.ive -- the causal-diffusion kernel
+    "h5py>=3.8",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# torch is deliberately not a hard dependency: the MC-Glauber, the EoS readers and the
+# HDF5 reader half are pure numpy, and `import fast_data` must stay cheap.
+solver = ["torch>=2.0"]
+viz = ["matplotlib>=3.7"]
+test = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+where = ["python"]
+include = ["fast_data*", "fasthydro*"]
+
+[tool.setuptools.package-data]
+fast_data = ["UPSTREAM.json", "download_hotQCD.sh"]
+
+[tool.pytest.ini_options]
+# FNO4d's own pytest.ini sets this too: the default glob would miss these files.
+testpaths = ["tests"]
+python_files = "test_*.py"
+markers = [
+    "needs_xscape: requires a built pyjetscape_core and the X-SCAPE framework",
+    "slow: full-size hydro evolution",
+]

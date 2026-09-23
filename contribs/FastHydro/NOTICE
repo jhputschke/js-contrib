@@ -1,0 +1,41 @@
+FastHydro — js-contrib contribution
+===================================
+
+Copyright (c) The JETSCAPE Collaboration and contributors.
+Distributed under the GNU General Public License v3.0 or later (GPL-3.0-or-later).
+
+
+Third-party and derived components
+----------------------------------
+
+1. python/fast_data/   — vendored from the FNO4d repository, path `loc_libs/fast_data`.
+   See python/fast_data/UPSTREAM.json for the exact commit and per-file checksums.
+   Author: Joern Putschke. Original work, with the exception noted below.
+
+2. python/fast_data/liquefier/   — DERIVED WORK.
+   This subpackage is a pure-Python port of X-SCAPE's causal liquefier:
+
+       src/liquefier/CausalLiquefier.{h,cc}
+       src/framework/LiquefierBase.{h,cc}
+
+   X-SCAPE is distributed under GPL-3.0-or-later by The JETSCAPE Collaboration.
+   The port therefore inherits that licence, and this contribution as a whole is
+   released under GPL-3.0-or-later for that reason.
+
+   Physics reference for the kernel:
+       Y. Tachibana et al., causal (telegraph) diffusion of jet-deposited
+       energy-momentum; see the X-SCAPE sources above.
+
+3. The MC-Glauber (python/fast_data/glauber.py) is original code, not derived from
+   MUSIC, superMC, iEBE or TRENTo. Its physics references are:
+       Bozek & Wyskiel, tilted source          — arXiv:1002.4999
+       Broniowski & Bozek, string fluctuations — arXiv:1509.04124
+   Its only coupling to MUSIC is file-format compatibility with MUSIC's EoS tables.
+
+
+Open licensing question
+-----------------------
+At the time of writing, the js-contrib repository has no top-level LICENSE file, and
+neither does FNO4d. A GPLv3 derivative (item 2 above) living inside an unlicensed
+repository is ambiguous. This should be resolved with the js-contrib maintainer before
+this contribution is published.

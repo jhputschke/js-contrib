@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<!--
+  FastHydro two-stage jet-deposition run.
+
+  Every tag below already exists in config/jetscape_main.xml.  That is a hard requirement, not
+  a style choice: JetScape::Init() -> CompareElementsFromXML() -> recurseToSearch() calls
+  exit(-1) for any user-XML tag with no counterpart there, so introducing a <FastHydro> block
+  would mean patching X-SCAPE core.  Everything specific to the solver (grid, EoS, transport,
+  tau axis, deposit mode, device) lives in fasthydro_twostage.yaml instead.
+
+  The pipeline itself is built in Python (fasthydro.pipeline.build_two_stage), which is why
+  automatic task-list determination is off and there is no <Hydro> block.
+-->
+<jetscape>
+
+  <enableAutomaticTaskListDetermination>false</enableAutomaticTaskListDetermination>
+
+  <nEvents> 1 </nEvents>
+  <vlevel> 0 </vlevel>
+
+  <!-- Each event must regenerate its own IC; reuse would deactivate IS/preeq/hydro
+       for events 1..n-1 and every event would share one fireball. -->
+  <setReuseHydro> false </setReuseHydro>
+  <nReuseHydro> 1 </nReuseHydro>
+
+  <Random>
+    <seed>20260922</seed>
+  </Random>
+
+  <!-- FastHydro writes its own HDF5; the framework writers stay off. -->
+  <JetScapeWriterAscii> off </JetScapeWriterAscii>
+
+  <!-- Initial state: the grid the Python FastGlauberInitialState will assert against.
+       grid_max = n*d/2 so that GetXSize() = ceil(2*grid_max/grid_step) recovers n.
+       Keep these in step with grid: in the YAML - build_two_stage() checks and refuses. -->
+  <IS>
+    <grid_max_x> 6.25 </grid_max_x>
+    <grid_max_y> 6.25 </grid_max_y>
+    <grid_max_z> 2.6 </grid_max_z>
+    <grid_step_x> 0.5 </grid_step_x>
+    <grid_step_y> 0.5 </grid_step_y>
+    <grid_step_z> 0.4 </grid_step_z>
+  </IS>
+
+  <!-- Hard process.
+       PythiaGun is the default because it is the one that USES the sampled hard-scattering
+       vertex: PGun samples it and then overwrites it with zeros (PGun.cc:117-120), so with
+       PGun every shower starts at the fireball centre no matter what
+       fasthydro.hard_vertex.mode says. Select PGun on the command line only for a fixed-pT probe,
+       where that does not matter. -->
+  <Hard>
+    <PythiaGun>
+      <name>PythiaGun</name>
+      <FSR_on>0</FSR_on>
+      <pTHatMin>50</pTHatMin>
+      <pTHatMax>70</pTHatMax>
+      <eCM>200</eCM>
+      <softMomentumCutoff>2.0</softMomentumCutoff>
+      <LinesToRead>
+        HardQCD:all = on
+      </LinesToRead>
+    </PythiaGun>
+    <PGun>
+      <name>PGun</name>
+      <pT>60</pT>
+    </PGun>
+  </Hard>
+
+  <!-- NullPreDynamics is MANDATORY: FluidDynamics::Init() exempts only the module ids
+       "MUSIC" and "Brick" from needing pre-equilibrium and exit(-1)s otherwise.
+       <taus> is the hydro start time and must equal time.tau0 in the YAML. -->
+  <Preequilibrium>
+    <taus> 0.6 </taus>
+    <NullPreDynamics> </NullPreDynamics>
+  </Preequilibrium>
+
+  <!-- The liquefier. The 0-argument CausalLiquefier constructor reads this block, and THIS
+       IS THE SOURCE OF TRUTH for the deposit: DropletBridge reads the five parameters off
+       the live C++ object, so the source.params block in the YAML is only a mirror (and is
+       checked against this one).
+
+       Which of these actually do anything in FastHydro:
+         tau_delay, time_relax, d_diff, width_delta  : yes, they shape the Python deposit
+         dtau                                        : provenance only; its 1/dtau cancels
+                                                        against the hydro dtau, so the
+                                                        Python deposit has no dtau in it
+         dx, dy, deta                                : INERT here. They size the C++
+                                                        smearing_kernel, which FastHydro
+                                                        never calls: the C++ liquefier is
+                                                        used only as a droplet container.
+                                                        Kept equal to the grid for clarity. -->
+  <Liquefier>
+    <threshold_energy_switch> 1 </threshold_energy_switch>
+    <e_threshold> 2.0 </e_threshold>
+    <CausalLiquefier>
+      <name>CausalLiquefier</name>
+      <dtau> 0.02 </dtau>
+      <dx> 0.5 </dx>
+      <dy> 0.5 </dy>
+      <deta> 0.4 </deta>
+      <tau_delay> 0.6 </tau_delay>
+      <time_relax> 0.1 </time_relax>
+      <d_diff> 0.08 </d_diff>
+      <width_delta> 0.1 </width_delta>
+    </CausalLiquefier>
+  </Liquefier>
+
+  <!-- Energy loss. Matter must be listed before Lbt (it sets the virtuality Lbt takes over
+       at Q0); <mutex>ON</mutex> arbitrates the handover. recoil_on=1 is what produces the
+       negative (pstat = -1) back-reaction partons the liquefier turns into droplets. -->
+  <Eloss>
+    <deltaT> 0.1 </deltaT>
+    <maxT> 20 </maxT>
+    <tStart> 0.6 </tStart>
+    <mutex> ON </mutex>
+    <AddLiquefier> true </AddLiquefier>
+
+    <Matter>
+      <name> Matter </name>
+      <matter_on> 1 </matter_on>
+      <Q0> 2.0 </Q0>
+      <in_vac> 0 </in_vac>
+      <recoil_on> 1 </recoil_on>
+      <broadening_on> 0 </broadening_on>
+      <brick_med> 0 </brick_med>
+      <hydro_Tc> 0.16 </hydro_Tc>
+      <qhat0> -2.0 </qhat0>
+      <alphas> 0.25 </alphas>
+      <QhatParametrizationType> 1 </QhatParametrizationType>
+    </Matter>
+
+    <Lbt>
+      <name> Lbt </name>
+      <Q0> 2.0 </Q0>
+      <in_vac> 0 </in_vac>
+      <only_leading> 0 </only_leading>
+      <hydro_Tc> 0.16 </hydro_Tc>
+      <alphas> 0.25 </alphas>
+      <run_alphas> 1 </run_alphas>
+    </Lbt>
+  </Eloss>
+
+  <!-- NO <SoftParticlization>: FastHydro computes no Cooper-Frye surface, so iSS would
+       sample an empty surface and produce zero soft hadrons. This run is parton-level. -->
+
+</jetscape>

@@ -23,6 +23,7 @@
 #include "JetScapeModuleBase.h"
 #include "JetScapeTask.h"
 #include "JetScapeXML.h"
+#include "JetScapeTaskSupport.h"
 #include "MusicWrapper.h"
 #include "PreequilibriumDynamics.h"
 #include "TrentoInitial.h"
@@ -366,6 +367,48 @@ void bind_framework(py::module_ &m) {
   //   ini   = pyjetscape.create_module("TrentoInitial")
   //   preeq = pyjetscape.create_module("FreestreamMilne")
   //   jmgr  = pyjetscape.create_module("JetEnergyLossManager")
+  // ── XML singleton loader ──────────────────────────────────────────────────
+  // JetScape::Init() normally opens the XML files, but some C++ modules read their
+  // parameters in their CONSTRUCTOR -- CausalLiquefier's 0-argument ctor calls
+  // InitializeParameters(), which reads <Liquefier><CausalLiquefier> (CausalLiquefier.cc:67).
+  // A hand-wired Python pipeline builds its modules before JetScape exists, so without this
+  // the liquefier would silently fall back to its defaults after a
+  // "XML User file not found/not properly opened!" warning.
+  //
+  // JetScapeModuleBase::SetXMLMainFileName() does NOT help: those members are per-instance,
+  // not the singleton.
+  m.def("load_xml",
+        [](const std::string &main_xml, const std::string &user_xml, bool init_random) {
+          auto *xml = JetScapeXML::Instance();
+          xml->SetXMLMainFileName(main_xml);
+          xml->OpenXMLMainFile();
+          if (!user_xml.empty()) {
+            xml->SetXMLUserFileName(user_xml);
+            xml->OpenXMLUserFile();
+          }
+          // JetScape::Init() also seeds the task-support RNG from <Random><seed>. Anything
+          // that draws random numbers before then -- InitialState::SampleABinaryCollisionPoint,
+          // for one -- throws "Trying to use JetScapeTaskSupport::GetMt19937Generator before
+          // initialization". Re-reading the seed later is harmless.
+          if (init_random) JetScapeTaskSupport::ReadSeedFromXML();
+          return xml->GetXMLRootMain() != nullptr;
+        },
+        R"pbdoc(
+          Open the main (and optionally user) XML into the JetScapeXML singleton now.
+
+          Call this BEFORE constructing any C++ module that reads XML in its constructor --
+          CausalLiquefier is the one that matters.  JetScape.Init() does the same thing, but
+          that is too late for modules built beforehand.  Calling it twice is harmless.
+
+          With init_random=True (the default) it also seeds JetScapeTaskSupport from
+          <Random><seed>, so code that draws random numbers before JetScape.Init() -- such as
+          InitialState.sample_binary_collision_point() -- works.
+
+          Returns True if the main file parsed.
+        )pbdoc",
+        py::arg("main_xml"), py::arg("user_xml") = std::string(),
+        py::arg("init_random") = true);
+
   m.def("create_module",
         [](const std::string &name) -> py::object {
           auto mod = JetScapeModuleFactory::createInstance(name);

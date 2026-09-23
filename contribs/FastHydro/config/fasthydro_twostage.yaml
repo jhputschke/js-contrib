@@ -1,0 +1,146 @@
+# FastHydro: solver / initial-state configuration.
+#
+# Everything the fast solver needs lives here rather than in the JETSCAPE XML, because a new
+# XML tag would have to be added to X-SCAPE's config/jetscape_main.xml or JetScape::Init()
+# exits(-1).  The two files overlap only in the grid and tau0, and build_two_stage() refuses
+# to run if they disagree.
+#
+# Schema and defaults: fast_data/config.py.
+
+run:
+  nevents: 1
+  seed: 20260922
+  device: cpu          # cpu | cuda | mps.  mps forces float32 (it has no float64).
+  dtype: float64       # float64 for reproducible/replayable runs; float32 for throughput
+  # Default output. A .h5 name writes FNO4d's HDF5 schema (the dataset format,
+  # streamed one event at a time); a .npz name writes one pair for a quick look.
+  # Overridden by --out.
+  out: ./out/fasthydro.h5
+
+grid:                  # must match <IS><grid_*> in jetscape_user_fasthydro.xml
+  nx: 25
+  ny: 25
+  neta: 13
+  dx: 0.5
+  dy: 0.5
+  deta: 0.4
+
+time:
+  tau0: 0.6            # must equal <Preequilibrium><taus>
+  record_dtau: 0.2
+  choose_ntau: 21      # -> tau = 0.6 .. 4.6 fm/c
+  cfl: 0.4
+
+initial_state:
+  kind: mc_glauber
+  proj: Au
+  targ: Au
+  b: 2.0               # null -> sample P(b) ~ b
+  sigma_nn_mb: 42.0
+  quantity: energy
+  target_T: 0.45       # K is calibrated to this peak temperature at b = calib_b
+  calib_b: 0.0
+  calib_events: 10
+
+eos:
+  kind: conformal      # conformal | hotqcd (EOS 9/91); see fast_data/eos.py
+  dof: 42.25           # matches MUSIC's EOS_to_use 0
+
+transport:
+  mode: ideal          # ideal | israel_stewart
+  eta_over_s: 0.08
+
+output:
+  T_fo: 0.15
+  freezeout: max_T
+  zero_after_freezeout: true
+  # Both legs must span the same frames for the pair to be comparable, so do NOT stop the
+  # background leg early: the jet leg keeps evolving while droplets are still depositing.
+  stop_at_freezeout: false
+
+source:
+  # ---------------------------------------------------------------------------
+  # HOW a droplet is spread onto this solver's grid.  Not WHERE droplets come from:
+  # they come from X-SCAPE's Matter + LBT, through the C++ CausalLiquefier, and nothing
+  # in this file chooses them.  Not the deposit PHYSICS either: the five kernel
+  # parameters live in <Liquefier><CausalLiquefier> in the user XML.
+  #
+  # Why a block like this exists at all, when the XML has no counterpart for it.
+  # The liquefier kernel is an analytic, continuous function -- the Green's function of
+  # causal diffusion.  Any solver has to map it onto its own discrete cells, and that
+  # mapping is a choice.  MUSIC never has to make it: it evaluates the C++ kernel at cell
+  # centres on a grid fine enough (dx ~ 0.1 fm) that point sampling is accurate, and the
+  # C++ offers no alternative.  This grid is 0.3125 fm, coarse against the kernel's 0.1 fm
+  # delta-shell, and point sampling there does not merely lose accuracy -- it loses the
+  # DEPOSIT.  Fraction of a droplet's momentum that lands (tau_d = 1, deposit at tau = 3):
+  #
+  #     eta_d                0      1      2      3      4
+  #     mode: xscape         1.000  1.009  2.561  0.000  0.000
+  #     mode: conservative   1.000  1.000  0.994  1.000  1.169
+  #
+  # So these are solver settings, in the same family as time.cfl -- numerics, not physics.
+  # They are read on every jet run, live and replay alike.
+  #
+  #   mode            conservative = clip each cell's quadrature to the causal support,
+  #                   place nodes inside it, and fall back to a trilinear scatter when the
+  #                   whole support fits in one cell.  xscape = sample at cell centres, as
+  #                   the C++ does, for reproducing a MUSIC run and for nothing else.
+  #   n_sub           quadrature nodes per cell edge; auto picks it from how finely the
+  #   n_sub_max       wave front needs resolving, capped at n_sub_max.  Higher costs time
+  #                   and buys deposit SHAPE, never total -- see renorm.
+  #   renorm          where the one scalar per droplet that makes the deposited
+  #                   four-momentum exact is computed.  grid = over the cells on this grid.
+  #                   Conservation comes from HERE, not from the quadrature: it is exact to
+  #                   ~1e-13 whatever n_sub does.
+  #   tau_eval_mode   dep = evaluate the kernel at tau_dep itself, so the deposit shape does
+  #                   not depend on the step sequence the adaptive solver happened to pick.
+  #                   step = snap to the hydro node, as the C++ does.
+  #   min_in_grid     flag a droplet whose support is not at least this well contained.
+  #   on_out_of_grid  what to do with one that is not: warn (keep it, renormalised onto
+  #                   what is inside) or drop.
+  # ---------------------------------------------------------------------------
+  mode: conservative       # every value below is fast_data's default; spelled out because
+  renorm: grid             # `mode` is the one setting whose wrong value silently destroys
+  tau_eval_mode: dep       # the deposit rather than failing.
+  n_sub: auto
+  n_sub_max: 16
+  min_in_grid: 0.99
+  on_out_of_grid: warn
+# ---------------------------------------------------------------------------
+# FastHydro-only settings.
+#
+# fast_data's validator rejects any key it does not know, and python/fast_data/ is vendored
+# and never patched, so everything about the JETSCAPE side lives in its own section.
+# fasthydro.config.load_config() splits this off before fast_data sees the rest.
+# ---------------------------------------------------------------------------
+fasthydro:
+
+  # Store the parton shower itself -- every parton and splitting vertex -- as `shower/`.
+  # `source/droplets` records only what the jet LOST; without this a file cannot say where the
+  # jet was, what survived, or how it developed, so an animation has nothing to draw.
+  # Measured cost: ~9 kB per event against 5.5 MB for the hydro pair.
+  store_showers: true
+
+  # Where hard scatterings happen.  Without a density the framework only warns and puts
+  # EVERY shower at (0,0,0) -- the fireball centre -- which biases any path-length-dependent
+  # observable and makes all events look alike.
+  hard_vertex:
+    #   ncoll     binary-collision (T_A T_B) density, Gaussian-smeared. What a hard process
+    #             actually follows, and the default.
+    #   ncoll_mc  the same distribution unsmeared: a raw histogram of the MC collision
+    #             points, so sparse and noisy on a coarse grid.
+    #   npart     wounded-nucleon density, smeared. Scales like the soft entropy, not like a
+    #             hard process -- for comparison.
+    #   centre    set nothing; every vertex at the origin. The behaviour before the setter
+    #             existed, kept so it can be reproduced deliberately.
+    mode: ncoll
+    smear: 0.4         # fm; matches the nucleon width glauber deposits energy with
+
+  hydro:
+    # bulk_info storage: "vector" is 4 B per stored field per cell, "aos" is 112 B per cell
+    # regardless -- 390 MB against 1.56 GB at 65x65x33x100.
+    store: vector
+    store_fields: null            # null -> e, T, s, p, vx, vy, vz
+    # A pre-equilibrium module that carries flow or viscous stress (FreestreamMilne) would
+    # have it silently discarded, since the solver starts from u=(1,0,0,0), pi=Pi=0.
+    accept_preeq_flow_loss: false

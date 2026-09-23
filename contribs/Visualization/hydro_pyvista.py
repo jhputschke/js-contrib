@@ -530,11 +530,15 @@ def _scene_bounds(axes):
             float(zs[0]), float(zs[-1]))
 
 
-def _decorate_scene(plotter, bounds) -> None:
+def _decorate_scene(plotter, bounds, font_size: int = 10) -> None:
     """Background, orientation triad, and a labelled x/y/z bounding box (fm).
 
     Called once per frame (after plotter.clear()).  ``bounds`` is passed
     explicitly so the labelled box is stable even on near-empty frames.
+
+    ``font_size`` applies to the axis titles and tick labels.  The default suits a
+    full-window single panel; a multi-panel figure divides the window between
+    viewports without scaling text, so it has to ask for a bigger one.
     """
     plotter.set_background(DARK_GREY, top=PANEL_GREY)
     # Corner orientation triad (x=red, y=green, z=blue arrows with labels).
@@ -545,7 +549,7 @@ def _decorate_scene(plotter, bounds) -> None:
         bounds=bounds,
         xtitle="x  [fm]", ytitle="y  [fm]", ztitle="z  [fm]",
         color="white", grid="back", location="outer", ticks="both",
-        font_size=10,
+        font_size=int(font_size),
     )
 
 

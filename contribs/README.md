@@ -15,6 +15,7 @@ below.
 
 | Contrib | What it does |
 |---------|--------------|
+| [FastHydro](FastHydro/README.md) | MC-Glauber initial state + a fast 3+1D Milne FV hydro solver as JETSCAPE modules, with the Matter+LBT → CausalLiquefier jet-deposition workflow; produces paired background/jet evolutions on an identical IC. Pure Python (no build). |
 | [FnoHydro](FnoHydro/README.md) | Neural-network (FNO) surrogate hydrodynamics (C++/LibTorch). |
 | [PyJetscape](PyJetscape/README.md) | pybind11 Python bindings for the framework + per-event Python workflow. |
 | [Visualization](Visualization/README.md) | 3D PyVista rendering of the hydro medium evolution, resampled from Milne `(τ,x,y,η_s)` to Cartesian lab spacetime `(t,x,y,z)`; emits movies, ParaView VTK series, and an interactive viewer. |
