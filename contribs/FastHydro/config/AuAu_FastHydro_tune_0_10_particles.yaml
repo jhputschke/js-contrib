@@ -9,7 +9,7 @@
 #   initial_state.target_T     0.39 -> 0.418  still calibrated at calib_b = 0
 #   transport.mode             israel_stewart, eta/s 0.08
 #   transport.zeta_over_s      0    -> 0.12   constant; brings <pT> down to MUSIC's
-#   fasthydro.hydro.bulk_clamp [-0.9, 0.3]    REQUIRED with zeta/s > 0 (bulk_regulator.py)
+#   transport.Pi_p_bounds      [-0.9, 0.3]    fast_data's default; REQUIRED with zeta/s > 0
 #
 # Measured, 25 events x 100 oversamples, mid-rapidity, against MUSIC calibrated (667 +- 18):
 #     dN_ch/deta 659 +- 16 (-1%)
@@ -88,9 +88,11 @@ eos:
 transport:
   mode: israel_stewart
   eta_over_s:   0.08
-  zeta_over_s:  0.12       # needs fasthydro.hydro.bulk_clamp (below)
+  zeta_over_s:  0.12       # needs Pi_p_bounds (below)
   tau_pi_coeff: 5.0
   pi_e_min:     0.01       # as fasthydro_particlize.yaml
+  Pi_p_bounds:  [-0.9, 0.3]   # bound bulk Pi/p every step (fast_data's default, spelled out):
+                           # without it 0-10% events diverge at zeta/s > 0 (fv.viscous_step)
 
 source:                    # how droplets are deposited; see fasthydro_wake.yaml
   mode:    conservative
@@ -120,4 +122,3 @@ fasthydro:
     store: vector
     store_fields: null
     accept_preeq_flow_loss: false
-    bulk_clamp: [-0.9, 0.3]      # Pi/p bounds; without them zeta/s > 0 diverges (bulk_regulator.py)

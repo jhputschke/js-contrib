@@ -122,11 +122,17 @@ def run(cfg, *, log=print, shard=None, resume=False, dry_run=False):
                                   tau_pi_coeff=t["tau_pi_coeff"], delta_pipi=t["delta_pipi"],
                                   delta_PiPi=t["delta_PiPi"], tau_min=t["tau_min"],
                                   pi_rho_max=t["pi_rho_max"], pi_e_min=t["pi_e_min"],
-                                  pi_advection=t["pi_advection"])
+                                  pi_advection=t["pi_advection"],
+                                  Pi_p_bounds=(tuple(t["Pi_p_bounds"])
+                                               if t["Pi_p_bounds"] is not None else None))
         log("NOTE: transport.mode=israel_stewart -- shear is validated against the Marrochio et al. "
             "Gubser solution (fv.test_gubser_viscous: e, u and pi converge together at orders "
             "1.3-1.6); the second-order couplings tau_pipi, phi_7, lambda_piPi, lambda_Pipi are "
-            "omitted, and bulk (zeta_over_s > 0) is untested -- see README_FastData.md")
+            "omitted.  Bulk (zeta_over_s > 0) is not validated against an analytic solution; it "
+            "runs stably only with transport.Pi_p_bounds set -- see README_FastData.md")
+        if float(t["zeta_over_s"]) > 0 and t["Pi_p_bounds"] is None:
+            log("WARNING: zeta_over_s > 0 with transport.Pi_p_bounds null: frozen corona cells "
+                "can drive p + Pi < 0 and the event diverges (see fv.viscous_step)")
 
     params = LiquefierParams.from_config(src_cfg["params"]) if src_cfg["enabled"] else None
     ic_seeds, src_seeds = partons.seed_streams(run_cfg["seed"], nevents)

@@ -642,6 +642,8 @@ class Transport:
     pi_e_min: Optional[float] = 1e-3    # GeV/fm^3; freeze pi below this e, and wherever the
                                         # velocity had to be capped -- see viscous_step
     pi_advection: str = "centred"       # centred | upwind, the stencil pi is advected with
+    Pi_p_bounds: Optional[Tuple[float, float]] = (-0.9, 0.3)   # bound Pi/p after every step;
+                                        # None disables.  Inert at zeta = 0 -- see viscous_step
 
     def _eval(self, f, T):
         return f(T) if callable(f) else torch.full_like(T, float(f))
@@ -859,6 +861,23 @@ def viscous_step(pi10: torch.Tensor, Pi: torch.Tensor, prim: Dict[str, torch.Ten
     if tr.pi_rho_max is not None:                    # same bound, same reason as regulate_pi
         lim = tr.pi_rho_max * (e + p)                # inert at the default zeta_over_s = 0,
         Pi_new = Pi_new.clamp(-lim, lim)             # where Pi is identically zero
+    # ...but for BULK, (e + p) is not the bound that matters: p + Pi is the pressure the
+    # recovery works with, and (e + p) is 4-7 p near T_c.  Without a bound on Pi/p, 0-10% Au+Au
+    # diverges at zeta/s = 0.04 within a couple of events, and at 0.12 about 1 event in 30
+    # (tau = 5-6 fm/c, still hot).  The measured mechanism: a corona cell frozen below pi_e_min
+    # keeps its Pi while its p falls -- Pi/p went -0.3 -> -5.8 over 2 fm/c -- until p + Pi < 0.
+    # Raising pi_e_min only moves the corona.  So Pi is held to the range the recovery is
+    # validated for (Pi/p in [-0.9, +0.3], see NEWTON_ITERS above).
+    #
+    # This is a REGULATOR, not only a corona guard.  At zeta/s = 0.12 (constant), the bulk
+    # correction near T_c overshoots early: for tau < 3 fm/c the unbounded step gives Pi/p down
+    # to -1.1, and the bound trims it in ~20-30% of cells at e = 0.24-1 GeV/fm^3 (2% above
+    # 1 GeV/fm^3); after tau ~ 3 it acts almost only on the corona.  The effect on the medium
+    # is small: at eta = 0, total energy +0.1% and e-weighted <v_T> +0.04% without it (10
+    # events, tau = 3-9 fm/c).  At zeta = 0 Pi is zero and the bound is a no-op, bit for bit.
+    if tr.Pi_p_bounds is not None:
+        lo, hi = tr.Pi_p_bounds
+        Pi_new = torch.maximum(torch.minimum(Pi_new, hi * p), lo * p)
     return pi_10(pi_new), Pi_new.unsqueeze(1)
 
 

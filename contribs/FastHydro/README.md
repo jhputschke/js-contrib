@@ -33,7 +33,6 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/h5_writer.py` | `PairedH5Writer` — the FNO4d HDF5 dataset format |
 | `python/fasthydro/pipeline.py` | `build_two_stage`, `build_bg_only` |
 | `python/fasthydro/particlization.py` | the checks that a leg can give a closed Cooper–Frye surface; iSS's `music_input` |
-| `python/fasthydro/bulk_regulator.py` | opt-in bound on fast_data's bulk pressure (`fasthydro.hydro.bulk_clamp`); needed for ζ/s > 0 |
 | `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook (`fasthydro_wake_realistic.yaml`: the same, on the realistic medium); `*_particlize.*` for hadrons; `AuAu_MCGlauber_MUSIC_0_10.xml`, the 3D MC-Glauber + MUSIC + iSS reference; `AuAu_FastHydro_tune_0_10_{particles,wake}.{yaml,xml}`, FastHydro tuned to it for 0–10% |
 | `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py`, `run_particlize.py`, `delta_spectra.py`, `make_hadron_wake_data.py`, `make_bulk_comparison_data.py` |
 | `python/fasthydro/browse.py` | `PairBrowser` — read both legs of a pair out of one file |
@@ -304,21 +303,24 @@ The runs use the same 25 Glauber events as above, 0–10%:
     profile (`eta0` / `sig_eta`).
 
   Part of both is MUSIC's own bulk δf and its peaked ζ/s(T); FastHydro has constant ζ/s and no δf.
-- **The bulk runs needed a fix fast_data does not have.** Its bulk sector was never exercised
-  (ζ/s = 0 everywhere until now). With ζ/s = 0.04, 1 event in 5 diverges. Cells below
-  `pi_e_min` keep their last Π while p keeps falling, so Π/p drifts to −6 and p + Π < 0.
-  The regulator bounds |Π| by e + p, which does not prevent that; the primitive recovery is
-  validated only for Π/p ∈ [−0.9, 0.3] (`fv.py:324`). The runs above clamp Π to that range
-  after every viscous step; fluid cells stay above −0.66, so only the dilute corona is
-  touched. The clamp is now in FastHydro's own code as an opt-in setting,
-  `fasthydro.hydro.bulk_clamp: [-0.9, 0.3]` (`python/fasthydro/bulk_regulator.py`). It is a
-  stopgap: the real fix belongs upstream in FNO4d's `fast_data` (`fv.viscous_step`), after
-  which the setting can go. FastHydro warns when ζ/s > 0 runs without it.
+- **Bulk viscosity needed a fix in fast_data, now upstream.** Its bulk sector was never
+  exercised (ζ/s = 0 everywhere until now). Without a bound on Π/p, 0–10% Au+Au diverges at
+  τ = 5–6 fm/c: within a couple of events at ζ/s = 0.04, and about 1 event in 30 at 0.12.
+  Cells below `pi_e_min` keep their last Π while p keeps falling, so Π/p drifts to −6 and
+  p + Π < 0. The `pi_rho_max·(e + p)` bound does not prevent that; the primitive recovery is
+  validated only for Π/p ∈ [−0.9, 0.3]. FNO4d's fast_data now holds Π/p to that range after
+  every viscous step, via `transport.Pi_p_bounds` (default [−0.9, 0.3]; inert at ζ = 0, bit for
+  bit). It is vendored here from FNO4d `f212654`. The runs above used the same bound, applied
+  by an interim wrapper, which gives identical results.
+- **The bound also regulates early near-T_c bulk.** At ζ/s = 0.12 the unbounded step reaches
+  Π/p ≈ −1.1 for τ < 3 fm/c, and the bound trims 20–30% of the cells at e = 0.24–1 GeV/fm³.
+  Later it acts almost only on the corona. The medium hardly notices: at η = 0, total energy
+  +0.1% and ⟨v_T⟩ +0.04% without it (measured in FNO4d, on events that survived unbounded).
 
 ### The 0–10% tune: `AuAu_FastHydro_tune_0_10`
 
 The best point above, **τ₀ = 0.5, `target_T` = 0.418, ζ/s = 0.12**, with η/s = 0.08,
-b ∈ [0, 4.7] fm and the Π clamp. It comes as two YAML + XML pairs on the same medium:
+b ∈ [0, 4.7] fm and `transport.Pi_p_bounds`. It comes as two YAML + XML pairs on the same medium:
 
 | pair | for | differs in |
 |---|---|---|

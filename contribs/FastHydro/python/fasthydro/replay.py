@@ -44,8 +44,6 @@ def replay_event(cfg, e0, droplets, params, *, device=None, dtype=None, source_k
     _np_eos, eos = resolve_eos(cfg["eos"], device=dev, dtype=dt)
     grid = g.to_fv_grid(dev, dt)
 
-    from .bulk_regulator import from_cfg as _bulk_clamp
-    _bulk_clamp(cfg)
     tr = cfg["transport"]
     transport = None
     if str(tr["mode"]).lower() in ("israel_stewart", "viscous", "is"):
@@ -54,7 +52,9 @@ def replay_event(cfg, e0, droplets, params, *, device=None, dtype=None, source_k
             tau_pi_coeff=tr["tau_pi_coeff"], delta_pipi=tr["delta_pipi"],
             delta_PiPi=tr["delta_PiPi"], tau_min=tr["tau_min"],
             pi_rho_max=tr["pi_rho_max"], pi_e_min=tr["pi_e_min"],
-            pi_advection=tr["pi_advection"])
+            pi_advection=tr["pi_advection"],
+            Pi_p_bounds=(tuple(tr["Pi_p_bounds"])
+                         if tr["Pi_p_bounds"] is not None else None))
 
     e0 = np.ascontiguousarray(e0, dtype=np.float64)
     if e0.shape != (g.nx, g.ny, g.neta):

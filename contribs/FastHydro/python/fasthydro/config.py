@@ -40,11 +40,6 @@ DEFAULTS = {
         "store": "vector",
         # null -> fasthydro.cells.DEFAULT_FIELDS
         "store_fields": None,
-        # [lo, hi]: bound fast_data's bulk pressure to lo <= Pi/p <= hi after every viscous
-        # step.  Needed for transport.zeta_over_s > 0, where frozen corona cells otherwise
-        # drive p + Pi < 0 and diverge; [-0.9, 0.3] is the range fast_data's primitive
-        # recovery is validated for.  null leaves fast_data untouched.  See bulk_regulator.py.
-        "bulk_clamp": None,
     },
     # The parton shower itself -- every parton and splitting vertex, written to `shower/`.
     # Default on: measured at 9.4 kB/event against 5.5 MB for the hydro pair, and without it
@@ -88,16 +83,6 @@ def validate(block):
             f"(got {hv['smear']}); use mode: ncoll_mc for an unsmeared histogram")
 
     hyd = block["hydro"]
-    bc = hyd["bulk_clamp"]
-    if isinstance(bc, str):                       # a --set override arrives as text
-        import yaml
-        bc = hyd["bulk_clamp"] = yaml.safe_load(bc)
-    if bc is not None:
-        if (not isinstance(bc, (list, tuple)) or len(bc) != 2
-                or not float(bc[0]) < 0.0 < float(bc[1])):
-            raise ConfigError(f"{SECTION}.hydro.bulk_clamp must be null or [lo, hi] with "
-                              f"lo < 0 < hi (got {bc!r})")
-        hyd["bulk_clamp"] = [float(bc[0]), float(bc[1])]
     if hyd["store"] not in ("vector", "aos"):
         raise ConfigError(f"{SECTION}.hydro.store must be 'vector' or 'aos' "
                           f"(got {hyd['store']!r})")

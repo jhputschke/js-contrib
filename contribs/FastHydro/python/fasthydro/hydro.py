@@ -117,8 +117,6 @@ class FastHydro(_base()):
             self.cfg["eos"], device=self._device, dtype=self._torch_dtype)
         self._fvgrid = self.g.to_fv_grid(self._device, self._torch_dtype)
 
-        from .bulk_regulator import from_cfg as _bulk_clamp
-        _bulk_clamp(self.cfg)
         tr = self.cfg["transport"]
         if str(tr["mode"]).lower() in ("israel_stewart", "viscous", "is"):
             self._transport = fv.Transport(
@@ -126,7 +124,9 @@ class FastHydro(_base()):
                 tau_pi_coeff=tr["tau_pi_coeff"], delta_pipi=tr["delta_pipi"],
                 delta_PiPi=tr["delta_PiPi"], tau_min=tr["tau_min"],
                 pi_rho_max=tr["pi_rho_max"], pi_e_min=tr["pi_e_min"],
-                pi_advection=tr["pi_advection"])
+                pi_advection=tr["pi_advection"],
+                Pi_p_bounds=(tuple(tr["Pi_p_bounds"])
+                             if tr["Pi_p_bounds"] is not None else None))
         else:
             self._transport = None
 

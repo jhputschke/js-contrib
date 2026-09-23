@@ -9,7 +9,7 @@
 #   initial_state.target_T     0.39 -> 0.418  dN_ch/deta 659 (MUSIC calibrated 667), viscous
 #   transport.mode             israel_stewart, eta/s 0.08
 #   transport.zeta_over_s      0    -> 0.12   <pT> of pi, K within 2% of MUSIC's
-#   fasthydro.hydro.bulk_clamp [-0.9, 0.3]    REQUIRED with zeta/s > 0 (bulk_regulator.py)
+#   transport.Pi_p_bounds      [-0.9, 0.3]    fast_data's default; REQUIRED with zeta/s > 0
 #
 # The tune is a VISCOUS tune.  make_wake_data.py runs an ideal and a viscous leg by default;
 # the ideal leg drops shear AND bulk from the same IC, so it is not the tuned medium.  Run:
@@ -82,9 +82,11 @@ eos:
 transport:
   mode: israel_stewart     # make_wake_data.py overrides this per leg: use --legs visc (header)
   eta_over_s:   0.08
-  zeta_over_s:  0.12       # needs fasthydro.hydro.bulk_clamp (below)
+  zeta_over_s:  0.12       # needs Pi_p_bounds (below)
   tau_pi_coeff: 5.0
   pi_e_min:     0.01       # see the header
+  Pi_p_bounds:  [-0.9, 0.3]   # bound bulk Pi/p every step (fast_data's default, spelled out):
+                           # without it 0-10% events diverge at zeta/s > 0 (fv.viscous_step)
 
 source:
   # ---------------------------------------------------------------------------
@@ -162,4 +164,3 @@ fasthydro:
     store: vector
     store_fields: null
     accept_preeq_flow_loss: false
-    bulk_clamp: [-0.9, 0.3]      # Pi/p bounds; without them zeta/s > 0 diverges (bulk_regulator.py)

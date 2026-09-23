@@ -3,12 +3,12 @@
   "upstream": {
     "repo": "FNO4d",
     "path": "loc_libs/fast_data",
-    "commit": "8d1ddb5359650d4a61f4b04d59228c64b10057ac",
-    "commit_short": "8d1ddb5",
-    "commit_date": "2026-09-21",
-    "repo_head_at_vendoring": "fd69fe42bd2ce09459c421ac1883f87352339866"
+    "commit": "f2126547dbc4c0938f69db2a5ee44def85318508",
+    "commit_short": "f212654",
+    "commit_date": "2026-09-23",
+    "repo_head_at_vendoring": "f2126547dbc4c0938f69db2a5ee44def85318508"
   },
-  "vendored_on": "2026-09-22",
+  "vendored_on": "2026-09-23",
   "local_patches": [],
   "files": {
     "__init__.py": {
@@ -17,9 +17,9 @@
       "lines": 69
     },
     "config.py": {
-      "sha256": "713755adb69495b836dbd75f6cadbda1b4ec309bb65f80c1aa16d876932dce51",
-      "bytes": 12355,
-      "lines": 276
+      "sha256": "a66fa97092e779f336222c999f10418369a7dba0a9f45dd945457947421605bf",
+      "bytes": 12870,
+      "lines": 283
     },
     "convert.py": {
       "sha256": "f748d1abdb80091c22a0a97110219af8bd9d4ff12a72df30a028c8f6ccb3b0dd",
@@ -32,9 +32,9 @@
       "lines": 26
     },
     "driver.py": {
-      "sha256": "8dfcc97d658ba6640fa53f4c96ceb58edff7c1cac0e7fad8cdb8f8de02019d67",
-      "bytes": 14907,
-      "lines": 305
+      "sha256": "ad4d20a2382f3dbb3a5f1d3008d5e8a89363505e41e688f33931a8478e537ca1",
+      "bytes": 15418,
+      "lines": 311
     },
     "eos.py": {
       "sha256": "7cd918faeed737e43d378e375af12fb3e832fd77b20455913f24f115698845ca",
@@ -47,9 +47,9 @@
       "lines": 258
     },
     "fv.py": {
-      "sha256": "a3ece7585cf139f89cbedd6517606b139417e96684b528d82ed5df02804de54f",
-      "bytes": 108467,
-      "lines": 1926
+      "sha256": "34a6629dfe4e03b4b75fe5346c3e5acf708c85fb0139817dad23a8a964dcff87",
+      "bytes": 109982,
+      "lines": 1945
     },
     "glauber.py": {
       "sha256": "8dcdb93cab3416de9efaa27235015ac4d88f3ed295cc53495c28d7a317f88c1c",
