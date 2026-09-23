@@ -17,7 +17,16 @@ and say which leg is sampled:
   that is still above T_sw at the last frame or on a transverse boundary would leave it open.
   The eta edges are open by construction (finite eta grid); analyse at mid-rapidity.
 * The fluid's EoS has to be the hadron gas iSS samples, or Cooper-Frye does not conserve
-  energy at the switch: ``eos.kind: hotqcd_smash`` with the SMASH particle list.
+  energy at the switch, and the resonances have to be decayed by someone.  So the EoS picks
+  the hadron list (`ISS_EOS`):
+
+    hotqcd        MUSIC EOS 9,  UrQMD list -- iSS decays the resonances itself
+    hotqcd_smash  MUSIC EOS 91, SMASH list -- iSS leaves the decays to SMASH
+                                             (FSSW.cpp:390), so this needs <Afterburner>
+
+  With the SMASH list and no SMASH, iSS hands over the undecayed primordial resonances:
+  measured on the particlize config, 399 species instead of 24, and ~2.2x too few charged
+  hadrons at mid-rapidity.
 
 pi^{mu nu} and Pi are stored as zero (cells.py), so the Cooper-Frye is ideal whatever
 ``transport.mode`` says; the delta-f switches in ``<iSS>`` have nothing to act on.
@@ -29,10 +38,14 @@ import xml.etree.ElementTree as ET
 
 import numpy as np
 
-__all__ = ["LEGS", "closure_report", "config_problems", "read_xml", "write_iss_music_input"]
+__all__ = ["ISS_EOS", "LEGS", "closure_report", "config_problems", "read_xml",
+           "write_iss_music_input"]
 
 #: module ids of the two FastHydro legs, as build_two_stage names them
 LEGS = ("FastHydro_bg", "FastHydro_jet")
+
+#: fast_data eos.kind -> the MUSIC EoS id iSS reads from music_input, which picks its hadron list
+ISS_EOS = {"hotqcd": 9, "hotqcd_smash": 91}
 
 #: jetscape_main.xml default for <SoftParticlization><T_sw>
 DEFAULT_T_SW = 0.15
@@ -70,9 +83,9 @@ def read_xml(user_xml):
 #: What iSS reads from <iSS_working_path>/music_input (external_packages/iSS/src/readindata.cpp):
 #: the EoS id picks the hadron list (91 = SMASH, no partial chemical equilibrium), and the
 #: flags say which viscous/charge fields a surface cell carries.  FastHydro stores none.
-_MUSIC_INPUT = """\
-# Written by fasthydro.particlization for iSS; FastHydro does not use MUSIC.
-EOS_to_use 91
+_MARK = "# Written by fasthydro.particlization for iSS; FastHydro does not use MUSIC."
+_MUSIC_INPUT = _MARK + """
+EOS_to_use {eos_id}
 Include_Bulk_Visc_Yes_1_No_0 0
 Include_Rhob_Yes_1_No_0 0
 turn_on_baryon_diffusion 0
@@ -82,12 +95,13 @@ EndOfData
 """
 
 
-def write_iss_music_input(working_path):
+def write_iss_music_input(working_path, eos_id):
     """Create the ``music_input`` iSS insists on reading, in iSS's working directory.
 
     Without it iSS exits; and the wrapper's fallback symlinks <Hydro><MUSIC><MUSIC_input_file>,
-    which for a FastHydro run points at nothing sensible.  An existing file is kept only if it
-    says ``EOS_to_use 91`` -- anything else would sample the wrong hadron list.
+    which for a FastHydro run points at nothing sensible.  A file this function wrote is
+    rewritten for `eos_id`; anyone else's is kept only if it already says the same EoS id --
+    anything else would sample the wrong hadron list.
     """
     import os
     import re
@@ -97,16 +111,20 @@ def write_iss_music_input(working_path):
     if os.path.lexists(path):
         try:
             with open(path) as f:
-                eos = re.search(r"^\s*EOS_to_use\s+(\d+)", f.read(), re.M)
+                text = f.read()
         except OSError:
-            eos = None
-        if eos and eos.group(1) == "91":
-            return path
-        raise ValueError(f"{path} exists but does not say EOS_to_use 91, so iSS would sample "
-                         f"the wrong hadron list for FastHydro's hotqcd_smash EoS. Point "
-                         f"<SoftParticlization><iSS><iSS_working_path> at a fresh directory.")
+            text = ""
+        eos = re.search(r"^\s*EOS_to_use\s+(\d+)", text, re.M)
+        if not text.startswith(_MARK):
+            if eos and int(eos.group(1)) == int(eos_id):
+                return path
+            raise ValueError(f"{path} exists, is not ours, and does not say EOS_to_use "
+                             f"{eos_id}, so iSS would sample the wrong hadron list. Point "
+                             f"<SoftParticlization><iSS><iSS_working_path> at a fresh "
+                             f"directory.")
+        os.remove(path)          # ours, perhaps for another EoS: rewrite it
     with open(path, "w") as f:
-        f.write(_MUSIC_INPUT)
+        f.write(_MUSIC_INPUT.format(eos_id=int(eos_id)))
     return path
 
 
@@ -122,11 +140,22 @@ def config_problems(cfg, info):
         problems.append(
             "  output.stop_at_freezeout is true: the frames after the stop are zero, which "
             "fakes a surface there. Set it to false.")
-    if eos["kind"] != "hotqcd_smash":
+    if eos["kind"] not in ISS_EOS:
         problems.append(
-            f"  eos.kind = {eos['kind']!r}: iSS samples the SMASH hadron gas, so the fluid "
-            f"must end on the matching EoS or Cooper-Frye does not conserve energy at "
-            f"T_sw = {info['T_sw']} GeV. Use eos.kind: hotqcd_smash.")
+            f"  eos.kind = {eos['kind']!r}: iSS samples a hadron resonance gas, so the fluid "
+            f"must end on a matching lattice+HRG EoS or Cooper-Frye does not conserve energy "
+            f"at T_sw = {info['T_sw']} GeV. Use eos.kind: hotqcd (iSS decays the resonances) "
+            f"or hotqcd_smash (with SMASH).")
+    elif eos["kind"] == "hotqcd_smash" and not info.get("afterburner"):
+        problems.append(
+            "  eos.kind = 'hotqcd_smash' without an <Afterburner>: iSS samples the SMASH list "
+            "and leaves its resonance decays to SMASH (iSS FSSW.cpp:390), so the output would "
+            "be undecayed resonances -- ~2x too few charged hadrons. Use eos.kind: hotqcd, "
+            "whose UrQMD list iSS decays itself, or add <Afterburner><SMASH>.")
+    elif eos["kind"] == "hotqcd" and info.get("afterburner"):
+        problems.append(
+            "  eos.kind = 'hotqcd' with an <Afterburner>: SMASH needs the SMASH hadron list, "
+            "i.e. eos.kind: hotqcd_smash.")
     return problems
 
 

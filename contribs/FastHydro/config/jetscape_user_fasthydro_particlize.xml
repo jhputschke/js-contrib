@@ -161,17 +161,20 @@
       <!-- 3+1D surface cells in MUSIC's conventions (forced to 2 anyway: this run is not
            boost invariant) -->
       <hydro_mode>2</hydro_mode>
-      <!-- iSS reads music_input here; fasthydro.particlization writes one (EOS_to_use 91) -->
+      <!-- iSS reads music_input here; fasthydro.particlization writes it from eos.kind -->
       <iSS_working_path>./fasthydro_iss</iSS_working_path>
-      <!-- 2 = the SMASH hadron list, which is what hotqcd_smash ends on -->
-      <afterburner_type>2</afterburner_type>
+      <!-- The hadron list follows the fluid's EoS through music_input's EOS_to_use (9 ->
+           UrQMD, decayed by iSS; 91 -> SMASH, decayed only by SMASH). 1 = UrQMD, stated to
+           match eos.kind: hotqcd; iSS overrides it from the EoS id anyway. -->
+      <afterburner_type>1</afterburner_type>
       <!-- pi and Pi are stored as zero, so delta-f has nothing to act on -->
       <include_deltaf_shear>0</include_deltaf_shear>
       <include_deltaf_bulk>0</include_deltaf_bulk>
       <!-- Oversamples per event. The background leg sets the noise on (jet - bg):
            run it with many more (the oversample option of run_particlize.py). -->
       <number_of_repeated_sampling>20</number_of_repeated_sampling>
-      <!-- No SMASH in this build: let iSS decay the resonances itself -->
+      <!-- No SMASH in this build: iSS decays the resonances itself. It does so only for
+           the UrQMD/PDG lists; with the SMASH list it leaves them to SMASH. -->
       <Perform_resonance_decays>1</Perform_resonance_decays>
     </iSS>
   </SoftParticlization>

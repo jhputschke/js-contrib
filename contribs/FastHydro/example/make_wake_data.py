@@ -5,6 +5,14 @@
     python make_wake_data.py --device cpu         # slower, bitwise reproducible
     python make_wake_data.py --legs ideal         # just one
     python make_wake_data.py --dry-run            # print what it would do
+    python make_wake_data.py --medium realistic   # the medium normalized to dN_ch/deta ~ 650
+
+Two media:
+
+    fno4d      config/fasthydro_wake.yaml            FNO4d's reference medium (the default);
+                                                     ~2.5x too dilute for central Au+Au
+    realistic  config/fasthydro_wake_realistic.yaml  the medium hadron_wake.ipynb runs on,
+                                                     -> <build>/out_wake_realistic/
 
 Two runs of central Au+Au 200 GeV differing in one switch, `transport.mode`:
 
@@ -44,6 +52,14 @@ CONTRIB = os.path.dirname(HERE)
 
 LEGS = {"ideal": "ideal", "visc": "israel_stewart"}
 
+#: --medium -> (config, default output directory)
+MEDIA = {"fno4d": ("fasthydro_wake.yaml", "out_wake"),
+         "realistic": ("fasthydro_wake_realistic.yaml", "out_wake_realistic")}
+
+#: eos.kind -> the table ensure_eos must find
+EOS_TABLES = {"hotqcd_smash": ("hrg_hotqcd_eos_SMASH_binary.dat", "SMASH_binary"),
+              "hotqcd": ("hrg_hotqcd_eos_binary.dat", "binary")}
+
 #: The config asks for the hotQCD/SMASH table at ./eos/hotQCD relative to the working
 #: directory. Look for a copy already on the machine before fetching one; X-SCAPE ships its own
 #: under EOS/hotQCD, and a previous run of this script leaves one in place.
@@ -62,8 +78,12 @@ def _looks_like_a_table(path):
     return n > 0 and n % RECORD_BYTES == 0
 
 
-def ensure_eos(build, *, eos_dir=None, allow_download=True, verbose=True):
+def ensure_eos(build, *, eos_dir=None, allow_download=True, verbose=True,
+               eos_file=EOS_FILE, filetype=EOS_FILETYPE):
     """Make sure `<build>/eos/hotQCD/<table>` exists. -> its directory, or None.
+
+    `eos_file`/`filetype` pick the table: EOS 91 (`hotqcd_smash`) by default,
+    ``("hrg_hotqcd_eos_binary.dat", "binary")`` for EOS 9 (`hotqcd`).
 
     Order: an explicit --eos-dir, then where this script would have put it, then X-SCAPE's own
     EOS/hotQCD. Failing all of those, download it with fast_data's own fetcher -- plain urllib,
@@ -71,7 +91,7 @@ def ensure_eos(build, *, eos_dir=None, allow_download=True, verbose=True):
     32-byte records, so an interrupted fetch cannot leave a half table that silently loads.
     """
     dest = os.path.join(build, EOS_SUBDIR)
-    target = os.path.join(dest, EOS_FILE)
+    target = os.path.join(dest, eos_file)
 
     if os.path.exists(target) and _looks_like_a_table(target):
         if verbose:
@@ -84,7 +104,7 @@ def ensure_eos(build, *, eos_dir=None, allow_download=True, verbose=True):
 
     # a copy elsewhere on the machine
     for d in ([eos_dir] if eos_dir else []) + [os.path.join(build, "EOS", "hotQCD")]:
-        cand = os.path.join(d, EOS_FILE) if os.path.isdir(d) else d
+        cand = os.path.join(d, eos_file) if os.path.isdir(d) else d
         if os.path.exists(cand) and _looks_like_a_table(cand):
             os.makedirs(dest, exist_ok=True)
             try:
@@ -96,27 +116,37 @@ def ensure_eos(build, *, eos_dir=None, allow_download=True, verbose=True):
             return dest
 
     if not allow_download:
-        print(f"  MISS  EoS table   {EOS_FILE} not found, and --no-download was given.")
+        print(f"  MISS  EoS table   {eos_file} not found, and --no-download was given.")
         print(f"        Looked in: {dest}, {os.path.join(build, 'EOS', 'hotQCD')}"
               + (f", {eos_dir}" if eos_dir else ""))
         print( "        Fetch it with:  python -c \"from fast_data.eos import download_hotqcd;"
               f" download_hotqcd('{dest}')\"")
         return None
 
-    print(f"  EoS table not found locally; downloading {EOS_FILE} (~3.2 MB) -> {dest}")
+    print(f"  EoS table not found locally; downloading {eos_file} (~3.2 MB) -> {dest}")
     sys.path.insert(0, os.path.join(CONTRIB, "python"))
     from fast_data.eos import download_hotqcd
     try:
-        out = download_hotqcd(dest, filetype=EOS_FILETYPE)
+        out = download_hotqcd(dest, filetype=filetype)
     except Exception as exc:
         print(f"  MISS  download failed: {exc}")
         print( "        If this machine has no network, copy the table from any X-SCAPE build")
-        print(f"        ({os.path.join('EOS', 'hotQCD', EOS_FILE)}) into {dest},")
+        print(f"        ({os.path.join('EOS', 'hotQCD', eos_file)}) into {dest},")
         print( "        or pass --eos-dir <dir> pointing at one.")
         return None
     print(f"         got {os.path.getsize(out) / 1e6:.2f} MB, "
           f"{os.path.getsize(out) // RECORD_BYTES} table rows")
     return dest
+
+
+def _eos_kind(cfg_path):
+    """eos.kind of a YAML, without importing fast_data (the preflight runs before sys.path)."""
+    import re
+    with open(cfg_path) as f:
+        text = f.read()
+    block = text[text.index("\neos:"):] if "\neos:" in text else ""
+    m = re.search(r"^\s+kind:\s*(\w+)", block, re.M)
+    return m.group(1) if m else None
 
 
 def replay_leg(cfg_path, drop_npz, out, transport_mode, overrides, build, force=False):
@@ -196,7 +226,12 @@ def main(argv=None):
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--build", default=".",
                     help="X-SCAPE build tree to run in (default: the working directory)")
-    ap.add_argument("--out", default="out_wake", help="output directory, relative to --build")
+    ap.add_argument("--medium", choices=sorted(MEDIA), default="fno4d",
+                    help="fno4d: fasthydro_wake.yaml, the reference medium (default); realistic: normalized to "
+                         "the measured dN_ch/deta, the one hadron_wake.ipynb uses")
+    ap.add_argument("--out", default=None,
+                    help="output directory, relative to --build (default: out_wake, or "
+                         "out_wake_realistic for --medium realistic)")
     ap.add_argument("--legs", nargs="+", choices=sorted(LEGS), default=sorted(LEGS))
     ap.add_argument("--events", type=int, default=1)
     ap.add_argument("--device", default=None, help="cpu | cuda | mps (default: from the YAML)")
@@ -220,8 +255,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     build = os.path.abspath(a.build)
-    outdir = os.path.join(build, a.out)
-    cfg = os.path.join(CONTRIB, "config", "fasthydro_wake.yaml")
+    cfg_name, out_default = MEDIA[a.medium]
+    outdir = os.path.join(build, a.out or out_default)
+    cfg = os.path.join(CONTRIB, "config", cfg_name)
     uxml = os.path.join(CONTRIB, "config", "jetscape_user_fasthydro_wake.xml")
     mxml = a.main_xml or os.path.join(build, "..", "config", "jetscape_main.xml")
     driver = os.path.join(HERE, "run_two_stage.py")
@@ -235,9 +271,12 @@ def main(argv=None):
         print(f"  {'ok  ' if good else 'MISS'}  {what:11s} {p}")
     if not ok:
         return 1
-    if not a.dry_run and ensure_eos(build, eos_dir=a.eos_dir,
-                                    allow_download=not a.no_download) is None:
-        return 1
+    eos_kind = _eos_kind(cfg)
+    if not a.dry_run and eos_kind in EOS_TABLES:
+        eos_file, filetype = EOS_TABLES[eos_kind]
+        if ensure_eos(build, eos_dir=a.eos_dir, allow_download=not a.no_download,
+                      eos_file=eos_file, filetype=filetype) is None:
+            return 1
 
     os.makedirs(outdir, exist_ok=True)
 

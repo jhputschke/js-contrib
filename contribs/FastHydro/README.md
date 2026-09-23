@@ -33,7 +33,7 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | `python/fasthydro/h5_writer.py` | `PairedH5Writer` — the FNO4d HDF5 dataset format |
 | `python/fasthydro/pipeline.py` | `build_two_stage`, `build_bg_only` |
 | `python/fasthydro/particlization.py` | the checks that a leg can give a closed Cooper–Frye surface; iSS's `music_input` |
-| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook; `*_particlize.*` for hadrons |
+| `config/` | `jetscape_user_fasthydro.xml`, `fasthydro_twostage.yaml`; `*_wake.*` for the notebook (`fasthydro_wake_realistic.yaml`: the same, on the realistic medium); `*_particlize.*` for hadrons |
 | `example/` | `run_two_stage.py`, `run_replay.py`, `run_hydro_only.py`, `make_wake_data.py`, `run_particlize.py`, `delta_spectra.py`, `make_hadron_wake_data.py` |
 | `python/fasthydro/browse.py` | `PairBrowser` — read both legs of a pair out of one file |
 | `notebooks/jet_wake.ipynb` | the wake analysis: Mach cone, damping, broadening, Mach angle |
@@ -113,6 +113,7 @@ For the wake notebook's data, one command does both legs:
 
 ```bash
 python $C/example/make_wake_data.py        # -> out_wake/wake_{ideal,visc}.h5
+python $C/example/make_wake_data.py --medium realistic   # -> out_wake_realistic/ (dN_ch/dη ≈ 650)
 ```
 
 ## Soft particlization (hadron level)
@@ -145,41 +146,43 @@ cannot give one:
 
 - `output.zero_after_freezeout` / `stop_at_freezeout` must be off, or the zeroed frames fake a
   surface.
-- The EoS must be `hotqcd_smash`, the hadron gas iSS samples (`EOS_to_use 91`).
+- The EoS must be a lattice+HRG table whose hadron list iSS samples **and decays**. The
+  EoS picks the list through the `music_input` iSS reads, which the pipeline writes.
+  `hotqcd` (MUSIC EOS 9) gives the UrQMD list, which iSS decays itself. `hotqcd_smash`
+  (EOS 91) gives the SMASH list, which iSS leaves for SMASH to decay (`FSSW.cpp:390`), so it
+  is refused without an `<Afterburner>`. Without decays the output is the undecayed
+  primordial resonances: 399 species instead of 24, and ~2.2× too few charged hadrons.
 
 `EvolveHydro` warns if the fireball is still above T_sw at the last frame or on a transverse
-boundary. The η edges are open by construction, so analyse at mid-rapidity. The shipped
-`fasthydro_particlize.yaml` is the wake medium: ±10 fm, |η| ≤ 5, τ to 11 fm/c.
+boundary. The η edges are open by construction, so analyse at mid-rapidity.
+
+The shipped `fasthydro_particlize.yaml` is the wake medium (±10 fm, |η| ≤ 5), with two
+changes:
+- `initial_state.target_T` is raised from 0.30 to 0.39, so that the viscous run reproduces
+  central Au+Au;
+- the τ axis runs to 15 fm/c, because the hotter medium freezes out near 12 fm/c.
 
 **The noise is the background's.** Tens of GeV of wake hadrons sit on top of ~10⁴ GeV of
 bulk. iSS's Poisson fluctuations on the (jet − bg) difference fall only as 1/√(oversamples).
 `delta_spectra.py` prints each difference with its compound-Poisson error, so you can see
 how many oversamples a signal needs.
 
-**Checked.** On the shipped config, one central event:
+**Checked.** Israel–Stewart (η/s = 0.08), 2 central events × 200 oversamples:
 
-- The sampled hadrons carry 87% of the hydro's energy at τ₀. The rest leaves through the open
-  η edges (T there is 0.159 GeV > T_sw) or falls outside iSS's rapidity window.
-- The jet run deposited E = 27.0 GeV and p_T = 7.56 GeV in 23 droplets. The two runs' IC
-  hashes agree.
-
-With 200 oversamples per leg, `delta_spectra.py` gives:
-
-| (jet − bg), per oversample | value | significance |
+| at mid-rapidity | FastHydro + iSS | PHENIX 0–5 % |
 |---|---|---|
-| p_T along the deposit, all hadrons | 8.8 ± 2.3 GeV | 3.9σ; deposited: 7.56 GeV |
-| p_T along the deposit, \|y\| < 1 | 6.7 ± 1.4 GeV | 4.9σ |
-| E, \|y\| < 1 | 17.6 ± 3.2 GeV | 5.5σ |
-| N_ch, \|y\| < 1 | 5.8 ± 1.6 | 3.7σ |
-| E, all hadrons | 29 ± 56 GeV | not resolved: the bulk's total-energy noise |
+| dN_ch/dη | 637 | ~650–690 |
+| dN/dy π⁺, K⁺, p | 292, 56, 17.4 | ~286, ~49, ~18 |
+| ⟨p_T⟩ π⁺, K⁺, p [GeV] | 0.51, 0.74, 1.03 | ~0.45, ~0.67, ~0.95 |
 
-- The momentum balance closes within its error. That checks the surface's flow
-  normalization as well as the pairing.
-- In |y| < 1, the charged p_T excess sits within ~90° of the deposit direction.
-- A background event with 200 oversamples takes 15 s wall on 8 threads, against 55 s
-  single-threaded. The surface and the hadrons are byte-identical either way. Oversamples
-  cost almost nothing; the surface finder dominates, and it scales with the thread count
-  (`OMP_NUM_THREADS`).
+- ⟨p_T⟩ is ~10% harder than data. There is no δf and no hadronic cascade, and the model is
+  not tuned.
+- The surface conserves entropy. On an ideal run, the entropy flux through it, Σ s u·dσ, is
+  98% of the hydro's total entropy at τ₀.
+- With decays, S/N_ch = 7.8, the value for a hadron resonance gas.
+- An ideal background event with 200 oversamples takes 15 s wall on 8 threads, against 55 s
+  single-threaded, with byte-identical output. The surface finder dominates the cost and
+  scales with `OMP_NUM_THREADS`; the oversamples cost almost nothing.
 
 ## The pipeline
 
@@ -542,14 +545,27 @@ comparison.
 
 ### What it shows
 
-On the shipped configuration, with both expectations stated before the numbers are read:
+On the two media, with both expectations stated before the numbers are read. `fno4d` is the
+default (`fasthydro_wake.yaml`); `realistic` is `--medium realistic`
+(`fasthydro_wake_realistic.yaml`, normalized to dN_ch/dη ≈ 650). One PythiaGun event each,
+same seed:
 
-| | |
-|---|---|
-| wake amplitude, viscous/ideal | **0.647** — damping |
-| front width, viscous − ideal | **+4.65 fm** — broadening |
-| static-medium Mach half-angle | **≈ 23°** ($c_s \approx 0.39$, lattice EoS) |
-| jet extends the medium's life by | **+0.20 fm/c** (ideal), **+0.30** (viscous) |
+| | fno4d | realistic |
+|---|---|---|
+| deposited energy | 31.2 GeV (26 droplets) | 45.0 GeV (37 droplets) |
+| background freeze-out, ideal / viscous | 10.6 / 9.6 fm/c | 12.4 / 11.9 fm/c |
+| wake amplitude, viscous/ideal (damping) | **0.647** | **0.784** |
+| front width, viscous − ideal (broadening) | **+4.65 fm** | **+0.44 fm** |
+| Mach half-angle ($c_s$ at the source) | **≈ 23°** (0.38–0.40) | **29°** while depositing in hotter matter (0.49), then **≈ 23°** |
+| jet extends the medium's life by | **+0.20 fm/c** (ideal), **+0.30** (viscous) | **0** at the 0.1 fm/c freeze-out resolution |
+
+- **Viscosity matters less in the realistic medium.** η/s is the same, but the fireball is
+  bigger and lives longer, so gradients are gentler relative to the viscous length.
+- **The +4.65 fm broadening does not survive the change of medium.** Treat it as a
+  single-event number.
+- **The comparison is not clean.** The shower responds to the medium, so the two columns are
+  also two different jets (−9° against −1.5° in azimuth, 31 against 45 GeV deposited). Only
+  the `visc − ideal` rows within a column share one deposit.
 
 The Mach angle is 23° rather than the 35° a conformal EoS gives, because the lattice equation
 of state is softer near the transition. Anything measured off the maps should exceed it: the
@@ -606,7 +622,8 @@ see the notebook's §6.
   zero, so iSS's δf switches have nothing to act on. That is exact for `transport.mode:
   ideal`, and an approximation for a viscous run.
 - **No SMASH in the default build.** With `-DUSE_SMASH=OFF`, an `<Afterburner>` block is
-  refused and iSS decays the resonances itself (`Perform_resonance_decays 1`).
+  refused. iSS then decays the resonances itself (`Perform_resonance_decays 1`), but only
+  for the UrQMD/PDG lists, hence `eos.kind: hotqcd`. There is no hadronic rescattering.
 - **The surface lattice is coarser than the hydro grid.** The shipped XML uses a Cornelius
   lattice at 2× the hydro spacing (`<surface_dtau>`, `<surface_dx>`, `<surface_deta>`). At
   the hydro's own spacing the finder does ~16× more cubes; at 0, SurfaceFinder's defaults,

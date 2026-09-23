@@ -48,7 +48,14 @@ CONTRIB = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.join(CONTRIB, "python"))
 
-from make_wake_data import ensure_eos  # noqa: E402  (same EoS lookup/fetch)
+import make_wake_data as _mwd  # noqa: E402  (same EoS lookup/fetch)
+
+
+def ensure_eos_9(build, *, allow_download=True):
+    """The particlize config runs eos.kind: hotqcd, MUSIC's EOS 9 table."""
+    return _mwd.ensure_eos(build, allow_download=allow_download,
+                           eos_file="hrg_hotqcd_eos_binary.dat", filetype="binary")
+
 
 TRANSPORT = "israel_stewart"
 LEGS = ("jet", "bg")
@@ -70,7 +77,6 @@ def main(argv=None):
                     help="default: <build>/../config/jetscape_main.xml")
     ap.add_argument("--set", action="append", default=[], metavar="k.p=v",
                     help="extra dotted override, passed to both legs")
-    ap.add_argument("--eos-dir", default=None)
     ap.add_argument("--no-download", action="store_true")
     ap.add_argument("--keep-ascii", action="store_true",
                     help="keep the framework's text hadron files next to the .npz")
@@ -94,8 +100,7 @@ def main(argv=None):
         print(f"  {'ok  ' if good else 'MISS'}  {what:11s} {p}")
     if not ok:
         return 1
-    if not a.dry_run and ensure_eos(build, eos_dir=a.eos_dir,
-                                    allow_download=not a.no_download) is None:
+    if not a.dry_run and ensure_eos_9(build, allow_download=not a.no_download) is None:
         return 1
     os.makedirs(outdir, exist_ok=True)
 

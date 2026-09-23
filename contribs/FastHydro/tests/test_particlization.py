@@ -35,7 +35,9 @@ def test_parton_level_pair_still_passes():
 @pytest.mark.parametrize("mutate,expect", [
     (lambda c: c["output"].__setitem__("zero_after_freezeout", True), "zero_after_freezeout"),
     (lambda c: c["output"].__setitem__("stop_at_freezeout", True), "stop_at_freezeout"),
-    (lambda c: c["eos"].__setitem__("kind", "conformal"), "hotqcd_smash"),
+    (lambda c: c["eos"].__setitem__("kind", "conformal"), "hotqcd"),
+    # the SMASH list without SMASH: iSS would not decay the resonances
+    (lambda c: c["eos"].__setitem__("kind", "hotqcd_smash"), "Afterburner"),
 ])
 def test_settings_that_fake_a_surface_are_refused(mutate, expect):
     from fasthydro.pipeline import check_xml_agrees_with_cfg
@@ -43,6 +45,16 @@ def test_settings_that_fake_a_surface_are_refused(mutate, expect):
     mutate(cfg)
     with pytest.raises(ValueError, match=expect):
         check_xml_agrees_with_cfg(str(CFG / "jetscape_user_fasthydro_particlize.xml"), cfg)
+
+
+def test_smash_list_needs_smash_and_vice_versa():
+    from fasthydro.particlization import config_problems
+    cfg = _cfg("fasthydro_particlize.yaml")
+    assert config_problems(cfg, {"T_sw": 0.15, "afterburner": False}) == []
+    assert config_problems(cfg, {"T_sw": 0.15, "afterburner": True})       # UrQMD list into SMASH
+    cfg["eos"]["kind"] = "hotqcd_smash"
+    assert config_problems(cfg, {"T_sw": 0.15, "afterburner": True}) == []
+    assert config_problems(cfg, {"T_sw": 0.15, "afterburner": False})
 
 
 def test_freezeout_never_allows_the_tail_flags():
@@ -76,17 +88,21 @@ def test_read_xml():
 
 
 def test_music_input_is_written_and_checked(tmp_path):
-    from fasthydro.particlization import write_iss_music_input
-    p = write_iss_music_input(str(tmp_path / "iss"))
+    from fasthydro.particlization import ISS_EOS, write_iss_music_input
+    assert ISS_EOS == {"hotqcd": 9, "hotqcd_smash": 91}
+    p = write_iss_music_input(str(tmp_path / "iss"), 9)
     text = pathlib.Path(p).read_text()
-    assert "EOS_to_use 91" in text and "Include_Bulk_Visc_Yes_1_No_0 0" in text
-    assert write_iss_music_input(str(tmp_path / "iss")) == p        # ours: kept
+    assert "EOS_to_use 9\n" in text and "Include_Bulk_Visc_Yes_1_No_0 0" in text
+    # ours: rewritten for another EoS rather than refused
+    write_iss_music_input(str(tmp_path / "iss"), 91)
+    assert "EOS_to_use 91" in pathlib.Path(p).read_text()
 
     other = tmp_path / "other"
     other.mkdir()
-    (other / "music_input").write_text("EOS_to_use 9\n")            # someone else's MUSIC run
-    with pytest.raises(ValueError, match="EOS_to_use 91"):
-        write_iss_music_input(str(other))
+    (other / "music_input").write_text("EOS_to_use 91\n")           # someone else's MUSIC run
+    assert write_iss_music_input(str(other), 91)                     # same EoS: kept as is
+    with pytest.raises(ValueError, match="EOS_to_use 9"):
+        write_iss_music_input(str(other), 9)
 
 
 class _EoS:

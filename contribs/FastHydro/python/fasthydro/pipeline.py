@@ -181,7 +181,7 @@ def build_two_stage(cfg, *, user_xml=None, main_xml=None, ic=None, hard="PGun",
     if user_xml:
         modules += _add_particlization(user_xml, {"FastHydro_bg": hyd_bg,
                                                   "FastHydro_jet": hyd_jet},
-                                       parts, hadron_file=hadron_file, verbose=verbose)
+                                       parts, cfg, hadron_file=hadron_file, verbose=verbose)
     return modules, parts
 
 
@@ -211,12 +211,12 @@ def build_bg_only(cfg, *, user_xml=None, main_xml=None, ic=None, verbose=True,
     modules = [ini, preeq, hyd_bg]
     parts = dict(ini=ini, preeq=preeq, hyd_bg=hyd_bg)
     if user_xml:
-        modules += _add_particlization(user_xml, {"FastHydro_bg": hyd_bg}, parts,
+        modules += _add_particlization(user_xml, {"FastHydro_bg": hyd_bg}, parts, cfg,
                                        hadron_file=hadron_file, verbose=verbose)
     return modules, parts
 
 
-def _add_particlization(user_xml, legs, parts, *, hadron_file=None, verbose=True):
+def _add_particlization(user_xml, legs, parts, cfg, *, hadron_file=None, verbose=True):
     """iSS [+ SMASH] + a final-state hadron writer, if the user XML has <SoftParticlization>.
 
     The surface is not built here: iSS gets it in C++ from the chosen leg's bulk_info (see
@@ -225,12 +225,12 @@ def _add_particlization(user_xml, legs, parts, *, hadron_file=None, verbose=True
     """
     from jetscape.pyjetscape_core import create_module, set_writer_output_file
 
-    from .particlization import read_xml, write_iss_music_input
+    from .particlization import ISS_EOS, read_xml, write_iss_music_input
 
     soft = read_xml(user_xml)
     if soft is None:
         return []
-    write_iss_music_input(soft["iss_working_path"])
+    write_iss_music_input(soft["iss_working_path"], ISS_EOS[cfg["eos"]["kind"]])
     # hydro_id "first" (or absent) is the first FluidDynamics in the task list: the bg leg
     leg_id = soft["hydro_id"] or "FastHydro_bg"
     if leg_id not in legs:
