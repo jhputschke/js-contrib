@@ -24,6 +24,7 @@
 #include "JetScapeTask.h"
 #include "JetScapeXML.h"
 #include "JetScapeTaskSupport.h"
+#include "JetScapeWriter.h"
 #include "MusicWrapper.h"
 #include "PreequilibriumDynamics.h"
 #include "TrentoInitial.h"
@@ -408,6 +409,23 @@ void bind_framework(py::module_ &m) {
         )pbdoc",
         py::arg("main_xml"), py::arg("user_xml") = std::string(),
         py::arg("init_random") = true);
+
+  // Writers built with create_module() get no file name: in XML mode that is set by
+  // JetScape::DetermineWritersFromXML(), which does not run for a hand-wired pipeline.
+  m.def("set_writer_output_file",
+        [](std::shared_ptr<JetScapeModuleBase> mod, const std::string &file_name) {
+          auto writer = std::dynamic_pointer_cast<JetScapeWriter>(mod);
+          if (!writer)
+            throw py::value_error("set_writer_output_file: module '" + mod->GetId() +
+                                  "' is not a JetScapeWriter");
+          writer->SetOutputFileName(file_name);
+        },
+        R"pbdoc(
+          Set the output file of a writer created with create_module(), e.g.
+          create_module("JetScapeWriterFinalStateHadronsAscii").  Call before
+          JetScape.Init(), which opens the file.
+        )pbdoc",
+        py::arg("writer"), py::arg("file_name"));
 
   m.def("create_module",
         [](const std::string &name) -> py::object {
