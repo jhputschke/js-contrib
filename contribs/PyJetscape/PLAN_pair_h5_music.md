@@ -343,5 +343,6 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
 - CPU-only X-SCAPE build (MUSIC `cee9460`) not built or tested. music4gpu's forced-CPU path
   covers the same code.
 - The one-in-ten anomalous run (see above).
-- Push MUSIC4GPU `XSCAPE` (`3037be7`), then X-SCAPE `pair_h5_music` (`896e3d1c`). In that
-  order, so that the new pin resolves.
+- Speed, next: start MUSIC_2 from a full-state MUSIC_1 snapshot taken just before
+  `tau_delay` (~4–5 s/event), then the writer's resampling (12.2 s), the medium-store copy
+  (6.2 s) and the CPU surface finder. Details in the PyJetscape README, "Future steps".

@@ -947,6 +947,51 @@ What the numbers say:
   ~60M-cell legs) and the copy of the background into the medium store (6.2 s). With the
   surface finder, these are the largest remaining levers.
 
+### Future steps
+
+**1. Start MUSIC_2 from a MUSIC_1 snapshot (expected saving ~4–5 s per event).** The two
+legs are bit-identical until the first droplet deposits: measured, the stored frames match
+up to τ = 1.0 fm/c, and the first deposit is at 1.04 fm/c. MUSIC_2 therefore recomputes its
+first ~0.6 fm/c, including the ~4 s string deposition and ~30 steps, only to reproduce
+MUSIC_1. Continuing MUSIC_2 from MUSIC_1's state just before the first deposit would save
+roughly 4–5 s of MUSIC_2's 21.5 s.
+
+* **When to snapshot.** The droplets exist only after MUSIC_1 has finished, because the
+  energy loss needs its full evolution. So the snapshot cannot be timed to the actual first
+  deposit; it is taken at a time known in advance. Droplet τ is never negative, so nothing
+  can deposit before τ = `tau_delay` (1.0 fm/c here), and a snapshot just before it is
+  always safe.
+* **The bound loses almost nothing.** The earliest droplets have τ ≈ 0.04–0.05 (partons
+  near the beam axis, z ≈ t), so the first deposit sits ≈ `tau_delay` + 0.04 (measured
+  1.04–1.05 fm/c). Exact timing would save only ~2 more steps.
+* **It works with `--reuse`:** every jet on the reused background deposits after
+  `tau_delay`.
+* **The stored evolution history cannot serve as the snapshot.** It keeps only T, e, s, P
+  and the velocity, as float, every 5th step. MUSIC's state also holds the shear tensor
+  (14 components) and the bulk pressure, which have their own equations, and the previous
+  step's fields for the time derivatives, all in double precision. Restarting from the
+  history would reset the viscous stresses and make the legs differ before any deposit.
+* **What is needed.** A save/restore of MUSIC's full state (current and previous fields,
+  about 0.3 GB on the 100×100×60 grid) at the chosen τ. On the GPU path this includes the
+  device's working copy, which stays on the GPU between steps. That means a hook in
+  music4gpu and plumbing in X-SCAPE's `MusicWrapper`.
+* **Checks.**
+  * MUSIC_2 refuses the snapshot if a droplet would deposit before it.
+  * `arr` must stay bit-identical to today's full MUSIC_2 run.
+
+**2. Other levers from the timing breakdown.**
+* **`PairH5Writer`, 12.2 s:** reading both ~60M-cell legs and resampling them onto the
+  output grid. Faster resampling, or resampling only the output frames needed, would help;
+  `grid_mode="native"` skips it (larger files).
+* **Copy of MUSIC_1 into X-SCAPE's medium store, 6.2 s:** needed by Matter/LBT.
+* **Freeze-out surface on the CPU, ~5.6 s per MUSIC run:** MUSIC needs it to decide when
+  to stop, so `skip_surface` does not remove it.
+* **CPU source pass after the strings are gone, ~1.3 s per MUSIC run:** it still makes
+  one call per cell per substep. Skipping the pass when no string and no droplet is
+  active would remove it.
+* **Upstream CPU MUSIC:** it lacks the per-step jet-source call (MUSIC4GPU `3037be7`), so
+  a CPU-only build still evaluates every droplet at every step.
+
 ### Tests
 
 `tests/test_pair_h5.py` runs the writer against stub MUSIC legs (no build needed): the pair
