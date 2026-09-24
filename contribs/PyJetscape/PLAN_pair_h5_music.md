@@ -70,7 +70,8 @@ Three things stand in the way today:
 - The Kokkos commits don't touch the CUDA code. In shared files they change only the
   backend-selection block at the top of `src/advance.h`, plus CMake and new `src/gpu/*kokkos*` files.
 - So switching the checkout to `XSCAPE` gives the same CUDA physics. The jet-source port touches
-  other parts of `advance.h`, so it merges into the Kokkos branches without conflicts.
+  other parts of `advance.h`, so it could be cherry-picked onto a Kokkos branch without
+  conflicts if that is ever wanted.
 
 **js-contrib:** `main` (`26bd201`) already contains `fasthydro_hadronization` and `fasthydro`.
 
@@ -91,8 +92,8 @@ Three things stand in the way today:
    Rebuild `build_gpu` from X-SCAPE `pair_h5_music`.
    - Check that nothing changed: rerun a `prod_AuAu_0_10` seed, 1 event, and compare bit for bit
      with an existing output file.
-5. **Leave alone:** X-SCAPE `KoKKos-Music-Port`. It merges cleanly into `music4gpu_test` later, if
-   the Kokkos backend is wanted.
+5. **Leave alone:** X-SCAPE `KoKKos-Music-Port` stays separate, like the MUSIC4GPU Kokkos
+   branches; no merges.
 6. **js-contrib:** new branch `pair_h5_music` from `main`, with the same name as the X-SCAPE branch.
    Its first commit is this plan, archived as `contribs/PyJetscape/PLAN_pair_h5_music.md` (already
    written, untracked). Keep it up to date as phases land.
@@ -104,8 +105,11 @@ Three things stand in the way today:
 
 **2b. MUSIC4GPU.** Port MUSIC `c8da6a3` to music4gpu.
 - **Where:** a branch from `XSCAPE`, e.g. `XSCAPE_jet_source`, merged into `XSCAPE`.
-- **Kokkos branches:** afterwards, merge `XSCAPE` into `KoKKos-Port` and `XSCAPE-KoKKos`; no
-  conflict expected.
+- **Kokkos branches: left alone.** `XSCAPE` and the Kokkos branches (`KoKKos-Port`,
+  `XSCAPE-KoKKos`) stay separate, with no merges in either direction (user decision,
+  2026-09-24). If a Kokkos build ever needs jets, cherry-pick only the port commit onto it.
+  Until then, don't build an X-SCAPE branch carrying PR #138 against a Kokkos branch:
+  the wrapper calls `add_hydro_source_terms_from_jet`, which exists only with the port.
 - **Pin:** on X-SCAPE `pair_h5_music`, set `get_music4gpu.sh` to that commit, the way
   `get_music.sh` pins MUSIC. Today it clones the branch head, so builds can't be reproduced.
 - `src/music.{h,cpp}`: add `hydro_source_terms_from_jet_ptr_` and `add_hydro_source_terms_from_jet()`.
@@ -285,7 +289,7 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
   change, such as the `get_music4gpu.sh` pin. Merge it into `music4gpu_test` when verified; later
   a PR goes `music4gpu_test` → `main`. `fasthydro_hadronization` never needs a separate merge,
   because it is already contained.
-- **MUSIC4GPU `XSCAPE`:** the jet-source port (2b), then merged into `KoKKos-Port` and `XSCAPE-KoKKos`.
+- **MUSIC4GPU `XSCAPE`:** the jet-source port (2b). The Kokkos branches stay separate (no merges).
 - **js-contrib `pair_h5_music`** (from `main`): the Python work, 2c and Phases 3–7. Merge to
   `main` when verified.
 - One commit per phase. Phase 2's gate has to pass before Phases 5 and 6 run on real data.
@@ -302,8 +306,8 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
 
 **Done, uncommitted (for the user to commit):** the MUSIC4GPU jet source slot, on branch
 `XSCAPE_jet_source` off `XSCAPE`. The `music4gpu` checkout is now on that branch. Once it is
-committed: pin `get_music4gpu.sh` (X-SCAPE `pair_h5_music`) to it, and merge `XSCAPE` into
-`KoKKos-Port` / `XSCAPE-KoKKos`.
+committed and pushed to GitHub's MUSIC4GPU, pin `get_music4gpu.sh` (X-SCAPE `pair_h5_music`)
+to it. The Kokkos branches stay separate.
 
 **Verified on MUSIC** (`build_gpu`, GB10, 3D MC-Glauber, InitialProfile 131)
 - **Hydro-only production unchanged.** music4gpu `XSCAPE` + the port reproduces the existing
@@ -334,7 +338,7 @@ committed: pin `get_music4gpu.sh` (X-SCAPE `pair_h5_music`) to it, and merge `XS
   look. The pair null test and `diag/frames_identical` would catch it within a pair.
 
 **Still open**
-- Commit the music4gpu port, pin `get_music4gpu.sh`, and merge into the Kokkos branches.
+- Commit and push the music4gpu port, then pin `get_music4gpu.sh`. No Kokkos merges.
 - Push `music4gpu_test` and the `pair_h5_music` branches.
 - CPU-only X-SCAPE build (MUSIC `cee9460`) not built or tested. music4gpu's forced-CPU path
   covers the same code.
