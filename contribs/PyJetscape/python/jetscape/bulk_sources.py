@@ -47,11 +47,11 @@ including its three non-obvious behaviours:
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
-__all__ = ["Grid", "GRID_MODES", "event_array", "resample",
+__all__ = ["Grid", "GRID_MODES", "event_array", "resample", "ntau_to_end",
            "resolve_out_grid", "attrs_from_grids", "music_extra_attrs"]
 
 GRID_MODES = ("native", "grid", "framework")
@@ -92,6 +92,36 @@ class Grid:
             boost_invariant=bool(b.boost_invariant),
         )
 
+    @classmethod
+    def from_bounds(cls, x, y, eta, tau_min, dtau, ntau=0):
+        """Build from ``(min, max, n)`` per spatial axis: n cell centres, min..max inclusive.
+
+        The step is ``(max - min)/(n - 1)``; ``n = 1`` needs ``min == max`` and gets step 0.
+        ``ntau = 0`` leaves the tau extent to :func:`resolve_out_grid`, which then runs to
+        the end of each event's evolution.
+        """
+        def axis(name, spec):
+            lo, hi, n = float(spec[0]), float(spec[1]), int(spec[2])
+            if n < 1:
+                raise ValueError(f"{name}: n must be >= 1, got {n}")
+            if n == 1:
+                if hi != lo:
+                    raise ValueError(f"{name}: n = 1 needs min == max, got {lo}..{hi}")
+                return lo, 0.0, 1
+            if hi <= lo:
+                raise ValueError(f"{name}: max must be > min, got {lo}..{hi}")
+            return lo, (hi - lo) / (n - 1), n
+
+        x_min, dx, nx = axis("x", x)
+        y_min, dy, ny = axis("y", y)
+        eta_min, deta, neta = axis("eta", eta)
+        if dtau <= 0:
+            raise ValueError(f"dtau must be > 0, got {dtau}")
+        return cls(nx=nx, ny=ny, neta=neta, ntau=max(0, int(ntau)),
+                   x_min=x_min, dx=dx, y_min=y_min, dy=dy,
+                   eta_min=eta_min, deta=deta,
+                   tau_min=float(tau_min), dtau=float(dtau))
+
     @property
     def tau_max(self):
         return self.tau_min + (self.ntau - 1) * self.dtau
@@ -118,7 +148,19 @@ def resolve_out_grid(src, spec=None):
     spanning -15..+15 rather than -15..+14.7.  That is what the C++ does, and it is what you
     want when reproducing it -- but it makes a poor default, so an empty spec (or one whose
     values are all 0/None) returns the source grid unchanged instead.
+
+    ``spec`` may instead be a :class:`Grid` (e.g. from :meth:`Grid.from_bounds`), which is
+    taken literally -- any origin, any cell count, and 0 is a value rather than "unset".
+    Its ``ntau`` is an upper bound: 0 runs to the end of the source's tau range, N > 0 keeps
+    at most the first N frames.  Never more than the source covers, so a short event does
+    not gain trailing all-zero frames (which would also inflate its ntau_freezeout).
     """
+    if isinstance(spec, Grid):
+        ntau = ntau_to_end(src, spec.tau_min, spec.dtau)
+        if spec.ntau > 0:
+            ntau = min(ntau, spec.ntau)
+        return replace(spec, ntau=ntau, boost_invariant=src.boost_invariant)
+
     spec = dict(spec or {})
     if not any(spec.get(k) for k in
                ("x_min", "dx", "y_min", "dy", "eta_min", "deta", "tau_min", "dtau", "ntau")):
@@ -143,13 +185,22 @@ def resolve_out_grid(src, spec=None):
 
     ntau = int(spec.get("ntau") or 0)
     if ntau <= 0:
-        ntau = int((src.tau_max - tau_min) / dtau) + 1 if dtau else 0
-    ntau = max(ntau, 0)
+        ntau = ntau_to_end(src, tau_min, dtau)
 
     return Grid(nx=nx, ny=ny, neta=neta, ntau=ntau,
                 x_min=x_min, dx=dx, y_min=y_min, dy=dy,
                 eta_min=eta_min, deta=deta, tau_min=tau_min, dtau=dtau,
                 boost_invariant=src.boost_invariant)
+
+
+def ntau_to_end(src, tau_min, dtau):
+    """Output frames from ``tau_min`` in steps of ``dtau`` up to the source's last frame."""
+    if not dtau:
+        return 0
+    # Same 1e-6 slack as resample(): the source grid is float32, so an output frame
+    # landing exactly on the last stored step can divide out at N-1e-7 and be dropped.
+    # FastRootBulkWriter.cc applies the same slack.
+    return max(int((src.tau_max - tau_min) / dtau + 1e-6) + 1, 0)
 
 
 # -------------------------------------------------------------------- resampling

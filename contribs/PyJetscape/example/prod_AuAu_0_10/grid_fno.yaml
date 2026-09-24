@@ -1,0 +1,39 @@
+# Output grid for run_prod.py  (python run_prod.py --grid grid_fno.yaml)
+#
+# Default: the FNO4d Au+Au grid, identical to fast_data's fastdata_AuAu200_tune_0_10.h5, so
+# the MUSIC and fast_data files load together.
+#
+# Each spatial axis is n cell CENTRES from min to max inclusive: step = (max - min)/(n - 1).
+# n = 1 stores a single slice (then min must equal max).  The box must lie inside MUSIC's
+# grid, which comes from <IS> in the XML: x, y in [-15, 14.7] fm (100 cells of 0.3 fm) and
+# eta_s in [-6, 5.8] (60 cells of 0.2).  run_prod.py checks this before starting, because a
+# point outside MUSIC's box is written as zeros, not clamped.
+#
+# Every file of one training set must share this whole grid, max_ntau included.
+
+grid:
+  x:   {min: -10.0, max: 10.0, n: 65}     # dx   = 0.3125 fm
+  y:   {min: -10.0, max: 10.0, n: 65}     # dy   = 0.3125 fm
+  eta: {min: -5.0,  max: 5.0,  n: 33}     # deta = 0.3125
+
+tau:
+  # First stored frame [fm/c].  With string initial conditions MUSIC starts each event at
+  # its own tau0 (0.4 fm/c in tests, set by the earliest string), so keep min >= tau0 or the
+  # first frames are zeros; run_prod.py logs each event's tau0 and warns if it is later.
+  min: 0.5
+  # Frame spacing [fm/c].  MUSIC stores a frame every 0.1 fm/c
+  # (output_evolution_every_N_timesteps 5 x Delta_Tau 0.02); a multiple of 0.1 lands on
+  # stored frames, anything else is interpolated linearly in tau.
+  dtau: 0.1
+  # Tau extent of the file.
+  #   0 (default): the tau axis grows to the longest event in this file and stays growable.
+  #     Nothing is clipped.  Files of one campaign then differ in length; before training,
+  #     bring them to one length in place (metadata only, no data moves, no disk cost):
+  #       python ../../python/jetscape/repad_h5.py out/AuAu_0_10_seed*.h5                  # to the longest
+  #       python ../../python/jetscape/repad_h5.py out/AuAu_0_10_seed*.h5 --choose-ntau 145 # = fast_data tune
+  #   N > 0: keep only the first N frames of every event (tau up to min + (N-1)*dtau),
+  #     e.g. 20 = early times 0.5 .. 2.4 fm/c only.  Only those frames are computed and
+  #     stored; the log says "kept the first N of M frames".  The file's tau axis is then
+  #     fixed at N for good (repad_to cannot grow it), so all files match as written.
+  # 0-10% events end near 10 fm/c (~100 frames from tau = 0.5).
+  max_ntau: 0

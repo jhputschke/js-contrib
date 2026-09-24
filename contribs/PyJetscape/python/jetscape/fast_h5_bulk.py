@@ -74,7 +74,7 @@ except ImportError:                                   # pragma: no cover - reade
     _CORE_AVAILABLE = False
     JetScapeModuleBase, JetScapeSignalManager = object, None
 
-from .bulk_sources import (GRID_MODES, attrs_from_grids, event_array,
+from .bulk_sources import (GRID_MODES, Grid, attrs_from_grids, event_array,
                            framework_store_bytes, music_extra_attrs)
 from .fno_h5_writer import CHANNELS, FnoH5Writer
 
@@ -102,9 +102,10 @@ class H5BulkWriter(JetScapeModuleBase):
         pins it, which is what makes files from separate jobs mergeable -- every file
         trained on together must share one ``choose_ntau`` or ``MultiH5Array`` raises.
         Longer events are then clipped, with a warning per event and a count at Finish().
-    out_grid : mapping, optional
+    out_grid : mapping or bulk_sources.Grid, optional
         ``grid``/``framework`` only: any of ``x_min dx y_min dy eta_min deta tau_min dtau
-        ntau``.  Missing/0 means "use the source grid's value".
+        ntau``.  Missing/0 means "use the source grid's value".  A ``Grid`` (e.g.
+        ``Grid.from_bounds``) is used exactly as given; see ``resolve_out_grid``.
     compression : str or None
         h5py compression for ``arr``.  ``"lzf"`` matches the existing reference files.
     clear_after_write : bool
@@ -141,7 +142,7 @@ class H5BulkWriter(JetScapeModuleBase):
         self._grid_mode = grid_mode
         self._tau_stride = max(1, int(tau_stride))
         self._choose_ntau = max(0, int(choose_ntau))
-        self._out_grid = dict(out_grid or {})
+        self._out_grid = out_grid if isinstance(out_grid, Grid) else dict(out_grid or {})
         self._compression = compression
         self._clear_after_write = bool(clear_after_write)
         self._force = bool(force)

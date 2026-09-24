@@ -182,6 +182,43 @@ def test_resolve_out_grid_uses_the_cpp_derivation_once_a_key_is_given():
     assert (out.dy, out.y_min) == (src.dy, src.y_min)      # untouched keys follow the source
 
 
+def test_from_bounds_gives_n_centres_from_min_to_max():
+    g = Grid.from_bounds(x=(-10, 10, 65), y=(-8, 12, 5), eta=(-2, 2, 9),
+                         tau_min=0.5, dtau=0.1, ntau=145)
+    assert (g.nx, g.ny, g.neta, g.ntau) == (65, 5, 9, 145)
+    assert (g.dx, g.dy, g.deta) == (0.3125, 5.0, 0.5)
+    np.testing.assert_allclose(g.axis("x")[[0, -1]], [-10, 10])
+    np.testing.assert_allclose(g.axis("y")[[0, -1]], [-8, 12])       # need not be symmetric
+
+
+def test_from_bounds_single_cell_axis_and_bad_input():
+    g = Grid.from_bounds(x=(-1, 1, 3), y=(-1, 1, 3), eta=(0, 0, 1), tau_min=0.5, dtau=0.1)
+    assert (g.neta, g.eta_min, g.deta, g.ntau) == (1, 0.0, 0.0, 0)
+    for bad in ({"eta": (0, 1, 1)}, {"eta": (1, -1, 5)}, {"eta": (-1, 1, 0)}):
+        kw = dict(x=(-1, 1, 3), y=(-1, 1, 3), eta=(-1, 1, 3)) | bad
+        with pytest.raises(ValueError):
+            Grid.from_bounds(**kw, tau_min=0.5, dtau=0.1)
+
+
+def test_resolve_out_grid_takes_a_grid_literally():
+    """0 is a value here, not "use the source" -- eta_min = 0 must survive."""
+    data, src = make_source()
+    spec = Grid.from_bounds(x=(-2, 2, 5), y=(-2, 0, 3), eta=(0, 0, 1),
+                            tau_min=0.6, dtau=0.2)
+    out = resolve_out_grid(src, spec)
+    assert (out.eta_min, out.neta, out.y_min, out.ny) == (0.0, 1, -2.0, 3)
+    assert out.ntau == src.ntau                             # ntau = 0 -> to the source's end
+    assert out.boost_invariant == src.boost_invariant
+    def capped(n):
+        return resolve_out_grid(src, Grid.from_bounds(x=(-2, 2, 5), y=(-2, 2, 5),
+                                                      eta=(-1, 1, 3), tau_min=0.6, dtau=0.2,
+                                                      ntau=n)).ntau
+    assert capped(2) == 2                                   # the first 2 frames only
+    assert capped(99) == src.ntau                           # an upper bound, never past the end
+    np.testing.assert_allclose(resample(data, src, out), brute_force(data, src, out),
+                               rtol=0, atol=2e-6)
+
+
 # ───────────────────────────────────────────────────── writer schema
 def write_two_ragged_events(path, ntaus=(4, 7), nx=3, ny=3, neta=2):
     src = Grid(nx=nx, ny=ny, neta=neta, ntau=max(ntaus),

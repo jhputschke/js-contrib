@@ -362,8 +362,9 @@ def repad_to(paths, choose_ntau=None, *, dry_run=False, verbose=True):
         raise ValueError(
             "repad_to: the tau axis is not growable (no maxshape) in "
             + ", ".join(stuck)
-            + " -- it predates the extendible-tau change, so it must be rewritten "
-              "rather than resized.")
+            + " -- it was written with a pinned tau extent (growable_tau=False, e.g. "
+              "H5BulkWriter choose_ntau > 0) or predates the extendible-tau change, so it "
+              "must be rewritten rather than resized.")
 
     changed = []
     for path, v in info.items():
