@@ -46,6 +46,11 @@ Original development repository:
 | `python/jetscape/run_jetscape.py` | High-level simulation drivers: `run_automatic()` (Mode A), `run_manual()` (Mode B), `per_event_loop()` / `run_per_event()` (Mode C) |
 | `python/jetscape/bulk_root_writer.py` | Python ROOT bulk-evolution writer via uproot |
 | `python/jetscape/fast_root_bulk.py` | Reader for `FastRootBulkWriter` ROOT files (uproot) |
+| `python/jetscape/fast_h5_bulk.py` | `H5BulkWriter`: one hydro evolution per event → FNO4d HDF5 |
+| `python/jetscape/fno_h5_writer.py` | The FNO4d HDF5 writer both HDF5 writers use (h5py + numpy only), plus `repad_to` |
+| `python/jetscape/pair_h5.py` | `PairH5Writer`: a two-stage MUSIC run (background + jet leg) → one pair file in FastHydro's layout |
+| `python/jetscape/showers.py`, `liquefier_io.py` | Parton-shower graph and liquefier droplet/parameter readers (numpy only) |
+| `example/prod_AuAu_0_10/`, `example/prod_AuAu_0_10_jet/` | Productions: 0–10% Au+Au hydro-only, and the same with a jet as background/jet pairs |
 | `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
 | `conda_install/` | Conda environment installation scripts for the `js_fno` environment |
 | `pyproject.toml` | Source-only Python package metadata (`name = "pyjetscape"`) |
@@ -63,7 +68,7 @@ Original development repository:
 | pybind11 | ≥ 2.11 | Fetched automatically by CMake if not found on system |
 | numpy | ≥ 1.21 | |
 | uproot | ≥ 5 | Only needed for `bulk_root_writer.py` and `fast_root_bulk.py` |
-| h5py | ≥ 3 | Only needed for `fast_h5_bulk.py` (HDF5 bulk writer); sets `jetscape.HAS_H5PY` |
+| h5py | ≥ 3 | Only needed for the HDF5 writers (`fast_h5_bulk.py`, `pair_h5.py`); sets `jetscape.HAS_H5PY` |
 | — | — | `jetscape.HAS_CORE` reports whether the compiled extension is importable. The HDF5 tooling (`FnoH5Writer`, `grid_attrs`, `repad_to`, `read_fast_h5_bulk`) needs only h5py+numpy and stays usable without an X-SCAPE build; `H5BulkWriter` is a framework module and raises a clear error without one. |
 | scipy | ≥ 1.9 | Only needed for `fast_h5_bulk.py` in `grid` / `framework` source mode |
 
@@ -729,6 +734,11 @@ This is the h5-to-h5 counterpart of `root2hdf5/root_to_hdf5.py --global-ntau`.
   (`modules=None`, the example's default, with the loop driven by `JetScapePerEvent`) or
   set that flag to `false` and build it all in Python (`--manual`). The tell-tale in the
   log is `Initialize PreequilibriumDynamics` appearing twice.
+* **Events cut short at the grid edge are flagged.** MUSIC stops an event whose freeze-out
+  surface reaches the transverse grid boundary (it expects a re-run on a larger grid, which
+  X-SCAPE does not do), so that evolution is truncated. With an X-SCAPE build that has
+  `MpiMusic.get_hit_grid_boundary()` (X-SCAPE `ca8dd84a`), the writer stores
+  `diag/hit_grid_boundary` per event and warns.
 * **XML prerequisites differ by mode and are mutually exclusive.** `native`/`grid` need
   `<dump_hydro_only>1` plus `<output_evolution_to_memory>1`; `framework` needs
   `<output_evolution_to_memory>1` *without* `dump_hydro_only`, since it reads
@@ -758,6 +768,193 @@ transcription of the C++ `EvolutionHistory::get()` and the output against FNO4d'
 
 ```bash
 pytest external_packages/js-contrib/contribs/PyJetscape/tests/test_h5_bulk.py -q
+```
+
+---
+
+## Background/Jet Pair Writer (`pair_h5.py`)
+
+`PairH5Writer` writes an X-SCAPE **two-stage MUSIC** run as one FNO4d-schema HDF5 file in
+FastHydro's pair layout. Each event holds the medium **without** the jet (background leg) and
+**with** the jet's energy deposited into it (jet leg). The two legs start from the same
+initial condition, so `arr - arr_bg` is the jet's effect and nothing else.
+
+```
+IS (e.g. 3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
+   -> MUSIC_1                         background leg                 -> arr_bg
+   -> Liquefier + Eloss (Matter+LBT)  energy loss on MUSIC_1's medium -> droplets
+   -> MUSIC_2                         same IC + the droplets          -> arr
+```
+
+### Requirements
+
+* **MUSIC with a jet source slot**, so that MUSIC_2 gets both the initial-state source
+  (e.g. 3D MC-Glauber strings) and the droplets:
+  * music4gpu: MUSIC4GPU `XSCAPE` from `3037be7` on; X-SCAPE's `get_music4gpu.sh` pins it.
+  * CPU MUSIC: MUSIC `cee9460` (X-SCAPE PR #138). It works, but evaluates every droplet at
+    every step (see *Timing* below).
+  * Without the slot, MUSIC_2 silently ignores the droplets, and the writer warns that the
+    jet leg is identical to the background.
+* **X-SCAPE with the pair support** (branch `pair_h5_music`), for the MpiMusic bindings
+  `set_dump_hydro_only`, `set_skip_surface` and `get_hit_grid_boundary`, and for the
+  per-step droplet pruning.
+* **A user XML with:**
+  * two `<Hydro><MUSIC>` blocks named `MUSIC_1` and `MUSIC_2`, in that order.
+    Every MUSIC instance reads the **first** block, so all MUSIC settings go there. The first
+    block needs `<output_evolution_to_memory>1` and `<dump_hydro_only>0`: Matter and LBT read
+    MUSIC_1's framework medium.
+  * `<Liquefier><CausalLiquefier>` with `<dtau>` equal to MUSIC's `Delta_Tau` (`music_input`).
+  * `<Eloss>` with `<AddLiquefier>true`, and `<AddLiquefier>true` in MUSIC_2's `<Hydro>` block.
+  * exactly one hard process (the automatic task list runs every `<Hard>` child it finds).
+  * with NullPreDynamics and strings, `<Preequilibrium><evolutionInMemory>0`.
+
+`example/prod_AuAu_0_10_jet/AuAu_MCGlauber_MUSIC_0_10_jet.xml` is a complete example, and
+`run_prod_jet.py` checks all of the above before it runs.
+
+### Usage
+
+The quickest way is the production driver, which mirrors `prod_AuAu_0_10`:
+
+```bash
+conda activate js_fno
+cd external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+python run_prod_jet.py --events 1 --seed 1 --no-deposit   # null test: arr == arr_bg
+python run_prod_jet.py --events 10 --seed 1               # PythiaGun, pTHat 50-70 GeV
+python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
+python run_prod_jet.py --events 30 --seed 1 --reuse 3     # one background per 3 jets
+./run_jobs.sh -j 2 20 25 1                                # 20 jobs x 25 events
+```
+
+See that folder's `README.md` for all options. From Python, the writer is attached after
+`Init()` and called between `ExecPerEvent()` and `ClearPerEvent()`, like `H5BulkWriter` in
+`run_prod.py`. It is not a framework task:
+
+```python
+import jetscape as js
+from jetscape.pair_h5 import PairH5Writer
+from jetscape.bulk_sources import Grid
+
+jetscape = js.JetScapePerEvent()
+jetscape.SetXMLMainFileName(main_xml); jetscape.SetXMLUserFileName(user_xml)
+jetscape.Init()
+
+grid = Grid.from_bounds((-10, 10, 65), (-10, 10, 65), (-5, 5, 33), tau_min=0.5, dtau=0.1)
+writer = PairH5Writer("pairs.h5", grid_mode="grid", out_grid=grid)   # or grid_mode="native"
+writer.attach(jetscape)      # AFTER Init(): switches dump_hydro_only on for MUSIC_2 only
+
+jetscape.ExecInit()
+for i in range(jetscape.GetNumberOfEvents()):
+    jetscape.ExecPerEvent()
+    idx = writer.Exec()      # both legs are in memory here; returns the event index or None
+    jetscape.ClearPerEvent()
+jetscape.Finish()
+writer.Finish()              # idempotent; the writer is also a context manager
+```
+
+`attach()` finds the legs by module id (`bg_id="MUSIC_1"`, `jet_id="MUSIC_2"`), the
+liquefier, and the shower manager. `writer.write_diag(idx, wall_s=...)` adds per-event
+scalars after `Exec()`.
+
+### What is written
+
+On top of the single-leg schema (`arr`, `ntau_freezeout`, `tau_freezeout`, grid attributes):
+
+| | |
+|---|---|
+| `arr` | the jet leg (MUSIC_2) |
+| `arr_bg`, `ntau_freezeout_bg`, `tau_freezeout_bg` | the background leg (MUSIC_1). Always the same shape as `arr`; the τ axis grows to the longer leg, and each leg is exactly 0 after its own freeze-out. |
+| `source/droplets` (M, 8), `source/offsets` | the droplets MUSIC_2 was given: `tau, x, y, eta, E, px, py, pz`. Event `i` is rows `offsets[i]:offsets[i+1]`. No `source/S` (`has_source = false`): MUSIC keeps no gridded source. |
+| `shower/` | partons, vertices and initiators per event (`jetscape.showers`, as in FastHydro) |
+| `diag/` | `n_droplets`, `E_droplets`, `n/E_droplets_late` (deposit after the jet leg froze out), `n/E_droplets_early`, `n_showers`, `n_partons`, `tau0_music`, `ntau_jet`, `ntau_bg`, `bg_id`, `frames_identical`, `bg_hit_boundary`, `jet_hit_boundary` |
+| attributes | `pairing = "bg_jet"`, `arr_is`, `arr_bg_is`, `deposition`, `source_model`, `hard_vertex`, `liquefier_*`, `freezeout_convention_id = "frames_written"` |
+
+The ragged tables (`source/`, `shower/`) and `diag/` are written as each event arrives, so a
+run killed mid-way loses nothing it has counted. `repad_to` grows `arr` and `arr_bg`
+together. Read a pair with FastHydro's `PairBrowser` (`fasthydro.browse.open_pair`), which
+follows the file's freeze-out convention, or with plain h5py
+(`f["arr"][i] - f["arr_bg"][i]`).
+
+### How the two legs are read, and the built-in checks
+
+* **Background from the framework copy** (`bulk_info`): MUSIC_1 has to fill it for Matter and
+  LBT, and filling it releases MUSIC's native store. The cells are bit-identical to a
+  native read.
+* **Jet leg from MUSIC's native store**, via a per-instance `set_dump_hydro_only(True)`.
+* **Both legs go through the same resampling** onto one output grid.
+* **`diag/frames_identical`** counts the leading bit-identical frames. The writer warns
+  when it is 0 (different initial conditions), and when a jet leg that received droplets
+  equals the background (MUSIC ignored the liquefier).
+* **`diag/{bg,jet}_hit_boundary`** flags a leg MUSIC stopped because its freeze-out surface
+  reached the grid edge.
+* **`diag/bg_id`** is the first event that used this background; it repeats under
+  `--reuse` (`setReuseHydro`).
+
+### Timing (measured)
+
+GB10, `build_gpu` (music4gpu CUDA), one 0–10% Au+Au event (seed 1): 3D MC-Glauber strings
+(1184), MUSIC grid 100×100×60, output grid 65×65×17, PythiaGun 50–70 GeV, 25 droplets.
+
+**Per event**
+
+| run | time per event |
+|---|---|
+| hydro-only (`prod_AuAu_0_10`, one MUSIC run) | ~23–25 s |
+| pair, `--no-deposit` (two MUSIC runs + jet shower) | 58 s |
+| pair with deposition, before per-step droplet pruning | 184 s |
+| **pair with deposition** (X-SCAPE `896e3d1c` + MUSIC4GPU `3037be7`) | **60 s**, bit-identical output, peak memory 16 GB |
+
+The pruning keeps, at each MUSIC step, only the droplets that can deposit in that step: a
+`CausalLiquefier` droplet deposits in exactly one step, at `tau_drop + tau_delay`. Without
+it, every droplet was evaluated for every cell at every step. That cost 126 s for 25
+droplets, and it grows with the number of droplets.
+
+**Breakdown of the 60 s pair event**
+
+| phase | time |
+|---|---|
+| 3D MC-Glauber strings + Pythia hard process | 0.03 s |
+| MUSIC_1 setup (read strings, set up grid) | 0.11 s |
+| **MUSIC_1 evolution** (background) | **19.9 s** |
+| copy of MUSIC_1's evolution into X-SCAPE's medium store (for Matter/LBT) | 6.2 s |
+| Matter + LBT + liquefier | ~0.03 s |
+| MUSIC_2 setup | 0.10 s |
+| **MUSIC_2 evolution** (with deposition) | **21.5 s** |
+| `PairH5Writer`: read both legs, resample onto the output grid, write | 12.2 s |
+
+**Inside each MUSIC evolution** (music4gpu timers, `MUSIC_PROFILE=1`, with a temporary
+timer around the CPU source pass)
+
+| part | MUSIC_1 (479 steps) | MUSIC_2 (534 steps) |
+|---|---|---|
+| string deposition: CPU source pass while strings deposit (first 5 steps) | 3.9 s | 4.0 s |
+| CPU source pass, later steps (per-cell calls; MUSIC_2 also the droplets) | 1.3 s | 2.2 s |
+| GPU hydro update (kernels + copy back) | 6.7 s | 7.6 s |
+| freeze-out surface finding (CPU, every 5th step) | 5.6 s | 5.7 s |
+| GPU→host copies for the surface and stored frames | 0.7 s | 0.7 s |
+| rest of the step loop | 1.5 s | 1.3 s |
+| **total** | **19.8 s** | **21.5 s** |
+
+What the numbers say:
+* **Strings cost ~5 s per MUSIC run:** 3.9 s while all strings deposit against all cells
+  (10 substeps of ~0.4 s), plus 1.3 s of per-step overhead afterwards. Without the strings a
+  run would take ~14.5 s here.
+* **The GPU hydro update is only 6.7 s.** The CPU surface finder costs almost as much
+  (5.6 s), and `skip_surface` does not remove it: MUSIC still finds the surface to decide
+  when to stop.
+* **After pruning, the droplets cost ~0.7 s.** The jet leg's longer life (55 more steps) adds
+  ~1.5 s.
+* **About 18 s of the 60 s is not hydro:** the writer (12.2 s, reading and resampling two
+  ~60M-cell legs) and the copy of the background into the medium store (6.2 s). With the
+  surface finder, these are the largest remaining levers.
+
+### Tests
+
+`tests/test_pair_h5.py` runs the writer against stub MUSIC legs (no build needed): the pair
+layout, per-leg freeze-out, ragged tables, diagnostics, repad, `bg_id`, and the boundary
+flag. FastHydro's `tests/test_music_pair_browser.py` opens such a file with `PairBrowser`.
+
+```bash
+pytest external_packages/js-contrib/contribs/PyJetscape/tests/test_pair_h5.py -q
 ```
 
 ---
