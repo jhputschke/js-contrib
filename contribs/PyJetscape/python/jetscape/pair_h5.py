@@ -372,6 +372,11 @@ class PairH5Writer:
         return dict(self._last)
 
     @property
+    def n_clipped(self):
+        """Legs cut at a pinned ``choose_ntau`` so far."""
+        return self._n_clipped
+
+    @property
     def deposition(self):
         """True if the jet leg has the liquefier, False in the null test, None before attach."""
         return self._deposition

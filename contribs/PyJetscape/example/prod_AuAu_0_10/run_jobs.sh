@@ -16,6 +16,10 @@
 # Jobs whose .json summary already says complete are skipped, so an interrupted campaign can
 # be restarted with the same command.  Give each grid YAML its own OUTDIR: the skip test
 # looks at the seed and event count only.
+#
+# Other productions reuse this script through three environment variables (defaults: this
+# folder's): PROD_SCRIPT (the per-job driver), TAG_PREFIX (file names <prefix><seed>.*) and
+# PROD_OUTDIR (the default OUTDIR); see ../prod_AuAu_0_10_jet/run_jobs.sh.
 set -u
 
 usage() { sed -n '6,11p' "$0"; exit 2; }
@@ -33,8 +37,10 @@ case $PAR in ''|*[!0-9]*|0) echo "-j needs a positive integer, got '$PAR'" >&2; 
 [ $# -ge 3 ] || usage
 NJOBS=$1; EVENTS=$2; SEED0=$3
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROD_SCRIPT=${PROD_SCRIPT:-"$HERE/run_prod.py"}
+TAG_PREFIX=${TAG_PREFIX:-AuAu_0_10_seed}
 shift 3
-OUTDIR="$HERE/out"
+OUTDIR="${PROD_OUTDIR:-$HERE/out}"
 if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then   # an optional OUTDIR before the options
   OUTDIR=$1; shift
 fi
@@ -54,7 +60,7 @@ reap() {   # wait for one running job to finish and report it
   local pid rc
   wait -n -p pid "${!running[@]}"; rc=$?
   local seed=${running[$pid]}; unset "running[$pid]"
-  local tag; tag=$(printf "AuAu_0_10_seed%04d" "$seed")
+  local tag; tag=$(printf "%s%04d" "$TAG_PREFIX" "$seed")
   if [ "$rc" -eq 0 ]; then
     echo "[$(date +%F\ %T)] seed $seed: ok"
   else
@@ -64,7 +70,7 @@ reap() {   # wait for one running job to finish and report it
 
 for (( k = 0; k < NJOBS; k++ )); do
   seed=$(( SEED0 + k ))
-  tag=$(printf "AuAu_0_10_seed%04d" "$seed")
+  tag=$(printf "%s%04d" "$TAG_PREFIX" "$seed")
   if [ -f "$OUTDIR/$tag.json" ] && \
      python -c "import json,sys; d=json.load(open('$OUTDIR/$tag.json')); \
                 sys.exit(d['events_written'] != $EVENTS)" 2>/dev/null; then
@@ -72,7 +78,7 @@ for (( k = 0; k < NJOBS; k++ )); do
   fi
   while [ ${#running[@]} -ge "$PAR" ]; do reap; done
   echo "[$(date +%F\ %T)] seed $seed: job $((k + 1))/$NJOBS, $EVENTS events -> $OUTDIR/$tag.h5"
-  python "$HERE/run_prod.py" --events "$EVENTS" --seed "$seed" --outdir "$OUTDIR" "$@" \
+  python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" --outdir "$OUTDIR" "$@" \
     > "$OUTDIR/$tag.log" 2>&1 &
   running[$!]=$seed
 done
@@ -81,10 +87,11 @@ trap - INT TERM
 
 # Events longer than tau.max_ntau keep only their first max_ntau frames.  That is the point
 # of setting it (e.g. early times only), so this is a count, not an error.
-ncut=$(python - "$OUTDIR" <<'EOF'
+ncut=$(python - "$OUTDIR" "$TAG_PREFIX" <<'EOF'
 import glob, json, os, sys
-print(sum(json.load(open(p)).get("events_cut_at_max_ntau", 0)
-          for p in glob.glob(os.path.join(sys.argv[1], "AuAu_0_10_seed*.json"))))
+print(sum(d.get("events_cut_at_max_ntau", 0) + d.get("legs_cut_at_max_ntau", 0)
+          for d in (json.load(open(p))
+                    for p in glob.glob(os.path.join(sys.argv[1], sys.argv[2] + "*.json")))))
 EOF
 )
 if [ "${ncut:-0}" -gt 0 ]; then
