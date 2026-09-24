@@ -71,6 +71,7 @@ except ImportError:  # pragma: no cover
 if HAS_H5PY:
     from .fno_h5_writer import FnoH5Writer, grid_attrs, repad_to  # noqa: F401
     from .fast_h5_bulk import H5BulkWriter, read_fast_h5_bulk  # noqa: F401
+    from .pair_h5 import PairH5Writer  # noqa: F401
 
 
 #: names that exist only with the compiled extension, for the message below
