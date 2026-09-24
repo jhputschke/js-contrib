@@ -299,15 +299,16 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
 **Done and committed**
 | piece | where | commit |
 |---|---|---|
-| consolidation | X-SCAPE `music4gpu_test` = `fasthydro_hadronization` (rebased) + PR #138 merge `4f5bdb2a` | local, **not pushed** (push was blocked) |
-| MusicWrapper boundary fix | X-SCAPE `pair_h5_music`: clear MUSIC's `reRunHydro` per event, warn, `get_hit_grid_boundary()` | `ca8dd84a` |
+| consolidation | X-SCAPE `music4gpu_test` = `fasthydro_hadronization` (rebased) + PR #138 merge `4f5bdb2a` | pushed |
+| MusicWrapper boundary fix | X-SCAPE `pair_h5_music`: clear MUSIC's `reRunHydro` per event, warn, `get_hit_grid_boundary()` | `ca8dd84a`, pushed |
+| music4gpu pin | X-SCAPE `pair_h5_music`: `get_music4gpu.sh` checks out MUSIC4GPU `b9cc8be`, and also fetches the EOS 9 table | `3046389a`, pushed |
+| music4gpu jet source slot | MUSIC4GPU `b9cc8be` (committed by the user); local `XSCAPE` fast-forwarded to it | **not pushed yet** |
 | writer core, capture, `PairH5Writer`, production, FastHydro | js-contrib `pair_h5_music` | `0c55de0` … `5d8a5c5`, plus this commit |
 | bindings | `set_dump_hydro_only`, `set_skip_surface`, `get_hit_grid_boundary` | compiled and used |
 
-**Done, uncommitted (for the user to commit):** the MUSIC4GPU jet source slot, on branch
-`XSCAPE_jet_source` off `XSCAPE`. The `music4gpu` checkout is now on that branch. Once it is
-committed and pushed to GitHub's MUSIC4GPU, pin `get_music4gpu.sh` (X-SCAPE `pair_h5_music`)
-to it. The Kokkos branches stay separate.
+**MUSIC4GPU:** the port is `b9cc8be`, and local `XSCAPE` is one commit ahead of
+`origin/XSCAPE`. Push it (`git -C external_packages/music4gpu push origin XSCAPE`) so that
+`get_music4gpu.sh`'s pin resolves on a fresh clone. The Kokkos branches stay separate.
 
 **Verified on MUSIC** (`build_gpu`, GB10, 3D MC-Glauber, InitialProfile 131)
 - **Hydro-only production unchanged.** music4gpu `XSCAPE` + the port reproduces the existing
@@ -338,9 +339,10 @@ to it. The Kokkos branches stay separate.
   look. The pair null test and `diag/frames_identical` would catch it within a pair.
 
 **Still open**
-- Commit and push the music4gpu port, then pin `get_music4gpu.sh`. No Kokkos merges.
-- Push `music4gpu_test` and the `pair_h5_music` branches.
+- Push MUSIC4GPU `XSCAPE` (`b9cc8be`). Until then the pin in `get_music4gpu.sh` does not resolve
+  on a fresh clone.
 - CPU-only X-SCAPE build (MUSIC `cee9460`) not built or tested. music4gpu's forced-CPU path
   covers the same code.
+- The one-in-ten anomalous run (see above).
 - Speed: the liquefier source on the CPU dominates (~125 s of 184). Moving it to the GPU is
   the follow-up.
