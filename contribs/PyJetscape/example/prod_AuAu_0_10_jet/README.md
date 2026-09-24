@@ -138,9 +138,10 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
 - **Speed and memory (measured, GB10, seed 1, one 0–10% event, PythiaGun 50–70 GeV, 25
   droplets).**
   - Null test (`--no-deposit`): 58 s per event, about twice the single-leg ~25 s.
-  - With deposition: 184 s per event. The extra ~125 s is the liquefier source, which is
-    evaluated on the CPU for every cell × droplet at every step, even in the GPU build. It
-    grows with the number of droplets.
+  - With deposition: 60 s per event. The droplet source is computed on the CPU, but each
+    step evaluates only the droplets that can deposit in it (X-SCAPE `896e3d1c`, MUSIC4GPU
+    `3037be7`). Before that, every droplet was evaluated at every step and the same event
+    took 184 s; the output is bit-identical.
   - Peak memory 16 GB.
 
 ## Checks before a campaign

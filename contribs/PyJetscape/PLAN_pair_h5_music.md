@@ -302,7 +302,8 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
 | consolidation | X-SCAPE `music4gpu_test` = `fasthydro_hadronization` (rebased) + PR #138 merge `4f5bdb2a` | pushed |
 | MusicWrapper boundary fix | X-SCAPE `pair_h5_music`: clear MUSIC's `reRunHydro` per event, warn, `get_hit_grid_boundary()` | `ca8dd84a`, pushed |
 | music4gpu pin | X-SCAPE `pair_h5_music`: `get_music4gpu.sh` checks out MUSIC4GPU `b9cc8be`, and also fetches the EOS 9 table | `3046389a`, pushed |
-| music4gpu jet source slot | MUSIC4GPU `b9cc8be` (committed by the user); local `XSCAPE` fast-forwarded to it | **not pushed yet** |
+| music4gpu jet source slot | MUSIC4GPU `b9cc8be` (committed by the user) | pushed |
+| droplet pruning | X-SCAPE `896e3d1c` (`LiquefierBase::prepare_active_droplets`, `CausalLiquefier::droplet_may_contribute`, `HydroSourceJETSCAPE::prepare_list_for_current_tau_frame`, pin moved to `3037be7`) and MUSIC4GPU `3037be7` (Evolve calls the hook for the jet source) | local; push MUSIC4GPU `XSCAPE` first, then X-SCAPE `pair_h5_music` |
 | writer core, capture, `PairH5Writer`, production, FastHydro | js-contrib `pair_h5_music` | `0c55de0` … `5d8a5c5`, plus this commit |
 | bindings | `set_dump_hydro_only`, `set_skip_surface`, `get_hit_grid_boundary` | compiled and used |
 
@@ -323,8 +324,8 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
   background's own CPU/GPU difference (1e-3 to 3e-3).
 - **Reuse** (`--reuse 3`): `bg_id` = [0,0,0], `arr_bg` identical, `arr` differs. Without reuse:
   `bg_id` = [0,1,2].
-- **Measured cost** (full grid): null test 58 s/event, with deposition 184 s/event (the
-  liquefier source on the CPU), peak memory 16 GB.
+- **Measured cost** (full grid): null test 58 s/event; with deposition 184 s/event before the
+  droplet pruning and **60 s/event after it**, with bit-identical output. Peak memory 16 GB.
 
 **Found along the way**
 - **Sticky grid-boundary flag.** Once MUSIC's freeze-out surface reached the grid edge, every
@@ -339,10 +340,8 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
   look. The pair null test and `diag/frames_identical` would catch it within a pair.
 
 **Still open**
-- Push MUSIC4GPU `XSCAPE` (`b9cc8be`). Until then the pin in `get_music4gpu.sh` does not resolve
-  on a fresh clone.
 - CPU-only X-SCAPE build (MUSIC `cee9460`) not built or tested. music4gpu's forced-CPU path
   covers the same code.
 - The one-in-ten anomalous run (see above).
-- Speed: the liquefier source on the CPU dominates (~125 s of 184). Moving it to the GPU is
-  the follow-up.
+- Push MUSIC4GPU `XSCAPE` (`3037be7`), then X-SCAPE `pair_h5_music` (`896e3d1c`). In that
+  order, so that the new pin resolves.
