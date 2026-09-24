@@ -489,3 +489,32 @@ def test_grid_mode_resamples_both_legs_onto_one_output_grid(tmp_path):
         assert f["ntau_freezeout"][0] == 4 and f["ntau_freezeout_bg"][0] == 3
         assert f.attrs["tau_min"] == pytest.approx(0.5)
         assert f["diag/frames_identical"][0] == 3
+
+
+def test_bg_id_changes_with_the_background_even_when_frame_0_is_all_zero(tmp_path):
+    """On MUSIC's native grid the first frame is at tau0, before any string deposits."""
+    def evo_with_zero_first_frame(value):
+        e = _evo(3, value)
+        e[0] = 0.0
+        return e
+
+    w, bg, jet, liq = _pair_writer(tmp_path, evo_with_zero_first_frame(1.0),
+                                   evo_with_zero_first_frame(1.0))
+    for value in (1.0, 2.0, 3.0):
+        bg.evo = evo_with_zero_first_frame(value)
+        jet.evo = evo_with_zero_first_frame(value)
+        w.Exec()
+    w.Finish()
+    with h5py.File(tmp_path / "pair.h5", "r") as f:
+        assert list(f["diag/bg_id"][:]) == [0, 1, 2]
+
+
+def test_a_leg_stopped_at_the_grid_boundary_is_flagged(tmp_path):
+    w, bg, jet, liq = _pair_writer(tmp_path, _evo(3, 1.0), _evo(3, 1.0))
+    bg.get_hit_grid_boundary = lambda: False
+    jet.get_hit_grid_boundary = lambda: True
+    with pytest.warns(RuntimeWarning, match="jet leg's freeze-out surface reached"):
+        w.Exec()
+    w.Finish()
+    with h5py.File(tmp_path / "pair.h5", "r") as f:
+        assert f["diag/jet_hit_boundary"][0] == 1 and f["diag/bg_hit_boundary"][0] == 0

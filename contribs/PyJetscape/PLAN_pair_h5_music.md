@@ -290,26 +290,53 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
   `main` when verified.
 - One commit per phase. Phase 2's gate has to pass before Phases 5 and 6 run on real data.
 
-## Status (2026-09-24)
+## Status (2026-09-24, evening)
 
-**Done**
-| phase | where | commit |
+**Done and committed**
+| piece | where | commit |
 |---|---|---|
-| 1.1–1.3 consolidation | X-SCAPE `music4gpu_test` = `fasthydro_hadronization` (rebased, duplicates dropped) + PR #138 merge `4f5bdb2a`; `pair_h5_music` created from it | local, **not pushed** |
-| 1.6 plan archived | js-contrib `pair_h5_music` | `5221ea7` |
-| 2c setter bindings | `src/bind_music.cc` | `38d8532` (**not compiled yet**, see below) |
-| 3 writer core | `fno_h5_writer.py`: `add_evolution`, `ragged`/`RaggedGroup`, `write_diag`, `tau_axis`, `repad_to` fix | `0c55de0` |
-| 4 capture in PyJetscape | `jetscape/showers.py` (moved; FastHydro re-exports), `jetscape/liquefier_io.py` | `68366ff` |
-| 5 pair writer | `jetscape/pair_h5.py` `PairH5Writer` | `9d3c4eb` |
-| 6 production | `example/prod_AuAu_0_10_jet/` (XML, `run_prod_jet.py`, `run_jobs.sh`, README); `prod_AuAu_0_10/run_jobs.sh` takes env overrides | `483bf9a` |
-| 7 FastHydro | `PairBrowser` follows `freezeout_convention_id`; MUSIC-pair test; README | `5d8a5c5` |
+| consolidation | X-SCAPE `music4gpu_test` = `fasthydro_hadronization` (rebased) + PR #138 merge `4f5bdb2a` | local, **not pushed** (push was blocked) |
+| MusicWrapper boundary fix | X-SCAPE `pair_h5_music`: clear MUSIC's `reRunHydro` per event, warn, `get_hit_grid_boundary()` | `ca8dd84a` |
+| writer core, capture, `PairH5Writer`, production, FastHydro | js-contrib `pair_h5_music` | `0c55de0` … `5d8a5c5`, plus this commit |
+| bindings | `set_dump_hydro_only`, `set_skip_surface`, `get_hit_grid_boundary` | compiled and used |
 
-Tests: PyJetscape `test_pair_h5.py` + `test_h5_bulk.py` 49 passed, 1 skipped (FNO4d loaders absent); FastHydro suite 315 passed, 8 skipped. Driver checked with `--dry-run` (all modes and guards) and a two-job `run_jobs.sh` dry run.
+**Done, uncommitted (for the user to commit):** the MUSIC4GPU jet source slot, on branch
+`XSCAPE_jet_source` off `XSCAPE`. The `music4gpu` checkout is now on that branch. Once it is
+committed: pin `get_music4gpu.sh` (X-SCAPE `pair_h5_music`) to it, and merge `XSCAPE` into
+`KoKKos-Port` / `XSCAPE-KoKKos`.
 
-**Blocked (needs the user):**
-- **Pushing `music4gpu_test`** to origin (step 1.2). The push was denied by the permission system.
-- **Switching the MUSIC4GPU checkout** from `KoKKos-Port` to `XSCAPE` (step 1.4). Also denied. Phase 2b (the jet-source port) waits on it, and so does 2a (moving `external_packages/music` to `cee9460`), which touches a build source tree the same way.
+**Verified on MUSIC** (`build_gpu`, GB10, 3D MC-Glauber, InitialProfile 131)
+- **Hydro-only production unchanged.** music4gpu `XSCAPE` + the port reproduces the existing
+  `prod_AuAu_0_10` file bit for bit, both with and without PR #138.
+- **Null test** (`--no-deposit`, seed 1, full grid): all 95 frames of `arr` and `arr_bg` are identical.
+- **Deposition** (seed 1, full grid, PythiaGun 50–70 GeV, 25 droplets):
+  - the legs are identical up to τ = 1.0 and separate at τ = 1.1, the first deposit time.
+  - the wake starts near the droplets and moves outward.
+  - the jet leg lives 106 frames against the background's 95.
+- **CPU vs GPU** (`MUSIC_FORCE_CPU=1`, small grid, seed 2): same 19 droplets to 1e-5 fm; the Δe
+  maps have correlation ≥ 0.99999 and differ by 1e-4 to 5e-3 of the peak Δe, at the level of the
+  background's own CPU/GPU difference (1e-3 to 3e-3).
+- **Reuse** (`--reuse 3`): `bg_id` = [0,0,0], `arr_bg` identical, `arr` differs. Without reuse:
+  `bg_id` = [0,1,2].
+- **Measured cost** (full grid): null test 58 s/event, with deposition 184 s/event (the
+  liquefier source on the CPU), peak memory 16 GB.
 
-**Consequences until 2b lands:**
-- **Don't rebuild `build_gpu` from `music4gpu_test` or `pair_h5_music`.** PR #138's wrapper calls `add_hydro_source_terms_from_jet`, which music4gpu doesn't have yet. To rebuild for production in the meantime, check out `fasthydro_hadronization`.
-- **`pyjetscape_core` can't be rebuilt either** (it builds inside `build_gpu`), so the 2c bindings and all integration checks (Verification 1–6) are still open.
+**Found along the way**
+- **Sticky grid-boundary flag.** Once MUSIC's freeze-out surface reached the grid edge, every
+  later event of that MUSIC instance was truncated. Fixed in `ca8dd84a`; the writers record
+  `diag/{bg,jet}_hit_boundary` (pair files) and `diag/hit_grid_boundary` (single-leg files).
+- **Same seed, different event.** The jet XML's extra modules draw from the framework's random
+  stream first, so seed N does not reproduce the `prod_AuAu_0_10` event (plan check 3 dropped).
+- **Open: one anomalous run in ten.** Once, right after a rebuild, a hydro-only run gave a
+  different freeze-out energy density (e_fo 0.2430 vs 0.2341 GeV/fm³ at T = 0.15) and so a
+  different evolution. It could not be reproduced in 9 further runs, and the EOS files are
+  unchanged. This suggests uninitialized memory in MUSIC's initialization; it needs a separate
+  look. The pair null test and `diag/frames_identical` would catch it within a pair.
+
+**Still open**
+- Commit the music4gpu port, pin `get_music4gpu.sh`, and merge into the Kokkos branches.
+- Push `music4gpu_test` and the `pair_h5_music` branches.
+- CPU-only X-SCAPE build (MUSIC `cee9460`) not built or tested. music4gpu's forced-CPU path
+  covers the same code.
+- Speed: the liquefier source on the CPU dominates (~125 s of 184). Moving it to the GPU is
+  the follow-up.

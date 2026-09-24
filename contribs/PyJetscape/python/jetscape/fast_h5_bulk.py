@@ -227,6 +227,18 @@ class H5BulkWriter(JetScapeModuleBase):
         # tau_min + ntau_native*dtau off MUSIC's grid regardless of the output sampling.
         # (With tau_stride > 1 the C++ uses the unthinned count, so the two can differ by
         # up to one thinned step.)
+        # MUSIC stops an event whose freeze-out surface reaches the grid edge; record
+        # it, because the stored evolution is then truncated.
+        get_hit = getattr(hydro, "get_hit_grid_boundary", None)
+        if get_hit is not None:
+            hit = bool(get_hit())
+            self._w.write_diag(i, hit_grid_boundary=int(hit))
+            if hit:
+                warnings.warn(
+                    f"H5BulkWriter: event {i}: the freeze-out surface reached the "
+                    "transverse grid boundary, so MUSIC stopped the evolution early "
+                    "(diag/hit_grid_boundary). Enlarge <IS><grid_max_x>/<grid_max_y>.",
+                    RuntimeWarning, stacklevel=2)
         self._w.set_event_meta(i, n_write, src.tau_min + src.ntau * src.dtau)
         self._i += 1
 

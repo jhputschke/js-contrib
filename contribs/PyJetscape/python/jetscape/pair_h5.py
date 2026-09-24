@@ -305,8 +305,11 @@ class PairH5Writer:
         tau_fo_bg = bg_src.tau_min + bg_src.ntau * bg_src.dtau
         self._w.set_event_meta(i, n_bg, tau_fo_bg, dataset="arr_bg")
 
-        if bg_hashes and bg_hashes[0] != self._bg_hash:     # a new background run
-            self._bg_hash, self._bg_first = bg_hashes[0], i
+        # A new background run?  Hash the whole leg: on MUSIC's native grid the first
+        # frame is at MUSIC's tau0, before any string deposits, and all zero.
+        bg_key = hashlib.blake2b(b"".join(bg_hashes), digest_size=16).digest()
+        if bg_key != self._bg_hash:
+            self._bg_hash, self._bg_first = bg_key, i
 
         n_jet = self._clip(i, "jet", jet_frames.shape[0])
         self._w.ensure_capacity(nevents=i + 1, choose_ntau=n_jet)
@@ -330,6 +333,10 @@ class PairH5Writer:
         d.update(self._shower_rows())
         d.update(tau0_music=float(jet_src.tau_min), ntau_jet=n_jet, ntau_bg=n_bg,
                  bg_id=self._bg_first, frames_identical=identical)
+        for leg, hydro in (("bg", self._bg), ("jet", self._jet)):
+            hit = _hit_grid_boundary(hydro)
+            if hit is not None:
+                d[f"{leg}_hit_boundary"] = int(hit)
         d.update(diag)
         self._w.write_diag(i, **d)
         self._w.set_event_meta(i, n_jet, tau_fo_jet)          # primary last: marks written
@@ -507,6 +514,14 @@ class PairH5Writer:
         return p
 
     def _check_pair(self, i, d, n_bg, n_jet):
+        for leg in ("bg", "jet"):
+            if d.get(f"{leg}_hit_boundary"):
+                warnings.warn(
+                    f"PairH5Writer: event {i}: the {leg} leg's freeze-out surface reached "
+                    f"the transverse grid boundary, so MUSIC stopped it early and its "
+                    f"evolution is truncated (diag/{leg}_hit_boundary). Enlarge "
+                    f"<IS><grid_max_x>/<grid_max_y>.",
+                    RuntimeWarning, stacklevel=4)
         if d["frames_identical"] == 0:
             warnings.warn(
                 f"PairH5Writer: event {i}: the legs differ already in the first frame -- "
@@ -521,6 +536,12 @@ class PairH5Writer:
                 "ignored the liquefier -- check that the MUSIC build has the jet source slot "
                 "(music4gpu needs the add_hydro_source_terms_from_jet port).",
                 RuntimeWarning, stacklevel=4)
+
+
+def _hit_grid_boundary(hydro):
+    """MpiMusic.get_hit_grid_boundary() if this build binds it, else None."""
+    get = getattr(hydro, "get_hit_grid_boundary", None)
+    return None if get is None else bool(get())
 
 
 def _grid_mismatch(a, b):

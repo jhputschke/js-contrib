@@ -14,14 +14,13 @@ IS (3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
 `arr - arr_bg` is the jet's effect on the medium and nothing else: both legs start from the
 same initial condition, and before the first droplet deposits they are bit-identical.
 
-> **Status.** The code runs against stub legs (`tests/test_pair_h5.py`) but has **not yet run
-> on MUSIC**. It needs a MUSIC build with the jet source slot:
+> **Status (2026-09-24).** Runs on `build_gpu` (music4gpu, CUDA, GB10). It needs a MUSIC
+> build with the jet source slot:
 > - CPU: MUSIC `cee9460`, via X-SCAPE PR #138.
-> - GPU: the matching MUSIC4GPU port, which is not done yet.
+> - GPU: the MUSIC4GPU port (branch `XSCAPE_jet_source`).
 >
 > Without the slot, MUSIC_2 silently ignores the droplets, and the writer then warns that the
-> jet leg is identical to the background. Time and memory per event are not measured yet
-> either. Plan: `../../PLAN_pair_h5_music.md`.
+> jet leg is identical to the background. Plan and status: `../../PLAN_pair_h5_music.md`.
 
 | file | purpose |
 |---|---|
@@ -132,16 +131,22 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
   whether or not droplets are still due. Anything depositing later never reaches MUSIC_2;
   `diag/E_droplets_late` says how much.
 - **Seeds.** `<Random><seed>` drives 3dMCGlauber, Pythia and the energy loss, and MUSIC is
-  deterministic. On event 0, `arr_bg` should equal `prod_AuAu_0_10`'s `arr` for the same seed
-  and grid. Later events differ, because the hard process consumes random numbers between
-  initial states.
-- **Speed.** The liquefier source is evaluated on the CPU for every cell × droplet at every
-  step, including in the GPU build. Expect well over twice the single-leg ~25 s/event.
+  deterministic, so a seed reproduces a pair. The same seed does **not** give the same Glauber
+  event as `prod_AuAu_0_10`: the extra modules draw from the framework's random stream first,
+  so the background leg is a different event from the hydro-only file's (measured: seed 1
+  differs at frame 0).
+- **Speed and memory (measured, GB10, seed 1, one 0–10% event, PythiaGun 50–70 GeV, 25
+  droplets).**
+  - Null test (`--no-deposit`): 58 s per event, about twice the single-leg ~25 s.
+  - With deposition: 184 s per event. The extra ~125 s is the liquefier source, which is
+    evaluated on the CPU for every cell × droplet at every step, even in the GPU build. It
+    grows with the number of droplets.
+  - Peak memory 16 GB.
 
 ## Checks before a campaign
 
 1. `--no-deposit`, 1 event: `arr == arr_bg` and `frames_identical == ntau`.
 2. 1 event with a jet: `n_droplets > 0`; the legs differ only after the first deposit; the
    difference sits along the droplets (PairBrowser plot).
-3. Same seed as a `prod_AuAu_0_10` file: `arr_bg[0]` equals its `arr[0]`.
-4. CPU vs GPU MUSIC, same seed, small grid: the Δe maps agree to ~1e-3 relative.
+3. CPU vs GPU, same seed, small grid (`MUSIC_FORCE_CPU=1` runs music4gpu's CPU path): the Δe
+   maps agree.

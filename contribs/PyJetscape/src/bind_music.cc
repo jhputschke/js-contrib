@@ -109,6 +109,11 @@ void bind_music(py::module_ &m) {
       .def("get_skip_surface", &MpiMusic::get_skip_surface,
            "Return whether <skip_surface> is enabled (freeze-out surface not "
            "exported to the framework).")
+      .def("get_hit_grid_boundary", &MpiMusic::get_hit_grid_boundary,
+           "True if the last evolution stopped because the freeze-out "
+           "surface reached the transverse grid boundary (MUSIC's "
+           "reRunHydro): the stored evolution is truncated.  Reset at the "
+           "start of every evolution.")
       .def("set_skip_surface", &MpiMusic::set_skip_surface,
            "Do not export this instance's freeze-out surface to the framework. "
            "Call it AFTER JetScape.Init(), like set_dump_hydro_only.",
