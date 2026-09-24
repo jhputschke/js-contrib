@@ -17,7 +17,10 @@ same initial condition, and before the first droplet deposits they are bit-ident
 > **Status (2026-09-24).** Runs on `build_gpu` (music4gpu, CUDA, GB10). It needs a MUSIC
 > build with the jet source slot:
 > - CPU: MUSIC `cee9460`, via X-SCAPE PR #138.
-> - GPU: the MUSIC4GPU port (branch `XSCAPE_jet_source`).
+> - GPU: MUSIC4GPU `XSCAPE` from `3037be7` on.
+>
+> The `<freeze_out_surface>` setting in the XML needs X-SCAPE branch
+> `pair_h5_music_surface_off` and MUSIC4GPU branch `XSCAPE_surface_off`.
 >
 > Without the slot, MUSIC_2 silently ignores the droplets, and the writer then warns that the
 > jet leg is identical to the background. Plan and status: `../../PLAN_pair_h5_music.md`.
@@ -64,6 +67,7 @@ Each job writes the following, next to each other:
 | `--no-deposit` | Null test: MUSIC_2 without the liquefier. `arr` must equal `arr_bg` bit for bit (`diag/frames_identical == ntau`). Showers and droplets are still recorded. |
 | `--native` | Both legs on MUSIC's own grid (100 × 100 × 60) instead of the YAML's. |
 | `--no-showers` | Skip `shower/`. |
+| `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface. It is needed only to particlize a leg, e.g. `jet` for hadrons from the jet leg. `none` (default) is ~6 s per MUSIC run faster, with a bit-identical evolution. It sets `<freeze_out_surface>` in the first `<Hydro><MUSIC>` block (background, and the default) and in MUSIC_2's own block (jet leg). |
 
 The job XML always contains **one** hard process. The automatic task list would run every
 `<Hard>` child it finds, so the driver rebuilds that block from the option.
@@ -142,6 +146,9 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
     step evaluates only the droplets that can deposit in it (X-SCAPE `896e3d1c`, MUSIC4GPU
     `3037be7`). Before that, every droplet was evaluated at every step and the same event
     took 184 s; the output is bit-identical.
+  - Without the freeze-out surface on either leg (`--surface none`, the default): 49.1 s
+    per event. With the surface on the jet leg only (`--surface jet`): 55.3 s. Both are
+    bit-identical to the 60 s run, which had the surface on both legs.
   - Peak memory 16 GB.
 
 ## Checks before a campaign

@@ -797,7 +797,8 @@ IS (e.g. 3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
     jet leg is identical to the background.
 * **X-SCAPE with the pair support** (branch `pair_h5_music`), for the MpiMusic bindings
   `set_dump_hydro_only`, `set_skip_surface` and `get_hit_grid_boundary`, and for the
-  per-step droplet pruning.
+  per-step droplet pruning. The `<freeze_out_surface>` switch below needs X-SCAPE branch
+  `pair_h5_music_surface_off` and MUSIC4GPU branch `XSCAPE_surface_off`.
 * **A user XML with:**
   * two `<Hydro><MUSIC>` blocks named `MUSIC_1` and `MUSIC_2`, in that order.
     Every MUSIC instance reads the **first** block, so all MUSIC settings go there. The first
@@ -807,6 +808,7 @@ IS (e.g. 3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
   * `<Eloss>` with `<AddLiquefier>true`, and `<AddLiquefier>true` in MUSIC_2's `<Hydro>` block.
   * exactly one hard process (the automatic task list runs every `<Hard>` child it finds).
   * with NullPreDynamics and strings, `<Preequilibrium><evolutionInMemory>0`.
+  * optionally `<freeze_out_surface>0`, the fast setting for training data (next section).
 
 `example/prod_AuAu_0_10_jet/AuAu_MCGlauber_MUSIC_0_10_jet.xml` is a complete example, and
 `run_prod_jet.py` checks all of the above before it runs.
@@ -874,6 +876,26 @@ together. Read a pair with FastHydro's `PairBrowser` (`fasthydro.browse.open_pai
 follows the file's freeze-out convention, or with plain h5py
 (`f["arr"][i] - f["arr_bg"][i]`).
 
+### Freeze-out surface on or off, per leg
+
+MUSIC builds its freeze-out surface on the CPU every 5th step, which costs ~5.6 s per MUSIC
+run. Training data does not need it; only a leg that is later particlized does.
+`<Hydro><MUSIC><freeze_out_surface>0` (music4gpu) builds no surface. MUSIC then stops on the
+equivalent test, max(e) below the freeze-out energy density in the current and the
+previously checked step. That is the same stop step, and the evolution is bit-identical
+(checked; see *Timing*). A freeze-out surface reaching the grid edge is still flagged.
+
+| where | effect |
+|---|---|
+| first `<Hydro><MUSIC>` block | the default for every MUSIC instance (global switch) |
+| an instance's own `<Hydro><MUSIC>` block, next to its `<name>` | overrides it for that instance only |
+| `MpiMusic.set_freeze_out_surface(bool)` after `Init()` | overrides both for that instance |
+
+Example for later hadronization of the jet leg only: `0` in the first block (MUSIC_1) and
+`<freeze_out_surface>1</freeze_out_surface>` in MUSIC_2's block, or
+`run_prod_jet.py --surface jet`. `--surface` takes `none` (default), `bg`, `jet` or `both`.
+The main XML default is 1; CPU MUSIC ignores the setting and always builds the surface.
+
 ### How the two legs are read, and the built-in checks
 
 * **Background from the framework copy** (`bulk_info`): MUSIC_1 has to fill it for Matter and
@@ -898,10 +920,13 @@ GB10, `build_gpu` (music4gpu CUDA), one 0–10% Au+Au event (seed 1): 3D MC-Glau
 
 | run | time per event |
 |---|---|
-| hydro-only (`prod_AuAu_0_10`, one MUSIC run) | ~23–25 s |
+| hydro-only (`prod_AuAu_0_10`, one MUSIC run) | ~23–25 s (23.3 s) |
+| hydro-only, `freeze_out_surface 0` | **17.1 s**, bit-identical |
 | pair, `--no-deposit` (two MUSIC runs + jet shower) | 58 s |
 | pair with deposition, before per-step droplet pruning | 184 s |
-| **pair with deposition** (X-SCAPE `896e3d1c` + MUSIC4GPU `3037be7`) | **60 s**, bit-identical output, peak memory 16 GB |
+| pair with deposition (X-SCAPE `896e3d1c` + MUSIC4GPU `3037be7`) | 60 s, bit-identical output, peak memory 16 GB |
+| pair with deposition, surface on the jet leg only (`--surface jet`) | 55.3 s, bit-identical |
+| **pair with deposition, no surface** (`--surface none`) | **49.1 s**, bit-identical |
 
 The pruning keeps, at each MUSIC step, only the droplets that can deposit in that step: a
 `CausalLiquefier` droplet deposits in exactly one step, at `tau_drop + tau_delay`. Without
@@ -939,13 +964,13 @@ What the numbers say:
   (10 substeps of ~0.4 s), plus 1.3 s of per-step overhead afterwards. Without the strings a
   run would take ~14.5 s here.
 * **The GPU hydro update is only 6.7 s.** The CPU surface finder costs almost as much
-  (5.6 s), and `skip_surface` does not remove it: MUSIC still finds the surface to decide
-  when to stop.
+  (5.6 s). `skip_surface` does not remove it, but `freeze_out_surface 0` does (see above):
+  about 6 s less per MUSIC run.
 * **After pruning, the droplets cost ~0.7 s.** The jet leg's longer life (55 more steps) adds
   ~1.5 s.
 * **About 18 s of the 60 s is not hydro:** the writer (12.2 s, reading and resampling two
-  ~60M-cell legs) and the copy of the background into the medium store (6.2 s). With the
-  surface finder, these are the largest remaining levers.
+  ~60M-cell legs) and the copy of the background into the medium store (6.2 s). These are
+  the largest remaining levers.
 
 ### Future steps
 
@@ -984,8 +1009,8 @@ roughly 4–5 s of MUSIC_2's 21.5 s.
   output grid. Faster resampling, or resampling only the output frames needed, would help;
   `grid_mode="native"` skips it (larger files).
 * **Copy of MUSIC_1 into X-SCAPE's medium store, 6.2 s:** needed by Matter/LBT.
-* **Freeze-out surface on the CPU, ~5.6 s per MUSIC run:** MUSIC needs it to decide when
-  to stop, so `skip_surface` does not remove it.
+* **Freeze-out surface on the CPU, ~5.6 s per MUSIC run:** done: `freeze_out_surface 0`,
+  set per leg (see above).
 * **CPU source pass after the strings are gone, ~1.3 s per MUSIC run:** it still makes
   one call per cell per substep. Skipping the pass when no string and no droplet is
   active would remove it.

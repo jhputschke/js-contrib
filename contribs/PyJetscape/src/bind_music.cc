@@ -109,6 +109,16 @@ void bind_music(py::module_ &m) {
       .def("get_skip_surface", &MpiMusic::get_skip_surface,
            "Return whether <skip_surface> is enabled (freeze-out surface not "
            "exported to the framework).")
+      .def("get_freeze_out_surface", &MpiMusic::get_freeze_out_surface,
+           "Whether MUSIC builds the freeze-out surface for this instance.")
+      .def("set_freeze_out_surface", &MpiMusic::set_freeze_out_surface,
+           "Build the freeze-out surface (True) or not (False) for this "
+           "instance, from its next evolution on.  Without a surface MUSIC "
+           "stops on the equivalent max(e) < e_fo test at the same step "
+           "(music4gpu; CPU MUSIC always builds it).  The XML default is "
+           "<Hydro><MUSIC><freeze_out_surface> in the first block, overridden "
+           "per instance in its own block.",
+           py::arg("build"))
       .def("get_hit_grid_boundary", &MpiMusic::get_hit_grid_boundary,
            "True if the last evolution stopped because the freeze-out "
            "surface reached the transverse grid boundary (MUSIC's "

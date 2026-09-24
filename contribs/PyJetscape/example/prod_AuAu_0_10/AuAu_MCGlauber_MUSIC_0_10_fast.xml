@@ -192,8 +192,12 @@
       <surface_in_memory>1</surface_in_memory>
       <!--hydro-only dump: keep MUSIC's native store for the Python HDF5 writer, no framework copy-->
       <dump_hydro_only>1</dump_hydro_only>
-      <!--MUSIC still finds the surface (it stops the hydro); it is just not exported-->
+      <!--do not export a freeze-out surface to the framework-->
       <skip_surface>1</skip_surface>
+      <!--0: MUSIC builds no freeze-out surface at all and stops on max e < e_fo instead
+          (same stop step, bit-identical evolution; ~6 s/event less). Needs X-SCAPE with
+          <freeze_out_surface> (MusicWrapper) and music4gpu with the matching stop test.-->
+      <freeze_out_surface>0</freeze_out_surface>
 
       <!--shear viscosity settings-->
       <shear_viscosity_eta_over_s>0.108</shear_viscosity_eta_over_s>

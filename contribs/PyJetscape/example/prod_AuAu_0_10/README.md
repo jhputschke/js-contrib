@@ -50,6 +50,12 @@ Measured on the GB10 (build_gpu, music4gpu CUDA): about **25 s and about 200 MB 
 event** on the default grid (about 95 MB with `grid_x10_eta2p5.yaml`), with a peak RSS of
 about 4.4 GB. The output grid barely changes the run time; MUSIC dominates.
 
+The XML now sets `<freeze_out_surface>0`: MUSIC builds no freeze-out surface, which a
+hydro-only dump never uses, and stops on the equivalent max(e) < e_fo test instead. That
+takes the seed-1 event from 23.3 s to **17.1 s**, with bit-identical output. It needs
+X-SCAPE branch `pair_h5_music_surface_off` and MUSIC4GPU branch `XSCAPE_surface_off`; with
+an older X-SCAPE, delete that line. The timings below were measured with the surface on.
+
 Two jobs at once (`run_jobs.sh -j 2`) give about **1.66× the throughput** (17.3 s/event
 overall, against 28.6 s/event for one job on events of 101–109 frames), because each job's
 CPU stages (string deposition, h5 writing) overlap the other job's GPU evolution. Each job
@@ -181,7 +187,7 @@ T_fo = 0.15 GeV. Only output settings differ:
 | | source XML (iSS reference) | this folder |
 |---|---|---|
 | evolution | `RootBulkWriter` via the framework copy (~65 GB RSS per event) | native store to HDF5 (~4 GB) |
-| MUSIC | `output_evolution_every_N_timesteps` 1 | 5 (dtau 0.1), `dump_hydro_only` 1, `skip_surface` 1 |
+| MUSIC | `output_evolution_every_N_timesteps` 1 | 5 (dtau 0.1), `dump_hydro_only` 1, `skip_surface` 1, `freeze_out_surface` 0 |
 | particlization | iSS plus final-state hadron writer | none (hydro only) |
 
 ## Build requirement

@@ -16,6 +16,7 @@ grid YAMLs, grid checks and environment checks this reuses.
     python run_prod_jet.py --events 1 --seed 1 --no-deposit      # null test: arr == arr_bg
     python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
     python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
+    python run_prod_jet.py --events 10 --seed 1 --surface jet    # surface for the jet leg only
     python run_prod_jet.py --events 1 --seed 1 --dry-run         # check, print the plan
     ./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
 
@@ -92,6 +93,11 @@ def parse_args() -> argparse.Namespace:
                    help="null test: MUSIC_2 without the liquefier, so arr must equal arr_bg")
     p.add_argument("--no-showers", action="store_true", dest="no_showers",
                    help="do not store the parton showers (shower/)")
+    p.add_argument("--surface", choices=("none", "bg", "jet", "both"), default="none",
+                   help="which legs build MUSIC's freeze-out surface. It is only needed to "
+                        "particlize a leg (e.g. 'jet' for hadrons from the jet leg); "
+                        "'none' (default) is ~6 s per MUSIC run faster, with a "
+                        "bit-identical evolution")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     return p.parse_args()
@@ -165,6 +171,11 @@ def job_xml(a, out_h5: str):
             problems.append(f"{BG_ID} needs <dump_hydro_only>0: Matter/LBT read its "
                             "framework medium (MUSIC_2 is switched to 1 in Python)")
         _set(hydros[1], "AddLiquefier", "false" if a.no_deposit else "true")
+        # First block: the background leg and the default for every instance; MUSIC_2's
+        # own block always gets an explicit value, which overrides it for the jet leg.
+        _set(music, "freeze_out_surface", 1 if a.surface in ("bg", "both") else 0)
+        _set(hydros[1].find("MUSIC"), "freeze_out_surface",
+             1 if a.surface in ("jet", "both") else 0)
     if _text(root, "Preequilibrium/evolutionInMemory") != "0":
         problems.append("<Preequilibrium><evolutionInMemory> must be 0 with NullPreDynamics "
                         "and 3D-Glauber strings (otherwise the medium's tau axis is garbage)")
@@ -211,7 +222,8 @@ def main() -> int:
                  f"{_text(root, 'Hard/PythiaGun/pTHatMax')} GeV" if a.hard == "pythia"
                  else f"PGun pT {a.pgun_pt:g} GeV")
     print(f"prod_AuAu_0_10_jet: {a.events} event(s), seed {a.seed}, grid_mode {grid_mode}, "
-          f"{hard_desc}, reuse {a.reuse}, deposition {'OFF (null test)' if a.no_deposit else 'on'}")
+          f"{hard_desc}, reuse {a.reuse}, deposition {'OFF (null test)' if a.no_deposit else 'on'}, "
+          f"freeze-out surface: {a.surface}")
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
     print(f"  grid     {a.grid}")
@@ -239,6 +251,7 @@ def main() -> int:
         "prod_grid_yaml": grid_text,
         "prod_hard": hard_desc,
         "prod_reuse": a.reuse,
+        "prod_surface": a.surface,
         "system": "AuAu 200 GeV 0-10% (b in [0, 4.7] fm)",
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
@@ -300,7 +313,7 @@ def main() -> int:
         with h5py.File(out_h5, "a") as f:
             f.attrs["prod_wall_s_total"] = time.time() - t_job
     summary = {"out": out_h5, "seed": a.seed, "grid": a.grid, "hard": hard_desc,
-               "reuse": a.reuse, "deposition": not a.no_deposit,
+               "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,
                "events_requested": a.events, "events_written": n,
                "events_tau0_after_tau_min": late,
                "legs_cut_at_max_ntau": writer.n_clipped,

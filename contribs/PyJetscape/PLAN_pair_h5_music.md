@@ -344,5 +344,21 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
   covers the same code.
 - The one-in-ten anomalous run (see above).
 - Speed, next: start MUSIC_2 from a full-state MUSIC_1 snapshot taken just before
-  `tau_delay` (~4–5 s/event), then the writer's resampling (12.2 s), the medium-store copy
-  (6.2 s) and the CPU surface finder. Details in the PyJetscape README, "Future steps".
+  `tau_delay` (~4–5 s/event), then the writer's resampling (12.2 s) and the medium-store
+  copy (6.2 s). Details in the PyJetscape README, "Future steps".
+
+**Freeze-out surface switch (branches `*surface_off`, 2026-09-24)**
+- MUSIC4GPU `XSCAPE_surface_off` `9bdbf92`: `freeze_out_surface = 0` builds no surface and
+  stops on max(e) < e_fo, the same step as Cornelius.
+- X-SCAPE `pair_h5_music_surface_off` `ff513d63`: `<Hydro><MUSIC><freeze_out_surface>`.
+  The first block sets it globally, an instance's own block overrides it, and
+  `MpiMusic::set_freeze_out_surface()` overrides both. `get_music4gpu.sh` pins `9bdbf92`.
+- js-contrib `pair_h5_music_surface_off`: the binding, `freeze_out_surface 0` in both
+  production XMLs, and `run_prod_jet.py --surface {none,bg,jet,both}`.
+- Measured, all bit-identical:
+  - hydro-only: 23.3 → 17.1 s/event.
+  - pair: 60.1 → 49.1 s/event, or 55.3 s with `--surface jet`.
+  - the grid-edge flag fires at the same frame, the CPU path matches, and the Python
+    setter works.
+- Not pushed yet: MUSIC4GPU `XSCAPE_surface_off` first (the pin), then X-SCAPE and
+  js-contrib `*_surface_off`.
