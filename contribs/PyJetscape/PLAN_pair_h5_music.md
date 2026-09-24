@@ -289,3 +289,27 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
 - **js-contrib `pair_h5_music`** (from `main`): the Python work, 2c and Phases 3–7. Merge to
   `main` when verified.
 - One commit per phase. Phase 2's gate has to pass before Phases 5 and 6 run on real data.
+
+## Status (2026-09-24)
+
+**Done**
+| phase | where | commit |
+|---|---|---|
+| 1.1–1.3 consolidation | X-SCAPE `music4gpu_test` = `fasthydro_hadronization` (rebased, duplicates dropped) + PR #138 merge `4f5bdb2a`; `pair_h5_music` created from it | local, **not pushed** |
+| 1.6 plan archived | js-contrib `pair_h5_music` | `5221ea7` |
+| 2c setter bindings | `src/bind_music.cc` | `38d8532` (**not compiled yet**, see below) |
+| 3 writer core | `fno_h5_writer.py`: `add_evolution`, `ragged`/`RaggedGroup`, `write_diag`, `tau_axis`, `repad_to` fix | `0c55de0` |
+| 4 capture in PyJetscape | `jetscape/showers.py` (moved; FastHydro re-exports), `jetscape/liquefier_io.py` | `68366ff` |
+| 5 pair writer | `jetscape/pair_h5.py` `PairH5Writer` | `9d3c4eb` |
+| 6 production | `example/prod_AuAu_0_10_jet/` (XML, `run_prod_jet.py`, `run_jobs.sh`, README); `prod_AuAu_0_10/run_jobs.sh` takes env overrides | `483bf9a` |
+| 7 FastHydro | `PairBrowser` follows `freezeout_convention_id`; MUSIC-pair test; README | `5d8a5c5` |
+
+Tests: PyJetscape `test_pair_h5.py` + `test_h5_bulk.py` 49 passed, 1 skipped (FNO4d loaders absent); FastHydro suite 315 passed, 8 skipped. Driver checked with `--dry-run` (all modes and guards) and a two-job `run_jobs.sh` dry run.
+
+**Blocked (needs the user):**
+- **Pushing `music4gpu_test`** to origin (step 1.2). The push was denied by the permission system.
+- **Switching the MUSIC4GPU checkout** from `KoKKos-Port` to `XSCAPE` (step 1.4). Also denied. Phase 2b (the jet-source port) waits on it, and so does 2a (moving `external_packages/music` to `cee9460`), which touches a build source tree the same way.
+
+**Consequences until 2b lands:**
+- **Don't rebuild `build_gpu` from `music4gpu_test` or `pair_h5_music`.** PR #138's wrapper calls `add_hydro_source_terms_from_jet`, which music4gpu doesn't have yet. To rebuild for production in the meantime, check out `fasthydro_hadronization`.
+- **`pyjetscape_core` can't be rebuilt either** (it builds inside `build_gpu`), so the 2c bindings and all integration checks (Verification 1–6) are still open.
