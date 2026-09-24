@@ -220,3 +220,37 @@ def test_repad_grows_arr_bg_in_files_without_tau_axis_attributes(tmp_path):
     assert target == 8 and changed == [str(p)]
     with h5py.File(p, "r") as f:
         assert f["arr"].shape[5] == f["arr_bg"].shape[5] == 8
+
+
+# ───────────────────────────────────────────── liquefier_io
+class _FakeLiquefier:
+    """Duck-types the bound CausalLiquefier: droplets_numpy() and params()."""
+
+    def __init__(self, rows, with_derived=True):
+        self._rows = rows
+        if with_derived:
+            self.c_diff, self.gamma_relax = 0.9, 5.0
+
+    def droplets_numpy(self):
+        return self._rows
+
+    def params(self):
+        return {"dtau": 0.02, "tau_delay": 2.0, "time_relax": 0.1, "d_diff": 0.08,
+                "width_delta": 0.1}
+
+
+def test_droplets_come_out_as_an_m_by_8_float64_array():
+    from jetscape.liquefier_io import DROPLET_COLUMNS, droplets
+
+    d = droplets(_FakeLiquefier([[1, 2, 3, 4, 5, 6, 7, 8]] * 3))
+    assert d.shape == (3, 8) and d.dtype == np.float64 and len(DROPLET_COLUMNS) == 8
+    assert droplets(_FakeLiquefier([])).shape == (0, 8)
+
+
+def test_liquefier_params_prefer_the_objects_derived_values():
+    from jetscape.liquefier_io import PARAM_KEYS, liquefier_params
+
+    p = liquefier_params(_FakeLiquefier([], with_derived=True))
+    assert tuple(p) == PARAM_KEYS and p["c_diff"] == 0.9 and p["gamma_relax"] == 5.0
+    q = liquefier_params(_FakeLiquefier([], with_derived=False))
+    assert q["c_diff"] == pytest.approx(np.sqrt(0.8)) and q["gamma_relax"] == pytest.approx(5.0)

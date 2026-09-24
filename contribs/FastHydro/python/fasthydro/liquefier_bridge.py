@@ -51,7 +51,8 @@ def _base():
 def params_from_liquefier(liq):
     """`LiquefierParams` read from the live C++ object rather than duplicated in YAML."""
     from fast_data.liquefier import LiquefierParams
-    p = liq.params()
+    from jetscape.liquefier_io import liquefier_params
+    p = liquefier_params(liq)
     return LiquefierParams(dtau=p["dtau"], tau_delay=p["tau_delay"],
                            time_relax=p["time_relax"], d_diff=p["d_diff"],
                            width_delta=p["width_delta"])
@@ -60,7 +61,8 @@ def params_from_liquefier(liq):
 def droplets_from_liquefier(liq):
     """The C++ droplet list as a `DropletArray` (single event). No conversion; see above."""
     from fast_data.liquefier.droplets import DropletArray
-    d = np.asarray(liq.droplets_numpy(), dtype=np.float64).reshape(-1, 8)
+    from jetscape.liquefier_io import droplets
+    d = droplets(liq)
     return DropletArray(d, np.array([0, len(d)], dtype=np.int64))
 
 
