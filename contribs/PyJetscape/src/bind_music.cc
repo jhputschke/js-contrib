@@ -91,14 +91,28 @@ void bind_music(py::module_ &m) {
       // With <Hydro><MUSIC><dump_hydro_only>1 MUSIC keeps its own evolution
       // store and never fills bulk_info.data (only the grid metadata).  These
       // read that store directly, the same way FastRootBulkWriter does.  Both
-      // flags are read from the XML in InitializeHydro(), so only getters are
-      // exposed.
+      // flags are read from the XML in InitializeHydro() (called from
+      // JetScape::Init()), and every MUSIC instance reads the FIRST
+      // <Hydro><MUSIC> block.  The setters override one instance after Init(),
+      // e.g. the jet leg of a two-stage run, whose background leg must keep
+      // filling bulk_info for energy loss.
       .def("get_dump_hydro_only", &MpiMusic::get_dump_hydro_only,
            "Return whether <dump_hydro_only> is enabled (native store kept, "
            "bulk_info.data not built).")
+      .def("set_dump_hydro_only", &MpiMusic::set_dump_hydro_only,
+           "Keep this instance's native evolution store and skip building "
+           "bulk_info.data.  Call it AFTER JetScape.Init(): InitializeHydro() "
+           "resets the flag from the XML.  Needs output_evolution_to_memory = 1. "
+           "Nothing may query this instance's medium (energy loss reads the "
+           "first hydro only).",
+           py::arg("dump"))
       .def("get_skip_surface", &MpiMusic::get_skip_surface,
            "Return whether <skip_surface> is enabled (freeze-out surface not "
            "exported to the framework).")
+      .def("set_skip_surface", &MpiMusic::set_skip_surface,
+           "Do not export this instance's freeze-out surface to the framework. "
+           "Call it AFTER JetScape.Init(), like set_dump_hydro_only.",
+           py::arg("skip"))
       .def("get_number_of_fluid_cells", &MpiMusic::get_number_of_fluid_cells,
            "Return the number of cells in MUSIC's native evolution store "
            "(0 before InitializeHydro() or after the store was released).")
