@@ -270,14 +270,14 @@
       <tau_min> 0.44 </tau_min>
       <dtau> 0.1 </dtau>
 
-      <eta_min> -5.  </eta_min> <!-- 50 bins of 0.1; still has bug that will go up to 4.9 and not 4.0 -->
-      <deta> 0.3125 </deta> #32
+      <eta_min> -5.  </eta_min> <!-- n = 2*int(|min|/d)+1: 33 cells, -5 .. +5 -->
+      <deta> 0.3125 </deta>
 
       <x_min> -10  </x_min>
-      <dx> 0.3125 </dx> #64
+      <dx> 0.3125 </dx> <!-- 65 cells, -10 .. +10 -->
 
       <y_min> -10 </y_min>
-      <dy> 0.3125 </dy> #64
+      <dy> 0.3125 </dy> <!-- 65 cells -->
   
       <!-- If maxTau != 0: events are set to fixed size arrays for each event,
           with data either truncated before freezeout, or padded with zeros after
