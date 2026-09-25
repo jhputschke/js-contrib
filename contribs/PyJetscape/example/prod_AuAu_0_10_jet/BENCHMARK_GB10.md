@@ -90,7 +90,7 @@ times, see [the table under Applied](#applied-branches-hydro_data_optim).
 
 | Stage | before (s/event) | after (s/event) | Runs on |
 |---|---|---|---|
-| Source term filled on the CPU before each GPU step (`Advance::prefill_hydro_source_on_cpu`) | 15.0 | 15.3 | CPU, OpenMP — see [the next candidate](#next-candidate-the-cpu-source-fill) |
+| Source term filled on the CPU before each GPU step (`Advance::prefill_hydro_source_on_cpu`) | 15.0 | 15.3 | CPU, OpenMP — see [The CPU source fill](#the-cpu-source-fill) |
 | MUSIC GPU steps, both legs (`Advance::try_gpu_advance`, without the fill) | 9.6 | 10.5 | GPU |
 | Resampling onto the output grid (`bulk_sources.resample`) | 14.7 | **3.1** | 1 CPU thread → BLAS |
 | Copying the background leg into `bulk_info` (`MpiMusic::PassHydroEvolutionHistoryToFramework`) | 7.7 | **2.5** | 1 CPU thread → OpenMP |
@@ -154,9 +154,8 @@ above has both states.
 
 ### What sets an event's runtime
 
-This is **the event's lifetime** (its number of hydro time steps), not the number of
-strings it deposits. From the job log of the run above (seed 1, `Delta_Tau` =
-0.02 fm/c):
+Two things: **the event's lifetime** (its number of hydro time steps) and **its number
+of strings**. From the job log of the run above (seed 1, `Delta_Tau` = 0.02 fm/c):
 
 | | event 1 | event 2 | ratio |
 |---|---|---|---|
@@ -168,70 +167,126 @@ strings it deposits. From the job log of the run above (seed 1, `Delta_Tau` =
 | droplets | 25 | 35 | 1.4 |
 | wall time | 38.0 s | 46.6 s | **1.23** |
 
-- **Why the steps dominate:** almost every stage scales with the number of steps or
-  stored frames: the GPU steps, the CPU source fill, the frame dump, the resampling and
-  the `bulk_info` copy. The 18 % more steps explain most of the 23 % longer runtime.
-- **The remaining ~5 %:** the extra strings in the two deposition steps, the extra
-  droplets on the jet leg (evaluated at every step while they deposit), and a longer
-  energy-loss stage.
-- **How strings still matter:** more strings put more energy into a larger, denser
-  fireball, which takes longer to cool below freeze-out. They drive the runtime through
-  the lifetime, not through the deposition itself.
+- **Lifetime:** almost every stage scales with the number of steps or stored frames:
+  the GPU steps, the frame dump, the resampling and the `bulk_info` copy.
+- **Strings:** deposited only in the first two steps, but those two steps are
+  expensive. Every string is evaluated at every cell, ~0.7 s per source fill, and there
+  are ~8 such fills per event (2 steps × 2 Runge–Kutta substeps × 2 legs). That cost,
+  ~9 s per event, scales with the number of strings. See
+  [The CPU source fill](#the-cpu-source-fill).
+- **Split of the 8.6 s difference** (an estimate from the profile, not a separate
+  measurement):
+  - ~2.5–3 s from the 34 % more strings;
+  - most of the rest from the 18 % more steps;
+  - a little from the extra droplets and a longer energy-loss stage.
+- More strings also mean more energy and a larger, denser fireball that takes longer to
+  cool below freeze-out, so the two effects go together.
 
-### Next candidate: the CPU source fill
+### The CPU source fill
 
-`Advance::prefill_hydro_source_on_cpu` (MUSIC4GPU `advance.cpp`) is now the largest single
-stage, at ~15 s/event, more than the GPU work itself. Before every Runge–Kutta substep
-of both legs it:
-- zeroes a 5 × N-cell source buffer;
+`Advance::prefill_hydro_source_on_cpu` (MUSIC4GPU `advance.cpp`) was the largest single
+stage after the `hydro_data_optim` changes, at ~15 s/event, more than the GPU work
+itself. Before a Runge–Kutta substep of either leg it:
+- zeroes a 5 × N-cell source buffer (N = 100 × 100 × 60);
 - evaluates the string source (and, on the jet leg, the droplet source) at **every**
-  cell in a `#pragma omp parallel for collapse(3) schedule(static)` loop;
-- uploads the buffer to the GPU.
+  cell in an OpenMP loop;
+- hands the buffer to the GPU kernel, which adds `qi_source * dt` to T^τμ.
 
-The per-event split, after the changes:
+The per-event split before the change:
 
 | Part | ~s/event |
 |---|---|
-| main thread waiting at the OpenMP barrier | 7.6 |
+| main thread waiting at the OpenMP barrier | 7.4 |
 | `HydroSourceStrings::get_hydro_energy_source` | 5.7 |
 | the loop itself (index maths, stores) | 1.3 |
-| `LiquefierBase::get_source` (droplets, jet leg only) | 0.7 |
+| `LiquefierBase::get_source` (droplets, jet leg only) | 0.9 |
 
-Two observations:
+**What was wasteful:**
+- **The fill ran at every substep of the whole evolution.** With
+  `evolve_QCD_string_mode 4` every string is deposited at the start: the log shows
+  `HydroSourceStrings: tau_min = tau_max = 0.424 fm/c`, strings active at τ = 0.40 and
+  0.42 fm/c, and none from τ = 0.44 on (the remnant lists end at the same time).
+  `flag_add_hydro_source` is nevertheless set once and stays true. So the fill ran at
+  all ~500–650 steps of each leg, and at all but the first two it produced zeros.
+- **Half of it was waiting.** The static schedule gave each thread an equal share of
+  cells. The cost per cell varies by orders of magnitude (cells near strings are
+  expensive), and the cores run at two speeds (X925 / A725).
 
-- **It runs for the whole evolution, but the strings exist for two steps.**
-  - With `evolve_QCD_string_mode 4` every string is deposited at the start. The log
-    shows `HydroSourceStrings: tau_min = tau_max = 0.424 fm/c`, strings active at
-    τ = 0.40 and 0.42 fm/c, and `number of strings ... : 0` from τ = 0.44 on.
-  - `flag_add_hydro_source` is nevertheless set once in the `Advance` constructor and
-    stays true. So the fill runs at every substep of the ~500–650 steps of each leg,
-    and for all but the first two steps the string part is zero everywhere.
-  - At those steps `get_hydro_energy_source` returns at once (no active string), but
-    each substep still pays for the memset, a call per cell, the loop, the OpenMP
-    barrier and the upload.
-  - The profile does not resolve τ, so it cannot say how the 5.7 s in
-    `get_hydro_energy_source` splits between the two string steps and the many
-    early-return calls afterwards.
+**Applied (branches `cpu_source_fill_optim`):**
+- **MUSIC4GPU `6d33feb`:**
+  - `HydroSourceBase::has_active_sources_current_tau()`, default `true`.
+    `HydroSourceStrings` returns false when its four current-τ lists are empty; every
+    `get_hydro_*_source` then returns exactly zero.
+  - `try_gpu_advance` evaluates only the sources that are active in the step, and skips
+    the fill and the kernel's source add when none is.
+  - The loop runs with `schedule(dynamic, 1024)`.
+- **X-SCAPE `75b4ce7a`:** `HydroSourceJETSCAPE` implements the same query from the
+  liquefier's pruned droplet list. It is false when no droplet can deposit at the step's
+  query times, and stays true for a hadronic liquefier or an unprepared window.
 
-  **What skipping would save:** skip the fill, and set `p.has_hydro_source = 0`,
-  whenever no string is active (τ past the sources' `get_source_tau_max()`) and no
-  droplet is either.
-  - On the **background leg** that is every step after the second, so its fill would
-    all but vanish.
-  - On the **jet leg** the fill stays only while droplets deposit, and there only the
-    droplet source (0.7 s/event) needs evaluating.
-  - That should remove most of the ~15 s/event, not just the ~9 s of barrier and loop
-    time estimated before.
-  - The output should be bit-identical, since only zeros are dropped, but that has to
-    be checked.
-- **Half of it is waiting.** The static schedule gives each thread an equal share of
-  cells. At the two string steps the cost per cell varies a lot (cells near strings are
-  expensive), and the cores run at two speeds (X925 / A725). A `schedule(dynamic,
-  chunk)` or `guided` schedule would balance it. Once the empty steps are skipped, this
-  matters only for those two steps and for the droplet steps.
+Measured on one job alone, seed 1, 2 events, on top of `hydro_data_optim`:
 
-Both are MUSIC4GPU changes. Not done yet.
+| Build | event 1 | event 2 | source fill (profile) | Output |
+|---|---|---|---|---|
+| `hydro_data_optim` (js-contrib main, X-SCAPE contrib) | 37.2 s | 45.5 s | 15.3 s/event | — |
+| + `cpu_source_fill_optim` | **34.1 s** | **42.5 s** | 10.1 s/event | **byte-identical** (all 30 datasets) |
 
+The fill's split after the change: string evaluation 7.9 s/event, OpenMP overhead
+1.3 s, droplets 0.7 s, the loop 0.2 s. The barrier waiting is gone. What remains is
+**real work at the two string steps**, which the skip cannot remove, and which the
+earlier estimate here ("most of the ~15 s") had missed.
+
+### String deposition: binning by transverse reach
+
+**The cost:** at each of the ~8 string fills per event, every cell looped over every
+string, 600,000 cells × 1,200–1,600 strings ≈ 10⁹ string–cell checks. Yet the loops
+skip a string that is more than 8 σ_x away in x or in y before adding anything.
+
+**Applied (MUSIC4GPU branch `string_bin_optim`, `fa6ec5b`, on top of
+`cpu_source_fill_optim`):**
+- `prepare_list_for_current_tau_frame` bins the string, remnant and baryon lists by
+  the transverse box each entry can reach, one bin per grid cell. Each per-cell loop
+  walks only its bin's entries.
+- The box:
+  - `getStringTransverseCoord` = midpoint + `stringTransverseShiftFrac` ·
+    (0.5 − η_frac) · (x_l − x_r) / 2 is linear in the clamped η_frac, so a string's
+    (and a baryon's) position spans its values at η_frac = 0 and 1;
+  - remnants sit at their fixed (x_perp, y_perp);
+  - both get ± 8 σ_x + 10⁻⁶ fm, and the same in y.
+- The bins keep **list order**, so every cell adds the same terms in the same order.
+- A query outside the grid (+ 1 cell) walks the whole list.
+- The three local `n_sigma_skip = 8.` constants now read one shared member, so the
+  boxes and the cuts cannot drift apart.
+
+Measured on one job alone, seed 1, 2 events:
+
+| Build | event 1 (1184 strings) | event 2 (1591 strings) | string evaluation in the fill (profile) | Output |
+|---|---|---|---|---|
+| + `cpu_source_fill_optim` | 34.3 s | 43.0 s | 7.9 s/event | — |
+| + `string_bin_optim` | **30.6 s (−11 %)** | **38.0 s (−12 %)** | 3.7 s/event | **byte-identical** (all 30 datasets; MUSIC's logged energy totals and end times identical) |
+
+- **Where the gain is:** the event with more strings gains more.
+- **What's left:** the whole fill is now 5.9 s/event (strings 3.7, OpenMP overhead
+  1.3, droplets 0.55, loop 0.4), and building the bins costs 0.02 s/event. The
+  remaining string time is the strings that really are within 8 σ_x of a cell: the
+  erf, exp, cosh and sinh evaluations of the deposition itself.
+- **Not checked:** the binning also applies to MUSIC's CPU path (`FirstRKStepT`, e.g.
+  `MUSIC_FORCE_CPU=1`), which calls the same functions. It is bit-identical there by
+  the same argument, but that path was not rerun.
+
+### Summary of the single-job speed-ups
+
+Seed 1 on the GB10, per event:
+
+| Build | event 1 | event 2 |
+|---|---|---|
+| start (before `hydro_data_optim`) | 53.1 s | 60.3 s |
+| + `hydro_data_optim` (resample, `bulk_info` copy) | 38.0 s | 46.6 s |
+| + `cpu_source_fill_optim` (skip empty source fills, dynamic schedule) | 34.1–34.3 s | 42.5–43.0 s |
+| + `string_bin_optim` (bin strings by transverse reach) | **30.6 s (−42 %)** | **38.0 s (−37 %)** |
+
+Only the resampling step changes any value, by one float32 ulp in one of 1.4 × 10⁸
+entries of `arr`. The other steps are byte-identical.
 
 ## Bug: concurrent jobs can hang at start
 
