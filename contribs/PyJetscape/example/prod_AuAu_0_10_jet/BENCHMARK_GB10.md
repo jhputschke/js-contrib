@@ -152,6 +152,32 @@ time scales with the event's lifetime, roughly with its number of frames.
 The concurrency numbers above were measured before these changes. The profile table
 above has both states.
 
+### What sets an event's runtime
+
+This is **the event's lifetime** (its number of hydro time steps), not the number of
+strings it deposits. From the job log of the run above (seed 1, `Delta_Tau` =
+0.02 fm/c):
+
+| | event 1 | event 2 | ratio |
+|---|---|---|---|
+| strings | 1184 | 1591 | 1.34 |
+| strings deposited at τ | 0.40, 0.42 only | 0.40, 0.42 only | — |
+| background leg ends at τ | 9.96 fm/c | 11.56 fm/c | |
+| jet leg ends at τ | 11.06 fm/c | 13.06 fm/c | |
+| hydro time steps, both legs | ~1011 | ~1191 | **1.18** |
+| droplets | 25 | 35 | 1.4 |
+| wall time | 38.0 s | 46.6 s | **1.23** |
+
+- **Why the steps dominate:** almost every stage scales with the number of steps or
+  stored frames: the GPU steps, the CPU source fill, the frame dump, the resampling and
+  the `bulk_info` copy. The 18 % more steps explain most of the 23 % longer runtime.
+- **The remaining ~5 %:** the extra strings in the two deposition steps, the extra
+  droplets on the jet leg (evaluated at every step while they deposit), and a longer
+  energy-loss stage.
+- **How strings still matter:** more strings put more energy into a larger, denser
+  fireball, which takes longer to cool below freeze-out. They drive the runtime through
+  the lifetime, not through the deposition itself.
+
 ### Next candidate: the CPU source fill
 
 `Advance::prefill_hydro_source_on_cpu` (MUSIC4GPU `advance.cpp`) is now the largest single
@@ -173,24 +199,36 @@ The per-event split, after the changes:
 
 Two observations:
 
-- **It runs for the whole evolution.** For string initial conditions
-  `flag_add_hydro_source` is set once in the `Advance` constructor and stays true. The
-  fill therefore also runs long after the last string has deposited (τ above the
-  sources' `get_source_tau_max()`). There `get_hydro_energy_source` returns at once,
-  because no string is active, but each substep still pays for the memset, the loop over
-  all cells, the OpenMP barrier and the upload.
-  - The 5.7 s spent inside `get_hydro_energy_source` therefore comes from the early
-    steps, while strings are depositing, and stays.
-  - Skipping the fill at late times, and setting `p.has_hydro_source = 0` whenever no
-    droplet is active either, removes the rest from those steps, up to the ~9 s of
-    barrier and loop time. The profile does not resolve τ, so how much of that 9 s is
-    late-time was not measured.
-  - The output should be bit-identical, since only zeros are added, but that has to be
-    checked.
+- **It runs for the whole evolution, but the strings exist for two steps.**
+  - With `evolve_QCD_string_mode 4` every string is deposited at the start. The log
+    shows `HydroSourceStrings: tau_min = tau_max = 0.424 fm/c`, strings active at
+    τ = 0.40 and 0.42 fm/c, and `number of strings ... : 0` from τ = 0.44 on.
+  - `flag_add_hydro_source` is nevertheless set once in the `Advance` constructor and
+    stays true. So the fill runs at every substep of the ~500–650 steps of each leg,
+    and for all but the first two steps the string part is zero everywhere.
+  - At those steps `get_hydro_energy_source` returns at once (no active string), but
+    each substep still pays for the memset, a call per cell, the loop, the OpenMP
+    barrier and the upload.
+  - The profile does not resolve τ, so it cannot say how the 5.7 s in
+    `get_hydro_energy_source` splits between the two string steps and the many
+    early-return calls afterwards.
+
+  **What skipping would save:** skip the fill, and set `p.has_hydro_source = 0`,
+  whenever no string is active (τ past the sources' `get_source_tau_max()`) and no
+  droplet is either.
+  - On the **background leg** that is every step after the second, so its fill would
+    all but vanish.
+  - On the **jet leg** the fill stays only while droplets deposit, and there only the
+    droplet source (0.7 s/event) needs evaluating.
+  - That should remove most of the ~15 s/event, not just the ~9 s of barrier and loop
+    time estimated before.
+  - The output should be bit-identical, since only zeros are dropped, but that has to
+    be checked.
 - **Half of it is waiting.** The static schedule gives each thread an equal share of
-  cells. The cost per cell varies (cells near strings or droplets are expensive), and
-  the cores run at two speeds (X925 / A725). A `schedule(dynamic, chunk)` or `guided`
-  schedule would balance it.
+  cells. At the two string steps the cost per cell varies a lot (cells near strings are
+  expensive), and the cores run at two speeds (X925 / A725). A `schedule(dynamic,
+  chunk)` or `guided` schedule would balance it. Once the empty steps are skipped, this
+  matters only for those two steps and for the droplet steps.
 
 Both are MUSIC4GPU changes. Not done yet.
 
