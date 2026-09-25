@@ -812,7 +812,23 @@ see the notebook's §6.
 - **`stop_at_freezeout: false`** in the shipped YAML, so both legs span the same frames. With
   it on, the two legs can stop at different times and the pair is not comparable.
 
-## Possible extension: the same writer for a MUSIC two-stage run
+## The same layout for a MUSIC two-stage run
+
+**Now implemented in PyJetscape.** `jetscape.pair_h5.PairH5Writer` writes an X-SCAPE
+two-stage MUSIC run in this layout (`arr` = jet leg, `arr_bg`, `source/droplets`, `shower/`),
+and `PyJetscape/example/prod_AuAu_0_10_jet/` is the production driver; plan and status in
+`PyJetscape/PLAN_pair_h5_music.md`. `PairBrowser` opens those files (tested in
+`tests/test_music_pair_browser.py`). The three problems below were settled as follows:
+1. **No `source/S`.** The file holds the droplets only, with `has_source = false`.
+2. **Legs of different length.** The τ axis grows to the longer leg, and `arr_bg` always keeps
+   `arr`'s shape.
+3. **Memory.** Both legs are resampled onto the output grid before writing.
+
+The shower capture now lives in `jetscape.showers`, which `fasthydro.showers` re-exports.
+MUSIC files use the "frames written" freeze-out convention
+(`freezeout_convention_id = "frames_written"`), and `PairBrowser.live()` follows it.
+
+The original sketch, kept for the reasoning:
 
 `PairedH5Writer` is not tied to the fast solver, and a MUSIC two-stage run could in
 principle be written into the same paired file. Two of the three pieces already exist;

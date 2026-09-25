@@ -24,10 +24,34 @@ import numpy as np
 __all__ = ["PairBrowser", "open_pair"]
 
 
+def _freezeout_offset(f):
+    """ntau_freezeout minus the populated frames: 1 for fast_data's files, 0 for PyJetscape's.
+
+    fast_data writes the legacy convention (populated frames + 1) and no id; PyJetscape's
+    writers (H5BulkWriter, PairH5Writer for MUSIC pairs) write the frame count and stamp
+    ``freezeout_convention_id = "frames_written"``.  `fast_data.viz` is vendored and assumes
+    the legacy one, so the views below correct `live()` from the attribute.
+    """
+    cid = f.attrs.get("freezeout_convention_id", "legacy_plus_one")
+    if isinstance(cid, bytes):
+        cid = cid.decode()
+    return 0 if cid == "frames_written" else 1
+
+
 def _views(path):
     from fast_data.viz import EventBrowser
 
-    class _BackgroundView(EventBrowser):
+    class _LegView(EventBrowser):
+        """An EventBrowser whose `live()` follows the file's freeze-out convention."""
+
+        def __init__(self, *a, **kw):
+            super().__init__(*a, **kw)
+            self._fo_offset = _freezeout_offset(self._f)
+
+        def live(self, event):
+            return max(int(self.ntau_fo[event]) - self._fo_offset, 0)
+
+    class _BackgroundView(_LegView):
         """An EventBrowser bound to `arr_bg` instead of `arr`."""
 
         def _open(self):
@@ -46,7 +70,7 @@ def _views(path):
                 self.tau_fo = self._f["tau_freezeout_bg"][:]
             self.has_source = False
 
-    return EventBrowser(path), _BackgroundView(path)
+    return _LegView(path), _BackgroundView(path)
 
 
 def open_pair(path, *, check_ic=True):
