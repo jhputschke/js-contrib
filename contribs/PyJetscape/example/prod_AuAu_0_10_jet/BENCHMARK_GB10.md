@@ -72,41 +72,166 @@ bursts of heavy OpenMP use.
 
 ## Where a single job's time goes
 
-This is from a `py-spy record --native --idle` profile of one 2-event job (seed 1)
-running alone, main thread only. Seconds per event are corrected for the profiler's
-roughly 40 % overhead.
+This is from `py-spy record --native --idle` profiles of one 2-event job (seed 1)
+running alone, main thread only, before and after the `hydro_data_optim` changes
+(below). Both profiles were classified by the same rules, and each was corrected for its
+own profiler overhead (the ratio of the job's event times with and without `py-spy`:
+×0.75 before, ×0.82 after).
 
-| Stage | ~s/event | Runs on |
-|---|---|---|
-| MUSIC GPU steps, both legs (`Advance::try_gpu_advance`) | ~8.5 | GPU |
-| Resampling onto the output grid (`bulk_sources.resample`, `scipy.ndimage.map_coordinates`) | ~13 | **1 CPU thread** |
-| Source term filled on the CPU before each GPU step (`Advance::prefill_hydro_source_on_cpu`: `HydroSourceStrings::get_hydro_energy_source` + `LiquefierBase::get_source`) | ~7 | CPU, OpenMP |
-| Copying the background leg into `bulk_info` (`MpiMusic::PassHydroEvolutionHistoryToFramework`) | ~7 | **1 CPU thread** (about 40 % of it is `std::vector<FluidCellInfo>::_M_realloc_insert`) |
-| Energy loss (Matter + LBT) | ~4 | 1 CPU thread |
-| h5 writing (lzf), `output_momentum_anisotropy_vs_etas`, other | ~4 | CPU |
+The rows are seconds per event, **averaged over the job's 2 events and including its
+startup**:
+- Event 1 of seed 1 has 106 / 95 jet / background frames; event 2 has 126 / 111 and
+  runs longer.
+- "Everything else" holds the startup before the first event (imports, XML, MUSIC and
+  EOS init, Pythia; ~9 s per job), which the driver's per-event times leave out.
 
-The GPU work is only about 8.5 s of each 53 s event. Parallel jobs help because each
-job's serial CPU stages run on separate cores.
+The totals are therefore above the per-event times the driver prints. For the per-event
+times, see [the table under Applied](#applied-branches-hydro_data_optim).
+
+| Stage | before (s/event) | after (s/event) | Runs on |
+|---|---|---|---|
+| Source term filled on the CPU before each GPU step (`Advance::prefill_hydro_source_on_cpu`) | 15.0 | 15.3 | CPU, OpenMP — see [the next candidate](#next-candidate-the-cpu-source-fill) |
+| MUSIC GPU steps, both legs (`Advance::try_gpu_advance`, without the fill) | 9.6 | 10.5 | GPU |
+| Resampling onto the output grid (`bulk_sources.resample`) | 14.7 | **3.1** | 1 CPU thread → BLAS |
+| Copying the background leg into `bulk_info` (`MpiMusic::PassHydroEvolutionHistoryToFramework`) | 7.7 | **2.5** | 1 CPU thread → OpenMP |
+| Energy loss (Matter + LBT) | 3.9 | 3.3 | 1 CPU thread |
+| Other MUSIC: evolve loop, frame dump to memory, GPU↔host syncs | 3.3 | 3.5 | CPU |
+| Other writer work: native-store read, hashing | 2.4 | 2.6 | CPU |
+| h5 writing (h5py, lzf) | 1.1 | 1.1 | 1 CPU thread |
+| Momentum-anisotropy output (`output_momentum_anisotropy_vs_etas`) | 1.1 | 1.1 | CPU |
+| Everything else (startup share, Pythia, framework) | 4.4 | 4.4 | CPU |
+| **Total** | **63.3** | **47.4** | |
+
+The GPU does only about 10 s of each event's work. Parallel jobs help because each
+job's CPU stages run on separate cores.
 
 Each job still slows down 1.4–1.8× when others run beside it. This was not pinned
 down. Likely causes:
 - the GPU switching between processes when their MUSIC steps overlap;
-- 10 of the 20 cores being the slower A725;
-- the CPU and GPU sharing memory bandwidth, which matters because the resampling, the
-  `bulk_info` copy and the hydro stencil all move a lot of memory.
+- 10 of the 20 cores being the slower A725, which also leaves the static OpenMP
+  loops unevenly loaded;
+- the CPU and GPU sharing memory bandwidth, which matters because the source fill, the
+  resampling and the hydro stencil all move a lot of memory.
 
 ### Cheap single-job improvements
 
-1. **Resampling** (~13 s/event). `resample` uses linear interpolation (`order=1`,
-   `prefilter=False`), but calls `map_coordinates` separately for every frame and channel:
-   about 1,700 single-threaded calls per event (106 frames × 4 channels × 2 tau
-   neighbours × 2 legs), always with the same target points. Computing the 8 interpolation
-   indices and weights once per event and applying them as one vectorised gather should
-   cut this to a few seconds.
-2. **`bulk_info` copy** (~7 s/event). Reserving the `FluidCellInfo` vector up front
-   removes the reallocation, about 3 s/event.
-3. **`output_momentum_anisotropy_vs_etas`** (~1.5 s/event): diagnostics that nothing in
+Identified from the first profile ("before" column):
+
+1. **Resampling** (~15 s/event). `resample` used linear interpolation (`order=1`,
+   `prefilter=False`), but called `map_coordinates` separately for every frame and
+   channel: about 1,700 single-threaded calls per event (106 frames × 4 channels × 2
+   tau neighbours × 2 legs), always with the same target points.
+2. **`bulk_info` copy** (~8 s/event). One heap allocation and one `push_back` per
+   cell for ~10⁸ cells, with the vector reallocating as it grew.
+3. **`output_momentum_anisotropy_vs_etas`** (~1 s/event): diagnostics that nothing in
    this production uses.
+
+### Applied (branches `hydro_data_optim`)
+
+Improvements 1 and 2 are implemented; 3 is on hold. What omitting it would entail is under [README.md, Potential next steps](README.md#potential-next-steps).
+
+- **js-contrib** `e3101fd`: `resample` as three separable matrix-product passes
+  (eta, y, x) over all features of a source frame.
+- **X-SCAPE** `a80a9932`: `PassHydroEvolutionHistoryToFramework` resizes the store once
+  and fills it in an OpenMP loop.
+
+Measured on one job alone, seed 1, 2 events: the per-event wall times the driver
+prints. The two events are different collisions and live for different times, so
+compare along a column, not across:
+
+| Build | event 1 (106 / 95 frames, 25 droplets) | event 2 (126 / 111 frames, 35 droplets) | Output vs baseline |
+|---|---|---|---|
+| baseline | 53.1 s | 60.3 s | — |
+| + `bulk_info` copy | 47.1 s | 58.2 s | bit-identical |
+| + resample | **38.0 s (−28 %)** | **46.6 s (−23 %)** | `arr`: 1 of 1.4 × 10⁸ values differs by 1 ulp; everything else bit-identical |
+
+A 1-event run of seed 1 (`python run_prod_jet.py --events 1 --seed 1`, the usual
+smoke test) now reports `wall_s` ≈ 38 s in its `.json`, down from ~53 s. Per-event
+time scales with the event's lifetime, roughly with its number of frames.
+
+The concurrency numbers above were measured before these changes. The profile table
+above has both states.
+
+### What sets an event's runtime
+
+This is **the event's lifetime** (its number of hydro time steps), not the number of
+strings it deposits. From the job log of the run above (seed 1, `Delta_Tau` =
+0.02 fm/c):
+
+| | event 1 | event 2 | ratio |
+|---|---|---|---|
+| strings | 1184 | 1591 | 1.34 |
+| strings deposited at τ | 0.40, 0.42 only | 0.40, 0.42 only | — |
+| background leg ends at τ | 9.96 fm/c | 11.56 fm/c | |
+| jet leg ends at τ | 11.06 fm/c | 13.06 fm/c | |
+| hydro time steps, both legs | ~1011 | ~1191 | **1.18** |
+| droplets | 25 | 35 | 1.4 |
+| wall time | 38.0 s | 46.6 s | **1.23** |
+
+- **Why the steps dominate:** almost every stage scales with the number of steps or
+  stored frames: the GPU steps, the CPU source fill, the frame dump, the resampling and
+  the `bulk_info` copy. The 18 % more steps explain most of the 23 % longer runtime.
+- **The remaining ~5 %:** the extra strings in the two deposition steps, the extra
+  droplets on the jet leg (evaluated at every step while they deposit), and a longer
+  energy-loss stage.
+- **How strings still matter:** more strings put more energy into a larger, denser
+  fireball, which takes longer to cool below freeze-out. They drive the runtime through
+  the lifetime, not through the deposition itself.
+
+### Next candidate: the CPU source fill
+
+`Advance::prefill_hydro_source_on_cpu` (MUSIC4GPU `advance.cpp`) is now the largest single
+stage, at ~15 s/event, more than the GPU work itself. Before every Runge–Kutta substep
+of both legs it:
+- zeroes a 5 × N-cell source buffer;
+- evaluates the string source (and, on the jet leg, the droplet source) at **every**
+  cell in a `#pragma omp parallel for collapse(3) schedule(static)` loop;
+- uploads the buffer to the GPU.
+
+The per-event split, after the changes:
+
+| Part | ~s/event |
+|---|---|
+| main thread waiting at the OpenMP barrier | 7.6 |
+| `HydroSourceStrings::get_hydro_energy_source` | 5.7 |
+| the loop itself (index maths, stores) | 1.3 |
+| `LiquefierBase::get_source` (droplets, jet leg only) | 0.7 |
+
+Two observations:
+
+- **It runs for the whole evolution, but the strings exist for two steps.**
+  - With `evolve_QCD_string_mode 4` every string is deposited at the start. The log
+    shows `HydroSourceStrings: tau_min = tau_max = 0.424 fm/c`, strings active at
+    τ = 0.40 and 0.42 fm/c, and `number of strings ... : 0` from τ = 0.44 on.
+  - `flag_add_hydro_source` is nevertheless set once in the `Advance` constructor and
+    stays true. So the fill runs at every substep of the ~500–650 steps of each leg,
+    and for all but the first two steps the string part is zero everywhere.
+  - At those steps `get_hydro_energy_source` returns at once (no active string), but
+    each substep still pays for the memset, a call per cell, the loop, the OpenMP
+    barrier and the upload.
+  - The profile does not resolve τ, so it cannot say how the 5.7 s in
+    `get_hydro_energy_source` splits between the two string steps and the many
+    early-return calls afterwards.
+
+  **What skipping would save:** skip the fill, and set `p.has_hydro_source = 0`,
+  whenever no string is active (τ past the sources' `get_source_tau_max()`) and no
+  droplet is either.
+  - On the **background leg** that is every step after the second, so its fill would
+    all but vanish.
+  - On the **jet leg** the fill stays only while droplets deposit, and there only the
+    droplet source (0.7 s/event) needs evaluating.
+  - That should remove most of the ~15 s/event, not just the ~9 s of barrier and loop
+    time estimated before.
+  - The output should be bit-identical, since only zeros are dropped, but that has to
+    be checked.
+- **Half of it is waiting.** The static schedule gives each thread an equal share of
+  cells. At the two string steps the cost per cell varies a lot (cells near strings are
+  expensive), and the cores run at two speeds (X925 / A725). A `schedule(dynamic,
+  chunk)` or `guided` schedule would balance it. Once the empty steps are skipped, this
+  matters only for those two steps and for the droplet steps.
+
+Both are MUSIC4GPU changes. Not done yet.
+
 
 ## Bug: concurrent jobs can hang at start
 

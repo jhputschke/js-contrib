@@ -125,6 +125,49 @@ def test_resample_matches_cpp_get_on_a_shifted_grid():
     np.testing.assert_allclose(got, brute_force(data, src, out), rtol=0, atol=2e-6)
 
 
+def _scipy_resample(arr, src, out):
+    """The previous resample(): scipy map_coordinates per frame and channel."""
+    from scipy.ndimage import map_coordinates
+    tol = 1e-6
+    fx = (out.axis("x") - src.x_min) / src.dx
+    fy = (out.axis("y") - src.y_min) / src.dy
+    feta = (out.axis("eta") - src.eta_min) / src.deta
+    ok = (((fx >= -tol) & (fx <= src.nx - 1 + tol))[:, None, None]
+          & ((fy >= -tol) & (fy <= src.ny - 1 + tol))[None, :, None]
+          & ((feta >= -tol) & (feta <= src.neta - 1 + tol))[None, None, :])
+    coords = np.stack(np.meshgrid(fx, fy, feta, indexing="ij")).reshape(3, -1)
+    res = np.zeros((out.ntau, out.nx, out.ny, out.neta, arr.shape[-1]), np.float32)
+    for j in range(out.ntau):
+        ft = (out.tau_min + j * out.dtau - src.tau_min) / src.dtau
+        if ft < -tol or ft > arr.shape[0] - 1 + tol:
+            continue
+        ft = min(max(ft, 0.0), arr.shape[0] - 1.0)
+        k0 = min(int(ft), arr.shape[0] - 1)
+        k1 = min(k0 + 1, arr.shape[0] - 1)
+        w = ft - k0
+        for c in range(arr.shape[-1]):
+            v = map_coordinates(arr[k0, ..., c], coords, order=1, mode="nearest",
+                                prefilter=False)
+            if w and k1 != k0:
+                v = (1.0 - w) * v + w * map_coordinates(
+                    arr[k1, ..., c], coords, order=1, mode="nearest", prefilter=False)
+            res[j, ..., c] = v.reshape(out.nx, out.ny, out.neta) * ok
+    return res
+
+
+def test_resample_matches_scipy_map_coordinates_to_an_ulp():
+    """The separable matmul passes are the old per-channel scipy calls, re-summed."""
+    pytest.importorskip("scipy")
+    data, src = make_source(nx=12, ny=11, neta=9, ntau=6, seed=3)
+    out = Grid(nx=15, ny=10, neta=13, ntau=9,
+               x_min=-3.4, dx=0.83, y_min=-2.6, dy=1.07,
+               eta_min=-2.3, deta=0.71, tau_min=0.52, dtau=0.13)
+    got, ref = resample(data, src, out), _scipy_resample(data, src, out)
+    np.testing.assert_array_equal(got == 0, ref == 0)          # same cut, same zeros
+    ulp = np.spacing(np.maximum(np.abs(ref), np.float32(1e-30)))
+    assert np.all(np.abs(got - ref) <= 2 * ulp)
+
+
 def test_resample_reproduces_the_source_on_an_identical_grid():
     data, src = make_source()
     got = resample(data, src, src)

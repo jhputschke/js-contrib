@@ -161,3 +161,50 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
    difference sits along the droplets (PairBrowser plot).
 3. CPU vs GPU, same seed, small grid (`MUSIC_FORCE_CPU=1` runs music4gpu's CPU path): the Δe
    maps agree.
+
+## Potential next steps
+
+### Switch off MUSIC's momentum-anisotropy output
+
+On hold. Measured in [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
+
+**What the code does now.** MUSIC4GPU writes these diagnostics unconditionally
+(`evolve.cpp:202`, `Cell_info::output_momentum_anisotropy_vs_etas` in `grid_info.cpp`).
+
+- **When:** at four time steps, `it = iFreezeStart`, `+10`, `+30` and `+50`.
+  `iFreezeStart` is where the freeze-out check starts, which with string sources is
+  shortly after the last string deposits. So these are **early times**: τ ≈ 0.46, 0.66,
+  1.06 and 1.46 fm/c in our runs.
+- **What it computes:** a scan of the whole grid at each η slice, written to five files
+  per step:
+  - `momentum_anisotropy_tau_X.dat`: ε_p vs η_s, from the ideal, ideal + shear, and full
+    T^μν;
+  - `eccentricities_evo_{ed,nB,nQ}_tau_X.dat`: ε_n (n = 1–6) vs η;
+  - `meanpT_estimators_tau_X.dat`.
+- **Volume:** 20 files per MUSIC leg, 40 per pair event.
+- **On the GPU path:** before each of these steps, the current grid (primitives and
+  W^μν) is copied back to the host (`sync_curr_from_gpu_readonly`).
+
+**What omitting it would change:**
+
+| | Effect |
+|---|---|
+| Hydro evolution and h5 output | None. The copy is read-only (the GPU keeps the authoritative state) and the analysis only reads the grid. |
+| Time | About 1–1.5 s per event, ~3 % of the 38–47 s an event takes after the `hydro_data_optim` changes: full-grid loops at 4 steps × 2 legs plus the GPU→host copies. |
+| Files lost | The 40 files per event. They are named by τ only and written into the working directory (`build_gpu`), so each event overwrites the previous one, MUSIC_2 overwrites MUSIC_1, and concurrent jobs overwrite each other. After a campaign they hold whatever the last writer left. |
+| Who reads them | Nothing in X-SCAPE, js-contrib or FNO4d. MUSIC4GPU's own `tests/testIPGlasma2D/TestOutputFiles.py` expects them, so standalone MUSIC should keep the output on by default. |
+
+**What it would take.** The same three-repo pattern as `<freeze_out_surface>`:
+
+1. **MUSIC4GPU:** a parameter `output_momentum_anisotropy` (default 1), read from the
+   input file and settable through `set_parameter`, gating that one block in
+   `evolve.cpp`.
+2. **X-SCAPE `MusicWrapper`:** read `<output_momentum_anisotropy>` from the XML
+   (global or per MUSIC instance) and pass it with `set_parameter`. It should not go
+   through `music_input`, the shared file behind the startup race in
+   [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
+3. **js-contrib:** set it to 0 in the production XMLs.
+
+**If the numbers are wanted per event.** Store them in the h5 (e.g. `diag/`) rather than
+in these files. Part of it can also be computed afterwards from `arr`: ε_n of the energy
+density, and the ideal part of ε_p. The shear part cannot, because π^μν is not stored.

@@ -70,7 +70,7 @@ Original development repository:
 | uproot | ≥ 5 | Only needed for `bulk_root_writer.py` and `fast_root_bulk.py` |
 | h5py | ≥ 3 | Only needed for the HDF5 writers (`fast_h5_bulk.py`, `pair_h5.py`); sets `jetscape.HAS_H5PY` |
 | — | — | `jetscape.HAS_CORE` reports whether the compiled extension is importable. The HDF5 tooling (`FnoH5Writer`, `grid_attrs`, `repad_to`, `read_fast_h5_bulk`) needs only h5py+numpy and stays usable without an X-SCAPE build; `H5BulkWriter` is a framework module and raises a clear error without one. |
-| scipy | ≥ 1.9 | Only needed for `fast_h5_bulk.py` in `grid` / `framework` source mode |
+| scipy | ≥ 1.9 | Not needed by the writers any more (`resample` is plain numpy); only the `prod_AuAu_0_10_jet/jet_wake.ipynb` notebook uses it |
 
 > **Important — import order:** `torch` must be imported **before**
 > `pyjetscape_core` (i.e., before `import jetscape`).  Both ROOT (loaded by

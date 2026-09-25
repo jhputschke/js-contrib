@@ -204,15 +204,48 @@ def ntau_to_end(src, tau_min, dtau):
 
 
 # -------------------------------------------------------------------- resampling
+def _linear_weights(f, n):
+    """1-D linear interpolation on sample positions ``f`` over ``n`` source points.
+
+    -> ``(i0, i1, w)`` with ``value = (1 - w) * v[i0] + w * v[i1]``.  Both indices are
+    clamped to ``[0, n-1]``, which is ``CellIndex`` in the C++ and scipy's
+    ``map_coordinates(order=1, mode="nearest")``.  ``w`` is float64.
+    """
+    f = np.asarray(f, dtype=np.float64)
+    fl = np.floor(f)
+    w = f - fl
+    i0 = fl.astype(np.intp)
+    return np.clip(i0, 0, n - 1), np.clip(i0 + 1, 0, n - 1), w
+
+
+def _weight_matrix(i0, i1, w, n):
+    """Dense ``(len(w), n)`` matrix of the 1-D linear weights, so a pass is one matmul.
+
+    Each row has ``1 - w`` at ``i0`` and ``w`` at ``i1`` (their sum where the two clamp
+    onto the same point) and exact zeros elsewhere, which add nothing to the product.
+    """
+    m = np.zeros((len(w), n))
+    rows = np.arange(len(w))
+    np.add.at(m, (rows, i0), 1.0 - w)
+    np.add.at(m, (rows, i1), w)
+    return m
+
+
 def resample(arr, src, out):
     """Resample ``(ntau, nx, ny, neta, F)`` from grid ``src`` onto grid ``out``.
 
     Reproduces ``EvolutionHistory::get()``; see the module docstring for the three
     behaviours that matter.  Works one output tau frame at a time, so peak extra memory is
     a couple of frames rather than a second copy of the event.
-    """
-    from scipy.ndimage import map_coordinates
 
+    The output points form a tensor-product grid (x by y by eta), so spatial trilinear
+    interpolation factors into three 1-D linear passes, one per axis, each a matrix
+    product over every feature at once.  That is the arithmetic of scipy's
+    ``map_coordinates(order=1, mode="nearest", prefilter=False)`` per channel -- float64,
+    cast to float32 per frame -- with the terms summed in a different order (results
+    agree to about 1 ulp), and it replaces ~1,700 single-threaded ``map_coordinates``
+    calls per event with three BLAS-backed products per source frame.
+    """
     n_feat = arr.shape[-1]
     ntau_src = arr.shape[0]
     # Range tests run in index units, so a point that should land exactly on the last
@@ -242,19 +275,37 @@ def resample(arr, src, out):
     x_ok = (fx >= -tol) & (fx <= src.nx - 1 + tol)
     y_ok = (fy >= -tol) & (fy <= src.ny - 1 + tol)
     mask = (x_ok[:, None, None] & y_ok[None, :, None] & eta_ok[None, None, :])
+    mask = mask[..., None].astype(np.float32)          # broadcast over features
 
-    shape = (out.nx, out.ny, out.neta)
-    coords = np.stack(np.meshgrid(fx, fy, feta, indexing="ij")).reshape(3, -1)
+    # Only the source rows that some output point touches take part.  Cropping to them
+    # keeps the float64 intermediates and the weight matrices small.
+    def axis_matrix(f, n):
+        i0, i1, w = _linear_weights(f, n)
+        lo, hi = int(min(i0.min(), i1.min())), int(max(i0.max(), i1.max())) + 1
+        return slice(lo, hi), _weight_matrix(i0 - lo, i1 - lo, w, hi - lo)
+
+    sx, mx = axis_matrix(fx, src.nx)
+    sy, my = axis_matrix(fy, src.ny)
+    se, me = axis_matrix(feta, max(int(src.neta), 1))
+
+    def spatial(k):
+        """Source tau step k -> (out.nx, out.ny, out.neta, F) float32, unmasked."""
+        a = np.asarray(arr[k, sx, sy, se, :], dtype=np.float64)
+        a = np.einsum("ke,xyef->xykf", me, a, optimize=True)   # eta first: shrinks most
+        a = np.einsum("jy,xykf->xjkf", my, a, optimize=True)
+        a = np.einsum("ix,xjkf->ijkf", mx, a, optimize=True)
+        return a.astype(np.float32)          # map_coordinates' output dtype is the input's
 
     result = np.zeros((out.ntau, out.nx, out.ny, out.neta, n_feat), dtype=np.float32)
     cache = {}
 
     def frame(k):
-        """(F, nx, ny, neta) contiguous view of source tau step k, 2-deep LRU."""
+        """Spatially interpolated source tau step k, 2-deep LRU (consecutive output frames
+        share a source step whenever the output tau step is finer than the source's)."""
         if k not in cache:
             if len(cache) >= 2:
                 cache.pop(next(iter(cache)))
-            cache[k] = np.ascontiguousarray(np.moveaxis(arr[k], -1, 0))
+            cache[k] = spatial(k)
         return cache[k]
 
     for j in range(out.ntau):
@@ -266,14 +317,10 @@ def resample(arr, src, out):
         k0 = min(int(ft), ntau_src - 1)                # C++ truncates, then CellIndex clamps
         k1 = min(k0 + 1, ntau_src - 1)
         w = ft - k0
-        a = frame(k0)
-        b = frame(k1) if (w and k1 != k0) else None
-        for c in range(n_feat):
-            v = map_coordinates(a[c], coords, order=1, mode="nearest", prefilter=False)
-            if b is not None:
-                v = (1.0 - w) * v + w * map_coordinates(
-                    b[c], coords, order=1, mode="nearest", prefilter=False)
-            result[j, ..., c] = v.reshape(shape) * mask
+        v = frame(k0)
+        if w and k1 != k0:
+            v = (1.0 - w) * v + w * frame(k1)          # float32, as before
+        result[j] = v * mask
 
     return result
 
