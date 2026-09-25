@@ -236,23 +236,57 @@ The fill's split after the change: string evaluation 7.9 s/event, OpenMP overhea
 **real work at the two string steps**, which the skip cannot remove, and which the
 earlier estimate here ("most of the ~15 s") had missed.
 
-### Next candidate: string deposition
+### String deposition: binning by transverse reach
 
-**The cost:** at each of the ~8 string fills per event, every cell loops over every
-string, 600,000 cells × 1,200–1,600 strings ≈ 10⁹ string–cell checks, although a string
-reaches only the cells within 8 σ_x of it in the transverse plane.
+**The cost:** at each of the ~8 string fills per event, every cell looped over every
+string, 600,000 cells × 1,200–1,600 strings ≈ 10⁹ string–cell checks. Yet the loops
+skip a string that is more than 8 σ_x away in x or in y before adding anything.
 
-**The fix:** bin the strings once per step by the transverse box they can reach on a
-coarse (x, y) grid, and have each cell loop over its bin's strings only.
-- A string's transverse position at η is
-  `getStringTransverseCoord` = midpoint + `stringTransverseShiftFrac` · (0.5 − η_frac) ·
-  (x_l − x_r) / 2, with η_frac in [0, 1]. So its box is midpoint ±
-  |`stringTransverseShiftFrac`| · |x_l − x_r| / 4 ± 8 σ_x, and the same in y.
-- Keeping them **in list order** keeps the summation order per cell, so the output
-  stays bit-identical: a string that fails the distance cut adds nothing.
-- This should remove most of the remaining ~9 s/event, and make the cost nearly
-  independent of the number of strings.
-- It is a change in MUSIC4GPU's `HydroSourceStrings`. Not done yet.
+**Applied (MUSIC4GPU branch `string_bin_optim`, `fa6ec5b`, on top of
+`cpu_source_fill_optim`):**
+- `prepare_list_for_current_tau_frame` bins the string, remnant and baryon lists by
+  the transverse box each entry can reach, one bin per grid cell. Each per-cell loop
+  walks only its bin's entries.
+- The box:
+  - `getStringTransverseCoord` = midpoint + `stringTransverseShiftFrac` ·
+    (0.5 − η_frac) · (x_l − x_r) / 2 is linear in the clamped η_frac, so a string's
+    (and a baryon's) position spans its values at η_frac = 0 and 1;
+  - remnants sit at their fixed (x_perp, y_perp);
+  - both get ± 8 σ_x + 10⁻⁶ fm, and the same in y.
+- The bins keep **list order**, so every cell adds the same terms in the same order.
+- A query outside the grid (+ 1 cell) walks the whole list.
+- The three local `n_sigma_skip = 8.` constants now read one shared member, so the
+  boxes and the cuts cannot drift apart.
+
+Measured on one job alone, seed 1, 2 events:
+
+| Build | event 1 (1184 strings) | event 2 (1591 strings) | string evaluation in the fill (profile) | Output |
+|---|---|---|---|---|
+| + `cpu_source_fill_optim` | 34.3 s | 43.0 s | 7.9 s/event | — |
+| + `string_bin_optim` | **30.6 s (−11 %)** | **38.0 s (−12 %)** | 3.7 s/event | **byte-identical** (all 30 datasets; MUSIC's logged energy totals and end times identical) |
+
+- **Where the gain is:** the event with more strings gains more.
+- **What's left:** the whole fill is now 5.9 s/event (strings 3.7, OpenMP overhead
+  1.3, droplets 0.55, loop 0.4), and building the bins costs 0.02 s/event. The
+  remaining string time is the strings that really are within 8 σ_x of a cell: the
+  erf, exp, cosh and sinh evaluations of the deposition itself.
+- **Not checked:** the binning also applies to MUSIC's CPU path (`FirstRKStepT`, e.g.
+  `MUSIC_FORCE_CPU=1`), which calls the same functions. It is bit-identical there by
+  the same argument, but that path was not rerun.
+
+### Summary of the single-job speed-ups
+
+Seed 1 on the GB10, per event:
+
+| Build | event 1 | event 2 |
+|---|---|---|
+| start (before `hydro_data_optim`) | 53.1 s | 60.3 s |
+| + `hydro_data_optim` (resample, `bulk_info` copy) | 38.0 s | 46.6 s |
+| + `cpu_source_fill_optim` (skip empty source fills, dynamic schedule) | 34.1–34.3 s | 42.5–43.0 s |
+| + `string_bin_optim` (bin strings by transverse reach) | **30.6 s (−42 %)** | **38.0 s (−37 %)** |
+
+Only the resampling step changes any value, by one float32 ulp in one of 1.4 × 10⁸
+entries of `arr`. The other steps are byte-identical.
 
 ## Bug: concurrent jobs can hang at start
 
