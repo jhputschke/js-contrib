@@ -1,4 +1,4 @@
-<!-- Archived plan, written 2026-09-24. Status: proposed, not yet implemented.
+<!-- Archived plan, written 2026-09-24. Status: implemented; see "Status" at the end.
      Working copy: ~/.claude/plans/provide-a-plan-with-hazy-bubble.md -->
 
 # Plan: two-stage MUSIC pair production (prod_AuAu_0_10 with jet deposition)
@@ -303,13 +303,12 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
 | MusicWrapper boundary fix | X-SCAPE `pair_h5_music`: clear MUSIC's `reRunHydro` per event, warn, `get_hit_grid_boundary()` | `ca8dd84a`, pushed |
 | music4gpu pin | X-SCAPE `pair_h5_music`: `get_music4gpu.sh` checks out MUSIC4GPU `b9cc8be`, and also fetches the EOS 9 table | `3046389a`, pushed |
 | music4gpu jet source slot | MUSIC4GPU `b9cc8be` (committed by the user) | pushed |
-| droplet pruning | X-SCAPE `896e3d1c` (`LiquefierBase::prepare_active_droplets`, `CausalLiquefier::droplet_may_contribute`, `HydroSourceJETSCAPE::prepare_list_for_current_tau_frame`, pin moved to `3037be7`) and MUSIC4GPU `3037be7` (Evolve calls the hook for the jet source) | local; push MUSIC4GPU `XSCAPE` first, then X-SCAPE `pair_h5_music` |
+| droplet pruning | X-SCAPE `896e3d1c` (`LiquefierBase::prepare_active_droplets`, `CausalLiquefier::droplet_may_contribute`, `HydroSourceJETSCAPE::prepare_list_for_current_tau_frame`, pin moved to `3037be7`) and MUSIC4GPU `3037be7` (Evolve calls the hook for the jet source) | pushed |
 | writer core, capture, `PairH5Writer`, production, FastHydro | js-contrib `pair_h5_music` | `0c55de0` … `5d8a5c5`, plus this commit |
 | bindings | `set_dump_hydro_only`, `set_skip_surface`, `get_hit_grid_boundary` | compiled and used |
 
-**MUSIC4GPU:** the port is `b9cc8be`, and local `XSCAPE` is one commit ahead of
-`origin/XSCAPE`. Push it (`git -C external_packages/music4gpu push origin XSCAPE`) so that
-`get_music4gpu.sh`'s pin resolves on a fresh clone. The Kokkos branches stay separate.
+**MUSIC4GPU:** `XSCAPE` holds the port (`b9cc8be`) and the pruning hook (`3037be7`), both
+pushed, so `get_music4gpu.sh`'s pin resolves on a fresh clone. The Kokkos branches stay separate.
 
 **Verified on MUSIC** (`build_gpu`, GB10, 3D MC-Glauber, InitialProfile 131)
 - **Hydro-only production unchanged.** music4gpu `XSCAPE` + the port reproduces the existing
@@ -360,5 +359,5 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
   - pair: 60.1 → 49.1 s/event, or 55.3 s with `--surface jet`.
   - the grid-edge flag fires at the same frame, the CPU path matches, and the Python
     setter works.
-- Not pushed yet: MUSIC4GPU `XSCAPE_surface_off` first (the pin), then X-SCAPE and
-  js-contrib `*_surface_off`.
+- All three `*_surface_off` branches are pushed. They are separate from `pair_h5_music`
+  until merged.
