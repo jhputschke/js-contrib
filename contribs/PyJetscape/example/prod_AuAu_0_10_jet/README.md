@@ -150,6 +150,9 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
     per event. With the surface on the jet leg only (`--surface jet`): 55.3 s. Both are
     bit-identical to the 60 s run, which had the surface on both legs.
   - Peak memory 16 GB.
+  - Several jobs at once: `-j 3` gives about 2× the throughput and `-j 4` about 2.3×. Start them
+    about 20 s apart, or they can hang at `Initialize MUSIC` (shared `music_input` rewrite).
+    Details, profile and the bug: [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
 
 ## Checks before a campaign
 
