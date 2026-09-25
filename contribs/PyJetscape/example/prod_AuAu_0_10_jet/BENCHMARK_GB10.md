@@ -72,40 +72,52 @@ bursts of heavy OpenMP use.
 
 ## Where a single job's time goes
 
-This is from a `py-spy record --native --idle` profile of one 2-event job (seed 1)
-running alone, main thread only. Seconds per event are corrected for the profiler's
-roughly 40 % overhead.
+This is from `py-spy record --native --idle` profiles of one 2-event job (seed 1)
+running alone, main thread only, before and after the `hydro_data_optim` changes
+(below). Both profiles were classified by the same rules, and each was corrected for its
+own profiler overhead (the ratio of the job's event times with and without `py-spy`:
+×0.75 before, ×0.82 after).
 
-| Stage | ~s/event | Runs on |
-|---|---|---|
-| MUSIC GPU steps, both legs (`Advance::try_gpu_advance`) | ~8.5 | GPU |
-| Resampling onto the output grid (`bulk_sources.resample`, `scipy.ndimage.map_coordinates`) | ~13 | **1 CPU thread** |
-| Source term filled on the CPU before each GPU step (`Advance::prefill_hydro_source_on_cpu`: `HydroSourceStrings::get_hydro_energy_source` + `LiquefierBase::get_source`) | ~7 | CPU, OpenMP |
-| Copying the background leg into `bulk_info` (`MpiMusic::PassHydroEvolutionHistoryToFramework`) | ~7 | **1 CPU thread** (about 40 % of it is `std::vector<FluidCellInfo>::_M_realloc_insert`) |
-| Energy loss (Matter + LBT) | ~4 | 1 CPU thread |
-| h5 writing (lzf), `output_momentum_anisotropy_vs_etas`, other | ~4 | CPU |
+"Everything else" includes the job's startup (XML, MUSIC and EOS init, Pythia),
+shared over the 2 events. That is why the totals are above the per-event wall times
+the driver prints (56.7 s and 42.3 s).
 
-The GPU work is only about 8.5 s of each 53 s event. Parallel jobs help because each
-job's serial CPU stages run on separate cores.
+| Stage | before (s/event) | after (s/event) | Runs on |
+|---|---|---|---|
+| Source term filled on the CPU before each GPU step (`Advance::prefill_hydro_source_on_cpu`) | 15.0 | 15.3 | CPU, OpenMP — see [the next candidate](#next-candidate-the-cpu-source-fill) |
+| MUSIC GPU steps, both legs (`Advance::try_gpu_advance`, without the fill) | 9.6 | 10.5 | GPU |
+| Resampling onto the output grid (`bulk_sources.resample`) | 14.7 | **3.1** | 1 CPU thread → BLAS |
+| Copying the background leg into `bulk_info` (`MpiMusic::PassHydroEvolutionHistoryToFramework`) | 7.7 | **2.5** | 1 CPU thread → OpenMP |
+| Energy loss (Matter + LBT) | 3.9 | 3.3 | 1 CPU thread |
+| Other MUSIC: evolve loop, frame dump to memory, GPU↔host syncs | 3.3 | 3.5 | CPU |
+| Other writer work: native-store read, hashing | 2.4 | 2.6 | CPU |
+| h5 writing (h5py, lzf) | 1.1 | 1.1 | 1 CPU thread |
+| Momentum-anisotropy output (`output_momentum_anisotropy_vs_etas`) | 1.1 | 1.1 | CPU |
+| Everything else (startup share, Pythia, framework) | 4.4 | 4.4 | CPU |
+| **Total** | **63.3** | **47.4** | |
+
+The GPU does only about 10 s of each event's work. Parallel jobs help because each
+job's CPU stages run on separate cores.
 
 Each job still slows down 1.4–1.8× when others run beside it. This was not pinned
 down. Likely causes:
 - the GPU switching between processes when their MUSIC steps overlap;
-- 10 of the 20 cores being the slower A725;
-- the CPU and GPU sharing memory bandwidth, which matters because the resampling, the
-  `bulk_info` copy and the hydro stencil all move a lot of memory.
+- 10 of the 20 cores being the slower A725, which also leaves the static OpenMP
+  loops unevenly loaded;
+- the CPU and GPU sharing memory bandwidth, which matters because the source fill, the
+  resampling and the hydro stencil all move a lot of memory.
 
 ### Cheap single-job improvements
 
-1. **Resampling** (~13 s/event). `resample` uses linear interpolation (`order=1`,
-   `prefilter=False`), but calls `map_coordinates` separately for every frame and channel:
-   about 1,700 single-threaded calls per event (106 frames × 4 channels × 2 tau
-   neighbours × 2 legs), always with the same target points. Computing the 8 interpolation
-   indices and weights once per event and applying them as one vectorised gather should
-   cut this to a few seconds.
-2. **`bulk_info` copy** (~7 s/event). Reserving the `FluidCellInfo` vector up front
-   removes the reallocation, about 3 s/event.
-3. **`output_momentum_anisotropy_vs_etas`** (~1.5 s/event): diagnostics that nothing in
+Identified from the first profile ("before" column):
+
+1. **Resampling** (~15 s/event). `resample` used linear interpolation (`order=1`,
+   `prefilter=False`), but called `map_coordinates` separately for every frame and
+   channel: about 1,700 single-threaded calls per event (106 frames × 4 channels × 2
+   tau neighbours × 2 legs), always with the same target points.
+2. **`bulk_info` copy** (~8 s/event). One heap allocation and one `push_back` per
+   cell for ~10⁸ cells, with the vector reallocating as it grew.
+3. **`output_momentum_anisotropy_vs_etas`** (~1 s/event): diagnostics that nothing in
    this production uses.
 
 ### Applied (branches `hydro_data_optim`)
@@ -125,7 +137,51 @@ Measured on one job alone, seed 1, 2 events:
 | + `bulk_info` copy | 47.1 s | 58.2 s | 52.7 s | bit-identical |
 | + resample | 38.0 s | 46.6 s | **42.3 s (−25 %)** | `arr`: 1 of 1.4 × 10⁸ values differs by 1 ulp; everything else bit-identical |
 
-The concurrency numbers above were measured before these changes.
+The concurrency numbers above were measured before these changes. The profile table
+above has both states.
+
+### Next candidate: the CPU source fill
+
+`Advance::prefill_hydro_source_on_cpu` (MUSIC4GPU `advance.cpp`) is now the largest single
+stage, at ~15 s/event, more than the GPU work itself. Before every Runge–Kutta substep
+of both legs it:
+- zeroes a 5 × N-cell source buffer;
+- evaluates the string source (and, on the jet leg, the droplet source) at **every**
+  cell in a `#pragma omp parallel for collapse(3) schedule(static)` loop;
+- uploads the buffer to the GPU.
+
+The per-event split, after the changes:
+
+| Part | ~s/event |
+|---|---|
+| main thread waiting at the OpenMP barrier | 7.6 |
+| `HydroSourceStrings::get_hydro_energy_source` | 5.7 |
+| the loop itself (index maths, stores) | 1.3 |
+| `LiquefierBase::get_source` (droplets, jet leg only) | 0.7 |
+
+Two observations:
+
+- **It runs for the whole evolution.** For string initial conditions
+  `flag_add_hydro_source` is set once in the `Advance` constructor and stays true. The
+  fill therefore also runs long after the last string has deposited (τ above the
+  sources' `get_source_tau_max()`). There `get_hydro_energy_source` returns at once,
+  because no string is active, but each substep still pays for the memset, the loop over
+  all cells, the OpenMP barrier and the upload.
+  - The 5.7 s spent inside `get_hydro_energy_source` therefore comes from the early
+    steps, while strings are depositing, and stays.
+  - Skipping the fill at late times, and setting `p.has_hydro_source = 0` whenever no
+    droplet is active either, removes the rest from those steps, up to the ~9 s of
+    barrier and loop time. The profile does not resolve τ, so how much of that 9 s is
+    late-time was not measured.
+  - The output should be bit-identical, since only zeros are added, but that has to be
+    checked.
+- **Half of it is waiting.** The static schedule gives each thread an equal share of
+  cells. The cost per cell varies (cells near strings or droplets are expensive), and
+  the cores run at two speeds (X925 / A725). A `schedule(dynamic, chunk)` or `guided`
+  schedule would balance it.
+
+Both are MUSIC4GPU changes. Not done yet.
+
 
 ## Bug: concurrent jobs can hang at start
 
