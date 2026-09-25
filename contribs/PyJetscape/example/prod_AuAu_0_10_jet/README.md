@@ -38,7 +38,7 @@ the same YAML have the same spatial grid.
 ## Run
 
 ```bash
-conda activate js_fno
+conda activate js_fno        # GB10; on macOS e.g. fno_env_mlx (see ../prod_AuAu_0_10/README.md)
 cd external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 
 python run_prod_jet.py --events 1 --seed 1 --no-deposit      # null test first: arr == arr_bg

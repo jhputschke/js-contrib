@@ -166,11 +166,36 @@ def describe(grid: Grid, max_ntau: int) -> str:
 
 
 # ───────────────────────────────────────────────────────────────── job setup
+def pythia_data_problem():
+    """None if pyjetscape_core can be imported, else the reason.
+
+    Pythia finds its xmldoc through PYTHIA8DATA or the path compiled into libpythia8.
+    Homebrew's Pythia (macOS) has a working compiled-in path; a relocated conda Pythia
+    (the js_fno env) may not, and then the import aborts the process -- so it is probed
+    in a subprocess, and only when PYTHIA8DATA is unset.
+    """
+    if os.environ.get("PYTHIA8DATA"):
+        return None
+    import subprocess
+    probe = f"import sys; sys.path.insert(0, {os.path.join(PYJETSCAPE, 'python')!r}); import jetscape"
+    try:
+        r = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True,
+                           timeout=300)
+    except subprocess.TimeoutExpired:
+        return "importing pyjetscape_core timed out (PYTHIA8DATA is not set)"
+    if r.returncode == 0:
+        return None
+    tail = " | ".join((r.stderr or r.stdout).strip().splitlines()[-3:])
+    return ("PYTHIA8DATA is not set and importing pyjetscape_core fails without it: point it "
+            "to Pythia's xmldoc (`conda activate js_fno` sets it). "
+            f"Import error (exit {r.returncode}): {tail}")
+
+
 def check_env(a) -> None:
     problems = []
-    if not os.environ.get("PYTHIA8DATA"):
-        problems.append("PYTHIA8DATA is not set -- run `conda activate js_fno` first "
-                        "(importing pyjetscape_core aborts without it).")
+    pythia = pythia_data_problem()
+    if pythia:
+        problems.append(pythia)
     for f in ("music_input", "mcglauber.input"):
         if not os.path.exists(os.path.join(a.build, f)):
             problems.append(f"{f} not found in the build tree {a.build}")

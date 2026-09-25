@@ -46,8 +46,11 @@ if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then   # an optional OUTDIR before the o
 fi
 OUTDIR="$(mkdir -p "$OUTDIR" && cd "$OUTDIR" && pwd)"
 
-if [ -z "${PYTHIA8DATA:-}" ]; then
-  echo "PYTHIA8DATA is not set: run 'conda activate js_fno' first." >&2; exit 1
+# Pythia needs PYTHIA8DATA only where its compiled-in xmldoc path is invalid (a relocated
+# conda Pythia, e.g. js_fno); there importing pyjetscape_core aborts. Homebrew's is fine.
+if [ -z "${PYTHIA8DATA:-}" ] && ! python -c "import sys; sys.path.insert(0, '$HERE/../../python'); import jetscape" >/dev/null 2>&1; then
+  echo "PYTHIA8DATA is not set and importing pyjetscape_core fails without it:" \
+       "point it to Pythia's xmldoc ('conda activate js_fno' sets it)." >&2; exit 1
 fi
 
 # Background jobs of a non-interactive shell ignore Ctrl-C, so pass it on to them.

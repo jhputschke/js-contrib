@@ -18,7 +18,9 @@ and resamples it onto an output grid you choose in a YAML file (default: the FNO
 ## Run
 
 ```bash
-conda activate js_fno        # sets PYTHIA8DATA; pyjetscape_core aborts without it
+conda activate js_fno        # GB10 env; sets PYTHIA8DATA (its conda Pythia aborts the import without it)
+                             # macOS: any env pyjetscape_core was built for, e.g. fno_env_mlx;
+                             # Homebrew Pythia needs no PYTHIA8DATA
 cd external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10
 
 python run_prod.py --events 10 --seed 1         # -> out/AuAu_0_10_seed0001.h5
