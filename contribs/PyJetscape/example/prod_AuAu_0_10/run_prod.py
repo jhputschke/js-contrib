@@ -18,9 +18,10 @@ Files from jobs with different seeds and the same grid YAML can be trained on to
     python run_prod.py --events 1 --seed 1 --dry-run        # check the grid, print the plan
     ./run_jobs.sh 20 25 1                                   # 20 jobs x 25 events, seeds 1..20
 
-Everything this needs is in this folder; the script changes into the X-SCAPE build tree
-itself (MUSIC and 3dMCGlauber read music_input, EOS tables and mcglauber.input from the
-current directory), so it can be launched from anywhere.  See README.md.
+Everything this needs is in this folder, and it can be launched from anywhere.  Each job
+runs in its own working directory (OUTDIR/work/<tag>, see enter_workdir()) with a private
+copy of music_input, reading the shared assets from the build tree, so concurrent jobs never
+touch the same file.  See README.md.
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ import argparse
 import json
 import os
 import platform
+import shutil
 import socket
 import sys
 import time
@@ -73,7 +75,101 @@ def parse_args() -> argparse.Namespace:
                         "(100x100x60 here, ~10 MB per frame); max_ntau still applies")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the grid, write the job XML and print the plan; do not run")
+    add_workdir_args(p)
     return p.parse_args()
+
+
+# ─────────────────────────────────────────────────────────── working directory
+#: read-only assets the vendored 3dMCGlauber / trento code still opens relative to the
+#: working directory; X-SCAPE's examples/run_in_workdir.sh links the same set
+WORKDIR_LINKS = ("tables", "eps09", "LHAPDF_Lib", "nucleusConfigs", "data_table")
+
+
+def add_workdir_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--workdir", default=None,
+                   help="this job's working directory (default: OUTDIR/work/<output name>)")
+    p.add_argument("--keep-workdir", action="store_true", dest="keep_workdir",
+                   help="keep the working directory after a successful job (it holds only "
+                        "the modules' side files: 3dMCGlauber strings_event_*.dat, MUSIC's "
+                        "momentum_anisotropy_*.dat, ...); a failed job always keeps it")
+    p.add_argument("--in-build", action="store_true", dest="in_build",
+                   help="run in the build tree itself, as before (shares music_input and "
+                        "every side file with any other job running there)")
+
+
+def _absolute_parent_paths(src: str, dst: str, build: str) -> None:
+    """Copy an XML, making every element text that starts with '../' absolute.
+
+    Such paths (iSS, SMASH, hydro-from-file, Martini, ... in jetscape_main.xml) are
+    relative to the build tree, which is the working directory only with --in-build.
+    './' paths (outputs such as ./FinalPartonsInfo.dat, iSS_working_path '.') stay
+    relative: they belong in the job's own directory.
+    """
+    tree = ET.parse(src)
+    for el in tree.iter():
+        text = (el.text or "").strip()
+        if text.startswith("../"):
+            el.text = os.path.normpath(os.path.join(build, text))
+    tree.write(dst)
+
+
+def enter_workdir(a, workdir: str, job_xml_path: str) -> str:
+    """Make ``workdir`` this job's working directory -> the main XML to use.
+
+    The Python counterpart of X-SCAPE's examples/run_in_workdir.sh (which execs the
+    runJetscape binary, so it cannot drive PyJetscape).  In the build tree, concurrent jobs
+    share music_input -- MusicWrapper truncates and rewrites it at every MUSIC init, and a
+    job reading it in that window spins forever in MUSIC's StringFind4 -- as well as every
+    file the modules write to the working directory (3dMCGlauber strings_event_<N>.dat and
+    events_summary.dat, MUSIC's momentum_anisotropy / eccentricities / meanpT files, ...).
+    Here each job has its own directory with a private music_input, and the read-only
+    assets come from the build tree:
+
+    * ``XSCAPE_DATA_DIR`` -> mcglauber.input (MCGlauberWrapper), LBT-tables fallback
+    * ``HYDROPROGRAMPATH`` -> MUSIC's EOS tables
+    * ``LBT_TABLES_PATH`` -> LBT tables
+    * symlinks for the dirs still opened relative to the working directory (WORKDIR_LINKS)
+    * '../' paths in the main and job XML made absolute (see _absolute_parent_paths)
+    """
+    build = a.build
+    os.makedirs(workdir, exist_ok=True)
+    shutil.copyfile(os.path.join(build, "music_input"), os.path.join(workdir, "music_input"))
+    for name in WORKDIR_LINKS:
+        src, dst = os.path.join(build, name), os.path.join(workdir, name)
+        if os.path.exists(src) and not os.path.lexists(dst):
+            os.symlink(src, dst)
+    os.environ["XSCAPE_DATA_DIR"] = build
+    os.environ["HYDROPROGRAMPATH"] = build
+    os.environ["LBT_TABLES_PATH"] = os.path.join(build, "LBT-tables")
+    main_xml = os.path.join(workdir, "jetscape_main.xml")
+    _absolute_parent_paths(a.main_xml, main_xml, build)
+    _absolute_parent_paths(job_xml_path, job_xml_path, build)
+    os.chdir(workdir)
+    return main_xml
+
+
+def job_workdir(a, out_h5: str) -> str:
+    """This job's working directory: --workdir, else OUTDIR/work/<output name>."""
+    if a.workdir:
+        return os.path.abspath(a.workdir)
+    return os.path.join(os.path.dirname(out_h5), "work",
+                        os.path.splitext(os.path.basename(out_h5))[0])
+
+
+def leave_workdir(a, workdir: str, ok: bool) -> None:
+    """Remove the working directory after a successful job unless --keep-workdir."""
+    if a.in_build:
+        return
+    os.chdir(os.path.dirname(workdir))
+    if ok and not a.keep_workdir:
+        shutil.rmtree(workdir, ignore_errors=True)
+        if not a.workdir:                # OUTDIR/work, once its last job is gone
+            try:
+                os.rmdir(os.path.dirname(workdir))
+            except OSError:
+                pass
+    else:
+        print(f"  working directory kept: {workdir}")
 
 
 # ───────────────────────────────────────────────────────────────── grid YAML
@@ -283,9 +379,15 @@ def main() -> int:
                           extra_attrs=provenance, verbose=True)
 
     # MUSIC / 3dMCGlauber resolve their input files relative to the working directory.
-    os.chdir(a.build)
+    if a.in_build:
+        os.chdir(a.build)
+        main_xml, workdir = a.main_xml, a.build
+    else:
+        workdir = job_workdir(a, out_h5)
+        main_xml = enter_workdir(a, workdir, xml)
+    print(f"  workdir  {workdir}")
     jetscape = js.JetScapePerEvent()
-    jetscape.SetXMLMainFileName(a.main_xml)
+    jetscape.SetXMLMainFileName(main_xml)
     jetscape.SetXMLUserFileName(xml)
     jetscape.Init()
 
@@ -344,6 +446,7 @@ def main() -> int:
     with open(os.path.splitext(out_h5)[0] + ".json", "w") as f:
         json.dump(summary, f, indent=1)
     print("prod_AuAu_0_10:", json.dumps(summary))
+    leave_workdir(a, workdir, n == a.events)
     return 0 if n == a.events else 1
 
 

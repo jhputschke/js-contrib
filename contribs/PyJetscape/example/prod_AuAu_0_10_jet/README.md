@@ -66,6 +66,7 @@ Each job writes the following, next to each other:
 | `--reuse N` | `setReuseHydro`: MUSIC_1 runs once per N events, MUSIC_2 every event (a new jet each time). `arr_bg` is still written per event, so it stays aligned with `arr`. `diag/bg_id` gives the first event that used each background. |
 | `--no-deposit` | Null test: MUSIC_2 without the liquefier. `arr` must equal `arr_bg` bit for bit (`diag/frames_identical == ntau`). Showers and droplets are still recorded. |
 | `--native` | Both legs on MUSIC's own grid (100 × 100 × 60) instead of the YAML's. |
+| `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |
 | `--no-showers` | Skip `shower/`. |
 | `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface. It is needed only to particlize a leg, e.g. `jet` for hadrons from the jet leg. `none` (default) is ~6 s per MUSIC run faster, with a bit-identical evolution. It sets `<freeze_out_surface>` in the first `<Hydro><MUSIC>` block (background, and the default) and in MUSIC_2's own block (jet leg). |
 
@@ -150,9 +151,12 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
     per event. With the surface on the jet leg only (`--surface jet`): 55.3 s. Both are
     bit-identical to the 60 s run, which had the surface on both legs.
   - Peak memory 16 GB.
-  - Several jobs at once: `-j 3` gives about 2× the throughput and `-j 4` about 2.3×. Start them
-    about 20 s apart, or they can hang at `Initialize MUSIC` (shared `music_input` rewrite).
-    Details, profile and the bug: [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
+  - Several jobs at once: before the single-job speed-ups, `-j 3` gave about 2× the throughput
+    and `-j 4` about 2.3×. A first check with the faster jobs gave only ~1.2× for 4
+    simultaneous jobs, so re-measure before choosing `-j`. Jobs no longer need to be
+    staggered: each runs in its own working directory (see
+    [`../prod_AuAu_0_10/README.md`](../prod_AuAu_0_10/README.md)). Details, profile and
+    the former startup hang: [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
 
 ## Checks before a campaign
 
@@ -201,8 +205,8 @@ On hold. Measured in [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
    `evolve.cpp`.
 2. **X-SCAPE `MusicWrapper`:** read `<output_momentum_anisotropy>` from the XML
    (global or per MUSIC instance) and pass it with `set_parameter`. It should not go
-   through `music_input`, the shared file behind the startup race in
-   [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
+   through `music_input`, which MUSIC reads through its slow per-parameter `StringFind4`
+   (and which was shared between jobs before the per-job working directories).
 3. **js-contrib:** set it to 0 in the production XMLs.
 
 **If the numbers are wanted per event.** Store them in the h5 (e.g. `diag/`) rather than

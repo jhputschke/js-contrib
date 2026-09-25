@@ -4,10 +4,14 @@ Measured 2026-09-25. Question: does running 2, 3 or 4 jobs at once (`run_jobs.sh
 pay off, and is there an OpenMP or GPU bottleneck?
 
 **Short answer.** Yes. `-j 3` gives about 2× the throughput of one job, and `-j 4` about
-2.3×. Neither OpenMP nor the GPU is the bottleneck. Single-threaded CPU stages are. But
-jobs that start at the same moment can **hang forever** at `Initialize MUSIC` (see
-[the startup race](#bug-concurrent-jobs-can-hang-at-start)). Until that is fixed,
-start concurrent jobs about 20 s apart.
+2.3×. Neither OpenMP nor the GPU is the bottleneck. Single-threaded CPU stages are. Jobs
+that started at the same moment could **hang forever** at `Initialize MUSIC`. This is fixed
+by per-job working directories (see
+[the startup race](#bug-concurrent-jobs-can-hang-at-start)).
+
+These concurrency numbers predate the single-job speed-ups below. A first check with the
+faster jobs gave only ~1.2× for 4 simultaneous jobs (≈100 s per event each against ≈30 s
+alone), so they need re-measuring.
 
 ## Setup
 
@@ -290,6 +294,9 @@ entries of `arr`. The other steps are byte-identical.
 
 ## Bug: concurrent jobs can hang at start
 
+**Status: fixed** (branches `concurrent_jobs`, see [the fix](#fix-per-job-working-directories)
+below). The description is kept for reference.
+
 On the first 3-job attempt, 2 of the 3 jobs stayed at `Initialize MUSIC` at 100 % CPU on one
 thread for over 11 minutes. The GPU was idle, and both jobs had `build_gpu/music_input`
 open at file position 0.
@@ -321,6 +328,42 @@ content back.
 - In `StringFind4`, stop at end of file and return `"empty"` or an error, instead of
   looping.
 - Stagger starts in `run_jobs.sh`, as a stopgap.
+
+### Fix: per-job working directories
+
+**Not only `music_input`.** Tracing one job (`strace`) showed that `music_input` is not
+the only file in the working directory that concurrent jobs share:
+- **`music_input`:** rewritten 4× per pair job and opened ~660× (`StringFind4` reopens it
+  for every parameter);
+- **3dMCGlauber:** writes `strings_event_<N>.dat` and `events_summary.dat`, the same names
+  in every job;
+- **MUSIC:** writes 20 `momentum_anisotropy` / `eccentricities_evo` / `meanpT_estimators`
+  files and `FO_nBvseta.dat`.
+
+**The fix (js-contrib `concurrent_jobs`):** `run_prod.py` and `run_prod_jet.py` no longer
+change into the build tree. Each job gets its own directory, `OUTDIR/work/<tag>`, the Python
+counterpart of X-SCAPE's `examples/run_in_workdir.sh`:
+- a private `music_input`;
+- `XSCAPE_DATA_DIR`, `HYDROPROGRAMPATH` and `LBT_TABLES_PATH` pointing at the build tree;
+- symlinks for the directories still opened by relative path;
+- `../` XML paths made absolute.
+
+It is removed after a successful job. `--in-build` restores the old behaviour.
+
+**Safety net (MUSIC4GPU `concurrent_jobs`):** `StringFind4` now stops with an error
+("… ended without an EndOfData line …") when the file ends before `EndOfData`, instead of
+looping forever. The old code, given an empty file, hung until killed; the new code exits
+at once.
+
+**Validation:**
+- `build_gpu/music_input` reset to the CMake template state (EOS 91, bulk 0), which is the
+  state that made 2 of 3 jobs hang before.
+- Then 4 jobs (seeds 1–4) started at the same moment, with no stagger.
+- **All 4 completed.** Each output is **byte-identical** to a serial run of the same seed
+  in the build tree.
+- **Nothing was written to `build_gpu`,** and its `music_input` was left untouched.
+
+The 20 s stagger is no longer needed.
 
 ## Reproducing
 
