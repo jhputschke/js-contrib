@@ -309,3 +309,102 @@ def test_the_relative_bar_is_dimensionless():
 
 def _frames_named(name, vals):
     return {name: [{"e": np.asarray(v, np.float32)} for v in vals]}
+
+
+# --------------------------------------------------------------------------- live frames
+def _add_freezeout(path, n_jet, n_bg, convention=None):
+    """Zero each leg past its freeze-out, as the writers do, and record the counts."""
+    off = 0 if convention == "frames_written" else 1
+    with h5py.File(path, "a") as f:
+        f["arr"][..., n_jet:] = 0.0
+        f["arr_bg"][..., n_bg:] = 0.0
+        f.create_dataset("ntau_freezeout", data=np.array([n_jet + off], np.int32))
+        f.create_dataset("ntau_freezeout_bg", data=np.array([n_bg + off], np.int32))
+        if convention:
+            f.attrs["freezeout_convention_id"] = convention
+    return path
+
+
+@pytest.mark.parametrize("convention", ["frames_written", None])
+def test_panels_stop_where_the_background_freezes_out(tmp_path, convention):
+    """Past the background's freeze-out arr_bg is zero, so arr - arr_bg would be the jet
+    leg's whole medium drawn as 'wake'.  Both conventions: PyJetscape's frame count and
+    fast_data's count + 1."""
+    p = _add_freezeout(_write_pair(tmp_path / "p.h5"), NT, NT - 2, convention)
+    pa, meta, _ = wp.load_pair(p, 0)
+    assert meta["ntau"] == NT - 2 and pa["diff"].shape[0] == NT - 2
+    assert (meta["ntau_jet"], meta["ntau_bg"], meta["ntau_file"]) == (NT, NT - 2, NT)
+    assert (pa["bg"][..., 0].reshape(NT - 2, -1).max(axis=1) > 0).all(), \
+        "every background frame shown must be live"
+
+
+def test_a_jet_only_render_runs_to_the_jet_legs_own_end(tmp_path):
+    p = _add_freezeout(_write_pair(tmp_path / "p.h5"), NT - 1, NT - 3, "frames_written")
+    pa, meta, _ = wp.load_pair(p, 0, ("jet",))
+    assert meta["ntau"] == NT - 1
+
+
+def test_the_zero_padding_after_both_legs_is_dropped(tmp_path):
+    p = _add_freezeout(_write_pair(tmp_path / "p.h5"), NT - 1, NT - 1, "frames_written")
+    _, meta, _ = wp.load_pair(p, 0)
+    assert meta["ntau"] == NT - 1
+
+
+# --------------------------------------------------------------------------- EoS
+def _write_music_table(path, T_of_e=lambda e: 0.02 * e + 0.1):
+    e = np.linspace(0.01, 60.0, 200)
+    np.column_stack([e, e / 3, e, T_of_e(e)]).astype("<f8").tofile(path)
+    return path
+
+
+def _music_pair(tmp_path, **attrs):
+    p = _write_pair(tmp_path / "m.h5", with_eos=False)
+    with h5py.File(p, "a") as f:
+        for k, v in attrs.items():
+            f.attrs[k] = v
+    return p
+
+
+def test_a_music_pair_reads_musics_table_from_its_build(tmp_path):
+    """PyJetscape's MUSIC pairs carry no eos/ group but name the EoS and the build."""
+    build = tmp_path / "build"
+    (build / "EOS" / "hotQCD").mkdir(parents=True)
+    _write_music_table(build / "EOS" / "hotQCD" / "hrg_hotqcd_eos_binary.dat")
+    p = _music_pair(tmp_path, eos_kind="hotqcd (MUSIC EOS 9)", prod_build=str(build))
+    pa, meta, _ = wp.load_pair(p, 0, ("jet",))
+    e = pa["jet"][..., 0]
+    assert np.allclose(pa["jet"][..., 1], 0.02 * np.clip(e, 0.01, None) + 0.1, rtol=1e-5)
+    assert "MUSIC EOS 9" in meta["eos"]
+
+
+def test_the_smash_table_is_picked_for_eos_91(tmp_path):
+    d = tmp_path / "hotQCD"
+    d.mkdir()
+    _write_music_table(d / "hrg_hotqcd_eos_SMASH_binary.dat", lambda e: 0.03 * e + 0.1)
+    p = _music_pair(tmp_path, eos_kind="hotqcd_smash")
+    pa, meta, _ = wp.load_pair(p, 0, ("jet",), eos_table=str(d))
+    assert "MUSIC EOS 91" in meta["eos"]
+    e = pa["jet"][..., 0]
+    assert np.allclose(pa["jet"][..., 1], 0.03 * np.clip(e, 0.01, None) + 0.1, rtol=1e-5)
+
+
+def test_a_named_eos_whose_table_is_missing_falls_back_loudly(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("MUSIC_EOS_TABLE", raising=False)
+    p = _music_pair(tmp_path, eos_kind="hotqcd (MUSIC EOS 9)",
+                    prod_build=str(tmp_path / "nowhere"))
+    _, meta, _ = wp.load_pair(p, 0, ("jet",))
+    out = capsys.readouterr().out
+    assert "--eos-table" in out and "conformal" in out
+    assert "fallback" in meta["eos"]
+
+
+def test_an_ideal_eos_group_uses_its_own_dof(tmp_path):
+    p = _write_pair(tmp_path / "p.h5", with_eos=False)
+    with h5py.File(p, "a") as f:
+        g = f.create_group("eos")
+        g.attrs["kind"], g.attrs["dof"] = "ideal", 47.5
+    pa, meta, _ = wp.load_pair(p, 0, ("jet",))
+    e = pa["jet"][..., 0]
+    a_sb = np.pi ** 2 / 30.0 * 47.5 / 0.1973269804 ** 3
+    assert np.allclose(pa["jet"][..., 1], (e / a_sb) ** 0.25, rtol=1e-5)
+    assert "47.5" in meta["eos"]

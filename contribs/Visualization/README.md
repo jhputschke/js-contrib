@@ -124,6 +124,30 @@ The file already holds everything the figure needs: both legs on one initial
 condition (`arr`, `arr_bg`), the EoS table (so temperature is read rather than
 assumed), and `shower/` for the overlay.
 
+A **MUSIC pair** from PyJetscape's `PairH5Writer` works the same way, e.g. from
+[`../PyJetscape/example/prod_AuAu_0_10_jet`](../PyJetscape/example/prod_AuAu_0_10_jet):
+
+```bash
+python wake_pyvista.py \
+    --file ../PyJetscape/example/prod_AuAu_0_10_jet/out/AuAu_0_10_jet_seed0001.h5 \
+    --nt 48 --movie wake_music.mp4
+```
+
+It carries no `eos/` group; it names the EoS in `eos_kind` ("hotqcd (MUSIC EOS 9)") and
+the build in `prod_build`, and the temperature is read from MUSIC's own table under
+`<prod_build>/EOS/hotQCD`, or from `--eos-table` / `$MUSIC_EOS_TABLE` (file or
+directory). A conformal fallback is used only when no table can be found, and the run
+says so: near freeze-out it is far off (T = 0.15 GeV is e = 0.92 GeV/fm³ conformal,
+0.23 from hotQCD). The run prints where the temperature came from.
+
+**Only frames where both legs are live are shown.** The deposit reheats the jet leg, so
+it freezes out later than its background — by 1.1 fm/c on the MUSIC pair above, 2–3
+frames on the FastHydro pairs — and past the background's freeze-out `arr_bg` is zero,
+so `arr − arr_bg` would be the jet leg's whole medium, not a wake. Every panel that uses
+the background stops at the last frame where both are live (a `--panels jet` render runs
+to the jet leg's own end). Both `ntau_freezeout` conventions are read: PyJetscape's
+frame count (`freezeout_convention_id = "frames_written"`) and fast_data's count + 1.
+
 **The difference panel is percentile-scaled, not max-scaled.** Measured on a central
 Au+Au event, `max|Δe|` over the whole evolution is 2.4 GeV/fm³ — but that is a single
 spike in one frame at τ ≈ 1.6 where the first droplets land, while the wake that

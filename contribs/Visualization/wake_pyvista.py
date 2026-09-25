@@ -1,7 +1,7 @@
 """
 contribs/Visualization/wake_pyvista.py
 
-The jet wake, side by side, from ONE FastHydro paired HDF5 file:
+The jet wake, side by side, from ONE paired HDF5 file (FastHydro, or a PyJetscape MUSIC pair):
 
     ┌────────────────────┬────────────────────┬────────────────────┐
     │  medium,no deposit │  medium + deposit  │  the wake          │
@@ -46,6 +46,16 @@ A FastHydro pair (`js-contrib/contribs/FastHydro`), which already holds everythi
 Nothing is run here: this reads a finished file.  Produce one with
 
     python FastHydro/example/make_wake_data.py --force
+
+A MUSIC pair from PyJetscape's `PairH5Writer` (e.g. `PyJetscape/example/prod_AuAu_0_10_jet/
+run_prod_jet.py`) has the same layout -- arr = MUSIC_2 with the CausalLiquefier source,
+arr_bg = MUSIC_1 -- but no eos/ group: it names the EoS in `eos_kind` and the build in
+`prod_build`, and `resolve_temperature` loads MUSIC's own hotQCD table from there (or from
+--eos-table).  Such a file can hold a dijet, and every shower in it is drawn.
+
+Either way, only frames where BOTH legs are still live are shown (`live_frames`): the
+jet leg outlives its background, and past the background's freeze-out the difference
+would be the jet leg's whole medium rather than a wake.
 
 Coordinates
 -----------
@@ -128,7 +138,7 @@ SHOWER_NOTE = ("same quenched shower in all panels -- it traversed arr_bg "
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Reading a FastHydro pair
+# Reading a pair
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _meta_from_attrs(a, ntau):
@@ -149,25 +159,121 @@ def _meta_from_attrs(a, ntau):
     }
 
 
-def _temperature(e, f):
-    """T [GeV] on the energy-density grid, from the file's own EoS table.
+#: MUSIC's hotQCD tables (src/eos_hotQCD.cpp): rows of float64 (e, P, s, T), e in GeV/fm^3,
+#: T in GeV.  EOS 91 is the SMASH hadron list, EOS 9 the UrQMD one.
+_MUSIC_HOTQCD = {9: "hrg_hotqcd_eos_binary.dat", 91: "hrg_hotqcd_eos_SMASH_binary.dat"}
 
-    FastHydro's `arr` carries (e, vx, vy, vz) -- no temperature -- while hydro_pyvista
-    wants it for the freeze-out isosurface.  The table travels in the file precisely so
-    this does not have to guess a conformal EoS: `PairedH5Writer` writes `eos/` for
-    exactly this kind of downstream use.  With no table, fall back to a conformal
-    relation and say so, since a silently wrong isosurface is worse than a coarse one.
+
+def _attr_str(a, key, default=""):
+    v = a.get(key, default)
+    return v.decode() if isinstance(v, bytes) else str(v)
+
+
+def _conformal(dof):
+    a_sb = np.pi ** 2 / 30.0 * dof / (0.1973269804 ** 3)      # GeV/fm^3 per GeV^4
+    return lambda e: ((np.maximum(e, 0.0) / a_sb) ** 0.25).astype(np.float32)
+
+
+def _music_table(eos_id, attrs, eos_table=None):
+    """Path of MUSIC's hotQCD table for `eos_id`, or None.
+
+    Looked for, in order, at --eos-table and $MUSIC_EOS_TABLE (each a file or a directory
+    holding it), then under the producing build's EOS/hotQCD, which PyJetscape's
+    productions record as the `prod_build` attribute.
+    """
+    fname = _MUSIC_HOTQCD[eos_id]
+    cands = [eos_table, os.environ.get("MUSIC_EOS_TABLE")]
+    build = _attr_str(attrs, "prod_build")
+    if build:
+        cands += [os.path.join(build, "EOS", "hotQCD"), os.path.join(build, "eos", "hotQCD")]
+    for c in cands:
+        if not c:
+            continue
+        path = os.path.join(c, fname) if os.path.isdir(c) else c
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def resolve_temperature(f, eos_table=None):
+    """-> (T(e) callable, one-line description) for a pair file, from whatever it carries.
+
+    The arrays hold (e, vx, vy, vz) -- no temperature -- while hydro_pyvista wants it for
+    the freeze-out isosurface, and T(e) near T_fo depends strongly on the EoS: at
+    T = 0.15 GeV a conformal gas (dof 42.25) has e = 0.92 GeV/fm^3, the hotQCD table 0.23.
+    So the EoS is taken from the file, in this order:
+
+    1. an `eos/` group with a table (`e_tab`, `T_tab`): FastHydro writes one, so the file
+       is self-contained;
+    2. an `eos/` group of kind "ideal": conformal with the group's `dof`;
+    3. the `eos_kind` attribute naming MUSIC's hotQCD EoS (PyJetscape's MUSIC pairs
+       write "hotqcd (MUSIC EOS 9)"): MUSIC's own table, found by `_music_table`;
+    4. otherwise a conformal gas with dof 42.25, and a warning, since a silently wrong
+       isosurface is worse than a coarse one.
     """
     if "eos/e_tab" in f and "eos/T_tab" in f:
         e_tab, T_tab = f["eos/e_tab"][:], f["eos/T_tab"][:]
         order = np.argsort(e_tab)
-        return np.interp(e, e_tab[order], T_tab[order]).astype(np.float32)
+        e_tab, T_tab = e_tab[order], T_tab[order]
+        name = _attr_str(f["eos"].attrs, "name", "table")
+        return (lambda e: np.interp(e, e_tab, T_tab).astype(np.float32),
+                f"the file's eos/ table ({name})")
+    if "eos" in f and _attr_str(f["eos"].attrs, "kind") == "ideal":
+        dof = float(f["eos"].attrs.get("dof", 42.25))
+        return _conformal(dof), f"conformal, dof = {dof:g} (the file's eos/ group)"
+
+    kind = _attr_str(f.attrs, "eos_kind").lower()
+    if kind.startswith("hotqcd"):
+        eos_id = 91 if "smash" in kind or "91" in kind else 9
+        path = _music_table(eos_id, f.attrs, eos_table)
+        if path is not None:
+            tab = np.fromfile(path, dtype="<f8").reshape(-1, 4)
+            tab = tab[np.argsort(tab[:, 0])]
+            e_tab, T_tab = tab[:, 0], tab[:, 3]
+            return (lambda e: np.interp(e, e_tab, T_tab).astype(np.float32),
+                    f"MUSIC EOS {eos_id} table {path}")
+        print(f"  [!] eos_kind is '{_attr_str(f.attrs, 'eos_kind')}' but MUSIC's "
+              f"{_MUSIC_HOTQCD[eos_id]} was not found; pass --eos-table (file or "
+              f"MUSIC's EOS/hotQCD directory) or set MUSIC_EOS_TABLE.")
 
     dof = 42.25                                    # fast_data's conformal default
-    a_sb = np.pi ** 2 / 30.0 * dof / (0.1973269804 ** 3)      # GeV/fm^3 per GeV^4
-    print("  [!] no eos/ group in the file; temperature from a conformal EoS "
+    print("  [!] no EoS table for this file; temperature from a conformal EoS "
           f"(dof={dof}). The freeze-out isosurface is indicative only.")
-    return (np.maximum(e, 0.0) / a_sb) ** 0.25
+    return _conformal(dof), f"conformal, dof = {dof:g} (fallback)"
+
+
+def _temperature(e, f, eos_table=None):
+    """T [GeV] on the energy-density grid; see `resolve_temperature`."""
+    return resolve_temperature(f, eos_table)[0](e)
+
+
+def live_frames(f, event, ntau, panels=("bg", "jet", "diff")):
+    """-> (frames to show, frames the jet leg wrote, frames the background wrote).
+
+    Past a leg's freeze-out its frames are zero-padded.  The two legs freeze out at
+    different times -- the deposit reheats the jet leg, by 1.1 fm/c on a 0-10% Au+Au MUSIC
+    pair -- so past the background's freeze-out `arr - arr_bg` is no longer a wake but the
+    jet leg's whole medium, and the background panel is empty.  Every panel that uses the
+    background therefore stops at the last frame where BOTH legs are live; a jet-only
+    render runs to the jet leg's own end.
+
+    `ntau_freezeout` has two conventions: PyJetscape writes the number of frames written
+    and stamps `freezeout_convention_id = "frames_written"`; fast_data/FastHydro files
+    carry no id and store that number plus one.  A file without the counts (a bare
+    fixture) shows every frame.
+    """
+    off = 0 if _attr_str(f.attrs, "freezeout_convention_id") == "frames_written" else 1
+
+    def count(key):
+        if key not in f:
+            return None
+        return max(int(f[key][event]) - off, 1)
+
+    n_jet = count("ntau_freezeout") or ntau
+    n_bg = count("ntau_freezeout_bg") or n_jet
+    n_jet, n_bg = min(n_jet, ntau), min(n_bg, ntau)
+    uses_bg = any(p in panels for p in ("bg", "diff", "reldiff"))
+    return (min(n_jet, n_bg) if uses_bg else n_jet), n_jet, n_bg
 
 
 def relative_floor(e_bg, frac=0.1, absolute=0.0):
@@ -187,10 +293,12 @@ def relative_floor(e_bg, frac=0.1, absolute=0.0):
 
 
 def load_pair(path, event=0, panels=("bg", "jet", "diff"),
-              rel_floor=0.1, rel_floor_abs=0.0):
+              rel_floor=0.1, rel_floor_abs=0.0, eos_table=None):
     """-> (dict of panel name -> (ntau,nx,ny,neta,5) array, meta, attrs).
 
-    The arrays are built in hydro_pyvista's feature order (e, T, vx, vy, vz).
+    The arrays are built in hydro_pyvista's feature order (e, T, vx, vy, vz), and hold
+    only the frames `live_frames` allows.  `meta` also records `ntau_jet`, `ntau_bg`
+    (frames each leg wrote), `ntau_file` and `eos` (where the temperature came from).
     """
     import h5py
 
@@ -198,7 +306,7 @@ def load_pair(path, event=0, panels=("bg", "jet", "diff"),
     with h5py.File(str(path), "r") as f:
         if "arr_bg" not in f:
             raise SystemExit(
-                f"{path} has no 'arr_bg', so it is not a FastHydro pair -- there is no "
+                f"{path} has no 'arr_bg', so it is not a paired file -- there is no "
                 f"no-jet reference to subtract. Produce one with "
                 f"FastHydro/example/make_wake_data.py, or use hydro_pyvista.py for a "
                 f"single evolution.")
@@ -207,15 +315,19 @@ def load_pair(path, event=0, panels=("bg", "jet", "diff"),
             raise SystemExit(f"event {event} out of range (file holds {nev})")
 
         attrs = {k: f.attrs[k] for k in f.attrs}
+        ntau_file = int(f["arr"].shape[-1])
+        n, n_jet, n_bg = live_frames(f, event, ntau_file, panels)
         # (4, nx, ny, neta, ntau) -> (ntau, nx, ny, neta, 4)
-        jet = np.asarray(f["arr"][event], np.float32).transpose(4, 1, 2, 3, 0)
-        bg = np.asarray(f["arr_bg"][event], np.float32).transpose(4, 1, 2, 3, 0)
+        jet = np.asarray(f["arr"][event, ..., :n], np.float32).transpose(4, 1, 2, 3, 0)
+        bg = np.asarray(f["arr_bg"][event, ..., :n], np.float32).transpose(4, 1, 2, 3, 0)
         meta = _meta_from_attrs(f.attrs, jet.shape[0])
+        T_of_e, eos_desc = resolve_temperature(f, eos_table)
+        meta.update(ntau_file=ntau_file, ntau_jet=n_jet, ntau_bg=n_bg, eos=eos_desc)
 
         def assemble(e, v_from):
             a = np.empty(e.shape + (5,), np.float32)
             a[..., 0] = e
-            a[..., 1] = _temperature(e, f)
+            a[..., 1] = T_of_e(e)
             a[..., 2:5] = v_from[..., 1:4]
             return a
 
@@ -229,7 +341,7 @@ def load_pair(path, event=0, panels=("bg", "jet", "diff"),
             # panel would be meaningless -- so it carries the JET leg's T and v, and the
             # renderer switches both off for this panel by default.
             d = assemble(jet[..., 0] - bg[..., 0], jet)
-            d[..., 1] = _temperature(jet[..., 0], f)
+            d[..., 1] = T_of_e(jet[..., 0])
             out["diff"] = d
         if "reldiff" in panels:
             # de/e, masked where the background is too thin for the ratio to mean
@@ -244,7 +356,7 @@ def load_pair(path, event=0, panels=("bg", "jet", "diff"),
             with np.errstate(divide="ignore", invalid="ignore"):
                 r = np.where(e > floor, de / np.maximum(e, 1e-30), 0.0)
             rd = assemble(np.asarray(r, np.float32), jet)
-            rd[..., 1] = _temperature(jet[..., 0], f)
+            rd[..., 1] = T_of_e(jet[..., 0])
             out["reldiff"] = rd
     return out, meta, attrs
 
@@ -619,7 +731,12 @@ def build_parser():
     p.description = __doc__
     g = p.add_argument_group("wake panels")
     g.add_argument("--file", required=True,
-                   help="a FastHydro paired HDF5 file (it must carry arr_bg)")
+                   help="a paired HDF5 file, jet leg `arr` + background `arr_bg` "
+                        "(FastHydro, or PyJetscape's MUSIC pairs)")
+    g.add_argument("--eos-table", default=None, dest="eos_table",
+                   help="MUSIC hotQCD table (file, or MUSIC's EOS/hotQCD directory) for a "
+                        "file that names the EoS in `eos_kind` but carries no eos/ group; "
+                        "by default $MUSIC_EOS_TABLE, then <prod_build>/EOS/hotQCD")
     g.add_argument("--event", type=int, default=0)
     g.add_argument("--panels", default="bg,jet,diff",
                    help="comma-separated subset of bg,jet,diff,reldiff in display order "
@@ -661,13 +778,19 @@ def main(argv=None):
     print(f"=== {args.file}  event {args.event} ===")
     panel_arrays, meta, attrs = load_pair(args.file, args.event, tuple(args.panels),
                                           rel_floor=args.rel_floor,
-                                          rel_floor_abs=args.rel_floor_abs)
+                                          rel_floor_abs=args.rel_floor_abs,
+                                          eos_table=args.eos_table)
     if "reldiff" in args.panels:
         print(f"  relative panel: de/e where e_bg > max({args.rel_floor:g} x the frame "
               f"peak, {args.rel_floor_abs:g} GeV/fm^3); elsewhere drawn as zero")
     print(f"  grid {meta['nx']}x{meta['ny']}x{meta['neta']}x{meta['ntau']}, "
           f"tau {meta['tau_min']:.2f}.."
           f"{meta['tau_min'] + (meta['ntau'] - 1) * meta['dtau']:.2f} fm/c")
+    if meta["ntau"] < max(meta["ntau_jet"], meta["ntau_bg"]):
+        print(f"  frames: jet leg {meta['ntau_jet']}, background {meta['ntau_bg']}; showing "
+              f"the {meta['ntau']} where both are live (past the background's freeze-out "
+              f"arr - arr_bg would be the jet leg's whole medium)")
+    print(f"  temperature from {meta['eos']}")
     for k in ("generator", "source_mode", "transport_mode", "hard_vertex"):
         if k in attrs:
             print(f"  {k:15s} {attrs[k]}")
