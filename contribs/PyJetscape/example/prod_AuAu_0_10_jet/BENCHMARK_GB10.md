@@ -108,6 +108,25 @@ down. Likely causes:
 3. **`output_momentum_anisotropy_vs_etas`** (~1.5 s/event): diagnostics that nothing in
    this production uses.
 
+### Applied (branches `hydro_data_optim`)
+
+Improvements 1 and 2 are implemented; 3 is on hold.
+
+- **js-contrib** `e3101fd`: `resample` as three separable matrix-product passes
+  (eta, y, x) over all features of a source frame.
+- **X-SCAPE** `a80a9932`: `PassHydroEvolutionHistoryToFramework` resizes the store once
+  and fills it in an OpenMP loop.
+
+Measured on one job alone, seed 1, 2 events:
+
+| Build | event 1 | event 2 | mean | Output vs baseline |
+|---|---|---|---|---|
+| baseline | 53.1 s | 60.3 s | 56.7 s | — |
+| + `bulk_info` copy | 47.1 s | 58.2 s | 52.7 s | bit-identical |
+| + resample | 38.0 s | 46.6 s | **42.3 s (−25 %)** | `arr`: 1 of 1.4 × 10⁸ values differs by 1 ulp; everything else bit-identical |
+
+The concurrency numbers above were measured before these changes.
+
 ## Bug: concurrent jobs can hang at start
 
 On the first 3-job attempt, 2 of the 3 jobs stayed at `Initialize MUSIC` at 100 % CPU on one
