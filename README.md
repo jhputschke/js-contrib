@@ -21,6 +21,20 @@ env with PyVista. See
 [contribs/README.md](contribs/README.md#visualization-contrib--pyvista-dependencies)
 and [contribs/Visualization/README.md](contribs/Visualization/README.md).
 
+### Utilities
+
+[`utils/h5_inspect.py`](utils/h5_inspect.py) lists every group and dataset of an HDF5 file
+with its shape, dtype, storage and attributes. For the js-contrib hydro files
+(`xscape/hydro_evolution`, `fast_data/hydro_evolution`, pairs, legacy FNO4d, IC files) it
+also summarizes the grid, the evolution-array axes, freeze-out, the ragged `shower/` and
+`source/` tables and `diag/`, and flags inconsistencies. It needs only h5py and numpy.
+
+```bash
+python utils/h5_inspect.py out/AuAu_0_10_jet_seed0001.h5           # summary + tree
+python utils/h5_inspect.py FILE.h5 --stats [--event 0]              # per-feature min/max/mean, NaN/inf
+python utils/h5_inspect.py FILE.h5 --attr prod_user_xml             # one attribute in full
+```
+
 ## Source provenance
 
 The source files in this repository were copied from
