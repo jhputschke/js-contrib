@@ -110,7 +110,7 @@ down. Likely causes:
 
 ### Applied (branches `hydro_data_optim`)
 
-Improvements 1 and 2 are implemented; 3 is on hold.
+Improvements 1 and 2 are implemented; 3 is on hold. What omitting it would entail is under [README.md, Potential next steps](README.md#potential-next-steps).
 
 - **js-contrib** `e3101fd`: `resample` as three separable matrix-product passes
   (eta, y, x) over all features of a source frame.
