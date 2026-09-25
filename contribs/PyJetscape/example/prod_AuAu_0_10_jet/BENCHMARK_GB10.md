@@ -78,9 +78,15 @@ running alone, main thread only, before and after the `hydro_data_optim` changes
 own profiler overhead (the ratio of the job's event times with and without `py-spy`:
 ×0.75 before, ×0.82 after).
 
-"Everything else" includes the job's startup (XML, MUSIC and EOS init, Pythia),
-shared over the 2 events. That is why the totals are above the per-event wall times
-the driver prints (56.7 s and 42.3 s).
+The rows are seconds per event, **averaged over the job's 2 events and including its
+startup**:
+- Event 1 of seed 1 has 106 / 95 jet / background frames; event 2 has 126 / 111 and
+  runs longer.
+- "Everything else" holds the startup before the first event (imports, XML, MUSIC and
+  EOS init, Pythia; ~9 s per job), which the driver's per-event times leave out.
+
+The totals are therefore above the per-event times the driver prints. For the per-event
+times, see [the table under Applied](#applied-branches-hydro_data_optim).
 
 | Stage | before (s/event) | after (s/event) | Runs on |
 |---|---|---|---|
@@ -129,13 +135,19 @@ Improvements 1 and 2 are implemented; 3 is on hold. What omitting it would entai
 - **X-SCAPE** `a80a9932`: `PassHydroEvolutionHistoryToFramework` resizes the store once
   and fills it in an OpenMP loop.
 
-Measured on one job alone, seed 1, 2 events:
+Measured on one job alone, seed 1, 2 events: the per-event wall times the driver
+prints. The two events are different collisions and live for different times, so
+compare along a column, not across:
 
-| Build | event 1 | event 2 | mean | Output vs baseline |
-|---|---|---|---|---|
-| baseline | 53.1 s | 60.3 s | 56.7 s | — |
-| + `bulk_info` copy | 47.1 s | 58.2 s | 52.7 s | bit-identical |
-| + resample | 38.0 s | 46.6 s | **42.3 s (−25 %)** | `arr`: 1 of 1.4 × 10⁸ values differs by 1 ulp; everything else bit-identical |
+| Build | event 1 (106 / 95 frames, 25 droplets) | event 2 (126 / 111 frames, 35 droplets) | Output vs baseline |
+|---|---|---|---|
+| baseline | 53.1 s | 60.3 s | — |
+| + `bulk_info` copy | 47.1 s | 58.2 s | bit-identical |
+| + resample | **38.0 s (−28 %)** | **46.6 s (−23 %)** | `arr`: 1 of 1.4 × 10⁸ values differs by 1 ulp; everything else bit-identical |
+
+A 1-event run of seed 1 (`python run_prod_jet.py --events 1 --seed 1`, the usual
+smoke test) now reports `wall_s` ≈ 38 s in its `.json`, down from ~53 s. Per-event
+time scales with the event's lifetime, roughly with its number of frames.
 
 The concurrency numbers above were measured before these changes. The profile table
 above has both states.
