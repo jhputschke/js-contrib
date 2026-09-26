@@ -47,6 +47,7 @@ import collections
 import glob
 import importlib.util
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -164,6 +165,15 @@ def available_memory_gb():
                 if line.startswith("MemAvailable:"):
                     return int(line.split()[1]) / 1024 ** 2
     except OSError:
+        pass
+    try:                                         # macOS: free + inactive + speculative pages
+        out = subprocess.run(["vm_stat"], capture_output=True, text=True, check=True).stdout
+        page = int(re.search(r"page size of (\d+) bytes", out).group(1))
+        pages = {k.strip(): int(v.strip().rstrip("."))
+                 for k, v in (l.split(":", 1) for l in out.splitlines()[1:] if ":" in l)}
+        n = sum(pages.get(f"Pages {k}", 0) for k in ("free", "inactive", "speculative"))
+        return n * page / 1024 ** 3
+    except (OSError, ValueError, AttributeError, subprocess.CalledProcessError):
         pass
     return None
 

@@ -54,6 +54,9 @@ case $PAR in ''|*[!0-9]*|0) echo "-j needs a positive integer, got '$PAR'" >&2; 
 
 [ $# -ge 3 ] || usage
 NJOBS=$1; EVENTS=$2; SEED0=$3
+for v in "NJOBS=$NJOBS" "EVENTS_PER_JOB=$EVENTS" "FIRST_SEED=$SEED0"; do
+  case ${v#*=} in ''|*[!0-9]*) echo "$v: needs a non-negative integer" >&2; usage ;; esac
+done
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROD_SCRIPT=${PROD_SCRIPT:-"$HERE/run_prod.py"}
 TAG_PREFIX=${TAG_PREFIX:-AuAu_0_10_seed}
