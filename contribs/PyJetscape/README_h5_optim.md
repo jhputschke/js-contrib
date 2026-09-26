@@ -207,6 +207,10 @@ python run_prod_jet.py --events 10 --seed 1 --compression lzf   # the old files
   - FNO4d `read_3d_hdf5` (all training reads go through it), `downsample`,
     `repad_h5`, `h5_inspect`, `root2hdf5/inspect_file.py`
   - `Visualization/wake_pyvista.py`
+  - the notebooks: `prod_AuAu_0_10/check_output.ipynb` and `prod_AuAu_0_10_jet/jet_wake.ipynb`
+    import `hdf5plugin` in their first cell. FastHydro's `notebooks/jet_wake.ipynb` reads
+    through `PairBrowser`, which imports `fast_data`. The two `hadron_*` notebooks read
+    no HDF5.
 
   Your own scripts that call `h5py.File` directly need `import hdf5plugin` first.
   Without it, h5py fails with *"required filter 'blosc' is not registered"*.
