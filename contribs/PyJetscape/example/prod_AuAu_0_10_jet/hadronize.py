@@ -12,6 +12,7 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
     python hadronize.py P.h5 --tags jet_frag --n-frag 50
     python hadronize.py P.h5 --use-stored-seeds         # replay a --validate-inline job
     python hadronize.py P.h5 --diagnose-colored         # colour-flow diagnostic only
+    python hadronize.py P.h5 --skip-complete            # campaigns: only what is missing
 
 Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_h5):
 
@@ -92,6 +93,9 @@ def parse_args(argv=None):
                    help="private working directory (default: <out-dir>/work_hadronize/<stem>)")
     p.add_argument("--keep-workdir", action="store_true", dest="keep_workdir")
     p.add_argument("--force", action="store_true", help="overwrite existing outputs")
+    p.add_argument("--skip-complete", action="store_true", dest="skip_complete",
+                   help="for campaigns: skip tags whose output exists and is complete, redo "
+                        "the missing or incomplete ones (exit 0 if nothing is left to do)")
     return p.parse_args(argv)
 
 
@@ -123,6 +127,18 @@ def write_job_xml(a, path, n_exec, oversample):
     _set_text(iss, "number_of_repeated_sampling", oversample)
     tree.write(path)
     return ET.tostring(root, encoding="unicode")
+
+
+def _complete(path):
+    """True if ``path`` is a hadron file that was closed as complete."""
+    if not os.path.exists(path):
+        return False
+    try:
+        import h5py
+        with h5py.File(path, "r") as f:
+            return bool(f.attrs.get("complete", False))
+    except OSError:                              # truncated by a kill
+        return False
 
 
 def event_range(spec, n):
@@ -203,6 +219,18 @@ def main(argv=None):
         xml_root.find("SoftParticlization/iSS/number_of_repeated_sampling").text)
     n_frag = 1 if a.use_stored_seeds else a.n_frag
 
+    outs = {t: os.path.join(out_dir, f"{stem}_hadrons_{t}.h5") for t in tags}
+    if a.skip_complete:
+        done = [t for t in tags if _complete(outs[t])]
+        if done:
+            print(f"hadronize.py: {os.path.basename(a.particlize)}: already complete: "
+                  f"{', '.join(done)}")
+        tags = [t for t in tags if t not in done]
+        outs = {t: outs[t] for t in tags}
+        if not tags:
+            return 0
+        a.force = True                          # what is left is missing or incomplete
+
     bg_units = []
     if "bulk_bg" in tags:
         seen = set()
@@ -213,7 +241,6 @@ def main(argv=None):
                 bg_units.append((u, e))
     n_exec = (len(events) if "bulk_jet" in tags else 0) + len(bg_units)
 
-    outs = {t: os.path.join(out_dir, f"{stem}_hadrons_{t}.h5") for t in tags}
     for t, path in outs.items():
         if os.path.exists(path) and not a.force:
             sys.exit(f"hadronize.py: {path} exists (use --force)")
@@ -332,6 +359,10 @@ def main(argv=None):
         os.chdir(cwd)
     if not a.keep_workdir:
         shutil.rmtree(workdir, ignore_errors=True)
+        try:
+            os.rmdir(os.path.dirname(workdir))  # work_hadronize/, once it is empty
+        except OSError:
+            pass
     print(f"hadronize.py: done in {time.time() - t0:.1f} s")
     for t, path in outs.items():
         print(f"  {t:9s} -> {path} ({os.path.getsize(path) / 1e6:.1f} MB)")

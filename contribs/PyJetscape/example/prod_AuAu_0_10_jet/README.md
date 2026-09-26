@@ -57,9 +57,15 @@ python run_prod_jet.py --events 10 --seed 1 --pthat-min 20 --pthat-max 40
 python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
 python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
 python run_prod_jet.py --events 1 --seed 1 --dry-run         # check the XML/grid only
+
+# + the input for hadronization: both freeze-out surfaces and the final partons
+python run_prod_jet.py --events 10 --seed 1 --write-particlize both
+python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --n-frag 50
+
 ./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
 ./run_jobs.sh -j 2 20 25 1 out_pgun --hard pgun
 ./run_jobs.sh -j 4 --mps 20 25 1                             # 4 at a time, GPU shared via CUDA MPS
+./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both   # + hadronization input
 
 # macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (BENCHMARK_M3MAX.md)
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 1
@@ -67,9 +73,111 @@ OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 
 
 Each job writes the following, next to each other:
 - `AuAu_0_10_jet_seedNNNN.h5`: the data.
+- `AuAu_0_10_jet_seedNNNN_particlize.h5`: with `--write-particlize` only, the input for
+  `hadronize.py` (see [Hadron level](#hadron-level-surfaces-partons-hadronizepy)).
 - `.xml`: the exact job XML.
 - `.json`: a summary.
 - `.log`: only when the job is run through `run_jobs.sh`.
+
+`hadronize.py` then writes `AuAu_0_10_jet_seedNNNN_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5`
+next to the particlize file. For many seeds at once, see the next section.
+
+## Campaigns with `run_jobs.sh`
+
+`run_jobs.sh` runs many `run_prod_jet.py` jobs, one seed and one output file per job:
+
+```bash
+./run_jobs.sh [-j P] [--mps] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod_jet.py options ...]
+```
+
+- Seeds `FIRST_SEED .. FIRST_SEED+NJOBS-1`, `EVENTS_PER_JOB` events each. The files are
+  `OUTDIR/AuAu_0_10_jet_seedNNNN.*` (default `OUTDIR` is `./out`).
+- `-j P` keeps P jobs running at once; `--mps` lets them share the GPU through CUDA MPS
+  (CUDA only). Every job runs in its own working directory (`OUTDIR/work/<tag>`, removed when
+  it succeeds), so the jobs can start together. Output is bit-identical per seed whatever
+  `-j`.
+- Everything after `OUTDIR` goes to every job unchanged (`--write-particlize`, `--reuse`,
+  `--hard`, `--grid`, ...). Don't pass `--events`, `--seed` or `--outdir`: the script sets them.
+- Each job's output goes to `OUTDIR/<tag>.log`. A failed job is reported and the others
+  continue.
+- **Restarting.** A seed whose `.json` says all events were written is skipped (with
+  `--write-particlize`, its particlize file must be complete too). So an interrupted campaign
+  resumes with the same command, and re-running it only redoes failed or missing seeds.
+- Give every distinct setting its own `OUTDIR`: the skip test looks only at the seed and the
+  event count, not at the options.
+
+### A. Hydro pairs only (FNO training data)
+
+```bash
+conda activate js_fno
+./run_jobs.sh 1 1 1 out_null --no-deposit                  # first: null test, arr == arr_bg
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out     # 20 seeds x 25 events
+```
+
+On the GB10, `OMP_NUM_THREADS=5 ... -j 4 --mps` gives about 190 events/h
+([BENCHMARK_GB10.md](BENCHMARK_GB10.md); on macOS see the Metal line under *Run*). No
+freeze-out surface is built (`--surface none`, the default), which is the fastest setting.
+
+### B. Hydro pairs + hadronization input
+
+The same, plus `--write-particlize`. The pair files are unchanged, byte for byte, so they can
+also serve as training data:
+
+```bash
+# first: one validation job, then one null-test job (see "Checks before a campaign")
+python run_prod_jet.py --events 2 --seed 900 --write-particlize both --validate-inline --outdir out_val
+python run_prod_jet.py --events 1 --seed 901 --write-particlize both --no-deposit --outdir out_val
+
+# the campaign: both surfaces + final partons every event
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both
+
+# one background per 3 jets: the background surface is stored once per background
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 30 1 out_had_reuse3 --write-particlize both --reuse 3
+```
+
+| `--write-particlize` | stores | use |
+|---|---|---|
+| `both` | jet and background surfaces, final partons | hadron-level wake (jet − background), the usual choice |
+| `jet` | jet surface, final partons | when only the jet event's hadrons are wanted (no background subtraction) |
+| `none` (default) | nothing extra | hydro only (A) |
+
+Don't combine it with `--surface`: `--write-particlize` builds the surfaces it stores, and a
+surface built but not stored only costs time (the job warns if you do). `--validate-inline`
+is for validation jobs only: it changes the jet sample of a seed (see *Seeds*).
+
+**Hadronizing the campaign.** `hadronize.py` needs only the particlize files and an X-SCAPE
+build with iSS: no GPU, no MUSIC. It runs on one core, so run one process per file in
+parallel. `xargs -P` does that, with one log per file:
+
+```bash
+ls out_had/AuAu_0_10_jet_seed*_particlize.h5 | xargs -P 8 -I{} sh -c \
+  'python hadronize.py "$1" --oversample 500 --n-frag 50 --skip-complete >> "${1%_particlize.h5}_hadronize.log" 2>&1' _ {}
+```
+
+- **Restarting.** With `--skip-complete`, outputs that exist and were closed as complete are
+  skipped, and missing or incomplete ones (a pass killed mid-file) are redone. So re-running
+  the same command finishes an interrupted pass, and a finished campaign exits at once.
+  Without it, `hadronize.py` refuses existing outputs unless `--force` is given. The logs
+  are appended to (`>>`), so a rerun doesn't overwrite a finished file's log.
+- `--oversample` is the number of iSS samples per surface, `--n-frag` the number of Colorless
+  fragmentations per event. Use `--n-frag` equal to `--oversample` if every oversample should
+  get its own fragmentation (`JetEvents.jet_event`). `--tags` restricts the pass, e.g.
+  `--tags jet_frag` to redo only the fragments with other settings.
+- It can run on other machines than the hydro production, and it shouldn't compete with
+  `-j 4` GPU jobs for the same cores.
+
+### Planning numbers (GB10, one 0–10% event, measured)
+
+| | per event | disk per event |
+|---|---|---|
+| A: hydro pair (`grid_fno.yaml`, Blosc-zstd) | 29.5 s alone; ~190 events/h with `-j 4 --mps` | 285 MB |
+| B: + `--write-particlize both` | 43.0 s alone (+13.5 s: MUSIC builds the two surfaces); `-j` throughput not measured | + 154 MB |
+| B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
+| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~58 s on one core; ~28 s per surface (16.5 s fixed + 23 ms per oversample) | ~100 MB per leg (~0.2 MB per oversample) |
+
+Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` 1.4 GB up to ~100
+oversamples, 2.5 GB at 500 and 3.9 GB at 1000. Three or four `hadronize.py` processes keep up
+with a whole four-job GPU campaign.
 
 ## Options
 
@@ -279,9 +387,27 @@ unit with no samples.
 
 ## Checks before a campaign
 
-For a campaign with `--write-particlize`, also: one `--validate-inline` job and
-`hadronize.py --use-stored-seeds` on it must give bit-identical hadrons, and a `--no-deposit`
-job must give `surface/jet` = `surface/bg` cell for cell.
+For a campaign with `--write-particlize`, also check the two test jobs of recipe B:
+
+```bash
+# 1. offline = in-job, bit for bit
+python hadronize.py out_val/AuAu_0_10_jet_seed0900_particlize.h5 --use-stored-seeds \
+       --tags bulk_jet,jet_frag --out-dir out_val/offline
+python - <<'EOF'
+import h5py, numpy as np, jetscape.h5_compression
+for tag in ("bulk_jet", "jet_frag"):
+    a = h5py.File(f"out_val/AuAu_0_10_jet_seed0900_inline_{tag}.h5")["hadrons"]
+    b = h5py.File(f"out_val/offline/AuAu_0_10_jet_seed0900_hadrons_{tag}.h5")["hadrons"]
+    print(tag, all(np.array_equal(a[k][:], b[k][:]) for k in ("pid", "p", "sample_offsets")))
+EOF
+# 2. null test: the two surfaces are identical
+python -c "import numpy as np; from jetscape.particlize_h5 import ParticlizeFile as P; \
+p = P('out_val/AuAu_0_10_jet_seed0901_particlize.h5'); \
+print(np.array_equal(p.surface('jet', 0), p.surface('bg', 0)))"
+```
+
+Both must print `True`. (Run them from this folder with `../../python` on `PYTHONPATH`, or
+from anywhere after `pip install -e ../..`.)
 
 1. `--no-deposit`, 1 event: `arr == arr_bg` and `frames_identical == ntau`.
 2. 1 event with a jet: `n_droplets > 0`; the legs differ only after the first deposit; the
