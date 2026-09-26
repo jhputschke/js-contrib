@@ -27,13 +27,34 @@ python run_prod.py --events 10 --seed 1         # -> out/AuAu_0_10_seed0001.h5
 python run_prod.py --events 1 --seed 1 --grid my_grid.yaml --dry-run   # check a grid
 ./run_jobs.sh 20 25 1                           # 20 jobs x 25 events, seeds 1..20, into ./out
 ./run_jobs.sh -j 2 20 25 1                      # same, two jobs at a time (~1.7x throughput)
+./run_jobs.sh -j 4 --mps 20 25 1                # four at a time, GPU shared via CUDA MPS
 ./run_jobs.sh 20 25 1 /data/AuAu_0_10           # same, into another directory
 ./run_jobs.sh 20 25 1 out_eta2p5 --grid grid_x10_eta2p5.yaml
 ```
 
-You can launch it from any directory. `run_prod.py` changes into the X-SCAPE build tree
-itself (`--build`, default `build_gpu`), because MUSIC and 3dMCGlauber read `music_input`, the
-EoS tables and `mcglauber.input` from the working directory. Each job writes four files:
+You can launch it from any directory.
+
+**Working directory.** Each job runs in its own working directory, `OUTDIR/work/<tag>`, and
+reads the shared assets from the X-SCAPE build tree (`--build`, default `build_gpu`). This is
+the Python counterpart of X-SCAPE's `examples/run_in_workdir.sh`:
+- It holds a private copy of `music_input`, which MUSIC rewrites at every init.
+- `XSCAPE_DATA_DIR`, `HYDROPROGRAMPATH` and `LBT_TABLES_PATH` point at the build tree, for
+  `mcglauber.input`, the EoS tables and the LBT tables.
+- `tables/` and the other directories the vendored code opens by relative path are
+  symlinked.
+- `../` paths in the main and job XML are made absolute.
+
+So concurrent jobs share no file. In the build tree they used to share `music_input`, whose
+rewrite at MUSIC init could leave a starting job spinning forever, as well as 3dMCGlauber's
+and MUSIC's side files. The directory is removed after a successful job.
+
+| option | effect |
+|---|---|
+| `--workdir DIR` | use `DIR` instead of `OUTDIR/work/<tag>` |
+| `--keep-workdir` | keep it after a successful job (a failed job always keeps it) |
+| `--in-build` | the old behaviour: run in the build tree itself |
+
+Each job writes four files:
 
 - `AuAu_0_10_seedNNNN.h5`: the data.
 - `.xml`: the exact user XML the job ran.

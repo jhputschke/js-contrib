@@ -100,6 +100,7 @@ def parse_args() -> argparse.Namespace:
                         "bit-identical evolution")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
+    rp.add_workdir_args(p)
     return p.parse_args()
 
 
@@ -268,10 +269,17 @@ def main() -> int:
                                       "parametrization 3, second-order terms"},
         extra_attrs=provenance, verbose=True)
 
-    # MUSIC / 3dMCGlauber resolve their input files relative to the working directory.
-    os.chdir(a.build)
+    # MUSIC / 3dMCGlauber resolve their input files relative to the working directory:
+    # a private one per job (rp.enter_workdir), so concurrent jobs share no file.
+    if a.in_build:
+        os.chdir(a.build)
+        main_xml, workdir = a.main_xml, a.build
+    else:
+        workdir = rp.job_workdir(a, out_h5)
+        main_xml = rp.enter_workdir(a, workdir, xml)
+    print(f"  workdir  {workdir}")
     jetscape = js.JetScapePerEvent()
-    jetscape.SetXMLMainFileName(a.main_xml)
+    jetscape.SetXMLMainFileName(main_xml)
     jetscape.SetXMLUserFileName(xml)
     jetscape.Init()
     writer.attach(jetscape)                  # after Init: MUSIC_2 -> dump_hydro_only
@@ -322,6 +330,7 @@ def main() -> int:
     with open(os.path.splitext(out_h5)[0] + ".json", "w") as f:
         json.dump(summary, f, indent=1)
     print("prod_AuAu_0_10_jet:", json.dumps(summary))
+    rp.leave_workdir(a, workdir, n == a.events)
     return 0 if n == a.events else 1
 
 

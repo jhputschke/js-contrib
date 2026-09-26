@@ -3,15 +3,22 @@
 #
 # Run N production jobs on one GPU, one seed (and one .h5 file) per job, P at a time.
 #
-#   ./run_jobs.sh [-j P] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [extra run_prod.py args...]
+#   ./run_jobs.sh [-j P] [--mps] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [extra run_prod.py args...]
 #   ./run_jobs.sh 20 25 1                         # seeds 1..20 -> ./out/AuAu_0_10_seed00NN.h5
-#   ./run_jobs.sh -j 2 20 25 1                    # same, two jobs at a time (~1.7x throughput)
-#   ./run_jobs.sh 10 50 101 /data/AuAu_0_10       # seeds 101..110
+#   ./run_jobs.sh -j 2 20 25 1                    # same, two jobs at a time
+#   ./run_jobs.sh -j 4 --mps 20 25 1              # four at a time, sharing the GPU via CUDA MPS
 #   ./run_jobs.sh 20 25 1 out_eta2p5 --grid grid_x10_eta2p5.yaml
 #
-# -j P (default 1) keeps P jobs running at once.  On the GB10, -j 2 gives ~1.66x the
-# throughput of -j 1 (each job's CPU stages overlap the other's GPU evolution), with
-# bit-identical output per seed; each job holds ~3-5 GB of host RAM.
+# -j P (default 1) keeps P jobs running at once, with bit-identical output per seed.  Each
+# job runs in its own working directory (see run_prod.py), so they can start together.
+#
+# --mps runs the jobs as clients of a CUDA MPS (Multi-Process Service) daemon started for
+# this campaign, so their kernels share the GPU instead of being time-sliced; stopped again
+# at the end, also on Ctrl-C.  Output is bit-identical.  prod_AuAu_0_10_jet on the GB10
+# (events/h): -j 3 155 -> 163, -j 4 159 -> 179 with --mps; no gain for -j 1.  See
+# ../prod_AuAu_0_10_jet/BENCHMARK_GB10.md.  The daemon's socket directory must have a short
+# path (~100 characters for its UNIX sockets): $MPS_DIR, default
+# ${XDG_RUNTIME_DIR:-/tmp}/xscape-mps.<pid>.
 # A failed job is logged and the others continue; re-run just that seed later.
 # Jobs whose .json summary already says complete are skipped, so an interrupted campaign can
 # be restarted with the same command.  Give each grid YAML its own OUTDIR: the skip test
@@ -25,11 +32,13 @@ set -u
 usage() { sed -n '6,11p' "$0"; exit 2; }
 
 PAR=1
+MPS=0
 while [ $# -gt 0 ]; do
   case $1 in
-    -j)  [ $# -ge 2 ] || usage; PAR=$2; shift 2 ;;
-    -j*) PAR=${1#-j}; shift ;;
-    *)   break ;;
+    -j)    [ $# -ge 2 ] || usage; PAR=$2; shift 2 ;;
+    -j*)   PAR=${1#-j}; shift ;;
+    --mps) MPS=1; shift ;;
+    *)     break ;;
   esac
 done
 case $PAR in ''|*[!0-9]*|0) echo "-j needs a positive integer, got '$PAR'" >&2; exit 2 ;; esac
@@ -51,6 +60,39 @@ OUTDIR="$(mkdir -p "$OUTDIR" && cd "$OUTDIR" && pwd)"
 if [ -z "${PYTHIA8DATA:-}" ] && ! python -c "import sys; sys.path.insert(0, '$HERE/../../python'); import jetscape" >/dev/null 2>&1; then
   echo "PYTHIA8DATA is not set and importing pyjetscape_core fails without it:" \
        "point it to Pythia's xmldoc ('conda activate js_fno' sets it)." >&2; exit 1
+fi
+
+# ---- CUDA MPS: one daemon for this campaign, its jobs as clients (--mps)
+MPS_CREATED=0
+mps_stop() {
+  [ "$MPS" -eq 1 ] || return 0
+  echo quit | nvidia-cuda-mps-control > /dev/null 2>&1
+  local n; n=$(grep -c "NEW CLIENT" "$CUDA_MPS_LOG_DIRECTORY/control.log" 2>/dev/null)
+  echo "[$(date +%F\ %T)] MPS: daemon stopped (${n:-0} client connection(s))"
+  if [ "$MPS_CREATED" -eq 1 ]; then          # only what this script made
+    rm -rf "${MPS_DIR:?}/pipe" "${MPS_DIR:?}/log"; rmdir "$MPS_DIR" 2>/dev/null
+  fi
+  MPS=0
+}
+if [ "$MPS" -eq 1 ]; then
+  command -v nvidia-cuda-mps-control > /dev/null ||
+    { echo "--mps: nvidia-cuda-mps-control not found" >&2; exit 1; }
+  MPS_DIR=${MPS_DIR:-${XDG_RUNTIME_DIR:-/tmp}/xscape-mps.$$}
+  sock="$MPS_DIR/pipe/control"
+  if [ ${#sock} -gt 100 ]; then
+    echo "--mps: '$sock' is ${#sock} characters; MPS's UNIX sockets need ~100 or fewer" \
+         "(it then fails silently). Set MPS_DIR to a shorter directory." >&2; exit 1
+  fi
+  [ -e "$MPS_DIR" ] || MPS_CREATED=1
+  mkdir -p "$MPS_DIR/pipe" "$MPS_DIR/log"
+  export CUDA_MPS_PIPE_DIRECTORY="$MPS_DIR/pipe" CUDA_MPS_LOG_DIRECTORY="$MPS_DIR/log"
+  if ! nvidia-cuda-mps-control -d; then
+    echo "--mps: could not start the MPS daemon in $MPS_DIR (another one running?):" >&2
+    tail -5 "$MPS_DIR/log/control.log" >&2 2>/dev/null
+    MPS=0; exit 1
+  fi
+  trap mps_stop EXIT
+  echo "[$(date +%F\ %T)] MPS: daemon started, pipe directory $CUDA_MPS_PIPE_DIRECTORY"
 fi
 
 # Background jobs of a non-interactive shell ignore Ctrl-C, so pass it on to them.
@@ -87,6 +129,7 @@ for (( k = 0; k < NJOBS; k++ )); do
 done
 while [ ${#running[@]} -gt 0 ]; do reap; done
 trap - INT TERM
+mps_stop
 
 # Events longer than tau.max_ntau keep only their first max_ntau frames.  That is the point
 # of setting it (e.g. early times only), so this is a count, not an error.

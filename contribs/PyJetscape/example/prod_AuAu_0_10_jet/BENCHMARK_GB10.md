@@ -3,11 +3,20 @@
 Measured 2026-09-25. Question: does running 2, 3 or 4 jobs at once (`run_jobs.sh -j P`)
 pay off, and is there an OpenMP or GPU bottleneck?
 
-**Short answer.** Yes. `-j 3` gives about 2× the throughput of one job, and `-j 4` about
-2.3×. Neither OpenMP nor the GPU is the bottleneck. Single-threaded CPU stages are. But
-jobs that start at the same moment can **hang forever** at `Initialize MUSIC` (see
-[the startup race](#bug-concurrent-jobs-can-hang-at-start)). Until that is fixed,
-start concurrent jobs about 20 s apart.
+**Short answer.**
+- **Before the single-job speed-ups** (first measurement): parallel jobs paid off a lot,
+  about 2× the throughput with `-j 3` and 2.3× with `-j 4`, because each job left the GPU
+  and most cores idle.
+- **After the speed-ups** (re-measured, below): one job alone does 118 events/h (was 68).
+  Parallel jobs add much less, about 1.35× with `-j 3` and 1.4× with `-j 4`, because the
+  **GPU is now the shared bottleneck**: ~70 % busy with 3–4 jobs.
+- **With CUDA MPS** (`run_jobs.sh --mps`) the jobs' kernels share the GPU instead of taking
+  turns, and `-j 4` reaches **179 events/h** (+12.5 %), with byte-identical output.
+- **Absolute throughput at `-j 3`/`-j 4`** went from 140 / 154 to 155 / 159 events/h. The
+  speed-ups mostly shorten each job rather than raise the machine's campaign ceiling.
+- **The startup hang** (jobs started at the same moment could hang forever at
+  `Initialize MUSIC`) is fixed by per-job working directories (see
+  [the startup race](#bug-concurrent-jobs-can-hang-at-start)).
 
 ## Setup
 
@@ -28,6 +37,65 @@ start concurrent jobs about 20 s apart.
 
 ## Throughput
 
+### After the speed-ups (current)
+
+Measured with js-contrib `main` + `concurrent_jobs`, X-SCAPE `contrib` (#143, #144, #146),
+MUSIC4GPU `XSCAPE` `ca94ed4` + `concurrent_jobs`. Same method as below: 3 events per job,
+seeds 1–4, jobs started at the same moment (no stagger), each in its own working directory.
+
+| Jobs at once | s/event per job | events/h | vs 1 job (events) | vs serial (wall time incl. startup) | GPU busy (mean) | GPU idle samples (< 10 %) | cores busy (mean) | memory used (max) |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 30.6 | **118** | 1.00× | 1.00× | 43 % | 45 % | 5.5 | 22 GB |
+| 2 | 54.0 | 133 | 1.17× | 1.21× | 57 % | 36 % | 8.4 | 40 GB |
+| 3 | 69.5 | **155** | 1.35× | 1.38× | 67 % | 25 % | 10.4 | 52 GB |
+| 4 | 90.5 | **159** | 1.41× | 1.43× | 70 % | 23 % | 11.4 | 67 GB |
+
+Solo per-event means: seed 1 30.6 s, seed 2 32.8 s, seed 3 30.6 s, seed 4 33.5 s.
+
+- **Why the gain shrank: the GPU.**
+  - The GPU kernels take ~16 s per event (MUSIC timers: 7.25 ms × ~2,200 substeps, both
+    legs). At 159 events/h that is ~2,500 GPU-seconds per hour, ≈ 70 % of the GPU: what
+    `nvidia-smi` shows.
+  - Kernels from different processes are time-sliced, not overlapped, so a job waits
+    while another job's MUSIC step runs.
+  - The ceiling at 100 % GPU would be ~225 events/h.
+- **Recommendation without MPS: `run_jobs.sh -j 3`** (155 events/h, 52 GB). `-j 4` adds
+  only ~3 % for 15 GB more; `-j 2` gives 133. With MPS, see below.
+- **Further CPU work** helps single-job latency but hardly the campaign rate. Faster GPU
+  kernels would help (profile with `nsys` first).
+
+### With CUDA MPS (`run_jobs.sh --mps`)
+
+**What MPS does:** CUDA MPS (Multi-Process Service) lets the kernels of concurrent jobs
+share the GPU instead of being time-sliced. One job alone keeps the SMs only ~44 % busy,
+so there is room. Same setup as the table above; the jobs are clients of a user-level MPS
+daemon.
+
+| Jobs at once | events/h without MPS | events/h with MPS | gain | GPU busy (MPS) | memory used (max) |
+|---|---|---|---|---|---|
+| 1 | 118 | 117 | −0.1 % | 44 % | 22 GB |
+| 2 | 133 | 136 | +2.2 % | 57 % | 43 GB |
+| 3 | 155 | 163 | +5.1 % | 68 % | 51 GB |
+| 4 | 159 | **179** | **+12.5 %** | 75 % | 66 GB |
+
+- **Output:** byte-identical with and without MPS (seeds 1–3, 3 events each, all 30
+  datasets).
+- **Recommendation: `run_jobs.sh -j 4 --mps`** (179 events/h, ~66 GB).
+- **What `--mps` does:**
+  - starts a daemon for the campaign (`nvidia-cuda-mps-control -d`) with its sockets in
+    `$MPS_DIR`, default `${XDG_RUNTIME_DIR:-/tmp}/xscape-mps.<pid>`;
+  - exports `CUDA_MPS_PIPE_DIRECTORY` / `CUDA_MPS_LOG_DIRECTORY` to the jobs;
+  - stops the daemon at the end, also on Ctrl-C, and reports how many clients
+    connected.
+- **The pitfall it guards against:** MPS's UNIX socket paths are limited to ~107
+  characters. A longer pipe directory makes the daemon exit silently, so the script refuses
+  to start then.
+- **On the GB10,** the MPS server runs in `-force-tegra` mode (integrated GPU), which works
+  as expected.
+
+### Before the speed-ups (first measurement)
+
+
 | Jobs at once | s/event per job | events/h | vs 1 job | GPU busy (mean) | GPU idle samples (< 10 %) | cores busy (mean) | memory used (max) |
 |---|---|---|---|---|---|---|---|
 | 1 | 53.0 | 68 | 1.00× | 25 % | 64 % | 4.1 | 22 GB |
@@ -41,12 +109,12 @@ start concurrent jobs about 20 s apart.
 Solo per-event means: seed 1 53.0 s, seed 2 54.5 s, seed 3 52.2 s. Peak RSS per job
 is 17–22 GB. The 4-job run includes seed 4, whose solo speed was not measured.
 
-- **Recommendation:** `run_jobs.sh -j 3`. `-j 4` adds about 10 % more if about 71 GB of
-  the 121 GB is free. Beyond that the returns are small.
+- **Recommendation at the time:** `run_jobs.sh -j 3`; `-j 4` added about 10 %.
+  Superseded by the table above.
 - **OpenMP:** splitting the cores between jobs (`OMP_NUM_THREADS = 20 / P`) doesn't help
   once jobs run in parallel. Leave `OMP_NUM_THREADS` unset. A single job with 6 threads
   is 24 % slower, because the source-term fill (below) uses many cores in short bursts.
-- **GPU:** never saturated. Even with 4 jobs it is idle in 29 % of samples.
+- **GPU:** not saturated then. Even with 4 jobs it was idle in 29 % of samples.
 
 ### Activity of one job alone
 
@@ -290,6 +358,9 @@ entries of `arr`. The other steps are byte-identical.
 
 ## Bug: concurrent jobs can hang at start
 
+**Status: fixed** (branches `concurrent_jobs`, see [the fix](#fix-per-job-working-directories)
+below). The description is kept for reference.
+
 On the first 3-job attempt, 2 of the 3 jobs stayed at `Initialize MUSIC` at 100 % CPU on one
 thread for over 11 minutes. The GPU was idle, and both jobs had `build_gpu/music_input`
 open at file position 0.
@@ -321,6 +392,42 @@ content back.
 - In `StringFind4`, stop at end of file and return `"empty"` or an error, instead of
   looping.
 - Stagger starts in `run_jobs.sh`, as a stopgap.
+
+### Fix: per-job working directories
+
+**Not only `music_input`.** Tracing one job (`strace`) showed that `music_input` is not
+the only file in the working directory that concurrent jobs share:
+- **`music_input`:** rewritten 4× per pair job and opened ~660× (`StringFind4` reopens it
+  for every parameter);
+- **3dMCGlauber:** writes `strings_event_<N>.dat` and `events_summary.dat`, the same names
+  in every job;
+- **MUSIC:** writes 20 `momentum_anisotropy` / `eccentricities_evo` / `meanpT_estimators`
+  files and `FO_nBvseta.dat`.
+
+**The fix (js-contrib `concurrent_jobs`):** `run_prod.py` and `run_prod_jet.py` no longer
+change into the build tree. Each job gets its own directory, `OUTDIR/work/<tag>`, the Python
+counterpart of X-SCAPE's `examples/run_in_workdir.sh`:
+- a private `music_input`;
+- `XSCAPE_DATA_DIR`, `HYDROPROGRAMPATH` and `LBT_TABLES_PATH` pointing at the build tree;
+- symlinks for the directories still opened by relative path;
+- `../` XML paths made absolute.
+
+It is removed after a successful job. `--in-build` restores the old behaviour.
+
+**Safety net (MUSIC4GPU `concurrent_jobs`):** `StringFind4` now stops with an error
+("… ended without an EndOfData line …") when the file ends before `EndOfData`, instead of
+looping forever. The old code, given an empty file, hung until killed; the new code exits
+at once.
+
+**Validation:**
+- `build_gpu/music_input` reset to the CMake template state (EOS 91, bulk 0), which is the
+  state that made 2 of 3 jobs hang before.
+- Then 4 jobs (seeds 1–4) started at the same moment, with no stagger.
+- **All 4 completed.** Each output is **byte-identical** to a serial run of the same seed
+  in the build tree.
+- **Nothing was written to `build_gpu`,** and its `music_input` was left untouched.
+
+The 20 s stagger is no longer needed.
 
 ## Reproducing
 
