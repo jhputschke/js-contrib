@@ -40,6 +40,7 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
 | `PLAN_particlize_h5.md` | design, decisions and validation of the hadron-level path |
+| `PLAN_iSS_optim.md` | for later: faster iSS (bit-identical) and correlated jet/background sampling |
 
 The grid YAMLs (`../prod_AuAu_0_10/grid_fno.yaml` by default) and all grid and environment
 checks are shared with the single-leg production. Pair files and single-leg files made with
