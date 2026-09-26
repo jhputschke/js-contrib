@@ -157,9 +157,11 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
   - Peak memory 16 GB.
   - Several jobs at once (after the single-job speed-ups): one job does ~118 events/h;
     `-j 2` 133, `-j 3` 155, `-j 4` 159. The GPU is the shared bottleneck (~70 % busy at
-    `-j 3`/`-j 4`). With CUDA MPS (`--mps`) the jobs share it better:
-    **`./run_jobs.sh -j 4 --mps …` gives 179 events/h (recommended, ~66 GB)**, and
-    `-j 3 --mps` 163. Jobs no longer need to be staggered: each
+    `-j 3`/`-j 4`). With CUDA MPS (`--mps`) the jobs share it better: `-j 4 --mps` gives 179
+    events/h and `-j 3 --mps` 163. **On the GB10,
+    `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps …` gives ~190 events/h** (recommended,
+    ~66 GB). These are machine-specific: see "Recommended settings" in
+    [BENCHMARK_GB10.md](BENCHMARK_GB10.md) for how to find them elsewhere. Jobs no longer need to be staggered: each
     runs in its own working directory (see
     [`../prod_AuAu_0_10/README.md`](../prod_AuAu_0_10/README.md)). Details, profile and
     the former startup hang: [BENCHMARK_GB10.md](BENCHMARK_GB10.md).

@@ -12,11 +12,80 @@ pay off, and is there an OpenMP or GPU bottleneck?
   **GPU is now the shared bottleneck**: ~70 % busy with 3–4 jobs.
 - **With CUDA MPS** (`run_jobs.sh --mps`) the jobs' kernels share the GPU instead of taking
   turns, and `-j 4` reaches **179 events/h** (+12.5 %), with byte-identical output.
+- **With `OMP_NUM_THREADS=5` per job** on top, `-j 4 --mps` reaches **~190 events/h**, the
+  best measured. See [Recommended settings](#recommended-settings-on-the-gb10).
 - **Absolute throughput at `-j 3`/`-j 4`** went from 140 / 154 to 155 / 159 events/h. The
   speed-ups mostly shorten each job rather than raise the machine's campaign ceiling.
 - **The startup hang** (jobs started at the same moment could hang forever at
   `Initialize MUSIC`) is fixed by per-job working directories (see
   [the startup race](#bug-concurrent-jobs-can-hang-at-start)).
+
+## Recommended settings on the GB10
+
+These are measured on this machine (GB10: 20 cores, 10 × X925 + 10 × A725; 121 GB unified
+memory; one integrated GPU), for `prod_AuAu_0_10_jet`. **They are deliberately not built into
+the scripts:** with another CPU/GPU balance, core count or memory, another `-j` and thread
+count can be better. Re-measure there, as described
+[below](#finding-the-settings-on-another-machine).
+
+**One job alone:** the defaults. Leave `OMP_NUM_THREADS` unset, so all 20 threads are used;
+fewer threads slowed a single job by 24 % in the first measurement.
+
+**A campaign of many jobs:**
+
+```bash
+export OMP_NUM_THREADS=5            # ~ cores / jobs at once
+./run_jobs.sh -j 4 --mps NJOBS 25 FIRST_SEED
+```
+
+| Setting | Value | Effect (4 jobs, MPS; events/h) |
+|---|---|---|
+| jobs at once | `-j 4` | best measured; `-j 3` 163, `-j 2` 136 (with MPS, default threads) |
+| CUDA MPS | `--mps` | 159 → 173–179 |
+| OpenMP threads per job | `OMP_NUM_THREADS=5` | 173–179 → **193**, GPU 71–75 % → 81 % busy |
+| OpenBLAS threads per job | not needed | `OPENBLAS_NUM_THREADS=4` alone gave 186; combined with `OMP_NUM_THREADS=5` no better (189, 192) |
+| `OMP_WAIT_POLICY` | not needed | `passive`: 175, no effect; no cost for one job either (116 vs 118) |
+| `KMP_BLOCKTIME` | not applicable | Intel/LLVM `libomp` only; these builds use GNU `libgomp` |
+
+With these settings a campaign runs at **~190 events/h**: 1.6× one job alone (118), and
+2.8× the 68 events/h a single job did before the speed-ups. Memory stays at ~66–69 GB of the
+121 GB.
+
+**Measurement details:**
+- **Runs:** each is 4 jobs × 3 events, seeds 1–4, started at the same moment in their own
+  working directories, under a fresh MPS daemon. The rows were measured in sequence on an
+  otherwise idle machine.
+
+  | Environment (4 jobs, MPS) | events/h | GPU busy | GPU clock while busy | cores busy |
+  |---|---|---|---|---|
+  | defaults (3 runs) | 173, 179, 179 | 71–75 % | ~2,400 MHz | ~12 |
+  | `OMP_WAIT_POLICY=passive` | 175 | 71 % | 2,396 MHz | 11.8 |
+  | `OMP_NUM_THREADS=5` | **193** | **81 %** | 2,397 MHz | 8.0 |
+  | `OPENBLAS_NUM_THREADS=4` | 186 | 77 % | 2,395 MHz | 8.9 |
+  | `OMP_NUM_THREADS=5` + `OPENBLAS_NUM_THREADS=4` + `passive` (2 runs) | 192, 189 | 78–79 % | ~2,400 MHz | 7.8 |
+
+- **Noise:** the identical default runs spread by about ±2 %, so only the thread limit is
+  clearly real (+8–9 %).
+- **Why fewer threads help:** by default each job starts 20 OpenMP (and 20 OpenBLAS)
+  threads, so with 4 jobs up to 80 of each compete for 20 cores whenever parallel sections
+  of different jobs overlap. With 5 per job, fewer cores are busy but the GPU is fed faster.
+- **No power throttling:** the GPU clock stays at ~2.4 GHz under every CPU load. The CPU and
+  GPU share a power budget on the GB10, but CPU load does not slow the GPU here, so
+  blocking instead of spinning CUDA syncs would not help.
+- **Not measured:** `-j 5` (~85 GB, the GPU still has ~20 % headroom at `-j 4`), `-j 3` with
+  6–7 threads per job, and other thread counts at `-j 4`.
+
+### Finding the settings on another machine
+
+1. **One job alone** gives the baseline events/h, and shows whether the GPU is mostly idle
+   (`nvidia-smi dmon -s u`). If it is, parallel jobs will help.
+2. **Concurrent jobs:** try `-j 2 … 4` (memory permitting, ~17 GB per job here), with and
+   without `--mps`. MPS pays off once the GPU is the shared bottleneck.
+3. **Thread limit:** with P jobs at once, try `OMP_NUM_THREADS ≈ cores / P`, and one step
+   either side.
+4. **Compare runs properly:** use the same seeds and at least 3 events per job, and repeat
+   the best and the default settings once each; identical runs differed by ~±2 % here.
+   The per-event times (`done in … s`) of all jobs give events/h.
 
 ## Setup
 
@@ -80,7 +149,9 @@ daemon.
 
 - **Output:** byte-identical with and without MPS (seeds 1–3, 3 events each, all 30
   datasets).
-- **Recommendation: `run_jobs.sh -j 4 --mps`** (179 events/h, ~66 GB).
+- **Recommendation: `run_jobs.sh -j 4 --mps`** (179 events/h, ~66 GB), and with
+  `OMP_NUM_THREADS=5` ~190 events/h (see
+  [Recommended settings](#recommended-settings-on-the-gb10)).
 - **What `--mps` does:**
   - starts a daemon for the campaign (`nvidia-cuda-mps-control -d`) with its sockets in
     `$MPS_DIR`, default `${XDG_RUNTIME_DIR:-/tmp}/xscape-mps.<pid>`;
