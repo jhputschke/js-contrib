@@ -37,6 +37,7 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `run_prod_jet.py` | one job: one seed, N events, one `.h5` file |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
+| `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
 | `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
 | `PLAN_particlize_h5.md` | design, decisions and validation of the hadron-level path |
@@ -62,6 +63,7 @@ python run_prod_jet.py --events 1 --seed 1 --dry-run         # check the XML/gri
 # + the input for hadronization: both freeze-out surfaces and the final partons
 python run_prod_jet.py --events 10 --seed 1 --write-particlize both
 python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --n-frag 50
+python run_hadronize.py out -j 4 --oversample 500 --n-frag 50    # every particlize file in out/
 
 ./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
 ./run_jobs.sh -j 2 20 25 1 out_pgun --hard pgun
@@ -124,6 +126,9 @@ next to the particlize file. For many seeds at once, see the next section.
   `--hard`, `--grid`, ...). Don't pass `--events`, `--seed` or `--outdir`: the script sets them.
 - Each job's output goes to `OUTDIR/<tag>.log`. A failed job is reported and the others
   continue.
+- **End marker.** When a campaign ends (not on Ctrl-C), `OUTDIR/run_jobs.finished` is
+  written: this is how `run_hadronize.py --follow` knows no more files are coming. A new
+  campaign in the same `OUTDIR` removes it first.
 - **Restarting.** A seed whose `.json` says all events were written is skipped (with
   `--write-particlize`, its particlize file must be complete too). So an interrupted campaign
   resumes with the same command, and re-running it only redoes failed or missing seeds.
@@ -169,26 +174,58 @@ Don't combine it with `--surface`: `--write-particlize` builds the surfaces it s
 surface built but not stored only costs time (the job warns if you do). `--validate-inline`
 is for validation jobs only: it changes the jet sample of a seed (see *Seeds*).
 
-**Hadronizing the campaign.** `hadronize.py` needs only the particlize files and an X-SCAPE
-build with iSS: no GPU, no MUSIC. It runs on one core, so run one process per file in
-parallel. `xargs -P` does that, with one log per file:
+**Hadronizing the campaign: `run_hadronize.py`.** `hadronize.py` needs only the particlize
+files and an X-SCAPE build with iSS: no GPU, no MUSIC. It runs on one core, one production
+file at a time; `run_hadronize.py` runs it over a whole campaign, `-j P` at a time:
 
 ```bash
-ls out_had/AuAu_0_10_jet_seed*_particlize.h5 | xargs -P 8 -I{} sh -c \
-  'python hadronize.py "$1" --oversample 500 --n-frag 50 --skip-complete >> "${1%_particlize.h5}_hadronize.log" 2>&1' _ {}
+# after production (or on another machine): every complete *_particlize.h5 in out_had/
+python run_hadronize.py out_had -j 8 --oversample 500 --n-frag 50
+
+# alongside production: start it next to run_jobs.sh; it hadronizes each file as its job
+# completes and stops when run_jobs.sh writes out_had/run_jobs.finished
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both &
+python run_hadronize.py out_had -j 3 --follow --oversample 500 --n-frag 50
+
+# a --reuse campaign: give each background N x the jet leg's oversamples (the optimal split)
+python run_hadronize.py out_had_reuse3 -j 8 --oversample 200 --oversample-bg auto --n-frag 50
+
+python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 ```
 
-- **Restarting.** With `--skip-complete`, outputs that exist and were closed as complete are
-  skipped, and missing or incomplete ones (a pass killed mid-file) are redone. So re-running
-  the same command finishes an interrupted pass, and a finished campaign exits at once.
-  Without it, `hadronize.py` refuses existing outputs unless `--force` is given. The logs
-  are appended to (`>>`), so a rerun doesn't overwrite a finished file's log.
-- `--oversample` is the number of iSS samples per surface, `--n-frag` the number of Colorless
-  fragmentations per event. Use `--n-frag` equal to `--oversample` if every oversample should
-  get its own fragmentation (`JetEvents.jet_event`). `--tags` restricts the pass, e.g.
-  `--tags jet_frag` to redo only the fragments with other settings.
-- It can run on other machines than the hydro production, and it shouldn't compete with
-  `-j 4` GPU jobs for the same cores.
+- **Inputs** are directories, particlize files or globs. Every option it doesn't know goes to
+  each `hadronize.py` unchanged. These are checked once before anything starts.
+- **Only complete inputs.** A particlize file being written by a running job is not touched.
+  Without `--follow` it is reported as incomplete; with `--follow` it is picked up once its
+  job has finished.
+- **Restarting.** `--skip-complete` is passed unless you give `--force`. Files whose outputs
+  are all complete are skipped without starting a process; missing or incomplete outputs are
+  redone. Re-running the same command finishes an interrupted pass, and on a finished
+  campaign it returns at once.
+- **Ctrl-C** stops the running `hadronize.py` processes. They close their outputs as
+  incomplete once their current iSS pass is done (up to ~90 s; a second Ctrl-C kills them),
+  and the next run redoes those files.
+- **`--follow`** stops when every input directory has `run_jobs.finished` and nothing is
+  left, or after `--idle-exit` minutes (default 30) without new work. `--poll` (default
+  30 s) sets how often it looks for new files.
+- **Logs and exit code.** Each file's log is appended to `<stem>_hadronize.log` next to its
+  outputs. A summary at the end lists hadronized, already complete, failed and incomplete
+  files; the exit code is 1 if any `hadronize.py` failed.
+- **Memory.** Each process needs ~1.4 GB plus ~2.4 MB per iSS oversample of its largest
+  surface. A warning is printed if `-j` processes would not fit into the available memory.
+- **Cores.** Next to four GPU jobs on the GB10, `-j 3` to `-j 4` keeps up; alone, up to one
+  process per free core.
+
+`hadronize.py` options worth knowing (all pass through `run_hadronize.py`):
+
+| option | effect |
+|---|---|
+| `--oversample N` | iSS samples per jet-leg surface (default: `hadronize.xml`'s 100); also per background unless: |
+| `--oversample-bg M` | iSS samples per background surface |
+| `--oversample-bg auto` | per background: N × the number of events using it (`events/bg_unit`), capped at `--oversample-bg-max` (default 2000, ~6 GB) with a warning. Under `--reuse N` this minimizes the error of jet − background for the CPU spent: a reused background's noise averages down over N times fewer backgrounds. The count per background is in `units/n_samples` of the `bulk_bg` file |
+| `--n-frag K` | Colorless fragmentations per event. With `K` equal to `N` every oversample gets its own fragmentation (`JetEvents.jet_event`) |
+| `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag`, e.g. `--tags jet_frag` to redo only the fragments with other settings |
+| `--seed` | base seed; every unit's seed derives from it and is stored in `units/seed` |
 
 ### C. Analysing a campaign: `HadronFileReader`
 

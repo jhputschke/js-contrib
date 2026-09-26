@@ -7,6 +7,7 @@
  *                                       oversamples, with per-sample counts
  *   soft_set_next_random_seed(task, s)  one-shot iSS seed (exact re-sampling)
  *   soft_last_random_seed(task)         the seed the last event used
+ *   soft_set_number_of_samples(task, n) oversamples per event from the next event on
  *   hadronization_hadrons_numpy(task)   a HadronizationManager's / Hadronization's
  *                                       output hadrons (jet hadronization in a job)
  *   hadronize_partons(module, partons, seed=None)
@@ -133,6 +134,18 @@ void bind_hadronization(py::module_ &m) {
       "Use `seed` for the next event's sampling (one-shot) instead of a draw from the "
       "module's generator.",
       py::arg("task"), py::arg("seed"));
+
+  m.def(
+      "soft_set_number_of_samples",
+      [](std::shared_ptr<JetScapeTask> task, int n) {
+        if (!as_soft(task)->SetNumberOfSamples(n))
+          throw std::invalid_argument(
+              "soft_set_number_of_samples: this module has no such setting (or n < 1, "
+              "or it is not initialised yet)");
+      },
+      "Samples (oversamples) per event from the next event on (iSS: "
+      "number_of_repeated_sampling). Call after Init().",
+      py::arg("task"), py::arg("n"));
 
   m.def(
       "soft_last_random_seed",

@@ -278,7 +278,12 @@ Branches `surface_to_hadrons` in X-SCAPE (from `contrib`) and js-contrib (from `
   (global event numbering, per-event accumulation with equal event weights, per-event
   backgrounds under reuse with correlated errors, uuid check). A merge tool to single files
   per tag is noted as an option, not written.
-- **Tests.** `tests/test_particlize_h5.py` (15 tests).
+- **Campaign hadronization.** `run_hadronize.py` (hadronize.py over a campaign, `-j`,
+  `--follow` next to `run_jobs.sh`, which now writes `run_jobs.finished`), and
+  `hadronize.py --oversample-bg {M,auto}` (see `PLAN_iSS_optim.md`, *Related items*).
+  `hadronize.py` now closes its outputs as incomplete on an error, Ctrl-C or SIGTERM; before,
+  its cleanup marked them complete unconditionally.
+- **Tests.** `tests/test_particlize_h5.py` (17 tests).
 
 ### Measured (GB10, seed 1, one 0–10% event)
 

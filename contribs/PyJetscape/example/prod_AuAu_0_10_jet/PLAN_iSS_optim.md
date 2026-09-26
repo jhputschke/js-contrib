@@ -196,16 +196,18 @@ it for free.
 **Effort.** It redesigns iSS's sampling loop, a clearly bigger job than Part A. Do Part A
 first: it is needed anyway (per-cell yields) and speeds up every validation run of Part B.
 
-## Related open items (from the same discussion, not part of this plan)
+## Related items (from the same discussion): done 2026-09-26
 
-- **`--oversample-bg`** in `hadronize.py`: `--oversample` stays the jet leg's count and the
-  default. `--oversample-bg M` overrides only `bulk_bg`; `--oversample-bg auto` gives each
-  background N × `--oversample`, N being the number of events using it (from
-  `events/bg_unit`), which is the optimal split under `--reuse N`. It needs a cap (e.g. 2,000,
-  ~6 GB) with a warning. Opt-in, so existing commands don't change.
-- **`run_hadronize.py`**, the `run_jobs.sh` counterpart for hadronization:
-  - `-j P`, `--skip-complete` by default, logs appended per file, a summary and exit code, and
-    Ctrl-C handling;
-  - only particlize files marked `complete`;
-  - a memory check (P × (1.4 GB + 2.4 MB × oversamples));
-  - `--follow`, to hadronize files while `run_jobs.sh` is still producing them.
+- **`--oversample-bg`** in `hadronize.py`, implemented as proposed. `--oversample` stays the
+  jet leg's count and the default. `--oversample-bg M` overrides only `bulk_bg`;
+  `--oversample-bg auto` gives each background N × `--oversample` (N = events using it),
+  capped at `--oversample-bg-max` (default 2000). iSS takes the count per surface through the
+  new `SoftParticlization::SetNumberOfSamples` (X-SCAPE), since its sampler reads it per event.
+- **`run_hadronize.py`**, implemented:
+  - `-j P`, `--skip-complete` by default, appended logs, a summary and exit code;
+  - only complete particlize files, and a memory warning;
+  - Ctrl-C closes the children's outputs as incomplete;
+  - `--follow` stops at `run_jobs.sh`'s new `run_jobs.finished` marker.
+
+  Tested on seeds 1 and 3, with a live `run_jobs.sh` campaign (`--follow`), a rerun, an
+  incomplete input and Ctrl-C.

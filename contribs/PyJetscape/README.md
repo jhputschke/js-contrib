@@ -1064,6 +1064,7 @@ X-SCAPE branch `surface_to_hadrons` (seed hooks in `SoftParticlization` and
 | `Parton.color()`, `anti_color()`, `restmass()` | |
 | `soft_hadrons_numpy(task)` | a SoftParticlization module's (iSS) hadrons, all oversamples, with `sample_counts` |
 | `soft_set_next_random_seed(task, s)`, `soft_last_random_seed(task)` | one-shot iSS seed; the seed the last event used |
+| `soft_set_number_of_samples(task, n)` | iSS oversamples from the next event on (e.g. more for a reused background) |
 | `hadronization_hadrons_numpy(task)` | a HadronizationManager's output hadrons |
 | `hadronize_partons(module, partons, seed=None)` | run a jet hadronization module on stored partons; `seed` reseeds ColorlessHadronization first |
 | `jet_hadronization_last_random_seed(task)` | ColorlessHadronization's last seed (with `<reseed_per_event>1`) |

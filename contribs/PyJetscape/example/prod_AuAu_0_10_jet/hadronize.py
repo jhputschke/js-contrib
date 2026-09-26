@@ -9,6 +9,7 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
     conda activate js_fno
     python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5           # all three tags
     python hadronize.py P.h5 --tags bulk_jet,bulk_bg --oversample 200
+    python hadronize.py P.h5 --oversample 200 --oversample-bg auto   # reused bg: N x 200
     python hadronize.py P.h5 --tags jet_frag --n-frag 50
     python hadronize.py P.h5 --use-stored-seeds         # replay a --validate-inline job
     python hadronize.py P.h5 --diagnose-colored         # colour-flow diagnostic only
@@ -43,6 +44,7 @@ import importlib.util
 import json
 import os
 import shutil
+import signal
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -68,6 +70,13 @@ def parse_args(argv=None):
     p.add_argument("--oversample", type=int, default=None,
                    help="iSS samples per surface (default: hadronize.xml's "
                         "number_of_repeated_sampling)")
+    p.add_argument("--oversample-bg", default=None, dest="oversample_bg",
+                   help="iSS samples per BACKGROUND surface: a number, or 'auto' = "
+                        "--oversample x the number of events using that background (the "
+                        "optimal split under --reuse N; capped at --oversample-bg-max). "
+                        "Default: --oversample")
+    p.add_argument("--oversample-bg-max", type=int, default=2000, dest="oversample_bg_max",
+                   help="cap for --oversample-bg auto (default 2000, ~6 GB for iSS)")
     p.add_argument("--n-frag", type=int, default=10, dest="n_frag",
                    help="Colorless fragmentations per event (default 10)")
     p.add_argument("--seed", type=int, default=1, help="base seed (default 1)")
@@ -110,6 +119,31 @@ def _set_text(parent, tag, value):
     if n is None:
         n = ET.SubElement(parent, tag)
     n.text = str(value)
+
+
+def background_samples(pf, oversample, spec, cap):
+    """-> ({background unit: iSS samples}, [units that hit the cap]).
+
+    ``spec`` None: ``oversample``; a number: that; 'auto': ``oversample`` x the number of
+    events in the file that use the background (``events/bg_unit``), at most ``cap``.
+    """
+    n_bg, _ = pf.bg_units()
+    if spec is None:
+        return {u: oversample for u in range(n_bg)}, []
+    if str(spec).lower() != "auto":
+        n = int(spec)
+        if n < 1:
+            raise ValueError(f"--oversample-bg must be >= 1 or 'auto', got {spec!r}")
+        return {u: n for u in range(n_bg)}, []
+    uses = np.bincount(np.asarray(pf.events("bg_unit"), dtype=np.int64), minlength=n_bg)
+    out, capped = {}, []
+    for u in range(n_bg):
+        n = oversample * max(int(uses[u]), 1)
+        if n > cap:
+            capped.append(u)
+            n = cap
+        out[u] = n
+    return out, capped
 
 
 def write_job_xml(a, path, n_exec, oversample):
@@ -179,7 +213,14 @@ def colour_stats(partons):
     }
 
 
+def _terminate(signum, frame):
+    # SIGTERM would kill the process without running the finally blocks, leaving
+    # truncated HDF5 files; turn it into an exception so the writers close.
+    raise SystemExit(128 + signum)
+
+
 def main(argv=None):
+    signal.signal(signal.SIGTERM, _terminate)
     a = parse_args(argv)
     tags = [t.strip() for t in a.tags.split(",") if t.strip()]
     bad = set(tags) - set(TAGS)
@@ -218,6 +259,14 @@ def main(argv=None):
     oversample = a.oversample or int(
         xml_root.find("SoftParticlization/iSS/number_of_repeated_sampling").text)
     n_frag = 1 if a.use_stored_seeds else a.n_frag
+    try:
+        bg_samples, bg_capped = background_samples(pf, oversample, a.oversample_bg,
+                                                   a.oversample_bg_max)
+    except ValueError as err:
+        sys.exit(f"hadronize.py: {err}")
+    if bg_capped and "bulk_bg" in [t.strip() for t in a.tags.split(",")]:
+        print(f"hadronize.py: WARNING -- --oversample-bg auto capped {len(bg_capped)} "
+              f"background(s) at --oversample-bg-max {a.oversample_bg_max}", file=sys.stderr)
 
     outs = {t: os.path.join(out_dir, f"{stem}_hadrons_{t}.h5") for t in tags}
     if a.skip_complete:
@@ -257,7 +306,10 @@ def main(argv=None):
     cwd = os.getcwd()
     os.chdir(workdir)
     print(f"hadronize.py: {a.particlize}\n  {len(events)} event(s), tags {', '.join(tags) or '-'}"
-          f", iSS oversample {oversample}, {n_frag} fragmentation(s)/event, base seed "
+          f", iSS oversample {oversample}"
+          + (f" (backgrounds: {sorted(set(bg_samples.values()))})"
+             if "bulk_bg" in tags and set(bg_samples.values()) != {oversample} else "")
+          + f", {n_frag} fragmentation(s)/event, base seed "
           f"{a.seed}{' (stored seeds)' if a.use_stored_seeds else ''}\n  workdir {workdir}")
 
     jetscape = core.JetScapePerEvent()
@@ -287,16 +339,27 @@ def main(argv=None):
               "music_input": pf.music_input()}
     writers = {}
     for t in tags:
-        n = n_frag if t == "jet_frag" else oversample
+        extra = {}
+        if t == "jet_frag":
+            n = n_frag
+        elif t == "bulk_bg" and a.oversample_bg is not None:
+            auto = str(a.oversample_bg).lower() == "auto"
+            n = 0 if auto else int(a.oversample_bg)     # 0: per unit, see units/n_samples
+            extra = {"oversample_bg": str(a.oversample_bg),
+                     "oversample_bg_max": int(a.oversample_bg_max),
+                     "oversample_jet": int(oversample)}
+        else:
+            n = oversample
         writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n,
-                                    attrs=dict(common, generator=(
+                                    attrs=dict(common, **extra, generator=(
                                         "ColorlessHadronization (X-SCAPE)" if t == "jet_frag"
                                         else "iSS (X-SCAPE iSpectraSamplerWrapper)")))
 
-    def run_iss(cells, seed):
+    def run_iss(cells, seed, n_samples):
         if len(cells) == 0:
             return None, seed
         replay.load(cells)
+        core.soft_set_number_of_samples(iss, int(n_samples))
         core.soft_set_next_random_seed(iss, int(seed))
         jetscape.ExecPerEvent()
         h = core.soft_hadrons_numpy(iss)
@@ -308,9 +371,13 @@ def main(argv=None):
             raise RuntimeError(f"iSS did not sample this surface (seed {used} != {seed}, "
                                f"replayed {replay.n_cells} of {len(cells)} cells); check "
                                "<setReuseHydro> false in the hadronization XML")
+        if len(h["sample_counts"]) != int(n_samples):
+            raise RuntimeError(f"iSS made {len(h['sample_counts'])} samples, "
+                               f"{n_samples} were asked for")
         return h, used
 
     t0 = time.time()
+    finished = False
     bg_done = set()
     bg_first = dict(bg_units)
     try:
@@ -320,7 +387,7 @@ def main(argv=None):
                 seed = (int(pf.events("inline_iss_seed_jet")[e]) if a.use_stored_seeds
                         else unit_seed(a.seed, "bulk_jet", e))
                 cells = pf.surface_unit("jet", e)
-                h, used = run_iss(cells, seed)
+                h, used = run_iss(cells, seed, oversample)
                 writers["bulk_jet"].append_unit(h if h is not None else [], unit=e, event=e,
                                                 seed=used, n_cells=len(cells))
                 msg.append(f"bulk_jet {0 if h is None else len(h['pid'])} hadrons")
@@ -328,7 +395,7 @@ def main(argv=None):
                 u = int(pf.events("bg_unit")[e])
                 if u not in bg_done:
                     cells = pf.surface_unit("bg", u)
-                    h, used = run_iss(cells, unit_seed(a.seed, "bulk_bg", u))
+                    h, used = run_iss(cells, unit_seed(a.seed, "bulk_bg", u), bg_samples[u])
                     writers["bulk_bg"].append_unit(h if h is not None else [], unit=u,
                                                    event=bg_first[u], seed=used,
                                                    n_cells=len(cells))
@@ -353,9 +420,13 @@ def main(argv=None):
                            "/sample")
             print("  " + ", ".join(msg), flush=True)
         jetscape.Finish()
+        finished = True
     finally:
+        # complete only if every event went through: an exception, Ctrl-C or SIGTERM
+        # (run_hadronize.py stopping its children) leaves readable, incomplete files that
+        # --skip-complete redoes
         for w in writers.values():
-            w.close()
+            w.close(complete=finished)
         os.chdir(cwd)
     if not a.keep_workdir:
         shutil.rmtree(workdir, ignore_errors=True)

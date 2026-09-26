@@ -466,3 +466,62 @@ def test_reader_weighs_every_event_the_same(tmp_path):
         assert n == pytest.approx((3 + 3 + 5 + 5) / 4)     # not the sample-weighted 4.33
         assert err == pytest.approx(np.sqrt(2 * 6 / 2 ** 2 + 2 * 20 / 4 ** 2) / 4)
 
+
+
+# ───────────────────────────────────────────── hadronize.py / run_hadronize.py helpers
+def _load_example(name):
+    import importlib.util
+    path = Path(__file__).resolve().parents[1] / "example" / "prod_AuAu_0_10_jet" / name
+    spec = importlib.util.spec_from_file_location(name[:-3], path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _particlize_with_backgrounds(path, bg_ids, complete=True):
+    jet, bg = _Leg("MUSIC_2"), _Leg("MUSIC_1")
+    w = ParticlizeH5Writer(path, legs=("jet", "bg"), music_input="")
+    w.attach(_JS(bg, jet), manager=_Mgr())
+    for k, b in enumerate(bg_ids):
+        jet.cells, bg.cells = _cells(1, k), _cells(1, 10 + k)
+        w.Exec(k, bg_id=b)
+    w.Finish(complete=complete)
+
+
+def test_oversample_bg_per_background(tmp_path):
+    hz = _load_example("hadronize.py")
+    p = tmp_path / "x_particlize.h5"
+    _particlize_with_backgrounds(p, (0, 0, 0, 3))        # background 0 used 3x, 1 once
+    with ParticlizeFile(p) as pf:
+        assert hz.background_samples(pf, 100, None, 2000) == ({0: 100, 1: 100}, [])
+        assert hz.background_samples(pf, 100, "7", 2000) == ({0: 7, 1: 7}, [])
+        assert hz.background_samples(pf, 100, "auto", 2000) == ({0: 300, 1: 100}, [])
+        assert hz.background_samples(pf, 100, "auto", 250) == ({0: 250, 1: 100}, [0])
+        with pytest.raises(ValueError):
+            hz.background_samples(pf, 100, "0", 2000)
+
+
+def test_run_hadronize_finds_complete_inputs_and_finished_outputs(tmp_path):
+    from jetscape.hadrons_h5 import HadronH5Writer
+
+    rh = _load_example("run_hadronize.py")
+    done, todo, busy = (str(tmp_path / f"{n}_particlize.h5") for n in ("done", "todo", "busy"))
+    for p in (done, todo):
+        _particlize_with_backgrounds(p, (0, 1))
+    _particlize_with_backgrounds(busy, (0,), complete=False)   # its job is still running
+    for tag in ("bulk_jet", "bulk_bg"):
+        with HadronH5Writer(str(tmp_path / f"done_hadrons_{tag}.h5"), tag=tag, n_samples=1):
+            pass
+    with HadronH5Writer(str(tmp_path / "todo_hadrons_bulk_jet.h5"), tag="bulk_jet",
+                        n_samples=1) as w:
+        w.close(complete=False)                                   # an interrupted pass
+    assert rh.scan([str(tmp_path)]) == sorted([busy, done, todo])
+    assert rh.scan([str(tmp_path / "d*")]) == [done]
+    assert [rh.is_complete(p) for p in (done, todo, busy)] == [True, True, False]
+    plan = rh.Plan(["--tags", "bulk_jet,bulk_bg", "--oversample", "100",
+                    "--oversample-bg", "auto"])
+    assert "--skip-complete" in plan.args
+    assert plan.all_done(done) and not plan.all_done(todo)
+    assert plan.memory_gb(done) == pytest.approx(rh.GB_BASE + rh.GB_PER_OVERSAMPLE * 100)
+    assert not rh.Plan(["--force"]).all_done(done)
+    assert rh.Plan(["--tags", "jet_frag"]).memory_gb(done) == rh.GB_FRAG_ONLY
