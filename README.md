@@ -51,6 +51,11 @@ and synced here.
 
 ## Installation
 
+All Python packages used by the contribs (examples, notebooks, Visualization, tests) are
+listed in [`requirements.txt`](requirements.txt): `pip install -r requirements.txt` in the
+environment `pyjetscape_core` is built with. Leaner per-contrib installs:
+`pip install -e contribs/PyJetscape` (no torch) and `pip install -e "contribs/FastHydro[solver]"`.
+
 ### Path A — via X-SCAPE CMake (recommended)
 
 ```bash
