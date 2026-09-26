@@ -351,7 +351,7 @@ event. ColoredHadronization failed in all three events:
 - **`events/` has no separate `ic_hash`:** `bg_key` (the pair writer's hash of the whole
   background leg) identifies the initial condition.
 
-### Surface finder (2026-09-26, MUSIC4GPU `surface_omp` `5058545`, pinned by X-SCAPE `f7877ced`)
+### Surface finder (2026-09-26, MUSIC4GPU `5058545`, merged into `XSCAPE` as PR #12 `6b238c4`, pinned by X-SCAPE `0126403e`)
 
 - **Why it was slow.** MUSIC's 3+1D surface search ran serially: upstream disabled the
   OpenMP loop over η slices (`5025f77`), presumably because with `surface_in_memory` every
