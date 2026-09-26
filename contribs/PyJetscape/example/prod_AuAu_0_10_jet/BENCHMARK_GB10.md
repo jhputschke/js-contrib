@@ -10,6 +10,8 @@ pay off, and is there an OpenMP or GPU bottleneck?
 - **After the speed-ups** (re-measured, below): one job alone does 118 events/h (was 68).
   Parallel jobs add much less, about 1.35× with `-j 3` and 1.4× with `-j 4`, because the
   **GPU is now the shared bottleneck**: ~70 % busy with 3–4 jobs.
+- **With CUDA MPS** (`run_jobs.sh --mps`) the jobs' kernels share the GPU instead of taking
+  turns, and `-j 4` reaches **179 events/h** (+12.5 %), with byte-identical output.
 - **Absolute throughput at `-j 3`/`-j 4`** went from 140 / 154 to 155 / 159 events/h. The
   speed-ups mostly shorten each job rather than raise the machine's campaign ceiling.
 - **The startup hang** (jobs started at the same moment could hang forever at
@@ -57,14 +59,39 @@ Solo per-event means: seed 1 30.6 s, seed 2 32.8 s, seed 3 30.6 s, seed 4 33.5 s
   - Kernels from different processes are time-sliced, not overlapped, so a job waits
     while another job's MUSIC step runs.
   - The ceiling at 100 % GPU would be ~225 events/h.
-- **Recommendation: `run_jobs.sh -j 3`** (155 events/h, 52 GB). `-j 4` adds only ~3 %
-  for 15 GB more; `-j 2` gives 133.
-- **Next levers for campaign throughput:**
-  - **CUDA MPS** (Multi-Process Service), which lets the kernels of concurrent jobs share
-    the GPU instead of time-slicing it. One job alone keeps the SMs only ~43 % busy, so
-    there is room. It is a configuration change, cheap to try.
-  - **Faster GPU kernels** (profile with `nsys` first).
-  - Further CPU work helps single-job latency but hardly the campaign rate.
+- **Recommendation without MPS: `run_jobs.sh -j 3`** (155 events/h, 52 GB). `-j 4` adds
+  only ~3 % for 15 GB more; `-j 2` gives 133. With MPS, see below.
+- **Further CPU work** helps single-job latency but hardly the campaign rate. Faster GPU
+  kernels would help (profile with `nsys` first).
+
+### With CUDA MPS (`run_jobs.sh --mps`)
+
+**What MPS does:** CUDA MPS (Multi-Process Service) lets the kernels of concurrent jobs
+share the GPU instead of being time-sliced. One job alone keeps the SMs only ~44 % busy,
+so there is room. Same setup as the table above; the jobs are clients of a user-level MPS
+daemon.
+
+| Jobs at once | events/h without MPS | events/h with MPS | gain | GPU busy (MPS) | memory used (max) |
+|---|---|---|---|---|---|
+| 1 | 118 | 117 | −0.1 % | 44 % | 22 GB |
+| 2 | 133 | 136 | +2.2 % | 57 % | 43 GB |
+| 3 | 155 | 163 | +5.1 % | 68 % | 51 GB |
+| 4 | 159 | **179** | **+12.5 %** | 75 % | 66 GB |
+
+- **Output:** byte-identical with and without MPS (seeds 1–3, 3 events each, all 30
+  datasets).
+- **Recommendation: `run_jobs.sh -j 4 --mps`** (179 events/h, ~66 GB).
+- **What `--mps` does:**
+  - starts a daemon for the campaign (`nvidia-cuda-mps-control -d`) with its sockets in
+    `$MPS_DIR`, default `${XDG_RUNTIME_DIR:-/tmp}/xscape-mps.<pid>`;
+  - exports `CUDA_MPS_PIPE_DIRECTORY` / `CUDA_MPS_LOG_DIRECTORY` to the jobs;
+  - stops the daemon at the end, also on Ctrl-C, and reports how many clients
+    connected.
+- **The pitfall it guards against:** MPS's UNIX socket paths are limited to ~107
+  characters. A longer pipe directory makes the daemon exit silently, so the script refuses
+  to start then.
+- **On the GB10,** the MPS server runs in `-force-tegra` mode (integrated GPU), which works
+  as expected.
 
 ### Before the speed-ups (first measurement)
 

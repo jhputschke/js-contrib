@@ -27,6 +27,7 @@ python run_prod.py --events 10 --seed 1         # -> out/AuAu_0_10_seed0001.h5
 python run_prod.py --events 1 --seed 1 --grid my_grid.yaml --dry-run   # check a grid
 ./run_jobs.sh 20 25 1                           # 20 jobs x 25 events, seeds 1..20, into ./out
 ./run_jobs.sh -j 2 20 25 1                      # same, two jobs at a time (~1.7x throughput)
+./run_jobs.sh -j 4 --mps 20 25 1                # four at a time, GPU shared via CUDA MPS
 ./run_jobs.sh 20 25 1 /data/AuAu_0_10           # same, into another directory
 ./run_jobs.sh 20 25 1 out_eta2p5 --grid grid_x10_eta2p5.yaml
 ```
