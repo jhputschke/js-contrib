@@ -80,9 +80,13 @@ def parse_args() -> argparse.Namespace:
 
 
 # ─────────────────────────────────────────────────────────── working directory
-#: read-only assets the vendored 3dMCGlauber / trento code still opens relative to the
-#: working directory; X-SCAPE's examples/run_in_workdir.sh links the same set
-WORKDIR_LINKS = ("tables", "eps09", "LHAPDF_Lib", "nucleusConfigs", "data_table")
+#: read-only assets still opened relative to the working directory: the vendored
+#: 3dMCGlauber / trento code, and Matter, whose read_tables() hard-codes
+#: "LBT-tables/{ratedata-HQ,distB.dat,distF.dat}" (LBT itself honours LBT_TABLES_PATH).
+#: Without LBT-tables, Matter's heavy-quark recoil sampling (collHQ22) runs on all-zero
+#: tables.  X-SCAPE's examples/run_in_workdir.sh links the same set minus LBT-tables.
+WORKDIR_LINKS = ("tables", "eps09", "LHAPDF_Lib", "nucleusConfigs", "data_table",
+                 "LBT-tables")
 
 
 def add_workdir_args(p: argparse.ArgumentParser) -> None:
