@@ -204,6 +204,31 @@ def test_hadron_file_keeps_samples_and_units_apart(tmp_path):
     assert sub.n_units == 1 and len(sub.pid) == 6 and list(sub.units["seed"]) == [13]
 
 
+def test_ragged_append_many_equals_one_append_per_unit(tmp_path):
+    from jetscape.fno_h5_writer import RaggedGroup
+
+    rng = np.random.default_rng(3)
+    counts = [5, 0, 70, 1, 0, 33]
+    rows = {"a": rng.random((sum(counts), 4), dtype=np.float32),
+            "b": rng.integers(0, 9, sum(counts)).astype(np.int32)}
+    cuts = np.concatenate([[0], np.cumsum(counts)])
+    with h5py.File(tmp_path / "r.h5", "w") as f:
+        fields = {"a": (np.float32, (4,)), "b": (np.int32, ())}
+        one = RaggedGroup(f.create_group("one"), "off", fields, chunk_rows=16)
+        many = RaggedGroup(f.create_group("many"), "off", fields, chunk_rows=16)
+        one.append({"b": np.array([7], np.int32), "a": np.ones((1, 4), np.float32)})
+        many.append({"b": np.array([7], np.int32), "a": np.ones((1, 4), np.float32)})
+        for k in range(len(counts)):
+            one.append({n: v[cuts[k]:cuts[k + 1]] for n, v in rows.items()})
+        assert many.append_many(rows, counts) == sum(counts)
+        assert many.append_many(None, []) == 0                 # nothing: no new unit
+        assert one.units_written == many.units_written == 1 + len(counts)
+        for n in ("a", "b", "off"):
+            assert np.array_equal(f["one"][n][()], f["many"][n][()])
+        with pytest.raises(ValueError, match="add up"):
+            many.append_many(rows, [1, 2])
+
+
 def test_hadron_file_rejects_unknown_tags(tmp_path):
     with pytest.raises(ValueError, match="tag"):
         HadronH5Writer(tmp_path / "h.h5", tag="soft", n_samples=1)

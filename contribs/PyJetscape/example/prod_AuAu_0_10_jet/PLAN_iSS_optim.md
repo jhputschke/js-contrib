@@ -1,4 +1,6 @@
-<!-- Plan, written 2026-09-26. Status: proposed, nothing implemented. To be picked up later. -->
+<!-- Plan, written 2026-09-26. Status: Part A (A1-A3) implemented 2026-09-26 on iSS branch
+     `yield_cache` (fork jhputschke/iSS, 01f7cf9; pinned on X-SCAPE branch `iss_speedup`);
+     A4 and Part B open. -->
 
 # Plan: faster iSS, and correlated jet/background sampling
 
@@ -106,6 +108,71 @@ A1 and A2 help both.
 `get_iSS.sh`, upstream PR. Watch for the `pretty_ostream` clash in `build_gpu` (see
 `-Wl,-Bsymbolic` on libiSS in X-SCAPE's top-level CMakeLists): rebuild and run one
 `hadronize.py` to be sure.
+
+### Part A: done (2026-09-26), results
+
+iSS branch `yield_cache` off `d242555` on the fork `jhputschke/iSS` (commit `01f7cf9`),
+`src/FSSW.{h,cpp}` only:
+- **A1:** `prepare_cell_visCoefficients()` fills the δf coefficients of all cells once per
+  surface (8 doubles + a size per cell, ~65 MB for 1 M cells, freed after sampling). The yield
+  loop and the per-hadron sampling both read them; `getCellVisCoefficients()` holds the one
+  copy of the logic the two loops used to repeat.
+- **A2:** the yield loop reuses `calculate_dN_analytic`'s result while (μ, T) stays exactly the
+  same as in the previous cell (per thread).
+- **A3:** `#pragma omp parallel for schedule(static)` over cells in the yield loop and the
+  precompute. The CDF and all sampling stay sequential.
+- Also bit-identical: the δf coefficients go to `sample_momemtum_from_a_fluid_cell` and
+  `get_deltaf_bulk` by reference (they were copied per call and per trial), and
+  `add_one_sampled_particle` no longer leaks one `new iSS_Hadron` per hadron.
+
+FSSW's layout changes, and `iSS.h` inlines FSSW accessors into libJetScape and
+pyjetscape_core, so **rebuild everything** (`cmake --build build_gpu`), not only libiSS:
+rebuilding only libiSS segfaults in `iSpectraSamplerWrapper::PassHadronListToJetscape`.
+
+Validation (GB10, seed 1, `--oversample 500`, both bulk tags):
+1. Bit-identical to `out/..._hadrons_bulk_{jet,bg}.h5` (the old iSS also reproduced them
+   first) with `OMP_NUM_THREADS` = 1, 5 and 20.
+2. `--validate-inline` job (seed 900, 2 events, 100 oversamples, in-job iSS with the new code)
+   against `hadronize.py --use-stored-seeds`: bit-identical (1,544,557 iSS hadrons, 94
+   Colorless).
+3. `pytest FastHydro/tests`: 316 passed, 8 skipped (none of them iSS tests).
+
+Timing per surface (`hadronize.py --tags bulk_jet`, one thread, whole process):
+
+| oversamples | before | after | peak memory before → after |
+|---|---|---|---|
+| 1 | 18.5 s | 5.0 s | 1.4 → 1.4 GB |
+| 100 | 20.6 s | 7.2 s | 1.4 → 1.4 GB |
+| 500 | 29.3 s | 16.0 s | 2.5 → 2.4 GB |
+| 1000 | 41.6 s | 27.2 s | 3.9 → 3.7 GB |
+
+With one oversample, 5 threads: 3.1 s, 20 threads: 2.9 s. Both legs, 500 oversamples:
+56.5 s → 29.1 s (1 thread), 26.6 s (5), 26.0 s (20). The per-oversample part (~22 ms)
+is unchanged and now dominates, as expected. `py-spy --native`, one oversample, one thread:
+the yield loop is still ~50% of the process (~2.5 s), all of it the loop body itself: it
+streams the ~200-byte `FO_surf_LRF` of every cell once per species (321 × 1 M), so it is
+memory-bound. With OpenMP that drops to ~0.5 s. A compact per-cell array (only dσ·u, T, μ's,
+Π and the coefficients) would cut it further single-threaded; not done.
+
+**Follow-ups outside iSS (2026-09-26), also bit-identical.** A profile at 500 oversamples
+showed ~30% in HDF5 writing and ~16% in `ParameterReader::getVal`:
+- `HadronH5Writer.append_unit` wrote one append per oversample into 131,072-row chunks, so
+  every partly filled chunk was decompressed, extended and recompressed ~18 times. It now
+  writes a unit's samples in one go (new `RaggedGroup.append_many`, js-contrib).
+- `iSpectraSamplerWrapper::PassHadronListToJetscape` called `iSS::get_hadron` per hadron,
+  which looks `MC_sampling` up by name each time; it now takes each sample's vector once
+  (X-SCAPE).
+
+Both legs, 500 oversamples: 29.1 s → 14.6 s with one thread (56.5 s before Part A), 11.6 s
+with 5. Same checks as above: bit-identical to the reference files (1 and 5 threads) and in
+the in-job vs offline check; PyJetscape and FastHydro tests pass (apart from the
+pre-existing `test_surface_finder` lattice-spacing failure). Profile of one surface now: the
+yield loop ~28% with one thread, sampling proper ~30%, Python imports ~16%, HDF5 ~4%.
+
+X-SCAPE branch `iss_speedup` has the wrapper fix and pins the fork in `get_iSS.sh`
+(`jhputschke/iSS -b yield_cache`, `01f7cf9`). Still open: the upstream PR to
+`chunshen1987/iSS` (upstream `XSCAPE` is now `cd5b7ce`, with a small overlap in
+`add_one_sampled_particle`), after which the pin goes back to upstream; and A4.
 
 ## Part B: correlated jet/background sampling (common random numbers)
 
