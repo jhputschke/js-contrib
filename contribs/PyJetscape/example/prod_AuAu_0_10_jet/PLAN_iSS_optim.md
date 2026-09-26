@@ -1,6 +1,7 @@
 <!-- Plan, written 2026-09-26. Status: Part A done 2026-09-26 -- A1-A3 on iSS branch
      `yield_cache` (fork jhputschke/iSS, 01f7cf9; pinned in X-SCAPE, #149), A4 in X-SCAPE
-     and PyJetscape (branches `iss_compact_hadrons`). Part B open. -->
+     and PyJetscape (#150, #17). Part B: first step done (--common-seeds: no gain, per-cell
+     sampling needed); the iSS redesign is open. -->
 
 # Plan: faster iSS, and correlated jet/background sampling
 
@@ -290,6 +291,21 @@ signal is anyway.
 jet leg's seed. On seed 1, compare the spread of per-oversample differences with that of
 independent seeds. Small gain (expected): per-cell sampling is justified. Large gain: we get
 it for free.
+
+*Done (2026-09-26): no gain, so per-cell sampling is needed.* `hadronize.py --common-seeds`
+gives each event's `bulk_jet` its background's seed (the direction that also works under
+`--reuse`); `paired_noise.py` compares the per-oversample differences.
+- Null test (seed 901, `--no-deposit`, bit-identical surfaces, 50 oversamples): with
+  `--common-seeds` jet and background hadrons are bit-identical, J − B = 0 in every sample
+  (independent seeds: variance 2681 in |η| < 1).
+- Seed 1, 500 oversamples: ρ(J_k, B_k) = 0.0–0.1 in every bin, variance ratio
+  (common / independent) 0.84–1.10 (0.90 for all charged |η| < 1), within the ±6% a
+  variance is known to from 500 samples, and some of it (ρ ≈ 0.07) a real but tiny effect.
+- Not one hadron of sample 0 is shared between the legs, not even the first: the jet leg has
+  ~12k more cells, so the first cell draw (inverse CDF over the whole cell list) already lands
+  on a different cell, and every draw after it is shifted. Alignment is lost before the first
+  species is done, as expected above. Only random numbers addressed by the physical cell
+  (per-cell sampling, design above) can keep the legs correlated.
 
 **Effort.** It redesigns iSS's sampling loop, a clearly bigger job than Part A. Do Part A
 first: it is needed anyway (per-cell yields) and speeds up every validation run of Part B.

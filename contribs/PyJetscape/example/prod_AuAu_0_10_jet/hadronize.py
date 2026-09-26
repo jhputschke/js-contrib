@@ -30,6 +30,9 @@ Seeds.  Every unit gets its own seed, derived from (--seed, tag, unit, sample), 
 recorded in ``units/seed``: any unit can be regenerated alone.  --use-stored-seeds takes
 the seeds a --validate-inline job recorded instead (bulk_jet: iSS, jet_frag: Pythia, one
 fragmentation per event), so the result must equal that job's <stem>_inline_*.h5 exactly.
+--common-seeds gives each event's bulk_jet the seed of its background (bulk_bg unit), so
+jet and background draw the same random numbers while their sampling stays aligned;
+identical surfaces then give identical hadrons (PLAN_iSS_optim.md, Part B).
 
 Precision.  p and x are stored as full float32 by default.  --keep-bits-p / --keep-bits-x
 round them to that many mantissa bits (max relative error 2**-(bits+1)); the setting is
@@ -99,6 +102,11 @@ def parse_args(argv=None):
     p.add_argument("--use-stored-seeds", action="store_true", dest="use_stored_seeds",
                    help="replay the seeds a --validate-inline job recorded (bulk_jet and "
                         "jet_frag; one fragmentation per event)")
+    p.add_argument("--common-seeds", action="store_true", dest="common_seeds",
+                   help="seed every event's bulk_jet with its background's bulk_bg seed, so "
+                        "the two legs draw the same random numbers as long as they stay "
+                        "aligned (PLAN_iSS_optim.md, Part B, first step). Not with "
+                        "--use-stored-seeds or --oversample-bg")
     p.add_argument("--diagnose-colored", action="store_true", dest="diagnose_colored",
                    help="only run the colour-flow diagnostic (ColoredHadronization on the "
                         "stored partons) and write <stem>_colored_diagnostic.json")
@@ -276,6 +284,10 @@ def main(argv=None):
         print("hadronize.py: note -- --keep-bits with --use-stored-seeds: the in-job "
               "(--validate-inline) hadrons are full precision, so compare after rounding "
               "them the same way, or validate without --keep-bits", file=sys.stderr)
+    if a.common_seeds and (a.use_stored_seeds or a.oversample_bg is not None):
+        sys.exit("hadronize.py: --common-seeds needs the jet seeds derived from the "
+                 "backgrounds and the same number of samples on both legs: drop "
+                 "--use-stored-seeds / --oversample-bg")
     if a.use_stored_seeds:
         for key in ("inline_iss_seed_jet", "inline_pythia_seed"):
             if not pf.has_events(key):
@@ -376,6 +388,7 @@ def main(argv=None):
               "source_uuid": str(pf.attrs.get("file_uuid", "")),
               "hadronize_xml": xml_text, "base_seed": a.seed,
               "stored_seeds": bool(a.use_stored_seeds),
+              "common_seeds": bool(a.common_seeds),
               "music_input": pf.music_input()}
     writers = {}
     for t in tags:
@@ -424,8 +437,12 @@ def main(argv=None):
         for n, e in enumerate(events):
             msg = [f"event {e}"]
             if "bulk_jet" in tags:
-                seed = (int(pf.events("inline_iss_seed_jet")[e]) if a.use_stored_seeds
-                        else unit_seed(a.seed, "bulk_jet", e))
+                if a.use_stored_seeds:
+                    seed = int(pf.events("inline_iss_seed_jet")[e])
+                elif a.common_seeds:
+                    seed = unit_seed(a.seed, "bulk_bg", int(pf.events("bg_unit")[e]))
+                else:
+                    seed = unit_seed(a.seed, "bulk_jet", e)
                 cells = pf.surface_unit("jet", e)
                 h, used = run_iss(cells, seed, oversample)
                 writers["bulk_jet"].append_unit(h if h is not None else [], unit=e, event=e,

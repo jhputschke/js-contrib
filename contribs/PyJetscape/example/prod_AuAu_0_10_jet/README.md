@@ -38,6 +38,7 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
 | `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
+| `paired_noise.py` | noise of jet − background per oversample: independent vs correlated legs (`--common-seeds`; `PLAN_iSS_optim.md`, Part B) |
 | `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
 | `PLAN_particlize_h5.md` | design, decisions and validation of the hadron-level path |
@@ -241,6 +242,7 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--n-frag K` | Colorless fragmentations per event. With `K` equal to `N` every oversample gets its own fragmentation (`JetEvents.jet_event`) |
 | `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag`, e.g. `--tags jet_frag` to redo only the fragments with other settings |
 | `--seed` | base seed; every unit's seed derives from it and is stored in `units/seed` |
+| `--common-seeds` | each event's `bulk_jet` gets its background's seed. Identical surfaces then give identical hadrons (the null test), but with today's iSS a jet changes the draws from the first hadron on: no noise reduction (`PLAN_iSS_optim.md`, Part B). Not with `--use-stored-seeds` or `--oversample-bg` |
 | `--keep-bits-p B`, `--keep-bits-x B` | round the hadrons' momenta `p` and positions `x` to `B` float32 mantissa bits (1–23; default: full precision). `12` and `8` store 58% of the bytes. Set once per campaign (below) |
 
 #### Hadron precision (`--keep-bits-p`, `--keep-bits-x`)
