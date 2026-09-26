@@ -62,17 +62,19 @@ Original development repository:
 | Dependency | Version | Notes |
 |------------|---------|-------|
 | X-SCAPE or JETSCAPE | ≥ 4.0 | Built and available; see [Path A](#path-a-via-x-scape-cmake) / [Path B](#path-b-standalone-build) |
-| CMake | ≥ 3.18 | FetchContent support needed for pybind11 auto-download |
+| CMake | ≥ 3.18 | `FindPython3` with the `Development.Module` component |
 | Python | ≥ 3.8 | 3.11 used in the `js_fno` conda environment |
-| PyTorch | ≥ 2.0 | Required for `PyFNOHydro`; `pyjetscape_core` itself is pure C++ |
-| pybind11 | ≥ 2.11 | Fetched automatically by CMake if not found on system |
+| pybind11 | ≥ 2.11 | Build time only: `pip install pybind11` or conda; CMake stops if it is not found |
 | numpy | ≥ 1.21 | |
-| uproot | ≥ 5 | Only needed for `bulk_root_writer.py` and `fast_root_bulk.py` |
-| h5py | ≥ 3 | Only needed for the HDF5 writers (`fast_h5_bulk.py`, `pair_h5.py`); sets `jetscape.HAS_H5PY` |
-| — | — | `jetscape.HAS_CORE` reports whether the compiled extension is importable. The HDF5 tooling (`FnoH5Writer`, `grid_attrs`, `repad_to`, `read_fast_h5_bulk`) needs only h5py+numpy and stays usable without an X-SCAPE build; `H5BulkWriter` is a framework module and raises a clear error without one. |
-| scipy | ≥ 1.9 | Not needed by the writers any more (`resample` is plain numpy); only the `prod_AuAu_0_10_jet/jet_wake.ipynb` notebook uses it |
+| h5py | ≥ 3 | HDF5 writers and readers (`fno_h5_writer.py`, `fast_h5_bulk.py`, `pair_h5.py`); sets `jetscape.HAS_H5PY` |
+| hdf5plugin | | Blosc filter of the default compression ([README_h5_optim.md](README_h5_optim.md)). Without it the writers fall back to lzf with a warning and Blosc files cannot be read; `import jetscape` registers the filter |
+| pyyaml | ≥ 6.0 | Grid YAML of the `prod_AuAu_0_10*` scripts (`run_prod.py`, `run_prod_jet.py`) |
+| matplotlib, scipy, pandas, ipywidgets, ipykernel, notebook | | The example notebooks (`check_output.ipynb`, `jet_wake.ipynb`); they need no X-SCAPE build |
+| — | — | All of the above are installed by `pip install -e contribs/PyJetscape`. `jetscape.HAS_CORE` reports whether the compiled extension is importable. The HDF5 tooling (`FnoH5Writer`, `grid_attrs`, `repad_to`, `read_fast_h5_bulk`) stays usable without an X-SCAPE build; `H5BulkWriter` is a framework module and raises a clear error without one. |
+| PyTorch | ≥ 2.0 | Optional (`pip install -e "contribs/PyJetscape[fno]"`): only `PyFNOHydro` needs it; `pyjetscape_core` does not link libtorch |
+| uproot | ≥ 5 | Optional (`[root]`): only `bulk_root_writer.py` and `fast_root_bulk.py` |
 
-> **Important — import order:** `torch` must be imported **before**
+> **Important — import order:** when PyTorch is used, `torch` must be imported **before**
 > `pyjetscape_core` (i.e., before `import jetscape`).  Both ROOT (loaded by
 > the C++ extension) and PyTorch ship their own `libomp`; the one initialised
 > second will cause a segfault on some platforms.  All example scripts handle
@@ -112,7 +114,8 @@ bash test_js_fno_build_env.sh
 ```
 
 After activation, the `js_fno` environment provides `python`, `cmake`,
-`pytorch`, `pybind11`, `numpy`, `uproot`, and ROOT.
+`pytorch`, `pybind11`, `numpy`, `uproot`, ROOT, and the HDF5/notebook packages
+(`h5py`, `hdf5plugin`, `pyyaml`, `scipy`, `matplotlib`, `pandas`, `ipywidgets`, `jupyterlab`).
 
 ---
 
@@ -167,7 +170,12 @@ export PYTHONPATH="/path/to/X-SCAPE/external_packages/js-contrib/contribs/PyJets
 
 ```bash
 pip install -e /path/to/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape
+# add PyTorch for PyFNOHydro and/or uproot for the ROOT bulk readers:
+pip install -e "/path/to/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape[fno,root]"
 ```
+
+This installs the Python dependencies of the HDF5 tooling, the example production scripts
+and the notebooks (see [Prerequisites](#prerequisites)); PyTorch stays optional.
 
 Or let CMake do this automatically on every build by adding
 `-DJS_PIP_INSTALL_PYJETSCAPE=ON` to the `cmake` command above.
