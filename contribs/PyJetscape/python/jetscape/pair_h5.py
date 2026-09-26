@@ -136,6 +136,11 @@ class PairH5Writer:
         same way, so ``arr - arr_bg`` is exactly zero wherever the legs agree.
     store_droplets, store_showers : bool
         Write ``source/droplets`` and ``shower/``.
+    keep_surface : iterable of {"jet", "bg"}
+        Legs whose freeze-out surface MUSIC hands to the framework (``skip_surface``
+        off), e.g. for :class:`jetscape.particlize_h5.ParticlizeH5Writer`.  The legs not
+        listed get ``skip_surface`` on (the default for both).  MUSIC must also build the
+        surface for a kept leg (``<freeze_out_surface>1`` for that instance).
     provenance : mapping, optional
         Overrides for the provenance attributes (``hard_vertex``, ``eos_kind``,
         ``transport_mode``, ``source_mode`` ...).
@@ -148,8 +153,8 @@ class PairH5Writer:
     def __init__(self, out_file_name="pair_evo.h5", *, bg_id="MUSIC_1", jet_id="MUSIC_2",
                  grid_mode="grid", out_grid=None, tau_stride=1, choose_ntau=0,
                  compression=DEFAULT_COMPRESSION, keep_bits=None, store_droplets=True,
-                 store_showers=True, provenance=None, extra_attrs=None, force=True,
-                 verbose=False):
+                 store_showers=True, keep_surface=(), provenance=None, extra_attrs=None,
+                 force=True, verbose=False):
         if grid_mode not in ("grid", "native"):
             raise ValueError(f"grid_mode must be 'grid' or 'native', got {grid_mode!r}")
         self._out_file_name = str(out_file_name)
@@ -162,6 +167,10 @@ class PairH5Writer:
         self._keep_bits = keep_bits
         self._store_droplets = bool(store_droplets)
         self._store_showers = bool(store_showers)
+        self._keep_surface = frozenset(keep_surface or ())
+        if not self._keep_surface <= {"jet", "bg"}:
+            raise ValueError(f"keep_surface takes 'jet' and/or 'bg', got "
+                             f"{sorted(self._keep_surface)}")
         self._provenance = dict(provenance or {})
         self._extra_attrs = dict(extra_attrs or {})
         self._force = bool(force)
@@ -206,8 +215,8 @@ class PairH5Writer:
                 "bulk_info and Matter/LBT would see no medium. Set "
                 "<Hydro><MUSIC><dump_hydro_only>0 (the jet leg is switched here).")
         jet.set_dump_hydro_only(True)
-        for leg in (bg, jet):
-            leg.set_skip_surface(True)
+        for name, leg in (("bg", bg), ("jet", jet)):
+            leg.set_skip_surface(name not in self._keep_surface)
 
         if manager is None:
             try:
@@ -385,6 +394,11 @@ class PairH5Writer:
     def last_event_diag(self):
         """The ``diag/`` values of the last written event."""
         return dict(self._last)
+
+    @property
+    def last_bg_key(self):
+        """Hex digest of the last event's whole background leg (the IC's fingerprint)."""
+        return None if self._bg_hash is None else self._bg_hash.hex()
 
     @property
     def n_clipped(self):

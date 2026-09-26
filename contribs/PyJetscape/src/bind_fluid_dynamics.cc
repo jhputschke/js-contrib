@@ -55,6 +55,57 @@ static py::array_t<double> vec_to_numpy(std::vector<double> &vec,
                               parent);
 }
 
+// ── Surface cells as table rows ──────────────────────────────────────────────
+// The fields iSS reads from a SurfaceCellInfo, in the order
+// iSpectraSamplerWrapper::getSurfCellVector copies them into its FO_surf.
+// SurfaceCellInfo is Jetscape::real = float, so float32 rows are lossless.
+static constexpr int kSurfaceNCols = 32;
+static const char *kSurfaceColumns[kSurfaceNCols] = {
+    "tau",  "x",    "y",    "eta",  "ds0",  "ds1",  "ds2",  "ds3",
+    "u0",   "u1",   "u2",   "u3",   "e",    "T",    "P",    "nB",
+    "nQ",   "nS",   "muB",  "muQ",  "muS",  "pi00", "pi01", "pi02",
+    "pi03", "pi11", "pi12", "pi13", "pi22", "pi23", "pi33", "Pi"};
+
+static void surface_cell_to_row(const SurfaceCellInfo &c, float *r) {
+  r[0] = c.tau;
+  r[1] = c.x;
+  r[2] = c.y;
+  r[3] = c.eta;
+  for (int j = 0; j < 4; ++j) r[4 + j] = c.d3sigma_mu[j];
+  for (int j = 0; j < 4; ++j) r[8 + j] = c.umu[j];
+  r[12] = c.energy_density;
+  r[13] = c.temperature;
+  r[14] = c.pressure;
+  r[15] = c.baryon_density;
+  r[16] = c.electric_charge_density;
+  r[17] = c.strangeness_density;
+  r[18] = c.mu_B;
+  r[19] = c.mu_Q;
+  r[20] = c.mu_S;
+  for (int j = 0; j < 10; ++j) r[21 + j] = c.pi[j];
+  r[31] = c.bulk_Pi;
+}
+
+static void surface_cell_from_row(const float *r, SurfaceCellInfo &c) {
+  c.tau = r[0];
+  c.x = r[1];
+  c.y = r[2];
+  c.eta = r[3];
+  for (int j = 0; j < 4; ++j) c.d3sigma_mu[j] = r[4 + j];
+  for (int j = 0; j < 4; ++j) c.umu[j] = r[8 + j];
+  c.energy_density = r[12];
+  c.temperature = r[13];
+  c.pressure = r[14];
+  c.baryon_density = r[15];
+  c.electric_charge_density = r[16];
+  c.strangeness_density = r[17];
+  c.mu_B = r[18];
+  c.mu_Q = r[19];
+  c.mu_S = r[20];
+  for (int j = 0; j < 10; ++j) c.pi[j] = r[21 + j];
+  c.bulk_Pi = r[31];
+}
+
 // ── PyFluidDynamics trampoline ────────────────────────────────────────────────
 // Inherits FluidDynamics and overrides virtual methods via PYBIND11_OVERRIDE so
 // that a Python subclass can provide InitializeHydro() and EvolveHydro().
@@ -427,6 +478,12 @@ public:
 
 void bind_fluid_dynamics(py::module_ &m) {
 
+  {
+    py::tuple cols(kSurfaceNCols);
+    for (int c = 0; c < kSurfaceNCols; ++c) cols[c] = py::str(kSurfaceColumns[c]);
+    m.attr("SURFACE_CELL_COLUMNS") = cols;
+  }
+
   // ── Parameter ─────────────────────────────────────────────────────────────
   // Minimal binding — Python InitializeHydro overrides receive this object
   // but typically ignore it (reading config from Python dicts instead).
@@ -581,6 +638,42 @@ void bind_fluid_dynamics(py::module_ &m) {
              return v;
            },
            "Return a copy of the freeze-out surface cell vector.")
+      .def("surface_to_numpy",
+           [](FluidDynamics &f) {
+             std::vector<SurfaceCellInfo> v;
+             f.getSurfaceCellVector(v);
+             const py::ssize_t n = static_cast<py::ssize_t>(v.size());
+             py::array_t<float> out({n, (py::ssize_t)kSurfaceNCols});
+             auto a = out.mutable_unchecked<2>();
+             for (py::ssize_t i = 0; i < n; ++i) {
+               float row[kSurfaceNCols];
+               surface_cell_to_row(v[i], row);
+               for (int c = 0; c < kSurfaceNCols; ++c) a(i, c) = row[c];
+             }
+             return out;
+           },
+           "The freeze-out surface as an (N, 32) float32 array, one row per cell, "
+           "columns SURFACE_CELL_COLUMNS: exactly the fields iSS reads "
+           "(iSpectraSamplerWrapper::getSurfCellVector), in its order. "
+           "SurfaceCellInfo is float, so this copy is lossless. Valid after the "
+           "hydro's Exec, before ClearPerEvent.")
+      .def("store_surface_from_numpy",
+           [](FluidDynamics &f,
+              py::array_t<float, py::array::c_style | py::array::forcecast> arr) {
+             if (arr.ndim() != 2 || arr.shape(1) != kSurfaceNCols)
+               throw std::invalid_argument(
+                   "store_surface_from_numpy: need an (N, 32) array, columns "
+                   "SURFACE_CELL_COLUMNS");
+             auto a = arr.unchecked<2>();
+             for (py::ssize_t i = 0; i < a.shape(0); ++i) {
+               SurfaceCellInfo cell{};   // fields iSS ignores are zero
+               surface_cell_from_row(&a(i, 0), cell);
+               f.StoreSurfaceCell(cell);
+             }
+           },
+           "Append cells from an (N, 32) array (columns SURFACE_CELL_COLUMNS) to the "
+           "surface vector, e.g. to replay a stored surface into iSS.",
+           py::arg("cells"))
       .def("FindAConstantTemperatureSurface",
            [](FluidDynamics &f, Jetscape::real T_sw) {
              std::vector<SurfaceCellInfo> v;

@@ -24,12 +24,22 @@ same initial condition, and before the first droplet deposits they are bit-ident
 >
 > Without the slot, MUSIC_2 silently ignores the droplets, and the writer then warns that the
 > jet leg is identical to the background. Plan and status: `../../PLAN_pair_h5_music.md`.
+>
+> **Hadron level (2026-09-26, branches `surface_to_hadrons` in X-SCAPE and js-contrib).**
+> `--write-particlize` stores both freeze-out surfaces and the final partons next to the pair;
+> `hadronize.py` turns them into iSS and Colorless hadrons offline, bit-identical to running
+> them inside the job. See [Hadron level](#hadron-level-surfaces-partons-hadronizepy) and
+> `PLAN_particlize_h5.md`.
 
 | file | purpose |
 |---|---|
 | `AuAu_MCGlauber_MUSIC_0_10_jet.xml` | user XML: the prod physics plus `Hard`, `Liquefier`, `Eloss` and a second `Hydro` (MUSIC_2) |
 | `run_prod_jet.py` | one job: one seed, N events, one `.h5` file |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
+| `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
+| `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
+| `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
+| `PLAN_particlize_h5.md` | design, decisions and validation of the hadron-level path |
 
 The grid YAMLs (`../prod_AuAu_0_10/grid_fno.yaml` by default) and all grid and environment
 checks are shared with the single-leg production. Pair files and single-leg files made with
@@ -72,6 +82,9 @@ Each job writes the following, next to each other:
 | `--native` | Both legs on MUSIC's own grid (100 × 100 × 60) instead of the YAML's. |
 | `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |
 | `--no-showers` | Skip `shower/`. |
+| `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +13.5 s per event for `both` (measured, below). |
+| `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
+| `--hadronize-xml FILE` | Settings for `--validate-inline` (default `hadronize.xml`). |
 | `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface. It is needed only to particlize a leg, e.g. `jet` for hadrons from the jet leg. `none` (default) is ~6 s per MUSIC run faster, with a bit-identical evolution. It sets `<freeze_out_surface>` in the first `<Hydro><MUSIC>` block (background, and the default) and in MUSIC_2's own block (jet leg). |
 
 The job XML always contains **one** hard process. The automatic task list would run every
@@ -113,6 +126,70 @@ It grows `arr` and `arr_bg` together:
 python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
 ```
 
+## Hadron level: surfaces, partons, `hadronize.py`
+
+The hydro pair stops at the fluid. To compare the wake in hadrons, the job stores the
+**input** to hadronization, not hadrons, and hadronization runs later (`PLAN_particlize_h5.md`
+has the reasons and the alternatives):
+
+```bash
+python run_prod_jet.py --events 10 --seed 1 --write-particlize both        # GPU
+python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --n-frag 50
+```
+
+**`<stem>_particlize.h5`** (`jetscape.particlize_h5`, read with `ParticlizeFile`):
+
+| | |
+|---|---|
+| `surface/jet/cells` | MUSIC_2's freeze-out surface, `(N, 32)` float32, columns `surface_columns`: exactly the fields iSS reads (x^μ, dσ_μ, u^μ, e, T, P, charges, μ's, π^{μν}, Π). The framework's `SurfaceCellInfo` is float, so this is lossless. One unit per event (`offsets`). |
+| `surface/bg/cells`, `surface/bg/bg_id` | MUSIC_1's, one unit per **new** background (with `--reuse N`, once per N events); `events/bg_unit` says which unit an event used. |
+| `partons/data` | the final partons the jet hadronization receives (`JetEnergyLossManager::GetFinalStatePartons`), `(K, 14)`: shower, pid, pstat, E, p, t, x, y, z, mass, col, acol |
+| `events/` | per event: `bg_id`, `bg_unit`, `bg_key` (hash of the whole background leg), cell and parton counts, droplet energies, MUSIC τ0, boundary flags |
+| attributes | `music_input` (the job's own, verbatim: iSS reads its EoS id and `Include_Bulk_Visc` flag from it), `T_fo`, `pair_file`, `file_uuid`, provenance |
+
+**`hadronize.py`** (CPU only: no MUSIC, no GPU) writes one file per tag (`jetscape.hadrons_h5`,
+read with `Hadrons.from_h5`):
+
+| tag | from | unit |
+|---|---|---|
+| `bulk_jet` | iSS on `surface/jet`: bulk + wake | event |
+| `bulk_bg` | iSS on `surface/bg`: bulk | background |
+| `jet_frag` | `ColorlessHadronization` on `partons/` (`eCMforHadronization` 200, `take_recoil` 1) | event |
+
+Each file keeps every sample apart (`sample_offsets`, `unit_offsets`), so averages are over
+oversamples of one event, with compound-Poisson errors (`Hadrons.hist`, `Hadrons.total`).
+Every unit's seed is derived from (`--seed`, tag, unit, sample) and stored in `units/seed`, so
+any unit can be regenerated alone. A jet event is `bulk_jet` + `jet_frag`; its background is
+`bulk_bg` unit `events/bg_unit`. An empty surface (MUSIC stopped at the grid boundary) gives a
+unit with no samples.
+
+**Measured (GB10, seed 1, one 0–10% event):**
+- Surfaces: 1,001,592 cells (jet) and 989,732 (background), 128 MB each raw, 77.6 MB with
+  Blosc-zstd (the charge and μ columns are zero here). The particlize file is 154.5 MB, about
+  half the pair file (285 MB).
+- Time: 29.5 s per event without surfaces, 43.0 s with `--write-particlize both` (+13.5 s:
+  ~12 s for MUSIC to build and hand over the two surfaces, 1.35 s for the write). Peak memory
+  +0.5 GB.
+- `hadronize.py`: ~20 s per surface for 100 iSS oversamples and ~30 s for 500 on the CPU
+  (most of it is fixed cost); Colorless is negligible.
+- **Exact.** A `--validate-inline` job (2 events, 100 oversamples) and
+  `hadronize.py --use-stored-seeds` on its particlize file give bit-identical hadrons:
+  1,710,050 iSS hadrons and all Colorless fragments.
+
+**Things to know:**
+- **Colored jet hadronization is not supported** for this setup: LBT assigns no colour tags and
+  the liquefier removes partons from colour chains. `hadronize.py --diagnose-colored` measures
+  it; `PLAN_particlize_h5.md` has the details.
+- **pstat decides what is fragmented.** Colorless takes 0 (shower), 1 (recoil), 22 and −1.
+  Partons the liquefier absorbed (−11), absorbed holes (−17) and the momentum missing at a
+  vertex (−13) went into the droplets, so they are never hadronized twice. In the seed-1 event
+  only 5 of 57 final partons survive.
+- **Beam remnants.** Colorless needs an even number of string ends: with an odd number of
+  quarks it adds one remnant quark (0.2, 0.2, ±√s/6 = 33 GeV along the beam), with none it adds
+  two (`ColorlessHadronization.cc`). That energy is not the jet's, and the string to a remnant
+  spreads hadrons across the rapidity gap, so a rapidity cut removes only part of it. The
+  seed-1 event needs none: its fragments carry exactly the surviving partons' 106.3 GeV.
+
 ## How the two legs are read
 
 - **Background (MUSIC_1) from the framework copy.** Matter, LBT and the liquefier query the
@@ -140,10 +217,18 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
   whether or not droplets are still due. Anything depositing later never reaches MUSIC_2;
   `diag/E_droplets_late` says how much.
 - **Seeds.** `<Random><seed>` drives 3dMCGlauber, Pythia and the energy loss, and MUSIC is
-  deterministic, so a seed reproduces a pair. The same seed does **not** give the same Glauber
-  event as `prod_AuAu_0_10`: the extra modules draw from the framework's random stream first,
-  so the background leg is a different event from the hydro-only file's (measured: seed 1
-  differs at frame 0).
+  deterministic, so a seed reproduces a pair. With a seed ≠ 0 there is no shared random
+  stream: every module has its own generator, seeded from (seed, the module's **task number**)
+  (`JetScapeTaskSupport.cc:104-118`), and the task number counts every task created before it.
+  - The energy-loss modules are cloned per shower at the first event, and the clones get new
+    task numbers (`JetEnergyLoss`'s copy constructor default-constructs its base, which
+    registers a task). So adding modules at Init shifts the jets: `--validate-inline` (4 extra
+    tasks) gives a different jet for the same seed (measured: seed 1, 26 droplets / 33.1 GeV
+    instead of 25 / 25.0 GeV), while the background leg stays identical (989,732 surface cells
+    in both). `--write-particlize` adds no task and leaves the pair file byte-identical.
+  - The same seed does **not** give the same Glauber event as `prod_AuAu_0_10` (measured: seed
+    1 differs at frame 0). The earlier explanation here ("the extra modules draw from the
+    framework's random stream first") does not match the code; the cause is still open.
 - **Speed and memory (measured, GB10, seed 1, one 0–10% event, PythiaGun 50–70 GeV, 25
   droplets).**
   - Null test (`--no-deposit`): 58 s per event, about twice the single-leg ~25 s.
@@ -173,6 +258,10 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
     129. `--mps` is CUDA-only. Details: [BENCHMARK_M3MAX.md](BENCHMARK_M3MAX.md).
 
 ## Checks before a campaign
+
+For a campaign with `--write-particlize`, also: one `--validate-inline` job and
+`hadronize.py --use-stored-seeds` on it must give bit-identical hadrons, and a `--no-deposit`
+job must give `surface/jet` = `surface/bg` cell for cell.
 
 1. `--no-deposit`, 1 event: `arr == arr_bg` and `frames_identical == ntau`.
 2. 1 event with a jet: `n_droplets > 0`; the legs differ only after the first deposit; the

@@ -28,7 +28,8 @@
 # script runs under macOS's bash 3.2.
 #
 # A failed job is logged and the others continue; re-run just that seed later.
-# Jobs whose .json summary already says complete are skipped, so an interrupted campaign can
+# Jobs whose .json summary already says complete are skipped (with --write-particlize the
+# particlize file must be complete too), so an interrupted campaign can
 # be restarted with the same command.  Give each grid YAML its own OUTDIR: the skip test
 # looks at the seed and event count only.
 #
@@ -137,7 +138,9 @@ for (( k = 0; k < NJOBS; k++ )); do
   tag=$(printf "%s%04d" "$TAG_PREFIX" "$seed")
   if [ -f "$OUTDIR/$tag.json" ] && \
      python -c "import json,sys; d=json.load(open('$OUTDIR/$tag.json')); \
-                sys.exit(d['events_written'] != $EVENTS)" 2>/dev/null; then
+                sys.exit(d['events_written'] != $EVENTS or \
+                         d.get('particlize_events_written', $EVENTS) != $EVENTS)" \
+       2>/dev/null; then
     echo "[$(date +%F\ %T)] seed $seed: already complete, skipping"; continue
   fi
   while [ ${#pids[@]} -ge "$PAR" ]; do reap; done

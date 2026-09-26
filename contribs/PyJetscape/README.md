@@ -49,6 +49,10 @@ Original development repository:
 | `python/jetscape/fast_h5_bulk.py` | `H5BulkWriter`: one hydro evolution per event → FNO4d HDF5 |
 | `python/jetscape/fno_h5_writer.py` | The FNO4d HDF5 writer both HDF5 writers use (h5py + numpy only), plus `repad_to` |
 | `python/jetscape/pair_h5.py` | `PairH5Writer`: a two-stage MUSIC run (background + jet leg) → one pair file in FastHydro's layout |
+| `python/jetscape/particlize_h5.py` | `ParticlizeH5Writer` / `ParticlizeFile`: each leg's freeze-out surface (every field iSS reads) + the final partons, to hadronize later |
+| `python/jetscape/hadrons_h5.py` | `HadronH5Writer` / `Hadrons`: hadrons with every oversample kept apart, sample averages with compound-Poisson errors |
+| `python/jetscape/surface_replay.py` | `SurfaceReplay`: a FluidDynamics that hands a stored surface to iSS |
+| `src/bind_hadronization.cc` | iSS / jet-hadronization output as numpy, per-event seeds, `hadronize_partons` on stored partons |
 | `python/jetscape/showers.py`, `liquefier_io.py` | Parton-shower graph and liquefier droplet/parameter readers (numpy only) |
 | `example/prod_AuAu_0_10/`, `example/prod_AuAu_0_10_jet/` | Productions: 0–10% Au+Au hydro-only, and the same with a jet as background/jet pairs |
 | `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
@@ -1034,6 +1038,86 @@ flag. FastHydro's `tests/test_music_pair_browser.py` opens such a file with `Pai
 ```bash
 pytest external_packages/js-contrib/contribs/PyJetscape/tests/test_pair_h5.py -q
 ```
+
+---
+
+## Hadron level: surfaces, partons, hadrons (`particlize_h5.py`, `hadrons_h5.py`)
+
+A two-stage run can store what hadronization needs instead of hadrons: each leg's MUSIC
+freeze-out surface and the final partons. Hadronizing them later gives exactly what iSS and
+`ColorlessHadronization` would have given inside the job (checked bit for bit). The production
+driver is `example/prod_AuAu_0_10_jet` (`run_prod_jet.py --write-particlize`, `hadronize.py`,
+see its README); the design is in `example/prod_AuAu_0_10_jet/PLAN_particlize_h5.md`. Needs
+X-SCAPE branch `surface_to_hadrons` (seed hooks in `SoftParticlization` and
+`ColorlessHadronization`, `<JetHadronization><reseed_per_event>`).
+
+**Bindings** (`pyjetscape_core`):
+
+| | |
+|---|---|
+| `FluidDynamics.surface_to_numpy()` | the surface as `(N, 32)` float32, columns `SURFACE_CELL_COLUMNS` (the `SurfaceCellInfo` fields iSS reads, in its order; lossless, the struct is float) |
+| `FluidDynamics.store_surface_from_numpy(cells)` | the reverse, through `StoreSurfaceCell` |
+| `JetEnergyLossManager.final_partons_numpy()` | `(N, 14)`, columns `FINAL_PARTON_COLUMNS`: exactly `GetFinalStatePartons`, which the hadronization receives |
+| `Parton.color()`, `anti_color()`, `restmass()` | |
+| `soft_hadrons_numpy(task)` | a SoftParticlization module's (iSS) hadrons, all oversamples, with `sample_counts` |
+| `soft_set_next_random_seed(task, s)`, `soft_last_random_seed(task)` | one-shot iSS seed; the seed the last event used |
+| `hadronization_hadrons_numpy(task)` | a HadronizationManager's output hadrons |
+| `hadronize_partons(module, partons, seed=None)` | run a jet hadronization module on stored partons; `seed` reseeds ColorlessHadronization first |
+| `jet_hadronization_last_random_seed(task)` | ColorlessHadronization's last seed (with `<reseed_per_event>1`) |
+
+These are free functions taking a task because `create_module()` returns modules whose
+concrete types are not registered with pybind11.
+
+**Writing** (between `ExecPerEvent()` and `ClearPerEvent()`, after `PairH5Writer.Exec()`):
+
+```python
+from jetscape.pair_h5 import PairH5Writer
+from jetscape.particlize_h5 import ParticlizeH5Writer
+
+pair = PairH5Writer("pair.h5", keep_surface=("jet", "bg"))   # skip_surface off for both legs
+part = ParticlizeH5Writer("pair_particlize.h5", legs=("jet", "bg"), pair_file="pair.h5")
+jetscape.Init(); pair.attach(jetscape); part.attach(jetscape)   # attach reads ./music_input
+jetscape.ExecInit()
+for i in range(n):
+    jetscape.ExecPerEvent()
+    idx = pair.Exec()
+    if idx is not None:
+        d = pair.last_event_diag
+        part.Exec(idx, bg_id=d["bg_id"], bg_key=pair.last_bg_key)   # bg surface once per bg_id
+    jetscape.ClearPerEvent()
+pair.Finish(); part.Finish()
+```
+
+MUSIC must build the surfaces (`<freeze_out_surface>1` for those instances).
+
+**Replaying** a stored surface into iSS (what `hadronize.py` does; the user XML needs
+`<setReuseHydro>false</setReuseHydro>`, or the main XML's reuse switches iSS off for 9 of 10
+events):
+
+```python
+from jetscape import pyjetscape_core as core
+from jetscape.surface_replay import SurfaceReplay
+from jetscape.particlize_h5 import ParticlizeFile
+
+replay, iss = SurfaceReplay(), core.create_module("iSS")
+jetscape = core.JetScapePerEvent(); jetscape.Add(replay); jetscape.Add(iss)
+jetscape.SetXMLMainFileName(main_xml); jetscape.SetXMLUserFileName(user_xml)
+jetscape.Init(); jetscape.ExecInit()
+with ParticlizeFile("pair_particlize.h5") as pf:
+    replay.load(pf.surface("jet", 0))
+    core.soft_set_next_random_seed(iss, 12345)
+    jetscape.ExecPerEvent()
+    hadrons = core.soft_hadrons_numpy(iss)      # pid, pstat, p [E,px,py,pz], x, mass, sample_counts
+    jetscape.ClearPerEvent()
+```
+
+iSS reads `music_input` from its working directory: write `pf.music_input()` (the job's own,
+stored verbatim) there first.
+
+**Reading hadrons:** `Hadrons.from_h5(path, units=None)` gives `pid`, `p`, `pt`, `eta`, `y`,
+`phi`, `charged`, the unit and sample of every hadron, and `hist()` / `total()` averaged over
+the samples of the selected units with compound-Poisson errors. Tests:
+`tests/test_particlize_h5.py`.
 
 ---
 
