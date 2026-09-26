@@ -34,6 +34,13 @@ python run_prod.py --events 1 --seed 1 --grid my_grid.yaml --dry-run   # check a
 
 You can launch it from any directory.
 
+On macOS, `run_jobs.sh` runs under the system bash (3.2). `--mps` is CUDA-only. With
+`-j` > 1, split the cores between the jobs, e.g. `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive
+KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 …` on a 16-core M3 Max. Without that, the jobs' OpenMP
+threads oversubscribe the cores. For the jet production this took `-j 3` from 148 to 213
+events/h ([BENCHMARK_M3MAX.md](../prod_AuAu_0_10_jet/BENCHMARK_M3MAX.md)). This
+production's concurrency was not measured on the Mac.
+
 **Working directory.** Each job runs in its own working directory, `OUTDIR/work/<tag>`, and
 reads the shared assets from the X-SCAPE build tree (`--build`, default `build_gpu`). This is
 the Python counterpart of X-SCAPE's `examples/run_in_workdir.sh`:

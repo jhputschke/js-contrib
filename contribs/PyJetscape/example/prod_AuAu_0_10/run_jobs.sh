@@ -19,6 +19,14 @@
 # ../prod_AuAu_0_10_jet/BENCHMARK_GB10.md.  The daemon's socket directory must have a short
 # path (~100 characters for its UNIX sockets): $MPS_DIR, default
 # ${XDG_RUNTIME_DIR:-/tmp}/xscape-mps.<pid>.
+#
+# macOS (Metal): --mps does not apply.  With -j > 1 split the cores between the jobs, or
+# the OpenMP threads oversubscribe them and -j 3 gains nothing: prod_AuAu_0_10_jet on an
+# M3 Max (16 cores), events/h: -j 1 132; -j 3 148 by default, 213 with
+#   OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 ...
+# (OMP_NUM_THREADS ~ cores / P).  See ../prod_AuAu_0_10_jet/BENCHMARK_M3MAX.md.  The
+# script runs under macOS's bash 3.2.
+#
 # A failed job is logged and the others continue; re-run just that seed later.
 # Jobs whose .json summary already says complete are skipped, so an interrupted campaign can
 # be restarted with the same command.  Give each grid YAML its own OUTDIR: the skip test
@@ -95,16 +103,27 @@ if [ "$MPS" -eq 1 ]; then
   echo "[$(date +%F\ %T)] MPS: daemon started, pipe directory $CUDA_MPS_PIPE_DIRECTORY"
 fi
 
+# Running jobs as two parallel indexed arrays (pids[i] runs seeds[i]) and a polling reap,
+# not an associative array and `wait -n -p`: those need bash >= 5.1, and macOS ships 3.2.
+# The ${a[@]+...} forms keep `set -u` quiet on empty arrays in bash < 4.4.
+pids=(); seeds=()
 # Background jobs of a non-interactive shell ignore Ctrl-C, so pass it on to them.
-declare -A running=()   # pid -> seed
-trap 'trap - INT TERM; echo "interrupted: stopping seeds ${running[*]}" >&2;
-      [ ${#running[@]} -gt 0 ] && kill "${!running[@]}" 2>/dev/null; wait; exit 130' INT TERM
+trap 'trap - INT TERM; echo "interrupted: stopping seeds ${seeds[*]+${seeds[*]}}" >&2;
+      [ ${#pids[@]} -gt 0 ] && kill ${pids[@]+"${pids[@]}"} 2>/dev/null; wait; exit 130' INT TERM
 
 failed=()
 reap() {   # wait for one running job to finish and report it
-  local pid rc
-  wait -n -p pid "${!running[@]}"; rc=$?
-  local seed=${running[$pid]}; unset "running[$pid]"
+  local i pid rc seed
+  while :; do                  # bash reaps finished children itself, so kill -0 fails
+    for i in ${pids[@]+"${!pids[@]}"}; do
+      pid=${pids[$i]}
+      kill -0 "$pid" 2>/dev/null && continue
+      wait "$pid"; rc=$?      # the saved exit status
+      seed=${seeds[$i]}; unset "pids[$i]" "seeds[$i]"
+      break 2
+    done
+    sleep 1
+  done
   local tag; tag=$(printf "%s%04d" "$TAG_PREFIX" "$seed")
   if [ "$rc" -eq 0 ]; then
     echo "[$(date +%F\ %T)] seed $seed: ok"
@@ -121,13 +140,13 @@ for (( k = 0; k < NJOBS; k++ )); do
                 sys.exit(d['events_written'] != $EVENTS)" 2>/dev/null; then
     echo "[$(date +%F\ %T)] seed $seed: already complete, skipping"; continue
   fi
-  while [ ${#running[@]} -ge "$PAR" ]; do reap; done
+  while [ ${#pids[@]} -ge "$PAR" ]; do reap; done
   echo "[$(date +%F\ %T)] seed $seed: job $((k + 1))/$NJOBS, $EVENTS events -> $OUTDIR/$tag.h5"
-  python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" --outdir "$OUTDIR" "$@" \
+  python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" --outdir "$OUTDIR" ${1+"$@"} \
     > "$OUTDIR/$tag.log" 2>&1 &
-  running[$!]=$seed
+  pids+=("$!"); seeds+=("$seed")
 done
-while [ ${#running[@]} -gt 0 ]; do reap; done
+while [ ${#pids[@]} -gt 0 ]; do reap; done
 trap - INT TERM
 mps_stop
 

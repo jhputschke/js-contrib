@@ -50,6 +50,9 @@ python run_prod_jet.py --events 1 --seed 1 --dry-run         # check the XML/gri
 ./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
 ./run_jobs.sh -j 2 20 25 1 out_pgun --hard pgun
 ./run_jobs.sh -j 4 --mps 20 25 1                             # 4 at a time, GPU shared via CUDA MPS
+
+# macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (BENCHMARK_M3MAX.md)
+OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 1
 ```
 
 Each job writes the following, next to each other:
@@ -160,6 +163,12 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
     runs in its own working directory (see
     [`../prod_AuAu_0_10/README.md`](../prod_AuAu_0_10/README.md)). Details, profile and
     the former startup hang: [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
+  - **Apple M3 Max (Metal, 16 cores, 64 GB):** 26.1 / 28.7 s per event for seed 1, one
+    job ~132 events/h. Several jobs at once only pay off with the cores split between
+    them: **`OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3
+    …` gives 213 events/h (1.61×, recommended, ~40 GB)**, and `-j 4` with
+    `OMP_NUM_THREADS=4` 221. With the default settings `-j 3` gives only 148 and `-j 4`
+    129. `--mps` is CUDA-only. Details: [BENCHMARK_M3MAX.md](BENCHMARK_M3MAX.md).
 
 ## Checks before a campaign
 
