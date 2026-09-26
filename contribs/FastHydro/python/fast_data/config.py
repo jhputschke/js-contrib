@@ -116,8 +116,12 @@ DEFAULTS = {
         "partons": None,            # a mapping (one parton) or a list of mappings
     },
     "output": {
-        "compression": "lzf",
+        # h5_compression spec for arr: blosc-zstd | blosc-lz4 | lzf | gzip | none | ...
+        "compression": "blosc-zstd",
         "source_compression": "gzip",
+        # round arr to N float32 mantissa bits before compressing (lossy, rel. err <=
+        # 2**-(N+1)); null = bit-exact.  12 bits: ~2x smaller again (README_h5_optim.md)
+        "keep_bits": None,
         "chunk_events": 1,
         "T_fo": 0.150,
         "freezeout": "max_T",       # max_T | central_T | never
@@ -249,6 +253,10 @@ def validate_config(cfg):
                           f"(got {pb!r})")
     if out["freezeout"] not in ("max_T", "central_T", "never"):
         raise ConfigError(f"unknown output.freezeout {out['freezeout']!r}")
+    kb = out.get("keep_bits")
+    if kb is not None and (isinstance(kb, bool) or not isinstance(kb, int)
+                           or not 1 <= kb <= 23):
+        raise ConfigError(f"output.keep_bits must be null or an integer in [1, 23] (got {kb!r})")
 
     if src["enabled"]:
         if src["model"] != "causal_liquefier":

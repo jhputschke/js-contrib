@@ -99,6 +99,29 @@ def test_arr_is_the_jet_leg_and_arr_bg_the_background(written):
         assert np.abs(f["source/S"][0]).max() > 0
 
 
+def test_arr_bg_gets_the_filter_and_rounding_of_arr(written, tmp_path):
+    """Both legs share one filter and one keep_bits, so arr - arr_bg stays exact where the
+    legs agree.  An explicit compression= argument must win over the config for both."""
+    from fast_data.h5_compression import HAVE_HDF5PLUGIN, round_mantissa
+    path, cfg, g, _ = written
+    with h5py.File(path) as f:
+        assert f["arr_bg"].attrs["compression"] == f["arr"].attrs["compression"]
+        assert f["arr_bg"]._filters == f["arr"]._filters
+        assert "keep_mantissa_bits" not in f["arr_bg"].attrs
+    if not HAVE_HDF5PLUGIN:
+        pytest.skip("hdf5plugin not installed")
+    cfg["output"]["keep_bits"] = 10
+    bg, jet = _FakeHydro(g, 1, False), _FakeHydro(g, 2, True)
+    p = tmp_path / "rounded.h5"
+    with PairedH5Writer(p, cfg, 1, compression="blosc-lz4") as w:
+        w.append(0, bg, jet, _FakeBridge(1))
+    with h5py.File(p) as f:
+        for name, leg in (("arr", jet), ("arr_bg", bg)):
+            assert f[name].attrs["compression"] == "blosc-lz4:5+bitshuffle"
+            assert int(f[name].attrs["keep_mantissa_bits"]) == 10
+            assert np.array_equal(f[name][0], round_mantissa(leg.arr, 10))
+
+
 def test_droplets_are_stored_per_event(written):
     path, _, _, counts = written
     with h5py.File(path) as f:

@@ -163,6 +163,7 @@ def run(cfg, *, log=print, shard=None, resume=False, dry_run=False):
     n_out = hi - lo
     w = writer.FnoH5Writer(out_path, attrs, n_out, compression=out_cfg["compression"],
                            source_compression=out_cfg["source_compression"],
+                           keep_bits=out_cfg.get("keep_bits"),
                            chunk_events=out_cfg["chunk_events"],
                            write_source=bool(src_cfg["enabled"] and out_cfg["write_source"]),
                            write_diagnostics=out_cfg["write_diagnostics"],

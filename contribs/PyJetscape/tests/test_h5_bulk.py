@@ -291,7 +291,8 @@ def test_writer_matches_the_fno4d_contract(tmp_path):
         assert arr.dtype == np.float32
         assert arr.chunks[0] == 1, "one event per chunk"
         assert arr.chunks[-1] == 1, "one tau frame per chunk -- see fno_h5_writer.write_frame"
-        assert arr.compression == "lzf"
+        assert arr.attrs["compression"] == "blosc-zstd:3+shuffle", "the default filter"
+        assert "keep_mantissa_bits" not in arr.attrs, "bit-exact unless keep_bits is set"
         assert f["ntau_freezeout"].dtype == np.int32
         assert f["tau_freezeout"].dtype == np.float32
         assert list(f["ntau_freezeout"][:]) == [4, 7]
@@ -615,12 +616,12 @@ def test_h5_tooling_imports_without_the_compiled_extension(tmp_path):
 
 
 def test_repad_h5_runs_as_a_plain_script(tmp_path):
-    """The two files can be copied anywhere and used as a utility, with no package."""
+    """The three files can be copied anywhere and used as a utility, with no package."""
     import shutil
     import subprocess
 
     pkg = Path(__file__).resolve().parents[1] / "python" / "jetscape"
-    for name in ("fno_h5_writer.py", "repad_h5.py"):
+    for name in ("fno_h5_writer.py", "repad_h5.py", "h5_compression.py"):
         shutil.copy(pkg / name, tmp_path / name)
 
     a, b = tmp_path / "a.h5", tmp_path / "b.h5"

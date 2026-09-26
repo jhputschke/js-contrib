@@ -384,6 +384,7 @@ def main(argv=None):
 def check(outdir, legs):
     """The controls the notebook's section 2 will re-run: same IC, same shower, real wake."""
     import h5py
+    import fast_data  # noqa: F401  (registers Blosc, the default arr compression)
     import numpy as np
 
     paths = {k: os.path.join(outdir, f"wake_{k}.h5") for k in legs}

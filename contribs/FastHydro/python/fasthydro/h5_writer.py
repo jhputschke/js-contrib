@@ -44,7 +44,7 @@ class PairedH5Writer:
     """
 
     def __init__(self, path, cfg, nevents, *, compression=None, source_compression=None,
-                 overwrite=None):
+                 keep_bits=None, overwrite=None):
         import h5py
 
         from fast_data.eos import resolve_eos
@@ -73,6 +73,8 @@ class PairedH5Writer:
             self.path, attrs, self.nevents,
             compression=compression or out["compression"],
             source_compression=source_compression or out["source_compression"],
+            # the same rounding for both legs, so arr - arr_bg stays exact where they agree
+            keep_bits=keep_bits if keep_bits is not None else out.get("keep_bits"),
             write_source=True, write_diagnostics=out["write_diagnostics"],
             # FnoH5Writer refuses to clobber an existing file unless told to. Honour
             # run.overwrite so a second run does not stop on a name it chose itself.
@@ -120,13 +122,17 @@ class PairedH5Writer:
     def _ensure_bg(self, arr_bg):
         if self._bg is not None:
             return
+        from fast_data.h5_compression import tag_dataset
+
         f = self._w.f
-        out = self.cfg["output"]
+        # arr's exact filter (an explicit `compression=` argument included), not the config's
+        kw, label = self._w.arr_filter_kwargs, self._w.arr_filter_label
         self._bg = f.create_dataset(
             "arr_bg", shape=(self.nevents,) + tuple(arr_bg.shape), dtype="f4",
             chunks=(1,) + tuple(arr_bg.shape),
             maxshape=(self.nevents,) + arr_bg.shape[:-1] + (None,),   # tau extendible, as arr
-            compression=out["compression"])
+            **kw)
+        tag_dataset(self._bg, label, self._w.keep_bits)
         f.create_dataset("ntau_freezeout_bg", shape=(self.nevents,), dtype="i4")
         f.create_dataset("tau_freezeout_bg", shape=(self.nevents,), dtype="f4")
 
@@ -184,8 +190,10 @@ class PairedH5Writer:
             droplets=droplets, diag=_scalars(d))
 
         if hyd_bg.arr is not None:
+            from fast_data.h5_compression import round_mantissa
+
             self._ensure_bg(hyd_bg.arr)
-            self._bg[i] = np.asarray(hyd_bg.arr, dtype=np.float32)
+            self._bg[i] = round_mantissa(hyd_bg.arr, self._w.keep_bits)
             bd = hyd_bg.diag or {}
             self._w.f["ntau_freezeout_bg"][i] = int(bd.get("ntau_freezeout", self.g.ntau))
             self._w.f["tau_freezeout_bg"][i] = float(bd.get("tau_freezeout", float("nan")))

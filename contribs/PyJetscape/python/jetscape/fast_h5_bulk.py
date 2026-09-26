@@ -77,6 +77,7 @@ except ImportError:                                   # pragma: no cover - reade
 from .bulk_sources import (GRID_MODES, Grid, attrs_from_grids, event_array,
                            framework_store_bytes, music_extra_attrs)
 from .fno_h5_writer import CHANNELS, FnoH5Writer
+from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 
 __all__ = ["H5BulkWriter", "read_fast_h5_bulk", "FEATURES"]
 
@@ -106,8 +107,12 @@ class H5BulkWriter(JetScapeModuleBase):
         ``grid``/``framework`` only: any of ``x_min dx y_min dy eta_min deta tau_min dtau
         ntau``.  Missing/0 means "use the source grid's value".  A ``Grid`` (e.g.
         ``Grid.from_bounds``) is used exactly as given; see ``resolve_out_grid``.
-    compression : str or None
-        h5py compression for ``arr``.  ``"lzf"`` matches the existing reference files.
+    compression : str, mapping or None
+        :mod:`jetscape.h5_compression` spec for ``arr`` (default ``"blosc-zstd"``;
+        ``"lzf"`` is the old default).  See README_h5_optim.md.
+    keep_bits : int or None
+        Round ``arr`` to this many float32 mantissa bits (lossy, relative error
+        <= ``2**-(keep_bits+1)``); None (default) is bit-exact.
     clear_after_write : bool
         Release MUSIC's native store after each event.  Set False when another writer runs
         after this one in the same event and still needs the store.
@@ -120,7 +125,8 @@ class H5BulkWriter(JetScapeModuleBase):
         tau_stride: int = 1,
         choose_ntau: int = 0,
         out_grid: Optional[dict] = None,
-        compression: Optional[str] = "lzf",
+        compression: Optional[str] = DEFAULT_COMPRESSION,
+        keep_bits: Optional[int] = None,
         clear_after_write: bool = True,
         force: bool = True,
         extra_attrs: Optional[dict] = None,
@@ -144,6 +150,7 @@ class H5BulkWriter(JetScapeModuleBase):
         self._choose_ntau = max(0, int(choose_ntau))
         self._out_grid = out_grid if isinstance(out_grid, Grid) else dict(out_grid or {})
         self._compression = compression
+        self._keep_bits = keep_bits
         self._clear_after_write = bool(clear_after_write)
         self._force = bool(force)
         self._extra_attrs = dict(extra_attrs or {})
@@ -315,7 +322,8 @@ class H5BulkWriter(JetScapeModuleBase):
 
         self._w = FnoH5Writer(
             self._out_file_name, attrs, nevents=0,
-            compression=self._compression, chunk_events=1, chunk_tau=1,
+            compression=self._compression, keep_bits=self._keep_bits,
+            chunk_events=1, chunk_tau=1,
             growable_tau=growable, extra_attrs=extra, force=self._force)
 
     def _warn_framework_size(self, hydro):

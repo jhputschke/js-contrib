@@ -76,7 +76,20 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the grid, write the job XML and print the plan; do not run")
     add_workdir_args(p)
+    add_h5_args(p)
     return p.parse_args()
+
+
+def add_h5_args(p: argparse.ArgumentParser) -> None:
+    """--compression / --keep-bits for the HDF5 writers; see ../../README_h5_optim.md."""
+    p.add_argument("--compression", default="blosc-zstd", metavar="SPEC",
+                   help="HDF5 filter for the evolutions: blosc-zstd (default), blosc-lz4 "
+                        "(fastest write), lzf (the old default), gzip[:N], none, or "
+                        "blosc-<codec>[:level][+shuffle|+bitshuffle]")
+    p.add_argument("--keep-bits", type=int, default=None, metavar="N", dest="keep_bits",
+                   help="round the evolutions to N float32 mantissa bits before compressing "
+                        "(lossy: relative error <= 2^-(N+1); 12 -> 1.2e-4 and ~2x smaller "
+                        "files). Default: bit-exact")
 
 
 # ─────────────────────────────────────────────────────────── working directory
@@ -302,8 +315,22 @@ def check_env(a) -> None:
     if a.seed <= 0:
         problems.append("--seed must be > 0 (0 means a random seed; the job would not be "
                         "reproducible and two jobs could collide).")
+    problems += h5_args_problems(a)
     if problems:
         sys.exit("run_prod.py: cannot start:\n  " + "\n  ".join(problems))
+
+
+def h5_args_problems(a) -> list:
+    """Check --compression / --keep-bits before any event runs (the writer opens late)."""
+    from jetscape.h5_compression import h5_filter_kwargs
+    problems = []
+    if a.keep_bits is not None and not 1 <= a.keep_bits <= 23:
+        problems.append(f"--keep-bits must be in [1, 23] (got {a.keep_bits})")
+    try:
+        h5_filter_kwargs(a.compression, a.keep_bits)   # warns if Blosc falls back to lzf
+    except ValueError as exc:
+        problems.append(f"--compression: {exc}")
+    return problems
 
 
 def job_xml(a, out_h5: str):
@@ -380,6 +407,7 @@ def main() -> int:
     }
     writer = H5BulkWriter(out_file_name=out_h5, grid_mode=grid_mode, tau_stride=1,
                           choose_ntau=max_ntau, out_grid=None if a.native else grid,
+                          compression=a.compression, keep_bits=a.keep_bits,
                           extra_attrs=provenance, verbose=True)
 
     # MUSIC / 3dMCGlauber resolve their input files relative to the working directory.

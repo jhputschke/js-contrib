@@ -86,6 +86,11 @@ import time
 
 import numpy as np
 
+try:    # registers Blosc, the default compression of pair files (README_h5_optim.md)
+    import hdf5plugin  # noqa: F401
+except ImportError:
+    pass
+
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)

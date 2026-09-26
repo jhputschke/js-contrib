@@ -101,6 +101,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_workdir_args(p)
+    rp.add_h5_args(p)
     return p.parse_args()
 
 
@@ -262,7 +263,7 @@ def main() -> int:
     writer = PairH5Writer(
         out_h5, bg_id=BG_ID, jet_id=JET_ID, grid_mode=grid_mode,
         out_grid=None if a.native else grid, choose_ntau=max_ntau,
-        store_showers=not a.no_showers,
+        store_showers=not a.no_showers, compression=a.compression, keep_bits=a.keep_bits,
         provenance={"hard_vertex": HARD_VERTEX[a.hard],
                     "eos_kind": "hotqcd (MUSIC EOS 9)",
                     "transport_mode": "MUSIC viscous: eta/s(T) and zeta/s(T) "

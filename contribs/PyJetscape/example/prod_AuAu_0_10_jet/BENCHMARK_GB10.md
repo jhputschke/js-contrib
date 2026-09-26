@@ -236,7 +236,7 @@ times, see [the table under Applied](#applied-branches-hydro_data_optim).
 | Energy loss (Matter + LBT) | 3.9 | 3.3 | 1 CPU thread |
 | Other MUSIC: evolve loop, frame dump to memory, GPU↔host syncs | 3.3 | 3.5 | CPU |
 | Other writer work: native-store read, hashing | 2.4 | 2.6 | CPU |
-| h5 writing (h5py, lzf) | 1.1 | 1.1 | 1 CPU thread |
+| h5 writing (h5py, lzf; Blosc-zstd, now the default, costs the same job time) | 1.1 | 1.1 | 1 CPU thread |
 | Momentum-anisotropy output (`output_momentum_anisotropy_vs_etas`) | 1.1 | 1.1 | CPU |
 | Everything else (startup share, Pythia, framework) | 4.4 | 4.4 | CPU |
 | **Total** | **63.3** | **47.4** | |

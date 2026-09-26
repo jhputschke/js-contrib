@@ -69,6 +69,10 @@ except ImportError:  # pragma: no cover
     HAS_H5PY = False
 
 if HAS_H5PY:
+    # registers the hdf5plugin filters (Blosc, the default compression), so every reader
+    # that imports jetscape opens the files; README_h5_optim.md
+    from . import h5_compression  # noqa: F401
+    from .h5_compression import HAVE_HDF5PLUGIN, round_mantissa  # noqa: F401
     from .fno_h5_writer import FnoH5Writer, grid_attrs, repad_to  # noqa: F401
     from .fast_h5_bulk import H5BulkWriter, read_fast_h5_bulk  # noqa: F401
     from .pair_h5 import PairH5Writer  # noqa: F401
@@ -90,5 +94,6 @@ def __getattr__(name):
         raise ImportError(
             f"jetscape.{name} needs the compiled pyjetscape_core extension, which is not "
             "importable here (no X-SCAPE build in this environment). The HDF5 tooling -- "
-            "FnoH5Writer, grid_attrs, repad_to, read_fast_h5_bulk -- works without it.")
+            "FnoH5Writer, grid_attrs, repad_to, read_fast_h5_bulk, h5_compression -- works "
+            "without it.")
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
