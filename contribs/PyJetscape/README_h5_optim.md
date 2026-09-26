@@ -22,10 +22,14 @@ file is in FNO4d as `README_h5_optim.md`.
 - **Reading a new file needs the `hdf5plugin` package** in the reading environment.
   Importing `jetscape`, `fast_data`, `fasthydro` or FNO4d's `read_3d_hdf5` loads it
   automatically. Old lzf files still read as before.
+- **Same picture on an Apple M3 Max:** the same ratios, with zstd writing ~10 % slower
+  and reading ~20 % slower than lzf there, and the same bit-exactness. See
+  [Apple M3 Max](#apple-m3-max).
 
 ## What was measured
 
-All numbers are from the GB10 (20 cores) with 1 Blosc thread unless noted. The
+All numbers are from the GB10 (20 cores) with 1 Blosc thread unless noted;
+[Apple M3 Max](#apple-m3-max) repeats the MUSIC measurements on a Mac. The
 evolution data was written the way the writers write it: tau-sliced chunks one tau frame
 at a time, and whole-event chunks one event at a time. Reads came from the page cache,
 so they measure decompression plus HDF5's copy into the output array, not disk speed.
@@ -147,6 +151,60 @@ Verified on these three files:
 - Reading one event through `MultiH5Array` took 690 / 600 / 525 MB/s respectively.
 - Writing takes about 1 s of the ~39 s job, so the filter does not change the job time.
 
+### Apple M3 Max
+
+Measured 2026-09-26 on an Apple M3 Max: 16 cores, 64 GB, music4gpu on Metal, env
+`fno_env_mlx` with h5py 3.15.1, HDF5 1.14.6 and hdf5plugin 7.1.0. `BLOSC_NTHREADS` was
+unset, i.e. 1 thread. Threads and FastHydro output were not measured on the Mac.
+
+**Filters**, from `utils/h5_compression_bench.py` on a real pair file, MUSIC `arr`,
+AuAu 0–10%: 2 events, 468 MB raw, 105 tau frames, chunks `(1,4,65,65,33,1)`. Cells
+read ratio / write / read, in MB/s of uncompressed data:
+
+| Filter | Lossless | After `keep_bits=12` |
+|---|---|---|
+| lzf (old default) | 1.11 / 326 / 562 | — |
+| gzip 4 + shuffle | **1.59** / 71 / 275 | — |
+| Blosc lz4 + shuffle | 1.46 / 594 / 478 | 2.23 / 605 / 471 |
+| Blosc lz4 + bitshuffle | 1.36 / 598 / 478 | 2.42 / 600 / 441 |
+| Blosc lz4 level 9 + shuffle | 1.48 / 549 / 468 | — |
+| Blosc zstd 3 + shuffle (**default**) | 1.56 / 287 / 453 | **2.81** / 255 / 398 |
+| Blosc zstd 3 + bitshuffle | 1.40 / 262 / 437 | 2.54 / 327 / 416 |
+
+- **The ratios match the GB10's** to within 0.03, although the event is a different
+  one (seed 1 does not give the same collision on both machines). They are set by the
+  data, not the machine.
+- **Speeds are lower**, but the ranking is the same. Relative to lzf, zstd writes 12 %
+  slower (GB10: 10 %) and reads 19 % slower (GB10: 18 %).
+- **Bitshuffle** loses on lossless data here too, and after rounding helps only LZ4.
+- **Uncompressed**, the tau-sliced read ran at 9 MB/s: the same copy-bound layout effect
+  as on the GB10 (see [Threads](#threads)).
+
+**Production runs.** `run_prod_jet.py --events 2 --seed 1`, PythiaGun, deposition on,
+one run per setting. The output grid is 65×65×33, with 101/100 and 105/103 jet/background
+tau frames:
+
+| Setting | File | Per-event wall time |
+|---|---|---|
+| `--compression lzf` | 840 MB | 25.5 / 27.7 s |
+| default (`blosc-zstd`) | 597 MB (−29 %) | 27.0 / 28.8 s |
+| `--keep-bits 12` | 330 MB (−61 %) | 26.0 / 28.9 s |
+
+- **Data:** the lzf and Blosc files hold bit-identical data (all 30 datasets). Two more
+  Blosc runs, with and without the LBT-tables link, were identical as well.
+- **`--keep-bits 12`:** maximum relative error 1.22055e-4 (bound 2^-13 = 1.22070e-4) in
+  both `arr` and `arr_bg`, every zero preserved. `arr` goes from 468 MB raw to 166 MB
+  (2.8×). Both legs are tagged `compression = "blosc-zstd:3+shuffle"` and
+  `keep_mantissa_bits = 12`, and `h5_inspect.py` shows both.
+- **Wall time:** the four Blosc runs averaged ~1 s per event more than the single lzf
+  run. That is within run-to-run scatter: by the speeds above, the filter itself costs
+  ~0.2 s per event pair (~470 MB of evolution).
+- **Tests:** PyJetscape `test_pair_h5.py` and `test_h5_bulk.py` pass (59), and FastHydro
+  `test_h5_output.py` and `test_fast_data_writer.py` pass (13; 2 skipped because FNO4d's
+  loaders are not vendored).
+- **Reading:** both example notebooks import `hdf5plugin`. The single-leg writer
+  (`run_prod.py`, `H5BulkWriter`) also writes readable Blosc files on the Mac.
+
 ## Using it
 
 ### Compression specs
@@ -213,7 +271,10 @@ python run_prod_jet.py --events 10 --seed 1 --compression lzf   # the old files
     no HDF5.
 
   Your own scripts that call `h5py.File` directly need `import hdf5plugin` first.
-  Without it, h5py fails with *"required filter 'blosc' is not registered"*.
+  Without it, h5py fails with *"required filter 'blosc' is not registered"*. On macOS
+  (h5py 3.15, HDF5 1.14.6) the same failure reads *"Can't synchronously read data
+  (can't open directory (/usr/local/hdf5/lib/plugin) …"*, and only when the data is
+  read, not when the file is opened.
 - **Command-line HDF5 tools** (`h5dump`, `h5ls -v`) need the plugin path:
 
   ```bash
