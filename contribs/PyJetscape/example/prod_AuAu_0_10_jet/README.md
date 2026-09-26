@@ -67,9 +67,31 @@ python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --
 ./run_jobs.sh -j 4 --mps 20 25 1                             # 4 at a time, GPU shared via CUDA MPS
 ./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both   # + hadronization input
 
+# GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (BENCHMARK_GB10.md)
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1
+
 # macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (BENCHMARK_M3MAX.md)
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 1
 ```
+
+**Recommended campaign settings** (measured, hydro pairs only; machine-specific, so they are
+not built into the scripts):
+
+| machine | campaign | events/h | memory | one job alone | details |
+|---|---|---|---|---|---|
+| GB10 (CUDA, 20 cores, 121 GB) | `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps ...` | ~190 | ~66 GB | defaults (all threads), 118 events/h | [BENCHMARK_GB10.md](BENCHMARK_GB10.md) |
+| Apple M3 Max (Metal, 16 cores, 64 GB) | `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 ...` | 213 | ~40 GB | defaults, 132 events/h | [BENCHMARK_M3MAX.md](BENCHMARK_M3MAX.md) |
+
+- **Several jobs at once:** set `OMP_NUM_THREADS` to about cores / jobs, otherwise the jobs'
+  OpenMP threads oversubscribe the cores.
+- **One job alone:** leave `OMP_NUM_THREADS` unset. On the GB10, fewer threads made a single
+  job 24% slower.
+- **`--mps` is CUDA only.** On the GB10 it takes four jobs from 159 to 173–179 events/h, and
+  the thread split brings that to ~190.
+- **With `--write-particlize`,** each job is slower (43.0 s instead of 29.5 s per event alone
+  on the GB10) and needs +0.5 GB. The campaign throughput with it has not been measured.
+- **On another machine,** re-measure as described in
+  [Finding the settings on another machine](BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
 
 Each job writes the following, next to each other:
 - `AuAu_0_10_jet_seedNNNN.h5`: the data.
