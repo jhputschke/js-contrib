@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<!--
+  Hadronization settings for the stored surfaces and final partons of prod_AuAu_0_10_jet
+  (PLAN_particlize_h5.md).  One file, used twice:
+
+    hadronize.py            offline: iSS on surface/jet and surface/bg, ColorlessHadronization
+                            on partons/.  The task list (SurfaceReplay -> iSS) is built in
+                            Python, hence no automatic task list.  hadronize.py fills in the
+                            iSS paths, the oversample count and the seed.
+    run_prod_jet.py, option validate-inline
+                            copies <SoftParticlization> (hydro_id MUSIC_2) and
+                            <JetHadronization> (reseed_per_event 1) into the production job,
+                            so the in-job hadrons can be compared with the offline ones.
+
+  iSS: MUSIC runs EOS 9 (hotQCD, UrQMD hadron list), and without SMASH iSS must decay the
+  resonances itself (Perform_resonance_decays 1).  The list follows EOS_to_use in the job's
+  music_input, which the particlize file stores verbatim (it also carries MUSIC's
+  Include_Bulk_Visc flag, which is what switches iSS's bulk delta-f on).  delta-f as in the
+  JETSCAPE defaults: shear and bulk, Grad 22-moment (deltaf_type 20).
+
+  Jet hadronization: colorless (the JETSCAPE choice for AA with Matter+LBT; colored is not
+  supported here, see PLAN_particlize_h5.md).  eCMforHadronization is sqrt(s_NN) = 200: a beam
+  remnant, added only to close a string (odd number of quarks, or none), gets 1/6 of it along
+  the beam (the main XML's 5020 is LHC).  take_recoil 1 hadronizes LBT
+  recoils; partons the liquefier absorbed (pstat -11, -17) are never passed to Pythia.
+-->
+<jetscape>
+
+  <enableAutomaticTaskListDetermination>false</enableAutomaticTaskListDetermination>
+  <nEvents> 1 </nEvents>
+  <vlevel> 0 </vlevel>
+  <nEvents_printout> 100 </nEvents_printout>
+
+  <!-- Every framework event is a different stored surface.  The main XML's reuse (true,
+       10) would deactivate the replay and iSS for 9 of every 10 events, and those events
+       would silently return the previous surface's hadrons. -->
+  <setReuseHydro> false </setReuseHydro>
+  <nReuseHydro> 1 </nReuseHydro>
+
+  <Random>
+    <seed> 1 </seed>
+  </Random>
+
+  <JetScapeWriterAscii> off </JetScapeWriterAscii>
+  <JetScapeWriterAsciiGZ> off </JetScapeWriterAsciiGZ>
+  <JetScapeWriterHepMC> off </JetScapeWriterHepMC>
+  <JetScapeWriterFinalStatePartonsAscii> off </JetScapeWriterFinalStatePartonsAscii>
+  <JetScapeWriterFinalStateHadronsAscii> off </JetScapeWriterFinalStateHadronsAscii>
+
+  <!-- Only read by SoftParticlization::check_boost_invariance: nz > 1 means 3+1D, so iSS
+       uses hydro_mode 2 (MUSIC 3+1D cells).  The values of the production XML. -->
+  <IS>
+    <grid_max_z> 6 </grid_max_z>
+    <grid_step_z> 0.3 </grid_step_z>
+  </IS>
+
+  <SoftParticlization>
+    <hydro_id>first</hydro_id>
+    <iSS>
+      <hydro_mode>2</hydro_mode>
+      <!-- relative paths resolve against the X-SCAPE build tree (hadronize.py and the
+           production job make them absolute) -->
+      <iSS_input_file>../external_packages/iSS/iSS_parameters.dat</iSS_input_file>
+      <iSS_working_path>.</iSS_working_path>
+      <iSS_table_path>../external_packages/iSS/iSS_tables</iSS_table_path>
+      <iSS_particle_table_path>../external_packages/iSS/iSS_tables</iSS_particle_table_path>
+      <afterburner_type>1</afterburner_type>
+      <include_deltaf_shear>1</include_deltaf_shear>
+      <include_deltaf_bulk>1</include_deltaf_bulk>
+      <deltaf_type>20</deltaf_type>
+      <number_of_repeated_sampling>100</number_of_repeated_sampling>
+      <Perform_resonance_decays>1</Perform_resonance_decays>
+    </iSS>
+  </SoftParticlization>
+
+  <JetHadronization>
+    <name>colorless</name>
+    <take_recoil>1</take_recoil>
+    <eCMforHadronization>200</eCMforHadronization>
+    <pythia_decays>on</pythia_decays>
+    <tau0Max>10.0</tau0Max>
+    <!-- 1: every event reseeds Pythia from the module's generator and records the seed,
+         so an event can be reproduced on its own (hadronize.py always passes a seed) -->
+    <reseed_per_event>1</reseed_per_event>
+  </JetHadronization>
+
+</jetscape>

@@ -17,6 +17,9 @@ grid YAMLs, grid checks and environment checks this reuses.
     python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
     python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
     python run_prod_jet.py --events 10 --seed 1 --surface jet    # surface for the jet leg only
+    python run_prod_jet.py --events 10 --seed 1 --write-particlize both
+                                     # + <stem>_particlize.h5: both surfaces and the final
+                                     #   partons, for hadronize.py (PLAN_particlize_h5.md)
     python run_prod_jet.py --events 1 --seed 1 --dry-run         # check, print the plan
     ./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
 
@@ -28,6 +31,7 @@ PairH5Writer then warns that the jet leg is bit-identical to the background.
 from __future__ import annotations
 
 import argparse
+import copy
 import importlib.util
 import json
 import os
@@ -94,10 +98,27 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-showers", action="store_true", dest="no_showers",
                    help="do not store the parton showers (shower/)")
     p.add_argument("--surface", choices=("none", "bg", "jet", "both"), default="none",
-                   help="which legs build MUSIC's freeze-out surface. It is only needed to "
-                        "particlize a leg (e.g. 'jet' for hadrons from the jet leg); "
-                        "'none' (default) is ~6 s per MUSIC run faster, with a "
-                        "bit-identical evolution")
+                   help="which legs build MUSIC's freeze-out surface. Nothing in this job "
+                        "receives a surface unless --write-particlize stores it (which builds "
+                        "its legs anyway), so on its own this only costs ~3 s per MUSIC run; "
+                        "a warning says so. 'none' (default) gives a bit-identical evolution")
+    p.add_argument("--write-particlize", choices=("none", "jet", "both"), default="none",
+                   dest="write_particlize",
+                   help="also write <stem>_particlize.h5: the freeze-out surface of the jet "
+                        "leg (jet) or of both legs (both, the background once per "
+                        "background) plus the final partons, everything hadronize.py needs "
+                        "to hadronize the event exactly. Switches on the surface of those "
+                        "legs (see --surface). Default none")
+    p.add_argument("--validate-inline", action="store_true", dest="validate_inline",
+                   help="validation only: also run iSS on the jet leg and Colorless jet "
+                        "hadronization inside the job (settings from --hadronize-xml, "
+                        "Pythia reseeded per event) and store their hadrons and seeds in "
+                        "<stem>_inline_{bulk_jet,jet_frag}.h5, to compare with hadronize.py "
+                        "--use-stored-seeds. Needs --write-particlize")
+    p.add_argument("--hadronize-xml", default=os.path.join(HERE, "hadronize.xml"),
+                   dest="hadronize_xml",
+                   help="iSS / JetHadronization settings for --validate-inline (default: "
+                        "hadronize.xml next to this script)")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_workdir_args(p)
@@ -118,6 +139,13 @@ def _set(parent, tag, value):
     return n
 
 
+def _set_text(parent, tag, value):
+    """As _set, without the padding (for strings compared or used as paths verbatim)."""
+    n = _set(parent, tag, value)
+    n.text = str(value)
+    return n
+
+
 def music_delta_tau(build: str) -> float:
     """MUSIC's time step from the build tree's music_input."""
     with open(os.path.join(build, "music_input")) as f:
@@ -126,6 +154,38 @@ def music_delta_tau(build: str) -> float:
             if len(parts) >= 2 and parts[0] == "Delta_Tau":
                 return float(parts[1])
     sys.exit(f"run_prod_jet.py: no Delta_Tau in {build}/music_input")
+
+
+def surface_legs(a) -> set:
+    """Legs whose MUSIC builds a freeze-out surface: --surface plus --write-particlize."""
+    legs = {"none": set(), "bg": {"bg"}, "jet": {"jet"}, "both": {"bg", "jet"}}[a.surface]
+    legs |= {"none": set(), "jet": {"jet"}, "both": {"bg", "jet"}}[a.write_particlize]
+    return legs
+
+
+def particlize_legs(a) -> tuple:
+    return {"none": (), "jet": ("jet",), "both": ("jet", "bg")}[a.write_particlize]
+
+
+def add_inline_hadronization(root, hadronize_xml):
+    """--validate-inline: iSS on MUSIC_2 and Colorless jet hadronization in this job.
+
+    The blocks come from hadronize.xml, the file hadronize.py uses, so both sides run the
+    same settings.  iSS samples the jet leg (hydro_id MUSIC_2) and reads the job's own
+    music_input (iSS_working_path "."); Pythia is reseeded every event so each event's jet
+    fragments can be reproduced alone.  '../' paths are made absolute with the main XML's.
+    """
+    src = ET.parse(hadronize_xml).getroot()
+    soft, had = src.find("SoftParticlization"), src.find("JetHadronization")
+    if soft is None or had is None:
+        sys.exit(f"run_prod_jet.py: {hadronize_xml} needs <SoftParticlization> and "
+                 "<JetHadronization>")
+    soft, had = copy.deepcopy(soft), copy.deepcopy(had)
+    _set_text(soft, "hydro_id", JET_ID)          # compared verbatim with the module id
+    _set_text(soft.find("iSS"), "iSS_working_path", ".")
+    _set(had, "reseed_per_event", 1)
+    root.append(had)
+    root.append(soft)
 
 
 def job_xml(a, out_h5: str):
@@ -175,9 +235,9 @@ def job_xml(a, out_h5: str):
         _set(hydros[1], "AddLiquefier", "false" if a.no_deposit else "true")
         # First block: the background leg and the default for every instance; MUSIC_2's
         # own block always gets an explicit value, which overrides it for the jet leg.
-        _set(music, "freeze_out_surface", 1 if a.surface in ("bg", "both") else 0)
-        _set(hydros[1].find("MUSIC"), "freeze_out_surface",
-             1 if a.surface in ("jet", "both") else 0)
+        legs = surface_legs(a)
+        _set(music, "freeze_out_surface", 1 if "bg" in legs else 0)
+        _set(hydros[1].find("MUSIC"), "freeze_out_surface", 1 if "jet" in legs else 0)
     if _text(root, "Preequilibrium/evolutionInMemory") != "0":
         problems.append("<Preequilibrium><evolutionInMemory> must be 0 with NullPreDynamics "
                         "and 3D-Glauber strings (otherwise the medium's tau axis is garbage)")
@@ -192,15 +252,68 @@ def job_xml(a, out_h5: str):
             problems.append(f"<CausalLiquefier><dtau> = {dtau} must equal MUSIC's Delta_Tau "
                             f"= {music_dtau}: the kernel is divided by it and deposited in "
                             "one hydro step")
-    for tag in ("SoftParticlization", "Afterburner", "RootBulkWriter", "FastRootBulkWriter"):
+    for tag in ("SoftParticlization", "JetHadronization", "Afterburner", "RootBulkWriter",
+                "FastRootBulkWriter"):
         if root.find(tag) is not None:
-            problems.append(f"remove <{tag}>: this job writes the hydro pair only")
+            problems.append(f"remove <{tag}>: this job writes the hydro pair only (hadrons "
+                            "come from hadronize.py; --validate-inline adds its own blocks)")
+    if a.validate_inline and not problems:
+        add_inline_hadronization(root, a.hadronize_xml)
     if problems:
         sys.exit(f"run_prod_jet.py: {a.user_xml}:\n  " + "\n  ".join(problems))
 
     path = os.path.splitext(out_h5)[0] + ".xml"
     tree.write(path)
     return path, root
+
+
+#: pair-writer diag/ values copied into the particlize file's events/ (energy bookkeeping
+#: for the hadron-level balance, and the flags that make an event suspect)
+PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_early",
+                   "tau0_music", "ntau_jet", "ntau_bg", "frames_identical",
+                   "jet_hit_boundary", "bg_hit_boundary")
+
+
+class InlineHadrons:
+    """--validate-inline: the in-job iSS (jet leg) and Colorless hadrons, with seeds."""
+
+    def __init__(self, iss, hadro_mgr, stem, n_oversample):
+        from jetscape.hadrons_h5 import HadronH5Writer
+
+        self.iss, self.mgr = iss, hadro_mgr
+        attrs = {"inline": True, "source": os.path.basename(stem) + "_particlize.h5"}
+        self.w_bulk = HadronH5Writer(stem + "_inline_bulk_jet.h5", tag="bulk_jet",
+                                     n_samples=n_oversample, attrs=attrs)
+        self.w_frag = HadronH5Writer(stem + "_inline_jet_frag.h5", tag="jet_frag",
+                                     n_samples=1, attrs=attrs)
+
+    def capture(self, idx):
+        from jetscape import pyjetscape_core as core
+
+        bulk = core.soft_hadrons_numpy(self.iss)
+        iss_seed = int(core.soft_last_random_seed(self.iss))
+        self.w_bulk.append_unit(bulk, unit=idx, event=idx, seed=iss_seed)
+        frag = core.hadronization_hadrons_numpy(self.mgr)
+        py_seed = int(core.jet_hadronization_last_random_seed(self.mgr))
+        self.w_frag.append_unit([frag], unit=idx, event=idx, seed=py_seed)
+        print(f"  inline: iSS {len(bulk['pid'])} hadrons in {len(bulk['sample_counts'])} "
+              f"sample(s) (seed {iss_seed}), Colorless {len(frag['pid'])} hadrons "
+              f"(seed {py_seed})")
+        return {"inline_iss_seed_jet": iss_seed, "inline_pythia_seed": py_seed}
+
+    def close(self):
+        self.w_bulk.close()
+        self.w_frag.close()
+
+
+def open_inline(a, jetscape, stem):
+    tasks = {t.GetId(): t for t in jetscape.GetTaskList()}
+    if "iSS" not in tasks or "HadronizationManager" not in tasks:
+        sys.exit(f"run_prod_jet.py: --validate-inline found no iSS / HadronizationManager "
+                 f"task (tasks: {sorted(tasks)}); is this build configured with iSS?")
+    n_os = int(_text(ET.parse(a.hadronize_xml).getroot(),
+                     "SoftParticlization/iSS/number_of_repeated_sampling") or 1)
+    return InlineHadrons(tasks["iSS"], tasks["HadronizationManager"], stem, n_os)
 
 
 def main() -> int:
@@ -210,6 +323,19 @@ def main() -> int:
     rp.check_env(a)
     if a.reuse < 1:
         sys.exit("run_prod_jet.py: --reuse must be >= 1")
+    if a.validate_inline and a.write_particlize == "none":
+        sys.exit("run_prod_jet.py: --validate-inline compares with the stored surfaces and "
+                 "partons; add --write-particlize jet (or both)")
+    a.hadronize_xml = os.path.abspath(a.hadronize_xml)
+    unused = sorted(surface_legs(a) - set(particlize_legs(a)))
+    if unused:
+        print(f"run_prod_jet.py: WARNING -- --surface {a.surface} builds the freeze-out surface "
+              f"of the {' and '.join(unused)} leg(s), but nothing in this job receives it: "
+              f"only --write-particlize hands a surface to the framework and stores it. "
+              f"That costs ~3 s per MUSIC run of that leg for no output; use "
+              f"--write-particlize "
+              f"{'both' if 'bg' in unused else 'jet'} to keep it, or drop --surface.",
+              file=sys.stderr)
 
     grid, max_ntau, grid_text = rp.load_grid_yaml(a.grid)
     os.makedirs(a.outdir, exist_ok=True)
@@ -225,7 +351,9 @@ def main() -> int:
                  else f"PGun pT {a.pgun_pt:g} GeV")
     print(f"prod_AuAu_0_10_jet: {a.events} event(s), seed {a.seed}, grid_mode {grid_mode}, "
           f"{hard_desc}, reuse {a.reuse}, deposition {'OFF (null test)' if a.no_deposit else 'on'}, "
-          f"freeze-out surface: {a.surface}")
+          f"freeze-out surface: {'+'.join(sorted(surface_legs(a))) or 'none'}"
+          + (f", particlize input: {a.write_particlize}" if particlize_legs(a) else "")
+          + (" + inline iSS/Colorless (validation)" if a.validate_inline else ""))
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
     print(f"  grid     {a.grid}")
@@ -236,6 +364,10 @@ def main() -> int:
     else:
         print(rp.describe(grid, max_ntau))
     print(f"  output   {out_h5}")
+    stem = os.path.splitext(out_h5)[0]
+    out_particlize = stem + "_particlize.h5" if particlize_legs(a) else None
+    if out_particlize:
+        print(f"  output   {out_particlize}")
     if a.dry_run:
         return 0
 
@@ -254,6 +386,7 @@ def main() -> int:
         "prod_hard": hard_desc,
         "prod_reuse": a.reuse,
         "prod_surface": a.surface,
+        "prod_write_particlize": a.write_particlize,
         "system": "AuAu 200 GeV 0-10% (b in [0, 4.7] fm)",
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
@@ -268,7 +401,15 @@ def main() -> int:
                     "eos_kind": "hotqcd (MUSIC EOS 9)",
                     "transport_mode": "MUSIC viscous: eta/s(T) and zeta/s(T) "
                                       "parametrization 3, second-order terms"},
-        extra_attrs=provenance, verbose=True)
+        keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True)
+    pwriter = None
+    if out_particlize:
+        from jetscape.particlize_h5 import ParticlizeH5Writer
+        pwriter = ParticlizeH5Writer(
+            out_particlize, legs=particlize_legs(a), bg_id=BG_ID, jet_id=JET_ID,
+            T_fo=provenance["T_fo"], pair_file=out_h5,
+            extra_attrs={k: v for k, v in provenance.items() if k != "T_fo"},
+            verbose=True)
 
     # MUSIC / 3dMCGlauber resolve their input files relative to the working directory:
     # a private one per job (rp.enter_workdir), so concurrent jobs share no file.
@@ -284,6 +425,9 @@ def main() -> int:
     jetscape.SetXMLUserFileName(xml)
     jetscape.Init()
     writer.attach(jetscape)                  # after Init: MUSIC_2 -> dump_hydro_only
+    if pwriter is not None:
+        pwriter.attach(jetscape)             # reads ./music_input: the job's own
+    inline = open_inline(a, jetscape, stem) if a.validate_inline else None
 
     late = 0
     droplets = e_late = 0.0
@@ -294,6 +438,12 @@ def main() -> int:
             t0 = time.time()
             jetscape.ExecPerEvent()
             idx = writer.Exec()              # both legs are live here
+            if idx is not None and pwriter is not None:
+                d = writer.last_event_diag
+                pwriter.Exec(idx, bg_id=d["bg_id"], bg_key=writer.last_bg_key,
+                             **{k: d[k] for k in PARTICLIZE_DIAG if k in d})
+                if inline is not None:
+                    pwriter.write_events(idx, **inline.capture(idx))
             jetscape.ClearPerEvent()
             wall = time.time() - t0
             if idx is None:
@@ -316,6 +466,11 @@ def main() -> int:
         jetscape.Finish()
     finally:
         writer.Finish()
+        if pwriter is not None:
+            pwriter.Finish(complete=pwriter.GetNumberOfEventsWritten()
+                           == writer.GetNumberOfEventsWritten())
+        if inline is not None:
+            inline.close()
 
     n = writer.GetNumberOfEventsWritten()
     if n:
@@ -328,6 +483,9 @@ def main() -> int:
                "legs_cut_at_max_ntau": writer.n_clipped,
                "droplets_total": int(droplets), "E_droplets_late_total": round(e_late, 3),
                "wall_s": round(time.time() - t_job, 1)}
+    if pwriter is not None:
+        summary.update(particlize=out_particlize, particlize_legs=list(particlize_legs(a)),
+                       particlize_events_written=pwriter.GetNumberOfEventsWritten())
     with open(os.path.splitext(out_h5)[0] + ".json", "w") as f:
         json.dump(summary, f, indent=1)
     print("prod_AuAu_0_10_jet:", json.dumps(summary))

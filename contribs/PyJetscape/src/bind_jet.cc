@@ -21,6 +21,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <array>
 #include <memory>
 #include <vector>
 
@@ -36,7 +37,21 @@
 namespace py = pybind11;
 using namespace Jetscape;
 
+// Columns of JetEnergyLossManager.final_partons_numpy() (and of the jet
+// hadronization helpers in bind_hadronization.cc, which read them back).
+static constexpr int kFinalPartonNCols = 14;
+static const char *kFinalPartonColumns[kFinalPartonNCols] = {
+    "shower", "pid", "pstat", "E", "px", "py", "pz",
+    "t",      "x",   "y",     "z", "mass", "col", "acol"};
+
 void bind_jet(py::module_ &m) {
+  {
+    py::tuple cols(kFinalPartonNCols);
+    for (int c = 0; c < kFinalPartonNCols; ++c)
+      cols[c] = py::str(kFinalPartonColumns[c]);
+    m.attr("FINAL_PARTON_COLUMNS") = cols;
+  }
+
   // ── Parton (an edge in the shower graph) ──────────────────────────────────
   // Momentum from p_in() [GeV], position from x_in() [fm, t in fm/c].
   // NOTE: Parton::t() is the *virtuality*, so the position-time is x_in().t().
@@ -52,7 +67,13 @@ void bind_jet(py::module_ &m) {
       .def("y",     [](Parton &p) { return p.x_in().y(); })
       .def("z",     [](Parton &p) { return p.x_in().z(); })
       .def("t",     [](Parton &p) { return p.x_in().t(); },
-           "Position time x_in().t() [fm/c] (NOT virtuality).");
+           "Position time x_in().t() [fm/c] (NOT virtuality).")
+      .def("color",      [](Parton &p) { return p.color(); },
+           "Colour tag (0 = none). LBT assigns none, see PLAN_particlize_h5.md.")
+      .def("anti_color", [](Parton &p) { return p.anti_color(); },
+           "Anti-colour tag (0 = none).")
+      .def("restmass",   [](Parton &p) { return p.restmass(); },
+           "Rest mass [GeV] (the PDG mass the particle was built with).");
 
   // ── Vertex (a node in the shower graph) ───────────────────────────────────
   py::class_<Vertex, std::shared_ptr<Vertex>>(m, "Vertex",
@@ -192,6 +213,40 @@ void bind_jet(py::module_ &m) {
              return out;
            },
            "The hard (shower-initiating) partons, one per shower.")
+      .def("final_partons_numpy",
+           [](JetEnergyLossManager &mgr) {
+             // Exactly what JetEnergyLossManager::GetFinalStatePartons hands the
+             // hadronization: one list per JetEnergyLoss task, in task order,
+             // GetShower()->GetFinalPartons() each (an empty shower stays empty).
+             std::vector<std::array<double, kFinalPartonNCols>> rows;
+             int ishower = 0;
+             for (auto &it : mgr.GetTaskList()) {
+               auto jl = std::dynamic_pointer_cast<JetEnergyLoss>(it);
+               if (!jl)
+                 continue;
+               auto shower = jl->GetShower();
+               if (shower) {
+                 for (auto &p : shower->GetFinalPartons()) {
+                   rows.push_back({double(ishower), double(p->pid()),
+                                   double(p->pstat()), p->e(), p->px(), p->py(),
+                                   p->pz(), p->x_in().t(), p->x_in().x(),
+                                   p->x_in().y(), p->x_in().z(), p->restmass(),
+                                   double(p->color()), double(p->anti_color())});
+                 }
+               }
+               ++ishower;
+             }
+             py::array_t<double> out(
+                 {(py::ssize_t)rows.size(), (py::ssize_t)kFinalPartonNCols});
+             auto a = out.mutable_unchecked<2>();
+             for (size_t i = 0; i < rows.size(); ++i)
+               for (int c = 0; c < kFinalPartonNCols; ++c) a(i, c) = rows[i][c];
+             return out;
+           },
+           "The final-state partons the hadronization would receive, as an (N, 14) "
+           "float64 array with columns FINAL_PARTON_COLUMNS (shower index = position "
+           "in the manager's task list). Valid after the manager's Exec, before "
+           "ClearPerEvent.")
       .def("number_of_showers", [](JetEnergyLossManager &mgr) {
         int n = 0;
         for (auto &it : mgr.GetTaskList())

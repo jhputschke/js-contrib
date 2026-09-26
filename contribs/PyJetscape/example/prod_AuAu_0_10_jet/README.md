@@ -24,12 +24,24 @@ same initial condition, and before the first droplet deposits they are bit-ident
 >
 > Without the slot, MUSIC_2 silently ignores the droplets, and the writer then warns that the
 > jet leg is identical to the background. Plan and status: `../../PLAN_pair_h5_music.md`.
+>
+> **Hadron level (2026-09-26, branches `surface_to_hadrons` in X-SCAPE and js-contrib).**
+> `--write-particlize` stores both freeze-out surfaces and the final partons next to the pair;
+> `hadronize.py` turns them into iSS and Colorless hadrons offline, bit-identical to running
+> them inside the job. See [Hadron level](#hadron-level-surfaces-partons-hadronizepy) and
+> `PLAN_particlize_h5.md`.
 
 | file | purpose |
 |---|---|
 | `AuAu_MCGlauber_MUSIC_0_10_jet.xml` | user XML: the prod physics plus `Hard`, `Liquefier`, `Eloss` and a second `Hydro` (MUSIC_2) |
 | `run_prod_jet.py` | one job: one seed, N events, one `.h5` file |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
+| `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
+| `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
+| `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
+| `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
+| `PLAN_particlize_h5.md` | design, decisions and validation of the hadron-level path |
+| `PLAN_iSS_optim.md` | for later: faster iSS (bit-identical) and correlated jet/background sampling |
 
 The grid YAMLs (`../prod_AuAu_0_10/grid_fno.yaml` by default) and all grid and environment
 checks are shared with the single-leg production. Pair files and single-leg files made with
@@ -47,19 +59,266 @@ python run_prod_jet.py --events 10 --seed 1 --pthat-min 20 --pthat-max 40
 python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
 python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
 python run_prod_jet.py --events 1 --seed 1 --dry-run         # check the XML/grid only
+
+# + the input for hadronization: both freeze-out surfaces and the final partons
+python run_prod_jet.py --events 10 --seed 1 --write-particlize both
+python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --n-frag 50
+python run_hadronize.py out -j 4 --oversample 500 --n-frag 50    # every particlize file in out/
+
 ./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
 ./run_jobs.sh -j 2 20 25 1 out_pgun --hard pgun
 ./run_jobs.sh -j 4 --mps 20 25 1                             # 4 at a time, GPU shared via CUDA MPS
+./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both   # + hadronization input
+
+# GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (BENCHMARK_GB10.md)
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1
 
 # macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (BENCHMARK_M3MAX.md)
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 1
 ```
 
+**Recommended campaign settings** (measured, hydro pairs only; machine-specific, so they are
+not built into the scripts):
+
+| machine | campaign | events/h | memory | one job alone | details |
+|---|---|---|---|---|---|
+| GB10 (CUDA, 20 cores, 121 GB) | `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps ...` | ~190 | ~66 GB | defaults (all threads), 118 events/h | [BENCHMARK_GB10.md](BENCHMARK_GB10.md) |
+| Apple M3 Max (Metal, 16 cores, 64 GB) | `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 ...` | 213 | ~40 GB | defaults, 132 events/h | [BENCHMARK_M3MAX.md](BENCHMARK_M3MAX.md) |
+
+- **Several jobs at once:** set `OMP_NUM_THREADS` to about cores / jobs, otherwise the jobs'
+  OpenMP threads oversubscribe the cores.
+- **One job alone:** leave `OMP_NUM_THREADS` unset. On the GB10, fewer threads made a single
+  job 24% slower.
+- **`--mps` is CUDA only.** On the GB10 it takes four jobs from 159 to 173–179 events/h, and
+  the thread split brings that to ~190.
+- **With `--write-particlize`,** each job is slower (~35 s instead of 29.5 s per event alone
+  on the GB10; 43.0 s before MUSIC4GPU `5058545` parallelized the surface finder) and needs
+  +0.5 GB. The campaign throughput with it has not been measured.
+- **On another machine,** re-measure as described in
+  [Finding the settings on another machine](BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
+
 Each job writes the following, next to each other:
 - `AuAu_0_10_jet_seedNNNN.h5`: the data.
+- `AuAu_0_10_jet_seedNNNN_particlize.h5`: with `--write-particlize` only, the input for
+  `hadronize.py` (see [Hadron level](#hadron-level-surfaces-partons-hadronizepy)).
 - `.xml`: the exact job XML.
 - `.json`: a summary.
 - `.log`: only when the job is run through `run_jobs.sh`.
+
+`hadronize.py` then writes `AuAu_0_10_jet_seedNNNN_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5`
+next to the particlize file. For many seeds at once, see the next section.
+
+## Campaigns with `run_jobs.sh`
+
+`run_jobs.sh` runs many `run_prod_jet.py` jobs, one seed and one output file per job:
+
+```bash
+./run_jobs.sh [-j P] [--mps] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod_jet.py options ...]
+```
+
+- Seeds `FIRST_SEED .. FIRST_SEED+NJOBS-1`, `EVENTS_PER_JOB` events each. The files are
+  `OUTDIR/AuAu_0_10_jet_seedNNNN.*` (default `OUTDIR` is `./out`).
+- `-j P` keeps P jobs running at once; `--mps` lets them share the GPU through CUDA MPS
+  (CUDA only). Every job runs in its own working directory (`OUTDIR/work/<tag>`, removed when
+  it succeeds), so the jobs can start together. Output is bit-identical per seed whatever
+  `-j`.
+- Everything after `OUTDIR` goes to every job unchanged (`--write-particlize`, `--reuse`,
+  `--hard`, `--grid`, ...). Don't pass `--events`, `--seed` or `--outdir`: the script sets them.
+- Each job's output goes to `OUTDIR/<tag>.log`. A failed job is reported and the others
+  continue.
+- **End marker.** When a campaign ends (not on Ctrl-C), `OUTDIR/run_jobs.finished` is
+  written: this is how `run_hadronize.py --follow` knows no more files are coming. A new
+  campaign in the same `OUTDIR` removes it first.
+- **Restarting.** A seed whose `.json` says all events were written is skipped (with
+  `--write-particlize`, its particlize file must be complete too). So an interrupted campaign
+  resumes with the same command, and re-running it only redoes failed or missing seeds.
+- Give every distinct setting its own `OUTDIR`: the skip test looks only at the seed and the
+  event count, not at the options.
+
+### A. Hydro pairs only (FNO training data)
+
+```bash
+conda activate js_fno
+./run_jobs.sh 1 1 1 out_null --no-deposit                  # first: null test, arr == arr_bg
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out     # 20 seeds x 25 events
+```
+
+On the GB10, `OMP_NUM_THREADS=5 ... -j 4 --mps` gives about 190 events/h
+([BENCHMARK_GB10.md](BENCHMARK_GB10.md); on macOS see the Metal line under *Run*). No
+freeze-out surface is built (`--surface none`, the default), which is the fastest setting.
+
+### B. Hydro pairs + hadronization input
+
+The same, plus `--write-particlize`. The pair files are unchanged, byte for byte, so they can
+also serve as training data:
+
+```bash
+# first: one validation job, then one null-test job (see "Checks before a campaign")
+python run_prod_jet.py --events 2 --seed 900 --write-particlize both --validate-inline --outdir out_val
+python run_prod_jet.py --events 1 --seed 901 --write-particlize both --no-deposit --outdir out_val
+
+# the campaign: both surfaces + final partons every event
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both
+
+# one background per 3 jets: the background surface is stored once per background
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 30 1 out_had_reuse3 --write-particlize both --reuse 3
+```
+
+| `--write-particlize` | stores | use |
+|---|---|---|
+| `both` | jet and background surfaces, final partons | hadron-level wake (jet − background), the usual choice |
+| `jet` | jet surface, final partons | when only the jet event's hadrons are wanted (no background subtraction) |
+| `none` (default) | nothing extra | hydro only (A) |
+
+Don't combine it with `--surface`: `--write-particlize` builds the surfaces it stores, and a
+surface built but not stored only costs time (the job warns if you do). `--validate-inline`
+is for validation jobs only: it changes the jet sample of a seed (see *Seeds*).
+
+**Hadronizing the campaign: `run_hadronize.py`.** `hadronize.py` needs only the particlize
+files and an X-SCAPE build with iSS: no GPU, no MUSIC. It runs on one core, one production
+file at a time; `run_hadronize.py` runs it over a whole campaign, `-j P` at a time:
+
+```bash
+# after production (or on another machine): every complete *_particlize.h5 in out_had/
+python run_hadronize.py out_had -j 8 --oversample 500 --n-frag 50
+
+# alongside production: start it next to run_jobs.sh; it hadronizes each file as its job
+# completes and stops when run_jobs.sh writes out_had/run_jobs.finished
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both &
+python run_hadronize.py out_had -j 3 --follow --oversample 500 --n-frag 50
+
+# a --reuse campaign: give each background N x the jet leg's oversamples (the optimal split)
+python run_hadronize.py out_had_reuse3 -j 8 --oversample 200 --oversample-bg auto --n-frag 50
+
+python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
+```
+
+- **Inputs** are directories, particlize files or globs. Every option it doesn't know goes to
+  each `hadronize.py` unchanged. These are checked once before anything starts.
+- **Only complete inputs.** A particlize file being written by a running job is not touched.
+  Without `--follow` it is reported as incomplete; with `--follow` it is picked up once its
+  job has finished.
+- **Restarting.** `--skip-complete` is passed unless you give `--force`. Files whose outputs
+  are all complete are skipped without starting a process; missing or incomplete outputs are
+  redone. Re-running the same command finishes an interrupted pass, and on a finished
+  campaign it returns at once.
+- **Ctrl-C** stops the running `hadronize.py` processes. They close their outputs as
+  incomplete once their current iSS pass is done (up to ~90 s; a second Ctrl-C kills them),
+  and the next run redoes those files.
+- **`--follow`** stops when every input directory has `run_jobs.finished` and nothing is
+  left, or after `--idle-exit` minutes (default 30) without new work. `--poll` (default
+  30 s) sets how often it looks for new files.
+- **Logs and exit code.** Each file's log is appended to `<stem>_hadronize.log` next to its
+  outputs. A summary at the end lists hadronized, already complete, failed and incomplete
+  files; the exit code is 1 if any `hadronize.py` failed.
+- **Memory.** Each process needs ~1.4 GB plus ~2.4 MB per iSS oversample of its largest
+  surface. A warning is printed if `-j` processes would not fit into the available memory.
+- **Cores.** Next to four GPU jobs on the GB10, `-j 3` to `-j 4` keeps up; alone, up to one
+  process per free core.
+
+`hadronize.py` options worth knowing (all pass through `run_hadronize.py`):
+
+| option | effect |
+|---|---|
+| `--oversample N` | iSS samples per jet-leg surface (default: `hadronize.xml`'s 100); also per background unless: |
+| `--oversample-bg M` | iSS samples per background surface |
+| `--oversample-bg auto` | per background: N × the number of events using it (`events/bg_unit`), capped at `--oversample-bg-max` (default 2000, ~6 GB) with a warning. Under `--reuse N` this minimizes the error of jet − background for the CPU spent: a reused background's noise averages down over N times fewer backgrounds. The count per background is in `units/n_samples` of the `bulk_bg` file |
+| `--n-frag K` | Colorless fragmentations per event. With `K` equal to `N` every oversample gets its own fragmentation (`JetEvents.jet_event`) |
+| `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag`, e.g. `--tags jet_frag` to redo only the fragments with other settings |
+| `--seed` | base seed; every unit's seed derives from it and is stored in `units/seed` |
+
+### C. Analysing a campaign: `HadronFileReader`
+
+The hadron files are read the way the hydro files are: side by side, one production file
+per seed, no merging. `HadronFileReader` (in `jetscape.hadrons_h5`) opens every production
+file of a campaign as one data set:
+
+```python
+import numpy as np
+from jetscape.hadrons_h5 import HadronFileReader
+
+def jet_axis(info):
+    """phi and rapidity of the event's hardest shower-initiating parton."""
+    ini = info.initiators()                 # (K, 11): shower, pid, pstat, px, py, pz, E, ...
+    px, py, pz, E = ini[np.argmax(np.hypot(ini[:, 3], ini[:, 4])), 3:7]
+    return np.arctan2(py, px), 0.5 * np.log((E + pz) / (E - pz))
+
+def dphi(ev, info):                         # hadron azimuth relative to this event's jet
+    return np.mod(ev.phi - jet_axis(info)[0], 2 * np.pi)
+
+def soft_charged(ev, info):                 # charged, pT < 4 GeV, |eta - y_jet| < 1
+    return ev.charged & (ev.pt < 4) & (np.abs(ev.eta - jet_axis(info)[1]) < 1)
+
+with HadronFileReader("out_had") as r:      # every *_particlize.h5 in the directory
+    print(r.n_files, "files,", r.n_events, "events, tags", r.tags())
+
+    # the wake: <jet leg> - <background> per 30-degree bin, all events of all seeds
+    bins = np.linspace(0, 2 * np.pi, 13)
+    wake, err = r.jet_minus_background(dphi, bins, mask=soft_charged)
+    # ... fragments=True adds the jet's own hadrons (jet_frag)
+
+    # one tag, any observable: names of EventHadrons attributes, or callables
+    E_mid, E_err = r.total("bulk_jet", weights="E", mask=lambda ev, info: np.abs(ev.eta) < 1)
+    pt_spec, pt_err = r.hist("bulk_bg", "pt", np.linspace(0, 3, 31), mask="charged")
+
+    # single events, numbered across all seeds
+    ev = r.jet_event(2, 17)                 # global event 2, oversample 17 + fragments
+    bg = r.background_event(2, 17)          # the background that event used
+    info = r.event_info(2)                  # stem, local event, bg_unit, seed, initiators()
+```
+
+What it does:
+
+- **Finds the files.** `source` is a directory, a glob pattern (of particlize or hadron
+  files) or a list of stems. Each production file needs its `_particlize.h5`; hadron tags
+  missing in some files show up in `r.tags(file_index)`, and `r.tags()` lists the tags every
+  file has.
+- **Numbers events globally,** in file-name (seed) order: `r.locate(g)` gives
+  (file, local event) and `r.global_event(file, local)` the reverse.
+- **Refuses mixed runs.** A hadron file whose recorded `source_uuid` isn't its particlize
+  file's `file_uuid` (renamed, or from another run) is refused;
+  `check_uuid=False` overrides.
+- **Averages event by event.** For every event, the samples of its unit are histogrammed and
+  divided by that unit's number of samples. These per-event means are then averaged over the
+  events, so every event counts the same, even when files were hadronized with different
+  `--oversample`. Errors are compound-Poisson per event, added over events.
+- **Gives each event its own background.** A background shared by several events
+  (`--reuse`) is evaluated once per event with that event's `info`, which is what
+  jet-relative observables need. Its hadrons, counted several times, enter the error as the
+  correlated sum they are.
+- **Keeps jet and background consistent.** `jet_minus_background` uses only events whose jet
+  leg *and* background have samples (an empty surface drops the event from both), each event
+  against its own background.
+- **Reads one file at a time.** Only the units it needs are loaded.
+  - The four events of seeds 1 and 3 (500 and 100 oversamples, about 11 M hadrons) take
+    2.7 s.
+  - For seed 1 it reproduces the notebook's energy balance: 18.1 ± 2.7 GeV at |η| < 1.
+
+The callables receive an `EventHadrons` (`pid`, `pstat`, `p`, `x`, `E`, `px`, `py`, `pz`,
+`pt`, `eta`, `y`, `phi`, `charged`, `sample`, `n_samples`, `species()`: all samples of that
+tag for that event) and an `EventInfo` (`event`, `stem`, `local_event`, `bg_unit`, `seed`,
+`initiators()`). `values` may return a tuple for an N-d histogram. `initiators()` reads the
+pair file's `shower/` group, so keep the pair files next to the particlize files.
+
+**Option if needed: merging into single files.** A campaign could also be merged into one
+file per tag (`merge_hadrons.py`, not written). It would concatenate the units, shift the
+offsets, add `seed`/`source_event` columns, and renumber backgrounds globally together with a
+merged event → background map. That only helps for moving or archiving a campaign as three
+files instead of 4 × N_seeds: a merged file at 500 oversamples is ~50 GB per 500 events, and
+the reader above makes it unnecessary for analysis.
+
+### Planning numbers (GB10, one 0–10% event, measured)
+
+| | per event | disk per event |
+|---|---|---|
+| A: hydro pair (`grid_fno.yaml`, Blosc-zstd) | 29.5 s alone; ~190 events/h with `-j 4 --mps` | 285 MB |
+| B: + `--write-particlize both` | 34.6–35.3 s alone (+5.4 s: MUSIC builds and hands over the two surfaces; +13.5 s before MUSIC4GPU `5058545`); `-j` throughput not measured | + 154 MB |
+| B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
+| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~58 s on one core; ~28 s per surface (16.5 s fixed + 23 ms per oversample) | ~100 MB per leg (~0.2 MB per oversample) |
+
+Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` 1.4 GB up to ~100
+oversamples, 2.5 GB at 500 and 3.9 GB at 1000. Three or four `hadronize.py` processes keep up
+with a whole four-job GPU campaign.
 
 ## Options
 
@@ -72,7 +331,10 @@ Each job writes the following, next to each other:
 | `--native` | Both legs on MUSIC's own grid (100 × 100 × 60) instead of the YAML's. |
 | `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |
 | `--no-showers` | Skip `shower/`. |
-| `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface. It is needed only to particlize a leg, e.g. `jet` for hadrons from the jet leg. `none` (default) is ~6 s per MUSIC run faster, with a bit-identical evolution. It sets `<freeze_out_surface>` in the first `<Hydro><MUSIC>` block (background, and the default) and in MUSIC_2's own block (jet leg). |
+| `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +5.4 s per event for `both` (+13.5 s before MUSIC4GPU `5058545`; measured, below). |
+| `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
+| `--hadronize-xml FILE` | Settings for `--validate-inline` (default `hadronize.xml`). |
+| `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface (`<freeze_out_surface>` in the first `<Hydro><MUSIC>` block, i.e. the background and the default, and in MUSIC_2's own block). On its own it produces nothing: only `--write-particlize` hands a surface to the framework and stores it, and it builds its legs itself. So a leg built but not stored costs ~3 s per MUSIC run (~6 s before MUSIC4GPU `5058545`) for no output, and the job warns about it. `none` (default) gives a bit-identical evolution. |
 
 The job XML always contains **one** hard process. The automatic task list would run every
 `<Hard>` child it finds, so the driver rebuilds that block from the option.
@@ -113,6 +375,97 @@ It grows `arr` and `arr_bg` together:
 python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
 ```
 
+## Hadron level: surfaces, partons, `hadronize.py`
+
+The hydro pair stops at the fluid. To compare the wake in hadrons, the job stores the
+**input** to hadronization, not hadrons, and hadronization runs later (`PLAN_particlize_h5.md`
+has the reasons and the alternatives):
+
+```bash
+python run_prod_jet.py --events 10 --seed 1 --write-particlize both        # GPU
+python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --n-frag 50
+```
+
+**`<stem>_particlize.h5`** (`jetscape.particlize_h5`, read with `ParticlizeFile`):
+
+| | |
+|---|---|
+| `surface/jet/cells` | MUSIC_2's freeze-out surface, `(N, 32)` float32, columns `surface_columns`: exactly the fields iSS reads (x^μ, dσ_μ, u^μ, e, T, P, charges, μ's, π^{μν}, Π). The framework's `SurfaceCellInfo` is float, so this is lossless. One unit per event (`offsets`). |
+| `surface/bg/cells`, `surface/bg/bg_id` | MUSIC_1's, one unit per **new** background (with `--reuse N`, once per N events); `events/bg_unit` says which unit an event used. |
+| `partons/data` | the final partons the jet hadronization receives (`JetEnergyLossManager::GetFinalStatePartons`), `(K, 14)`: shower, pid, pstat, E, p, t, x, y, z, mass, col, acol |
+| `events/` | per event: `bg_id`, `bg_unit`, `bg_key` (hash of the whole background leg), cell and parton counts, droplet energies, MUSIC τ0, boundary flags |
+| attributes | `music_input` (the job's own, verbatim: iSS reads its EoS id and `Include_Bulk_Visc` flag from it), `T_fo`, `pair_file`, `file_uuid`, provenance |
+
+**`hadronize.py`** (CPU only: no MUSIC, no GPU) writes one file per tag (`jetscape.hadrons_h5`,
+read with `Hadrons.from_h5`):
+
+| tag | from | unit |
+|---|---|---|
+| `bulk_jet` | iSS on `surface/jet`: bulk + wake | event |
+| `bulk_bg` | iSS on `surface/bg`: bulk | background |
+| `jet_frag` | `ColorlessHadronization` on `partons/` (`eCMforHadronization` 200, `take_recoil` 1) | event |
+
+Each file keeps every sample apart (`sample_offsets`, `unit_offsets`), so averages are over
+oversamples of one event, with compound-Poisson errors (`Hadrons.hist`, `Hadrons.total`).
+
+**Every oversample is an event on its own**, and `JetEvents` puts the tags together per event:
+
+```python
+from jetscape.hadrons_h5 import JetEvents, HadronFile, ORIGIN
+with JetEvents.from_stem("out/AuAu_0_10_jet_seed0001") as je:   # the three files + particlize
+    ev = je.jet_event(0, 17)          # event 0: bulk_jet oversample 17 + one fragmentation
+    ev["pid"], ev["p"], ev["x"]       # p = [E, px, py, pz]; ev["origin"]: 0 bulk, 1 fragment
+    bg = je.background_event(0, 17)   # oversample 17 of the background event 0 used
+    for ev in je.iter_jet_events(0):  # all oversamples of event 0
+        ...
+with HadronFile("out/AuAu_0_10_jet_seed0001_hadrons_bulk_jet.h5") as hf:
+    one = hf.sample_event(0, 17)      # any single sample, read from disk (not the whole file)
+```
+
+For many production files at once, use `HadronFileReader` (see
+[C. Analysing a campaign](#c-analysing-a-campaign-hadronfilereader)).
+
+The fragmentation paired with oversample `k` is `k mod n_frag` (or `frag_sample=`); run
+`hadronize.py` with `--n-frag` equal to `--oversample` to give every oversample its own. The
+background comes from the particlize file's `events/bg_unit`, so reused backgrounds resolve.
+Oversamples of one event share one fluid: independent Cooper–Frye samplings, not independent
+collisions.
+Every unit's seed is derived from (`--seed`, tag, unit, sample) and stored in `units/seed`, so
+any unit can be regenerated alone. A jet event is `bulk_jet` + `jet_frag`; its background is
+`bulk_bg` unit `events/bg_unit`. An empty surface (MUSIC stopped at the grid boundary) gives a
+unit with no samples.
+
+**Measured (GB10, seed 1, one 0–10% event):**
+- Surfaces: 1,001,592 cells (jet) and 989,732 (background), 128 MB each raw, 77.6 MB with
+  Blosc-zstd (the charge and μ columns are zero here). The particlize file is 154.5 MB, about
+  half the pair file (285 MB).
+- Time: 29.5 s per event without surfaces, 34.6–35.3 s with `--write-particlize both`
+  (+5.4 s: the parallel surface search 1.2 s, copies of the previous time step 1.8 s, the
+  extra GPU→host copies 1.2 s, the hand-off and the write ~1.4 s). With the serial surface
+  finder of MUSIC4GPU before `5058545` it was 43.0 s (+13.5 s, ~9.6 s of it the search).
+  The surfaces are bit-identical either way, apart from the pressure column (see
+  `PLAN_particlize_h5.md`, *Surface finder*). Peak memory
+  +0.5 GB.
+- `hadronize.py`: ~20 s per surface for 100 iSS oversamples and ~30 s for 500 on the CPU
+  (most of it is fixed cost); Colorless is negligible.
+- **Exact.** A `--validate-inline` job (2 events, 100 oversamples) and
+  `hadronize.py --use-stored-seeds` on its particlize file give bit-identical hadrons:
+  1,710,050 iSS hadrons and all Colorless fragments.
+
+**Things to know:**
+- **Colored jet hadronization is not supported** for this setup: LBT assigns no colour tags and
+  the liquefier removes partons from colour chains. `hadronize.py --diagnose-colored` measures
+  it; `PLAN_particlize_h5.md` has the details.
+- **pstat decides what is fragmented.** Colorless takes 0 (shower), 1 (recoil), 22 and −1.
+  Partons the liquefier absorbed (−11), absorbed holes (−17) and the momentum missing at a
+  vertex (−13) went into the droplets, so they are never hadronized twice. In the seed-1 event
+  only 5 of 57 final partons survive.
+- **Beam remnants.** Colorless needs an even number of string ends: with an odd number of
+  quarks it adds one remnant quark (0.2, 0.2, ±√s/6 = 33 GeV along the beam), with none it adds
+  two (`ColorlessHadronization.cc`). That energy is not the jet's, and the string to a remnant
+  spreads hadrons across the rapidity gap, so a rapidity cut removes only part of it. The
+  seed-1 event needs none: its fragments carry exactly the surviving partons' 106.3 GeV.
+
 ## How the two legs are read
 
 - **Background (MUSIC_1) from the framework copy.** Matter, LBT and the liquefier query the
@@ -140,10 +493,18 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
   whether or not droplets are still due. Anything depositing later never reaches MUSIC_2;
   `diag/E_droplets_late` says how much.
 - **Seeds.** `<Random><seed>` drives 3dMCGlauber, Pythia and the energy loss, and MUSIC is
-  deterministic, so a seed reproduces a pair. The same seed does **not** give the same Glauber
-  event as `prod_AuAu_0_10`: the extra modules draw from the framework's random stream first,
-  so the background leg is a different event from the hydro-only file's (measured: seed 1
-  differs at frame 0).
+  deterministic, so a seed reproduces a pair. With a seed ≠ 0 there is no shared random
+  stream: every module has its own generator, seeded from (seed, the module's **task number**)
+  (`JetScapeTaskSupport.cc:104-118`), and the task number counts every task created before it.
+  - The energy-loss modules are cloned per shower at the first event, and the clones get new
+    task numbers (`JetEnergyLoss`'s copy constructor default-constructs its base, which
+    registers a task). So adding modules at Init shifts the jets: `--validate-inline` (4 extra
+    tasks) gives a different jet for the same seed (measured: seed 1, 26 droplets / 33.1 GeV
+    instead of 25 / 25.0 GeV), while the background leg stays identical (989,732 surface cells
+    in both). `--write-particlize` adds no task and leaves the pair file byte-identical.
+  - The same seed does **not** give the same Glauber event as `prod_AuAu_0_10` (measured: seed
+    1 differs at frame 0). The earlier explanation here ("the extra modules draw from the
+    framework's random stream first") does not match the code; the cause is still open.
 - **Speed and memory (measured, GB10, seed 1, one 0–10% event, PythiaGun 50–70 GeV, 25
   droplets).**
   - Null test (`--no-deposit`): 58 s per event, about twice the single-leg ~25 s.
@@ -173,6 +534,28 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
     129. `--mps` is CUDA-only. Details: [BENCHMARK_M3MAX.md](BENCHMARK_M3MAX.md).
 
 ## Checks before a campaign
+
+For a campaign with `--write-particlize`, also check the two test jobs of recipe B:
+
+```bash
+# 1. offline = in-job, bit for bit
+python hadronize.py out_val/AuAu_0_10_jet_seed0900_particlize.h5 --use-stored-seeds \
+       --tags bulk_jet,jet_frag --out-dir out_val/offline
+python - <<'EOF'
+import h5py, numpy as np, jetscape.h5_compression
+for tag in ("bulk_jet", "jet_frag"):
+    a = h5py.File(f"out_val/AuAu_0_10_jet_seed0900_inline_{tag}.h5")["hadrons"]
+    b = h5py.File(f"out_val/offline/AuAu_0_10_jet_seed0900_hadrons_{tag}.h5")["hadrons"]
+    print(tag, all(np.array_equal(a[k][:], b[k][:]) for k in ("pid", "p", "sample_offsets")))
+EOF
+# 2. null test: the two surfaces are identical
+python -c "import numpy as np; from jetscape.particlize_h5 import ParticlizeFile as P; \
+p = P('out_val/AuAu_0_10_jet_seed0901_particlize.h5'); \
+print(np.array_equal(p.surface('jet', 0), p.surface('bg', 0)))"
+```
+
+Both must print `True`. (Run them from this folder with `../../python` on `PYTHONPATH`, or
+from anywhere after `pip install -e ../..`.)
 
 1. `--no-deposit`, 1 event: `arr == arr_bg` and `frames_identical == ntau`.
 2. 1 event with a jet: `n_droplets > 0`; the legs differ only after the first deposit; the

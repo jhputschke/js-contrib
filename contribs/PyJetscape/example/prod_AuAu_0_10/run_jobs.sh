@@ -28,7 +28,8 @@
 # script runs under macOS's bash 3.2.
 #
 # A failed job is logged and the others continue; re-run just that seed later.
-# Jobs whose .json summary already says complete are skipped, so an interrupted campaign can
+# Jobs whose .json summary already says complete are skipped (with --write-particlize the
+# particlize file must be complete too), so an interrupted campaign can
 # be restarted with the same command.  Give each grid YAML its own OUTDIR: the skip test
 # looks at the seed and event count only.
 #
@@ -62,6 +63,9 @@ if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then   # an optional OUTDIR before the o
   OUTDIR=$1; shift
 fi
 OUTDIR="$(mkdir -p "$OUTDIR" && cd "$OUTDIR" && pwd)"
+# Written when the campaign ends (not on Ctrl-C), so ../prod_AuAu_0_10_jet/run_hadronize.py
+# --follow knows no more files are coming; a new campaign in this OUTDIR removes it.
+rm -f "$OUTDIR/run_jobs.finished"
 
 # Pythia needs PYTHIA8DATA only where its compiled-in xmldoc path is invalid (a relocated
 # conda Pythia, e.g. js_fno); there importing pyjetscape_core aborts. Homebrew's is fine.
@@ -137,7 +141,9 @@ for (( k = 0; k < NJOBS; k++ )); do
   tag=$(printf "%s%04d" "$TAG_PREFIX" "$seed")
   if [ -f "$OUTDIR/$tag.json" ] && \
      python -c "import json,sys; d=json.load(open('$OUTDIR/$tag.json')); \
-                sys.exit(d['events_written'] != $EVENTS)" 2>/dev/null; then
+                sys.exit(d['events_written'] != $EVENTS or \
+                         d.get('particlize_events_written', $EVENTS) != $EVENTS)" \
+       2>/dev/null; then
     echo "[$(date +%F\ %T)] seed $seed: already complete, skipping"; continue
   fi
   while [ ${#pids[@]} -ge "$PAR" ]; do reap; done
@@ -149,6 +155,11 @@ done
 while [ ${#pids[@]} -gt 0 ]; do reap; done
 trap - INT TERM
 mps_stop
+echo "finished $(date +%F\ %T): seeds $SEED0..$(( SEED0 + NJOBS - 1 )), $EVENTS events each" \
+  > "$OUTDIR/run_jobs.finished"
+if [ ${#failed[@]} -gt 0 ]; then
+  echo "failed seeds: ${failed[*]}" >> "$OUTDIR/run_jobs.finished"
+fi
 
 # Events longer than tau.max_ntau keep only their first max_ntau frames.  That is the point
 # of setting it (e.g. early times only), so this is a count, not an error.
