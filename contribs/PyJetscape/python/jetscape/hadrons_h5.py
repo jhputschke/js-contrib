@@ -131,19 +131,24 @@ class HadronH5Writer:
         """Append one unit.  ``samples`` is a list of hadron dicts (one per sample, keys
         pid, pstat, p, x), or one dict with ``sample_counts`` (as soft_hadrons_numpy
         returns).  Returns the unit index."""
+        keys = ("pid", "pstat", "p", "x")
         if isinstance(samples, dict):
             counts = np.asarray(samples.get("sample_counts", [len(samples["pid"])]),
                                 dtype=np.int64)
-            cuts = np.concatenate([[0], np.cumsum(counts)])
-            samples = [{k: np.asarray(samples[k])[cuts[s]:cuts[s + 1]]
-                        for k in ("pid", "pstat", "p", "x")} for s in range(len(counts))]
-        for s in samples:
-            self._h.append({k: s[k] for k in ("pid", "pstat", "p", "x")})
+            rows = {k: samples[k] for k in keys}
+        else:
+            counts = [len(s["pid"]) for s in samples]
+            rows = {k: np.concatenate([np.asarray(s[k]) for s in samples])
+                    for k in keys} if samples else None
+        # all samples in one write: one append per sample recompresses the partly
+        # filled last chunk every time (most of hadronize.py's write time)
+        self._h.append_many(rows, counts)
+        n_samples = len(counts)
         n = self._unit_off.shape[0]
         self._unit_off.resize((n + 1,))
         self._unit_off[n] = self._h.units_written
         u = self._u
-        self._units.append(u, dict(unit_scalars, n_samples=len(samples)))
+        self._units.append(u, dict(unit_scalars, n_samples=n_samples))
         self._u += 1
         self.f.attrs["nunits_written"] = self._u
         self.f.flush()

@@ -480,10 +480,34 @@ class RaggedGroup:
         A missing field, or ``rows=None``, is zero rows.  All fields share the offsets, so
         they must all get the same number of rows.  Returns that number.
         """
+        arrays, n = self._rows(rows, "append")
+        self._write(arrays, [n])
+        return n
+
+    def append_many(self, rows, counts):
+        """Append several consecutive units in one write.
+
+        ``rows`` is as for :meth:`append`, with the units' rows concatenated; ``counts``
+        is the number of rows of each unit.  The file is the same as from one
+        :meth:`append` per unit, but much faster when the units are small compared with a
+        chunk: every append re-reads, extends and recompresses the partly filled last
+        chunk, here each chunk is compressed once.  Returns the total number of rows.
+        """
+        counts = np.asarray(counts, dtype=np.int64).reshape(-1)
+        if np.any(counts < 0):
+            raise ValueError("RaggedGroup.append_many: counts must be >= 0")
+        arrays, n = self._rows(rows, "append_many")
+        if int(counts.sum()) != n:
+            raise ValueError(f"RaggedGroup.append_many: counts add up to {int(counts.sum())} "
+                             f"but the fields have {n} rows")
+        self._write(arrays, counts)
+        return n
+
+    def _rows(self, rows, who):
         rows = dict(rows or {})
         unknown = set(rows) - set(self._fields)
         if unknown:
-            raise KeyError(f"RaggedGroup.append: unknown field(s) {sorted(unknown)}; "
+            raise KeyError(f"RaggedGroup.{who}: unknown field(s) {sorted(unknown)}; "
                            f"this table has {list(self._fields)}")
         arrays, n = {}, None
         for name, ds in self._fields.items():
@@ -495,9 +519,12 @@ class RaggedGroup:
                 n = len(a)
             elif len(a) != n:
                 raise ValueError(
-                    f"RaggedGroup.append: fields share one offsets vector but got "
+                    f"RaggedGroup.{who}: fields share one offsets vector but got "
                     f"{n} and {len(a)} rows ({name!r})")
             arrays[name] = a
+        return arrays, n
+
+    def _write(self, arrays, counts):
         start = int(self._offsets[-1])
         for name, a in arrays.items():
             if len(a):
@@ -505,9 +532,9 @@ class RaggedGroup:
                 ds.resize(start + len(a), axis=0)
                 ds[start:] = a
         k = int(self._offsets.shape[0])
-        self._offsets.resize((k + 1,))
-        self._offsets[k] = start + n
-        return n
+        if len(counts):
+            self._offsets.resize((k + len(counts),))
+            self._offsets[k:] = start + np.cumsum(counts)
 
 
 # ───────────────────────────────────────────── reconciling files across jobs
