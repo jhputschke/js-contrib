@@ -145,6 +145,7 @@ echo "==> Installing Python analysis packages (conda-forge)"
 ${SOLVER} install -n "${ENV_NAME}" \
     numpy matplotlib scipy h5py seaborn tqdm \
     jupyterlab ipykernel \
+    hdf5plugin pyyaml pandas ipywidgets \
     -c conda-forge -y
 
 # ---------------------------------------------------------------------------

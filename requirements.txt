@@ -1,0 +1,54 @@
+# Python requirements for all js-contrib contribs (PyJetscape, FastHydro, Visualization,
+# utils, example scripts, notebooks and tests):
+#
+#     pip install -r requirements.txt
+#
+# Not covered by pip:
+#   - pyjetscape_core, the compiled bindings: built by X-SCAPE's CMake
+#     (-DUSE_JS_CONTRIB=ON -DUSE_JS_PYJETSCAPE=ON) against the SAME Python as this env.
+#     Install into the environment the core was built in (e.g. js_fno): a pip venv on the
+#     system Python next to a conda-built core loads the system OpenSSL through torch and
+#     then fails in conda's libcurl ("OPENSSL_3.2.0 not found"); jetscape.HAS_CORE is False.
+#   - FnoHydro is C++ only (libtorch + ROOT, -DUSE_JS_FNO_HYDRO=ON); it has no Python deps.
+#   - ROOT: conda-forge (`conda install -c conda-forge root`), only for USE_ROOT builds.
+#   - torch below installs the default PyPI wheel (a CUDA build on Linux, MPS on macOS). For a
+#     specific CUDA version or a CPU-only build install torch from the PyTorch index first,
+#     e.g.  pip install torch --index-url https://download.pytorch.org/whl/cpu
+#
+# Minimal subsets: `pip install -e contribs/PyJetscape` (HDF5 I/O, prod scripts, notebooks;
+# no torch) and `pip install -e "contribs/FastHydro[solver]"`.
+
+# --- HDF5 writers / readers (PyJetscape, FastHydro, utils/h5_inspect.py) ---------------
+numpy>=1.25
+h5py>=3.8
+hdf5plugin            # Blosc filter of the default compression; needed to read the files
+
+# --- prod_AuAu_0_10* scripts and FastHydro configs -------------------------------------
+pyyaml>=6.0
+
+# --- notebooks (PyJetscape examples, FastHydro notebooks) ------------------------------
+matplotlib>=3.7
+scipy>=1.10           # jet_wake.ipynb; FastHydro liquefier kernel; Visualization resampling
+pandas
+ipywidgets>=8
+ipykernel
+notebook>=7
+
+# --- FastHydro solver, PyFNOHydro -------------------------------------------------------
+torch>=2.0
+
+# --- Visualization (vtk comes with pyvista) --------------------------------------------
+pyvista>=0.43
+imageio>=2.9
+imageio-ffmpeg        # .mp4 output (.gif works without)
+
+# --- PyJetscape optional helpers --------------------------------------------------------
+uproot>=5             # bulk_root_writer.py / fast_root_bulk.py (ROOT files without ROOT)
+awkward>=2
+networkx              # jetscape.utils.shower_to_networkx
+
+# --- building pyjetscape_core (found by CMake through this Python) ---------------------
+pybind11>=2.11
+
+# --- tests ------------------------------------------------------------------------------
+pytest>=7.0

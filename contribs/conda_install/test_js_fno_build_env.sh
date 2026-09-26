@@ -170,7 +170,8 @@ fi
 echo ""
 echo "=== 6. Python analysis packages (conda-forge) ==="
 
-for pkg in numpy matplotlib scipy h5py seaborn tqdm jupyterlab ipykernel; do
+for pkg in numpy matplotlib scipy h5py seaborn tqdm jupyterlab ipykernel \
+           hdf5plugin pyyaml pandas ipywidgets; do
     _check_conda "${pkg}"
 done
 

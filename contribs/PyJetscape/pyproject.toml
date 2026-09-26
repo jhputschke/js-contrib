@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=61", "pybind11>=2.11"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyjetscape"
@@ -9,17 +9,29 @@ description = "Python bindings for the JETSCAPE/X-SCAPE framework"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "GPL-3.0-or-later" }
+# The default install covers the HDF5 writers/readers, the prod_AuAu_0_10* example scripts
+# and their notebooks.  The compiled pyjetscape_core is built by CMake, not by pip.
 dependencies = [
-    "numpy",
-    "torch",
+    "numpy>=1.21",
+    "h5py>=3",
+    # the Blosc filter of the default compression (README_h5_optim.md); without it the
+    # writers fall back to lzf with a warning and Blosc files cannot be read
+    "hdf5plugin",
+    "pyyaml>=6.0",        # grid YAML of run_prod.py / run_prod_jet.py
+    # notebooks: check_output.ipynb (pandas, ipywidgets), jet_wake.ipynb (scipy)
+    "matplotlib>=3.5",
+    "scipy>=1.9",
+    "pandas",
+    "ipywidgets>=8",
+    "ipykernel",
+    "notebook>=7",
 ]
 
 [project.optional-dependencies]
-# jetscape.fast_h5_bulk (HDF5 bulk writer); scipy is only needed for the "grid" and
-# "framework" source modes, which resample onto a user grid.
-# hdf5plugin provides the Blosc filter of the default compression (README_h5_optim.md);
-# without it the writers fall back to lzf with a warning.
-hdf5 = ["h5py", "hdf5plugin", "scipy"]
+# PyFNOHydro only; torch is imported lazily, everything else works without it
+fno = ["torch>=2.0"]
+# bulk_root_writer.py / fast_root_bulk.py (read ROOT bulk files without ROOT)
+root = ["uproot>=5"]
 
 [tool.setuptools.packages.find]
 where = ["python"]

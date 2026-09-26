@@ -10,7 +10,7 @@ analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJe
 |---------|-------------|------------|
 | [FastHydro](contribs/FastHydro/) | MC-Glauber initial state + a fast 3+1D Milne FV hydro solver, with the Matter+LBT → CausalLiquefier jet-deposition workflow; paired background/jet evolutions on an identical IC | PyTorch, scipy, h5py, pyyaml; reuses PyJetscape (no build of its own) |
 | [FnoHydro](contribs/FnoHydro/) | Neural-network (FNO) hydrodynamics via LibTorch | ROOT, libtorch (~2 GB) |
-| [PyJetscape](contribs/PyJetscape/) | pybind11 Python bindings + PyFNOHydro trampoline | pybind11 (pip/conda auto-detected), PyTorch |
+| [PyJetscape](contribs/PyJetscape/) | pybind11 Python bindings + PyFNOHydro trampoline | pybind11 (pip/conda auto-detected); h5py, hdf5plugin, pyyaml + notebook stack via `pip install -e`; PyTorch optional (`[fno]`, only for PyFNOHydro) |
 | [Visualization](contribs/Visualization/) | 3D PyVista visualization of the hydro medium evolution, resampled Milne→Cartesian `(t,x,y,z)`, with a jet parton-shower overlay | pyvista, scipy, vtk, imageio (`imageio-ffmpeg` for `.mp4` output); reuses PyJetscape |
 
 The **FastHydro** and **Visualization** contribs are pure Python (no CMake build of
@@ -50,6 +50,11 @@ and synced here.
 | v0.1.x     | ≥ main  | PythonTest          |
 
 ## Installation
+
+All Python packages used by the contribs (examples, notebooks, Visualization, tests) are
+listed in [`requirements.txt`](requirements.txt): `pip install -r requirements.txt` in the
+environment `pyjetscape_core` is built with. Leaner per-contrib installs:
+`pip install -e contribs/PyJetscape` (no torch) and `pip install -e "contribs/FastHydro[solver]"`.
 
 ### Path A — via X-SCAPE CMake (recommended)
 
