@@ -8,6 +8,8 @@
  *   soft_set_next_random_seed(task, s)  one-shot iSS seed (exact re-sampling)
  *   soft_last_random_seed(task)         the seed the last event used
  *   soft_set_number_of_samples(task, n) oversamples per event from the next event on
+ *   soft_set_compact_output(task, on)   hand iSS's hadrons over as flat arrays, not one
+ *                                       Hadron object each (~8x less memory)
  *   hadronization_hadrons_numpy(task)   a HadronizationManager's / Hadronization's
  *                                       output hadrons (jet hadronization in a job)
  *   hadronize_partons(module, partons, seed=None)
@@ -84,6 +86,17 @@ py::dict hadrons_to_dict(const std::vector<std::shared_ptr<Hadron>> &h) {
   return d;
 }
 
+// A numpy array that takes over the vector's memory (no copy); numpy frees it.
+template <typename T>
+py::array_t<T> vector_to_numpy(std::vector<T> &&v, std::vector<py::ssize_t> shape) {
+  if (v.empty())
+    return py::array_t<T>(shape);
+  auto *owner = new std::vector<T>(std::move(v));
+  py::capsule free_when_done(
+      owner, [](void *o) { delete static_cast<std::vector<T> *>(o); });
+  return py::array_t<T>(shape, owner->data(), free_when_done);
+}
+
 std::shared_ptr<SoftParticlization> as_soft(const std::shared_ptr<JetScapeTask> &t) {
   auto s = std::dynamic_pointer_cast<SoftParticlization>(t);
   if (!s)
@@ -108,6 +121,23 @@ void bind_hadronization(py::module_ &m) {
       "soft_hadrons_numpy",
       [](std::shared_ptr<JetScapeTask> task) {
         auto soft = as_soft(task);
+        if (soft->HasCompactHadrons()) {      // soft_set_compact_output
+          SoftParticlization::HadronArrays a;
+          if (!soft->TakeCompactHadrons(a))
+            throw std::runtime_error(
+                "soft_hadrons_numpy: this event's hadrons were already handed over "
+                "(with soft_set_compact_output, call it once per event)");
+          const py::ssize_t n = static_cast<py::ssize_t>(a.pid.size());
+          py::dict d;
+          d["pid"] = vector_to_numpy(std::move(a.pid), {n});
+          d["pstat"] = vector_to_numpy(std::move(a.pstat), {n});
+          d["p"] = vector_to_numpy(std::move(a.p), {n, 4});
+          d["x"] = vector_to_numpy(std::move(a.x), {n, 4});
+          d["mass"] = vector_to_numpy(std::move(a.mass), {n});
+          const py::ssize_t ns = static_cast<py::ssize_t>(a.sample_counts.size());
+          d["sample_counts"] = vector_to_numpy(std::move(a.sample_counts), {ns});
+          return d;
+        }
         std::vector<std::shared_ptr<Hadron>> flat;
         const auto &lists = soft->Hadron_list_;
         py::array_t<long long> counts((py::ssize_t)lists.size());
@@ -146,6 +176,21 @@ void bind_hadronization(py::module_ &m) {
       "Samples (oversamples) per event from the next event on (iSS: "
       "number_of_repeated_sampling). Call after Init().",
       py::arg("task"), py::arg("n"));
+
+  m.def(
+      "soft_set_compact_output",
+      [](std::shared_ptr<JetScapeTask> task, bool on) {
+        if (!as_soft(task)->SetCompactHadronOutput(on))
+          throw std::invalid_argument(
+              "soft_set_compact_output: this module cannot hand its hadrons over as "
+              "arrays");
+      },
+      "From the next event on, hand the hadrons over as flat arrays instead of one "
+      "Hadron object each: the same soft_hadrons_numpy result with ~8x less memory. "
+      "soft_hadrons_numpy then takes the arrays over without copying, so call it once per "
+      "event. The framework's Hadron_list_ stays empty (no bulk hadrons for writers or "
+      "afterburners). iSS: ExecuteTask only.",
+      py::arg("task"), py::arg("on") = true);
 
   m.def(
       "soft_last_random_seed",

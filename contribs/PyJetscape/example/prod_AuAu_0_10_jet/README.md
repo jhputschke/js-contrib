@@ -211,8 +211,9 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 - **Logs and exit code.** Each file's log is appended to `<stem>_hadronize.log` next to its
   outputs. A summary at the end lists hadronized, already complete, failed and incomplete
   files; the exit code is 1 if any `hadronize.py` failed.
-- **Memory.** Each process needs ~1.4 GB plus ~2.4 MB per iSS oversample of its largest
-  surface. A warning is printed if `-j` processes would not fit into the available memory.
+- **Memory.** Each process needs ~1.6 GB, and beyond ~1500 iSS oversamples of its largest
+  surface ~0.3 MB more per oversample. A warning is printed if `-j` processes would not fit
+  into the available memory.
 - **Cores.** Next to four GPU jobs on the GB10, `-j 3` to `-j 4` keeps up; alone, up to one
   process per free core.
 
@@ -222,7 +223,7 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 |---|---|
 | `--oversample N` | iSS samples per jet-leg surface (default: `hadronize.xml`'s 100); also per background unless: |
 | `--oversample-bg M` | iSS samples per background surface |
-| `--oversample-bg auto` | per background: N × the number of events using it (`events/bg_unit`), capped at `--oversample-bg-max` (default 2000, ~6 GB) with a warning. Under `--reuse N` this minimizes the error of jet − background for the CPU spent: a reused background's noise averages down over N times fewer backgrounds. The count per background is in `units/n_samples` of the `bulk_bg` file |
+| `--oversample-bg auto` | per background: N × the number of events using it (`events/bg_unit`), capped at `--oversample-bg-max` (default 2000, ~1.7 GB) with a warning. Under `--reuse N` this minimizes the error of jet − background for the CPU spent: a reused background's noise averages down over N times fewer backgrounds. The count per background is in `units/n_samples` of the `bulk_bg` file |
 | `--n-frag K` | Colorless fragmentations per event. With `K` equal to `N` every oversample gets its own fragmentation (`JetEvents.jet_event`) |
 | `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag`, e.g. `--tags jet_frag` to redo only the fragments with other settings |
 | `--seed` | base seed; every unit's seed derives from it and is stored in `units/seed` |
@@ -314,11 +315,12 @@ the reader above makes it unnecessary for analysis.
 | A: hydro pair (`grid_fno.yaml`, Blosc-zstd) | 29.5 s alone; ~190 events/h with `-j 4 --mps` | 285 MB |
 | B: + `--write-particlize both` | 34.6–35.3 s alone (+5.4 s: MUSIC builds and hands over the two surfaces; +13.5 s before MUSIC4GPU `5058545`); `-j` throughput not measured | + 154 MB |
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
-| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~58 s on one core; ~28 s per surface (16.5 s fixed + 23 ms per oversample) | ~100 MB per leg (~0.2 MB per oversample) |
+| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before `PLAN_iSS_optim.md` Part A | ~100 MB per leg (~0.2 MB per oversample) |
 
-Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` 1.4 GB up to ~100
-oversamples, 2.5 GB at 500 and 3.9 GB at 1000. Three or four `hadronize.py` processes keep up
-with a whole four-job GPU campaign.
+Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` ~1.4 GB per surface
+up to ~1000 oversamples (1.6 GB for both legs), 1.7 GB at 2000 (it was 2.5 GB at 500 and
+3.9 GB at 1000 before the hadrons went to numpy as arrays). Three or four `hadronize.py`
+processes keep up with a whole four-job GPU campaign.
 
 ## Options
 
@@ -446,8 +448,8 @@ unit with no samples.
   The surfaces are bit-identical either way, apart from the pressure column (see
   `PLAN_particlize_h5.md`, *Surface finder*). Peak memory
   +0.5 GB.
-- `hadronize.py`: ~20 s per surface for 100 iSS oversamples and ~30 s for 500 on the CPU
-  (most of it is fixed cost); Colorless is negligible.
+- `hadronize.py`: ~6 s per surface for 100 iSS oversamples and ~8 s for 500 on one core
+  (~20 s and ~30 s before `PLAN_iSS_optim.md` Part A); Colorless is negligible.
 - **Exact.** A `--validate-inline` job (2 events, 100 oversamples) and
   `hadronize.py --use-stored-seeds` on its particlize file give bit-identical hadrons:
   1,710,050 iSS hadrons and all Colorless fragments.
