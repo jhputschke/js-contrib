@@ -1,6 +1,6 @@
-<!-- Plan, written 2026-09-26. Status: Part A (A1-A3) implemented 2026-09-26 on iSS branch
-     `yield_cache` (fork jhputschke/iSS, 01f7cf9; pinned on X-SCAPE branch `iss_speedup`);
-     A4 and Part B open. -->
+<!-- Plan, written 2026-09-26. Status: Part A done 2026-09-26 -- A1-A3 on iSS branch
+     `yield_cache` (fork jhputschke/iSS, 01f7cf9; pinned in X-SCAPE, #149), A4 in X-SCAPE
+     and PyJetscape (branches `iss_compact_hadrons`). Part B open. -->
 
 # Plan: faster iSS, and correlated jet/background sampling
 
@@ -82,7 +82,7 @@ A1 array); the A2 cache is per thread or read-only after a serial fill. Per-elem
 is unchanged, so this is bit-identical. The inverse CDF and all sampling stay sequential (RNG
 order).
 
-**A4 (optional). Memory.** Hand the samples to the framework without building one
+**A4 (optional; done, see below). Memory.** Hand the samples to the framework without building one
 `shared_ptr<Hadron>` per hadron (e.g. a binding that copies iSS's own sample arrays straight
 into numpy). This would cut the ~2.4 MB per oversample and allow more oversamples per process.
 It touches `iSpectraSamplerWrapper` and `bind_hadronization.cc`, not iSS.
@@ -169,10 +169,41 @@ the in-job vs offline check; PyJetscape and FastHydro tests pass (apart from the
 pre-existing `test_surface_finder` lattice-spacing failure). Profile of one surface now: the
 yield loop ~28% with one thread, sampling proper ~30%, Python imports ~16%, HDF5 ~4%.
 
-X-SCAPE branch `iss_speedup` has the wrapper fix and pins the fork in `get_iSS.sh`
-(`jhputschke/iSS -b yield_cache`, `01f7cf9`). Still open: the upstream PR to
-`chunshen1987/iSS` (upstream `XSCAPE` is now `cd5b7ce`, with a small overlap in
-`add_one_sampled_particle`), after which the pin goes back to upstream; and A4.
+X-SCAPE #149 has the wrapper fix and pins the fork in `get_iSS.sh`
+(`jhputschke/iSS -b yield_cache`, `01f7cf9`); js-contrib #16 the one-write hadron files.
+Still open: the upstream PR to `chunshen1987/iSS` (upstream `XSCAPE` is now `cd5b7ce`,
+with a small overlap in `add_one_sampled_particle`), after which the pin goes back to
+upstream.
+
+**A4: done (2026-09-26), bit-identical.** Opt-in compact output, so the framework's
+default is unchanged:
+- `SoftParticlization` (X-SCAPE): `HadronArrays` (pid, pstat, p, x, mass, sample counts),
+  `virtual SetCompactHadronOutput(bool)`, `HasCompactHadrons()`, `TakeCompactHadrons()`.
+- `iSpectraSamplerWrapper`: with it on, `ExecuteTask` copies iSS's own sample vectors
+  into the arrays (the same numbers `PassHadronListToJetscape` puts into `Hadron` objects:
+  label 0, status 11) and builds no `Hadron`; `Hadron_list_` stays empty. It frees each
+  sample once copied and calls `malloc_trim` every 64 samples: without that, iSS's freed
+  heap pages and the new arrays added up (2.27 instead of 1.68 GB at 2000 oversamples). The
+  time-stepped `ExecTime` path keeps `Hadron_list_`.
+- PyJetscape: `soft_set_compact_output(task, on=True)`; `soft_hadrons_numpy` takes the
+  arrays over without copying (numpy owns the vectors), so with compact output it is called
+  once per event (a second call raises). `hadronize.py` switches it on.
+
+One surface (`--tags bulk_jet`, one thread), peak memory:
+
+| oversamples | before A4 | after A4 |
+|---|---|---|
+| 500 | 2.4 GB | 1.39 GB (the pre-sampling peak) |
+| 1000 | 3.7 GB | 1.39 GB |
+| 2000 | ~6 GB (estimate) | 1.68 GB |
+
+Per oversample ~2.4 MB → ~0.3 MB: what is left is iSS's own `iSS_Hadron` storage (~40 B
+per hadron) while it samples, which only an iSS change would remove. Both legs at 500
+oversamples: 2.68 → 1.58 GB, 14.6 → 13.9 s (10.4 s with 5 threads). Checks: bit-identical
+to the reference files (1 and 5 threads); in-job (`Hadron` objects) vs offline (compact)
+with `--use-stored-seeds`: bit-identical; PyJetscape and FastHydro tests pass (apart from
+the pre-existing `test_surface_finder` failure). `run_hadronize.py`'s memory estimate is
+now max(1.6 GB, 1.1 GB + 0.3 MB × oversamples).
 
 ## Part B: correlated jet/background sampling (common random numbers)
 
