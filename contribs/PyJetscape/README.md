@@ -1122,6 +1122,12 @@ stored verbatim) there first.
 `phi`, `charged`, the unit and sample of every hadron, and `hist()` / `total()` averaged over
 the samples of the selected units with compound-Poisson errors.
 
+**Precision:** `HadronH5Writer(..., keep_bits={"p": 12, "x": 8})` (`hadronize.py
+--keep-bits-p 12 --keep-bits-x 8`) rounds momenta and positions to that many float32 mantissa
+bits: 58% of the bytes, relative errors ≤ 1.2e-4 / 2e-3. The default is full precision.
+`hadron_precision(path)` reads the setting back. Choose it once per campaign
+(`example/prod_AuAu_0_10_jet/README.md`, *Hadron precision*).
+
 **Single events:** every sample (oversample, fragmentation) is a complete event.
 `Hadrons.sample_event(unit, k)` (in memory) and `HadronFile(path).sample_event(unit, k)`
 (read from disk) return sample `k` of recorded unit `unit` (`units/unit`: the event, or the

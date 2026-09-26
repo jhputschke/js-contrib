@@ -23,6 +23,13 @@ Layout::
     units/<key>            (U,)             unit (row in the source group), event (first
                                             event using it), seed, n_cells ...
 
+``p`` and ``x`` are full float32 unless the writer was given ``keep_bits``: then they are
+rounded to that many mantissa bits (``keep_mantissa_bits`` / ``max_rel_error`` on the
+dataset, :func:`hadron_precision` reads them back); pid, pstat and the offsets are always
+exact.  Rounding is for campaign storage: e.g. ``keep_bits={"p": 12, "x": 8}`` keeps 58% of
+the bytes, with relative errors <= 1.2e-4 (p) and 2e-3 (x).  The inputs (particlize file +
+``units/seed``) reproduce the exact hadrons at any time.
+
 Two levels of offsets because an oversample is a sample of the whole event: averages are
 over samples, and the samples of one unit are not independent events.  Errors on sample
 averages use the compound-Poisson estimate of ``fasthydro.hadrons`` (``Var = sum w^2 /
@@ -63,9 +70,11 @@ import numpy as np
 
 from .fno_h5_writer import RaggedGroup
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
+from .h5_compression import dataset_keep_bits, h5_filter_kwargs, round_mantissa, tag_dataset
 
 __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "ORIGIN",
-           "HadronH5Writer", "Hadrons", "HadronFile", "JetEvents", "HadronFileReader",
+           "ROUNDABLE", "hadron_precision", "HadronH5Writer", "Hadrons", "HadronFile",
+           "JetEvents", "HadronFileReader",
            "EventHadrons", "EventInfo"]
 
 #: per-hadron arrays of one event (a sample), as sample_event() returns them
@@ -90,15 +99,56 @@ SPECIES = {
 }
 
 
+#: the float fields ``keep_bits`` may round; pid, pstat and the offsets stay exact
+ROUNDABLE = ("p", "x")
+
+
+def _keep_bits_map(keep_bits):
+    """None, an int (p and x alike) or a mapping {"p": bits, "x": bits} -> {field: bits},
+    with None for lossless (also for 23 bits, the full float32 mantissa)."""
+    if keep_bits is None or isinstance(keep_bits, (int, np.integer)):
+        m = dict.fromkeys(ROUNDABLE, keep_bits)
+    else:
+        m = dict(keep_bits)
+        bad = set(m) - set(ROUNDABLE)
+        if bad:
+            raise ValueError(f"keep_bits: only {ROUNDABLE} can be rounded, got {sorted(bad)}")
+    out = {}
+    for k in ROUNDABLE:
+        v = m.get(k)
+        if v is not None:
+            v = int(v)
+            if not 1 <= v <= 23:
+                raise ValueError(f"keep_bits[{k!r}] must be 1..23, got {v}")
+        out[k] = None if v in (None, 23) else v
+    return out
+
+
+def hadron_precision(f):
+    """``{"p": bits, "x": bits}`` a hadron file (path or open h5py.File) was written with;
+    None means full float32."""
+    import h5py
+
+    if not isinstance(f, h5py.File):
+        with h5py.File(f, "r") as h:
+            return hadron_precision(h)
+    return {k: dataset_keep_bits(f["hadrons"][k]) for k in ROUNDABLE}
+
+
 class HadronH5Writer:
-    """Append units of samples of hadrons (see the module docstring)."""
+    """Append units of samples of hadrons (see the module docstring).
+
+    ``keep_bits`` (default None: lossless) rounds ``p`` and ``x`` before they are written:
+    an int for both, or a mapping such as ``{"p": 12, "x": 8}``.  The precision is recorded
+    on each dataset (:func:`hadron_precision`)."""
 
     def __init__(self, path, *, tag, n_samples, attrs=None, compression=DEFAULT_COMPRESSION,
-                 force=True):
+                 force=True, keep_bits=None):
         import h5py
 
         if tag not in TAGS:
             raise ValueError(f"tag must be one of {TAGS}, got {tag!r}")
+        self.keep_bits = _keep_bits_map(keep_bits)
         self.path = str(path)
         if os.path.exists(self.path) and not force:
             raise FileExistsError(f"{self.path} exists (pass force=True)")
@@ -121,6 +171,13 @@ class HadronH5Writer:
             "pid": (np.int32, ()), "pstat": (np.int32, ()),
             "p": (np.float32, (4,)), "x": (np.float32, (4,))},
             compression=compression, chunk_rows=1 << 17, unit="free")
+        if any(v is not None for v in self.keep_bits.values()):
+            import warnings
+            with warnings.catch_warnings():         # RaggedGroup already warned, if at all
+                warnings.simplefilter("ignore")
+                label = h5_filter_kwargs(compression)[1]
+            for k, v in self.keep_bits.items():
+                tag_dataset(g[k], label, v)
         self._unit_off = g.create_dataset("unit_offsets", data=np.zeros(1, dtype=np.int64),
                                           maxshape=(None,), chunks=(4096,))
         from .particlize_h5 import _ScalarTable
@@ -140,6 +197,10 @@ class HadronH5Writer:
             counts = [len(s["pid"]) for s in samples]
             rows = {k: np.concatenate([np.asarray(s[k]) for s in samples])
                     for k in keys} if samples else None
+        if rows is not None:
+            for k, bits in self.keep_bits.items():
+                if bits is not None:
+                    rows[k] = round_mantissa(rows[k], bits)
         # all samples in one write: one append per sample recompresses the partly
         # filled last chunk every time (most of hadronize.py's write time)
         self._h.append_many(rows, counts)
@@ -580,6 +641,15 @@ class HadronFileReader:
             self._files.append(self._open_stem(stem, check_uuid))
         if not self._files:
             raise FileNotFoundError(f"no *_particlize.h5 found for {source!r}")
+        for tag in TAGS:
+            precs = {tuple(f["precision"][tag].items()) for f in self._files
+                     if tag in f["precision"]}
+            if len(precs) > 1:
+                import warnings
+                seen = ", ".join(str(dict(p)) for p in sorted(precs, key=str))
+                warnings.warn(f"HadronFileReader: the {tag} files were written with different "
+                              f"precision ({seen}; None = full float32): keep one --keep-bits "
+                              "setting per campaign", RuntimeWarning, stacklevel=2)
         n = np.array([f["nevents"] for f in self._files], dtype=np.int64)
         self._offsets = np.concatenate([[0], np.cumsum(n)])
         self._samples = {}              # (file index, tag) -> {unit id: n_samples}
@@ -604,13 +674,14 @@ class HadronFileReader:
                     "pair_file": pf.attrs.get("pair_file"),
                     "bg_unit": (pf.events("bg_unit") if pf.has_events("bg_unit")
                                 else None)}
-        info["tags"] = {}
+        info["tags"], info["precision"] = {}, {}
         for tag in TAGS:
             path = f"{stem}_hadrons_{tag}.h5"
             if not os.path.exists(path):
                 continue
             with h5py.File(path, "r") as f:
                 ftag, src = str(f.attrs.get("tag", "")), str(f.attrs.get("source_uuid", ""))
+                info["precision"][tag] = hadron_precision(f)
             if ftag != tag:
                 raise ValueError(f"{path} holds tag {ftag!r}, not {tag!r}")
             if check_uuid and src != uuid:
@@ -632,6 +703,10 @@ class HadronFileReader:
     @property
     def stems(self):
         return [f["stem"] for f in self._files]
+
+    def precision(self, file_index):
+        """``{tag: {"p": bits, "x": bits}}`` of one production file (None = full float32)."""
+        return dict(self._files[file_index]["precision"])
 
     def tags(self, file_index=None):
         """Tags present in every file (or in one file)."""

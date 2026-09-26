@@ -229,6 +229,40 @@ def test_ragged_append_many_equals_one_append_per_unit(tmp_path):
             many.append_many(rows, [1, 2])
 
 
+def test_hadron_file_keep_bits_rounds_p_and_x_only(tmp_path):
+    from jetscape.h5_compression import round_mantissa
+    from jetscape.hadrons_h5 import hadron_precision
+
+    rng = np.random.default_rng(3)
+    s = {"pid": rng.integers(-3334, 3334, 1000).astype(np.int32),
+         "pstat": np.full(1000, 11, np.int32),
+         "p": rng.normal(0, 2, (1000, 4)).astype(np.float32),
+         "x": rng.normal(0, 8, (1000, 4)).astype(np.float32)}
+    s["p"][0] = 0.0                                             # zeros stay zero
+    for name, kb, want in (("full", None, {"p": None, "x": None}),
+                           ("r", {"p": 12, "x": 8}, {"p": 12, "x": 8}),
+                           ("both10", 10, {"p": 10, "x": 10}),
+                           ("p23", {"p": 23}, {"p": None, "x": None})):
+        path = str(tmp_path / f"{name}.h5")
+        with HadronH5Writer(path, tag="bulk_jet", n_samples=1, keep_bits=kb) as w:
+            w.append_unit([s], unit=0, event=0, seed=1)
+        assert hadron_precision(path) == want
+        h = Hadrons.from_h5(path)
+        assert np.array_equal(h.pid, s["pid"]) and np.array_equal(h.pstat, s["pstat"])
+        for k in ("p", "x"):
+            got = getattr(h, k)
+            assert np.array_equal(got, round_mantissa(s[k], want[k]))
+            if want[k] is not None:
+                rel = np.abs(got - s[k]) / np.maximum(np.abs(s[k]), 1e-30)
+                assert rel.max() <= 2.0 ** -(want[k] + 1) and not np.array_equal(got, s[k])
+        assert h.p[0, 0] == 0.0
+    with pytest.raises(ValueError, match="1..23"):
+        HadronH5Writer(tmp_path / "bad.h5", tag="bulk_jet", n_samples=1, keep_bits=0)
+    with pytest.raises(ValueError, match="only"):
+        HadronH5Writer(tmp_path / "bad.h5", tag="bulk_jet", n_samples=1,
+                       keep_bits={"pid": 8})
+
+
 def test_hadron_file_rejects_unknown_tags(tmp_path):
     with pytest.raises(ValueError, match="tag"):
         HadronH5Writer(tmp_path / "h.h5", tag="soft", n_samples=1)
@@ -479,6 +513,21 @@ def test_reader_refuses_files_from_another_run(tmp_path):
         assert r.tags() == ("bulk_jet", "bulk_bg") and "jet_frag" in r.tags(1)
         with pytest.raises(ValueError, match="no jet_frag file"):
             r.total("jet_frag")
+
+
+def test_reader_warns_about_mixed_precision(tmp_path):
+    import h5py
+
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    a, b = _two_seeds(tmp_path)
+    with h5py.File(b + "_hadrons_bulk_jet.h5", "a") as f:     # as if made with --keep-bits-p 12
+        f["hadrons/p"].attrs["keep_mantissa_bits"] = 12
+    with pytest.warns(RuntimeWarning, match="different precision"):
+        r = HadronFileReader(str(tmp_path))
+    assert r.precision(0)["bulk_jet"] == {"p": None, "x": None}
+    assert r.precision(1)["bulk_jet"] == {"p": 12, "x": None}
+    r.close()
 
 
 def test_reader_weighs_every_event_the_same(tmp_path):
