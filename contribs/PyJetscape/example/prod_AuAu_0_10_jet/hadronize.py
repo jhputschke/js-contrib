@@ -14,6 +14,7 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
     python hadronize.py P.h5 --use-stored-seeds         # replay a --validate-inline job
     python hadronize.py P.h5 --diagnose-colored         # colour-flow diagnostic only
     python hadronize.py P.h5 --skip-complete            # campaigns: only what is missing
+    python hadronize.py P.h5 --keep-bits-p 12 --keep-bits-x 8   # rounded p, x: 58% of the bytes
 
 Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_h5):
 
@@ -29,6 +30,12 @@ Seeds.  Every unit gets its own seed, derived from (--seed, tag, unit, sample), 
 recorded in ``units/seed``: any unit can be regenerated alone.  --use-stored-seeds takes
 the seeds a --validate-inline job recorded instead (bulk_jet: iSS, jet_frag: Pythia, one
 fragmentation per event), so the result must equal that job's <stem>_inline_*.h5 exactly.
+
+Precision.  p and x are stored as full float32 by default.  --keep-bits-p / --keep-bits-x
+round them to that many mantissa bits (max relative error 2**-(bits+1)); the setting is
+recorded on the datasets (jetscape.hadrons_h5.hadron_precision).  Choose it once per
+campaign: --skip-complete keeps complete files whatever precision they have (with a
+warning), and HadronFileReader warns about a campaign of mixed precision.
 
 Settings come from hadronize.xml (the file --validate-inline also uses); the iSS paths are
 made absolute and the job's own music_input -- stored in the particlize file -- is written
@@ -61,6 +68,13 @@ TAGS = ("bulk_jet", "bulk_bg", "jet_frag")
 TAG_INDEX = {t: k for k, t in enumerate(TAGS)}
 
 
+def _mantissa_bits(text):
+    v = int(text)
+    if not 1 <= v <= 23:
+        raise argparse.ArgumentTypeError(f"must be 1..23 (float32 mantissa bits), got {v}")
+    return v
+
+
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -90,6 +104,13 @@ def parse_args(argv=None):
                         "stored partons) and write <stem>_colored_diagnostic.json")
     p.add_argument("--colored-event", type=int, default=None, dest="colored_event",
                    help=argparse.SUPPRESS)   # internal: one event through Colored, in a child
+    p.add_argument("--keep-bits-p", type=_mantissa_bits, default=None, dest="keep_bits_p",
+                   help="round the momenta p = (E, px, py, pz) to this many float32 mantissa "
+                        "bits (1-23; default: full precision). 12 bits: relative error "
+                        "<= 1.2e-4. Decide per campaign (see the README)")
+    p.add_argument("--keep-bits-x", type=_mantissa_bits, default=None, dest="keep_bits_x",
+                   help="round the positions x = (t, x, y, z) likewise; 8 bits: <= 2e-3, "
+                        "i.e. <= 0.03 fm at 15 fm (MUSIC's cells are 0.2 fm)")
     p.add_argument("--out-dir", default=None, dest="out_dir",
                    help="output directory (default: next to the input)")
     p.add_argument("--hadronize-xml", default=os.path.join(HERE, "hadronize.xml"),
@@ -228,9 +249,10 @@ def main(argv=None):
         sys.exit(f"hadronize.py: unknown tag(s) {sorted(bad)}; choose from {TAGS}")
     for k in ("particlize", "hadronize_xml", "build", "main_xml"):
         setattr(a, k, os.path.abspath(getattr(a, k)))
+    keep_bits = {"p": a.keep_bits_p, "x": a.keep_bits_x}
 
     from jetscape import pyjetscape_core as core
-    from jetscape.hadrons_h5 import HadronH5Writer
+    from jetscape.hadrons_h5 import HadronH5Writer, _keep_bits_map, hadron_precision
     from jetscape.particlize_h5 import ParticlizeFile
 
     pf = ParticlizeFile(a.particlize)
@@ -250,6 +272,10 @@ def main(argv=None):
                      f"(legs {pf.legs}); drop {t} from --tags")
         if t == "jet_frag" and "partons" not in pf.f:
             sys.exit(f"hadronize.py: {a.particlize} has no partons/")
+    if a.use_stored_seeds and any(v is not None for v in keep_bits.values()):
+        print("hadronize.py: note -- --keep-bits with --use-stored-seeds: the in-job "
+              "(--validate-inline) hadrons are full precision, so compare after rounding "
+              "them the same way, or validate without --keep-bits", file=sys.stderr)
     if a.use_stored_seeds:
         for key in ("inline_iss_seed_jet", "inline_pythia_seed"):
             if not pf.has_events(key):
@@ -274,6 +300,13 @@ def main(argv=None):
         if done:
             print(f"hadronize.py: {os.path.basename(a.particlize)}: already complete: "
                   f"{', '.join(done)}")
+        wanted = _keep_bits_map(keep_bits)
+        for t in done:
+            have = hadron_precision(outs[t])
+            if have != wanted:
+                print(f"hadronize.py: WARNING -- {os.path.basename(outs[t])} is complete but "
+                      f"was written with precision {have}, not the requested {wanted} (None "
+                      "= full float32); kept as it is (--force redoes it)", file=sys.stderr)
         tags = [t for t in tags if t not in done]
         outs = {t: outs[t] for t in tags}
         if not tags:
@@ -310,7 +343,10 @@ def main(argv=None):
           + (f" (backgrounds: {sorted(set(bg_samples.values()))})"
              if "bulk_bg" in tags and set(bg_samples.values()) != {oversample} else "")
           + f", {n_frag} fragmentation(s)/event, base seed "
-          f"{a.seed}{' (stored seeds)' if a.use_stored_seeds else ''}\n  workdir {workdir}")
+          f"{a.seed}{' (stored seeds)' if a.use_stored_seeds else ''}"
+          + (f", p/x rounded to {a.keep_bits_p or 23}/{a.keep_bits_x or 23} mantissa bits"
+             if any(v is not None for v in keep_bits.values()) else "")
+          + f"\n  workdir {workdir}")
 
     jetscape = core.JetScapePerEvent()
     jetscape.SetXMLMainFileName(main_xml)
@@ -350,7 +386,7 @@ def main(argv=None):
                      "oversample_jet": int(oversample)}
         else:
             n = oversample
-        writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n,
+        writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n, keep_bits=keep_bits,
                                     attrs=dict(common, **extra, generator=(
                                         "ColorlessHadronization (X-SCAPE)" if t == "jet_frag"
                                         else "iSS (X-SCAPE iSpectraSamplerWrapper)")))

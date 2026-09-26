@@ -64,6 +64,8 @@ python run_prod_jet.py --events 1 --seed 1 --dry-run         # check the XML/gri
 python run_prod_jet.py --events 10 --seed 1 --write-particlize both
 python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --n-frag 50
 python run_hadronize.py out -j 4 --oversample 500 --n-frag 50    # every particlize file in out/
+python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
+       --keep-bits-p 12 --keep-bits-x 8       # hadrons rounded: 58% of the disk (campaigns, see B)
 
 ./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
 ./run_jobs.sh -j 2 20 25 1 out_pgun --hard pgun
@@ -190,8 +192,18 @@ python run_hadronize.py out_had -j 3 --follow --oversample 500 --n-frag 50
 # a --reuse campaign: give each background N x the jet leg's oversamples (the optimal split)
 python run_hadronize.py out_had_reuse3 -j 8 --oversample 200 --oversample-bg auto --n-frag 50
 
+# hadrons stored at reduced precision: 58% of the disk (decide before the campaign, see below)
+python run_hadronize.py out_had -j 8 --oversample 500 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8
+
 python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 ```
+
+> **Decide on the hadron precision before a campaign starts.** At 500 oversamples the hadron
+> files are ~200 MB per event, about a third of a campaign's disk.
+> `--keep-bits-p 12 --keep-bits-x 8` cuts them to 58% with no visible effect on ensemble
+> observables. It has to be the same for every file of the campaign: pass the same flags to
+> every `run_hadronize.py` / `hadronize.py` call, including `--follow` and restarts. See
+> [Hadron precision](#hadron-precision---keep-bits-p---keep-bits-x).
 
 - **Inputs** are directories, particlize files or globs. Every option it doesn't know goes to
   each `hadronize.py` unchanged. These are checked once before anything starts.
@@ -201,7 +213,9 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 - **Restarting.** `--skip-complete` is passed unless you give `--force`. Files whose outputs
   are all complete are skipped without starting a process; missing or incomplete outputs are
   redone. Re-running the same command finishes an interrupted pass, and on a finished
-  campaign it returns at once.
+  campaign it returns at once. The skip test does not compare settings (`--oversample`,
+  `--n-frag`, `--seed`, ...): to redo files with other settings, use `--force` or a new
+  `--out-dir`. A complete file of another precision is kept, with a warning.
 - **Ctrl-C** stops the running `hadronize.py` processes. They close their outputs as
   incomplete once their current iSS pass is done (up to ~90 s; a second Ctrl-C kills them),
   and the next run redoes those files.
@@ -226,6 +240,61 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--n-frag K` | Colorless fragmentations per event. With `K` equal to `N` every oversample gets its own fragmentation (`JetEvents.jet_event`) |
 | `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag`, e.g. `--tags jet_frag` to redo only the fragments with other settings |
 | `--seed` | base seed; every unit's seed derives from it and is stored in `units/seed` |
+| `--keep-bits-p B`, `--keep-bits-x B` | round the hadrons' momenta `p` and positions `x` to `B` float32 mantissa bits (1–23; default: full precision). `12` and `8` store 58% of the bytes. Set once per campaign (below) |
+
+#### Hadron precision (`--keep-bits-p`, `--keep-bits-x`)
+
+`hadronize.py` stores each hadron's `p` = (E, px, py, pz) and `x` = (t, x, y, z) as float32.
+At full precision these barely compress (27.4 of 40 raw bytes per hadron with Blosc-zstd),
+because the low mantissa bits are noise. Rounding them to fewer mantissa bits (round half to
+even, as `keep_bits` does for the hydro files) makes the files much smaller:
+
+```bash
+# recommended for a campaign
+python run_hadronize.py out_had -j 8 --oversample 500 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8
+# one file
+python hadronize.py out_had/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --n-frag 50 \
+       --keep-bits-p 12 --keep-bits-x 8
+```
+
+Measured on the M3 Max, seed 1, both legs, 200 oversamples (1.6 M hadrons per leg):
+
+| `p` / `x` bits | max. relative error (p / x) | bytes per hadron | file per leg | shift of jet − background, in σ (200 oversamples) |
+|---|---|---|---|---|
+| full (default) | 0 | 27.4 | 43.8 MB | 0 |
+| 16 / 16 | 7.6e-6 | 21.3 | 78% | dN/dp_T ≤ 0.03, E(\|η\|<1) 0.001 |
+| **12 / 8 (recommended)** | 1.2e-4 / 2.0e-3 | 15.8 | **25.3 MB (58%)** | dN/dp_T ≤ 0.14, E(\|η\|<1) 0.004 |
+| 10 / 10 | 4.9e-4 | 15.2 | 55% | dN/dp_T ≤ 0.23, E(\|η\|<1) 0.015 |
+| 8 / 8 | 2.0e-3 | 13.3 | 49% | dN/dp_T ≤ 0.74, E(\|η\|<1) 0.024 |
+
+The dN/dp_T column is the largest shift over 60 bins of 50 MeV (charged, \|η\| < 1).
+
+- **What it changes.** Only the stored digits. The same seeds sample the same hadrons: a
+  rounded file equals the full-precision file rounded afterwards, hadron for hadron. `pid`,
+  `pstat`, the offsets and `units/` stay exact.
+- **Integrated observables** (energies, yields) do not see it: the rounding errors are
+  unbiased and average out over thousands of hadrons.
+- **Histograms.** Rounding moves a bin edge by up to half a rounding step: 1.2e-4 relative
+  for `p` at 12 bits. This moves counts between neighbouring bins. It is systematic, so it
+  does not average down with more events. In jet − background it cancels to first order,
+  since both legs shift the same way. For single-leg spectra, bins should be much wider than
+  that step. That is why `p` should stay at 12 bits or more; 8 bits is too coarse.
+- **Positions.** 8 bits is ≤ 0.03 fm at t = 15 fm/c, well below MUSIC's 0.2 fm cells.
+- **Nothing is lost for good.** The particlize file and `units/seed` reproduce the exact
+  hadrons: `hadronize.py --force` without `--keep-bits-*` on any production file.
+- **Provenance.** Each dataset records `keep_mantissa_bits` and `max_rel_error`.
+  `jetscape.hadrons_h5.hadron_precision(path)` and `HadronFileReader.precision(i)` read them
+  back. Reading is unchanged.
+
+**For a campaign:**
+1. Choose the precision before the first `run_hadronize.py` call. Pass the same flags to
+   every call: `--follow`, restarts, other machines.
+2. Don't change it in the middle of a campaign. `--skip-complete` keeps complete files
+   whatever their precision; it prints a warning when it differs from the requested one, but
+   does not redo them. `HadronFileReader` warns when a campaign's files mix precisions.
+3. To change it later, redo the files with `--force` or into a new `--out-dir`.
+4. Keep the validation job (check 1 in *Checks before a campaign*) at full precision: the
+   in-job hadrons it compares against are not rounded.
 
 ### C. Analysing a campaign: `HadronFileReader`
 
@@ -314,7 +383,7 @@ the reader above makes it unnecessary for analysis.
 | A: hydro pair (`grid_fno.yaml`, Blosc-zstd) | 29.5 s alone; ~190 events/h with `-j 4 --mps` | 285 MB |
 | B: + `--write-particlize both` | 34.6–35.3 s alone (+5.4 s: MUSIC builds and hands over the two surfaces; +13.5 s before MUSIC4GPU `5058545`); `-j` throughput not measured | + 154 MB |
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
-| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~58 s on one core; ~28 s per surface (16.5 s fixed + 23 ms per oversample) | ~100 MB per leg (~0.2 MB per oversample) |
+| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~58 s on one core; ~28 s per surface (16.5 s fixed + 23 ms per oversample) | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8` |
 
 Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` 1.4 GB up to ~100
 oversamples, 2.5 GB at 500 and 3.9 GB at 1000. Three or four `hadronize.py` processes keep up
@@ -407,6 +476,8 @@ read with `Hadrons.from_h5`):
 
 Each file keeps every sample apart (`sample_offsets`, `unit_offsets`), so averages are over
 oversamples of one event, with compound-Poisson errors (`Hadrons.hist`, `Hadrons.total`).
+`p` and `x` are full float32 unless `--keep-bits-p/-x` rounded them; the precision is
+recorded per dataset (see [Hadron precision](#hadron-precision---keep-bits-p---keep-bits-x)).
 
 **Every oversample is an event on its own**, and `JetEvents` puts the tags together per event:
 
@@ -555,7 +626,8 @@ print(np.array_equal(p.surface('jet', 0), p.surface('bg', 0)))"
 ```
 
 Both must print `True`. (Run them from this folder with `../../python` on `PYTHONPATH`, or
-from anywhere after `pip install -e ../..`.)
+from anywhere after `pip install -e ../..`.) Run check 1 without `--keep-bits-p/-x`: the
+in-job hadrons it compares against are full precision.
 
 1. `--no-deposit`, 1 event: `arr == arr_bg` and `frames_identical == ntau`.
 2. 1 event with a jet: `n_droplets > 0`; the legs differ only after the first deposit; the

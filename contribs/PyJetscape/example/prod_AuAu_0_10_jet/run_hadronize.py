@@ -10,11 +10,15 @@ run_jobs.sh counterpart for the hadronization step (PLAN_particlize_h5.md).
     ./run_hadronize.py out_had -j 4 --follow --oversample 500 --n-frag 50      # during
                                                                                # run_jobs.sh
     ./run_hadronize.py out_had --dry-run --oversample 500                      # the plan only
+    ./run_hadronize.py out_had -j 4 --oversample 500 --n-frag 50 \
+                       --keep-bits-p 12 --keep-bits-x 8      # rounded p, x: 58% of the disk
 
 INPUTS are directories (their ``*_particlize.h5``), particlize files, or glob patterns.
 Every option not listed under "run_hadronize options" goes to each hadronize.py unchanged
 (--oversample, --oversample-bg, --n-frag, --tags, --seed, --events, --out-dir,
---hadronize-xml, --build, ...); they are checked once before anything starts.
+--keep-bits-p, --keep-bits-x, --hadronize-xml, --build, ...); they are checked once before
+anything starts.  Keep them the same for the whole campaign: completed files are skipped
+whatever settings made them.
 
 - **Only complete inputs.**  A particlize file is written event by event while its job runs
   and marked ``complete`` when the job ends; only complete files are hadronized.  Files
