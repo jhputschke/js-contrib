@@ -151,10 +151,10 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
     per event. With the surface on the jet leg only (`--surface jet`): 55.3 s. Both are
     bit-identical to the 60 s run, which had the surface on both legs.
   - Peak memory 16 GB.
-  - Several jobs at once: before the single-job speed-ups, `-j 3` gave about 2× the throughput
-    and `-j 4` about 2.3×. A first check with the faster jobs gave only ~1.2× for 4
-    simultaneous jobs, so re-measure before choosing `-j`. Jobs no longer need to be
-    staggered: each runs in its own working directory (see
+  - Several jobs at once (after the single-job speed-ups): one job does ~118 events/h;
+    `-j 2` 133, **`-j 3` 155 (recommended, ~52 GB)**, `-j 4` 159. The GPU is the shared
+    bottleneck (~70 % busy at `-j 3`/`-j 4`). Jobs no longer need to be staggered: each
+    runs in its own working directory (see
     [`../prod_AuAu_0_10/README.md`](../prod_AuAu_0_10/README.md)). Details, profile and
     the former startup hang: [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
 

@@ -3,15 +3,18 @@
 Measured 2026-09-25. Question: does running 2, 3 or 4 jobs at once (`run_jobs.sh -j P`)
 pay off, and is there an OpenMP or GPU bottleneck?
 
-**Short answer.** Yes. `-j 3` gives about 2× the throughput of one job, and `-j 4` about
-2.3×. Neither OpenMP nor the GPU is the bottleneck. Single-threaded CPU stages are. Jobs
-that started at the same moment could **hang forever** at `Initialize MUSIC`. This is fixed
-by per-job working directories (see
-[the startup race](#bug-concurrent-jobs-can-hang-at-start)).
-
-These concurrency numbers predate the single-job speed-ups below. A first check with the
-faster jobs gave only ~1.2× for 4 simultaneous jobs (≈100 s per event each against ≈30 s
-alone), so they need re-measuring.
+**Short answer.**
+- **Before the single-job speed-ups** (first measurement): parallel jobs paid off a lot,
+  about 2× the throughput with `-j 3` and 2.3× with `-j 4`, because each job left the GPU
+  and most cores idle.
+- **After the speed-ups** (re-measured, below): one job alone does 118 events/h (was 68).
+  Parallel jobs add much less, about 1.35× with `-j 3` and 1.4× with `-j 4`, because the
+  **GPU is now the shared bottleneck**: ~70 % busy with 3–4 jobs.
+- **Absolute throughput at `-j 3`/`-j 4`** went from 140 / 154 to 155 / 159 events/h. The
+  speed-ups mostly shorten each job rather than raise the machine's campaign ceiling.
+- **The startup hang** (jobs started at the same moment could hang forever at
+  `Initialize MUSIC`) is fixed by per-job working directories (see
+  [the startup race](#bug-concurrent-jobs-can-hang-at-start)).
 
 ## Setup
 
@@ -32,6 +35,40 @@ alone), so they need re-measuring.
 
 ## Throughput
 
+### After the speed-ups (current)
+
+Measured with js-contrib `main` + `concurrent_jobs`, X-SCAPE `contrib` (#143, #144, #146),
+MUSIC4GPU `XSCAPE` `ca94ed4` + `concurrent_jobs`. Same method as below: 3 events per job,
+seeds 1–4, jobs started at the same moment (no stagger), each in its own working directory.
+
+| Jobs at once | s/event per job | events/h | vs 1 job (events) | vs serial (wall time incl. startup) | GPU busy (mean) | GPU idle samples (< 10 %) | cores busy (mean) | memory used (max) |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 30.6 | **118** | 1.00× | 1.00× | 43 % | 45 % | 5.5 | 22 GB |
+| 2 | 54.0 | 133 | 1.17× | 1.21× | 57 % | 36 % | 8.4 | 40 GB |
+| 3 | 69.5 | **155** | 1.35× | 1.38× | 67 % | 25 % | 10.4 | 52 GB |
+| 4 | 90.5 | **159** | 1.41× | 1.43× | 70 % | 23 % | 11.4 | 67 GB |
+
+Solo per-event means: seed 1 30.6 s, seed 2 32.8 s, seed 3 30.6 s, seed 4 33.5 s.
+
+- **Why the gain shrank: the GPU.**
+  - The GPU kernels take ~16 s per event (MUSIC timers: 7.25 ms × ~2,200 substeps, both
+    legs). At 159 events/h that is ~2,500 GPU-seconds per hour, ≈ 70 % of the GPU: what
+    `nvidia-smi` shows.
+  - Kernels from different processes are time-sliced, not overlapped, so a job waits
+    while another job's MUSIC step runs.
+  - The ceiling at 100 % GPU would be ~225 events/h.
+- **Recommendation: `run_jobs.sh -j 3`** (155 events/h, 52 GB). `-j 4` adds only ~3 %
+  for 15 GB more; `-j 2` gives 133.
+- **Next levers for campaign throughput:**
+  - **CUDA MPS** (Multi-Process Service), which lets the kernels of concurrent jobs share
+    the GPU instead of time-slicing it. One job alone keeps the SMs only ~43 % busy, so
+    there is room. It is a configuration change, cheap to try.
+  - **Faster GPU kernels** (profile with `nsys` first).
+  - Further CPU work helps single-job latency but hardly the campaign rate.
+
+### Before the speed-ups (first measurement)
+
+
 | Jobs at once | s/event per job | events/h | vs 1 job | GPU busy (mean) | GPU idle samples (< 10 %) | cores busy (mean) | memory used (max) |
 |---|---|---|---|---|---|---|---|
 | 1 | 53.0 | 68 | 1.00× | 25 % | 64 % | 4.1 | 22 GB |
@@ -45,12 +82,12 @@ alone), so they need re-measuring.
 Solo per-event means: seed 1 53.0 s, seed 2 54.5 s, seed 3 52.2 s. Peak RSS per job
 is 17–22 GB. The 4-job run includes seed 4, whose solo speed was not measured.
 
-- **Recommendation:** `run_jobs.sh -j 3`. `-j 4` adds about 10 % more if about 71 GB of
-  the 121 GB is free. Beyond that the returns are small.
+- **Recommendation at the time:** `run_jobs.sh -j 3`; `-j 4` added about 10 %.
+  Superseded by the table above.
 - **OpenMP:** splitting the cores between jobs (`OMP_NUM_THREADS = 20 / P`) doesn't help
   once jobs run in parallel. Leave `OMP_NUM_THREADS` unset. A single job with 6 threads
   is 24 % slower, because the source-term fill (below) uses many cores in short bursts.
-- **GPU:** never saturated. Even with 4 jobs it is idle in 29 % of samples.
+- **GPU:** not saturated then. Even with 4 jobs it was idle in 29 % of samples.
 
 ### Activity of one job alone
 
