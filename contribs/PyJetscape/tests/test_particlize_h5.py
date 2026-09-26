@@ -547,6 +547,9 @@ def test_run_hadronize_finds_complete_inputs_and_finished_outputs(tmp_path):
                     "--oversample-bg", "auto"])
     assert "--skip-complete" in plan.args
     assert plan.all_done(done) and not plan.all_done(todo)
-    assert plan.memory_gb(done) == pytest.approx(rh.GB_BASE + rh.GB_PER_OVERSAMPLE * 100)
+    assert plan.memory_gb(done) == pytest.approx(rh.GB_BASE)      # few oversamples
+    big = rh.Plan(["--tags", "bulk_jet", "--oversample", "3000"])
+    assert big.memory_gb(done) == pytest.approx(rh.GB_HADRONS_FROM
+                                                + rh.GB_PER_OVERSAMPLE * 3000)
     assert not rh.Plan(["--force"]).all_done(done)
     assert rh.Plan(["--tags", "jet_frag"]).memory_gb(done) == rh.GB_FRAG_ONLY

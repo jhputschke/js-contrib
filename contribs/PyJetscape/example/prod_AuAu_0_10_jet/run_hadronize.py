@@ -31,9 +31,9 @@ Every option not listed under "run_hadronize options" goes to each hadronize.py 
   hadronize.py run failed.  Ctrl-C stops the running processes: they close their outputs as
   incomplete (within one iSS pass, up to ~90 s; a second Ctrl-C kills them at once), and
   the next run redoes those files.
-- **Memory.**  Each process needs ~1.4 GB plus ~2.4 MB per iSS oversample (of its largest
-  surface, e.g. an --oversample-bg auto background).  A warning is printed when P processes
-  would not fit into the available memory.
+- **Memory.**  Each process needs ~1.6 GB; beyond ~1500 iSS oversamples (of its largest
+  surface, e.g. an --oversample-bg auto background) ~0.3 MB more per oversample.  A warning
+  is printed when P processes would not fit into the available memory.
 
 hadronize.py runs on one core, so P up to the number of free cores is useful; while GPU
 jobs run on the same machine, leave them their cores (on the GB10 3-4 processes keep up
@@ -61,7 +61,9 @@ hz = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(hz)                # also puts PyJetscape/python on sys.path
 
 FINISHED_MARKER = "run_jobs.finished"
-GB_BASE, GB_PER_OVERSAMPLE, GB_FRAG_ONLY = 1.4, 0.0024, 0.7
+# peak = max(GB_BASE, GB_HADRONS_FROM + GB_PER_OVERSAMPLE * oversamples): iSS keeps ~40 B
+# per hadron while it samples (GB10, 1M-cell surface: 1.4 GB up to 1000, 1.7 GB at 2000)
+GB_BASE, GB_HADRONS_FROM, GB_PER_OVERSAMPLE, GB_FRAG_ONLY = 1.6, 1.1, 0.0003, 0.7
 
 
 def parse_args(argv=None):
@@ -155,7 +157,7 @@ class Plan:
                 n = max([n] + list(bg.values()))
             except Exception:                    # noqa: BLE001 - an estimate only
                 n = max(n, self.oversample)
-        return GB_BASE + GB_PER_OVERSAMPLE * n
+        return max(GB_BASE, GB_HADRONS_FROM + GB_PER_OVERSAMPLE * n)
 
 
 def available_memory_gb():

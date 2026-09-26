@@ -76,7 +76,7 @@ def parse_args(argv=None):
                         "optimal split under --reuse N; capped at --oversample-bg-max). "
                         "Default: --oversample")
     p.add_argument("--oversample-bg-max", type=int, default=2000, dest="oversample_bg_max",
-                   help="cap for --oversample-bg auto (default 2000, ~6 GB for iSS)")
+                   help="cap for --oversample-bg auto (default 2000, ~1.7 GB for iSS)")
     p.add_argument("--n-frag", type=int, default=10, dest="n_frag",
                    help="Colorless fragmentations per event (default 10)")
     p.add_argument("--seed", type=int, default=1, help="base seed (default 1)")
@@ -324,6 +324,10 @@ def main(argv=None):
         jetscape.Add(iss)
     jetscape.Init()
     jetscape.ExecInit()
+    if iss is not None:
+        # hadrons as arrays, not one framework Hadron object each: same numbers, ~8x
+        # less memory per oversample (nothing here needs the framework's hadron list)
+        core.soft_set_compact_output(iss, True)
     colorless = None
     if "jet_frag" in tags:
         colorless = core.create_module("ColorlessHadronization")
