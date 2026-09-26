@@ -47,6 +47,16 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("h5_inspect.py: needs h5py (pip install h5py, or activate the js_fno / fno_env env)")
 
+try:    # registers Blosc & co.; without it, reading a Blosc-compressed dataset fails
+    import hdf5plugin  # noqa: F401
+except ImportError:  # pragma: no cover
+    pass
+
+#: registered HDF5 filter ids (https://github.com/HDFGroup/hdf5_plugins), for plugin
+#: filters h5py does not name itself (its ds.compression is None for them)
+_FILTER_NAMES = {32001: "blosc", 32004: "lz4", 32008: "bitshuffle", 32015: "zstd",
+                 32026: "blosc2", 307: "bzip2", 32013: "zfp", 32017: "sz", 32024: "sz3"}
+
 
 # ─────────────────────────────────────────────────────────────── formatting helpers
 
@@ -154,6 +164,15 @@ def compression_str(ds: h5py.Dataset) -> str:
         if ds.compression_opts is not None:
             c += f"({ds.compression_opts})"
         parts.append(c)
+    else:
+        # plugin filter: prefer the writer's own label (fast_data.h5_compression)
+        label = ds.attrs.get("compression")
+        plugins = [_FILTER_NAMES.get(int(k), f"filter{k}") for k in ds._filters
+                   if str(k).isdigit()]
+        if plugins:
+            parts.append(label if isinstance(label, str) else "+".join(plugins))
+    if "keep_mantissa_bits" in ds.attrs:
+        parts.append(f"keep_bits={int(ds.attrs['keep_mantissa_bits'])}")
     if ds.shuffle:
         parts.append("shuffle")
     if ds.fletcher32:

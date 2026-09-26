@@ -134,8 +134,9 @@ source:
   on_out_of_grid: warn
 
 output:
-  compression:        lzf
+  compression:        blosc-zstd   # was lzf; README_h5_optim.md
   source_compression: gzip
+  keep_bits:          null         # N: round arr/arr_bg to N mantissa bits (lossy)
   T_fo:               0.150
   freezeout:          max_T
   zero_after_freezeout: true

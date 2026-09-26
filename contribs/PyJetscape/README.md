@@ -572,7 +572,7 @@ is the safe form.
 ### Output
 
 ```
-/arr             (nevents, 4, nx, ny, neta, choose_ntau)  float32, lzf
+/arr             (nevents, 4, nx, ny, neta, choose_ntau)  float32, Blosc-zstd (README_h5_optim.md)
 /ntau_freezeout  (nevents,)  int32
 /tau_freezeout   (nevents,)  float32
 root attrs: nFeatures nx ny neta choose_ntau nevents            (int64)
@@ -660,8 +660,8 @@ raises a clear `ImportError`), so this works unchanged on a training machine:
 from jetscape import repad_to, FnoH5Writer, read_fast_h5_bulk   # h5py + numpy only
 ```
 
-`fno_h5_writer.py` and `repad_h5.py` are also self-contained — copy the pair anywhere and
-run `python repad_h5.py *.h5` with no package at all.
+`fno_h5_writer.py`, `repad_h5.py` and `h5_compression.py` are also self-contained — copy
+the three anywhere and run `python repad_h5.py *.h5` with no package at all.
 
 
 If the jobs have already run, nothing has to be regenerated. `arr` is created with

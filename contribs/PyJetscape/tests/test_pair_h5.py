@@ -56,7 +56,8 @@ def test_second_evolution_keeps_arr_shape_with_its_own_freezeout(tmp_path):
     with h5py.File(p, "r") as f:
         arr, bg = f["arr"], f["arr_bg"]
         assert arr.shape == bg.shape == (2, 4, NX, NY, NETA, 6)
-        assert bg.chunks == arr.chunks and bg.compression == arr.compression
+        assert bg.chunks == arr.chunks and bg._filters == arr._filters
+        assert bg.attrs["compression"] == arr.attrs["compression"]
         assert bg.maxshape == arr.maxshape
         assert arr.attrs["tau_axis"] == 5 and bg.attrs["tau_axis"] == 5
         assert list(f["ntau_freezeout"][:]) == [6, 3]
@@ -518,3 +519,57 @@ def test_a_leg_stopped_at_the_grid_boundary_is_flagged(tmp_path):
     w.Finish()
     with h5py.File(tmp_path / "pair.h5", "r") as f:
         assert f["diag/jet_hit_boundary"][0] == 1 and f["diag/bg_hit_boundary"][0] == 0
+
+
+# ───────────────────────────────────────────── compression and mantissa rounding
+@pytest.mark.parametrize("spec", ["lzf", "gzip", None, "blosc-zstd", "blosc-lz4"])
+def test_every_evolution_gets_the_same_filter_and_reads_back_exactly(tmp_path, spec):
+    from jetscape.h5_compression import HAVE_HDF5PLUGIN, h5_filter_kwargs
+    if str(spec).startswith("blosc") and not HAVE_HDF5PLUGIN:
+        pytest.skip("hdf5plugin not installed")
+    p = tmp_path / "c.h5"
+    rng = np.random.default_rng(7)
+    frames = rng.standard_normal((2, 3, 4, NX, NY, NETA)).astype(np.float32)
+    with FnoH5Writer(p, _attrs(), compression=spec) as w:
+        w.add_evolution("arr_bg", fo_suffix="_bg")
+        w.ensure_capacity(nevents=1, choose_ntau=3)
+        for t in range(3):
+            w.write_frame(0, t, frames[1, t], dataset="arr_bg")
+            w.write_frame(0, t, frames[0, t])
+        w.set_event_meta(0, 3, 0.8, dataset="arr_bg")
+        w.set_event_meta(0, 3, 0.8)
+    with h5py.File(p, "r") as f:
+        label = h5_filter_kwargs(spec)[1]
+        for name, k in (("arr", 0), ("arr_bg", 1)):
+            ds = f[name]
+            assert ds.attrs["compression"] == label
+            assert ds._filters == f["arr"]._filters
+            assert np.array_equal(np.moveaxis(ds[0], -1, 0), frames[k])
+
+
+def test_keep_bits_rounds_both_legs_identically(tmp_path):
+    from jetscape.h5_compression import HAVE_HDF5PLUGIN
+    if not HAVE_HDF5PLUGIN:
+        pytest.skip("hdf5plugin not installed")
+    p = tmp_path / "k.h5"
+    base = np.random.default_rng(8).standard_normal((4, NX, NY, NETA)).astype(np.float32)
+    jet = base.copy()
+    jet[0, 0, 0, 0] += 1.0                       # the legs differ in one cell only
+    with FnoH5Writer(p, _attrs(), keep_bits=12) as w:
+        w.add_evolution("arr_bg", fo_suffix="_bg")
+        w.ensure_capacity(nevents=1, choose_ntau=2)
+        w.write_frame(0, 0, base, dataset="arr_bg")
+        w.write_frame(0, 0, jet)
+        w.set_event_meta(0, 1, 0.6, dataset="arr_bg")
+        w.set_event_meta(0, 1, 0.6)
+    with h5py.File(p, "r") as f:
+        arr, bg = f["arr"][0, ..., 0], f["arr_bg"][0, ..., 0]
+        for name in ("arr", "arr_bg"):
+            assert int(f[name].attrs["keep_mantissa_bits"]) == 12
+            assert f[name].attrs["compression"] == "blosc-zstd:3+shuffle"
+        assert np.all(f["arr"][0, ..., 1] == 0), "unwritten frames stay exactly zero"
+    live = base != 0
+    assert (np.abs(bg[live] - base[live]) / np.abs(base[live])).max() <= 2.0 ** -13
+    diff = arr - bg
+    diff[0, 0, 0, 0] = 0.0
+    assert np.all(diff == 0), "arr - arr_bg is exactly zero wherever the legs agree"

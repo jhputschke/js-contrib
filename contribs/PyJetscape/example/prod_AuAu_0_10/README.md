@@ -78,7 +78,9 @@ set `FILES` in its first cell or `PROD_H5_GLOB` for another directory). It needs
 
 Measured on the GB10 (build_gpu, music4gpu CUDA): about **25 s and about 200 MB (lzf) per
 event** on the default grid (about 95 MB with `grid_x10_eta2p5.yaml`), with a peak RSS of
-about 4.4 GB. The output grid barely changes the run time; MUSIC dominates.
+about 4.4 GB. The output grid barely changes the run time; MUSIC dominates. The default
+compression is now Blosc-zstd, about 1.4x smaller than those lzf sizes, and
+`--keep-bits 12` halves that again ([README_h5_optim.md](../../README_h5_optim.md)).
 
 The XML now sets `<freeze_out_surface>0`: MUSIC builds no freeze-out surface, which a
 hydro-only dump never uses, and stops on the equivalent max(e) < e_fo test instead. That

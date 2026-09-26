@@ -3,23 +3,23 @@
   "upstream": {
     "repo": "FNO4d",
     "path": "loc_libs/fast_data",
-    "commit": "b4a9fcd4166604211d30881cdc441bc8eb36886b",
-    "commit_short": "b4a9fcd",
-    "commit_date": "2026-09-23",
-    "repo_head_at_vendoring": "6c68398e79dfda02cf85e53904a96fe54a8469c9"
+    "commit": "65ce483b7c8a3a54802f19f3eb1fc90543b56a63",
+    "commit_short": "65ce483",
+    "commit_date": "2026-09-25",
+    "repo_head_at_vendoring": "65ce483b7c8a3a54802f19f3eb1fc90543b56a63"
   },
-  "vendored_on": "2026-09-23",
+  "vendored_on": "2026-09-25",
   "local_patches": [],
   "files": {
     "__init__.py": {
-      "sha256": "989d983bb2cbf61f8aea3db14e65ce609dedbd2aae8e67a92d56ff993b3c10ee",
-      "bytes": 2737,
-      "lines": 69
+      "sha256": "2bcfe333c1aab92e68209fe08916073b3487dea2b317e2bd4e982179663d3fdb",
+      "bytes": 3136,
+      "lines": 74
     },
     "config.py": {
-      "sha256": "a66fa97092e779f336222c999f10418369a7dba0a9f45dd945457947421605bf",
-      "bytes": 12870,
-      "lines": 283
+      "sha256": "a814117e9642d7cb4c880da626d1f7aa620d21cba044a452135d41a6caf1b2e6",
+      "bytes": 13420,
+      "lines": 291
     },
     "convert.py": {
       "sha256": "f748d1abdb80091c22a0a97110219af8bd9d4ff12a72df30a028c8f6ccb3b0dd",
@@ -32,9 +32,9 @@
       "lines": 26
     },
     "driver.py": {
-      "sha256": "ad4d20a2382f3dbb3a5f1d3008d5e8a89363505e41e688f33931a8478e537ca1",
-      "bytes": 15418,
-      "lines": 311
+      "sha256": "2e2947dff6e39009f996dbb8f1228b468eacbb51c79f4342c722773115ab8fcb",
+      "bytes": 15481,
+      "lines": 312
     },
     "eos.py": {
       "sha256": "7cd918faeed737e43d378e375af12fb3e832fd77b20455913f24f115698845ca",
@@ -60,6 +60,11 @@
       "sha256": "31da778f667b082a11e9501555d403c2a753b7848396d7f6c5643bae072bd661",
       "bytes": 27056,
       "lines": 616
+    },
+    "h5_compression.py": {
+      "sha256": "4b6ff577684a9d40e4f9cfeeebeb9ea6404e0428b63c3ac43f49451cd580de69",
+      "bytes": 7742,
+      "lines": 166
     },
     "liquefier/__init__.py": {
       "sha256": "5a522eb308807a478d90116648cc96470072a67ec9f51de4ee9ff3b56aa74f3e",
@@ -102,9 +107,9 @@
       "lines": 696
     },
     "writer.py": {
-      "sha256": "ca0fe1dddd1d0ab60c2fd3dca999a5f6558f41a643d04301bd73df421fd322f9",
-      "bytes": 12769,
-      "lines": 258
+      "sha256": "557c1595080b5747d612c5a7e67313762fd90301924f9bdd8c9755a155bfdc9f",
+      "bytes": 13904,
+      "lines": 274
     }
   }
 }

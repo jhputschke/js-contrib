@@ -18,6 +18,7 @@ Modules
     evolve      the memory-streaming stepping loop
     convert     conserved state -> the (e, vx, vy, vz) training channels
     writer      the FNO4d `arr` HDF5 schema
+    h5_compression  filter specs (Blosc/lzf/gzip), float32 mantissa rounding, hdf5plugin
     viz         lazy browsing of an output file; EventBrowser, and DiffBrowser for
                 jet-minus-no-jet wakes (matplotlib)
 
@@ -36,6 +37,9 @@ import importlib
 from .config import DEFAULTS, apply_overrides, load_config, validate_config
 from .eos import download_hotqcd, eos_descriptor, read_eos_group, resolve_eos, write_eos_group
 from .writer import FnoH5Writer, write_fno_h5
+# Registers the hdf5plugin filters (Blosc), so every fast_data reader -- viz, glauber's
+# from_file IC, FastHydro's browser -- opens Blosc-compressed files.
+from .h5_compression import HAVE_HDF5PLUGIN, enable_filters, h5_filter_kwargs  # noqa: F401
 
 _LAZY = {
     "fv": ".fv",
@@ -65,5 +69,6 @@ __all__ = [
     "DEFAULTS", "apply_overrides", "load_config", "validate_config",
     "resolve_eos", "download_hotqcd", "write_eos_group", "read_eos_group", "eos_descriptor",
     "FnoH5Writer", "write_fno_h5",
+    "HAVE_HDF5PLUGIN", "enable_filters", "h5_filter_kwargs",
     *_LAZY,
 ]

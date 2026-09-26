@@ -65,7 +65,8 @@ def test_w2_nevents_attribute_matches_the_dataset_shape(tmp_path):
     with h5py.File(p) as f:
         assert int(f.attrs["nevents"]) == f["arr"].shape[0]
         assert f["arr"].chunks[0] == 1        # one event per chunk -> true random access
-        assert f["arr"].compression == "lzf"
+        assert f["arr"].attrs["compression"] == "blosc-zstd:3+shuffle"   # the default
+        assert "keep_mantissa_bits" not in f["arr"].attrs                 # bit-exact
 
 
 def test_w3_live_tau_lengths_agrees_with_ntau_freezeout(tmp_path):

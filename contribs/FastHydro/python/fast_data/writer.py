@@ -2,7 +2,9 @@
 
 `arr` is the contract every FNO4d loader depends on:
 
-    arr             (nevents, 4, nx, ny, neta, ntau) float32, chunks (1,4,nx,ny,neta,ntau), lzf
+    arr             (nevents, 4, nx, ny, neta, ntau) float32, chunks (1,4,nx,ny,neta,ntau),
+                    Blosc-zstd + byte shuffle by default (h5_compression.py; readers need
+                    `import hdf5plugin`, which importing fast_data does)
     ntau_freezeout  (nevents,) int32
     tau_freezeout   (nevents,) float32
 
@@ -29,6 +31,9 @@ import gc
 import os
 
 import numpy as np
+
+from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
+from .h5_compression import dataset_keep_bits, h5_filter_kwargs, round_mantissa, tag_dataset
 
 __all__ = ["FnoH5Writer", "write_fno_h5", "FORMAT", "FORMAT_VERSION", "SCALAR_KEYS", "CHANNELS"]
 
@@ -83,9 +88,15 @@ class FnoH5Writer:
     The datasets are created at full `nevents` up front so the file is structurally valid from
     the first flush; `nevents_written` and `complete` track progress for --resume.  An incomplete
     file loads, but its unwritten tail events are all zeros -- do not train on one.
+
+    `compression` / `source_compression` take an h5_compression spec ("blosc-zstd",
+    "blosc-lz4", "lzf", "gzip", None, ...).  `keep_bits` rounds `arr` to that many float32
+    mantissa bits before compressing (lossy, relative error <= 2**-(keep_bits+1); None =
+    bit-exact); it is recorded on `arr` as `keep_mantissa_bits`.
     """
 
-    def __init__(self, path, attrs, nevents, *, compression="lzf", source_compression="gzip",
+    def __init__(self, path, attrs, nevents, *, compression=DEFAULT_COMPRESSION,
+                 source_compression="gzip", keep_bits=None,
                  chunk_events=1, write_source=False, write_diagnostics=True,
                  extra_attrs=None, np_eos=None, force=False, resume=False):
         import h5py
@@ -111,6 +122,9 @@ class FnoH5Writer:
                 raise ValueError(f"cannot resume: file holds {int(self.f.attrs['nevents'])} events, "
                                  f"config asks for {self.nevents}")
             self.arr = self.f["arr"]
+            self.keep_bits = dataset_keep_bits(self.arr)     # the file's, not the caller's
+            self.arr_filter_label = str(self.arr.attrs.get("compression", "unknown"))
+            self.arr_filter_kwargs = None                   # arr exists; nothing to create
             self.S = self.f["source/S"] if "source/S" in self.f else None
             self._offsets = list(self.f["source/offsets"][:]) if "source/offsets" in self.f else [0]
             if "source/droplets" in self.f and len(self.f["source/droplets"]):
@@ -118,6 +132,9 @@ class FnoH5Writer:
             return
 
         nx, ny, nz, T = (attrs["nx"], attrs["ny"], attrs["neta"], attrs["choose_ntau"])
+        self.keep_bits = keep_bits
+        # kept so companion datasets (FastHydro's arr_bg) get arr's exact filter
+        self.arr_filter_kwargs, self.arr_filter_label = h5_filter_kwargs(compression, keep_bits)
         self.start = 0
         self.f = h5py.File(self.path, "w")
         a = self.f.attrs
@@ -147,23 +164,22 @@ class FnoH5Writer:
         ce = max(1, int(chunk_events))
         # The tau axis is left extendible so files from separate jobs can be reconciled
         # to a common choose_ntau afterwards, in place, without a rewrite (see
-        # X-SCAPE js-contrib PyJetscape `python -m jetscape.repad_h5`).  Growing it costs
+        # loc_libs/repad_h5.py and README_h5_data.md).  Growing it costs
         # nothing: the added region is unallocated chunks that read back as the fill
         # value, exactly 0.0, which is what live_tau_lengths requires.  The event axis
         # stays fixed -- this writer pre-allocates it on purpose.
         self.arr = self.f.create_dataset(
             "arr", (self.nevents, 4, nx, ny, nz, T), dtype=np.float32,
             maxshape=(self.nevents, 4, nx, ny, nz, None),
-            chunks=(ce, 4, nx, ny, nz, T), compression=compression)
+            chunks=(ce, 4, nx, ny, nz, T), **self.arr_filter_kwargs)
+        tag_dataset(self.arr, self.arr_filter_label, keep_bits)
         self.f.create_dataset("ntau_freezeout", (self.nevents,), dtype=np.int32)
         self.f.create_dataset("tau_freezeout", (self.nevents,), dtype=np.float32)
 
         self.S = None
         if self.write_source:
             g = self.f.create_group("source")
-            kw = {"compression": source_compression}
-            if source_compression == "gzip":
-                kw.update(compression_opts=4, shuffle=True)
+            kw, _ = h5_filter_kwargs(source_compression)
             self.S = g.create_dataset("S", (self.nevents, 4, nx, ny, nz, T), dtype=np.float32,
                                       maxshape=(self.nevents, 4, nx, ny, nz, None),
                                       chunks=(ce, 4, nx, ny, nz, T), **kw)
@@ -183,7 +199,7 @@ class FnoH5Writer:
         """Write event `i`.  `arr_ev` is (4, nx, ny, neta, ntau) and already tail-zeroed."""
         if self._closed:
             raise RuntimeError("writer is closed")
-        self.arr[i] = np.asarray(arr_ev, dtype=np.float32)
+        self.arr[i] = round_mantissa(arr_ev, self.keep_bits)
         self.f["ntau_freezeout"][i] = int(ntau_fo)
         self.f["tau_freezeout"][i] = float(tau_fo)
         if self.S is not None and S_ev is not None:
@@ -239,7 +255,7 @@ class FnoH5Writer:
 
 
 def write_fno_h5(path, events, attrs, *, ntau_freezeout=None, tau_freezeout=None,
-                 extra_attrs=None, compression="lzf", force=True, **kw):
+                 extra_attrs=None, compression=DEFAULT_COMPRESSION, force=True, **kw):
     """One-shot convenience writer: `events` is a sequence of (4,nx,ny,neta,ntau) arrays, or of
     (arr, ntau_fo, tau_fo) tuples as produced by gubser.make_event."""
     evs, nfo, tfo = [], [], []

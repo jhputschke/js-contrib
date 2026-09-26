@@ -25,6 +25,10 @@ Changes from the FNO4d original:
   layout follow FastHydro's pair files, so ``fasthydro.browse.PairBrowser`` reads them.
 * Every dataset with a tau axis carries a ``tau_axis`` attribute, and :func:`repad_to`
   finds the datasets to grow by it.
+* ``compression`` takes an :mod:`jetscape.h5_compression` spec and defaults to Blosc-zstd
+  with byte shuffle (lzf before); ``keep_bits`` optionally rounds every evolution to that
+  many float32 mantissa bits.  Both are recorded on each evolution dataset
+  (``compression``, ``keep_mantissa_bits``).  See README_h5_optim.md.
 
 The method names (``add_evolution``, ``ragged``) follow FastHydro's
 ``PLAN_consolidate_h5_writer.md``, so this file can later be replaced by the consolidated
@@ -64,6 +68,13 @@ import gc
 import os
 
 import numpy as np
+
+try:
+    from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
+    from .h5_compression import h5_filter_kwargs, round_mantissa, tag_dataset
+except ImportError:  # loaded as a plain module, e.g. by `python repad_h5.py ...`
+    from h5_compression import DEFAULT as DEFAULT_COMPRESSION
+    from h5_compression import h5_filter_kwargs, round_mantissa, tag_dataset
 
 __all__ = ["FnoH5Writer", "RaggedGroup", "grid_attrs", "repad_to", "FORMAT",
            "FORMAT_VERSION", "SCALAR_KEYS", "CHANNELS", "FREEZEOUT_CONVENTION_ID"]
@@ -141,9 +152,15 @@ class FnoH5Writer:
         extent; the dataset grows past it as needed unless ``growable_tau=False``).
     nevents : int
         Initial event-axis extent.  0 is fine -- the axis grows per event.
-    compression : str or None
-        h5py compression for ``arr``.  ``"lzf"`` (default) matches the existing reference
-        files and decompresses 2-3x faster than gzip on the training side.
+    compression : str, mapping or None
+        :mod:`jetscape.h5_compression` spec for ``arr`` and every added evolution:
+        ``"blosc-zstd"`` (default), ``"blosc-lz4"``, ``"lzf"``, ``"gzip"``, None, ...
+        Blosc stores MUSIC evolutions 1.4x smaller than lzf at the same read speed;
+        readers need ``import hdf5plugin`` (importing ``jetscape`` does it).
+    keep_bits : int or None
+        Round the evolutions to this many float32 mantissa bits before compressing:
+        lossy, relative error <= ``2**-(keep_bits+1)`` (12 bits: 1.2e-4, and files about
+        2x smaller again).  None (default) is bit-exact.  Exact zeros stay zero.
     chunk_events, chunk_tau : int
         Chunk extent on the event and tau axes.  ``chunk_tau=1`` is what makes a single
         frame write cover exactly one whole chunk (no read-modify-write) and what makes the
@@ -153,14 +170,17 @@ class FnoH5Writer:
         shares one value.  Callers must then clip longer events themselves.
     """
 
-    def __init__(self, path, attrs, nevents=0, *, compression="lzf",
-                 chunk_events=1, chunk_tau=1, extra_attrs=None,
+    def __init__(self, path, attrs, nevents=0, *, compression=DEFAULT_COMPRESSION,
+                 keep_bits=None, chunk_events=1, chunk_tau=1, extra_attrs=None,
                  growable_tau=True, force=False):
         import h5py
 
         self.path = str(path)
         self._closed = False
         self.growable_tau = bool(growable_tau)
+        self.keep_bits = keep_bits
+        # resolved once, so every evolution gets byte-identical filter settings
+        self._evo_kw, self._evo_label = h5_filter_kwargs(compression, keep_bits)
 
         if os.path.exists(self.path) and not force:
             raise FileExistsError(f"{self.path} already exists (pass force=True)")
@@ -193,9 +213,9 @@ class FnoH5Writer:
         self.arr = self.f.create_dataset(
             "arr", (n0, 4, nx, ny, nz, t0), dtype=np.float32,
             maxshape=(None, 4, nx, ny, nz, None if self.growable_tau else t0),
-            chunks=(ce, 4, nx, ny, nz, min(ct, t0)),
-            compression=compression)
+            chunks=(ce, 4, nx, ny, nz, min(ct, t0)), **self._evo_kw)
         self.arr.attrs["tau_axis"] = _EVOLUTION_TAU_AXIS
+        tag_dataset(self.arr, self._evo_label, keep_bits)
         # Contiguous datasets cannot be extended, so these are chunked (invisible
         # downstream -- no FNO4d reader inspects dataset layout).
         self.ntau_fo = self._create_fo("ntau_freezeout", np.int32, n0)
@@ -268,9 +288,9 @@ class FnoH5Writer:
         a = self.arr
         evo = self.f.create_dataset(
             name, a.shape, dtype=a.dtype, maxshape=a.maxshape, chunks=a.chunks,
-            compression=a.compression, compression_opts=a.compression_opts,
-            shuffle=a.shuffle)
+            **self._evo_kw)
         evo.attrs["tau_axis"] = _EVOLUTION_TAU_AXIS
+        tag_dataset(evo, self._evo_label, self.keep_bits)
         n = a.shape[0]
         self._evolutions[name] = (evo,
                                   self._create_fo(f"ntau_freezeout{fo_suffix}", np.int32, n),
@@ -308,7 +328,7 @@ class FnoH5Writer:
         chunk back to merge.
         """
         self._check_open()
-        self._evolutions[dataset][0][i, :, :, :, :, t] = np.asarray(frame, dtype=np.float32)
+        self._evolutions[dataset][0][i, :, :, :, :, t] = round_mantissa(frame, self.keep_bits)
 
     def set_event_meta(self, i, ntau_fo, tau_fo, dataset="arr"):
         """Record event `i`'s freeze-out scalars for one evolution.
@@ -374,7 +394,7 @@ class FnoH5Writer:
         streaming path is ``write_frame`` + ``set_event_meta``.
         """
         self._check_open()
-        arr_ev = np.asarray(arr_ev, dtype=np.float32)
+        arr_ev = round_mantissa(arr_ev, self.keep_bits)
         self.ensure_capacity(nevents=i + 1, choose_ntau=arr_ev.shape[-1])
         self._evolutions[dataset][0][i, :, :, :, :, :arr_ev.shape[-1]] = arr_ev
         self.set_event_meta(i, ntau_fo, tau_fo, dataset=dataset)
@@ -431,9 +451,7 @@ class RaggedGroup:
         self.group = group
         self.offsets_name = offsets_name
         self.unit = unit
-        kw = {"compression": compression}
-        if compression == "gzip":
-            kw.update(compression_opts=4, shuffle=True)
+        kw, _ = h5_filter_kwargs(compression)          # "gzip" = level 4 + shuffle
         self._fields = {}
         for name, (dtype, row_shape) in fields.items():
             if name in group:

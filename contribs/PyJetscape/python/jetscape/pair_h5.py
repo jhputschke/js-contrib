@@ -72,6 +72,7 @@ import numpy as np
 from .bulk_sources import (Grid, attrs_from_grids, event_array, music_extra_attrs,
                            resample, resolve_out_grid)
 from .fno_h5_writer import FnoH5Writer
+from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 from .liquefier_io import DROPLET_COLUMNS, droplets, liquefier_params
 from .showers import (FATES, INITIATOR_COLUMNS, PARTON_COLUMNS, VERTEX_COLUMNS,
                       showers_from_manager)
@@ -126,8 +127,13 @@ class PairH5Writer:
     choose_ntau : int
         0 grows the tau axis to the longest leg of any event; N > 0 pins it (longer legs
         are clipped, with a warning and a count at Finish()).
-    compression : str or None
-        h5py compression of ``arr`` and ``arr_bg``.
+    compression : str, mapping or None
+        :mod:`jetscape.h5_compression` spec for ``arr`` and ``arr_bg`` (default
+        ``"blosc-zstd"``; ``"lzf"`` is the old default).  See README_h5_optim.md.
+    keep_bits : int or None
+        Round both legs to this many float32 mantissa bits (lossy, relative error
+        <= ``2**-(keep_bits+1)``); None (default) is bit-exact.  Both legs are rounded the
+        same way, so ``arr - arr_bg`` is exactly zero wherever the legs agree.
     store_droplets, store_showers : bool
         Write ``source/droplets`` and ``shower/``.
     provenance : mapping, optional
@@ -141,8 +147,9 @@ class PairH5Writer:
 
     def __init__(self, out_file_name="pair_evo.h5", *, bg_id="MUSIC_1", jet_id="MUSIC_2",
                  grid_mode="grid", out_grid=None, tau_stride=1, choose_ntau=0,
-                 compression="lzf", store_droplets=True, store_showers=True,
-                 provenance=None, extra_attrs=None, force=True, verbose=False):
+                 compression=DEFAULT_COMPRESSION, keep_bits=None, store_droplets=True,
+                 store_showers=True, provenance=None, extra_attrs=None, force=True,
+                 verbose=False):
         if grid_mode not in ("grid", "native"):
             raise ValueError(f"grid_mode must be 'grid' or 'native', got {grid_mode!r}")
         self._out_file_name = str(out_file_name)
@@ -152,6 +159,7 @@ class PairH5Writer:
         self._tau_stride = max(1, int(tau_stride))
         self._choose_ntau = max(0, int(choose_ntau))
         self._compression = compression
+        self._keep_bits = keep_bits
         self._store_droplets = bool(store_droplets)
         self._store_showers = bool(store_showers)
         self._provenance = dict(provenance or {})
@@ -467,7 +475,8 @@ class PairH5Writer:
         extra.update(self._extra_attrs)
 
         self._w = FnoH5Writer(self._out_file_name, attrs, nevents=0,
-                              compression=self._compression, chunk_events=1, chunk_tau=1,
+                              compression=self._compression, keep_bits=self._keep_bits,
+                              chunk_events=1, chunk_tau=1,
                               growable_tau=growable, extra_attrs=extra, force=self._force)
         self._w.add_evolution("arr_bg", fo_suffix="_bg")
         if self._store_droplets:
