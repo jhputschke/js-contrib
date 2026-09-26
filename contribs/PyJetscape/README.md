@@ -1116,8 +1116,17 @@ stored verbatim) there first.
 
 **Reading hadrons:** `Hadrons.from_h5(path, units=None)` gives `pid`, `p`, `pt`, `eta`, `y`,
 `phi`, `charged`, the unit and sample of every hadron, and `hist()` / `total()` averaged over
-the samples of the selected units with compound-Poisson errors. Tests:
-`tests/test_particlize_h5.py`.
+the samples of the selected units with compound-Poisson errors.
+
+**Single events:** every sample (oversample, fragmentation) is a complete event.
+`Hadrons.sample_event(unit, k)` (in memory) and `HadronFile(path).sample_event(unit, k)`
+(read from disk) return sample `k` of recorded unit `unit` (`units/unit`: the event, or the
+background for `bulk_bg`) as a dict of `pid`, `pstat`, `p`, `x`. `JetEvents.from_stem(stem)`
+opens a production file's three hadron files plus its particlize file:
+`jet_event(event, k)` is bulk_jet oversample `k` plus fragmentation `k mod n_frag` (or
+`frag_sample=`) with an `origin` array (0 bulk, 1 fragment), `background_event(event, k)` the
+background that event used (reuse-aware through `events/bg_unit`), and
+`iter_jet_events(event)` all oversamples. Tests: `tests/test_particlize_h5.py`.
 
 ---
 

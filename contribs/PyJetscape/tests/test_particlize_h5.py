@@ -207,3 +207,90 @@ def test_hadron_file_keeps_samples_and_units_apart(tmp_path):
 def test_hadron_file_rejects_unknown_tags(tmp_path):
     with pytest.raises(ValueError, match="tag"):
         HadronH5Writer(tmp_path / "h.h5", tag="soft", n_samples=1)
+
+
+# ───────────────────────────────────────────── single events and JetEvents
+def _tagged(n, pid, e):
+    """n hadrons of one pid whose energy e identifies the sample they came from."""
+    return _hadrons(n, pid=pid, e=e)
+
+
+def _campaign(tmp_path):
+    """Three events; event 1 reuses event 0's background; event 2 has an empty surface.
+
+    bulk_jet: 3 oversamples per event (energy 10*event + k); jet_frag: 2 fragmentations
+    (energy 100 + 10*event + j); bulk_bg: 3 oversamples per background (energy 50 + unit)."""
+    from jetscape.hadrons_h5 import HadronH5Writer
+
+    stem = tmp_path / "run"
+    with HadronH5Writer(f"{stem}_hadrons_bulk_jet.h5", tag="bulk_jet", n_samples=3) as w:
+        for ev in range(3):
+            samples = [] if ev == 2 else [_tagged(2 + k, 211, 10 * ev + k) for k in range(3)]
+            w.append_unit(samples, unit=ev, event=ev, seed=ev)
+    with HadronH5Writer(f"{stem}_hadrons_jet_frag.h5", tag="jet_frag", n_samples=2) as w:
+        for ev in range(3):
+            w.append_unit([_tagged(1, 2212, 100 + 10 * ev + j) for j in range(2)],
+                          unit=ev, event=ev, seed=ev)
+    with HadronH5Writer(f"{stem}_hadrons_bulk_bg.h5", tag="bulk_bg", n_samples=3) as w:
+        for unit, first in ((0, 0), (1, 2)):
+            w.append_unit([_tagged(4, -211, 50 + unit) for _ in range(3)], unit=unit,
+                          event=first, seed=unit)
+    # the particlize file only has to carry events/bg_unit for JetEvents
+    pw, jet, bg, mgr = _writer(tmp_path, legs=("jet", "bg"))
+    for k, bg_id in enumerate((0, 0, 2)):
+        jet.cells, bg.cells = _cells(1, k), _cells(1, 10 + k)
+        pw.Exec(k, bg_id=bg_id)
+    pw.Finish()
+    (tmp_path / "p.h5").rename(f"{stem}_particlize.h5")
+    return stem
+
+
+def test_every_oversample_is_an_event(tmp_path):
+    from jetscape.hadrons_h5 import HadronFile, Hadrons
+
+    stem = _campaign(tmp_path)
+    path = f"{stem}_hadrons_bulk_jet.h5"
+    h = Hadrons.from_h5(path)
+    with HadronFile(path) as hf:
+        for src in (h, hf):
+            assert src.n_samples(1) == 3 and src.n_samples(2) == 0
+            ev = src.sample_event(1, 2)                  # event 1, oversample 2
+            assert len(ev["pid"]) == 4 and np.all(ev["p"][:, 0] == 12)
+            assert ev["p"].dtype == np.float32 and ev["x"].shape == (4, 4)
+            with pytest.raises(IndexError, match="empty surface"):
+                src.sample_event(2, 0)
+            with pytest.raises(IndexError, match="3 sample"):
+                src.sample_event(0, 3)
+            with pytest.raises(IndexError, match="no unit 7"):
+                src.sample_event(7, 0)
+    # a subset keeps the recorded unit ids
+    sub = Hadrons.from_h5(path, units=[1])
+    assert np.all(sub.sample_event(1, 0)["p"][:, 0] == 10)
+
+
+def test_jet_events_combine_bulk_and_fragments_per_event(tmp_path):
+    from jetscape.hadrons_h5 import ORIGIN, JetEvents
+
+    stem = _campaign(tmp_path)
+    with JetEvents.from_stem(str(stem)) as je:
+        assert je.n_oversamples(0) == 3 and je.n_frag(0) == 2
+        ev = je.jet_event(1, 2)                          # oversample 2 -> fragmentation 0
+        bulk, frag = ev["origin"] == ORIGIN["bulk"], ev["origin"] == ORIGIN["frag"]
+        assert bulk.sum() == 4 and np.all(ev["p"][bulk, 0] == 12)
+        assert frag.sum() == 1 and ev["p"][frag, 0][0] == 110 and ev["pid"][frag][0] == 2212
+        assert je.jet_event(1, 1)["p"][-1, 0] == 111     # k mod n_frag
+        assert je.jet_event(1, 1, frag_sample=0)["p"][-1, 0] == 110
+        assert np.all(je.jet_event(0, 0, fragments=False)["origin"] == ORIGIN["bulk"])
+        assert len(list(je.iter_jet_events(0))) == 3
+        assert list(je.iter_jet_events(2)) == []         # empty surface: no oversamples
+        # backgrounds through events/bg_unit: event 1 reused event 0's
+        assert [je.bg_unit(e) for e in range(3)] == [0, 0, 1]
+        assert np.all(je.background_event(1, 0)["p"][:, 0] == 50)
+        assert np.all(je.background_event(2, 2)["p"][:, 0] == 51)
+    # without the particlize file only events that started a background resolve
+    with JetEvents(bulk_bg=f"{stem}_hadrons_bulk_bg.h5") as je:
+        assert je.bg_unit(2) == 1
+        with pytest.raises(ValueError, match="particlize"):
+            je.bg_unit(1)
+    with pytest.raises(ValueError, match="tag"):
+        JetEvents(bulk_jet=f"{stem}_hadrons_jet_frag.h5")

@@ -29,6 +29,21 @@ averages use the compound-Poisson estimate of ``fasthydro.hadrons`` (``Var = sum
 N_samples^2``), which is exact for iSS's sampling.
 
 Writing is incremental (RaggedGroup): a crash loses nothing already appended.
+
+Single events
+-------------
+Every sample is a complete event of that tag and can be taken alone::
+
+    h = Hadrons.from_h5(path);   ev = h.sample_event(unit, k)    # in memory
+    hf = HadronFile(path);       ev = hf.sample_event(unit, k)   # read from disk, lazily
+
+``unit`` is the recorded unit (``units/unit``: the event for bulk_jet and jet_frag, the
+background for bulk_bg); ``k`` counts that unit's samples from 0.  :class:`JetEvents` puts
+the three tags of one production file together: ``jet_event(event, k)`` is oversample ``k``
+of the jet leg's bulk plus a fragmentation of the same event's partons, and
+``background_event(event, k)`` is oversample ``k`` of the background that event used.
+Oversamples of one event share one fluid: they are independent Cooper-Frye samplings, not
+independent collisions.
 """
 
 from __future__ import annotations
@@ -40,8 +55,14 @@ import numpy as np
 from .fno_h5_writer import RaggedGroup
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 
-__all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "HadronH5Writer",
-           "Hadrons"]
+__all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "ORIGIN",
+           "HadronH5Writer", "Hadrons", "HadronFile", "JetEvents"]
+
+#: per-hadron arrays of one event (a sample), as sample_event() returns them
+FIELDS = ("pid", "pstat", "p", "x")
+
+#: JetEvents.jet_event(): value of the ``origin`` array per source
+ORIGIN = {"bulk": 0, "frag": 1}
 
 FORMAT = "xscape/hadrons"
 FORMAT_VERSION = 1
@@ -209,6 +230,23 @@ class Hadrons:
     def n_units(self):
         return len(self.unit_offsets) - 1
 
+    def unit_index(self, unit):
+        """Position of recorded unit ``unit`` (``units/unit``) among the loaded units."""
+        return _unit_index(self.units.get("unit"), unit, self.n_units)
+
+    def n_samples(self, unit):
+        """Number of samples (oversamples / fragmentations) of recorded unit ``unit``."""
+        return int(self.samples_per_unit[self.unit_index(unit)])
+
+    def sample_event(self, unit, k):
+        """Sample ``k`` of recorded unit ``unit`` as one event: dict of pid, pstat, p
+        [E, px, py, pz], x [t, x, y, z]."""
+        u = self.unit_index(unit)
+        s = _sample_of(self.unit_offsets, u, k, unit)
+        a, b = int(self.sample_offsets[s]), int(self.sample_offsets[s + 1])
+        return {"pid": self.pid[a:b], "pstat": self.pstat[a:b],
+                "p": self.p[a:b].astype(np.float32), "x": self.x[a:b]}
+
     def species(self, name):
         """Boolean mask for a name in SPECIES, 'charged', or 'all'."""
         if name == "all":
@@ -244,3 +282,192 @@ class Hadrons:
         m, norm = self._select(mask, units)
         w = np.ones(m.sum()) if weights is None else np.asarray(weights)[m]
         return w.sum() / norm, np.sqrt((w ** 2).sum()) / norm
+
+
+class HadronFile:
+    """A hadron file opened for random access: single samples are read from disk, so a
+    campaign-sized file is never loaded whole.
+
+        with HadronFile("…_hadrons_bulk_jet.h5") as hf:
+            ev = hf.sample_event(3, 17)       # oversample 17 of event 3
+    """
+
+    def __init__(self, path):
+        import h5py
+
+        from . import h5_compression  # noqa: F401  (Blosc filter)
+
+        self.path = str(path)
+        self.f = h5py.File(self.path, "r")
+        if self.f.attrs.get("format") != FORMAT:
+            raise ValueError(f"{self.path}: not a {FORMAT} file")
+        self.attrs = dict(self.f.attrs)
+        self.tag = str(self.attrs.get("tag", ""))
+        g = self.f["hadrons"]
+        self._g = g
+        self.sample_offsets = g["sample_offsets"][:]
+        self.unit_offsets = g["unit_offsets"][:]
+        self.units = ({k: self.f["units"][k][:] for k in self.f["units"]}
+                      if "units" in self.f else {})
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+    def close(self):
+        if self.f is not None:
+            self.f.close()
+            self.f = None
+
+    @property
+    def n_units(self):
+        return len(self.unit_offsets) - 1
+
+    def unit_index(self, unit):
+        return _unit_index(self.units.get("unit"), unit, self.n_units)
+
+    def n_samples(self, unit):
+        u = self.unit_index(unit)
+        return int(self.unit_offsets[u + 1] - self.unit_offsets[u])
+
+    def sample_event(self, unit, k):
+        """Sample ``k`` of recorded unit ``unit``: dict of pid, pstat, p, x (see FIELDS)."""
+        u = self.unit_index(unit)
+        s = _sample_of(self.unit_offsets, u, k, unit)
+        a, b = int(self.sample_offsets[s]), int(self.sample_offsets[s + 1])
+        return {name: self._g[name][a:b] for name in FIELDS}
+
+
+class JetEvents:
+    """The hadron files of one production file, combined per event.
+
+        with JetEvents.from_stem("out/AuAu_0_10_jet_seed0001") as je:
+            ev = je.jet_event(0, 17)          # bulk_jet oversample 17 + a fragmentation
+            bg = je.background_event(0, 17)   # the same event's background, oversample 17
+
+    ``jet_event`` concatenates the bulk hadrons and the fragments and adds an ``origin``
+    array (``ORIGIN``: 0 bulk, 1 jet fragment).  The fragmentation used for oversample
+    ``k`` is ``frag_sample`` if given, else ``k mod n_frag`` -- with ``--n-frag`` equal to
+    ``--oversample`` every oversample gets its own.  The background an event used comes from
+    the particlize file (``events/bg_unit``), which is what makes ``--reuse`` work; without
+    it only events that started a background can be looked up.
+    """
+
+    def __init__(self, bulk_jet=None, jet_frag=None, bulk_bg=None, particlize=None):
+        self.bulk_jet = HadronFile(bulk_jet) if bulk_jet else None
+        self.jet_frag = HadronFile(jet_frag) if jet_frag else None
+        self.bulk_bg = HadronFile(bulk_bg) if bulk_bg else None
+        self._bg_unit = None
+        if particlize:
+            from .particlize_h5 import ParticlizeFile
+            with ParticlizeFile(particlize) as pf:
+                if pf.has_events("bg_unit"):
+                    self._bg_unit = pf.events("bg_unit")
+        for name in ("bulk_jet", "jet_frag", "bulk_bg"):
+            hf = getattr(self, name)
+            if hf is not None and hf.tag != name:
+                raise ValueError(f"{hf.path} holds tag {hf.tag!r}, not {name!r}")
+
+    @classmethod
+    def from_stem(cls, stem):
+        """The files hadronize.py writes for ``<stem>_particlize.h5`` (missing ones are
+        skipped)."""
+        import os
+
+        def have(p):
+            return p if os.path.exists(p) else None
+
+        return cls(have(f"{stem}_hadrons_bulk_jet.h5"), have(f"{stem}_hadrons_jet_frag.h5"),
+                   have(f"{stem}_hadrons_bulk_bg.h5"), have(f"{stem}_particlize.h5"))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+    def close(self):
+        for hf in (self.bulk_jet, self.jet_frag, self.bulk_bg):
+            if hf is not None:
+                hf.close()
+
+    def _need(self, name):
+        hf = getattr(self, name)
+        if hf is None:
+            raise ValueError(f"no {name} file")
+        return hf
+
+    def n_oversamples(self, event):
+        """iSS oversamples of ``event``'s jet leg (0: its surface was empty)."""
+        return self._need("bulk_jet").n_samples(event)
+
+    def n_frag(self, event):
+        return self._need("jet_frag").n_samples(event)
+
+    def bg_unit(self, event):
+        """The background unit ``event`` used."""
+        if self._bg_unit is not None:
+            return int(self._bg_unit[event])
+        bg = self._need("bulk_bg")
+        first = bg.units.get("event")
+        hits = np.flatnonzero(np.asarray(first) == event) if first is not None else []
+        if len(hits) != 1:
+            raise ValueError(f"event {event} did not start a background; pass the "
+                             "particlize file to look up reused backgrounds")
+        return int(bg.units["unit"][hits[0]])
+
+    def jet_event(self, event, k, frag_sample=None, fragments=True):
+        """Oversample ``k`` of ``event``'s jet-leg bulk plus one fragmentation of its
+        partons: dict of pid, pstat, p, x and origin (0 bulk, 1 fragment)."""
+        bulk = self._need("bulk_jet").sample_event(event, k)
+        parts = [(bulk, ORIGIN["bulk"])]
+        if fragments and self.jet_frag is not None:
+            n = self.jet_frag.n_samples(event)
+            if n:
+                j = (k % n) if frag_sample is None else int(frag_sample)
+                parts.append((self.jet_frag.sample_event(event, j), ORIGIN["frag"]))
+        return _concat(parts)
+
+    def background_event(self, event, k):
+        """Oversample ``k`` of the background ``event`` used: dict of pid, pstat, p, x."""
+        return self._need("bulk_bg").sample_event(self.bg_unit(event), k)
+
+    def iter_jet_events(self, event, frag_sample=None):
+        """All oversamples of ``event`` as jet events (k = 0 .. n_oversamples - 1)."""
+        for k in range(self.n_oversamples(event)):
+            yield self.jet_event(event, k, frag_sample=frag_sample)
+
+
+# ── helpers ─────────────────────────────────────────────────────────────────────
+def _unit_index(recorded, unit, n_units):
+    """Position of recorded unit id ``unit``; falls back to the position itself."""
+    if recorded is None or len(recorded) == 0:
+        if not 0 <= int(unit) < n_units:
+            raise IndexError(f"unit {unit} out of range (0..{n_units - 1})")
+        return int(unit)
+    hits = np.flatnonzero(np.asarray(recorded) == int(unit))
+    if len(hits) == 0:
+        raise IndexError(f"no unit {unit} in this file (units: {list(recorded)[:10]}"
+                         f"{' ...' if len(recorded) > 10 else ''})")
+    return int(hits[0])
+
+
+def _sample_of(unit_offsets, u, k, unit):
+    n = int(unit_offsets[u + 1] - unit_offsets[u])
+    if not 0 <= int(k) < n:
+        raise IndexError(f"unit {unit} has {n} sample(s); asked for sample {k}"
+                         + (" (an empty surface: no samples)" if n == 0 else ""))
+    return int(unit_offsets[u]) + int(k)
+
+
+def _concat(parts):
+    out = {name: np.concatenate([np.asarray(ev[name]) for ev, _ in parts])
+           for name in FIELDS}
+    out["origin"] = np.concatenate([np.full(len(ev["pid"]), o, dtype=np.int8)
+                                    for ev, o in parts])
+    return out
+

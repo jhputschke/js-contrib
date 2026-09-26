@@ -269,8 +269,12 @@ Branches `surface_to_hadrons` in X-SCAPE (from `contrib`) and js-contrib (from `
   - `run_jobs.sh` counts a seed as complete only when its particlize file is too.
 - **Offline.** `hadronize.py` (tags `bulk_jet`, `bulk_bg`, `jet_frag`; `--use-stored-seeds`;
   `--diagnose-colored`) and `hadronize.xml`.
+- **Single events.** `Hadrons.sample_event` / `HadronFile.sample_event` (any oversample or
+  fragmentation as one event, lazily from disk), and `JetEvents`: bulk + fragments per event
+  (`jet_event(event, k)`, origin-tagged) and the event's background (`background_event`,
+  reuse-aware).
 - **Notebook.** `jet_wake.ipynb` §10.
-- **Tests.** `tests/test_particlize_h5.py` (8 tests).
+- **Tests.** `tests/test_particlize_h5.py` (10 tests).
 
 ### Measured (GB10, seed 1, one 0–10% event)
 

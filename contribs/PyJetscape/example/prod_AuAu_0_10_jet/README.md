@@ -158,6 +158,26 @@ read with `Hadrons.from_h5`):
 
 Each file keeps every sample apart (`sample_offsets`, `unit_offsets`), so averages are over
 oversamples of one event, with compound-Poisson errors (`Hadrons.hist`, `Hadrons.total`).
+
+**Every oversample is an event on its own**, and `JetEvents` puts the tags together per event:
+
+```python
+from jetscape.hadrons_h5 import JetEvents, HadronFile, ORIGIN
+with JetEvents.from_stem("out/AuAu_0_10_jet_seed0001") as je:   # the three files + particlize
+    ev = je.jet_event(0, 17)          # event 0: bulk_jet oversample 17 + one fragmentation
+    ev["pid"], ev["p"], ev["x"]       # p = [E, px, py, pz]; ev["origin"]: 0 bulk, 1 fragment
+    bg = je.background_event(0, 17)   # oversample 17 of the background event 0 used
+    for ev in je.iter_jet_events(0):  # all oversamples of event 0
+        ...
+with HadronFile("out/AuAu_0_10_jet_seed0001_hadrons_bulk_jet.h5") as hf:
+    one = hf.sample_event(0, 17)      # any single sample, read from disk (not the whole file)
+```
+
+The fragmentation paired with oversample `k` is `k mod n_frag` (or `frag_sample=`); run
+`hadronize.py` with `--n-frag` equal to `--oversample` to give every oversample its own. The
+background comes from the particlize file's `events/bg_unit`, so reused backgrounds resolve.
+Oversamples of one event share one fluid: independent Cooper–Frye samplings, not independent
+collisions.
 Every unit's seed is derived from (`--seed`, tag, unit, sample) and stored in `units/seed`, so
 any unit can be regenerated alone. A jet event is `bulk_jet` + `jet_frag`; its background is
 `bulk_bg` unit `events/bg_unit`. An empty surface (MUSIC stopped at the grid boundary) gives a
