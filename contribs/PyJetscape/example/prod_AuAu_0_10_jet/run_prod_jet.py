@@ -98,10 +98,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-showers", action="store_true", dest="no_showers",
                    help="do not store the parton showers (shower/)")
     p.add_argument("--surface", choices=("none", "bg", "jet", "both"), default="none",
-                   help="which legs build MUSIC's freeze-out surface. It is only needed to "
-                        "particlize a leg (e.g. 'jet' for hadrons from the jet leg); "
-                        "'none' (default) is ~6 s per MUSIC run faster, with a "
-                        "bit-identical evolution")
+                   help="which legs build MUSIC's freeze-out surface. Nothing in this job "
+                        "receives a surface unless --write-particlize stores it (which builds "
+                        "its legs anyway), so on its own this only costs ~6 s per MUSIC run; "
+                        "a warning says so. 'none' (default) gives a bit-identical evolution")
     p.add_argument("--write-particlize", choices=("none", "jet", "both"), default="none",
                    dest="write_particlize",
                    help="also write <stem>_particlize.h5: the freeze-out surface of the jet "
@@ -327,6 +327,15 @@ def main() -> int:
         sys.exit("run_prod_jet.py: --validate-inline compares with the stored surfaces and "
                  "partons; add --write-particlize jet (or both)")
     a.hadronize_xml = os.path.abspath(a.hadronize_xml)
+    unused = sorted(surface_legs(a) - set(particlize_legs(a)))
+    if unused:
+        print(f"run_prod_jet.py: WARNING -- --surface {a.surface} builds the freeze-out surface "
+              f"of the {' and '.join(unused)} leg(s), but nothing in this job receives it: "
+              f"only --write-particlize hands a surface to the framework and stores it. "
+              f"That costs ~6 s per MUSIC run of that leg for no output; use "
+              f"--write-particlize "
+              f"{'both' if 'bg' in unused else 'jet'} to keep it, or drop --surface.",
+              file=sys.stderr)
 
     grid, max_ntau, grid_text = rp.load_grid_yaml(a.grid)
     os.makedirs(a.outdir, exist_ok=True)
