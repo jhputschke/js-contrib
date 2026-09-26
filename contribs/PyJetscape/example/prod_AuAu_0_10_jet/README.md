@@ -88,8 +88,9 @@ not built into the scripts):
   job 24% slower.
 - **`--mps` is CUDA only.** On the GB10 it takes four jobs from 159 to 173–179 events/h, and
   the thread split brings that to ~190.
-- **With `--write-particlize`,** each job is slower (43.0 s instead of 29.5 s per event alone
-  on the GB10) and needs +0.5 GB. The campaign throughput with it has not been measured.
+- **With `--write-particlize`,** each job is slower (~35 s instead of 29.5 s per event alone
+  on the GB10; 43.0 s before MUSIC4GPU `5058545` parallelized the surface finder) and needs
+  +0.5 GB. The campaign throughput with it has not been measured.
 - **On another machine,** re-measure as described in
   [Finding the settings on another machine](BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
 
@@ -193,7 +194,7 @@ ls out_had/AuAu_0_10_jet_seed*_particlize.h5 | xargs -P 8 -I{} sh -c \
 | | per event | disk per event |
 |---|---|---|
 | A: hydro pair (`grid_fno.yaml`, Blosc-zstd) | 29.5 s alone; ~190 events/h with `-j 4 --mps` | 285 MB |
-| B: + `--write-particlize both` | 43.0 s alone (+13.5 s: MUSIC builds the two surfaces); `-j` throughput not measured | + 154 MB |
+| B: + `--write-particlize both` | 34.6–35.3 s alone (+5.4 s: MUSIC builds and hands over the two surfaces; +13.5 s before MUSIC4GPU `5058545`); `-j` throughput not measured | + 154 MB |
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
 | `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~58 s on one core; ~28 s per surface (16.5 s fixed + 23 ms per oversample) | ~100 MB per leg (~0.2 MB per oversample) |
 
@@ -212,10 +213,10 @@ with a whole four-job GPU campaign.
 | `--native` | Both legs on MUSIC's own grid (100 × 100 × 60) instead of the YAML's. |
 | `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |
 | `--no-showers` | Skip `shower/`. |
-| `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +13.5 s per event for `both` (measured, below). |
+| `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +5.4 s per event for `both` (+13.5 s before MUSIC4GPU `5058545`; measured, below). |
 | `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
 | `--hadronize-xml FILE` | Settings for `--validate-inline` (default `hadronize.xml`). |
-| `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface (`<freeze_out_surface>` in the first `<Hydro><MUSIC>` block, i.e. the background and the default, and in MUSIC_2's own block). On its own it produces nothing: only `--write-particlize` hands a surface to the framework and stores it, and it builds its legs itself. So a leg built but not stored costs ~6 s per MUSIC run for no output, and the job warns about it. `none` (default) gives a bit-identical evolution. |
+| `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface (`<freeze_out_surface>` in the first `<Hydro><MUSIC>` block, i.e. the background and the default, and in MUSIC_2's own block). On its own it produces nothing: only `--write-particlize` hands a surface to the framework and stores it, and it builds its legs itself. So a leg built but not stored costs ~3 s per MUSIC run (~6 s before MUSIC4GPU `5058545`) for no output, and the job warns about it. `none` (default) gives a bit-identical evolution. |
 
 The job XML always contains **one** hard process. The automatic task list would run every
 `<Hard>` child it finds, so the driver rebuilds that block from the option.
@@ -317,8 +318,12 @@ unit with no samples.
 - Surfaces: 1,001,592 cells (jet) and 989,732 (background), 128 MB each raw, 77.6 MB with
   Blosc-zstd (the charge and μ columns are zero here). The particlize file is 154.5 MB, about
   half the pair file (285 MB).
-- Time: 29.5 s per event without surfaces, 43.0 s with `--write-particlize both` (+13.5 s:
-  ~12 s for MUSIC to build and hand over the two surfaces, 1.35 s for the write). Peak memory
+- Time: 29.5 s per event without surfaces, 34.6–35.3 s with `--write-particlize both`
+  (+5.4 s: the parallel surface search 1.2 s, copies of the previous time step 1.8 s, the
+  extra GPU→host copies 1.2 s, the hand-off and the write ~1.4 s). With the serial surface
+  finder of MUSIC4GPU before `5058545` it was 43.0 s (+13.5 s, ~9.6 s of it the search).
+  The surfaces are bit-identical either way, apart from the pressure column (see
+  `PLAN_particlize_h5.md`, *Surface finder*). Peak memory
   +0.5 GB.
 - `hadronize.py`: ~20 s per surface for 100 iSS oversamples and ~30 s for 500 on the CPU
   (most of it is fixed cost); Colorless is negligible.

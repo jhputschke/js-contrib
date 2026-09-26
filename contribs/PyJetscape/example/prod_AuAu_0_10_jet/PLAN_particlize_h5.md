@@ -282,7 +282,7 @@ Branches `surface_to_hadrons` in X-SCAPE (from `contrib`) and js-contrib (from `
 |---|---|
 | surface cells | 1,001,592 (jet), 989,732 (background); u·u = 1 to 1.4e-6; only the charge and μ columns are zero |
 | size | 128 MB per leg raw, 77.6 MB with Blosc-zstd; particlize file 154.5 MB (pair file 285 MB) |
-| time | 29.5 s → 43.0 s per event with `both` (+13.5 s): ~12 s for MUSIC's two surfaces and their hand-off, 1.35 s for the write (lz4 0.42 s / 180 MB, gzip 3.8 s / 159 MB) |
+| time | 29.5 s → 43.0 s per event with `both` (+13.5 s): ~12 s for MUSIC's two surfaces and their hand-off, 1.35 s for the write (lz4 0.42 s / 180 MB, gzip 3.8 s / 159 MB). With the parallel surface finder (MUSIC4GPU `5058545`, below): 34.6–35.3 s (+5.4 s) |
 | memory | +0.5 GB at the hand-off |
 | pair file | byte-identical with and without `--write-particlize` |
 | `hadronize.py` | ~20 s per surface at 100 oversamples, ~30 s at 500 |
@@ -350,4 +350,31 @@ event. ColoredHadronization failed in all three events:
   be subtracted if `take_recoil` ever meets unabsorbed holes.
 - **`events/` has no separate `ic_hash`:** `bg_key` (the pair writer's hash of the whole
   background leg) identifies the initial condition.
+
+### Surface finder (2026-09-26, MUSIC4GPU `surface_omp` `5058545`, pinned by X-SCAPE `f7877ced`)
+
+- **Why it was slow.** MUSIC's 3+1D surface search ran serially: upstream disabled the
+  OpenMP loop over η slices (`5025f77`), presumably because with `surface_in_memory` every
+  thread pushed into one vector. It is CPU code, run every 5th step on a full host copy of
+  the grid; ~57 ms per pass, ~9.6 s per event for both legs (`MUSIC_PROFILE=1`).
+- **Change.** The η-slice loop runs in parallel again, each slice into its own vector, the
+  slices appended in η order (memory mode only; the file mode stays serial). Search: 1.2 s
+  per event (≈8×). A first version reserved the exact size before each append, which made
+  every pass re-copy the whole accumulated surface (quadratic, 70% of the time); removed.
+  Parallelizing the previous-step copies was slower (bandwidth-bound, thread wake-ups) and
+  was reverted.
+- **Pressure bug found on the way.** In-memory surface cells never got their pressure, in
+  CPU MUSIC and MUSIC4GPU alike (`SurfaceCell::pressure` uninitialised in all three
+  in-memory fills), so the stored `P` column was garbage (e.g. −1.3e26) and differed run to
+  run. Now set (P/e ≈ 0.17 on the isotherm). iSS overwrites P from its own HRG EoS
+  (`regulateEOS = 1`, `MC_sampling` 4), so hadrons were never affected.
+- **Checks.** Surfaces bit-identical across runs and thread counts (20, 5), and to the
+  serial build in every column but `P`. iSS hadrons from the new surfaces, same seeds:
+  bit-identical to those from the serial build (7.08 M hadrons). No-surface runs unchanged
+  (29.6 s).
+- **Timing** (GB10, one job): both surfaces 43.0 s → 34.6–35.3 s at the default 20 threads.
+  With `OMP_NUM_THREADS=5` a single job takes 42.5–43.1 s, as every CPU part runs on 5
+  threads; that setting is for `-j 4` campaigns.
+- **Not changed:** CPU MUSIC (`external_packages/music`) has the same serial loop and the
+  same pressure omission.
 

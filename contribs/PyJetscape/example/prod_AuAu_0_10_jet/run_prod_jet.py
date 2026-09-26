@@ -100,7 +100,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--surface", choices=("none", "bg", "jet", "both"), default="none",
                    help="which legs build MUSIC's freeze-out surface. Nothing in this job "
                         "receives a surface unless --write-particlize stores it (which builds "
-                        "its legs anyway), so on its own this only costs ~6 s per MUSIC run; "
+                        "its legs anyway), so on its own this only costs ~3 s per MUSIC run; "
                         "a warning says so. 'none' (default) gives a bit-identical evolution")
     p.add_argument("--write-particlize", choices=("none", "jet", "both"), default="none",
                    dest="write_particlize",
@@ -332,7 +332,7 @@ def main() -> int:
         print(f"run_prod_jet.py: WARNING -- --surface {a.surface} builds the freeze-out surface "
               f"of the {' and '.join(unused)} leg(s), but nothing in this job receives it: "
               f"only --write-particlize hands a surface to the framework and stores it. "
-              f"That costs ~6 s per MUSIC run of that leg for no output; use "
+              f"That costs ~3 s per MUSIC run of that leg for no output; use "
               f"--write-particlize "
               f"{'both' if 'bg' in unused else 'jet'} to keep it, or drop --surface.",
               file=sys.stderr)

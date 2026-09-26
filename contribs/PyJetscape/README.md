@@ -890,8 +890,10 @@ follows the file's freeze-out convention, or with plain h5py
 
 ### Freeze-out surface on or off, per leg
 
-MUSIC builds its freeze-out surface on the CPU every 5th step, which costs ~5.6 s per MUSIC
-run. Training data does not need it; only a leg that is later particlized does.
+MUSIC builds its freeze-out surface on the CPU every 5th step, which cost ~5.6 s per MUSIC
+run with the serial search (~0.6 s for the search itself, ~2.7 s per run including the copies
+and the hand-off, with the parallel search of MUSIC4GPU `5058545`). Training data does not
+need it; only a leg that is later particlized does.
 `<Hydro><MUSIC><freeze_out_surface>0` (music4gpu) builds no surface. MUSIC then stops on the
 equivalent test, max(e) below the freeze-out energy density in the current and the
 previously checked step. That is the same stop step, and the evolution is bit-identical
@@ -1022,7 +1024,8 @@ roughly 4–5 s of MUSIC_2's 21.5 s.
   `grid_mode="native"` skips it (larger files).
 * **Copy of MUSIC_1 into X-SCAPE's medium store, 6.2 s:** needed by Matter/LBT.
 * **Freeze-out surface on the CPU, ~5.6 s per MUSIC run:** done: `freeze_out_surface 0`,
-  set per leg (see above).
+  set per leg (see above), and where a surface is needed the search now runs in parallel
+  (MUSIC4GPU `5058545`: ~0.6 s per MUSIC run for the search).
 * **CPU source pass after the strings are gone, ~1.3 s per MUSIC run:** it still makes
   one call per cell per substep. Skipping the pass when no string and no droplet is
   active would remove it.
