@@ -294,3 +294,175 @@ def test_jet_events_combine_bulk_and_fragments_per_event(tmp_path):
             je.bg_unit(1)
     with pytest.raises(ValueError, match="tag"):
         JetEvents(bulk_jet=f"{stem}_hadrons_jet_frag.h5")
+
+
+# ───────────────────────────────────────────── HadronFileReader: a campaign
+PHI_JET = {("A", 0): 0.3, ("A", 1): 2.0, ("B", 0): -1.0, ("B", 1): 1.2}
+
+
+def _hads(phis, pid, e):
+    n = len(phis)
+    p = np.zeros((n, 4), np.float32)
+    p[:, 0], p[:, 1], p[:, 2] = e, np.cos(phis), np.sin(phis)
+    return {"pid": np.full(n, pid, np.int32), "pstat": np.zeros(n, np.int32), "p": p,
+            "x": np.zeros((n, 4), np.float32)}
+
+
+def _seed_files(tmp_path, name, bg_ids, empty_jet=(), n_os=2, n_jet=3):
+    """One production file: particlize (with bg map + uuid), pair file (initiators), and
+    the three hadron files.  Jet-leg hadrons sit at phi_jet + 0.1 (energy 10*event + k + 1),
+    background hadrons at a fixed phi 0.5 (energy 100 + unit), fragments along the jet."""
+    import h5py
+
+    from jetscape.hadrons_h5 import HadronH5Writer
+
+    stem = str(tmp_path / f"run_{name}")
+    jet, bg, mgr = _Leg("MUSIC_2"), _Leg("MUSIC_1"), _Mgr()
+    pw = ParticlizeH5Writer(f"{stem}_particlize.h5", legs=("jet", "bg"), music_input="",
+                            pair_file=f"/elsewhere/run_{name}.h5",
+                            extra_attrs={"prod_seed": ord(name)})
+    pw.attach(_JS(bg, jet), manager=mgr)
+    for k, bg_id in enumerate(bg_ids):
+        jet.cells, bg.cells = _cells(1, k), _cells(1, 10 + k)
+        pw.Exec(k, bg_id=bg_id)
+    pw.Finish()
+    with ParticlizeFile(f"{stem}_particlize.h5") as pf:
+        uuid, bg_unit = pf.attrs["file_uuid"], pf.events("bg_unit")
+    n_ev = len(bg_ids)
+    with h5py.File(f"{stem}.h5", "w") as f:                          # the pair file
+        ini = np.zeros((n_ev, 11))
+        for e in range(n_ev):
+            ini[e, 3], ini[e, 4] = np.cos(PHI_JET[(name, e)]), np.sin(PHI_JET[(name, e)])
+        f["shower/initiators"] = ini
+        f["shower/initiator_offsets"] = np.arange(n_ev + 1)
+    attrs = {"source_uuid": uuid}
+    with HadronH5Writer(f"{stem}_hadrons_bulk_jet.h5", tag="bulk_jet", n_samples=2,
+                        attrs=attrs) as w:
+        for e in range(n_ev):
+            s = [] if e in empty_jet else [_hads([PHI_JET[(name, e)] + 0.1] * n_jet, 211,
+                                                 10 * e + k + 1) for k in range(n_os)]
+            w.append_unit(s, unit=e, event=e, seed=e)
+    with HadronH5Writer(f"{stem}_hadrons_bulk_bg.h5", tag="bulk_bg", n_samples=2,
+                        attrs=attrs) as w:
+        for u in range(int(bg_unit.max()) + 1):
+            w.append_unit([_hads([0.5, 0.5], -211, 100 + u) for _ in range(2)], unit=u,
+                          event=int(np.flatnonzero(bg_unit == u)[0]), seed=u)
+    with HadronH5Writer(f"{stem}_hadrons_jet_frag.h5", tag="jet_frag", n_samples=1,
+                        attrs=attrs) as w:
+        for e in range(n_ev):
+            w.append_unit([_hads([PHI_JET[(name, e)]], 2212, 50)], unit=e, event=e, seed=e)
+    return stem
+
+
+def _two_seeds(tmp_path, empty_jet_b=()):
+    # seed A: both events share background 0; seed B: one background per event
+    return (_seed_files(tmp_path, "A", (0, 0)), _seed_files(tmp_path, "B", (0, 1),
+                                                            empty_jet=empty_jet_b))
+
+
+def test_reader_finds_and_indexes_a_campaign(tmp_path):
+    from jetscape.hadrons_h5 import HadronFileReader, JetEvents
+
+    a, b = _two_seeds(tmp_path)
+    for source in (str(tmp_path), str(tmp_path / "*_hadrons_bulk_jet.h5"), [b, a],
+                   [a + "_particlize.h5", b + "_particlize.h5"]):
+        with HadronFileReader(source) as r:
+            assert r.stems == [a, b] and r.n_files == 2 and r.n_events == 4
+    with HadronFileReader(str(tmp_path)) as r:
+        assert r.tags() == ("bulk_jet", "bulk_bg", "jet_frag")
+        assert r.locate(3) == (1, 1) and r.global_event(1, 0) == 2
+        info = r.event_info(1)
+        assert (info.stem, info.local_event, info.bg_unit, info.seed) == (a, 1, 0, ord("A"))
+        assert np.allclose(info.initiators()[0, 3:5],
+                           [np.cos(PHI_JET[("A", 1)]), np.sin(PHI_JET[("A", 1)])])
+        assert r.n_oversamples(2) == 2 and r.n_frag(2) == 1
+        with JetEvents.from_stem(b) as je:
+            ref = je.jet_event(1, 1)
+        ev = r.jet_event(3, 1)                           # global 3 = seed B, event 1
+        assert all(np.array_equal(ev[k], ref[k]) for k in ("pid", "p", "origin"))
+        assert np.all(r.background_event(1, 0)["p"][:, 0] == 100)   # reused bg unit 0
+        with pytest.raises(IndexError):
+            r.locate(4)
+
+
+def test_reader_histograms_follow_each_event_and_count_reused_backgrounds(tmp_path):
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    _two_seeds(tmp_path)
+    with HadronFileReader(str(tmp_path)) as r:
+        # counts: 3 per jet sample, 2 per background sample (4 events x 2 samples each)
+        assert r.total("bulk_jet") == pytest.approx((3.0, np.sqrt(24) / 8))
+        n, err = r.total("bulk_bg", weights="E")
+        # events A0 and A1 both use seed A's unit 0 (E = 100); B0, B1 units 0, 1 (100, 101)
+        e_sum = 2 * 2 * (2 * 100) + 2 * (2 * 100) + 2 * (2 * 101)
+        assert n == pytest.approx(e_sum / 8)
+        # unit A0's hadrons are counted twice in the same bin: their weights add first
+        sq = 4 * (2 * 100) ** 2 + 4 * 100 ** 2 + 4 * 101 ** 2
+        assert err == pytest.approx(np.sqrt(sq) / 8)
+
+        def dphi(ev, info):                              # relative to this event's jet
+            ini = info.initiators()[0]
+            return np.mod(ev.phi - np.arctan2(ini[4], ini[3]), 2 * np.pi)
+
+        bins = np.linspace(0, 2 * np.pi, 64)
+        h, _ = r.hist("bulk_jet", dphi, bins)
+        assert h[np.searchsorted(bins, 0.1) - 1] == pytest.approx(3.0)   # all at +0.1
+        # the reused background lands in a different bin for each of its two events
+        hb, eb = r.hist("bulk_bg", dphi, bins, events=[0, 1])
+        i0 = np.searchsorted(bins, np.mod(0.5 - 0.3, 2 * np.pi)) - 1
+        i1 = np.searchsorted(bins, np.mod(0.5 - 2.0, 2 * np.pi)) - 1
+        assert hb[i0] == pytest.approx(1.0) and hb[i1] == pytest.approx(1.0)
+        assert eb[i0] == pytest.approx(np.sqrt(4) / 4)                 # not correlated
+        # 2-d, with a name as mask
+        h2, _ = r.hist("bulk_jet", lambda ev, info: (ev.pt, ev.phi),
+                       (np.array([0.0, 2.0]), np.array([-np.pi, np.pi])), mask="charged")
+        assert h2.shape == (1, 1) and h2[0, 0] == pytest.approx(3.0)
+
+
+def test_reader_jet_minus_background_uses_common_events(tmp_path):
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    _two_seeds(tmp_path, empty_jet_b=(1,))               # seed B event 1: empty surface
+    with HadronFileReader(str(tmp_path)) as r:
+        assert r.n_oversamples(3) == 0
+        bins = np.array([0.0, 10.0])
+        d, e = r.jet_minus_background("pt", bins)
+        common = [0, 1, 2]                               # event 3 has no jet samples
+        hj, ej = r.hist("bulk_jet", "pt", bins, events=common)
+        hb, eb = r.hist("bulk_bg", "pt", bins, events=common)
+        assert d == pytest.approx(hj - hb) and e == pytest.approx(np.hypot(ej, eb))
+        assert d[0] == pytest.approx(3 - 2)
+        df, _ = r.jet_minus_background("pt", bins, fragments=True)
+        assert df[0] == pytest.approx(3 - 2 + 1)
+
+
+def test_reader_refuses_files_from_another_run(tmp_path):
+    import h5py
+
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    a, b = _two_seeds(tmp_path)
+    with h5py.File(b + "_hadrons_bulk_bg.h5", "a") as f:
+        f.attrs["source_uuid"] = "someone-else"
+    with pytest.raises(ValueError, match="not the same run"):
+        HadronFileReader(str(tmp_path))
+    with HadronFileReader(str(tmp_path), check_uuid=False) as r:
+        assert r.n_events == 4
+    import os
+    os.remove(a + "_hadrons_jet_frag.h5")
+    with HadronFileReader(str(tmp_path), check_uuid=False) as r:
+        assert r.tags() == ("bulk_jet", "bulk_bg") and "jet_frag" in r.tags(1)
+        with pytest.raises(ValueError, match="no jet_frag file"):
+            r.total("jet_frag")
+
+
+def test_reader_weighs_every_event_the_same(tmp_path):
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    _seed_files(tmp_path, "A", (0, 0), n_os=2, n_jet=3)      # 3 hadrons per sample
+    _seed_files(tmp_path, "B", (0, 1), n_os=4, n_jet=5)      # 5, and twice the samples
+    with HadronFileReader(str(tmp_path)) as r:
+        n, err = r.total("bulk_jet")
+        assert n == pytest.approx((3 + 3 + 5 + 5) / 4)     # not the sample-weighted 4.33
+        assert err == pytest.approx(np.sqrt(2 * 6 / 2 ** 2 + 2 * 20 / 4 ** 2) / 4)
+

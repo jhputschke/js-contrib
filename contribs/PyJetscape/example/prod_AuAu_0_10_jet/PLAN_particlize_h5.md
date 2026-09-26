@@ -274,7 +274,11 @@ Branches `surface_to_hadrons` in X-SCAPE (from `contrib`) and js-contrib (from `
   (`jet_event(event, k)`, origin-tagged) and the event's background (`background_event`,
   reuse-aware).
 - **Notebook.** `jet_wake.ipynb` §10.
-- **Tests.** `tests/test_particlize_h5.py` (10 tests).
+- **Campaigns.** `HadronFileReader`: all production files of a campaign as one data set
+  (global event numbering, per-event accumulation with equal event weights, per-event
+  backgrounds under reuse with correlated errors, uuid check). A merge tool to single files
+  per tag is noted as an option, not written.
+- **Tests.** `tests/test_particlize_h5.py` (15 tests).
 
 ### Measured (GB10, seed 1, one 0–10% event)
 

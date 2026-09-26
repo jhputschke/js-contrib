@@ -189,6 +189,86 @@ ls out_had/AuAu_0_10_jet_seed*_particlize.h5 | xargs -P 8 -I{} sh -c \
 - It can run on other machines than the hydro production, and it shouldn't compete with
   `-j 4` GPU jobs for the same cores.
 
+### C. Analysing a campaign: `HadronFileReader`
+
+The hadron files are read the way the hydro files are: side by side, one production file
+per seed, no merging. `HadronFileReader` (in `jetscape.hadrons_h5`) opens every production
+file of a campaign as one data set:
+
+```python
+import numpy as np
+from jetscape.hadrons_h5 import HadronFileReader
+
+def jet_axis(info):
+    """phi and rapidity of the event's hardest shower-initiating parton."""
+    ini = info.initiators()                 # (K, 11): shower, pid, pstat, px, py, pz, E, ...
+    px, py, pz, E = ini[np.argmax(np.hypot(ini[:, 3], ini[:, 4])), 3:7]
+    return np.arctan2(py, px), 0.5 * np.log((E + pz) / (E - pz))
+
+def dphi(ev, info):                         # hadron azimuth relative to this event's jet
+    return np.mod(ev.phi - jet_axis(info)[0], 2 * np.pi)
+
+def soft_charged(ev, info):                 # charged, pT < 4 GeV, |eta - y_jet| < 1
+    return ev.charged & (ev.pt < 4) & (np.abs(ev.eta - jet_axis(info)[1]) < 1)
+
+with HadronFileReader("out_had") as r:      # every *_particlize.h5 in the directory
+    print(r.n_files, "files,", r.n_events, "events, tags", r.tags())
+
+    # the wake: <jet leg> - <background> per 30-degree bin, all events of all seeds
+    bins = np.linspace(0, 2 * np.pi, 13)
+    wake, err = r.jet_minus_background(dphi, bins, mask=soft_charged)
+    # ... fragments=True adds the jet's own hadrons (jet_frag)
+
+    # one tag, any observable: names of EventHadrons attributes, or callables
+    E_mid, E_err = r.total("bulk_jet", weights="E", mask=lambda ev, info: np.abs(ev.eta) < 1)
+    pt_spec, pt_err = r.hist("bulk_bg", "pt", np.linspace(0, 3, 31), mask="charged")
+
+    # single events, numbered across all seeds
+    ev = r.jet_event(2, 17)                 # global event 2, oversample 17 + fragments
+    bg = r.background_event(2, 17)          # the background that event used
+    info = r.event_info(2)                  # stem, local event, bg_unit, seed, initiators()
+```
+
+What it does:
+
+- **Finds the files.** `source` is a directory, a glob pattern (of particlize or hadron
+  files) or a list of stems. Each production file needs its `_particlize.h5`; hadron tags
+  missing in some files show up in `r.tags(file_index)`, and `r.tags()` lists the tags every
+  file has.
+- **Numbers events globally,** in file-name (seed) order: `r.locate(g)` gives
+  (file, local event) and `r.global_event(file, local)` the reverse.
+- **Refuses mixed runs.** A hadron file whose recorded `source_uuid` isn't its particlize
+  file's `file_uuid` (renamed, or from another run) is refused;
+  `check_uuid=False` overrides.
+- **Averages event by event.** For every event, the samples of its unit are histogrammed and
+  divided by that unit's number of samples. These per-event means are then averaged over the
+  events, so every event counts the same, even when files were hadronized with different
+  `--oversample`. Errors are compound-Poisson per event, added over events.
+- **Gives each event its own background.** A background shared by several events
+  (`--reuse`) is evaluated once per event with that event's `info`, which is what
+  jet-relative observables need. Its hadrons, counted several times, enter the error as the
+  correlated sum they are.
+- **Keeps jet and background consistent.** `jet_minus_background` uses only events whose jet
+  leg *and* background have samples (an empty surface drops the event from both), each event
+  against its own background.
+- **Reads one file at a time.** Only the units it needs are loaded.
+  - The four events of seeds 1 and 3 (500 and 100 oversamples, about 11 M hadrons) take
+    2.7 s.
+  - For seed 1 it reproduces the notebook's energy balance: 18.1 ± 2.7 GeV at |η| < 1.
+
+The callables receive an `EventHadrons` (`pid`, `pstat`, `p`, `x`, `E`, `px`, `py`, `pz`,
+`pt`, `eta`, `y`, `phi`, `charged`, `sample`, `n_samples`, `species()`: all samples of that
+tag for that event) and an `EventInfo` (`event`, `stem`, `local_event`, `bg_unit`, `seed`,
+`initiators()`). `values` may return a tuple for an N-d histogram. `initiators()` reads the
+pair file's `shower/` group, so keep the pair files next to the particlize files.
+
+**Option if needed: merging into single files.** A campaign could also be merged into one
+file per tag (`merge_hadrons.py`, not written). It would concatenate the units, shift the
+offsets, add `seed`/`source_event` columns, and renumber backgrounds globally together with a
+merged event → background map. That only helps for moving or archiving a campaign as three
+files instead of 4 × N_seeds: a merged file at 500 oversamples is ~50 GB per 500 events, and
+the reader above makes it unnecessary for analysis.
+
 ### Planning numbers (GB10, one 0–10% event, measured)
 
 | | per event | disk per event |
@@ -303,6 +383,9 @@ with JetEvents.from_stem("out/AuAu_0_10_jet_seed0001") as je:   # the three file
 with HadronFile("out/AuAu_0_10_jet_seed0001_hadrons_bulk_jet.h5") as hf:
     one = hf.sample_event(0, 17)      # any single sample, read from disk (not the whole file)
 ```
+
+For many production files at once, use `HadronFileReader` (see
+[C. Analysing a campaign](#c-analysing-a-campaign-hadronfilereader)).
 
 The fragmentation paired with oversample `k` is `k mod n_frag` (or `frag_sample=`); run
 `hadronize.py` with `--n-frag` equal to `--oversample` to give every oversample its own. The

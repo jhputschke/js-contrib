@@ -44,6 +44,15 @@ of the jet leg's bulk plus a fragmentation of the same event's partons, and
 ``background_event(event, k)`` is oversample ``k`` of the background that event used.
 Oversamples of one event share one fluid: they are independent Cooper-Frye samplings, not
 independent collisions.
+
+A whole campaign
+----------------
+:class:`HadronFileReader` reads the files of many production files (one per seed) as one
+data set, the way the hydro files of a campaign are read side by side rather than merged:
+events get a global index, ``jet_event``/``background_event`` work across seeds, and
+``hist``/``total``/``jet_minus_background`` accumulate event by event over all files, with
+the background re-evaluated per event (jet-relative observables) and correct errors when a
+background is reused.
 """
 
 from __future__ import annotations
@@ -56,7 +65,8 @@ from .fno_h5_writer import RaggedGroup
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 
 __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "ORIGIN",
-           "HadronH5Writer", "Hadrons", "HadronFile", "JetEvents"]
+           "HadronH5Writer", "Hadrons", "HadronFile", "JetEvents", "HadronFileReader",
+           "EventHadrons", "EventInfo"]
 
 #: per-hadron arrays of one event (a sample), as sample_event() returns them
 FIELDS = ("pid", "pstat", "p", "x")
@@ -470,4 +480,424 @@ def _concat(parts):
     out["origin"] = np.concatenate([np.full(len(ev["pid"]), o, dtype=np.int8)
                                     for ev, o in parts])
     return out
+
+
+# ── a whole campaign ────────────────────────────────────────────────────────────
+class EventHadrons:
+    """All samples of one tag for one event: per-hadron arrays with kinematics.
+
+    Attributes: ``pid``, ``pstat``, ``p`` [E, px, py, pz], ``x`` [t, x, y, z], ``E``,
+    ``px``, ``py``, ``pz``, ``pt``, ``eta``, ``y``, ``phi``, ``charged``, ``sample`` (the
+    sample each hadron belongs to, 0 .. n_samples-1) and ``n_samples``.
+    """
+
+    _ARRAYS = ("pid", "pstat", "p", "x", "E", "px", "py", "pz", "pt", "eta", "y", "phi",
+               "charged")
+
+    def __init__(self, h, u):
+        s0, s1 = int(h.unit_offsets[u]), int(h.unit_offsets[u + 1])
+        a, b = int(h.sample_offsets[s0]), int(h.sample_offsets[s1])
+        for name in self._ARRAYS:
+            setattr(self, name, getattr(h, name)[a:b])
+        self.n_samples = s1 - s0
+        self.sample = h.sample[a:b] - s0
+
+    def __len__(self):
+        return len(self.pid)
+
+    def species(self, name):
+        """Boolean mask for a name in SPECIES, 'charged', or 'all'."""
+        if name == "all":
+            return np.ones(len(self.pid), bool)
+        if name == "charged":
+            return self.charged
+        return np.isin(self.pid, SPECIES[name])
+
+
+class EventInfo:
+    """What is known about one event of a campaign (passed to the callables of
+    :meth:`HadronFileReader.hist`)."""
+
+    def __init__(self, reader, g, i, local):
+        self._reader = reader
+        self.event = int(g)                  # global event index in the campaign
+        self.file_index = int(i)
+        self.local_event = int(local)        # event index inside its production file
+        f = reader._files[i]
+        self.stem = f["stem"]
+        self.seed = f["seed"]
+        self.bg_unit = int(f["bg_unit"][local]) if f["bg_unit"] is not None else None
+
+    def initiators(self):
+        """This event's shower-initiating partons from the pair file (``shower/``), as a
+        (K, 11) array, columns ``shower, pid, pstat, px, py, pz, E, x, y, z, t``."""
+        return self._reader._initiators(self.file_index, self.local_event)
+
+    def __repr__(self):
+        return (f"EventInfo(event={self.event}, stem={self.stem!r}, "
+                f"local_event={self.local_event}, bg_unit={self.bg_unit})")
+
+
+class HadronFileReader:
+    """The hadron files of a whole campaign, read as one data set.
+
+        reader = HadronFileReader("out_had")            # every *_particlize.h5 in there
+        reader.n_events                                  # events of all seeds
+        ev = reader.jet_event(123, 17)                   # global event 123, oversample 17
+        dN, err = reader.hist("bulk_jet", "pt", np.linspace(0, 3, 31), mask="charged")
+        dN, err = reader.jet_minus_background(dphi_jet, bins, mask=soft_charged)
+
+    ``source`` is a directory, a glob pattern (of particlize or hadron files), or a list of
+    stems / particlize paths.  Every production file needs its ``<stem>_particlize.h5``
+    (event count, the event -> background map, the file uuid) and whichever
+    ``<stem>_hadrons_<tag>.h5`` hadronize.py made.  With ``check_uuid`` a hadron file whose
+    ``source_uuid`` is not its particlize file's ``file_uuid`` is refused: files renamed or
+    mixed across runs cannot pair up silently.
+
+    **Histograms** are event averages of per-sample means: for every event the samples of
+    its unit are histogrammed and divided by that unit's number of samples, and these
+    per-event means are averaged over the events -- every event weighs the same, even when
+    the files were hadronized with different ``--oversample``.  Errors are compound-Poisson
+    per event, added over events.  ``values``, ``mask`` and ``weights`` are either
+    a name (an :class:`EventHadrons` attribute, or 'charged', or a species name for
+    ``mask``) or a callable ``f(ev, info)`` returning one value per hadron, where ``ev`` is
+    an :class:`EventHadrons` and ``info`` an :class:`EventInfo` -- so jet-relative
+    observables use ``info.initiators()``.  ``values`` may return a tuple for an N-d
+    histogram.  A background reused by several events is evaluated once per event (with
+    that event's ``info``), and its hadrons, counted several times, enter the error as the
+    correlated sum they are.  Events whose unit has no samples (an empty surface) are
+    skipped.
+    """
+
+    def __init__(self, source, *, check_uuid=True):
+        self._files = []
+        for stem in _find_stems(source):
+            self._files.append(self._open_stem(stem, check_uuid))
+        if not self._files:
+            raise FileNotFoundError(f"no *_particlize.h5 found for {source!r}")
+        n = np.array([f["nevents"] for f in self._files], dtype=np.int64)
+        self._offsets = np.concatenate([[0], np.cumsum(n)])
+        self._samples = {}              # (file index, tag) -> {unit id: n_samples}
+        self._init_cache = {}
+        self._je = (None, None)         # (file index, JetEvents) of the last lookup
+        self._loaded = (None, None, None, None)   # (file, tag, unit positions, Hadrons)
+
+    # ── discovery ───────────────────────────────────────────────────────────────
+    @staticmethod
+    def _open_stem(stem, check_uuid):
+        import os
+
+        import h5py
+
+        from . import h5_compression  # noqa: F401
+        from .particlize_h5 import ParticlizeFile
+
+        with ParticlizeFile(f"{stem}_particlize.h5") as pf:
+            uuid = str(pf.attrs.get("file_uuid", ""))
+            info = {"stem": stem, "nevents": pf.nevents, "uuid": uuid,
+                    "seed": pf.attrs.get("prod_seed"),
+                    "pair_file": pf.attrs.get("pair_file"),
+                    "bg_unit": (pf.events("bg_unit") if pf.has_events("bg_unit")
+                                else None)}
+        info["tags"] = {}
+        for tag in TAGS:
+            path = f"{stem}_hadrons_{tag}.h5"
+            if not os.path.exists(path):
+                continue
+            with h5py.File(path, "r") as f:
+                ftag, src = str(f.attrs.get("tag", "")), str(f.attrs.get("source_uuid", ""))
+            if ftag != tag:
+                raise ValueError(f"{path} holds tag {ftag!r}, not {tag!r}")
+            if check_uuid and src != uuid:
+                raise ValueError(f"{path} was made from particlize file uuid {src!r}, but "
+                                 f"{stem}_particlize.h5 is {uuid!r}: not the same run "
+                                 "(pass check_uuid=False to override)")
+            info["tags"][tag] = path
+        return info
+
+    # ── bookkeeping ─────────────────────────────────────────────────────────────
+    @property
+    def n_events(self):
+        return int(self._offsets[-1])
+
+    @property
+    def n_files(self):
+        return len(self._files)
+
+    @property
+    def stems(self):
+        return [f["stem"] for f in self._files]
+
+    def tags(self, file_index=None):
+        """Tags present in every file (or in one file)."""
+        if file_index is not None:
+            return tuple(t for t in TAGS if t in self._files[file_index]["tags"])
+        return tuple(t for t in TAGS if all(t in f["tags"] for f in self._files))
+
+    def locate(self, event):
+        """Global event index -> (file index, event inside that production file)."""
+        g = int(event)
+        if not 0 <= g < self.n_events:
+            raise IndexError(f"event {g} out of range (0..{self.n_events - 1})")
+        i = int(np.searchsorted(self._offsets, g, side="right") - 1)
+        return i, g - int(self._offsets[i])
+
+    def global_event(self, file_index, local_event):
+        return int(self._offsets[file_index]) + int(local_event)
+
+    def event_info(self, event):
+        i, local = self.locate(event)
+        return EventInfo(self, event, i, local)
+
+    def events(self, selection=None):
+        """Global event indices: all (None), one int, a slice, or an iterable."""
+        if selection is None:
+            return np.arange(self.n_events)
+        if isinstance(selection, slice):
+            return np.arange(self.n_events)[selection]
+        g = np.unique(np.atleast_1d(np.asarray(selection, dtype=np.int64)))
+        if len(g) and (g[0] < 0 or g[-1] >= self.n_events):
+            raise IndexError(f"events out of range (0..{self.n_events - 1})")
+        return g
+
+    def _path(self, i, tag):
+        path = self._files[i]["tags"].get(tag)
+        if path is None:
+            raise ValueError(f"{self._files[i]['stem']}: no {tag} file")
+        return path
+
+    def _unit_of(self, i, tag, local):
+        if tag != "bulk_bg":
+            return int(local)
+        bg = self._files[i]["bg_unit"]
+        if bg is None:
+            raise ValueError(f"{self._files[i]['stem']}_particlize.h5 has no events/bg_unit")
+        return int(bg[local])
+
+    def n_samples(self, tag, event):
+        """Samples of ``tag`` for global ``event`` (bulk_bg: of the background it used)."""
+        i, local = self.locate(event)
+        return self._samples_of(i, tag).get(self._unit_of(i, tag, local), 0)
+
+    def _samples_of(self, i, tag):
+        key = (i, tag)
+        if key not in self._samples:
+            with HadronFile(self._path(i, tag)) as hf:
+                ids = hf.units.get("unit", np.arange(hf.n_units))
+                per = np.diff(hf.unit_offsets)
+                self._samples[key] = {int(u): int(n) for u, n in zip(ids, per)}
+        return self._samples[key]
+
+    def _initiators(self, i, local):
+        import os
+
+        import h5py
+
+        if i not in self._init_cache:
+            f = self._files[i]
+            pair = f["pair_file"]
+            path = os.path.join(os.path.dirname(f["stem"]), str(pair)) if pair else None
+            if not path or not os.path.exists(path):
+                raise FileNotFoundError(f"pair file {path!r} of {f['stem']} not found: "
+                                        "initiators() reads its shower/ group")
+            with h5py.File(path, "r") as h:
+                self._init_cache[i] = (h["shower/initiators"][:],
+                                       h["shower/initiator_offsets"][:])
+        data, off = self._init_cache[i]
+        return data[int(off[local]):int(off[local + 1])]
+
+    # ── single events ───────────────────────────────────────────────────────────
+    def _jet_events(self, i):
+        if self._je[0] != i:
+            if self._je[1] is not None:
+                self._je[1].close()
+            self._je = (i, JetEvents.from_stem(self._files[i]["stem"]))
+        return self._je[1]
+
+    def jet_event(self, event, k, frag_sample=None, fragments=True):
+        """Oversample ``k`` of global ``event``'s jet-leg bulk plus a fragmentation
+        (see :meth:`JetEvents.jet_event`)."""
+        i, local = self.locate(event)
+        return self._jet_events(i).jet_event(local, k, frag_sample, fragments)
+
+    def background_event(self, event, k):
+        i, local = self.locate(event)
+        return self._jet_events(i).background_event(local, k)
+
+    def n_oversamples(self, event):
+        return self.n_samples("bulk_jet", event)
+
+    def n_frag(self, event):
+        return self.n_samples("jet_frag", event)
+
+    def iter_jet_events(self, event, frag_sample=None):
+        for k in range(self.n_oversamples(event)):
+            yield self.jet_event(event, k, frag_sample=frag_sample)
+
+    # ── histograms ──────────────────────────────────────────────────────────────
+    def hist(self, tag, values, bins, *, mask=None, weights=None, events=None):
+        """Sample-averaged histogram of ``tag`` over ``events`` (default all) and its
+        error.  See the class docstring for ``values``, ``mask`` and ``weights``."""
+        return self._accumulate(tag, values, bins, mask, weights, self.events(events))
+
+    def total(self, tag, *, mask=None, weights=None, events=None):
+        """Sample-averaged sum over hadrons (default: count) and its error."""
+        h, e = self._accumulate(tag, None, None, mask, weights, self.events(events))
+        return float(h[0]), float(e[0])
+
+    def jet_minus_background(self, values, bins, *, mask=None, weights=None, events=None,
+                             fragments=False):
+        """<bulk_jet> (+ <jet_frag>) - <bulk_bg> over the events that have both surfaces,
+        each event against its own background.  -> (difference, error)."""
+        g = self.events(events)
+        keep = np.array([self.n_samples("bulk_jet", e) > 0
+                         and self.n_samples("bulk_bg", e) > 0 for e in g], dtype=bool)
+        g = g[keep]
+        hj, ej = self._accumulate("bulk_jet", values, bins, mask, weights, g)
+        hb, eb = self._accumulate("bulk_bg", values, bins, mask, weights, g)
+        d, var = hj - hb, ej ** 2 + eb ** 2
+        if fragments:
+            hf, ef = self._accumulate("jet_frag", values, bins, mask, weights, g)
+            d, var = d + hf, var + ef ** 2
+        return d, np.sqrt(var)
+
+    def _hadrons(self, i, tag, positions):
+        f, t, pos, h = self._loaded
+        if f == i and t == tag and pos is not None and set(positions) <= pos:
+            return h
+        h = Hadrons.from_h5(self._path(i, tag), units=np.array(sorted(positions)))
+        self._loaded = (i, tag, set(positions), h)
+        return h
+
+    def _accumulate(self, tag, values, bins, mask, weights, g):
+        edges = _edges(bins)
+        shape = tuple(len(e) - 1 for e in edges) if edges is not None else (1,)
+        nbins = int(np.prod(shape))
+        total = np.zeros(nbins)
+        sq = np.zeros(nbins)
+        n_used = 0
+        if len(g) == 0:
+            return total.reshape(shape), sq.reshape(shape)
+        files = np.searchsorted(self._offsets, g, side="right") - 1
+        for i in np.unique(files):
+            local = g[files == i] - int(self._offsets[i])
+            counts = self._samples_of(i, tag)
+            by_unit = {}
+            for e in local:
+                u = self._unit_of(i, tag, e)
+                if counts.get(u, 0) > 0:
+                    by_unit.setdefault(u, []).append(int(e))
+            if not by_unit:
+                continue
+            with HadronFile(self._path(i, tag)) as hf:
+                positions = [hf.unit_index(u) for u in by_unit]
+            h = self._hadrons(i, tag, positions)
+            for u, evs in by_unit.items():
+                ev = EventHadrons(h, h.unit_index(u))
+                keys, wsum = [], []
+                for e in evs:
+                    info = EventInfo(self, self.global_event(i, e), i, e)
+                    idx, w, rows = _binned(ev, info, values, edges, shape, mask, weights)
+                    w = w / ev.n_samples            # this event's per-sample mean
+                    total += np.bincount(idx, weights=w, minlength=nbins)
+                    n_used += 1
+                    if len(evs) == 1:
+                        sq += np.bincount(idx, weights=w * w, minlength=nbins)
+                    else:
+                        keys.append(rows.astype(np.int64) * nbins + idx)
+                        wsum.append(w)
+                if len(evs) > 1 and keys:
+                    # the same hadrons, counted once per event: their weights add per
+                    # (hadron, bin) before squaring
+                    k, inv = np.unique(np.concatenate(keys), return_inverse=True)
+                    wk = np.bincount(inv, weights=np.concatenate(wsum))
+                    sq += np.bincount(k % nbins, weights=wk * wk, minlength=nbins)
+        norm = max(n_used, 1)
+        return (total / norm).reshape(shape), (np.sqrt(sq) / norm).reshape(shape)
+
+    def close(self):
+        if self._je[1] is not None:
+            self._je[1].close()
+        self._je = (None, None)
+        self._loaded = (None, None, None, None)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
+
+def _find_stems(source):
+    import glob
+    import os
+
+    suffixes = ("_particlize.h5",) + tuple(f"_hadrons_{t}.h5" for t in TAGS)
+    if isinstance(source, (str, os.PathLike)):
+        src = str(source)
+        if os.path.isdir(src):
+            paths = glob.glob(os.path.join(src, "*_particlize.h5"))
+        elif any(c in src for c in "*?["):
+            paths = glob.glob(src)
+        else:
+            paths = [src]
+    else:
+        paths = [str(p) for p in source]
+    stems = set()
+    for p in paths:
+        for suf in suffixes:
+            if p.endswith(suf):
+                p = p[:-len(suf)]
+                break
+        stems.add(p)
+    missing = [s for s in stems if not os.path.exists(f"{s}_particlize.h5")]
+    if missing:
+        raise FileNotFoundError(f"no particlize file for {sorted(missing)[:3]}")
+    return sorted(stems)
+
+
+def _edges(bins):
+    if bins is None:
+        return None
+    if isinstance(bins, (list, tuple)) and len(bins) and np.ndim(bins[0]) == 1:
+        return [np.asarray(b, dtype=float) for b in bins]
+    return [np.asarray(bins, dtype=float)]
+
+
+def _resolve(spec, ev, info):
+    if callable(spec):
+        return spec(ev, info)
+    if spec in ("charged", "all") or spec in SPECIES:
+        return ev.species(spec)
+    return getattr(ev, spec)
+
+
+def _select(ev, info, mask):
+    return np.ones(len(ev), bool) if mask is None else np.asarray(_resolve(mask, ev, info),
+                                                                 dtype=bool)
+
+
+def _binned(ev, info, values, edges, shape, mask, weights):
+    """-> (flat bin index, weight, row in ev) of the selected hadrons inside the bins."""
+    m = _select(ev, info, mask)
+    rows = np.flatnonzero(m)
+    w = np.ones(len(rows)) if weights is None else np.asarray(
+        _resolve(weights, ev, info), dtype=float)[m]
+    if edges is None:
+        return np.zeros(len(w), dtype=np.int64), w, rows
+    v = _resolve(values, ev, info)
+    v = v if isinstance(v, tuple) else (v,)
+    if len(v) != len(edges):
+        raise ValueError(f"{len(v)} value array(s) for {len(edges)} bin dimension(s)")
+    inside = np.ones(len(w), bool)
+    idx = []
+    for vd, ed in zip(v, edges):
+        vd = np.asarray(vd, dtype=float)[m]
+        j = np.searchsorted(ed, vd, side="right") - 1
+        j[vd == ed[-1]] = len(ed) - 2           # numpy convention: last edge inclusive
+        inside &= (j >= 0) & (j < len(ed) - 1)
+        idx.append(j)
+    flat = np.ravel_multi_index(tuple(j[inside] for j in idx), shape)
+    return flat.astype(np.int64), w[inside], rows[inside]
 

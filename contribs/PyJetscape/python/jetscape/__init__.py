@@ -78,7 +78,8 @@ if HAS_H5PY:
     from .pair_h5 import PairH5Writer  # noqa: F401
     # hadron level: stored surfaces + final partons, and hadron files (PLAN_particlize_h5.md)
     from .particlize_h5 import ParticlizeFile, ParticlizeH5Writer  # noqa: F401
-    from .hadrons_h5 import HadronFile, HadronH5Writer, Hadrons, JetEvents  # noqa: F401
+    from .hadrons_h5 import (HadronFile, HadronFileReader, HadronH5Writer,  # noqa: F401
+                             Hadrons, JetEvents)
 
 
 #: names that exist only with the compiled extension, for the message below

@@ -1129,7 +1129,18 @@ opens a production file's three hadron files plus its particlize file:
 `jet_event(event, k)` is bulk_jet oversample `k` plus fragmentation `k mod n_frag` (or
 `frag_sample=`) with an `origin` array (0 bulk, 1 fragment), `background_event(event, k)` the
 background that event used (reuse-aware through `events/bg_unit`), and
-`iter_jet_events(event)` all oversamples. Tests: `tests/test_particlize_h5.py`.
+`iter_jet_events(event)` all oversamples.
+
+**A whole campaign:** `HadronFileReader(source)` reads many production files (a directory,
+a glob, or a list of stems) as one data set, the way the hydro files are read side by side.
+It numbers events globally (`locate`, `event_info`, `jet_event(g, k)`,
+`background_event(g, k)`). `hist(tag, values, bins, mask=, weights=, events=)`, `total(...)`
+and `jet_minus_background(...)` accumulate event by event, with each event weighted equally
+and a reused background re-evaluated per event (jet-relative observables via
+`info.initiators()`) and its errors correlated. Hadron files whose `source_uuid` doesn't match
+their particlize file are refused. Example:
+`example/prod_AuAu_0_10_jet/README.md`, *C. Analysing a campaign*. Tests:
+`tests/test_particlize_h5.py`.
 
 ---
 
