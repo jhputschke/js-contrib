@@ -5,7 +5,7 @@
 #
 #   ./run_jobs.sh [-j P] [--mps] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod.py args...]
 #   ./run_jobs.sh 20 25 0                         # unique seeds -> ./out/AuAu_0_10_<start time>_00NN.h5
-#   ./run_jobs.sh --campaign mb_a 20 25 0         # the same, named ./out/AuAu_0_10_mb_a_00NN.h5
+#   ./run_jobs.sh 20 25 0 --campaign mb_a         # the same, named ./out/AuAu_0_10_mb_a_00NN.h5
 #   ./run_jobs.sh 20 25 1                         # seeds 1..20 -> ./out/AuAu_0_10_seed00NN.h5
 #   ./run_jobs.sh -j 4 --mps 20 25 0              # four at a time, sharing the GPU via CUDA MPS
 #   ./run_jobs.sh 20 25 0 out_eta2p5 --grid grid_x10_eta2p5.yaml
@@ -13,7 +13,7 @@
 # FIRST_SEED 0 (a campaign): every job draws its own seed from OS entropy (run_prod.py
 # --seed 0: 1..900000000, not in the seed registry OUTDIR/../seeds_used.tsv, recorded there,
 # in the file and in its .json), and the files are numbered NNNN = 1..NJOBS under the campaign
-# name: --campaign, else the start time YYYYMMDD-HHMMSS.  The name is kept in
+# name: --campaign (before or after the numbers), else the start time YYYYMMDD-HHMMSS.  The name is kept in
 # OUTDIR/run_jobs.campaign, so re-running the command resumes the same campaign (one campaign
 # per OUTDIR).  FIRST_SEED > 0: seeds FIRST_SEED.. as given, files named by seed (or by
 # --campaign, if given): the same seeds give the same collisions, which is what paired
@@ -76,11 +76,34 @@ PROD_SCRIPT=${PROD_SCRIPT:-"$HERE/run_prod.py"}
 TAG_PREFIX=${TAG_PREFIX:-AuAu_0_10_seed}
 NAME_BASE=${TAG_PREFIX%_seed}                  # AuAu_0_10_seed -> AuAu_0_10
 shift 3
+# The arguments after the numbers go to every job, except --campaign, which is this script's
+# wherever it stands (it numbers the jobs; taken out first, so OUTDIR may follow it), and
+# the options it sets per job itself.
+set_campaign() {
+  if [ -z "$1" ] || { [ -n "$CAMPAIGN" ] && [ "$CAMPAIGN" != "$1" ]; }; then
+    echo "--campaign: given as '${CAMPAIGN}' and '$1'" >&2; exit 2
+  fi
+  CAMPAIGN=$1
+}
+[ -n "$CAMPAIGN" ] && set_campaign "$CAMPAIGN"
+pass=()
+while [ $# -gt 0 ]; do
+  case $1 in
+    --campaign)   [ $# -ge 2 ] || usage; set_campaign "$2"; shift 2 ;;
+    --campaign=*) set_campaign "${1#*=}"; shift ;;
+    --seed|--seed=*|--index|--index=*|--events|--events=*|--outdir|--outdir=*|--out|--out=*)
+      echo "${1%%=*}: set by run_jobs.sh for every job (NJOBS EVENTS_PER_JOB FIRST_SEED" \
+           "[OUTDIR]); don't pass it" >&2; exit 2 ;;
+    *) pass+=("$1"); shift ;;
+  esac
+done
+set -- ${pass[@]+"${pass[@]}"}
 OUTDIR="${PROD_OUTDIR:-$HERE/out}"
 if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then   # an optional OUTDIR before the options
   OUTDIR=$1; shift
 fi
 OUTDIR="$(mkdir -p "$OUTDIR" && cd "$OUTDIR" && pwd)"
+
 
 # ---- campaign: FIRST_SEED 0 (unique seeds) or --campaign names the files <base>_<name>_NNNN
 if [ "$SEED0" -eq 0 ] || [ -n "$CAMPAIGN" ]; then

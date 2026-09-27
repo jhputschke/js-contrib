@@ -69,7 +69,7 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
        --keep-bits-p 12 --keep-bits-x 8       # hadrons rounded: 58% of the disk (campaigns, see B)
 
 ./run_jobs.sh 20 25 0                                        # 20 jobs x 25 events, unique seeds
-./run_jobs.sh --campaign pth50 20 25 0                       # the same, files named ..._pth50_00NN
+./run_jobs.sh 20 25 0 --campaign pth50                       # the same, files named ..._pth50_00NN
 ./run_jobs.sh -j 2 20 25 0 out_pgun --hard pgun
 ./run_jobs.sh -j 4 --mps 20 25 0                             # 4 at a time, GPU shared via CUDA MPS
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both   # + hadronization input
@@ -149,8 +149,11 @@ particlize file. For many jobs at once, see the next section.
   (CUDA only). Every job runs in its own working directory (`OUTDIR/work/<tag>`, removed when
   it succeeds), so the jobs can start together. Output is bit-identical per seed whatever
   `-j`.
-- Everything after `OUTDIR` goes to every job unchanged (`--write-particlize`, `--reuse`,
-  `--hard`, `--grid`, ...). Don't pass `--events`, `--seed` or `--outdir`: the script sets them.
+- Everything after the numbers goes to every job unchanged (`--write-particlize`, `--reuse`,
+  `--hard`, `--grid`, ...), except `--campaign`, which `run_jobs.sh` takes wherever it stands
+  (`./run_jobs.sh -j 4 20 25 0 --campaign pth50` and `./run_jobs.sh --campaign pth50 -j 4 20 25 0`
+  are the same). `--events`, `--seed`, `--index`, `--outdir` and `--out` are refused: the
+  script sets them per job.
 - Each job's output goes to `OUTDIR/<tag>.log`. A failed job is reported and the others
   continue.
 - **End marker.** When a campaign ends (not on Ctrl-C), `OUTDIR/run_jobs.finished` is

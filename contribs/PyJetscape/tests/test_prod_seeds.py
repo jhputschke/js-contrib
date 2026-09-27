@@ -150,7 +150,9 @@ def _run_jobs(tmp_path, *args):
     stub = tmp_path / "stub_prod.py"
     stub.write_text(STUB)
     stub.chmod(stub.stat().st_mode | stat.S_IEXEC)
+    # PROD_OUTDIR: a job without OUTDIR must never land in a real data directory
     env = dict(os.environ, PROD_SCRIPT=str(stub), PYTHIA8DATA="unused",
+               PROD_OUTDIR=str(tmp_path / "default_out"),
                PATH=os.path.dirname(sys.executable) + os.pathsep + os.environ["PATH"])
     return subprocess.run(["/bin/bash", str(EXAMPLE / "prod_AuAu_0_10" / "run_jobs.sh"), *args],
                           capture_output=True, text=True, env=env)
@@ -201,3 +203,31 @@ def test_run_jobs_default_campaign_explicit_seeds_and_failures(tmp_path):
     r = _run_jobs(tmp_path, "--campaign", "f", "3", "5", "0", str(out), "--fail")
     assert r.returncode == 1 and "job 0002: FAILED" in r.stdout
     assert "failed: job 0002" in (out / "run_jobs.finished").read_text()
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_run_jobs_takes_campaign_anywhere_and_refuses_its_own_options(tmp_path):
+    out = tmp_path / "out"
+    r = _run_jobs(tmp_path, "-j", "2", "3", "5", "0", str(out), "--campaign", "pth50",
+                  "--grid", "g.yaml")                     # after the numbers, among options
+    assert r.returncode == 0, r.stderr
+    calls = _calls(out)
+    assert sorted(c["name"] for c in calls) == [f"AuAu_0_10_pth50_000{i}" for i in (1, 2, 3)]
+    assert all(c["extra"] == ["--grid", "g.yaml"] for c in calls)   # not passed on twice
+    assert (out / "run_jobs.campaign").read_text().strip() == "pth50"
+    r = _run_jobs(tmp_path, "3", "5", "0", "--campaign=pth50", str(out))  # OUTDIR after it
+    assert r.returncode == 0 and r.stdout.count("already complete") == 3, r.stdout
+    assert not (tmp_path / "default_out").exists()
+    r = _run_jobs(tmp_path, "--campaign", "a", "1", "5", "0", str(tmp_path / "o2"),
+                  "--campaign", "b")
+    assert r.returncode == 2 and "given as 'a' and 'b'" in r.stderr
+    for opt in ("--seed", "--index", "--events", "--outdir", "--out", "--seed=3"):
+        r = _run_jobs(tmp_path, "1", "5", "0", str(tmp_path / "o3"),
+                      *([opt] if "=" in opt else [opt, "7"]))
+        assert r.returncode == 2 and "set by run_jobs.sh" in r.stderr, opt
+
+
+def test_drivers_take_no_abbreviated_options():
+    src = (EXAMPLE / "prod_AuAu_0_10" / "run_prod.py").read_text() + \
+        (EXAMPLE / "prod_AuAu_0_10_jet" / "run_prod_jet.py").read_text()
+    assert src.count("allow_abbrev=False") == 2

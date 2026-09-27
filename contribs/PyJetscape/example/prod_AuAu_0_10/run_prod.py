@@ -56,7 +56,8 @@ _TOL = 1e-4
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__,
+    # no abbreviations: run_jobs.sh must recognise --campaign and the options it sets per job
+    p = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", type=int, default=10, help="events in this job (default 10)")
     p.add_argument("--grid", default=GRID_YAML,
