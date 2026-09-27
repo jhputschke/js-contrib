@@ -30,6 +30,10 @@ same initial condition, and before the first droplet deposits they are bit-ident
 > `hadronize.py` turns them into iSS and Colorless hadrons offline, bit-identical to running
 > them inside the job. See [Hadron level](#hadron-level-surfaces-partons-hadronizepy) and
 > [`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md).
+>
+> **Several pT̂ windows per background (2026-09-27, branches `N_ptHat_per_hydro` in X-SCAPE
+> and js-contrib).** `--pthat-bins 20-40,50-70,70-90` runs every background with one jet per
+> window. See [D. Several pTHat windows per background](#d-several-pthat-windows-per-background---pthat-bins).
 
 | file | purpose |
 |---|---|
@@ -63,6 +67,8 @@ python run_prod_jet.py --events 10 --seed 1                  # PythiaGun, pTHat 
 python run_prod_jet.py --events 10 --seed 1 --pthat-min 20 --pthat-max 40
 python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
 python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
+python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90
+                                             # the same, one jet per background in each window
 python run_prod_jet.py --events 1 --seed 1 --dry-run         # check the XML/grid only
 
 # + the input for hadronization: both freeze-out surfaces and the final partons
@@ -474,6 +480,88 @@ merged event → background map. That only helps for moving or archiving a campa
 files instead of 4 × N_seeds: a merged file at 500 oversamples is ~50 GB per 500 events, and
 the reader above makes it unnecessary for analysis.
 
+### D. Several pTHat windows per background (`--pthat-bins`)
+
+The background leg doesn't depend on the pT̂ window: seed 1 gives the same background at
+20–40 and at 50–70 GeV. So campaigns for several windows can share their backgrounds and
+run MUSIC_1 once for all of them:
+
+```bash
+# 3 windows, one jet per window per background: MUSIC_1 once per 3 events
+python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 30 0 out_pth3 --pthat-bins 20-40,50-70,70-90 \
+       --write-particlize both
+# 2 jets per window per background (--reuse 6)
+python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90 --jets-per-bin 2
+```
+
+- **How.** PythiaGun gets `<pTHatBins>` (`20 40 50 70 70 90`) and builds one Pythia
+  instance per window: the same settings, its own pT̂ range, seed and cross section. Event
+  i uses window i mod K. `--reuse` is set to K × `--jets-per-bin` (M), and `--events` must
+  be a multiple of it. So every background gets exactly M jets in each window, and each of
+  them has its own MUSIC_2.
+- **Cost (measured, GB10, one job, seed 1, 3 windows, `--write-particlize both`).** An
+  event that also runs MUSIC_1 took 34.1 and 41.3 s; the events reusing its background
+  21.1–24.4 s. The job averaged 27.6 s per event, 0.73 of an all-new-background event
+  (1.37× the throughput). In general the cost goes as (1 + 1/(K·M)) / 2 of a pair, since
+  MUSIC_1 and MUSIC_2 cost about the same, down to half for many windows. Campaign
+  throughput with `-j 4 --mps` has not been measured. With `--write-particlize both`,
+  the background surface is also stored (and `hadronize.py` samples it) once per K·M events.
+- **Statistics.** Per window, a campaign with M = 1 is what a `--reuse 1` campaign of that
+  window would be: one jet per background. The windows share their backgrounds, so results
+  combined over windows (a spectrum stitched from the windows) have errors correlated
+  between them through the bulk; per-window results and jet − background don't.
+- **Seeds.** PythiaGun takes `<Random><seed>` itself, not through the task number.
+  Window 0 keeps that seed, so it gives the same Pythia events as a single-window job of
+  that window with the same seed (checked: pT̂ and σ identical). Windows 1..K−1 get seeds
+  derived from (seed, window) (splitmix64, 1 … 900,000,000), recorded in
+  `pthat_bin_seeds`. The extra Pythia instances are not framework tasks, so no other
+  module's seed moves: the backgrounds are those of a single-window job with the same seed
+  (checked: seed 1, all 95 frames bit-identical). The jets after Matter/LBT are not,
+  because the energy-loss random streams are used by other events.
+- **What is recorded.** Per event `diag/pthat_bin`, `diag/pthat`, `diag/event_weight`
+  (also in the particlize file's `events/`). Per file the windows (`pthat_bins`,
+  `pthat_jets_per_bin`), and when the job ends each window's `pthat_bin_sigma_gen`,
+  `pthat_bin_sigma_err` [mb], `pthat_bin_n_accepted` and `pthat_bin_seeds` (in the pair
+  file, the particlize file and the `.json`). A single window (`--pthat-bins 50-70`) runs
+  exactly as `--pthat-min 50 --pthat-max 70` and records the same.
+- **Needs** X-SCAPE branch `N_ptHat_per_hydro` (PythiaGun and the `<pTHatBins>` default in
+  `config/jetscape_main.xml`) and PyJetscape built against it. An older X-SCAPE refuses the
+  XML (the tag has no default in its main XML), and the driver refuses to run unless
+  PythiaGun reports exactly the requested windows.
+- **Refused:** window edges with more than one decimal (PythiaGun passes them to Pythia
+  with one, as `pTHatMin`), `PhaseSpace:pTHat…` in `<LinesToRead>` (it would override every
+  window), and `nReuseHydro` not a multiple of K.
+
+**Analysis.** `HadronFileReader` knows the windows:
+
+```python
+with HadronFileReader("out_pth3") as r:
+    r.pthat_bins                       # (K, 2) array, the same in every file
+    ev_k = r.pthat_bin_events(1)       # global events of window 1, for events=
+    sigma, err = r.pthat_bin_sigma(1)  # window 1's cross section [mb] over the campaign
+    info = r.event_info(4)             # info.pthat_bin, info.pthat
+
+    # a spectrum over all windows: each window's per-event average times its cross section
+    edges = np.linspace(0, 40, 41)
+    spec = np.zeros(len(edges) - 1)
+    var = np.zeros(len(edges) - 1)
+    for k in range(len(r.pthat_bins)):
+        h, e = r.hist("jet_frag", "pt", edges, mask="charged", events=r.pthat_bin_events(k))
+        s, _ = r.pthat_bin_sigma(k)
+        spec += s * h
+        var += (s * e) ** 2            # jet_frag: windows independent; bulk tags are not
+```
+
+`pthat_bin_sigma` averages the files' Pythia estimates weighted by their accepted events.
+Each window's `hist` is an event average, so the windows can have different event
+counts.
+
+**Checks before such a campaign:** the null test with the windows,
+`python run_prod_jet.py --events 3 --seed 1 --pthat-bins 20-40,50-70,70-90 --no-deposit`,
+must give `arr == arr_bg` in every event; and in any job, `diag/bg_id` must repeat K·M
+times with `diag/pthat_bin` cycling 0 … K−1.
+
 ### Planning numbers (GB10, one 0–10% event, measured)
 
 | | per event | disk per event |
@@ -495,6 +583,8 @@ processes keep up with a whole four-job GPU campaign.
 | `--hard pythia` (default) | PythiaGun. The vertex is a 3dMCGlauber binary-collision point (x, y; z = t = 0). `--pthat-min/--pthat-max` override the XML's 50–70 GeV. |
 | `--hard pgun --pgun-pt P` | One parton at fixed pT, always from the origin: PGun zeroes the sampled vertex (`PGun.cc:117-120`). |
 | `--reuse N` | `setReuseHydro`: MUSIC_1 runs once per N events, MUSIC_2 every event (a new jet each time). `arr_bg` is still written per event, so it stays aligned with `arr`. `diag/bg_id` gives the first event that used each background. |
+| `--pthat-bins A-B,C-D,...` | K PythiaGun pT̂ windows in one job, one Pythia each; event i uses window i mod K, and `--reuse` is set to K × `--jets-per-bin`. `--events` must be a multiple of that. Not with `--reuse`, `--pthat-min/max` or `--hard pgun`. See [D](#d-several-pthat-windows-per-background---pthat-bins). |
+| `--jets-per-bin M` | With `--pthat-bins`: jets per window per background (default 1). |
 | `--no-deposit` | Null test: MUSIC_2 without the liquefier. `arr` must equal `arr_bg` bit for bit (`diag/frames_identical == ntau`). Showers and droplets are still recorded. |
 | `--native` | Both legs on MUSIC's own grid (100 × 100 × 60) instead of the YAML's. |
 | `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |
@@ -505,7 +595,8 @@ processes keep up with a whole four-job GPU campaign.
 | `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface (`<freeze_out_surface>` in the first `<Hydro><MUSIC>` block, i.e. the background and the default, and in MUSIC_2's own block). On its own it produces nothing: only `--write-particlize` hands a surface to the framework and stores it, and it builds its legs itself. So a leg built but not stored costs ~3 s per MUSIC run (~6 s before MUSIC4GPU `5058545`) for no output, and the job warns about it. `none` (default) gives a bit-identical evolution. |
 
 The job XML always contains **one** hard process. The automatic task list would run every
-`<Hard>` child it finds, so the driver rebuilds that block from the option.
+`<Hard>` child it finds, so the driver rebuilds that block from the option. Several pT̂
+windows are one PythiaGun with `<pTHatBins>` (`--pthat-bins`), not several `<Hard>` blocks.
 
 ## What is written
 
@@ -517,8 +608,8 @@ On top of the single-leg schema (`arr`, `ntau_freezeout`, `tau_freezeout`, grid 
 | `arr_bg`, `ntau_freezeout_bg`, `tau_freezeout_bg` | the **background leg** (MUSIC_1). Always the same shape as `arr`. The τ axis grows to the longer leg of any event, and each leg is exactly 0 after its own freeze-out. |
 | `source/droplets`, `source/offsets` | the droplets MUSIC_2 was given, `(M, 8)`: `tau, x, y, eta, E, px, py, pz` (Milne position, Cartesian momentum). Event `i` is rows `offsets[i]:offsets[i+1]`. Each droplet deposits at `tau + liquefier_tau_delay`. |
 | `shower/` | partons, vertices and initiators per event, as FastHydro writes them (`jetscape.showers`) |
-| `diag/` | `n_droplets`, `E_droplets`, `n/E_droplets_late` (deposit after the jet leg froze out), `n/E_droplets_early`, `n_showers`, `n_partons`, `tau0_music`, `ntau_jet`, `ntau_bg`, `bg_id`, `frames_identical`, `wall_s` |
-| attributes | `pairing = "bg_jet"`, `arr_is`, `arr_bg_is`, `deposition`, `source_model`, `hard_vertex`, `liquefier_{dtau, tau_delay, time_relax, d_diff, width_delta, c_diff, gamma_relax}`, `freezeout_convention_id = "frames_written"`, and the run provenance (`prod_seed`, `prod_user_xml`, `prod_grid_yaml`, `prod_hard`, `prod_reuse`, ...) |
+| `diag/` | `n_droplets`, `E_droplets`, `n/E_droplets_late` (deposit after the jet leg froze out), `n/E_droplets_early`, `n_showers`, `n_partons`, `tau0_music`, `ntau_jet`, `ntau_bg`, `bg_id`, `frames_identical`, `wall_s`; with `--pthat-bins` also `pthat_bin`, `pthat`, `event_weight` |
+| attributes | `pairing = "bg_jet"`, `arr_is`, `arr_bg_is`, `deposition`, `source_model`, `hard_vertex`, `liquefier_{dtau, tau_delay, time_relax, d_diff, width_delta, c_diff, gamma_relax}`, `freezeout_convention_id = "frames_written"`, and the run provenance (`prod_seed`, `prod_user_xml`, `prod_grid_yaml`, `prod_hard`, `prod_reuse`, ...); with `--pthat-bins` also `pthat_bins` (K, 2), `pthat_jets_per_bin` and, written when the job ends, per window `pthat_bin_sigma_gen`, `pthat_bin_sigma_err` [mb], `pthat_bin_n_accepted`, `pthat_bin_seeds` (the same in the particlize file) |
 
 There is **no `source/S`** (`has_source = false`). MUSIC evaluates the liquefier kernel per
 cell and step and never keeps a gridded source. A re-deposit on the output grid would not be

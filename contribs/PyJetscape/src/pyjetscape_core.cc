@@ -20,6 +20,7 @@ void bind_music(py::module_ &m);
 void bind_root_bulk_writer(py::module_ &m);
 void bind_jet(py::module_ &m);
 void bind_hadronization(py::module_ &m);
+void bind_hard_process(py::module_ &m);
 void bind_signal_manager(py::module_ &m);
 
 PYBIND11_MODULE(pyjetscape_core, m) {
@@ -57,6 +58,8 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   bind_jet(m);
   // Hadrons (iSS output, jet hadronization) as numpy; re-hadronizing stored partons.
   bind_hadronization(m);
+  // The current event's hard process; PythiaGun's pTHat windows.
+  bind_hard_process(m);
   // Singleton signal manager — must come AFTER all module base-class bindings
   // (FluidDynamics, InitialState, PreequilibriumDynamics) so that the return
   // types of GetHydroPointer() etc. are already registered.
