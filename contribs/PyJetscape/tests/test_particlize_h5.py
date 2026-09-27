@@ -635,3 +635,113 @@ def test_run_hadronize_finds_complete_inputs_and_finished_outputs(tmp_path):
                                                 + rh.GB_PER_OVERSAMPLE * 3000)
     assert not rh.Plan(["--force"]).all_done(done)
     assert rh.Plan(["--tags", "jet_frag"]).memory_gb(done) == rh.GB_FRAG_ONLY
+
+
+# ───────────────────────────────────────────── shower initiators in the hadron files
+def _ini(phi, n=1):
+    rows = np.zeros((n, 11))
+    rows[:, 0] = np.arange(n)
+    rows[:, 3], rows[:, 4] = 50 * np.cos(phi), 50 * np.sin(phi)
+    return rows
+
+
+def test_hadron_file_keeps_initiators_per_event(tmp_path):
+    from jetscape.hadrons_h5 import INITIATOR_COLUMNS, HadronFile
+
+    p = tmp_path / "h_hadrons_jet_frag.h5"
+    with HadronH5Writer(p, tag="jet_frag", n_samples=1, initiators=True) as w:
+        w.append_unit([_hadrons(2)], _ini(0.3, 2), unit=4, event=4)
+        w.append_unit([_hadrons(1)], None, unit=5, event=5)       # no initiators: 0 rows
+        w.append_unit([], _ini(1.0), unit=6, event=6)            # no hadrons, initiators kept
+    with HadronFile(p) as hf:
+        assert hf.has_initiators
+        assert list(hf.f["initiators"].attrs["columns"]) == list(INITIATOR_COLUMNS)
+        assert np.array_equal(hf.initiators(4), _ini(0.3, 2))
+        assert hf.initiators(5).shape == (0, 11)
+        assert np.array_equal(hf.initiators(6), _ini(1.0))
+    with HadronH5Writer(tmp_path / "plain.h5", tag="bulk_jet", n_samples=1) as w:
+        with pytest.raises(ValueError, match="initiators=True"):
+            w.append_unit([], _ini(0.0))
+    with HadronFile(tmp_path / "plain.h5") as hf:
+        assert not hf.has_initiators and hf.initiators(0) is None
+    with pytest.raises(ValueError, match="one event per unit"):
+        HadronH5Writer(tmp_path / "bg.h5", tag="bulk_bg", n_samples=1, initiators=True)
+    with HadronH5Writer(tmp_path / "bad.h5", tag="bulk_jet", n_samples=1,
+                        initiators=True) as w:
+        with pytest.raises(ValueError, match=r"\(K, 11\)"):
+            w.append_unit([], np.zeros((1, 7)))
+
+
+def test_add_initiators_follows_units_event(tmp_path):
+    from jetscape.hadrons_h5 import HadronFile, add_initiators, pair_initiators
+
+    pair = tmp_path / "pair.h5"
+    with h5py.File(pair, "w") as f:
+        f["shower/initiators"] = np.concatenate([_ini(0.1), _ini(0.2, 2), _ini(0.3)])
+        f["shower/initiator_offsets"] = np.array([0, 1, 3, 4])
+    data, off = pair_initiators(str(pair), nevents=3)
+    with pytest.raises(ValueError, match="not the same run"):
+        pair_initiators(str(pair), nevents=2)
+    assert pair_initiators(str(tmp_path / "missing.h5")) is None
+
+    p = tmp_path / "h.h5"                                # --events 1:3 -> units 1, 2
+    with HadronH5Writer(p, tag="bulk_jet", n_samples=1) as w:
+        for e in (1, 2):
+            w.append_unit([_hadrons(1)], unit=e, event=e)
+    assert add_initiators(str(p), data, off)
+    with HadronFile(p) as hf:
+        assert np.array_equal(hf.initiators(1), _ini(0.2, 2))
+        assert np.array_equal(hf.initiators(2), _ini(0.3))
+    assert not add_initiators(str(p), data, off)             # kept ...
+    assert add_initiators(str(p), data, off, force=True)     # ... unless forced
+    with HadronH5Writer(tmp_path / "bg.h5", tag="bulk_bg", n_samples=1) as w:
+        w.append_unit([_hadrons(1)], unit=0, event=0)
+    with pytest.raises(ValueError, match="only go into"):
+        add_initiators(str(tmp_path / "bg.h5"), data, off)
+
+
+def test_reader_takes_initiators_from_the_hadron_files(tmp_path):
+    import os
+
+    from jetscape.hadrons_h5 import HadronFileReader, add_initiators, pair_initiators
+
+    a, b = _two_seeds(tmp_path)
+    for stem in (a, b):
+        found = pair_initiators(f"{stem}.h5", nevents=2)
+        add_initiators(f"{stem}_hadrons_jet_frag.h5", *found)
+        os.remove(f"{stem}.h5")                          # the pair file is gone
+    with HadronFileReader(str(tmp_path)) as r:
+        for g, key in enumerate((("A", 0), ("A", 1), ("B", 0), ("B", 1))):
+            ini = r.event_info(g).initiators()
+            assert np.allclose(ini[0, 3:5], [np.cos(PHI_JET[key]), np.sin(PHI_JET[key])])
+    os.remove(f"{b}_hadrons_jet_frag.h5")                # seed B: neither source left
+    with HadronFileReader(str(tmp_path)) as r:
+        with pytest.raises(FileNotFoundError, match="--add-initiators"):
+            r.event_info(3).initiators()
+
+
+def test_hadronize_add_initiators_without_the_extension(tmp_path, capsys):
+    import os
+
+    from jetscape.hadrons_h5 import HadronFile
+
+    hz = _load_example("hadronize.py")
+    stem = _seed_files(tmp_path, "A", (0, 0))            # pair file at <stem>.h5
+    with h5py.File(f"{stem}_particlize.h5", "r+") as f:
+        f.attrs["pair_file"] = os.path.basename(f"{stem}.h5")
+    assert hz.main([f"{stem}_particlize.h5", "--add-initiators"]) == 0
+    out = capsys.readouterr().out
+    assert "run_A_hadrons_bulk_jet.h5: initiators/ added" in out
+    assert "run_A_hadrons_jet_frag.h5: initiators/ added" in out
+    for tag in ("bulk_jet", "jet_frag"):
+        with HadronFile(f"{stem}_hadrons_{tag}.h5") as hf:
+            assert np.allclose(hf.initiators(1)[0, 3:5],
+                               [np.cos(PHI_JET[("A", 1)]), np.sin(PHI_JET[("A", 1)])])
+    with HadronFile(f"{stem}_hadrons_bulk_bg.h5") as hf:
+        assert not hf.has_initiators
+    assert hz.main([f"{stem}_particlize.h5", "--add-initiators"]) == 0
+    assert "has initiators/ already" in capsys.readouterr().out
+    os.remove(f"{stem}.h5")
+    with pytest.raises(SystemExit, match="no initiators to add"):
+        hz.main([f"{stem}_particlize.h5", "--add-initiators"])
+    assert "not found" in capsys.readouterr().err

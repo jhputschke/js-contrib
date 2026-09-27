@@ -1122,6 +1122,11 @@ stored verbatim) there first.
 `phi`, `charged`, the unit and sample of every hadron, and `hist()` / `total()` averaged over
 the samples of the selected units with compound-Poisson errors.
 
+**Jet axis:** `HadronH5Writer(..., initiators=True)` (bulk_jet, jet_frag) stores each event's
+shower-initiating partons in `initiators/`, and `hadronize.py` copies them from the pair file's
+`shower/initiators`. `HadronFile.initiators(event)` reads them; `add_initiators(path, *pair_initiators(pair))`
+adds them to an existing file (`hadronize.py --add-initiators`).
+
 **Precision:** `HadronH5Writer(..., keep_bits={"p": 12, "x": 8})` (`hadronize.py
 --keep-bits-p 12 --keep-bits-x 8`) rounds momenta and positions to that many float32 mantissa
 bits: 58% of the bytes, relative errors ≤ 1.2e-4 / 2e-3. The default is full precision.
@@ -1144,7 +1149,8 @@ It numbers events globally (`locate`, `event_info`, `jet_event(g, k)`,
 `background_event(g, k)`). `hist(tag, values, bins, mask=, weights=, events=)`, `total(...)`
 and `jet_minus_background(...)` accumulate event by event, with each event weighted equally
 and a reused background re-evaluated per event (jet-relative observables via
-`info.initiators()`) and its errors correlated. Hadron files whose `source_uuid` doesn't match
+`info.initiators()`, from the hadron files' `initiators/` or else the pair file) and its
+errors correlated. Hadron files whose `source_uuid` doesn't match
 their particlize file are refused. Example:
 `example/prod_AuAu_0_10_jet/README.md`, *C. Analysing a campaign*. Tests:
 `tests/test_particlize_h5.py`.

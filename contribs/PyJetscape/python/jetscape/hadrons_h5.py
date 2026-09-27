@@ -22,6 +22,11 @@ Layout::
     hadrons/unit_offsets   (U + 1,) int64   unit u is samples unit_offsets[u]:[u+1]
     units/<key>            (U,)             unit (row in the source group), event (first
                                             event using it), seed, n_cells ...
+    initiators/data        (K, 11) float64  optional, bulk_jet and jet_frag only: the event's
+    initiators/offsets     (U + 1,) int64   shower-initiating partons (INITIATOR_COLUMNS), unit
+                                            u is rows offsets[u]:[u+1]; copied by hadronize.py
+                                            from the pair file's shower/, so jet-relative
+                                            analyses do not need the (large) pair file
 
 ``p`` and ``x`` are full float32 unless the writer was given ``keep_bits``: then they are
 rounded to that many mantissa bits (``keep_mantissa_bits`` / ``max_rel_error`` on the
@@ -71,9 +76,11 @@ import numpy as np
 from .fno_h5_writer import RaggedGroup
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 from .h5_compression import dataset_keep_bits, h5_filter_kwargs, round_mantissa, tag_dataset
+from .showers import INITIATOR_COLUMNS
 
 __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "ORIGIN",
-           "ROUNDABLE", "hadron_precision", "HadronH5Writer", "Hadrons", "HadronFile",
+           "ROUNDABLE", "INITIATOR_COLUMNS", "INITIATOR_TAGS", "hadron_precision",
+           "pair_initiators", "add_initiators", "HadronH5Writer", "Hadrons", "HadronFile",
            "JetEvents", "HadronFileReader",
            "EventHadrons", "EventInfo"]
 
@@ -101,6 +108,9 @@ SPECIES = {
 
 #: the float fields ``keep_bits`` may round; pid, pstat and the offsets stay exact
 ROUNDABLE = ("p", "x")
+
+#: tags whose unit is an event, so they can carry the event's shower initiators
+INITIATOR_TAGS = ("bulk_jet", "jet_frag")
 
 
 def _keep_bits_map(keep_bits):
@@ -140,14 +150,21 @@ class HadronH5Writer:
 
     ``keep_bits`` (default None: lossless) rounds ``p`` and ``x`` before they are written:
     an int for both, or a mapping such as ``{"p": 12, "x": 8}``.  The precision is recorded
-    on each dataset (:func:`hadron_precision`)."""
+    on each dataset (:func:`hadron_precision`).
+
+    ``initiators=True`` (bulk_jet and jet_frag only) adds the ``initiators/`` group: every
+    :meth:`append_unit` then takes that event's shower initiators, a (K, 11) array in
+    ``INITIATOR_COLUMNS`` order (None: none)."""
 
     def __init__(self, path, *, tag, n_samples, attrs=None, compression=DEFAULT_COMPRESSION,
-                 force=True, keep_bits=None):
+                 force=True, keep_bits=None, initiators=False):
         import h5py
 
         if tag not in TAGS:
             raise ValueError(f"tag must be one of {TAGS}, got {tag!r}")
+        if initiators and tag not in INITIATOR_TAGS:
+            raise ValueError(f"initiators: only {INITIATOR_TAGS} have one event per unit, "
+                             f"not {tag!r}")
         self.keep_bits = _keep_bits_map(keep_bits)
         self.path = str(path)
         if os.path.exists(self.path) and not force:
@@ -182,12 +199,17 @@ class HadronH5Writer:
                                           maxshape=(None,), chunks=(4096,))
         from .particlize_h5 import _ScalarTable
         self._units = _ScalarTable(self.f.require_group("units"))
+        self._ini = _initiator_group(self.f) if initiators else None
         self._u = 0
 
-    def append_unit(self, samples, **unit_scalars):
+    def append_unit(self, samples, initiators=None, **unit_scalars):
         """Append one unit.  ``samples`` is a list of hadron dicts (one per sample, keys
         pid, pstat, p, x), or one dict with ``sample_counts`` (as soft_hadrons_numpy
-        returns).  Returns the unit index."""
+        returns); ``initiators`` the event's (K, 11) initiator rows, for a writer made with
+        ``initiators=True``.  Returns the unit index."""
+        if initiators is not None and self._ini is None:
+            raise ValueError("initiators given, but the writer was made without "
+                             "initiators=True")
         keys = ("pid", "pstat", "p", "x")
         if isinstance(samples, dict):
             counts = np.asarray(samples.get("sample_counts", [len(samples["pid"])]),
@@ -204,6 +226,8 @@ class HadronH5Writer:
         # all samples in one write: one append per sample recompresses the partly
         # filled last chunk every time (most of hadronize.py's write time)
         self._h.append_many(rows, counts)
+        if self._ini is not None:
+            self._ini.append(_initiator_rows(initiators))
         n_samples = len(counts)
         n = self._unit_off.shape[0]
         self._unit_off.resize((n + 1,))
@@ -399,6 +423,19 @@ class HadronFile:
             self.f = None
 
     @property
+    def has_initiators(self):
+        return "initiators" in self.f
+
+    def initiators(self, unit):
+        """Shower initiators of recorded unit ``unit`` (an event), (K, 11) in
+        ``INITIATOR_COLUMNS`` order; None if the file has no ``initiators/``."""
+        if not self.has_initiators:
+            return None
+        u = self.unit_index(unit)
+        off = self.f["initiators/offsets"]
+        return self.f["initiators/data"][int(off[u]):int(off[u + 1])]
+
+    @property
     def n_units(self):
         return len(self.unit_offsets) - 1
 
@@ -519,6 +556,71 @@ class JetEvents:
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────────
+def _initiator_group(f):
+    g = f.require_group("initiators")
+    g.attrs["columns"] = list(INITIATOR_COLUMNS)
+    g.attrs["units"] = "p, E in GeV; x, y, z in fm; t in fm/c (Cartesian lab)"
+    g.attrs["source"] = "pair file shower/initiators (jetscape.showers)"
+    return RaggedGroup(g, "offsets", {"data": (np.float64, (len(INITIATOR_COLUMNS),))},
+                       compression="gzip", chunk_rows=4096, unit="event")
+
+
+def _initiator_rows(ini):
+    rows = np.zeros((0, len(INITIATOR_COLUMNS))) if ini is None else np.asarray(
+        ini, dtype=np.float64)
+    if rows.ndim != 2 or rows.shape[1] != len(INITIATOR_COLUMNS):
+        raise ValueError(f"initiators must be (K, {len(INITIATOR_COLUMNS)}), got {rows.shape}")
+    return {"data": rows}
+
+
+def pair_initiators(path, nevents=None):
+    """``(data, offsets)`` of a pair file's ``shower/initiators``, or None when the file or
+    the group is missing.  With ``nevents`` the pair file must hold that many events."""
+    import h5py
+
+    if not path or not os.path.exists(path):
+        return None
+    with h5py.File(path, "r") as f:
+        if "shower/initiators" not in f or "shower/initiator_offsets" not in f:
+            return None
+        cols = f["shower"].attrs.get("initiator_columns")
+        if cols is not None and tuple(str(c) for c in cols) != INITIATOR_COLUMNS:
+            raise ValueError(f"{path}: initiator columns {list(cols)} are not "
+                             f"{list(INITIATOR_COLUMNS)}")
+        data, off = f["shower/initiators"][:], f["shower/initiator_offsets"][:]
+    if nevents is not None and len(off) - 1 != int(nevents):
+        raise ValueError(f"{path} has initiators for {len(off) - 1} event(s), the particlize "
+                         f"file {nevents}: not the same run")
+    return data, off
+
+
+def add_initiators(path, data, offsets, *, force=False):
+    """Add ``initiators/`` to an existing bulk_jet or jet_frag file: unit u gets the rows
+    of event ``units/event[u]`` from ``(data, offsets)`` (as :func:`pair_initiators`
+    returns).  An existing group is kept unless ``force``.  Returns False if it was kept."""
+    import h5py
+
+    from . import h5_compression  # noqa: F401  (Blosc filter)
+
+    with h5py.File(path, "r+") as f:
+        tag = str(f.attrs.get("tag", ""))
+        if tag not in INITIATOR_TAGS:
+            raise ValueError(f"{path}: initiators only go into {INITIATOR_TAGS}, not {tag!r}")
+        if "initiators" in f:
+            if not force:
+                return False
+            del f["initiators"]
+        events = f["units/event"][:] if "units/event" in f else np.arange(
+            len(f["hadrons/unit_offsets"]) - 1)
+        g = _initiator_group(f)
+        for e in events:
+            if not 0 <= int(e) < len(offsets) - 1:
+                raise IndexError(f"{path}: event {int(e)} has no initiators "
+                                 f"({len(offsets) - 1} event(s))")
+            g.append(_initiator_rows(data[int(offsets[e]):int(offsets[e + 1])]))
+    return True
+
+
 def _unit_index(recorded, unit, n_units):
     """Position of recorded unit id ``unit``; falls back to the position itself."""
     if recorded is None or len(recorded) == 0:
@@ -595,8 +697,9 @@ class EventInfo:
         self.bg_unit = int(f["bg_unit"][local]) if f["bg_unit"] is not None else None
 
     def initiators(self):
-        """This event's shower-initiating partons from the pair file (``shower/``), as a
-        (K, 11) array, columns ``shower, pid, pstat, px, py, pz, E, x, y, z, t``."""
+        """This event's shower-initiating partons, as a (K, 11) array, columns ``shower,
+        pid, pstat, px, py, pz, E, x, y, z, t``: from the hadron files' ``initiators/``
+        (hadronize.py copies them there), else from the pair file's ``shower/``."""
         return self._reader._initiators(self.file_index, self.local_event)
 
     def __repr__(self):
@@ -662,8 +765,6 @@ class HadronFileReader:
     # ── discovery ───────────────────────────────────────────────────────────────
     @staticmethod
     def _open_stem(stem, check_uuid):
-        import os
-
         import h5py
 
         from . import h5_compression  # noqa: F401
@@ -772,22 +873,37 @@ class HadronFileReader:
         return self._samples[key]
 
     def _initiators(self, i, local):
-        import os
-
-        import h5py
-
+        """From a hadron file's ``initiators/`` (bulk_jet, then jet_frag), else from the
+        pair file's ``shower/``."""
         if i not in self._init_cache:
-            f = self._files[i]
-            pair = f["pair_file"]
-            path = os.path.join(os.path.dirname(f["stem"]), str(pair)) if pair else None
-            if not path or not os.path.exists(path):
-                raise FileNotFoundError(f"pair file {path!r} of {f['stem']} not found: "
-                                        "initiators() reads its shower/ group")
-            with h5py.File(path, "r") as h:
-                self._init_cache[i] = (h["shower/initiators"][:],
-                                       h["shower/initiator_offsets"][:])
-        data, off = self._init_cache[i]
-        return data[int(off[local]):int(off[local + 1])]
+            self._init_cache[i] = self._load_initiators(i)
+        data, off, pos = self._init_cache[i]
+        u = int(local) if pos is None else pos.get(int(local))
+        if u is None:
+            raise IndexError(f"{self._files[i]['stem']}: event {local} is not in the hadron "
+                             "files' initiators/")
+        return data[int(off[u]):int(off[u + 1])]
+
+    def _load_initiators(self, i):
+        f = self._files[i]
+        for tag in INITIATOR_TAGS:
+            path = f["tags"].get(tag)
+            if path is None:
+                continue
+            with HadronFile(path) as hf:
+                if hf.has_initiators:
+                    ids = hf.units.get("unit", np.arange(hf.n_units))
+                    return (hf.f["initiators/data"][:], hf.f["initiators/offsets"][:],
+                            {int(u): k for k, u in enumerate(ids)})
+        pair = f["pair_file"]
+        path = os.path.join(os.path.dirname(f["stem"]), str(pair)) if pair else None
+        found = pair_initiators(path)
+        if found is None:
+            raise FileNotFoundError(
+                f"{f['stem']}: no initiators/ in its hadron files and pair file {path!r} not "
+                "found (initiators() reads either; hadronize.py --add-initiators adds them "
+                "to existing hadron files)")
+        return found[0], found[1], None
 
     # ── single events ───────────────────────────────────────────────────────────
     def _jet_events(self, i):
