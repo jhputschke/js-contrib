@@ -65,8 +65,8 @@ and MUSIC's side files. The directory is removed after a successful job.
 
 Each job writes four files:
 
-- `AuAu_0_10_seedNNNN.h5` (explicit `--seed`) or `AuAu_0_10_<campaign>_NNNN.h5` (`--seed 0`
-  or `--campaign`): the data.
+- `AuAu_0_10_seedNNNN.h5` (explicit `--seed`; `AuAu_0_10_<campaign>_seedNNNN.h5` with
+  `--campaign`) or `AuAu_0_10_<campaign>_NNNN.h5` (`--seed 0`, NNNN the job number): the data.
 - `.xml`: the exact user XML the job ran.
 - `.json`: a summary (events written, grid file, wall time).
 - `.log`: only when the job is run through `run_jobs.sh`.

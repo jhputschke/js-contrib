@@ -92,7 +92,7 @@ OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 
 | `20 25 0` | a new one per job, from OS entropy | `AuAu_0_10_jet_20260926-221530_0001.h5` … `_0020.h5` (the start time) |
 | `20 25 0 --campaign pth50` | a new one per job, from OS entropy | `AuAu_0_10_jet_pth50_0001.h5` … `_0020.h5` |
 | `20 25 1` | 1, 2, …, 20 | `AuAu_0_10_jet_seed0001.h5` … `_seed0020.h5` |
-| `20 25 1 --campaign pth50` | 1, 2, …, 20 | `AuAu_0_10_jet_pth50_0001.h5` … `_0020.h5` |
+| `20 25 1 --campaign pth50` | 1, 2, …, 20 | `AuAu_0_10_jet_pth50_seed0001.h5` … `_seed0020.h5` |
 
 - **`0` is for campaigns.** Every job gets a seed no other job has used: drawn from OS
   entropy (1…900,000,000) and checked against the registry `seeds_used.tsv` next to `out/`.
@@ -102,8 +102,11 @@ OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 
   is right for reproducing a file, for validation jobs, and for comparing settings on the same
   events (the same seeds with another pT̂ window give the same backgrounds). It is wrong for a
   second campaign meant to add statistics.
-- **`--campaign NAME` only names the files** (`<campaign>_NNNN`, NNNN = job 1…NJOBS). It can
-  go before or after the numbers. Without it, a `0` campaign is named by its start time. The
+- **The name says where the seed came from.** `seedNNNN` is the seed itself: an explicit seed
+  names the file, so the same name always means the same collisions. A plain `NNNN` is the job
+  number, 1…NJOBS: the seed was drawn, and is in the file and its `.json`.
+- **`--campaign NAME` only adds the name** (`<campaign>_NNNN` or `<campaign>_seedNNNN`). It
+  can go before or after the numbers. Without it, a `0` campaign is named by its start time. The
   name is kept in `out/run_jobs.campaign`, so re-running the same command resumes the
   campaign; give each campaign its own `OUTDIR` (a second name in the same one is refused).
   See [Campaigns with `run_jobs.sh`](#campaigns-with-run_jobssh) for the details.
@@ -129,8 +132,8 @@ not built into the scripts):
   [Finding the settings on another machine](BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
 
 Each job writes the following, next to each other. The stem is `AuAu_0_10_jet_seedNNNN` for
-an explicit `--seed`, and `AuAu_0_10_jet_<campaign>_NNNN` for `--seed 0` or `--campaign`
-(see the next section):
+an explicit `--seed` (`AuAu_0_10_jet_<campaign>_seedNNNN` with `--campaign`), and
+`AuAu_0_10_jet_<campaign>_NNNN`, NNNN the job number, for `--seed 0` (see the next section):
 - `<stem>.h5`: the data.
 - `<stem>_particlize.h5`: with `--write-particlize` only, the input for
   `hadronize.py` (see [Hadron level](#hadron-level-surfaces-partons-hadronizepy)).
@@ -155,8 +158,9 @@ particlize file. For many jobs at once, see the next section.
   events each (default `OUTDIR` is `./out`). `<campaign>` is `--campaign NAME`, else the start
   time (`20260926-2215`), and is kept in `OUTDIR/run_jobs.campaign`: re-running the command
   resumes it, and another `--campaign` in the same `OUTDIR` is refused.
-- **`FIRST_SEED > 0`:** seeds `FIRST_SEED .. FIRST_SEED+NJOBS-1` as given, files
-  `OUTDIR/AuAu_0_10_jet_seedNNNN.*` (or by `--campaign`, if given). For validation jobs,
+- **`FIRST_SEED > 0`:** seeds `FIRST_SEED .. FIRST_SEED+NJOBS-1` as given, files named by the
+  seed: `OUTDIR/AuAu_0_10_jet_seedNNNN.*`, or `AuAu_0_10_jet_<campaign>_seedNNNN.*` with
+  `--campaign`. For validation jobs,
   reproducing files, and campaigns that are *meant* to share their collisions (below).
 - **The seed that ran is recorded** in the job XML, the file (`prod_seed`,
   `prod_seed_source` = `os_entropy` / `explicit`, `prod_campaign`, `prod_index`) and the

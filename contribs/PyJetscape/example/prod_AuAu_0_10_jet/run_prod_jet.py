@@ -73,8 +73,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
                    help="output directory (default: ./out next to this script)")
     p.add_argument("--out", default=None,
-                   help="output file name (default: AuAu_0_10_jet_seed<NNNN>.h5, or "
-                        "AuAu_0_10_jet_<campaign>_<NNNN>.h5 with --campaign / --seed 0)")
+                   help="output file name (default: AuAu_0_10_jet[_<campaign>]_seed<NNNN>.h5, "
+                        "or AuAu_0_10_jet_<campaign>_<NNNN>.h5 with --seed 0)")
     p.add_argument("--build", default=os.path.join(rp.XSCAPE, "build_gpu"),
                    help="X-SCAPE build tree (default: build_gpu)")
     p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),

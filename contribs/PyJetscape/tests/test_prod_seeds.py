@@ -52,7 +52,9 @@ def _registry(path):
 def test_output_names():
     a = SimpleNamespace(seed=7, campaign=None, index=1, out=None)
     assert rp.output_name(a, "AuAu_0_10") == "AuAu_0_10_seed0007.h5"
-    a = SimpleNamespace(seed=7, campaign="pth50", index=12, out=None)
+    a = SimpleNamespace(seed=7, campaign="pth50", index=12, out=None)   # explicit: by seed
+    assert rp.output_name(a, "AuAu_0_10_jet") == "AuAu_0_10_jet_pth50_seed0007.h5"
+    a = SimpleNamespace(seed=0, campaign="pth50", index=12, out=None)   # drawn: by job number
     assert rp.output_name(a, "AuAu_0_10_jet") == "AuAu_0_10_jet_pth50_0012.h5"
     a = SimpleNamespace(seed=0, campaign=None, index=3, out=None)
     name = rp.output_name(a, "AuAu_0_10")          # seed 0 without a campaign: the start time
@@ -137,7 +139,8 @@ p.add_argument("--events", type=int); p.add_argument("--seed", type=int)
 p.add_argument("--campaign"); p.add_argument("--index", type=int, default=1)
 p.add_argument("--outdir"); p.add_argument("--fail", action="store_true")
 a, extra = p.parse_known_args()
-name = (f"AuAu_0_10_{a.campaign}_{a.index:04d}" if a.campaign else f"AuAu_0_10_seed{a.seed:04d}")
+name = (f"AuAu_0_10_{a.campaign}_{a.index:04d}" if a.seed == 0 else
+        f"AuAu_0_10{'_' + a.campaign if a.campaign else ''}_seed{a.seed:04d}")   # as run_prod.py
 with open(os.path.join(a.outdir, "calls.txt"), "a") as fh:
     fh.write(json.dumps({"name": name, "seed": a.seed, "extra": extra}) + "\n")
 if a.fail and a.index == 2:
@@ -238,7 +241,10 @@ def test_run_jobs_explicit_seeds_with_a_campaign_name(tmp_path):
     out = tmp_path / "out"
     r = _run_jobs(tmp_path, "-j", "2", "2", "5", "1", str(out), "--campaign", "pth50")
     assert r.returncode == 0, r.stderr
-    assert sorted((c["name"], c["seed"]) for c in _calls(out)) == [("AuAu_0_10_pth50_0001", 1),
-                                                                  ("AuAu_0_10_pth50_0002", 2)]
+    assert sorted((c["name"], c["seed"]) for c in _calls(out)) == [
+        ("AuAu_0_10_pth50_seed0001", 1), ("AuAu_0_10_pth50_seed0002", 2)]
+    assert (out / "AuAu_0_10_pth50_seed0002.log").exists()      # run_jobs.sh's name agrees
     assert "campaign pth50, jobs 1..2, seeds 1..2" in (out / "run_jobs.finished").read_text()
     assert "seed 2: ok" in r.stdout
+    r = _run_jobs(tmp_path, "2", "5", "1", str(out), "--campaign", "pth50")   # resumes
+    assert r.returncode == 0 and r.stdout.count("already complete") == 2

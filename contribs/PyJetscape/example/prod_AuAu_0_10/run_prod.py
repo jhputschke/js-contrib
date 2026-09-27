@@ -65,8 +65,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
                    help="output directory (default: ./out next to this script)")
     p.add_argument("--out", default=None,
-                   help="output file name (default: AuAu_0_10_seed<NNNN>.h5, or "
-                        "AuAu_0_10_<campaign>_<NNNN>.h5 with --campaign / --seed 0)")
+                   help="output file name (default: AuAu_0_10[_<campaign>]_seed<NNNN>.h5, "
+                        "or AuAu_0_10_<campaign>_<NNNN>.h5 with --seed 0)")
     p.add_argument("--build", default=os.path.join(XSCAPE, "build_gpu"),
                    help="X-SCAPE build tree the PyJetscape extension is linked against "
                         "(default: build_gpu)")
@@ -125,11 +125,13 @@ def add_seed_args(p: argparse.ArgumentParser, drives: str) -> None:
                         "own seed 0, which Pythia takes from the clock in seconds (jobs "
                         "started together get the same jets) and records nowhere")
     p.add_argument("--campaign", default=None,
-                   help="name the output <base>_<CAMPAIGN>_<NNNN>.h5 (NNNN = --index) instead "
-                        "of by seed; letters, digits, '.', '_', '-'. Default with --seed 0: "
-                        "the start time, YYYYMMDD-HHMMSS")
+                   help="put the campaign in the name: <base>_<CAMPAIGN>_<NNNN>.h5 with --seed 0 "
+                        "(NNNN = --index), <base>_<CAMPAIGN>_seed<NNNN>.h5 with an explicit "
+                        "seed (NNNN = the seed); letters, digits, '.', '_', '-'. Default with "
+                        "--seed 0: the start time, YYYYMMDD-HHMMSS")
     p.add_argument("--index", type=int, default=1,
-                   help="job number within the campaign, NNNN in the name (default 1)")
+                   help="job number within the campaign: NNNN in the name with --seed 0, "
+                        "recorded as prod_index (default 1)")
     p.add_argument("--seed-registry", default=None, dest="seed_registry",
                    help="file of the seeds already used (tab-separated, appended per job); "
                         "--seed 0 draws only seeds not in it. Default: seeds_used.tsv next "
@@ -153,15 +155,16 @@ def seed_args_problems(a) -> list:
 
 
 def output_name(a, base: str) -> str:
-    """The output file name: --out, else <base>_<campaign>_<NNNN>.h5 with a campaign (with
-    --seed 0 always: the start time if none was given), else <base>_seed<NNNN>.h5."""
+    """The output file name: --out, else by seed when the seed is given --
+    <base>[_<campaign>]_seed<NNNN>.h5 -- and by job number when it is drawn (--seed 0, with
+    the start time as the campaign if none was given): <base>_<campaign>_<NNNN>.h5."""
     if a.campaign is None and a.seed == 0:
         a.campaign = time.strftime("%Y%m%d-%H%M%S")
     if a.out:
         return a.out
-    if a.campaign is not None:
+    if a.seed == 0:
         return f"{base}_{a.campaign}_{a.index:04d}.h5"
-    return f"{base}_seed{a.seed:04d}.h5"
+    return f"{base}{'_' + a.campaign if a.campaign else ''}_seed{a.seed:04d}.h5"
 
 
 def seed_registry(a):

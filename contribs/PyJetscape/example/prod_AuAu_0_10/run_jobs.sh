@@ -15,8 +15,9 @@
 # in the file and in its .json), and the files are numbered NNNN = 1..NJOBS under the campaign
 # name: --campaign (before or after the numbers), else the start time YYYYMMDD-HHMMSS.  The name is kept in
 # OUTDIR/run_jobs.campaign, so re-running the command resumes the same campaign (one campaign
-# per OUTDIR).  FIRST_SEED > 0: seeds FIRST_SEED.. as given, files named by seed (or by
-# --campaign, if given): the same seeds give the same collisions, which is what paired
+# per OUTDIR).  FIRST_SEED > 0: seeds FIRST_SEED.. as given, files named by seed,
+# <prefix><seed> or with --campaign <base>_<campaign>_seed<seed>: the same seeds give the
+# same collisions, which is what paired
 # comparisons of settings want and what campaigns meant as more statistics must avoid.
 #
 # -j P (default 1) keeps P jobs running at once, with bit-identical output per seed.  Each
@@ -121,8 +122,9 @@ if [ "$SEED0" -eq 0 ] || [ -n "$CAMPAIGN" ]; then
   esac
   echo "$CAMPAIGN" > "$OUTDIR/run_jobs.campaign"
 fi
-job_tag() {    # file stem of job k (0-based)
-  if [ -n "$CAMPAIGN" ]; then printf "%s_%s_%04d" "$NAME_BASE" "$CAMPAIGN" $(( $1 + 1 ))
+job_tag() {    # file stem of job k (0-based): by job number when the seed is drawn, else by seed
+  if [ "$SEED0" -eq 0 ]; then printf "%s_%s_%04d" "$NAME_BASE" "$CAMPAIGN" $(( $1 + 1 ))
+  elif [ -n "$CAMPAIGN" ]; then printf "%s_%s_seed%04d" "$NAME_BASE" "$CAMPAIGN" $(( SEED0 + $1 ))
   else printf "%s%04d" "$TAG_PREFIX" $(( SEED0 + $1 )); fi
 }
 job_label() {  # how the log names job k
@@ -236,7 +238,7 @@ fi
 
 # Events longer than tau.max_ntau keep only their first max_ntau frames.  That is the point
 # of setting it (e.g. early times only), so this is a count, not an error.
-ncut=$(python - "$OUTDIR" "$(if [ -n "$CAMPAIGN" ]; then echo "${NAME_BASE}_${CAMPAIGN}_"; else echo "$TAG_PREFIX"; fi)" <<'EOF'
+ncut=$(python - "$OUTDIR" "$(job_tag 0 | sed 's/[0-9]*$//')" <<'EOF'
 import glob, json, os, sys
 print(sum(d.get("events_cut_at_max_ntau", 0) + d.get("legs_cut_at_max_ntau", 0)
           for d in (json.load(open(p))
