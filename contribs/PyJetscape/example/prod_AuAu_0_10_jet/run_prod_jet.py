@@ -16,6 +16,8 @@ grid YAMLs, grid checks and environment checks this reuses.
     python run_prod_jet.py --events 1 --seed 1 --no-deposit      # null test: arr == arr_bg
     python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
     python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
+    python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90
+                                     # one background per 3 jets, one in each pTHat window
     python run_prod_jet.py --events 10 --seed 1 --surface jet    # surface for the jet leg only
     python run_prod_jet.py --events 10 --seed 1 --write-particlize both
                                      # + <stem>_particlize.h5: both surfaces and the final
@@ -95,6 +97,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--reuse", type=int, default=1,
                    help="jet events per background (setReuseHydro); 1 = a new background "
                         "every event (default)")
+    p.add_argument("--pthat-bins", default=None, dest="pthat_bins",
+                   help="several PythiaGun pTHat windows in one job, e.g. 20-40,50-70,70-90 "
+                        "[GeV]: one Pythia per window, event i uses window i mod K, and every "
+                        "background gets --jets-per-bin jets in each window (sets --reuse "
+                        "K x jets-per-bin). Records pthat, the window and the event weight "
+                        "per event and each window's cross section. Needs X-SCAPE's "
+                        "PythiaGun with <pTHatBins>")
+    p.add_argument("--jets-per-bin", type=int, default=1, dest="jets_per_bin",
+                   help="with --pthat-bins: jets per window per background (default 1)")
     p.add_argument("--no-deposit", action="store_true", dest="no_deposit",
                    help="null test: MUSIC_2 without the liquefier, so arr must equal arr_bg")
     p.add_argument("--no-showers", action="store_true", dest="no_showers",
@@ -159,6 +170,63 @@ def music_delta_tau(build: str) -> float:
     sys.exit(f"run_prod_jet.py: no Delta_Tau in {build}/music_input")
 
 
+def parse_pthat_bins(text: str) -> list:
+    """'20-40,50-70' -> [(20.0, 40.0), (50.0, 70.0)].
+
+    PythiaGun hands the edges to Pythia with one decimal (as for pTHatMin/pTHatMax), so
+    finer edges are refused rather than silently rounded.
+    """
+    bins = []
+    for part in text.replace(" ", "").split(","):
+        if not part:
+            continue
+        lo_hi = part.split("-")
+        try:
+            if len(lo_hi) != 2:
+                raise ValueError
+            lo, hi = float(lo_hi[0]), float(lo_hi[1])
+        except ValueError:
+            raise ValueError(f"--pthat-bins: {part!r} is not MIN-MAX") from None
+        if not 0 <= lo < hi:
+            raise ValueError(f"--pthat-bins: {part!r} needs 0 <= MIN < MAX")
+        for x in (lo, hi):
+            if abs(round(x, 1) - x) > 1e-9:
+                raise ValueError(f"--pthat-bins: {x:g} has more than one decimal, which "
+                                 "PythiaGun would round")
+        bins.append((lo, hi))
+    if not bins:
+        raise ValueError("--pthat-bins: no window given")
+    return bins
+
+
+def check_pthat_bins(a) -> None:
+    """--pthat-bins: parse, check against the other options, set --reuse."""
+    a.pthat_windows = None
+    if a.pthat_bins is None:
+        if a.jets_per_bin != 1:
+            raise ValueError("--jets-per-bin needs --pthat-bins")
+        return
+    if a.hard != "pythia":
+        raise ValueError("--pthat-bins is for --hard pythia")
+    if a.pthat_min is not None or a.pthat_max is not None:
+        raise ValueError("--pthat-bins replaces --pthat-min/--pthat-max")
+    if a.reuse != 1:
+        raise ValueError("--pthat-bins sets --reuse itself (windows x --jets-per-bin); "
+                         "give --jets-per-bin instead")
+    if a.jets_per_bin < 1:
+        raise ValueError("--jets-per-bin must be >= 1")
+    a.pthat_windows = parse_pthat_bins(a.pthat_bins)
+    a.reuse = len(a.pthat_windows) * a.jets_per_bin
+    if a.events % a.reuse:
+        raise ValueError(f"--events {a.events} is not a multiple of {a.reuse} (windows x "
+                         "--jets-per-bin): the last background would miss windows")
+
+
+def pthat_bins_text(windows) -> str:
+    """The <pTHatBins> text: 'min max min max ...'."""
+    return " ".join(f"{lo:g} {hi:g}" for lo, hi in windows)
+
+
 def surface_legs(a) -> set:
     """Legs whose MUSIC builds a freeze-out surface: --surface plus --write-particlize."""
     legs = {"none": set(), "bg": {"bg"}, "jet": {"jet"}, "both": {"bg", "jet"}}[a.surface]
@@ -218,6 +286,10 @@ def job_xml(a, out_h5: str):
             _set(pg, "pTHatMin", a.pthat_min)
         if a.pthat_max is not None:
             _set(pg, "pTHatMax", a.pthat_max)
+        if a.pthat_windows:
+            _set(pg, "pTHatBins", pthat_bins_text(a.pthat_windows))
+        elif pg.find("pTHatBins") is not None:
+            pg.remove(pg.find("pTHatBins"))      # a template's windows: only with --pthat-bins
     else:
         pgun = ET.SubElement(hard, "PGun")
         _set(pgun, "name", "PGun")
@@ -274,7 +346,60 @@ def job_xml(a, out_h5: str):
 #: for the hadron-level balance, and the flags that make an event suspect)
 PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_early",
                    "tau0_music", "ntau_jet", "ntau_bg", "frames_identical",
-                   "jet_hit_boundary", "bg_hit_boundary")
+                   "jet_hit_boundary", "bg_hit_boundary", "pthat_bin", "pthat",
+                   "event_weight")
+
+
+def open_pthat_bins(a, jetscape):
+    """--pthat-bins: the PythiaGun task, after checking it runs exactly these windows.
+
+    A PythiaGun without <pTHatBins> would ignore the element and run pTHatMin-pTHatMax
+    alone, so the build is checked here rather than trusted.
+    """
+    if not a.pthat_windows:
+        return None
+    from jetscape import pyjetscape_core as core
+
+    if not getattr(core, "PYTHIA_GUN_HAS_PTHAT_BINS", False):
+        sys.exit("run_prod_jet.py: --pthat-bins needs X-SCAPE's PythiaGun with <pTHatBins> "
+                 "(branch N_ptHat_per_hydro) and PyJetscape built against it")
+    tasks = {t.GetId(): t for t in jetscape.GetTaskList()}
+    gun = tasks.get("PythiaGun")
+    if gun is None:
+        sys.exit(f"run_prod_jet.py: --pthat-bins found no PythiaGun task (tasks: "
+                 f"{sorted(tasks)})")
+    info = core.pythia_gun_bins(gun)
+    got = [tuple(b) for b in info["bins"]]
+    if got != [tuple(w) for w in a.pthat_windows]:
+        sys.exit(f"run_prod_jet.py: PythiaGun runs the windows {got}, not "
+                 f"{a.pthat_windows}")
+    print("  pTHat    " + ", ".join(f"window {k}: {lo:g}-{hi:g} GeV (Pythia seed {s})"
+                                    for k, ((lo, hi), s) in enumerate(zip(got,
+                                                                          info["seeds"]))))
+    return gun
+
+
+def pthat_diag(gun) -> dict:
+    """The current event's window, pTHat and weight, for diag/ (and events/)."""
+    if gun is None:
+        return {}
+    from jetscape import pyjetscape_core as core
+
+    h = core.hard_process_info(gun)
+    return {"pthat_bin": int(core.pythia_gun_bins(gun)["active"]),
+            "pthat": float(h["pthat"]), "event_weight": float(h["event_weight"])}
+
+
+def pthat_windows_final(gun) -> dict:
+    """Each window's final Pythia cross section etc., as file attributes."""
+    import numpy as np
+    from jetscape import pyjetscape_core as core
+
+    info = core.pythia_gun_bins(gun)
+    return {"pthat_bin_sigma_gen": np.asarray(info["sigma_gen"], dtype=np.float64),
+            "pthat_bin_sigma_err": np.asarray(info["sigma_err"], dtype=np.float64),
+            "pthat_bin_n_accepted": np.asarray(info["n_accepted"], dtype=np.int64),
+            "pthat_bin_seeds": np.asarray(info["seeds"], dtype=np.int64)}
 
 
 class InlineHadrons:
@@ -326,6 +451,10 @@ def main() -> int:
     rp.check_env(a)
     if a.reuse < 1:
         sys.exit("run_prod_jet.py: --reuse must be >= 1")
+    try:
+        check_pthat_bins(a)
+    except ValueError as exc:
+        sys.exit(f"run_prod_jet.py: {exc}")
     if a.validate_inline and a.write_particlize == "none":
         sys.exit("run_prod_jet.py: --validate-inline compares with the stored surfaces and "
                  "partons; add --write-particlize jet (or both)")
@@ -350,9 +479,15 @@ def main() -> int:
     if not a.native:
         rp.check_inside(grid, box)
 
-    hard_desc = (f"PythiaGun pTHat {_text(root, 'Hard/PythiaGun/pTHatMin')}-"
-                 f"{_text(root, 'Hard/PythiaGun/pTHatMax')} GeV" if a.hard == "pythia"
-                 else f"PGun pT {a.pgun_pt:g} GeV")
+    if a.pthat_windows:
+        hard_desc = ("PythiaGun pTHat windows "
+                     + ", ".join(f"{lo:g}-{hi:g}" for lo, hi in a.pthat_windows)
+                     + f" GeV, {a.jets_per_bin} jet(s) per window per background")
+    elif a.hard == "pythia":
+        hard_desc = (f"PythiaGun pTHat {_text(root, 'Hard/PythiaGun/pTHatMin')}-"
+                     f"{_text(root, 'Hard/PythiaGun/pTHatMax')} GeV")
+    else:
+        hard_desc = f"PGun pT {a.pgun_pt:g} GeV"
     print(f"prod_AuAu_0_10_jet: {a.events} event(s), seed {a.seed}"
           + (" (from OS entropy)" if a.seed_source == "os_entropy" else "")
           + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
@@ -379,6 +514,7 @@ def main() -> int:
         return 0
 
     import h5py
+    import numpy as np
     import jetscape as js
     from jetscape.pair_h5 import PairH5Writer
 
@@ -394,6 +530,8 @@ def main() -> int:
         "prod_reuse": a.reuse,
         "prod_surface": a.surface,
         "prod_write_particlize": a.write_particlize,
+        **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
+            "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
         "system": "AuAu 200 GeV 0-10% (b in [0, 4.7] fm)",
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
@@ -435,6 +573,7 @@ def main() -> int:
     if pwriter is not None:
         pwriter.attach(jetscape)             # reads ./music_input: the job's own
     inline = open_inline(a, jetscape, stem) if a.validate_inline else None
+    gun = open_pthat_bins(a, jetscape)
 
     late = 0
     droplets = e_late = 0.0
@@ -444,7 +583,7 @@ def main() -> int:
         for i in range(jetscape.GetNumberOfEvents()):
             t0 = time.time()
             jetscape.ExecPerEvent()
-            idx = writer.Exec()              # both legs are live here
+            idx = writer.Exec(**pthat_diag(gun))    # both legs are live here
             if idx is not None and pwriter is not None:
                 d = writer.last_event_diag
                 pwriter.Exec(idx, bg_id=d["bg_id"], bg_key=writer.last_bg_key,
@@ -469,7 +608,10 @@ def main() -> int:
                 late += 1
                 msg += (f"  WARNING: tau0 after tau.min = {grid.tau_min:g}, so the first "
                         "frame(s) of this event are zeros")
+            if gun is not None:
+                msg += f", pTHat {d['pthat']:.1f} GeV (window {d['pthat_bin']})"
             print(msg)
+        windows = None if gun is None else pthat_windows_final(gun)
         jetscape.Finish()
     finally:
         writer.Finish()
@@ -483,6 +625,11 @@ def main() -> int:
     if n:
         with h5py.File(out_h5, "a") as f:
             f.attrs["prod_wall_s_total"] = time.time() - t_job
+            if windows is not None:
+                f.attrs.update(windows)
+        if windows is not None and out_particlize and pwriter.GetNumberOfEventsWritten():
+            with h5py.File(out_particlize, "a") as f:
+                f.attrs.update(windows)
     summary = {"out": out_h5, "seed": a.seed, "seed_source": a.seed_source,
                "campaign": a.campaign, "index": a.index, "grid": a.grid, "hard": hard_desc,
                "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,
@@ -494,6 +641,10 @@ def main() -> int:
     if pwriter is not None:
         summary.update(particlize=out_particlize, particlize_legs=list(particlize_legs(a)),
                        particlize_events_written=pwriter.GetNumberOfEventsWritten())
+    if windows is not None:
+        summary.update(pthat_bins=a.pthat_windows, jets_per_bin=a.jets_per_bin,
+                       pthat_bin_sigma_gen_mb=list(windows["pthat_bin_sigma_gen"]),
+                       pthat_bin_seeds=[int(x) for x in windows["pthat_bin_seeds"]])
     with open(os.path.splitext(out_h5)[0] + ".json", "w") as f:
         json.dump(summary, f, indent=1)
     print("prod_AuAu_0_10_jet:", json.dumps(summary))

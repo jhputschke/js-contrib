@@ -367,7 +367,8 @@ def _hads(phis, pid, e):
             "x": np.zeros((n, 4), np.float32)}
 
 
-def _seed_files(tmp_path, name, bg_ids, empty_jet=(), n_os=2, n_jet=3):
+def _seed_files(tmp_path, name, bg_ids, empty_jet=(), n_os=2, n_jet=3, events_extra=None,
+                attrs_extra=None):
     """One production file: particlize (with bg map + uuid), pair file (initiators), and
     the three hadron files.  Jet-leg hadrons sit at phi_jet + 0.1 (energy 10*event + k + 1),
     background hadrons at a fixed phi 0.5 (energy 100 + unit), fragments along the jet."""
@@ -379,11 +380,11 @@ def _seed_files(tmp_path, name, bg_ids, empty_jet=(), n_os=2, n_jet=3):
     jet, bg, mgr = _Leg("MUSIC_2"), _Leg("MUSIC_1"), _Mgr()
     pw = ParticlizeH5Writer(f"{stem}_particlize.h5", legs=("jet", "bg"), music_input="",
                             pair_file=f"/elsewhere/run_{name}.h5",
-                            extra_attrs={"prod_seed": ord(name)})
+                            extra_attrs={"prod_seed": ord(name), **(attrs_extra or {})})
     pw.attach(_JS(bg, jet), manager=mgr)
     for k, bg_id in enumerate(bg_ids):
         jet.cells, bg.cells = _cells(1, k), _cells(1, 10 + k)
-        pw.Exec(k, bg_id=bg_id)
+        pw.Exec(k, bg_id=bg_id, **(events_extra[k] if events_extra else {}))
     pw.Finish()
     with ParticlizeFile(f"{stem}_particlize.h5") as pf:
         uuid, bg_unit = pf.attrs["file_uuid"], pf.events("bg_unit")
@@ -812,3 +813,41 @@ def test_reader_flags_backgrounds_shared_between_campaigns(tmp_path):
     assert {"kind": "identical", "events": [0, 5]} in dup
     assert {"kind": "probable", "events": [0, 5, 6]} in dup
     r.close()
+
+
+def test_reader_pthat_windows(tmp_path):
+    """--pthat-bins campaigns: each event's window, events per window, and each window's
+    cross section combined over the files by their accepted events."""
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    bins = np.array([[20.0, 40.0], [50.0, 70.0]])
+    for name, sigma, n_acc in (("A", [2.0, 0.2], [10, 30]), ("B", [4.0, 0.4], [30, 10])):
+        _seed_files(tmp_path, name, (0, 0),              # one background, one jet per window
+                    events_extra=[{"pthat_bin": 0, "pthat": 25.0},
+                                  {"pthat_bin": 1, "pthat": 55.0}],
+                    attrs_extra={"pthat_bins": bins, "pthat_bin_sigma_gen": sigma,
+                                 "pthat_bin_sigma_err": [0.1, 0.01],
+                                 "pthat_bin_n_accepted": n_acc})
+    with HadronFileReader(str(tmp_path)) as r:
+        assert np.array_equal(r.pthat_bins, bins)
+        assert list(r.pthat_bin_events(0)) == [0, 2] and list(r.pthat_bin_events(1)) == [1, 3]
+        info = r.event_info(3)
+        assert (info.pthat_bin, info.pthat, info.bg_unit) == (1, 55.0, 0)
+        s0, e0 = r.pthat_bin_sigma(0)
+        assert np.isclose(s0, (10 * 2.0 + 30 * 4.0) / 40)
+        assert np.isclose(e0, np.hypot(10 * 0.1, 30 * 0.1) / 40)
+        assert np.isclose(r.pthat_bin_sigma(1)[0], (30 * 0.2 + 10 * 0.4) / 40)
+        # a window's events feed the usual event selection
+        n_all, _ = r.total("bulk_jet")
+        n_w1, _ = r.total("bulk_jet", events=r.pthat_bin_events(1))
+        assert n_w1 == n_all                           # every event has 3 hadrons
+
+
+def test_reader_without_pthat_windows(tmp_path):
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    _two_seeds(tmp_path)
+    with HadronFileReader(str(tmp_path)) as r:
+        assert r.pthat_bins is None and r.event_info(0).pthat_bin is None
+        with pytest.raises(ValueError):
+            r.pthat_bin_events(0)

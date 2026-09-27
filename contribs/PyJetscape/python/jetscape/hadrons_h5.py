@@ -695,6 +695,10 @@ class EventInfo:
         self.stem = f["stem"]
         self.seed = f["seed"]
         self.bg_unit = int(f["bg_unit"][local]) if f["bg_unit"] is not None else None
+        # run_prod_jet.py --pthat-bins: this event's pTHat window and pTHat (else None)
+        self.pthat_bin = (int(f["pthat_bin"][local]) if f["pthat_bin"] is not None
+                          else None)
+        self.pthat = float(f["pthat"][local]) if f["pthat"] is not None else None
 
     def initiators(self):
         """This event's shower-initiating partons, as a (K, 11) array, columns ``shower,
@@ -704,7 +708,9 @@ class EventInfo:
 
     def __repr__(self):
         return (f"EventInfo(event={self.event}, stem={self.stem!r}, "
-                f"local_event={self.local_event}, bg_unit={self.bg_unit})")
+                f"local_event={self.local_event}, bg_unit={self.bg_unit}"
+                + (f", pthat_bin={self.pthat_bin}" if self.pthat_bin is not None else "")
+                + ")")
 
 
 class HadronFileReader:
@@ -793,7 +799,16 @@ class HadronFileReader:
                                 else None),
                     "bg_key": (pf.events("bg_key") if pf.has_events("bg_key") else None),
                     "n_cells_bg": (pf.events("n_cells_bg") if pf.has_events("n_cells_bg")
-                                   else None)}
+                                   else None),
+                    "pthat_bin": (pf.events("pthat_bin") if pf.has_events("pthat_bin")
+                                  else None),
+                    "pthat": pf.events("pthat") if pf.has_events("pthat") else None}
+            for key, attr in (("pthat_bins", "pthat_bins"),
+                              ("sigma_gen", "pthat_bin_sigma_gen"),
+                              ("sigma_err", "pthat_bin_sigma_err"),
+                              ("n_accepted", "pthat_bin_n_accepted")):
+                v = pf.attrs.get(attr)
+                info[key] = None if v is None else np.asarray(v)
         info["tags"], info["precision"], info["correlated"] = {}, {}, {}
         for tag in TAGS:
             path = f"{stem}_hadrons_{tag}.h5"
@@ -878,6 +893,52 @@ class HadronFileReader:
             raise IndexError(f"event {g} out of range (0..{self.n_events - 1})")
         i = int(np.searchsorted(self._offsets, g, side="right") - 1)
         return i, g - int(self._offsets[i])
+
+    # ── pTHat windows (run_prod_jet.py --pthat-bins) ────────────────────────────
+    @property
+    def pthat_bins(self):
+        """The campaign's pTHat windows, a (K, 2) array [GeV], or None if its files were
+        made without --pthat-bins.  All files must have the same windows."""
+        have = [f["pthat_bins"] for f in self._files if f["pthat_bins"] is not None]
+        if not have:
+            return None
+        if len(have) != len(self._files) or any(
+                b.shape != have[0].shape or not np.array_equal(b, have[0]) for b in have):
+            raise ValueError("HadronFileReader: the files have different pTHat windows "
+                             "(or some have none): read each set on its own")
+        return have[0].reshape(-1, 2)
+
+    def pthat_bin_events(self, k):
+        """Global indices of the events in pTHat window ``k``, for ``events=``."""
+        if self.pthat_bins is None:
+            raise ValueError("no pTHat windows in this campaign (--pthat-bins)")
+        out = []
+        for i, f in enumerate(self._files):
+            b = f["pthat_bin"]
+            if b is None:
+                raise ValueError(f"{f['stem']}_particlize.h5 has no events/pthat_bin")
+            out.append(self._offsets[i] + np.flatnonzero(np.asarray(b, dtype=np.int64) == k))
+        return np.concatenate(out).astype(np.int64)
+
+    def pthat_bin_sigma(self, k):
+        """Window ``k``'s cross section [mb] and its error over the whole campaign: the
+        files' Pythia estimates, weighted by their accepted events.  To combine windows,
+        weight each window's event average by its cross section."""
+        if self.pthat_bins is None:
+            raise ValueError("no pTHat windows in this campaign (--pthat-bins)")
+        sig, err, n = [], [], []
+        for f in self._files:
+            if f["sigma_gen"] is None or f["n_accepted"] is None:
+                raise ValueError(f"{f['stem']}_particlize.h5 has no cross sections (job "
+                                 "not finished?)")
+            sig.append(f["sigma_gen"][k])
+            err.append(f["sigma_err"][k])
+            n.append(f["n_accepted"][k])
+        sig, err, n = (np.asarray(x, dtype=np.float64) for x in (sig, err, n))
+        if n.sum() == 0:
+            return float("nan"), float("nan")
+        return (float(np.sum(n * sig) / n.sum()),
+                float(np.sqrt(np.sum((n * err) ** 2)) / n.sum()))
 
     def global_event(self, file_index, local_event):
         return int(self._offsets[file_index]) + int(local_event)
