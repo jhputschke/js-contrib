@@ -495,6 +495,39 @@ def test_reader_jet_minus_background_uses_common_events(tmp_path):
         assert df[0] == pytest.approx(3 - 2 + 1)
 
 
+def test_reader_paired_difference_uses_the_per_sample_spread(tmp_path):
+    import h5py
+
+    from jetscape.hadrons_h5 import HadronFileReader, HadronH5Writer
+
+    _campaign(tmp_path)          # events 0 and 1 share background 0; event 2 has no jet
+    bins = np.array([0.0, 10.0])
+    # jet samples k = 0, 1, 2 have 2 + k hadrons in both events, the background 4 in each:
+    # S_k = (2 + k - 4) + (2 + k - 4) = -4, -2, 0 -> mean -2 over 2 events, variance 4
+    expected = np.sqrt(4 / 3) / 2
+    with HadronFileReader(str(tmp_path), check_uuid=False) as r:
+        assert not r.correlated
+        d, e = r.jet_minus_background("pt", bins, paired=True)
+        assert d[0] == pytest.approx(3 - 4) and e[0] == pytest.approx(expected)
+        d_added, e_added = r.jet_minus_background("pt", bins)       # default: not paired
+        assert d_added == pytest.approx(d) and e_added[0] != pytest.approx(expected)
+    for tag in ("bulk_jet", "bulk_bg"):                  # as hadronize.py --correlated
+        with h5py.File(tmp_path / f"run_hadrons_{tag}.h5", "a") as f:
+            f.attrs["correlated_sampling"] = True
+    with HadronFileReader(str(tmp_path), check_uuid=False) as r:
+        assert r.correlated
+        assert r.jet_minus_background("pt", bins)[1][0] == pytest.approx(expected)
+    # paired needs as many samples on both legs, and at least two
+    with HadronH5Writer(tmp_path / "run_hadrons_bulk_bg.h5", tag="bulk_bg", n_samples=2) as w:
+        for unit, first in ((0, 0), (1, 2)):
+            w.append_unit([_tagged(4, -211, 50) for _ in range(2)], unit=unit,
+                          event=first, seed=unit)
+    with HadronFileReader(str(tmp_path), check_uuid=False) as r:
+        with pytest.raises(ValueError, match="equal counts"):
+            r.jet_minus_background("pt", bins, paired=True)
+        assert np.isfinite(r.jet_minus_background("pt", bins, paired=False)[1][0])
+
+
 def test_reader_refuses_files_from_another_run(tmp_path):
     import h5py
 

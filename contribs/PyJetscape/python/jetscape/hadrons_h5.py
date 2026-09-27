@@ -624,7 +624,9 @@ class HadronFileReader:
     its unit are histogrammed and divided by that unit's number of samples, and these
     per-event means are averaged over the events -- every event weighs the same, even when
     the files were hadronized with different ``--oversample``.  Errors are compound-Poisson
-    per event, added over events.  ``values``, ``mask`` and ``weights`` are either
+    per event, added over events; :meth:`jet_minus_background` of correlated legs
+    (hadronize.py --correlated) takes its error from the per-sample differences instead
+    (``paired``).  ``values``, ``mask`` and ``weights`` are either
     a name (an :class:`EventHadrons` attribute, or 'charged', or a species name for
     ``mask``) or a callable ``f(ev, info)`` returning one value per hadron, where ``ev`` is
     an :class:`EventHadrons` and ``info`` an :class:`EventInfo` -- so jet-relative
@@ -674,7 +676,7 @@ class HadronFileReader:
                     "pair_file": pf.attrs.get("pair_file"),
                     "bg_unit": (pf.events("bg_unit") if pf.has_events("bg_unit")
                                 else None)}
-        info["tags"], info["precision"] = {}, {}
+        info["tags"], info["precision"], info["correlated"] = {}, {}, {}
         for tag in TAGS:
             path = f"{stem}_hadrons_{tag}.h5"
             if not os.path.exists(path):
@@ -682,6 +684,7 @@ class HadronFileReader:
             with h5py.File(path, "r") as f:
                 ftag, src = str(f.attrs.get("tag", "")), str(f.attrs.get("source_uuid", ""))
                 info["precision"][tag] = hadron_precision(f)
+                info["correlated"][tag] = bool(f.attrs.get("correlated_sampling", False))
             if ftag != tag:
                 raise ValueError(f"{path} holds tag {ftag!r}, not {tag!r}")
             if check_uuid and src != uuid:
@@ -825,21 +828,98 @@ class HadronFileReader:
         h, e = self._accumulate(tag, None, None, mask, weights, self.events(events))
         return float(h[0]), float(e[0])
 
+    @property
+    def correlated(self):
+        """True if every file's bulk_jet and bulk_bg were sampled correlated
+        (hadronize.py --correlated)."""
+        return all(f["correlated"].get(t, False) for f in self._files
+                   for t in ("bulk_jet", "bulk_bg"))
+
     def jet_minus_background(self, values, bins, *, mask=None, weights=None, events=None,
-                             fragments=False):
+                             fragments=False, paired=None):
         """<bulk_jet> (+ <jet_frag>) - <bulk_bg> over the events that have both surfaces,
-        each event against its own background.  -> (difference, error)."""
+        each event against its own background.  -> (difference, error).
+
+        ``paired``: the error of the bulk difference from the spread of the per-sample
+        differences, sample k of the jet leg minus sample k of its background (the events
+        sharing a background summed per sample), instead of the two legs' errors added.
+        With correlated legs (hadronize.py --correlated) only the paired error is right:
+        the added one ignores that the legs' noise cancels and is ~3x too large.  None
+        (default): paired if the files were sampled correlated (:attr:`correlated`).
+        Paired needs the same number of samples, at least 2, on both legs of an event.
+        """
         g = self.events(events)
         keep = np.array([self.n_samples("bulk_jet", e) > 0
                          and self.n_samples("bulk_bg", e) > 0 for e in g], dtype=bool)
         g = g[keep]
-        hj, ej = self._accumulate("bulk_jet", values, bins, mask, weights, g)
-        hb, eb = self._accumulate("bulk_bg", values, bins, mask, weights, g)
-        d, var = hj - hb, ej ** 2 + eb ** 2
+        if paired is None:
+            paired = self.correlated
+        if paired:
+            d, err = self._paired_difference(values, bins, mask, weights, g)
+            var = err ** 2
+        else:
+            hj, ej = self._accumulate("bulk_jet", values, bins, mask, weights, g)
+            hb, eb = self._accumulate("bulk_bg", values, bins, mask, weights, g)
+            d, var = hj - hb, ej ** 2 + eb ** 2
         if fragments:
             hf, ef = self._accumulate("jet_frag", values, bins, mask, weights, g)
             d, var = d + hf, var + ef ** 2
         return d, np.sqrt(var)
+
+    def _paired_difference(self, values, bins, mask, weights, g):
+        """<bulk_jet> - <bulk_bg> and its error from the per-sample differences.
+
+        The events sharing a background are correlated with it (and with each other)
+        sample by sample, so they are summed per sample first: S_k = sum over those events
+        of (J_ek - B_k), with B evaluated with each event's info.  Different backgrounds
+        are independent.  -> (mean over events, error)."""
+        edges = _edges(bins)
+        shape = tuple(len(e) - 1 for e in edges) if edges is not None else (1,)
+        nbins = int(np.prod(shape))
+        total = np.zeros(nbins)
+        var = np.zeros(nbins)
+        n_used = 0
+        files = np.searchsorted(self._offsets, g, side="right") - 1
+        for i in np.unique(files):
+            local = [int(e) for e in g[files == i] - int(self._offsets[i])]
+            groups = {}
+            for e in local:
+                groups.setdefault(self._unit_of(i, "bulk_bg", e), []).append(e)
+            legs = {}
+            for tag, units in (("bulk_jet", sorted({self._unit_of(i, "bulk_jet", e)
+                                                    for e in local})),
+                               ("bulk_bg", sorted(groups))):
+                with HadronFile(self._path(i, tag)) as hf:
+                    positions = [hf.unit_index(u) for u in units]
+                legs[tag] = Hadrons.from_h5(self._path(i, tag),
+                                            units=np.array(sorted(positions)))
+            hj, hb = legs["bulk_jet"], legs["bulk_bg"]
+            for u, evs in groups.items():
+                evb = EventHadrons(hb, hb.unit_index(u))
+                K = evb.n_samples
+                if K < 2:
+                    raise ValueError(f"{self._files[i]['stem']}: background {u} has {K} "
+                                     "sample(s); paired errors need at least 2")
+                S = np.zeros(K * nbins)
+                for e in evs:
+                    evj = EventHadrons(hj, hj.unit_index(self._unit_of(i, "bulk_jet", e)))
+                    if evj.n_samples != K:
+                        raise ValueError(
+                            f"{self._files[i]['stem']}: event {e} has {evj.n_samples} jet "
+                            f"but {K} background samples; paired needs equal counts "
+                            "(or pass paired=False)")
+                    info = EventInfo(self, self.global_event(i, e), i, e)
+                    for ev, sign in ((evj, 1.0), (evb, -1.0)):
+                        idx, w, rows = _binned(ev, info, values, edges, shape, mask,
+                                               weights)
+                        S += sign * np.bincount(ev.sample[rows] * nbins + idx, weights=w,
+                                                minlength=K * nbins)
+                    n_used += 1
+                S = S.reshape(K, nbins)
+                total += S.mean(0)
+                var += S.var(0, ddof=1) / K
+        norm = max(n_used, 1)
+        return (total / norm).reshape(shape), (np.sqrt(var) / norm).reshape(shape)
 
     def _hadrons(self, i, tag, positions):
         f, t, pos, h = self._loaded
