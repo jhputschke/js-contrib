@@ -231,3 +231,14 @@ def test_drivers_take_no_abbreviated_options():
     src = (EXAMPLE / "prod_AuAu_0_10" / "run_prod.py").read_text() + \
         (EXAMPLE / "prod_AuAu_0_10_jet" / "run_prod_jet.py").read_text()
     assert src.count("allow_abbrev=False") == 2
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
+def test_run_jobs_explicit_seeds_with_a_campaign_name(tmp_path):
+    out = tmp_path / "out"
+    r = _run_jobs(tmp_path, "-j", "2", "2", "5", "1", str(out), "--campaign", "pth50")
+    assert r.returncode == 0, r.stderr
+    assert sorted((c["name"], c["seed"]) for c in _calls(out)) == [("AuAu_0_10_pth50_0001", 1),
+                                                                  ("AuAu_0_10_pth50_0002", 2)]
+    assert "campaign pth50, jobs 1..2, seeds 1..2" in (out / "run_jobs.finished").read_text()
+    assert "seed 2: ok" in r.stdout

@@ -76,10 +76,37 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
 
 # GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (BENCHMARK_GB10.md)
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 --campaign pth50     # named campaign
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1                      # seeds 1..20
 
 # macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (BENCHMARK_M3MAX.md)
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 0
+OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 0 --campaign pth50
+OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 1
 ```
+
+**`FIRST_SEED`, the third number, decides the seeds and the file names:**
+
+| command (after `./run_jobs.sh -j 4 --mps`) | seeds | files in `./out` |
+|---|---|---|
+| `20 25 0` | a new one per job, from OS entropy | `AuAu_0_10_jet_20260926-221530_0001.h5` … `_0020.h5` (the start time) |
+| `20 25 0 --campaign pth50` | a new one per job, from OS entropy | `AuAu_0_10_jet_pth50_0001.h5` … `_0020.h5` |
+| `20 25 1` | 1, 2, …, 20 | `AuAu_0_10_jet_seed0001.h5` … `_seed0020.h5` |
+| `20 25 1 --campaign pth50` | 1, 2, …, 20 | `AuAu_0_10_jet_pth50_0001.h5` … `_0020.h5` |
+
+- **`0` is for campaigns.** Every job gets a seed no other job has used: drawn from OS
+  entropy (1…900,000,000) and checked against the registry `seeds_used.tsv` next to `out/`.
+  So two campaigns never share a collision, whenever and wherever they run. The seed that ran
+  is stored in the file (`prod_seed`) and its `.json`: `--seed <it>` reproduces the file.
+- **`> 0` gives exactly those seeds:** the same number always means the same collisions. That
+  is right for reproducing a file, for validation jobs, and for comparing settings on the same
+  events (the same seeds with another pT̂ window give the same backgrounds). It is wrong for a
+  second campaign meant to add statistics.
+- **`--campaign NAME` only names the files** (`<campaign>_NNNN`, NNNN = job 1…NJOBS). It can
+  go before or after the numbers. Without it, a `0` campaign is named by its start time. The
+  name is kept in `out/run_jobs.campaign`, so re-running the same command resumes the
+  campaign; give each campaign its own `OUTDIR` (a second name in the same one is refused).
+  See [Campaigns with `run_jobs.sh`](#campaigns-with-run_jobssh) for the details.
 
 **Recommended campaign settings** (measured, hydro pairs only; machine-specific, so they are
 not built into the scripts):
