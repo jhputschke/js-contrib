@@ -6,7 +6,9 @@ Production of 0-10% Au+Au 200 GeV hydro evolutions -- 3D MC-Glauber (dynamical s
 MUSIC (GPU in build_gpu) -- written straight to FNO4d-schema HDF5 from MUSIC's native
 in-memory store.  No ROOT file, no framework copy of the evolution, no root2hdf5 step.
 
-One call = one job = one seed = one .h5 file.  The output grid (x/y/eta range and cell
+One call = one job = one seed = one .h5 file.  --seed 0 draws a unique seed from OS entropy
+(recorded in the file, the .json and the seed registry, so the job stays reproducible) and
+names the file by campaign and job number instead of by seed; see add_seed_args().  The output grid (x/y/eta range and cell
 counts, tau start, spacing and max frames) comes from a YAML file, grid_fno.yaml by default.
 Files from jobs with different seeds and the same grid YAML can be trained on together
 (FNO4d MultiH5Array / read_3d_data_hdf5).
@@ -16,7 +18,9 @@ Files from jobs with different seeds and the same grid YAML can be trained on to
     python run_prod.py --events 10 --seed 1 --grid grid_x10_eta2p5.yaml
     python run_prod.py --events 50 --seed 7 --outdir /data/AuAu_0_10
     python run_prod.py --events 1 --seed 1 --dry-run        # check the grid, print the plan
-    ./run_jobs.sh 20 25 1                                   # 20 jobs x 25 events, seeds 1..20
+    python run_prod.py --events 10 --seed 0 --campaign test # -> out/AuAu_0_10_test_0001.h5
+    ./run_jobs.sh 20 25 0                                   # 20 jobs x 25 events, unique seeds
+    ./run_jobs.sh 20 25 1                                   # the same with seeds 1..20
 
 Everything this needs is in this folder, and it can be launched from anywhere.  Each job
 runs in its own working directory (OUTDIR/work/<tag>, see enter_workdir()) with a private
@@ -30,6 +34,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import socket
 import sys
@@ -51,18 +56,17 @@ _TOL = 1e-4
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__,
+    # no abbreviations: run_jobs.sh must recognise --campaign and the options it sets per job
+    p = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", type=int, default=10, help="events in this job (default 10)")
-    p.add_argument("--seed", type=int, default=1,
-                   help="framework seed; drives 3dMCGlauber. Must differ between jobs, "
-                        "and must be > 0 (0 = random, not reproducible).")
     p.add_argument("--grid", default=GRID_YAML,
                    help="output grid YAML (default: grid_fno.yaml next to this script)")
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
                    help="output directory (default: ./out next to this script)")
     p.add_argument("--out", default=None,
-                   help="output file name (default: AuAu_0_10_seed<NNNN>.h5)")
+                   help="output file name (default: AuAu_0_10[_<campaign>]_seed<NNNN>.h5, "
+                        "or AuAu_0_10_<campaign>_<NNNN>.h5 with --seed 0)")
     p.add_argument("--build", default=os.path.join(XSCAPE, "build_gpu"),
                    help="X-SCAPE build tree the PyJetscape extension is linked against "
                         "(default: build_gpu)")
@@ -75,6 +79,7 @@ def parse_args() -> argparse.Namespace:
                         "(100x100x60 here, ~10 MB per frame); max_ntau still applies")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the grid, write the job XML and print the plan; do not run")
+    add_seed_args(p, "3dMCGlauber")
     add_workdir_args(p)
     add_h5_args(p)
     return p.parse_args()
@@ -100,6 +105,128 @@ def add_h5_args(p: argparse.ArgumentParser) -> None:
 #: tables.  X-SCAPE's examples/run_in_workdir.sh links the same set minus LBT-tables.
 WORKDIR_LINKS = ("tables", "eps09", "LHAPDF_Lib", "nucleusConfigs", "data_table",
                  "LBT-tables")
+
+
+# ---------------------------------------------------------------------------------- seeds
+#: Pythia takes seeds 1..SEED_MAX and silently clamps larger ones to SEED_MAX, so jobs with
+#: larger seeds (a date, Unix time) would all get the same Pythia stream: the same jets.
+SEED_MAX = 900_000_000
+_CAMPAIGN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+_REGISTRY_HEADER = "# seed\tsource\tcampaign\tfile\thost\tdate\n"
+
+
+def add_seed_args(p: argparse.ArgumentParser, drives: str) -> None:
+    """--seed, --campaign, --index and --seed-registry (run_prod.py and run_prod_jet.py)."""
+    p.add_argument("--seed", type=int, default=1,
+                   help=f"framework seed (drives {drives}), 1..{SEED_MAX}; the same seed "
+                        "gives the same collisions. 0: draw a unique one from OS entropy, "
+                        "recorded in the file, the .json and the seed registry (the job stays "
+                        "reproducible); the file is then named by --campaign. Not X-SCAPE's "
+                        "own seed 0, which Pythia takes from the clock in seconds (jobs "
+                        "started together get the same jets) and records nowhere")
+    p.add_argument("--campaign", default=None,
+                   help="put the campaign in the name: <base>_<CAMPAIGN>_<NNNN>.h5 with --seed 0 "
+                        "(NNNN = --index), <base>_<CAMPAIGN>_seed<NNNN>.h5 with an explicit "
+                        "seed (NNNN = the seed); letters, digits, '.', '_', '-'. Default with "
+                        "--seed 0: the start time, YYYYMMDD-HHMMSS")
+    p.add_argument("--index", type=int, default=1,
+                   help="job number within the campaign: NNNN in the name with --seed 0, "
+                        "recorded as prod_index (default 1)")
+    p.add_argument("--seed-registry", default=None, dest="seed_registry",
+                   help="file of the seeds already used (tab-separated, appended per job); "
+                        "--seed 0 draws only seeds not in it. Default: seeds_used.tsv next "
+                        "to OUTDIR, shared by the campaigns kept side by side there; 'none' "
+                        "turns it off")
+
+
+def seed_args_problems(a) -> list:
+    problems = []
+    if not 0 <= a.seed <= SEED_MAX:
+        problems.append(f"--seed must be 0 (unique, from OS entropy) or 1..{SEED_MAX}, got "
+                        f"{a.seed}: Pythia (the jet production's hard process) clamps "
+                        f"larger seeds to {SEED_MAX}, so every such job would get the same "
+                        "jets; the same range holds everywhere")
+    if a.index < 1:
+        problems.append(f"--index must be >= 1, got {a.index}")
+    if a.campaign is not None and not _CAMPAIGN_RE.match(a.campaign):
+        problems.append(f"--campaign {a.campaign!r}: use letters, digits, '.', '_', '-' "
+                        "(no '/', not starting with '.' or '-')")
+    return problems
+
+
+def output_name(a, base: str) -> str:
+    """The output file name: --out, else by seed when the seed is given --
+    <base>[_<campaign>]_seed<NNNN>.h5 -- and by job number when it is drawn (--seed 0, with
+    the start time as the campaign if none was given): <base>_<campaign>_<NNNN>.h5."""
+    if a.campaign is None and a.seed == 0:
+        a.campaign = time.strftime("%Y%m%d-%H%M%S")
+    if a.out:
+        return a.out
+    if a.seed == 0:
+        return f"{base}_{a.campaign}_{a.index:04d}.h5"
+    return f"{base}{'_' + a.campaign if a.campaign else ''}_seed{a.seed:04d}.h5"
+
+
+def seed_registry(a):
+    if a.seed_registry and a.seed_registry.lower() == "none":
+        return None
+    return os.path.abspath(a.seed_registry or
+                           os.path.join(os.path.dirname(os.path.abspath(a.outdir)),
+                                        "seeds_used.tsv"))
+
+
+def resolve_seed(a, out_h5: str, record: bool = True) -> None:
+    """Make ``a.seed`` concrete and note where it came from (``a.seed_source``).
+
+    --seed 0 draws from OS entropy (``secrets``) a seed in 1..SEED_MAX that the registry does
+    not hold yet.  With ``record`` the seed is appended to the registry (under an exclusive
+    lock, so jobs starting together cannot draw the same one); an explicit seed is recorded
+    too, and reported when the registry has it for another file (the same collisions: fine for
+    paired comparisons, not for more statistics)."""
+    import fcntl
+    import secrets
+
+    path = seed_registry(a)
+    a.seed_source = "os_entropy" if a.seed == 0 else "explicit"
+    if path is None or (not record and not os.path.exists(path)):
+        if a.seed == 0:
+            a.seed = secrets.randbelow(SEED_MAX) + 1
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a+") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        fh.seek(0)
+        used = {}
+        for line in fh:
+            cols = line.rstrip("\n").split("\t")
+            if line.startswith("#") or len(cols) < 4 or not cols[0].isdigit():
+                continue
+            used.setdefault(int(cols[0]), []).append(cols[3])
+        if a.seed == 0:
+            while True:
+                seed = secrets.randbelow(SEED_MAX) + 1
+                if seed not in used:
+                    break
+            a.seed = seed
+        else:
+            others = [f for f in used.get(a.seed, []) if f != os.path.abspath(out_h5)]
+            if others:
+                print(f"note: seed {a.seed} was used before, for {others[0]}"
+                      f"{f' (+{len(others) - 1} more)' if len(others) > 1 else ''}: the same "
+                      "collisions -- fine for comparing settings, not for more statistics",
+                      file=sys.stderr)
+        if record and os.path.abspath(out_h5) not in used.get(a.seed, []):
+            if fh.tell() == 0:
+                fh.write(_REGISTRY_HEADER)
+            fh.write("\t".join([str(a.seed), a.seed_source, a.campaign or "",
+                                 os.path.abspath(out_h5), socket.gethostname(),
+                                 time.strftime("%Y-%m-%dT%H:%M:%S")]) + "\n")
+            fh.flush()
+
+
+def seed_provenance(a) -> dict:
+    return {"prod_seed": a.seed, "prod_seed_source": a.seed_source,
+            "prod_campaign": a.campaign or "", "prod_index": a.index}
 
 
 def add_workdir_args(p: argparse.ArgumentParser) -> None:
@@ -312,9 +439,7 @@ def check_env(a) -> None:
     for f in ("music_input", "mcglauber.input"):
         if not os.path.exists(os.path.join(a.build, f)):
             problems.append(f"{f} not found in the build tree {a.build}")
-    if a.seed <= 0:
-        problems.append("--seed must be > 0 (0 means a random seed; the job would not be "
-                        "reproducible and two jobs could collide).")
+    problems += seed_args_problems(a)
     problems += h5_args_problems(a)
     if problems:
         sys.exit("run_prod.py: cannot start:\n  " + "\n  ".join(problems))
@@ -366,14 +491,18 @@ def main() -> int:
 
     grid, max_ntau, grid_text = load_grid_yaml(a.grid)
     os.makedirs(a.outdir, exist_ok=True)
-    out_h5 = os.path.join(a.outdir, a.out or f"AuAu_0_10_seed{a.seed:04d}.h5")
+    out_h5 = os.path.join(a.outdir, output_name(a, "AuAu_0_10"))
+    resolve_seed(a, out_h5, record=not a.dry_run)
     xml, root = job_xml(a, out_h5)
     box = music_box(root, a.main_xml)
     grid_mode = "native" if a.native else "grid"
     if not a.native:
         check_inside(grid, box)
 
-    print(f"prod_AuAu_0_10: {a.events} event(s), seed {a.seed}, grid_mode {grid_mode}")
+    print(f"prod_AuAu_0_10: {a.events} event(s), seed {a.seed}"
+          + (" (from OS entropy)" if a.seed_source == "os_entropy" else "")
+          + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
+          + f", grid_mode {grid_mode}")
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
     print(f"  grid     {a.grid}")
@@ -394,7 +523,7 @@ def main() -> int:
 
     provenance = {
         "prod": "PyJetscape/example/prod_AuAu_0_10",
-        "prod_seed": a.seed,
+        **seed_provenance(a),
         "prod_host": socket.gethostname(),
         "prod_platform": platform.platform(),
         "prod_build": a.build,
@@ -471,7 +600,9 @@ def main() -> int:
                     del g[name]
                 g[name] = np.asarray(vals, dtype=np.float64)
             f.attrs["prod_wall_s_total"] = time.time() - t_job
-    summary = {"out": out_h5, "seed": a.seed, "grid": a.grid, "events_requested": a.events,
+    summary = {"out": out_h5, "seed": a.seed, "seed_source": a.seed_source,
+               "campaign": a.campaign, "index": a.index, "grid": a.grid,
+               "events_requested": a.events,
                "events_written": n, "events_tau0_after_tau_min": late,
                "events_cut_at_max_ntau": truncated,
                "wall_s": round(time.time() - t_job, 1)}

@@ -3,11 +3,22 @@
 #
 # Run N production jobs on one GPU, one seed (and one .h5 file) per job, P at a time.
 #
-#   ./run_jobs.sh [-j P] [--mps] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [extra run_prod.py args...]
+#   ./run_jobs.sh [-j P] [--mps] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod.py args...]
+#   ./run_jobs.sh 20 25 0                         # unique seeds -> ./out/AuAu_0_10_<start time>_00NN.h5
+#   ./run_jobs.sh 20 25 0 --campaign mb_a         # the same, named ./out/AuAu_0_10_mb_a_00NN.h5
 #   ./run_jobs.sh 20 25 1                         # seeds 1..20 -> ./out/AuAu_0_10_seed00NN.h5
-#   ./run_jobs.sh -j 2 20 25 1                    # same, two jobs at a time
-#   ./run_jobs.sh -j 4 --mps 20 25 1              # four at a time, sharing the GPU via CUDA MPS
-#   ./run_jobs.sh 20 25 1 out_eta2p5 --grid grid_x10_eta2p5.yaml
+#   ./run_jobs.sh -j 4 --mps 20 25 0              # four at a time, sharing the GPU via CUDA MPS
+#   ./run_jobs.sh 20 25 0 out_eta2p5 --grid grid_x10_eta2p5.yaml
+#
+# FIRST_SEED 0 (a campaign): every job draws its own seed from OS entropy (run_prod.py
+# --seed 0: 1..900000000, not in the seed registry OUTDIR/../seeds_used.tsv, recorded there,
+# in the file and in its .json), and the files are numbered NNNN = 1..NJOBS under the campaign
+# name: --campaign (before or after the numbers), else the start time YYYYMMDD-HHMMSS.  The name is kept in
+# OUTDIR/run_jobs.campaign, so re-running the command resumes the same campaign (one campaign
+# per OUTDIR).  FIRST_SEED > 0: seeds FIRST_SEED.. as given, files named by seed,
+# <prefix><seed> or with --campaign <base>_<campaign>_seed<seed>: the same seeds give the
+# same collisions, which is what paired
+# comparisons of settings want and what campaigns meant as more statistics must avoid.
 #
 # -j P (default 1) keeps P jobs running at once, with bit-identical output per seed.  Each
 # job runs in its own working directory (see run_prod.py), so they can start together.
@@ -34,19 +45,23 @@
 # looks at the seed and event count only.
 #
 # Other productions reuse this script through three environment variables (defaults: this
-# folder's): PROD_SCRIPT (the per-job driver), TAG_PREFIX (file names <prefix><seed>.*) and
-# PROD_OUTDIR (the default OUTDIR); see ../prod_AuAu_0_10_jet/run_jobs.sh.
+# folder's): PROD_SCRIPT (the per-job driver), TAG_PREFIX (file names <prefix><seed>.*, and
+# <prefix without _seed>_<campaign>_<NNNN>.* for a campaign) and PROD_OUTDIR (the default
+# OUTDIR); see ../prod_AuAu_0_10_jet/run_jobs.sh.
 set -u
 
-usage() { sed -n '6,11p' "$0"; exit 2; }
+usage() { sed -n '6,12p' "$0"; exit 2; }
 
 PAR=1
 MPS=0
+CAMPAIGN=
 while [ $# -gt 0 ]; do
   case $1 in
     -j)    [ $# -ge 2 ] || usage; PAR=$2; shift 2 ;;
     -j*)   PAR=${1#-j}; shift ;;
     --mps) MPS=1; shift ;;
+    --campaign)   [ $# -ge 2 ] || usage; CAMPAIGN=$2; [ -n "$CAMPAIGN" ] || usage; shift 2 ;;
+    --campaign=*) CAMPAIGN=${1#*=}; [ -n "$CAMPAIGN" ] || usage; shift ;;
     *)     break ;;
   esac
 done
@@ -60,12 +75,62 @@ done
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROD_SCRIPT=${PROD_SCRIPT:-"$HERE/run_prod.py"}
 TAG_PREFIX=${TAG_PREFIX:-AuAu_0_10_seed}
+NAME_BASE=${TAG_PREFIX%_seed}                  # AuAu_0_10_seed -> AuAu_0_10
 shift 3
+# The arguments after the numbers go to every job, except --campaign, which is this script's
+# wherever it stands (it numbers the jobs; taken out first, so OUTDIR may follow it), and
+# the options it sets per job itself.
+set_campaign() {
+  if [ -z "$1" ] || { [ -n "$CAMPAIGN" ] && [ "$CAMPAIGN" != "$1" ]; }; then
+    echo "--campaign: given as '${CAMPAIGN}' and '$1'" >&2; exit 2
+  fi
+  CAMPAIGN=$1
+}
+[ -n "$CAMPAIGN" ] && set_campaign "$CAMPAIGN"
+pass=()
+while [ $# -gt 0 ]; do
+  case $1 in
+    --campaign)   [ $# -ge 2 ] || usage; set_campaign "$2"; shift 2 ;;
+    --campaign=*) set_campaign "${1#*=}"; shift ;;
+    --seed|--seed=*|--index|--index=*|--events|--events=*|--outdir|--outdir=*|--out|--out=*)
+      echo "${1%%=*}: set by run_jobs.sh for every job (NJOBS EVENTS_PER_JOB FIRST_SEED" \
+           "[OUTDIR]); don't pass it" >&2; exit 2 ;;
+    *) pass+=("$1"); shift ;;
+  esac
+done
+set -- ${pass[@]+"${pass[@]}"}
 OUTDIR="${PROD_OUTDIR:-$HERE/out}"
 if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then   # an optional OUTDIR before the options
   OUTDIR=$1; shift
 fi
 OUTDIR="$(mkdir -p "$OUTDIR" && cd "$OUTDIR" && pwd)"
+
+
+# ---- campaign: FIRST_SEED 0 (unique seeds) or --campaign names the files <base>_<name>_NNNN
+if [ "$SEED0" -eq 0 ] || [ -n "$CAMPAIGN" ]; then
+  stored=
+  [ -f "$OUTDIR/run_jobs.campaign" ] && stored=$(cat "$OUTDIR/run_jobs.campaign")
+  if [ -z "$CAMPAIGN" ]; then
+    CAMPAIGN=${stored:-$(date +%Y%m%d-%H%M%S)}
+  elif [ -n "$stored" ] && [ "$stored" != "$CAMPAIGN" ]; then
+    echo "$OUTDIR holds campaign '$stored' (run_jobs.campaign), not '$CAMPAIGN': one campaign" \
+         "per OUTDIR, so a re-run resumes it. Use another OUTDIR." >&2; exit 2
+  fi
+  case $CAMPAIGN in
+    .*|-*|*[!A-Za-z0-9._-]*)
+      echo "--campaign '$CAMPAIGN': use letters, digits, '.', '_', '-'" >&2; exit 2 ;;
+  esac
+  echo "$CAMPAIGN" > "$OUTDIR/run_jobs.campaign"
+fi
+job_tag() {    # file stem of job k (0-based): by job number when the seed is drawn, else by seed
+  if [ "$SEED0" -eq 0 ]; then printf "%s_%s_%04d" "$NAME_BASE" "$CAMPAIGN" $(( $1 + 1 ))
+  elif [ -n "$CAMPAIGN" ]; then printf "%s_%s_seed%04d" "$NAME_BASE" "$CAMPAIGN" $(( SEED0 + $1 ))
+  else printf "%s%04d" "$TAG_PREFIX" $(( SEED0 + $1 )); fi
+}
+job_label() {  # how the log names job k
+  if [ "$SEED0" -eq 0 ]; then printf "job %04d" $(( $1 + 1 ))
+  else printf "seed %d" $(( SEED0 + $1 )); fi
+}
 # Written when the campaign ends (not on Ctrl-C), so ../prod_AuAu_0_10_jet/run_hadronize.py
 # --follow knows no more files are coming; a new campaign in this OUTDIR removes it.
 rm -f "$OUTDIR/run_jobs.finished"
@@ -110,63 +175,70 @@ if [ "$MPS" -eq 1 ]; then
   echo "[$(date +%F\ %T)] MPS: daemon started, pipe directory $CUDA_MPS_PIPE_DIRECTORY"
 fi
 
-# Running jobs as two parallel indexed arrays (pids[i] runs seeds[i]) and a polling reap,
-# not an associative array and `wait -n -p`: those need bash >= 5.1, and macOS ships 3.2.
+# Running jobs as parallel indexed arrays (pids[i] runs jobs[i]) and a polling reap, not an
+# associative array and `wait -n -p`: those need bash >= 5.1, and macOS ships 3.2.
 # The ${a[@]+...} forms keep `set -u` quiet on empty arrays in bash < 4.4.
-pids=(); seeds=()
+pids=(); jobs_k=()
 # Background jobs of a non-interactive shell ignore Ctrl-C, so pass it on to them.
-trap 'trap - INT TERM; echo "interrupted: stopping seeds ${seeds[*]+${seeds[*]}}" >&2;
+trap 'trap - INT TERM; echo "interrupted: stopping ${#pids[@]} running job(s)" >&2;
       [ ${#pids[@]} -gt 0 ] && kill ${pids[@]+"${pids[@]}"} 2>/dev/null; wait; exit 130' INT TERM
 
 failed=()
 reap() {   # wait for one running job to finish and report it
-  local i pid rc seed
+  local i pid rc k
   while :; do                  # bash reaps finished children itself, so kill -0 fails
     for i in ${pids[@]+"${!pids[@]}"}; do
       pid=${pids[$i]}
       kill -0 "$pid" 2>/dev/null && continue
       wait "$pid"; rc=$?      # the saved exit status
-      seed=${seeds[$i]}; unset "pids[$i]" "seeds[$i]"
+      k=${jobs_k[$i]}; unset "pids[$i]" "jobs_k[$i]"
       break 2
     done
     sleep 1
   done
-  local tag; tag=$(printf "%s%04d" "$TAG_PREFIX" "$seed")
+  local tag label; tag=$(job_tag "$k"); label=$(job_label "$k")
   if [ "$rc" -eq 0 ]; then
-    echo "[$(date +%F\ %T)] seed $seed: ok"
+    echo "[$(date +%F\ %T)] $label: ok"
   else
-    echo "[$(date +%F\ %T)] seed $seed: FAILED (see $OUTDIR/$tag.log)"; failed+=("$seed")
+    echo "[$(date +%F\ %T)] $label: FAILED (see $OUTDIR/$tag.log)"; failed+=("$label")
   fi
 }
 
 for (( k = 0; k < NJOBS; k++ )); do
-  seed=$(( SEED0 + k ))
-  tag=$(printf "%s%04d" "$TAG_PREFIX" "$seed")
+  seed=$(( SEED0 == 0 ? 0 : SEED0 + k ))
+  tag=$(job_tag "$k"); label=$(job_label "$k")
+  naming=()
+  [ -n "$CAMPAIGN" ] && naming=(--campaign "$CAMPAIGN" --index $(( k + 1 )))
   if [ -f "$OUTDIR/$tag.json" ] && \
      python -c "import json,sys; d=json.load(open('$OUTDIR/$tag.json')); \
                 sys.exit(d['events_written'] != $EVENTS or \
                          d.get('particlize_events_written', $EVENTS) != $EVENTS)" \
        2>/dev/null; then
-    echo "[$(date +%F\ %T)] seed $seed: already complete, skipping"; continue
+    echo "[$(date +%F\ %T)] $label: already complete, skipping"; continue
   fi
   while [ ${#pids[@]} -ge "$PAR" ]; do reap; done
-  echo "[$(date +%F\ %T)] seed $seed: job $((k + 1))/$NJOBS, $EVENTS events -> $OUTDIR/$tag.h5"
-  python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" --outdir "$OUTDIR" ${1+"$@"} \
-    > "$OUTDIR/$tag.log" 2>&1 &
-  pids+=("$!"); seeds+=("$seed")
+  echo "[$(date +%F\ %T)] $label: job $((k + 1))/$NJOBS, $EVENTS events -> $OUTDIR/$tag.h5"
+  python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" ${naming[@]+"${naming[@]}"} \
+    --outdir "$OUTDIR" ${1+"$@"} > "$OUTDIR/$tag.log" 2>&1 &
+  pids+=("$!"); jobs_k+=("$k")
 done
 while [ ${#pids[@]} -gt 0 ]; do reap; done
 trap - INT TERM
 mps_stop
-echo "finished $(date +%F\ %T): seeds $SEED0..$(( SEED0 + NJOBS - 1 )), $EVENTS events each" \
-  > "$OUTDIR/run_jobs.finished"
+if [ "$SEED0" -eq 0 ]; then
+  seeds_desc="seeds from OS entropy (each job's .json)"
+else
+  seeds_desc="seeds $SEED0..$(( SEED0 + NJOBS - 1 ))"
+fi
+echo "finished $(date +%F\ %T): ${CAMPAIGN:+campaign $CAMPAIGN, jobs 1..$NJOBS, }$seeds_desc," \
+     "$EVENTS events each" > "$OUTDIR/run_jobs.finished"
 if [ ${#failed[@]} -gt 0 ]; then
-  echo "failed seeds: ${failed[*]}" >> "$OUTDIR/run_jobs.finished"
+  echo "failed: ${failed[*]}" >> "$OUTDIR/run_jobs.finished"
 fi
 
 # Events longer than tau.max_ntau keep only their first max_ntau frames.  That is the point
 # of setting it (e.g. early times only), so this is a count, not an error.
-ncut=$(python - "$OUTDIR" "$TAG_PREFIX" <<'EOF'
+ncut=$(python - "$OUTDIR" "$(job_tag 0 | sed 's/[0-9]*$//')" <<'EOF'
 import glob, json, os, sys
 print(sum(d.get("events_cut_at_max_ntau", 0) + d.get("legs_cut_at_max_ntau", 0)
           for d in (json.load(open(p))
@@ -178,6 +250,6 @@ if [ "${ncut:-0}" -gt 0 ]; then
        "(set max_ntau: 0 to keep whole events)."
 fi
 if [ ${#failed[@]} -gt 0 ]; then
-  echo "failed seeds: ${failed[*]}"; exit 1
+  echo "failed: ${failed[*]}"; exit 1
 fi
 echo "all $NJOBS jobs done: $OUTDIR"

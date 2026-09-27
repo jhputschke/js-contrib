@@ -25,11 +25,13 @@ cd external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10
 
 python run_prod.py --events 10 --seed 1         # -> out/AuAu_0_10_seed0001.h5
 python run_prod.py --events 1 --seed 1 --grid my_grid.yaml --dry-run   # check a grid
-./run_jobs.sh 20 25 1                           # 20 jobs x 25 events, seeds 1..20, into ./out
-./run_jobs.sh -j 2 20 25 1                      # same, two jobs at a time (~1.7x throughput)
-./run_jobs.sh -j 4 --mps 20 25 1                # four at a time, GPU shared via CUDA MPS
-./run_jobs.sh 20 25 1 /data/AuAu_0_10           # same, into another directory
-./run_jobs.sh 20 25 1 out_eta2p5 --grid grid_x10_eta2p5.yaml
+./run_jobs.sh 20 25 0                           # 20 jobs x 25 events, unique seeds, into ./out
+./run_jobs.sh --campaign mb_a 20 25 0           # the same, files named AuAu_0_10_mb_a_00NN.h5
+./run_jobs.sh 20 25 1                           # seeds 1..20, files AuAu_0_10_seed00NN.h5
+./run_jobs.sh -j 2 20 25 0                      # two jobs at a time (~1.7x throughput)
+./run_jobs.sh -j 4 --mps 20 25 0                # four at a time, GPU shared via CUDA MPS
+./run_jobs.sh 20 25 0 /data/AuAu_0_10           # into another directory
+./run_jobs.sh 20 25 0 out_eta2p5 --grid grid_x10_eta2p5.yaml
 ```
 
 You can launch it from any directory.
@@ -63,23 +65,36 @@ and MUSIC's side files. The directory is removed after a successful job.
 
 Each job writes four files:
 
-- `AuAu_0_10_seedNNNN.h5`: the data.
+- `AuAu_0_10_seedNNNN.h5` (explicit `--seed`; `AuAu_0_10_<campaign>_seedNNNN.h5` with
+  `--campaign`) or `AuAu_0_10_<campaign>_NNNN.h5` (`--seed 0`, NNNN the job number): the data.
 - `.xml`: the exact user XML the job ran.
 - `.json`: a summary (events written, grid file, wall time).
 - `.log`: only when the job is run through `run_jobs.sh`.
 
-`run_jobs.sh` skips any seed whose `.json` already reports all events written, so you can
-restart an interrupted campaign with the same command. That check looks only at the seed
+`run_jobs.sh` skips any job whose `.json` already reports all events written, so you can
+restart an interrupted campaign with the same command. That check looks only at the file name
 and event count, so give each grid its own output directory.
 
 **A seed is a set of collisions, in every campaign.** The same seeds give the same events: two
 campaigns that both start at `FIRST_SEED` 1 with the same settings are bit-identical, and with
 only the output grid changed they are the same collisions on another grid. Merging such
-campaigns double-counts events (for FNO training, the same samples in training and validation).
-Give campaigns meant to be independent disjoint seed ranges (`FIRST_SEED` = 1, 1001, 2001, ...)
-and note them with the campaign. See also `../prod_AuAu_0_10_jet/README.md`, *Campaigns*.
+campaigns double-counts events (for FNO training, the same samples in training and validation;
+a separately made test set can be the training events themselves). So:
 
-To check the output, open `check_output.ipynb` in Jupyter (it reads `out/AuAu_0_10_seed*.h5`;
+- **Campaigns: `FIRST_SEED 0`.** Each job draws a unique seed from OS entropy (`--seed 0`,
+  1…900,000,000), checked against and recorded in the seed registry `seeds_used.tsv` next to
+  `OUTDIR` (`--seed-registry PATH` to share one, `none` to turn it off). Files are numbered per
+  campaign, `AuAu_0_10_<campaign>_NNNN.h5`, with `<campaign>` = `--campaign NAME` or the start
+  time; `OUTDIR/run_jobs.campaign` keeps it, so a re-run resumes the campaign.
+- **The seed that ran is recorded** (`prod_seed`, `prod_seed_source`, `prod_campaign`,
+  `prod_index` in the file, `seed` etc. in the `.json`, and the job XML): `--seed <it>`
+  reproduces the file bit for bit.
+- **Explicit seeds** (`FIRST_SEED > 0`) as before, for reproducing files and for paired
+  comparisons. This is not X-SCAPE's own seed 0, which lets each module seed itself from the
+  clock (Pythia in seconds) and records nothing; see `../prod_AuAu_0_10_jet/README.md`,
+  *Campaigns*.
+
+To check the output, open `check_output.ipynb` in Jupyter (it reads `out/AuAu_0_10_*.h5`;
 set `FILES` in its first cell or `PROD_H5_GLOB` for another directory). It needs only
 `numpy`, `h5py`, `matplotlib`, `pandas` and `ipywidgets`, no X-SCAPE build.
 

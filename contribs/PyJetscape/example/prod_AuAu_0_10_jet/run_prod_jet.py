@@ -21,7 +21,10 @@ grid YAMLs, grid checks and environment checks this reuses.
                                      # + <stem>_particlize.h5: both surfaces and the final
                                      #   partons, for hadronize.py (PLAN_particlize_h5.md)
     python run_prod_jet.py --events 1 --seed 1 --dry-run         # check, print the plan
-    ./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
+    python run_prod_jet.py --events 10 --seed 0 --campaign test  # unique seed from OS entropy,
+                                                                 # -> out/AuAu_0_10_jet_test_0001.h5
+    ./run_jobs.sh 20 25 0                                        # 20 jobs x 25 events, unique seeds
+    ./run_jobs.sh 20 25 1                                        # the same with seeds 1..20
 
 Needs a MUSIC build with the jet source slot (MUSIC cee9460 + X-SCAPE PR #138 on the CPU,
 the matching MUSIC4GPU port on the GPU).  Without it MUSIC_2 silently ignores the droplets;
@@ -61,18 +64,17 @@ HARD_VERTEX = {
 
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__,
+    # no abbreviations: run_jobs.sh must recognise --campaign and the options it sets per job
+    p = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", type=int, default=10, help="events in this job (default 10)")
-    p.add_argument("--seed", type=int, default=1,
-                   help="framework seed (3dMCGlauber, Pythia, Matter/LBT). Must differ "
-                        "between jobs and be > 0.")
     p.add_argument("--grid", default=GRID_YAML,
                    help="output grid YAML (default: ../prod_AuAu_0_10/grid_fno.yaml)")
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
                    help="output directory (default: ./out next to this script)")
     p.add_argument("--out", default=None,
-                   help="output file name (default: AuAu_0_10_jet_seed<NNNN>.h5)")
+                   help="output file name (default: AuAu_0_10_jet[_<campaign>]_seed<NNNN>.h5, "
+                        "or AuAu_0_10_jet_<campaign>_<NNNN>.h5 with --seed 0)")
     p.add_argument("--build", default=os.path.join(rp.XSCAPE, "build_gpu"),
                    help="X-SCAPE build tree (default: build_gpu)")
     p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
@@ -121,6 +123,7 @@ def parse_args() -> argparse.Namespace:
                         "hadronize.xml next to this script)")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
+    rp.add_seed_args(p, "3dMCGlauber, Pythia, Matter/LBT")
     rp.add_workdir_args(p)
     rp.add_h5_args(p)
     return p.parse_args()
@@ -339,7 +342,8 @@ def main() -> int:
 
     grid, max_ntau, grid_text = rp.load_grid_yaml(a.grid)
     os.makedirs(a.outdir, exist_ok=True)
-    out_h5 = os.path.join(a.outdir, a.out or f"AuAu_0_10_jet_seed{a.seed:04d}.h5")
+    out_h5 = os.path.join(a.outdir, rp.output_name(a, "AuAu_0_10_jet"))
+    rp.resolve_seed(a, out_h5, record=not a.dry_run)
     xml, root = job_xml(a, out_h5)
     box = rp.music_box(root, a.main_xml)
     grid_mode = "native" if a.native else "grid"
@@ -349,7 +353,10 @@ def main() -> int:
     hard_desc = (f"PythiaGun pTHat {_text(root, 'Hard/PythiaGun/pTHatMin')}-"
                  f"{_text(root, 'Hard/PythiaGun/pTHatMax')} GeV" if a.hard == "pythia"
                  else f"PGun pT {a.pgun_pt:g} GeV")
-    print(f"prod_AuAu_0_10_jet: {a.events} event(s), seed {a.seed}, grid_mode {grid_mode}, "
+    print(f"prod_AuAu_0_10_jet: {a.events} event(s), seed {a.seed}"
+          + (" (from OS entropy)" if a.seed_source == "os_entropy" else "")
+          + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
+          + f", grid_mode {grid_mode}, "
           f"{hard_desc}, reuse {a.reuse}, deposition {'OFF (null test)' if a.no_deposit else 'on'}, "
           f"freeze-out surface: {'+'.join(sorted(surface_legs(a))) or 'none'}"
           + (f", particlize input: {a.write_particlize}" if particlize_legs(a) else "")
@@ -377,7 +384,7 @@ def main() -> int:
 
     provenance = {
         "prod": "PyJetscape/example/prod_AuAu_0_10_jet",
-        "prod_seed": a.seed,
+        **rp.seed_provenance(a),
         "prod_host": socket.gethostname(),
         "prod_platform": platform.platform(),
         "prod_build": a.build,
@@ -476,7 +483,8 @@ def main() -> int:
     if n:
         with h5py.File(out_h5, "a") as f:
             f.attrs["prod_wall_s_total"] = time.time() - t_job
-    summary = {"out": out_h5, "seed": a.seed, "grid": a.grid, "hard": hard_desc,
+    summary = {"out": out_h5, "seed": a.seed, "seed_source": a.seed_source,
+               "campaign": a.campaign, "index": a.index, "grid": a.grid, "hard": hard_desc,
                "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,
                "events_requested": a.events, "events_written": n,
                "events_tau0_after_tau_min": late,
