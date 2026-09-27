@@ -520,20 +520,21 @@ def main(argv=None):
               "hadronize_xml": xml_text, "base_seed": a.seed,
               "stored_seeds": bool(a.use_stored_seeds),
               "seed_scheme": seed_scheme,
-              "common_seeds": bool(a.common_seeds),
-              "correlated_sampling": bool(a.correlated),
               "music_input": pf.music_input()}
+    # how the two iSS legs were sampled relative to each other: only on bulk_jet and bulk_bg
+    # (jet_frag's Pythia seeds are its own whatever these options)
+    pairing = {"common_seeds": bool(a.common_seeds), "correlated_sampling": bool(a.correlated)}
     writers = {}
     for t in tags:
-        extra = {}
+        extra = {} if t == "jet_frag" else dict(pairing)
         if t == "jet_frag":
             n = n_frag
         elif t == "bulk_bg" and a.oversample_bg is not None:
             auto = str(a.oversample_bg).lower() == "auto"
             n = 0 if auto else int(a.oversample_bg)     # 0: per unit, see units/n_samples
-            extra = {"oversample_bg": str(a.oversample_bg),
-                     "oversample_bg_max": int(a.oversample_bg_max),
-                     "oversample_jet": int(oversample)}
+            extra.update({"oversample_bg": str(a.oversample_bg),
+                          "oversample_bg_max": int(a.oversample_bg_max),
+                          "oversample_jet": int(oversample)})
         else:
             n = oversample
         writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n, keep_bits=keep_bits,
