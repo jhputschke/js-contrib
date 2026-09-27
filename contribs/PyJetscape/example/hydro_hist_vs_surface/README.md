@@ -183,7 +183,8 @@ Checks that were made on the test data:
   - `dndy` and `sumpt` for π±, K±, p, p̄ at |y| < 0.5;
   - identified and charged `ptspec`;
   - flow vectors `Q`, `NQ` (charged, |η| < 1, per pT bin and integrated; $v_n\{2\}$ with the
-    self-pairs removed is built in the notebook);
+    self-pairs removed is built in the notebook), and `QA`, `NQA` for the first half of the
+    oversamples (per-event sampling noise);
   - `E_eta1`, `N_all`, `E_all`;
   - jet-relative `dphi_jet`, `dphi_jet_pt`, `pt_near` (soft charged, pT < 4 GeV,
     |η − y_jet| < 1; the jet axis is the hardest shower initiator).
@@ -256,6 +257,80 @@ shear stress ⟨√(π:π)⟩/(e+P) = 0.028, which `hist` does not have.
 
 The figures, all tables and the per-event checks are in `hydro_hist_vs_surface.ipynb`.
 
+## Correcting the history's hadrons
+
+Can the hadrons made from the history be corrected, event by event and hadron by hadron,
+so that they reproduce `ref`? The notebook's §6 tests the simplest kind of correction:
+**one correction for all events**, derived from events 0–49 and applied to the held-out
+events 50–99. The answer depends on the observable.
+
+| observable | correction | before (`hist` − `ref`, events 50–99) | after | how universal (event-by-event spread of ref/hist) |
+|---|---|---|---|---|
+| π yield / ⟨pT⟩ | weight w(π, pT) per hadron | +0.7% / +11.9% | −0.1 ± 0.6% / −0.1 ± 0.5% | ±0.4% / ±0.4% |
+| K yield / ⟨pT⟩ | w(K, pT) | +2.8% / +11.1% | −0.0 ± 1.0% / −0.2 ± 0.8% | ±0.7% / ±0.7% |
+| p yield / ⟨pT⟩ | w(p, pT) | −29.0% / +4.7% | −0.3 ± 1.8% / −0.1 ± 0.9% | ±2.2% / ±0.8% |
+| wake ΔE, \|η\| < 1 | scale 1.113 | −2.5 GeV (−10%) | −0.09 ± 0.41 GeV | per event 2.9 GeV rms, including sampling noise |
+| v₂{2} | scale 0.968 | +2.8% | ⟨v₂²⟩ closes to 2.3% (1.1% in v₂) | true per-event deviation 3.0% (sampling noise 5.1%) |
+| v₃{2} | scale 0.873 | +11.4% | ⟨v₃²⟩ misses by 11% (5.5% in v₃) | true per-event deviation 12.2% (sampling noise 12.0%) |
+
+"After" gives the mean and the per-event scatter; the scatter includes each event's
+sampling noise (100 oversamples). The flow rows split the per-event deviation from the
+scale into sampling noise and a true part: each event's oversamples are cut into two
+halves (the `QA` flow vectors in `summary.npz`), and the two halves are compared.
+
+**What works:**
+
+- **Yields, spectra and ⟨pT⟩: per hadron, with one weight table.** The ref/hist ratio is
+  nearly the same in every event, so a weight w(species, pT) = ref/hist (from the
+  event-averaged spectra) on every hadron of every event corrects them to within 0.3% on
+  average.
+  - Weights are not hadrons. A downstream step that needs unweighted events (SMASH, jet
+    finding on bulk + jet) can get them by drawing from each event's 100 oversamples
+    with probability ∝ w. This also works where w > 1, e.g. the protons' 1.41.
+  - The table here uses pT only. A real tool would also bin in rapidity, which the
+    summary does not store per species.
+- **The jet wake: one scale factor.** δf cancels in jet − background, and the history's
+  deficit is a scale, not a change of shape, so 1.113 restores the mean.
+- **v₂: one scale factor, per event.** Only 3% of each event's deviation from the scale
+  is real. The scale keeps v₂'s event-by-event variation (47%), and the event planes
+  agree (⟨cos 2(Ψ₂,hist − Ψ₂,ref)⟩ = 0.98).
+  - At hadron level the same correction is a φ-dependent weight
+    1 + 2 Σₙ aₙ(pT) cos n(φ − Ψₙ), with Ψₙ from the event's own hadrons. It is not
+    implemented yet.
+
+**What doesn't:**
+
+- **v₃ per event.** A scale gets the average only roughly: 5.5% off in v₃ on the held-out
+  events. The true per-event deviation, 12%, is as large as the noise. v₃ is where shear δf
+  matters most (+25% without it), and the local shear stress differs from event to event;
+  a fixed table cannot follow that.
+- **Anything beyond single-particle distributions:** correlations between hadrons,
+  resonance-decay structure, and the forward region beyond |η_s| = 5, where the history
+  has no surface.
+
+**Correcting each event properly means restoring δf at the surface.** Give every `hist`
+cell a π^μν and Π, and let iSS apply δf as it does for MUSIC's surface. Reweighting the
+stored hadrons instead does not work: δf acts on the primary hadrons before resonance
+decays, and the hadron files hold the decay products. π^μν and Π for the `hist` cells
+could come from:
+
+- **A Navier–Stokes estimate** from the stored velocity gradients (see *Next steps*).
+- **A learned mapping** from the history around each cell (e, u and their gradients)
+  to π^μν and Π. This study already provides paired training data: for the same 100
+  events there is both the history and MUSIC's surface with π^μν and Π, about 2 × 10⁸
+  cells.
+
+This is the only way to follow v₃ and the other shear-sensitive observables event by event.
+
+**Limits of the weight table and the scales:**
+
+- They are calibrations for this setup only: 0–10% Au+Au, MUSIC's η/s(T) and ζ/s(T),
+  T_sw = 0.15, the output grid, and iSS's δf settings. Another setup needs its own ref/hist
+  pairs; `run_study.sh` makes them.
+- They hold at mid-rapidity only.
+- The flow scales come from 100 events: v₃'s closure (5.5%) is at the level of its
+  statistical precision.
+
 ## Next steps
 
 - **Restore δf from the history.** Estimate $\Pi = -\zeta\theta$ and
@@ -266,6 +341,13 @@ The figures, all tables and the per-event checks are in `hydro_hist_vs_surface.i
 - **Or store them.** Bulk δf alone accounts for most of the yield and ⟨pT⟩ error, so
   one more channel, Π, in the pair files would be the cheapest fix. Shear, for v_n, needs
   the five independent π^{μν} components.
+- **A correction tool** for the parts that one table can correct (see *Correcting the
+  history's hadrons*):
+  - per-hadron weights w(species, pT, y), plus the φ-dependent flow weight for v₂;
+  - resampling of each event's oversamples into unweighted events;
+  - a closure test on held-out events.
+- **Learn π^μν and Π on the history** from this study's paired data (the history and
+  MUSIC's surface for the same events), as an alternative to the Navier–Stokes estimate.
 - **Pin down the wake deficit.** Write the pair files on MUSIC's native grid
   (`run_prod_jet.py --native`) and run `hist` on them. That separates the resampling onto
   the output grid from the surface finding itself. `--lattice` checks the Cornelius

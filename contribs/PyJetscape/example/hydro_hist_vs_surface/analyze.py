@@ -27,6 +27,9 @@ that event's oversamples):
     Q           charged |eta| < 1, sum of exp(i n phi) for n = 1..NMAX, per PTV_EDGES bin
                 and (last column) integrated over 0.2 < pT < 3 GeV; complex
     NQ          the number of hadrons in each of those bins
+    QA, NQA     Q and NQ (integrated bin only, n = 1..NMAX) of the first half of the
+                oversamples, as sums (not per-sample means): with Q they give each event's
+                sampling noise of v_n{2} (half A against half B = all - A)
     E_eta1      energy of all hadrons at |eta| < 1 [GeV]
     N_all, E_all  all hadrons, all rapidities: number and energy
     dphi_jet    soft charged (pT < 4 GeV, |eta - y_jet| < 1): counts in DPHI_EDGES of
@@ -152,6 +155,9 @@ def unit_observables(h, u, phi_j, y_j):
                          + 1j * np.bincount(ib[inside], weights=z.imag, minlength=nb))
         Q[n - 1, nb] = z.sum()
     out["Q"], out["NQ"] = Q / ns, NQ / ns
+    half = inside & (ev.sample[sel] < ns // 2)
+    out["QA"] = np.array([np.exp(1j * n * phi[half]).sum() for n in range(1, NMAX + 1)])
+    out["NQA"] = float(half.sum())
     out["E_eta1"] = ev.E[e1].sum() / ns
     out["N_all"] = len(ev) / ns
     out["E_all"] = ev.E.sum() / ns
