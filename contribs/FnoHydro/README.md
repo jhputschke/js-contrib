@@ -41,7 +41,7 @@ The original development repository is release v0.3 (since published results bas
 
 | Dependency | Version | Notes |
 |------------|---------|-------|
-| X-SCAPE or JETSCAPE | ≥ 4.0 | Built and available; see [Path A](#path-a-via-x-scape-cmake) / [Path B](#path-b-standalone-build) |
+| X-SCAPE or JETSCAPE | ≥ 4.0 | Built and available; see [Path A](#path-a--via-x-scape-cmake) / [Path B](#path-b--standalone-build) |
 | CMake | ≥ 3.15 | |
 | ROOT | ≥ 6.20 | Must be the same ROOT used to build JETSCAPE |
 | libtorch (PyTorch C++ runtime) | ≥ 2.0 | ~2 GB download; CPU or CUDA build depending on hardware |

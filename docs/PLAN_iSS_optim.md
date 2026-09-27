@@ -7,7 +7,7 @@
 
 ## Context
 
-`hadronize.py` (`PLAN_particlize_h5.md`) samples each stored MUSIC freeze-out surface with
+`hadronize.py` ([`PLAN_particlize_h5.md`](PLAN_particlize_h5.md)) samples each stored MUSIC freeze-out surface with
 X-SCAPE's iSS. It is now the most expensive part of the hadron-level workflow: ~58 s of one CPU
 core per event (both legs, 500 oversamples, 50 fragmentations), against ~35 s of GPU hydro per
 event with both surfaces. This plan collects two independent improvements:

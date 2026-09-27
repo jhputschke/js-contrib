@@ -126,8 +126,8 @@ each in its own working directory. One run per configuration, so allow about ±5
 
 ## run_jobs.sh on macOS
 
-- **What broke:** `run_jobs.sh` (in `../prod_AuAu_0_10/`, which this folder's
-  `run_jobs.sh` wraps) kept its running jobs in an associative array (`declare -A`) and
+- **What broke:** `run_jobs.sh` (in `contribs/PyJetscape/example/prod_AuAu_0_10/`, which
+  `prod_AuAu_0_10_jet/run_jobs.sh` wraps) kept its running jobs in an associative array (`declare -A`) and
   waited with `wait -n -p`. Both need bash ≥ 5.1. macOS's `/bin/bash` is 3.2, so every
   seed was reported as FAILED and no job ran.
 - **Fix:** two indexed arrays (pids and seeds) and a reap that polls the running pids

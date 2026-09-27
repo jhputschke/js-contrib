@@ -15,7 +15,7 @@ The user mounts local source trees and performs configure/build/install themselv
 All other phases (conda env, PyTorch, ENV vars, user workflow) are identical.
 Both variants build for `linux/amd64` and `linux/arm64` via `docker buildx`.
 
-**Contrast with `PlanContainer.md`**: that plan bakes source + compiled
+**Contrast with [`PlanContainer.md`](PlanContainer.md)**: that plan bakes source + compiled
 artifacts into the image. This plan intentionally leaves the image source-free
 so developers can work against their own forks and branches.
 

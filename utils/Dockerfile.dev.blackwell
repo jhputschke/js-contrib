@@ -12,7 +12,7 @@
 #
 # This image contains only build/runtime dependencies.
 # Source trees are mounted at runtime; the user performs configure/build/install.
-# See PlanContainerDev.md for the full user workflow.
+# See ../docs/PlanContainerDev.md for the full user workflow.
 #
 # Differences from Dockerfile.dev:
 #   Phase 1 FROM:  nvidia/cuda:13.2.1-devel-ubuntu24.04  (CUDA 13.2 nvcc, sm_100 support)

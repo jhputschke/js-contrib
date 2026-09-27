@@ -275,4 +275,4 @@ and options are in [Visualization/README.md](Visualization/README.md).
 
 **Segfault on `import jetscape` after `import ROOT`**
 : Import `torch` before `jetscape` (and before any ROOT import).  See the
-  [PyJetscape README](../PyJetscape/README.md#prerequisites) for details.
+  [PyJetscape README](PyJetscape/README.md#prerequisites) for details.

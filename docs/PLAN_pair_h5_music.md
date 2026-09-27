@@ -32,7 +32,7 @@ Three things stand in the way today:
 
 **Chosen by me (from exploration):**
 - **Freeze-out convention:** PyJetscape's "frames written", stamped as
-  `freezeout_convention_id="frames_written"`. This is D1 of `FastHydro/PLAN_consolidate_h5_writer.md`.
+  `freezeout_convention_id="frames_written"`. This is D1 of [`PLAN_consolidate_h5_writer.md`](PLAN_consolidate_h5_writer.md).
 - **Same τ length for both legs:** `arr_bg.shape == arr.shape` always. PairBrowser and
   `wake_pyvista.py` require it. The τ axis grows to the longer leg, and the shorter leg's tail is 0.
 - **Background read from the framework copy.** Matter/LBT need MUSIC_1's `bulk_info`, and copying
@@ -95,7 +95,7 @@ Three things stand in the way today:
 5. **Leave alone:** X-SCAPE `KoKKos-Music-Port` stays separate, like the MUSIC4GPU Kokkos
    branches; no merges.
 6. **js-contrib:** new branch `pair_h5_music` from `main`, with the same name as the X-SCAPE branch.
-   Its first commit is this plan, archived as `contribs/PyJetscape/PLAN_pair_h5_music.md` (already
+   Its first commit is this plan, archived as `docs/PLAN_pair_h5_music.md` (already
    written, untracked). Keep it up to date as phases land.
 
 ## Phase 2: MUSIC source fix (C++)
@@ -221,8 +221,8 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
 - `--hard {pythia,pgun}` with `--pgun-pt` (PGun edits the job XML and warns that the vertex is at
   the origin), `--reuse N`, and `--no-deposit` (sets MUSIC_2 `AddLiquefier false`, for the null test).
 - It imports `load_grid_yaml`, `music_box`, `check_inside`, `describe` and `check_env` from
-  `../prod_AuAu_0_10/run_prod.py` rather than copying them. The default grid is
-  `../prod_AuAu_0_10/grid_fno.yaml`.
+  `contribs/PyJetscape/example/prod_AuAu_0_10/run_prod.py` rather than copying them. The default grid is
+  `contribs/PyJetscape/example/prod_AuAu_0_10/grid_fno.yaml`.
 - **XML guard:**
   - exactly two `<Hydro>` blocks, named MUSIC_1 and MUSIC_2.
   - the first MUSIC has `dump_hydro_only 0`, and `evolutionInMemory` is 0.

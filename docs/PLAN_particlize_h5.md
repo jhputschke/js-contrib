@@ -7,7 +7,7 @@
 
 `prod_AuAu_0_10_jet` writes background/jet hydro pairs (MUSIC_1 → Matter+LBT+CausalLiquefier →
 MUSIC_2) to FNO4d HDF5 (`jetscape.pair_h5.PairH5Writer`). FastHydro can already compare the wake
-at hadron level: it particlizes each leg with iSS (`FastHydro/PLAN_hadronization.md`,
+at hadron level: it particlizes each leg with iSS ([`FastHydro/PLAN_hadronization.md`](https://github.com/jhputschke/js-contrib/blob/ece9d53/contribs/FastHydro/PLAN_hadronization.md), retired,
 `fasthydro/particlization.py`, `example/make_hadron_wake_data.py`). We want the same for the real
 MUSIC runs, **plus the jet's own fragmentation hadrons**, without tying the hadron workflow to the
 FNO files.
@@ -24,7 +24,7 @@ Hadronization then runs offline, as often as wanted: iSS on each surface, Colorl
 |---|---|
 | iSS inside the job | One job has one iSS, wired to one hydro (`<SoftParticlization><hydro_id>`, `JetScape.cc:1020`). The background leg needs a second job, run twice over (~86 s + 2×iSS per event, against 49 s for the pair alone). iSS's hadron list (maybe millions of `shared_ptr<Hadron>`) lives in GPU jobs that already peak at 16 GB. |
 | particlize `arr`/`arr_bg` offline | No π^{μν}/Π stored → ideal Cooper–Frye on a viscous evolution. Also: output grid dx 0.3125 vs MUSIC 0.2, \|η\| < 5 vs ±11, a different surface finder, and a possible fake surface where the zero tail starts. |
-| second iSS instance in the framework | The singleton refactor `PLAN_hadronization.md` already declined. |
+| second iSS instance in the framework | The singleton refactor [`PLAN_hadronization.md`](https://github.com/jhputschke/js-contrib/blob/ece9d53/contribs/FastHydro/PLAN_hadronization.md) already declined. |
 
 ### Why stored surfaces are exact
 
@@ -35,7 +35,7 @@ Hadronization then runs offline, as often as wanted: iSS on each surface, Colorl
   No iSS runs in the job, so both legs' surfaces can be taken from the same event: same IC, no
   twin jobs, no seed matching.
 
-### RNG note (corrects `README.md`, "Seeds")
+### RNG note (corrects `contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md`, "Seeds")
 
 With `seed ≠ 0` every module gets its own mt19937, seeded from (seed, task number)
 (`JetScapeTaskSupport.cc:104-118`) and cached per module (`JetScapeModuleBase.cc:67`).
@@ -59,7 +59,7 @@ With `seed ≠ 0` every module gets its own mt19937, seeded from (seed, task num
 - **Offline hadrons are tagged by origin**: `bulk_jet`, `bulk_bg`, `jet_frag`. Jet event =
   `bulk_jet` + `jet_frag`; background = `bulk_bg`.
 - **Writer code reused**: `RaggedGroup` from `jetscape/fno_h5_writer.py` (incremental writes,
-  crash-safe, resume), as planned in Phase 5 of `FastHydro/PLAN_consolidate_h5_writer.md`.
+  crash-safe, resume), as planned in Phase 5 of [`PLAN_consolidate_h5_writer.md`](PLAN_consolidate_h5_writer.md).
 
 ## Phase 0: measure (1 event, `build_gpu`, seed 1)
 
@@ -137,7 +137,7 @@ between `ExecPerEvent()` and `ClearPerEvent()`.
 - Create `ParticlizeH5Writer` next to `PairH5Writer`. In the loop:
   `idx = writer.Exec(); pwriter.Exec(idx, bg_key=..., jetscape=...)`.
 - Add the particlize file and its event count to the summary `.json`.
-- Teach `run_jobs.sh` (via `../prod_AuAu_0_10/run_jobs.sh`) to treat a seed as complete only
+- Teach `run_jobs.sh` (via `contribs/PyJetscape/example/prod_AuAu_0_10/run_jobs.sh`) to treat a seed as complete only
   when the particlize file is also `complete`, whenever the option is set.
 - Optional, later: make `skip_surface` settable per instance with the `ReadOwnMusicBlockInt`
   pattern, so the leg without a surface stops warning every event.
@@ -280,7 +280,7 @@ Branches `surface_to_hadrons` in X-SCAPE (from `contrib`) and js-contrib (from `
   per tag is noted as an option, not written.
 - **Campaign hadronization.** `run_hadronize.py` (hadronize.py over a campaign, `-j`,
   `--follow` next to `run_jobs.sh`, which now writes `run_jobs.finished`), and
-  `hadronize.py --oversample-bg {M,auto}` (see `PLAN_iSS_optim.md`, *Related items*).
+  `hadronize.py --oversample-bg {M,auto}` (see [`PLAN_iSS_optim.md`](PLAN_iSS_optim.md), *Related items*).
   `hadronize.py` now closes its outputs as incomplete on an error, Ctrl-C or SIGTERM; before,
   its cleanup marked them complete unconditionally.
 - **Tests.** `tests/test_particlize_h5.py` (17 tests).

@@ -65,13 +65,13 @@ Original development repository:
 
 | Dependency | Version | Notes |
 |------------|---------|-------|
-| X-SCAPE or JETSCAPE | ≥ 4.0 | Built and available; see [Path A](#path-a-via-x-scape-cmake) / [Path B](#path-b-standalone-build) |
+| X-SCAPE or JETSCAPE | ≥ 4.0 | Built and available; see [Path A](#path-a--via-x-scape-cmake) / [Path B](#path-b--standalone-build) |
 | CMake | ≥ 3.18 | `FindPython3` with the `Development.Module` component |
 | Python | ≥ 3.8 | 3.11 used in the `js_fno` conda environment |
 | pybind11 | ≥ 2.11 | Build time only: `pip install pybind11` or conda; CMake stops if it is not found |
 | numpy | ≥ 1.21 | |
 | h5py | ≥ 3 | HDF5 writers and readers (`fno_h5_writer.py`, `fast_h5_bulk.py`, `pair_h5.py`); sets `jetscape.HAS_H5PY` |
-| hdf5plugin | | Blosc filter of the default compression ([README_h5_optim.md](README_h5_optim.md)). Without it the writers fall back to lzf with a warning and Blosc files cannot be read; `import jetscape` registers the filter |
+| hdf5plugin | | Blosc filter of the default compression ([README_h5_optim.md](../../docs/README_h5_optim.md)). Without it the writers fall back to lzf with a warning and Blosc files cannot be read; `import jetscape` registers the filter |
 | pyyaml | ≥ 6.0 | Grid YAML of the `prod_AuAu_0_10*` scripts (`run_prod.py`, `run_prod_jet.py`) |
 | matplotlib, scipy, pandas, ipywidgets, ipykernel, notebook | | The example notebooks (`check_output.ipynb`, `jet_wake.ipynb`); they need no X-SCAPE build |
 | — | — | All of the above are installed by `pip install -e contribs/PyJetscape`. `jetscape.HAS_CORE` reports whether the compiled extension is importable. The HDF5 tooling (`FnoH5Writer`, `grid_attrs`, `repad_to`, `read_fast_h5_bulk`) stays usable without an X-SCAPE build; `H5BulkWriter` is a framework module and raises a clear error without one. |
@@ -213,7 +213,7 @@ make -j$(nproc) pyjetscape_core
 ```
 
 Then make the package importable via PYTHONPATH or `pip install -e` as shown
-in [Path A Step 4](#path-a---via-x-scape-cmake).
+in [Path A Step 4](#path-a--via-x-scape-cmake).
 To have CMake run `pip install -e` automatically, add `-DJS_PIP_INSTALL_PYJETSCAPE=ON`.
 
 ---
@@ -584,7 +584,7 @@ is the safe form.
 ### Output
 
 ```
-/arr             (nevents, 4, nx, ny, neta, choose_ntau)  float32, Blosc-zstd (README_h5_optim.md)
+/arr             (nevents, 4, nx, ny, neta, choose_ntau)  float32, Blosc-zstd (js-contrib docs/README_h5_optim.md)
 /ntau_freezeout  (nevents,)  int32
 /tau_freezeout   (nevents,)  float32
 root attrs: nFeatures nx ny neta choose_ntau nevents            (int64)
@@ -1050,7 +1050,7 @@ A two-stage run can store what hadronization needs instead of hadrons: each leg'
 freeze-out surface and the final partons. Hadronizing them later gives exactly what iSS and
 `ColorlessHadronization` would have given inside the job (checked bit for bit). The production
 driver is `example/prod_AuAu_0_10_jet` (`run_prod_jet.py --write-particlize`, `hadronize.py`,
-see its README); the design is in `example/prod_AuAu_0_10_jet/PLAN_particlize_h5.md`. Needs
+see its README); the design is in [`docs/PLAN_particlize_h5.md`](../../docs/PLAN_particlize_h5.md) (js-contrib top level). Needs
 X-SCAPE branch `surface_to_hadrons` (seed hooks in `SoftParticlization` and
 `ColorlessHadronization`, `<JetHadronization><reseed_per_event>`).
 

@@ -4,7 +4,7 @@
 Reads the first N events of one dataset (``arr`` by default) into memory, rewrites them
 with each filter using the file's own chunk shape and the writers' access pattern (one
 tau frame per write for tau-sliced chunks, one event otherwise), reads them back, and
-checks the round trip.  The numbers in contribs/PyJetscape/README_h5_optim.md come from
+checks the round trip.  The numbers in docs/README_h5_optim.md come from
 this script.
 
     python utils/h5_compression_bench.py FILE.h5 [--events 2] [--key arr_bg]

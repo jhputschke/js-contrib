@@ -27,7 +27,7 @@
 # this campaign, so their kernels share the GPU instead of being time-sliced; stopped again
 # at the end, also on Ctrl-C.  Output is bit-identical.  prod_AuAu_0_10_jet on the GB10
 # (events/h): -j 3 155 -> 163, -j 4 159 -> 179 with --mps; no gain for -j 1.  See
-# ../prod_AuAu_0_10_jet/BENCHMARK_GB10.md.  The daemon's socket directory must have a short
+# ../../../../docs/BENCHMARK_GB10.md.  The daemon's socket directory must have a short
 # path (~100 characters for its UNIX sockets): $MPS_DIR, default
 # ${XDG_RUNTIME_DIR:-/tmp}/xscape-mps.<pid>.
 #
@@ -35,7 +35,7 @@
 # the OpenMP threads oversubscribe them and -j 3 gains nothing: prod_AuAu_0_10_jet on an
 # M3 Max (16 cores), events/h: -j 1 132; -j 3 148 by default, 213 with
 #   OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 ...
-# (OMP_NUM_THREADS ~ cores / P).  See ../prod_AuAu_0_10_jet/BENCHMARK_M3MAX.md.  The
+# (OMP_NUM_THREADS ~ cores / P).  See ../../../../docs/BENCHMARK_M3MAX.md.  The
 # script runs under macOS's bash 3.2.
 #
 # A failed job is logged and the others continue; re-run just that seed later.

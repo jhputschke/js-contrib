@@ -35,6 +35,11 @@ python utils/h5_inspect.py FILE.h5 --stats [--event 0]              # per-featur
 python utils/h5_inspect.py FILE.h5 --attr prod_user_xml             # one attribute in full
 ```
 
+### Design notes and benchmarks
+
+[`docs/`](docs/README.md) holds the plans behind the HDF5 writers and the productions, the
+GB10 and Apple M3 Max benchmarks, the HDF5 compression study and the container plans.
+
 ## Source provenance
 
 The source files in this repository were copied from

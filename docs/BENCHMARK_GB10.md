@@ -267,7 +267,7 @@ Identified from the first profile ("before" column):
 
 ### Applied (branches `hydro_data_optim`)
 
-Improvements 1 and 2 are implemented; 3 is on hold. What omitting it would entail is under [README.md, Potential next steps](README.md#potential-next-steps).
+Improvements 1 and 2 are implemented; 3 is on hold. What omitting it would entail is under [the prod_AuAu_0_10_jet README, Potential next steps](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#potential-next-steps).
 
 - **js-contrib** `e3101fd`: `resample` as three separable matrix-product passes
   (eta, y, x) over all features of a source frame.
@@ -449,7 +449,7 @@ open at file position 0.
 **Why it matters for production:** `run_jobs.sh -j P` launches all P jobs at the same
 moment, so the start of a campaign is exactly when this happens. Later jobs start one at
 a time, as others finish, so they are much less exposed. The single-leg `-j 2`
-measurement in `../prod_AuAu_0_10/README.md` just didn't hit it.
+measurement in [`prod_AuAu_0_10/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10/README.md) just didn't hit it.
 
 **Workaround used here:** start the jobs 20 s apart. Every run after that completed,
 including 4 jobs. `music_input` itself was left intact: it only ever gets the same

@@ -86,7 +86,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def add_h5_args(p: argparse.ArgumentParser) -> None:
-    """--compression / --keep-bits for the HDF5 writers; see ../../README_h5_optim.md."""
+    """--compression / --keep-bits for the HDF5 writers; see ../../../../docs/README_h5_optim.md."""
     p.add_argument("--compression", default="blosc-zstd", metavar="SPEC",
                    help="HDF5 filter for the evolutions: blosc-zstd (default), blosc-lz4 "
                         "(fastest write), lzf (the old default), gzip[:N], none, or "

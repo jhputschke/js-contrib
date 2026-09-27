@@ -23,13 +23,13 @@ same initial condition, and before the first droplet deposits they are bit-ident
 > `pair_h5_music_surface_off` and MUSIC4GPU branch `XSCAPE_surface_off`.
 >
 > Without the slot, MUSIC_2 silently ignores the droplets, and the writer then warns that the
-> jet leg is identical to the background. Plan and status: `../../PLAN_pair_h5_music.md`.
+> jet leg is identical to the background. Plan and status: [`PLAN_pair_h5_music.md`](../../../../docs/PLAN_pair_h5_music.md).
 >
 > **Hadron level (2026-09-26, branches `surface_to_hadrons` in X-SCAPE and js-contrib).**
 > `--write-particlize` stores both freeze-out surfaces and the final partons next to the pair;
 > `hadronize.py` turns them into iSS and Colorless hadrons offline, bit-identical to running
 > them inside the job. See [Hadron level](#hadron-level-surfaces-partons-hadronizepy) and
-> `PLAN_particlize_h5.md`.
+> [`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md).
 
 | file | purpose |
 |---|---|
@@ -38,11 +38,15 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
 | `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
-| `paired_noise.py` | noise of jet − background per oversample, independent vs correlated legs (`--correlated`), and each leg's physics in both modes (`PLAN_iSS_optim.md`, Part B) |
+| `paired_noise.py` | noise of jet − background per oversample, independent vs correlated legs (`--correlated`), and each leg's physics in both modes ([`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md), Part B) |
 | `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
-| `PLAN_particlize_h5.md` | design, decisions and validation of the hadron-level path |
-| `PLAN_iSS_optim.md` | for later: faster iSS (bit-identical) and correlated jet/background sampling |
+
+Design notes and measurements are in [js-contrib `docs/`](../../../../docs/README.md): the hadron-level path
+([`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md)), faster iSS and correlated
+jet/background sampling ([`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md)), and the machine
+settings ([`BENCHMARK_GB10.md`](../../../../docs/BENCHMARK_GB10.md),
+[`BENCHMARK_M3MAX.md`](../../../../docs/BENCHMARK_M3MAX.md)).
 
 The grid YAMLs (`../prod_AuAu_0_10/grid_fno.yaml` by default) and all grid and environment
 checks are shared with the single-leg production. Pair files and single-leg files made with
@@ -74,12 +78,12 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
 ./run_jobs.sh -j 4 --mps 20 25 0                             # 4 at a time, GPU shared via CUDA MPS
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both   # + hadronization input
 
-# GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (BENCHMARK_GB10.md)
+# GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (../../../../docs/BENCHMARK_GB10.md)
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 --campaign pth50     # named campaign
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1                      # seeds 1..20
 
-# macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (BENCHMARK_M3MAX.md)
+# macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (../../../../docs/BENCHMARK_M3MAX.md)
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 0
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 0 --campaign pth50
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 1
@@ -116,8 +120,8 @@ not built into the scripts):
 
 | machine | campaign | events/h | memory | one job alone | details |
 |---|---|---|---|---|---|
-| GB10 (CUDA, 20 cores, 121 GB) | `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps ...` | ~190 | ~66 GB | defaults (all threads), 118 events/h | [BENCHMARK_GB10.md](BENCHMARK_GB10.md) |
-| Apple M3 Max (Metal, 16 cores, 64 GB) | `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 ...` | 213 | ~40 GB | defaults, 132 events/h | [BENCHMARK_M3MAX.md](BENCHMARK_M3MAX.md) |
+| GB10 (CUDA, 20 cores, 121 GB) | `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps ...` | ~190 | ~66 GB | defaults (all threads), 118 events/h | [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md) |
+| Apple M3 Max (Metal, 16 cores, 64 GB) | `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 ...` | 213 | ~40 GB | defaults, 132 events/h | [BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md) |
 
 - **Several jobs at once:** set `OMP_NUM_THREADS` to about cores / jobs, otherwise the jobs'
   OpenMP threads oversubscribe the cores.
@@ -129,7 +133,7 @@ not built into the scripts):
   on the GB10; 43.0 s before MUSIC4GPU `5058545` parallelized the surface finder) and needs
   +0.5 GB. The campaign throughput with it has not been measured.
 - **On another machine,** re-measure as described in
-  [Finding the settings on another machine](BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
+  [Finding the settings on another machine](../../../../docs/BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
 
 Each job writes the following, next to each other. The stem is `AuAu_0_10_jet_seedNNNN` for
 an explicit `--seed` (`AuAu_0_10_jet_<campaign>_seedNNNN` with `--campaign`), and
@@ -221,7 +225,7 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out     # 20 jobs x 25 events
 ```
 
 On the GB10, `OMP_NUM_THREADS=5 ... -j 4 --mps` gives about 190 events/h
-([BENCHMARK_GB10.md](BENCHMARK_GB10.md); on macOS see the Metal line under *Run*). No
+([BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md); on macOS see the Metal line under *Run*). No
 freeze-out surface is built (`--surface none`, the default), which is the fastest setting.
 
 ### B. Hydro pairs + hadronization input
@@ -477,7 +481,7 @@ the reader above makes it unnecessary for analysis.
 | A: hydro pair (`grid_fno.yaml`, Blosc-zstd) | 29.5 s alone; ~190 events/h with `-j 4 --mps` | 285 MB |
 | B: + `--write-particlize both` | 34.6–35.3 s alone (+5.4 s: MUSIC builds and hands over the two surfaces; +13.5 s before MUSIC4GPU `5058545`); `-j` throughput not measured | + 154 MB |
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
-| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before `PLAN_iSS_optim.md` Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8` |
+| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before [`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md) Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8` |
 
 Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` ~1.4 GB per surface
 up to ~1000 oversamples (1.6 GB for both legs), 1.7 GB at 2000 (it was 2.5 GB at 500 and
@@ -542,7 +546,7 @@ python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
 ## Hadron level: surfaces, partons, `hadronize.py`
 
 The hydro pair stops at the fluid. To compare the wake in hadrons, the job stores the
-**input** to hadronization, not hadrons, and hadronization runs later (`PLAN_particlize_h5.md`
+**input** to hadronization, not hadrons, and hadronization runs later ([`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md)
 has the reasons and the alternatives):
 
 ```bash
@@ -618,10 +622,10 @@ unit with no samples.
   extra GPU→host copies 1.2 s, the hand-off and the write ~1.4 s). With the serial surface
   finder of MUSIC4GPU before `5058545` it was 43.0 s (+13.5 s, ~9.6 s of it the search).
   The surfaces are bit-identical either way, apart from the pressure column (see
-  `PLAN_particlize_h5.md`, *Surface finder*). Peak memory
+  [`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md), *Surface finder*). Peak memory
   +0.5 GB.
 - `hadronize.py`: ~6 s per surface for 100 iSS oversamples and ~8 s for 500 on one core
-  (~20 s and ~30 s before `PLAN_iSS_optim.md` Part A); Colorless is negligible.
+  (~20 s and ~30 s before [`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md) Part A); Colorless is negligible.
 - **Exact.** A `--validate-inline` job (2 events, 100 oversamples) and
   `hadronize.py --use-stored-seeds` on its particlize file give bit-identical hadrons:
   1,710,050 iSS hadrons and all Colorless fragments.
@@ -629,7 +633,7 @@ unit with no samples.
 **Things to know:**
 - **Colored jet hadronization is not supported** for this setup: LBT assigns no colour tags and
   the liquefier removes partons from colour chains. `hadronize.py --diagnose-colored` measures
-  it; `PLAN_particlize_h5.md` has the details.
+  it; [`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md) has the details.
 - **pstat decides what is fragmented.** Colorless takes 0 (shower), 1 (recoil), 22 and −1.
   Partons the liquefier absorbed (−11), absorbed holes (−17) and the momentum missing at a
   vertex (−13) went into the droplets, so they are never hadronized twice. In the seed-1 event
@@ -696,16 +700,16 @@ unit with no samples.
     events/h and `-j 3 --mps` 163. **On the GB10,
     `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps …` gives ~190 events/h** (recommended,
     ~66 GB). These are machine-specific: see "Recommended settings" in
-    [BENCHMARK_GB10.md](BENCHMARK_GB10.md) for how to find them elsewhere. Jobs no longer need to be staggered: each
+    [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md) for how to find them elsewhere. Jobs no longer need to be staggered: each
     runs in its own working directory (see
     [`../prod_AuAu_0_10/README.md`](../prod_AuAu_0_10/README.md)). Details, profile and
-    the former startup hang: [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
+    the former startup hang: [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md).
   - **Apple M3 Max (Metal, 16 cores, 64 GB):** 26.1 / 28.7 s per event for seed 1, one
     job ~132 events/h. Several jobs at once only pay off with the cores split between
     them: **`OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3
     …` gives 213 events/h (1.61×, recommended, ~40 GB)**, and `-j 4` with
     `OMP_NUM_THREADS=4` 221. With the default settings `-j 3` gives only 148 and `-j 4`
-    129. `--mps` is CUDA-only. Details: [BENCHMARK_M3MAX.md](BENCHMARK_M3MAX.md).
+    129. `--mps` is CUDA-only. Details: [BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md).
 
 ## Checks before a campaign
 
@@ -742,7 +746,7 @@ in-job hadrons it compares against are full precision.
 
 ### Switch off MUSIC's momentum-anisotropy output
 
-On hold. Measured in [BENCHMARK_GB10.md](BENCHMARK_GB10.md).
+On hold. Measured in [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md).
 
 **What the code does now.** MUSIC4GPU writes these diagnostics unconditionally
 (`evolve.cpp:202`, `Cell_info::output_momentum_anisotropy_vs_etas` in `grid_info.cpp`).

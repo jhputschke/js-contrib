@@ -102,7 +102,7 @@ Each decision has a recommendation. Record the choice in this file before starti
 
 - FNO4d: new branch `h5_writer_consolidation` from `main`.
 - js-contrib: new branch `h5_writer_consolidation` from `fasthydro_hadronization`, which
-  carries the FastHydro particlization and `PLAN_hadronization.md`. Merge order: FNO4d first,
+  carries the FastHydro particlization and [`PLAN_hadronization.md`](https://github.com/jhputschke/js-contrib/blob/ece9d53/contribs/FastHydro/PLAN_hadronization.md) (retired). Merge order: FNO4d first,
   then re-sync, then js-contrib.
 - X-SCAPE core: no changes expected. The C++ writers keep their ROOT output.
 

@@ -23,7 +23,8 @@ wake.
 - [`tests/`](tests/) — gates for the wake reader (`pytest tests -q`; no GPU needed).
 - [`config/`](config/) — bundled example MUSIC configs (`OO_one_event.xml`,
   `OO_one_event_jet.xml`).
-- [`PlanVisualization.md`](PlanVisualization.md) — the design plan.
+- The design plan, `PlanVisualization.md`, is retired; it is in the
+  [git history](https://github.com/jhputschke/js-contrib/blob/ece9d53/contribs/Visualization/PlanVisualization.md).
 
 ## Environment
 

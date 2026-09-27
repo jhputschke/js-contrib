@@ -40,7 +40,7 @@ On macOS, `run_jobs.sh` runs under the system bash (3.2). `--mps` is CUDA-only. 
 `-j` > 1, split the cores between the jobs, e.g. `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive
 KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 …` on a 16-core M3 Max. Without that, the jobs' OpenMP
 threads oversubscribe the cores. For the jet production this took `-j 3` from 148 to 213
-events/h ([BENCHMARK_M3MAX.md](../prod_AuAu_0_10_jet/BENCHMARK_M3MAX.md)). This
+events/h ([BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md)). This
 production's concurrency was not measured on the Mac.
 
 **Working directory.** Each job runs in its own working directory, `OUTDIR/work/<tag>`, and
@@ -102,7 +102,7 @@ Measured on the GB10 (build_gpu, music4gpu CUDA): about **25 s and about 200 MB 
 event** on the default grid (about 95 MB with `grid_x10_eta2p5.yaml`), with a peak RSS of
 about 4.4 GB. The output grid barely changes the run time; MUSIC dominates. The default
 compression is now Blosc-zstd, about 1.4x smaller than those lzf sizes, and
-`--keep-bits 12` halves that again ([README_h5_optim.md](../../README_h5_optim.md)).
+`--keep-bits 12` halves that again ([README_h5_optim.md](../../../../docs/README_h5_optim.md)).
 
 The XML now sets `<freeze_out_surface>0`: MUSIC builds no freeze-out surface, which a
 hydro-only dump never uses, and stops on the equivalent max(e) < e_fo test instead. That

@@ -34,7 +34,7 @@ evolution data was written the way the writers write it: tau-sliced chunks one t
 at a time, and whole-event chunks one event at a time. Reads came from the page cache,
 so they measure decompression plus HDF5's copy into the output array, not disk speed.
 Every lossless filter was checked to round-trip bit for bit. To reproduce:
-[`utils/h5_compression_bench.py`](../../utils/h5_compression_bench.py).
+[`utils/h5_compression_bench.py`](../utils/h5_compression_bench.py).
 
 ### Lossless filters
 
