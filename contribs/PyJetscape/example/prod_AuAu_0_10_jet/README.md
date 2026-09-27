@@ -246,6 +246,8 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--correlated-block DTAU,DX,DETA` | its block size (default 0.5 fm/c, 1 fm, 0.5): the gain is flat from 0.25 to 1 |
 | `--common-seeds` | only the seeds of `--correlated`: with iSS's conventional sampling the legs decorrelate at the first hadron, so no gain alone (the null test) |
 | `--keep-bits-p B`, `--keep-bits-x B` | round the hadrons' momenta `p` and positions `x` to `B` float32 mantissa bits (1–23; default: full precision). `12` and `8` store 58% of the bytes. Set once per campaign (below) |
+| `--add-initiators` | only add `initiators/` (each event's shower-initiating partons, from the pair file) to existing `bulk_jet` / `jet_frag` outputs, without hadronizing again: for files made before hadronize.py copied them. `--force` replaces an existing group |
+| `--no-initiators` | don't copy the initiators (by default they are copied whenever the pair file is next to the particlize file) |
 
 #### Hadron precision (`--keep-bits-p`, `--keep-bits-x`)
 
@@ -377,7 +379,10 @@ The callables receive an `EventHadrons` (`pid`, `pstat`, `p`, `x`, `E`, `px`, `p
 `pt`, `eta`, `y`, `phi`, `charged`, `sample`, `n_samples`, `species()`: all samples of that
 tag for that event) and an `EventInfo` (`event`, `stem`, `local_event`, `bg_unit`, `seed`,
 `initiators()`). `values` may return a tuple for an N-d histogram. `initiators()` reads the
-pair file's `shower/` group, so keep the pair files next to the particlize files.
+`initiators/` group `hadronize.py` copies into `bulk_jet` and `jet_frag`, so an analysis needs
+only the particlize and hadron files. For hadron files without it, it falls back to the pair
+file's `shower/` group (next to the particlize file); `hadronize.py --add-initiators` adds the
+group to such files.
 
 **Option if needed: merging into single files.** A campaign could also be merged into one
 file per tag (`merge_hadrons.py`, not written). It would concatenate the units, shift the
@@ -487,6 +492,10 @@ read with `Hadrons.from_h5`):
 
 Each file keeps every sample apart (`sample_offsets`, `unit_offsets`), so averages are over
 oversamples of one event, with compound-Poisson errors (`Hadrons.hist`, `Hadrons.total`).
+`bulk_jet` and `jet_frag` also carry `initiators/data` `(K, 11)` + `initiators/offsets`: each
+event's shower-initiating partons (`shower, pid, pstat, px, py, pz, E, x, y, z, t`), copied from
+the pair file's `shower/initiators` (`HadronFile.initiators(event)`). Without the pair file
+they are written without it, with a warning.
 `p` and `x` are full float32 unless `--keep-bits-p/-x` rounded them; the precision is
 recorded per dataset (see [Hadron precision](#hadron-precision---keep-bits-p---keep-bits-x)).
 

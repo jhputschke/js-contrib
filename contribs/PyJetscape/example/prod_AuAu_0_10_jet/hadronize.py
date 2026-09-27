@@ -15,6 +15,7 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
     python hadronize.py P.h5 --diagnose-colored         # colour-flow diagnostic only
     python hadronize.py P.h5 --skip-complete            # campaigns: only what is missing
     python hadronize.py P.h5 --keep-bits-p 12 --keep-bits-x 8   # rounded p, x: 58% of the bytes
+    python hadronize.py P.h5 --add-initiators           # older outputs: add initiators/ only
 
 Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_h5):
 
@@ -25,6 +26,13 @@ Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_
 A jet event is bulk_jet + jet_frag; its background is bulk_bg unit ``events/bg_unit`` of
 the particlize file (units/event in the bulk_bg file is the first event that used it).
 Oversamples of one event are samples of that event, not new events: average over them.
+
+Initiators.  bulk_jet and jet_frag also get ``initiators/``: each event's shower-initiating
+partons, copied from the pair file's ``shower/initiators`` (the particlize file's
+``pair_file``, looked up next to it).  Jet-relative analyses (HadronFileReader's
+``info.initiators()``) then need only the particlize and hadron files, not the pair file with
+the hydro.  Without the pair file the outputs are written without them, with a warning.
+--add-initiators adds the group to existing outputs without hadronizing again.
 
 Seeds.  Every unit gets its own seed, derived from (--seed, tag, unit, sample), and it is
 recorded in ``units/seed``: any unit can be regenerated alone.  --use-stored-seeds takes
@@ -132,6 +140,12 @@ def parse_args(argv=None):
     p.add_argument("--keep-bits-x", type=_mantissa_bits, default=None, dest="keep_bits_x",
                    help="round the positions x = (t, x, y, z) likewise; 8 bits: <= 2e-3, "
                         "i.e. <= 0.03 fm at 15 fm (MUSIC's cells are 0.2 fm)")
+    p.add_argument("--no-initiators", action="store_true", dest="no_initiators",
+                   help="do not copy the pair file's shower initiators into bulk_jet and "
+                        "jet_frag (initiators/)")
+    p.add_argument("--add-initiators", action="store_true", dest="add_initiators",
+                   help="only add initiators/ to the existing bulk_jet and jet_frag outputs "
+                        "(no hadronization; --force replaces an existing group)")
     p.add_argument("--out-dir", default=None, dest="out_dir",
                    help="output directory (default: next to the input)")
     p.add_argument("--hadronize-xml", default=os.path.join(HERE, "hadronize.xml"),
@@ -228,6 +242,28 @@ def _complete(path):
         return False
 
 
+def read_initiators(pf, particlize):
+    """``(data, offsets)`` of the shower initiators in the pair file next to ``particlize``,
+    or None (with a warning) when there is no pair file or it does not match."""
+    from jetscape.hadrons_h5 import pair_initiators
+
+    pair = pf.attrs.get("pair_file")
+    path = os.path.join(os.path.dirname(particlize), str(pair)) if pair else None
+    try:
+        found = pair_initiators(path, nevents=pf.nevents)
+    except ValueError as err:
+        found, why = None, str(err)
+    else:
+        why = (f"pair file {path} not found" if path and not os.path.exists(path)
+               else f"{path} has no shower/initiators" if path
+               else "the particlize file names no pair_file")
+    if found is None:
+        print(f"hadronize.py: WARNING -- no shower initiators ({why}): bulk_jet and "
+              "jet_frag are written without initiators/, so jet-relative analyses will need "
+              "the pair file", file=sys.stderr)
+    return found
+
+
 def event_range(spec, n):
     if not spec:
         return list(range(n))
@@ -283,8 +319,8 @@ def main(argv=None):
         setattr(a, k, os.path.abspath(getattr(a, k)))
     keep_bits = {"p": a.keep_bits_p, "x": a.keep_bits_x}
 
-    from jetscape import pyjetscape_core as core
-    from jetscape.hadrons_h5 import HadronH5Writer, _keep_bits_map, hadron_precision
+    from jetscape.hadrons_h5 import (INITIATOR_TAGS, HadronH5Writer, _keep_bits_map,
+                                     add_initiators, hadron_precision)
     from jetscape.particlize_h5 import ParticlizeFile
 
     pf = ParticlizeFile(a.particlize)
@@ -294,6 +330,24 @@ def main(argv=None):
     out_dir = os.path.abspath(a.out_dir or os.path.dirname(a.particlize))
     os.makedirs(out_dir, exist_ok=True)
     events = event_range(a.events, pf.nevents)
+    want_ini = (not a.no_initiators and not a.diagnose_colored and a.colored_event is None
+                and any(t in INITIATOR_TAGS for t in tags))
+    ini = read_initiators(pf, a.particlize) if want_ini else None
+    if a.add_initiators:
+        if ini is None:
+            sys.exit("hadronize.py: --add-initiators: no initiators to add (see above)")
+        for t in [t for t in tags if t in INITIATOR_TAGS]:
+            path = os.path.join(out_dir, f"{stem}_hadrons_{t}.h5")
+            if not os.path.exists(path):
+                print(f"hadronize.py: {os.path.basename(path)}: missing, skipped")
+            elif add_initiators(path, *ini, force=a.force):
+                print(f"hadronize.py: {os.path.basename(path)}: initiators/ added")
+            else:
+                print(f"hadronize.py: {os.path.basename(path)}: has initiators/ already "
+                      "(--force replaces them)")
+        return 0
+
+    from jetscape import pyjetscape_core as core
     if a.diagnose_colored and a.colored_event is None:
         return diagnose_colored(a, pf, events, out_dir, stem)
     if a.colored_event is not None:
@@ -433,6 +487,7 @@ def main(argv=None):
         else:
             n = oversample
         writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n, keep_bits=keep_bits,
+                                    initiators=ini is not None and t in INITIATOR_TAGS,
                                     attrs=dict(common, **extra, generator=(
                                         "ColorlessHadronization (X-SCAPE)" if t == "jet_frag"
                                         else "iSS (X-SCAPE iSpectraSamplerWrapper)")))
@@ -458,6 +513,9 @@ def main(argv=None):
                                f"{n_samples} were asked for")
         return h, used
 
+    def initiators_of(e):
+        return None if ini is None else ini[0][int(ini[1][e]):int(ini[1][e + 1])]
+
     t0 = time.time()
     finished = False
     bg_done = set()
@@ -474,8 +532,9 @@ def main(argv=None):
                     seed = unit_seed(a.seed, "bulk_jet", e)
                 cells = pf.surface_unit("jet", e)
                 h, used = run_iss(cells, seed, oversample)
-                writers["bulk_jet"].append_unit(h if h is not None else [], unit=e, event=e,
-                                                seed=used, n_cells=len(cells))
+                writers["bulk_jet"].append_unit(h if h is not None else [], initiators_of(e),
+                                                unit=e, event=e, seed=used,
+                                                n_cells=len(cells))
                 msg.append(f"bulk_jet {0 if h is None else len(h['pid'])} hadrons")
             if "bulk_bg" in tags:
                 u = int(pf.events("bg_unit")[e])
@@ -500,8 +559,8 @@ def main(argv=None):
                              ("pid", "pstat", "p", "x")}
                     samples.append(d)
                     seeds.append(seed)
-                writers["jet_frag"].append_unit(samples, unit=e, event=e, seed=seeds[0],
-                                                n_partons=len(partons))
+                writers["jet_frag"].append_unit(samples, initiators_of(e), unit=e, event=e,
+                                                seed=seeds[0], n_partons=len(partons))
                 msg.append(f"jet_frag {sum(len(d['pid']) for d in samples) / n_frag:.1f}"
                            "/sample")
             print("  " + ", ".join(msg), flush=True)
