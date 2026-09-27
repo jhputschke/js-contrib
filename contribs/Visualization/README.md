@@ -10,7 +10,8 @@ resamples it into **Cartesian lab spacetime** `(t, x, y, z)`. The companion
 [`hydro_jet_pyvista.py`](hydro_jet_pyvista.py) overlays the **jet parton shower**
 in that same `(t,x,y,z)` frame, and [`wake_pyvista.py`](wake_pyvista.py) puts the
 no-jet, with-jet and difference evolutions **side by side** to isolate the jet
-wake.
+wake. [`hydro_jet_particles_pyvista.py`](hydro_jet_particles_pyvista.py) follows one
+production event past freeze-out, into its **hadrons**.
 
 ## Files
 
@@ -20,7 +21,10 @@ wake.
   shower** as accumulating arrows (see [Jet overlay](#jet-overlay)).
 - [`wake_pyvista.py`](wake_pyvista.py) — the **jet wake**, three panels side by side
   from one FastHydro file (see [Jet wake](#jet-wake)).
-- [`tests/`](tests/) — gates for the wake reader (`pytest tests -q`; no GPU needed).
+- [`hydro_jet_particles_pyvista.py`](hydro_jet_particles_pyvista.py) — medium + deposit,
+  the shower, and then the **bulk and jet hadrons** of a `prod_AuAu_0_10_jet` event (see
+  [Hadrons after freeze-out](#hadrons-after-freeze-out)).
+- [`tests/`](tests/) — gates for the wake reader and the hadron overlay (`pytest tests -q`; no GPU needed).
 - [`config/`](config/) — bundled example MUSIC configs (`OO_one_event.xml`,
   `OO_one_event_jet.xml`).
 - The design plan, `PlanVisualization.md`, is retired; it is in the
@@ -172,6 +176,92 @@ Options: `--panels bg,jet,diff` (any subset, in display order), `--event`,
 `--diff-cmap`, `--diff-clim`, `--diff-pct`, `--no-jet`, plus everything
 `hydro_jet_pyvista.py` accepts. Resampling runs once per panel, so three panels cost
 three times one — keep `--nt` small while iterating.
+
+## Hadrons after freeze-out
+
+[`hydro_jet_particles_pyvista.py`](hydro_jet_particles_pyvista.py) draws one event of a
+[`prod_AuAu_0_10_jet`](../PyJetscape/example/prod_AuAu_0_10_jet) production from the hard
+scattering to the free-streaming hadrons. It is the `jet` panel of `wake_pyvista.py`
+(medium + deposit, `arr`) with the shower, followed past freeze-out. There is no wake
+difference, and the background leg (`arr_bg`, `*_hadrons_bulk_bg.h5`) is not used.
+
+```bash
+python hydro_jet_particles_pyvista.py \
+    --file ../PyJetscape/example/prod_AuAu_0_10_jet/out/AuAu_0_10_jet_seed0001.h5 \
+    --nt 60 --z-oversample 3 --movie jet_particles.mp4
+```
+
+It reads the pair file `<stem>.h5` and the two hadron files `hadronize.py` writes next
+to it:
+
+| file | drawn as |
+|---|---|
+| `<stem>_hadrons_bulk_jet.h5` | iSS on the jet leg's surface (bulk + wake): small pale points |
+| `<stem>_hadrons_jet_frag.h5` | the jet's fragmentation: large points coloured by pT, on the partons' scale |
+
+**One oversample is drawn.** Both files hold many independent samplings of the same
+event (500 Cooper-Frye samples and 50 fragmentations in the test production). By default
+one of each is picked at random. The run prints which ones it took (`reproduce with
+--sample K --frag-sample J`), and `--rng-seed` makes the choice reproducible.
+
+**Bulk hadrons** appear at the space-time point iSS recorded for them: the freeze-out
+cell, or the decay vertex for a resonance daughter. After that they move in straight
+lines at `v = p/E`. Only final-state hadrons are stored, so a resonance is not drawn
+between its emission and its decay. Many hadrons are produced after the last frame and
+never appear, and the run counts them. On the test event that is 4925 of 8006 at
+t = 19.2 fm/c: 617 are daughters of long-lived parents (weak and electromagnetic decays,
+which iSS places at t ≈ 1e10 fm/c), and the rest are emitted far along the beam, since
+t = τ cosh η_s. Use `--hadron-eta-max` to restrict the picture to mid-rapidity.
+
+**Jet hadrons have no position**, because Pythia's string fragmentation writes x = 0.
+They are drawn on straight lines from the hard vertex, which comes from the hadron files'
+`initiators/` (or the pair file's `shower/` for older hadron files). They appear from
+`--frag-time` on, at which point the parton arrows are switched off. The default
+`--frag-time` is the shower's last vertex (13.2 fm/c on the test event), when the shower
+stops changing. At |v| ≈ 1 this puts the hadrons about where the leading partons are,
+but it is only a picture: the deflections in the medium are not in it.
+
+**Formation times (`--formation-tau0`).** Having all jet hadrons appear at once
+matches how the event is made: X-SCAPE hadronizes once, after the whole shower, and
+`ColorlessHadronization` passes Pythia only momenta and colours. It is not how hadrons
+form. (`tau0Max` in `hadronize.xml` is Pythia's decay cut, `ParticleDecays:tau0Max`,
+not a formation time.) In the inside-outside picture a hadron forms at lab time
+τ₀·E/m, so soft fragments appear first and the leading ones last. At τ₀ = 1 fm/c, a
+10 GeV pion forms at about 70 fm/c. `--formation-tau0 TAU0` gives each jet hadron its own
+appearance time:
+
+    t_on = max(--frag-time, t_vertex + TAU0 · E/m)
+
+`--frag-time` stays a floor, since hadrons form after the shower is over; `--frag-time 0`
+removes it. The mass comes from a table by species, because mantissa-rounded momenta
+make E² − p² useless at high E. It is never below the pion mass, so photons and leptons
+from Pythia's decays count as pions. The file does not link a hadron to the partons it
+came from (Pythia's strings mix them), so no single parton can disappear when "its"
+hadron forms. Instead, in this mode the whole shower stays on until the last drawn
+hadron has formed (`--parton-off formed`); `--parton-off frag` switches it off at
+`--frag-time`. On the seed-1 event (fragmentation 31, τ₀ = 1, no floor), formation times
+run from 0.5 fm/c, with a median of 6.9, up to 110.5 fm/c. The run prints them and the
+`--t-max` that would show every hadron:
+
+```bash
+python hydro_jet_particles_pyvista.py --file ...seed0001.h5 \
+    --formation-tau0 1 --frag-time 0 --t-max 40 --azimuth -55 --movie jet_formation.mp4
+```
+
+The animation runs from t = 0 to `max(frag-time, τ_max) + --stream-time` (default
+6 fm/c). The medium box stays the one `hydro_jet_pyvista.py` uses, so the hadrons fly
+out of it. The camera frames the jets where the shower ends, in both modes. The
+labelled grid is held at the box: without that, pyvista re-fits it to
+every actor's bounds, and the growing hadron cloud looks like a zoom. The camera is the
+usual beam view, so a dijet whose axis points at the camera looks foreshortened (the
+seed-1 test event does). Turn the view with `--azimuth`, e.g. `--azimuth -55`.
+
+Options: `--event`, `--sample`, `--frag-sample`, `--rng-seed`, `--frag-time`,
+`--formation-tau0`, `--parton-off`, `--stream-time`, `--hadron-eta-max`, `--hadron-pt-min`, `--bulk-color`, `--bulk-size`,
+`--bulk-opacity`, `--frag-size`, `--no-jet` (hides the partons, keeps the jet hadrons),
+`--no-bulk`, `--no-frag`, `--hadron-stem` (for hadron files kept elsewhere), and
+`--eos-table`, plus everything `hydro_jet_pyvista.py` accepts. `--vtk-dir` writes the
+medium only.
 
 ## Usage
 
