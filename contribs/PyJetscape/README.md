@@ -836,7 +836,7 @@ python run_prod_jet.py --events 1 --seed 1 --no-deposit   # null test: arr == ar
 python run_prod_jet.py --events 10 --seed 1               # PythiaGun, pTHat 50-70 GeV
 python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
 python run_prod_jet.py --events 30 --seed 1 --reuse 3     # one background per 3 jets
-./run_jobs.sh -j 2 20 25 1                                # 20 jobs x 25 events
+./run_jobs.sh -j 2 20 25 0                                # 20 jobs x 25 events, unique seeds
 ```
 
 See that folder's `README.md` for all options. From Python, the writer is attached after

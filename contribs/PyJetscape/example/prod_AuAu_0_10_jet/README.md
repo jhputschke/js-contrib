@@ -68,16 +68,17 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50    # every particl
 python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
        --keep-bits-p 12 --keep-bits-x 8       # hadrons rounded: 58% of the disk (campaigns, see B)
 
-./run_jobs.sh 20 25 1                                        # 20 jobs x 25 events
-./run_jobs.sh -j 2 20 25 1 out_pgun --hard pgun
-./run_jobs.sh -j 4 --mps 20 25 1                             # 4 at a time, GPU shared via CUDA MPS
-./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both   # + hadronization input
+./run_jobs.sh 20 25 0                                        # 20 jobs x 25 events, unique seeds
+./run_jobs.sh --campaign pth50 20 25 0                       # the same, files named ..._pth50_00NN
+./run_jobs.sh -j 2 20 25 0 out_pgun --hard pgun
+./run_jobs.sh -j 4 --mps 20 25 0                             # 4 at a time, GPU shared via CUDA MPS
+./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both   # + hadronization input
 
 # GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (BENCHMARK_GB10.md)
-OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0
 
 # macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (BENCHMARK_M3MAX.md)
-OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 1
+OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 0
 ```
 
 **Recommended campaign settings** (measured, hydro pairs only; machine-specific, so they are
@@ -100,27 +101,50 @@ not built into the scripts):
 - **On another machine,** re-measure as described in
   [Finding the settings on another machine](BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
 
-Each job writes the following, next to each other:
-- `AuAu_0_10_jet_seedNNNN.h5`: the data.
-- `AuAu_0_10_jet_seedNNNN_particlize.h5`: with `--write-particlize` only, the input for
+Each job writes the following, next to each other. The stem is `AuAu_0_10_jet_seedNNNN` for
+an explicit `--seed`, and `AuAu_0_10_jet_<campaign>_NNNN` for `--seed 0` or `--campaign`
+(see the next section):
+- `<stem>.h5`: the data.
+- `<stem>_particlize.h5`: with `--write-particlize` only, the input for
   `hadronize.py` (see [Hadron level](#hadron-level-surfaces-partons-hadronizepy)).
 - `.xml`: the exact job XML.
 - `.json`: a summary.
 - `.log`: only when the job is run through `run_jobs.sh`.
 
-`hadronize.py` then writes `AuAu_0_10_jet_seedNNNN_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5`
-next to the particlize file. For many seeds at once, see the next section.
+`hadronize.py` then writes `<stem>_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5` next to the
+particlize file. For many jobs at once, see the next section.
 
 ## Campaigns with `run_jobs.sh`
 
 `run_jobs.sh` runs many `run_prod_jet.py` jobs, one seed and one output file per job:
 
 ```bash
-./run_jobs.sh [-j P] [--mps] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod_jet.py options ...]
+./run_jobs.sh [-j P] [--mps] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod_jet.py options ...]
 ```
 
-- Seeds `FIRST_SEED .. FIRST_SEED+NJOBS-1`, `EVENTS_PER_JOB` events each. The files are
-  `OUTDIR/AuAu_0_10_jet_seedNNNN.*` (default `OUTDIR` is `./out`).
+- **`FIRST_SEED 0`: a campaign, the usual choice.** Every job draws its own seed from OS
+  entropy (`run_prod_jet.py --seed 0`), in 1…900,000,000 and not yet in the seed registry.
+  The files are `OUTDIR/AuAu_0_10_jet_<campaign>_NNNN.*`, NNNN = 1…NJOBS, `EVENTS_PER_JOB`
+  events each (default `OUTDIR` is `./out`). `<campaign>` is `--campaign NAME`, else the start
+  time (`20260926-2215`), and is kept in `OUTDIR/run_jobs.campaign`: re-running the command
+  resumes it, and another `--campaign` in the same `OUTDIR` is refused.
+- **`FIRST_SEED > 0`:** seeds `FIRST_SEED .. FIRST_SEED+NJOBS-1` as given, files
+  `OUTDIR/AuAu_0_10_jet_seedNNNN.*` (or by `--campaign`, if given). For validation jobs,
+  reproducing files, and campaigns that are *meant* to share their collisions (below).
+- **The seed that ran is recorded** in the job XML, the file (`prod_seed`,
+  `prod_seed_source` = `os_entropy` / `explicit`, `prod_campaign`, `prod_index`) and the
+  `.json`. `--seed <that seed>` reproduces the file bit for bit.
+- **Seed registry.** Every job appends its seed to `seeds_used.tsv` next to `OUTDIR` (seed,
+  source, campaign, file, host, date), under a lock, so jobs starting together never draw the
+  same seed and campaigns kept side by side there never repeat one. An explicit seed already
+  in it is reported (not refused). `--seed-registry PATH` shares one registry between data
+  directories or machines (on a shared disk); `--seed-registry none` turns it off.
+- **Not X-SCAPE's own seed 0.** Given to the framework directly, 0 lets each module seed
+  itself: the framework's engine from the clock in nanoseconds (and in its one-engine-for-all
+  mode), Pythia from `time(0)`, in seconds. Jobs started within the same second then get the
+  same jets, and neither seed is recorded, so no job could be reproduced. `--seed 0` here
+  resolves the seed before the framework starts. Seeds above 900,000,000 are refused: Pythia
+  clamps them to 900,000,000, so every such job would get the same jets.
 - `-j P` keeps P jobs running at once; `--mps` lets them share the GPU through CUDA MPS
   (CUDA only). Every job runs in its own working directory (`OUTDIR/work/<tag>`, removed when
   it succeeds), so the jobs can start together. Output is bit-identical per seed whatever
@@ -132,11 +156,12 @@ next to the particlize file. For many seeds at once, see the next section.
 - **End marker.** When a campaign ends (not on Ctrl-C), `OUTDIR/run_jobs.finished` is
   written: this is how `run_hadronize.py --follow` knows no more files are coming. A new
   campaign in the same `OUTDIR` removes it first.
-- **Restarting.** A seed whose `.json` says all events were written is skipped (with
+- **Restarting.** A job whose `.json` says all events were written is skipped (with
   `--write-particlize`, its particlize file must be complete too). So an interrupted campaign
-  resumes with the same command, and re-running it only redoes failed or missing seeds.
-- Give every distinct setting its own `OUTDIR`: the skip test looks only at the seed and the
-  event count, not at the options.
+  resumes with the same command, and re-running it only redoes failed or missing jobs. In a
+  campaign, a re-run job draws a new seed; its unfinished file is replaced.
+- Give every distinct setting its own `OUTDIR`: the skip test looks only at the file name and
+  the event count, not at the options.
 
 > **A seed is a set of collisions, in every campaign.** The seed fixes the initial condition,
 > Pythia and Matter/LBT. Two campaigns over the same seeds are therefore not independent:
@@ -148,17 +173,17 @@ next to the particlize file. For many seeds at once, see the next section.
 >
 > That is useful for comparing settings, where the shared backgrounds cancel in the
 > difference, and wrong for anything that treats the campaigns as more statistics: merged
-> hadron or FNO training sets, or errors that assume independent events. Give campaigns meant
-> to be independent disjoint seed ranges, e.g. `FIRST_SEED` = 1, 1001, 2001, ... one block per
-> campaign, and note them with the campaign. `hadronize.py` keys its seeds on the particlize
-> file, so its samples of repeated events differ, but the fluid underneath is still the same.
+> hadron or FNO training sets, or errors that assume independent events. Campaigns meant to
+> be independent: `FIRST_SEED 0` (unique seeds, checked against the registry). Campaigns meant
+> to be paired: the same explicit seeds. `hadronize.py` keys its seeds on the particlize file,
+> so its samples of repeated events differ, but the fluid underneath is still the same.
 
 ### A. Hydro pairs only (FNO training data)
 
 ```bash
 conda activate js_fno
 ./run_jobs.sh 1 1 1 out_null --no-deposit                  # first: null test, arr == arr_bg
-OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out     # 20 seeds x 25 events
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out     # 20 jobs x 25 events, unique seeds
 ```
 
 On the GB10, `OMP_NUM_THREADS=5 ... -j 4 --mps` gives about 190 events/h
@@ -176,10 +201,10 @@ python run_prod_jet.py --events 2 --seed 900 --write-particlize both --validate-
 python run_prod_jet.py --events 1 --seed 901 --write-particlize both --no-deposit --outdir out_val
 
 # the campaign: both surfaces + final partons every event
-OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both
 
 # one background per 3 jets: the background surface is stored once per background
-OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 30 1 out_had_reuse3 --write-particlize both --reuse 3
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 30 0 out_had_reuse3 --write-particlize both --reuse 3
 ```
 
 | `--write-particlize` | stores | use |
@@ -202,7 +227,7 @@ python run_hadronize.py out_had -j 8 --oversample 500 --n-frag 50
 
 # alongside production: start it next to run_jobs.sh; it hadronizes each file as its job
 # completes and stops when run_jobs.sh writes out_had/run_jobs.finished
-OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1 out_had --write-particlize both &
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both &
 python run_hadronize.py out_had -j 3 --follow --oversample 500 --n-frag 50
 
 # a --reuse campaign: give each background N x the jet leg's oversamples (the optimal split)
