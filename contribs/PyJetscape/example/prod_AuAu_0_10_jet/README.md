@@ -38,6 +38,7 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
 | `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
+| `paired_noise.py` | noise of jet − background per oversample, independent vs correlated legs (`--correlated`), and each leg's physics in both modes (`PLAN_iSS_optim.md`, Part B) |
 | `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
 | `PLAN_particlize_h5.md` | design, decisions and validation of the hadron-level path |
@@ -241,6 +242,9 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--n-frag K` | Colorless fragmentations per event. With `K` equal to `N` every oversample gets its own fragmentation (`JetEvents.jet_event`) |
 | `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag`, e.g. `--tags jet_frag` to redo only the fragments with other settings |
 | `--seed` | base seed; every unit's seed derives from it and is stored in `units/seed` |
+| `--correlated` | correlated sampling: iSS's random numbers are addressed by the cell, and each event's `bulk_jet` gets its background's seed (`--common-seeds`), so jet and background give the same hadrons where their surfaces agree. Same physics per leg, but jet − background is ~8× less noisy at \|η\| < 1 and ~40× less over the full acceptance: the same precision with ~8× fewer oversamples. Sample k of the jet leg belongs to sample k of its background: `HadronFileReader.jet_minus_background` then errs from the per-sample differences (`paired`, automatic). Not with `--use-stored-seeds` or `--oversample-bg` (below) |
+| `--correlated-block DTAU,DX,DETA` | its block size (default 0.5 fm/c, 1 fm, 0.5): the gain is flat from 0.25 to 1 |
+| `--common-seeds` | only the seeds of `--correlated`: with iSS's conventional sampling the legs decorrelate at the first hadron, so no gain alone (the null test) |
 | `--keep-bits-p B`, `--keep-bits-x B` | round the hadrons' momenta `p` and positions `x` to `B` float32 mantissa bits (1–23; default: full precision). `12` and `8` store 58% of the bytes. Set once per campaign (below) |
 
 #### Hadron precision (`--keep-bits-p`, `--keep-bits-x`)
@@ -351,7 +355,12 @@ What it does:
 - **Averages event by event.** For every event, the samples of its unit are histogrammed and
   divided by that unit's number of samples. These per-event means are then averaged over the
   events, so every event counts the same, even when files were hadronized with different
-  `--oversample`. Errors are compound-Poisson per event, added over events.
+  `--oversample`. Errors are compound-Poisson per event, added over events; for
+  `jet_minus_background` of `--correlated` files, the spread of the per-sample differences
+  (`paired=True`, chosen automatically), the only right error when the legs are correlated.
+  (The compound-Poisson error treats every hadron as independent; resonance daughters in
+  one bin make it ~20% too small for soft multiplicities, which `paired=True` avoids for
+  independent legs too, given equal sample counts.)
 - **Gives each event its own background.** A background shared by several events
   (`--reuse`) is evaluated once per event with that event's `info`, which is what
   jet-relative observables need. Its hadrons, counted several times, enter the error as the

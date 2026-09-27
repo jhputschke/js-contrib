@@ -1,6 +1,7 @@
 <!-- Plan, written 2026-09-26. Status: Part A done 2026-09-26 -- A1-A3 on iSS branch
      `yield_cache` (fork jhputschke/iSS, 01f7cf9; pinned in X-SCAPE, #149), A4 in X-SCAPE
-     and PyJetscape (branches `iss_compact_hadrons`). Part B open. -->
+     and PyJetscape (#150, #17). Part B done 2026-09-26: iSS correlated_sampling (fork
+     jhputschke/iSS, branch common_seeds), X-SCAPE and js-contrib branches common_seeds. -->
 
 # Plan: faster iSS, and correlated jet/background sampling
 
@@ -291,8 +292,76 @@ jet leg's seed. On seed 1, compare the spread of per-oversample differences with
 independent seeds. Small gain (expected): per-cell sampling is justified. Large gain: we get
 it for free.
 
+*Done (2026-09-26): no gain, so per-cell sampling is needed.* `hadronize.py --common-seeds`
+gives each event's `bulk_jet` its background's seed (the direction that also works under
+`--reuse`); `paired_noise.py` compares the per-oversample differences.
+- Null test (seed 901, `--no-deposit`, bit-identical surfaces, 50 oversamples): with
+  `--common-seeds` jet and background hadrons are bit-identical, J − B = 0 in every sample
+  (independent seeds: variance 2681 in |η| < 1).
+- Seed 1, 500 oversamples: ρ(J_k, B_k) = 0.0–0.1 in every bin, variance ratio
+  (common / independent) 0.84–1.10 (0.90 for all charged |η| < 1), within the ±6% a
+  variance is known to from 500 samples, and some of it (ρ ≈ 0.07) a real but tiny effect.
+- Not one hadron of sample 0 is shared between the legs, not even the first: the jet leg has
+  ~12k more cells, so the first cell draw (inverse CDF over the whole cell list) already lands
+  on a different cell, and every draw after it is shifted. Alignment is lost before the first
+  species is done, as expected above. Only random numbers addressed by the physical cell
+  (per-cell sampling, design above) can keep the legs correlated.
+
 **Effort.** It redesigns iSS's sampling loop, a clearly bigger job than Part A. Do Part A
 first: it is needed anyway (per-cell yields) and speeds up every validation run of Part B.
+
+### Part B: done (2026-09-26), results
+
+Branches `common_seeds` in iSS (fork `jhputschke/iSS`, off `yield_cache`), X-SCAPE and
+js-contrib. Differences from the design above, with the reasons:
+- **Blocks instead of a fine quantization.** Cells are grouped by (τ, x, y, η) quantized to
+  a block (default 0.5 fm/c, 1 fm, 1 fm, 0.5; ~22k blocks of ~45 cells for seed 1), and
+  keep the surface's order within the block. Per (species, block) one uniform gives the
+  block's number of hadrons over all K samples, Poisson(K λ_block) by exact inversion; per
+  hadron i one stream gives its sample (uniform over K: the per-sample counts are then
+  independent Poisson(λ_block), exactly), its cell (inverse CDF within the block), its
+  momentum (the existing rejection sampler, drawing from the stream) and, from a stream of
+  its own, its whole decay chain. The Philox address is (seed, species; block, purpose |
+  i, draw). No per-cell Poisson draw (3 × 10⁸ per surface would cost seconds), and no
+  position matching across legs: two legs share a block's cells in the same relative order
+  whatever else the jet adds, so the same uniform picks the same cell.
+- **Decays inline.** A primary decays as it is sampled, from its own stream; the conventional
+  path decays everything afterwards from the one sequence, which would decorrelate the decay
+  products (most of the final pions).
+- `RandomUtil::Random::set_stream()` switches every `rand_uniform()` consumer (momentum
+  sampler, decays) to the keyed stream; `unset_stream()` returns to the Mersenne Twister
+  where it was left. Philox4x32-10 is ~30 lines in iSS (`src/Philox.h`), checked against
+  Random123's known-answer vectors. Default (`correlated_sampling = 0`): bit-identical.
+
+Validation (GB10, seed 1, 500 oversamples unless noted; `paired_noise.py`):
+1. **Null test** (seed 901, `--no-deposit`, bit-identical surfaces): jet and background
+   hadrons bit-identical, J − B = 0 in every sample.
+2. **Means unchanged.** Each leg against conventional sampling: 62 bins (charged pT, η, φ,
+   identified yields, Σ cos 2φ, Σ sin 2φ), χ²/ndf = 0.74, per-sample variances equal within
+   the spread. At 2000 oversamples (background leg): all hadrons 7071.4 ± 2.7 vs
+   7069.6 ± 2.8, π, K, p, p̄, Λ within |z| < 1.6.
+3. **Gain** (variance of J_k − B_k, correlated / independent): charged |η| < 1 0.12
+   (ρ = 0.87); pT bins 0.09–0.15; η bins 0.004–0.17 (forward, far from the jet, ~0.01);
+   φ bins ~0.1. Better than the 0.22 bound above: blocks also keep most of the correlation
+   of the cells the jet shifted. Block size 0.25–1 fm: 0.09–0.15 at |η| < 1; 2 fm: 0.14,
+   and worse at high pT (0.22).
+4. **Energy balance** (total bulk energy of jet − background, paired errors): all η
+   35.7 ± 55.7 GeV independent, 24.1 ± 1.5 GeV correlated; |η| < 1 18.1 ± 3.1 and
+   14.3 ± 1.0 GeV.
+5. Cost: none (500 oversamples, both legs, one thread: 13.8 s vs 13.9 s; same memory).
+   Reproducible: the same output with 1 and 4 threads.
+
+**Errors are paired.** `HadronFileReader.jet_minus_background(paired=None)` takes the error
+from the per-sample differences when the files are marked `correlated_sampling` (events
+sharing a background summed per sample first). For seed 1 at |η| < 1: 0.88 instead of
+2.15 from the legs' errors added. Side result: for independent legs the paired error is
+~20% above the compound-Poisson one in soft bins (resonance daughters in the same bin),
+equal at high pT; the default for independent files stays compound-Poisson.
+
+Not done: `--validate-inline` for correlated sampling (the in-job iSS reads
+`hadronize.xml`, which keeps the conventional sampler; X-SCAPE's `<correlated_sampling>`
+would switch it on in a job), `--oversample-bg` with `--correlated` (the pairing needs equal
+sample counts), local charge conservation.
 
 ## Related items (from the same discussion): done 2026-09-26
 

@@ -30,6 +30,13 @@ Seeds.  Every unit gets its own seed, derived from (--seed, tag, unit, sample), 
 recorded in ``units/seed``: any unit can be regenerated alone.  --use-stored-seeds takes
 the seeds a --validate-inline job recorded instead (bulk_jet: iSS, jet_frag: Pythia, one
 fragmentation per event), so the result must equal that job's <stem>_inline_*.h5 exactly.
+--common-seeds gives each event's bulk_jet the seed of its background (bulk_bg unit), so
+jet and background draw the same random numbers while their sampling stays aligned;
+identical surfaces then give identical hadrons (PLAN_iSS_optim.md, Part B).  With iSS's
+conventional sampling that alignment is lost at the first hadron; --correlated (implies
+--common-seeds) switches iSS to random numbers addressed by the cell, so the legs keep
+giving the same hadrons wherever their surfaces agree.  Sample k of an event's bulk_jet
+and sample k of its background then belong together: analyse jet - background paired.
 
 Precision.  p and x are stored as full float32 by default.  --keep-bits-p / --keep-bits-x
 round them to that many mantissa bits (max relative error 2**-(bits+1)); the setting is
@@ -99,6 +106,20 @@ def parse_args(argv=None):
     p.add_argument("--use-stored-seeds", action="store_true", dest="use_stored_seeds",
                    help="replay the seeds a --validate-inline job recorded (bulk_jet and "
                         "jet_frag; one fragmentation per event)")
+    p.add_argument("--common-seeds", action="store_true", dest="common_seeds",
+                   help="seed every event's bulk_jet with its background's bulk_bg seed, so "
+                        "the two legs draw the same random numbers as long as they stay "
+                        "aligned (PLAN_iSS_optim.md, Part B, first step). Not with "
+                        "--use-stored-seeds or --oversample-bg")
+    p.add_argument("--correlated", action="store_true",
+                   help="correlated sampling in iSS (random numbers addressed by the cell), "
+                        "with --common-seeds: jet and background give the same hadrons where "
+                        "their surfaces agree, so jet - background is much less noisy "
+                        "(PLAN_iSS_optim.md, Part B). Analyse it paired, sample by sample")
+    p.add_argument("--correlated-block", default=None, dest="correlated_block",
+                   metavar="DTAU,DX,DETA",
+                   help="block size of --correlated in tau [fm/c], x and y [fm], eta "
+                        "(default: jetscape_main.xml's, 0.5,1.0,0.5)")
     p.add_argument("--diagnose-colored", action="store_true", dest="diagnose_colored",
                    help="only run the colour-flow diagnostic (ColoredHadronization on the "
                         "stored partons) and write <stem>_colored_diagnostic.json")
@@ -180,6 +201,17 @@ def write_job_xml(a, path, n_exec, oversample):
     _set_text(iss, "iSS_particle_table_path", os.path.join(iss_dir, "iSS_tables"))
     _set_text(iss, "iSS_working_path", ".")
     _set_text(iss, "number_of_repeated_sampling", oversample)
+    if a.correlated:
+        _set_text(iss, "correlated_sampling", 1)
+        if a.correlated_block:
+            try:
+                dtau, dx, deta = (float(v) for v in a.correlated_block.split(","))
+            except ValueError:
+                sys.exit(f"hadronize.py: --correlated-block wants DTAU,DX,DETA, got "
+                         f"{a.correlated_block!r}")
+            _set_text(iss, "correlated_block_dtau", dtau)
+            _set_text(iss, "correlated_block_dx", dx)
+            _set_text(iss, "correlated_block_deta", deta)
     tree.write(path)
     return ET.tostring(root, encoding="unicode")
 
@@ -276,6 +308,14 @@ def main(argv=None):
         print("hadronize.py: note -- --keep-bits with --use-stored-seeds: the in-job "
               "(--validate-inline) hadrons are full precision, so compare after rounding "
               "them the same way, or validate without --keep-bits", file=sys.stderr)
+    if a.correlated:
+        a.common_seeds = True
+    if a.correlated_block is not None and not a.correlated:
+        sys.exit("hadronize.py: --correlated-block needs --correlated")
+    if a.common_seeds and (a.use_stored_seeds or a.oversample_bg is not None):
+        sys.exit("hadronize.py: --common-seeds / --correlated need the jet seeds derived "
+                 "from the backgrounds and the same number of samples on both legs: drop "
+                 "--use-stored-seeds / --oversample-bg")
     if a.use_stored_seeds:
         for key in ("inline_iss_seed_jet", "inline_pythia_seed"):
             if not pf.has_events(key):
@@ -376,6 +416,8 @@ def main(argv=None):
               "source_uuid": str(pf.attrs.get("file_uuid", "")),
               "hadronize_xml": xml_text, "base_seed": a.seed,
               "stored_seeds": bool(a.use_stored_seeds),
+              "common_seeds": bool(a.common_seeds),
+              "correlated_sampling": bool(a.correlated),
               "music_input": pf.music_input()}
     writers = {}
     for t in tags:
@@ -424,8 +466,12 @@ def main(argv=None):
         for n, e in enumerate(events):
             msg = [f"event {e}"]
             if "bulk_jet" in tags:
-                seed = (int(pf.events("inline_iss_seed_jet")[e]) if a.use_stored_seeds
-                        else unit_seed(a.seed, "bulk_jet", e))
+                if a.use_stored_seeds:
+                    seed = int(pf.events("inline_iss_seed_jet")[e])
+                elif a.common_seeds:
+                    seed = unit_seed(a.seed, "bulk_bg", int(pf.events("bg_unit")[e]))
+                else:
+                    seed = unit_seed(a.seed, "bulk_jet", e)
                 cells = pf.surface_unit("jet", e)
                 h, used = run_iss(cells, seed, oversample)
                 writers["bulk_jet"].append_unit(h if h is not None else [], unit=e, event=e,
