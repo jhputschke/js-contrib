@@ -277,6 +277,9 @@ python run_hadronize.py out_had -j 3 --follow --oversample 500 --n-frag 50
 # a --reuse campaign: give each background N x the jet leg's oversamples (the optimal split)
 python run_hadronize.py out_had_reuse3 -j 8 --oversample 200 --oversample-bg auto --n-frag 50
 
+# a --pthat-bins campaign analysed per window: each background M x the jet leg's oversamples
+python run_hadronize.py out_pth3 -j 8 --oversample 200 --oversample-bg per-pthat-bin --n-frag 50
+
 # hadrons stored at reduced precision: 58% of the disk (decide before the campaign, see below)
 python run_hadronize.py out_had -j 8 --oversample 500 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8
 
@@ -323,6 +326,7 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--oversample N` | iSS samples per jet-leg surface (default: `hadronize.xml`'s 100); also per background unless: |
 | `--oversample-bg M` | iSS samples per background surface |
 | `--oversample-bg auto` | per background: N × the number of events using it (`events/bg_unit`), capped at `--oversample-bg-max` (default 2000, ~1.7 GB) with a warning. Under `--reuse N` this minimizes the error of jet − background for the CPU spent: a reused background's noise averages down over N times fewer backgrounds. The count per background is in `units/n_samples` of the `bulk_bg` file |
+| `--oversample-bg per-pthat-bin` | `--pthat-bins` files: per background, N × the number of events using it in **one** pT̂ window (`--jets-per-bin`), capped like `auto`. The optimal split for results per window. Refused for files without `events/pthat_bin`. See [Hadronizing a `--pthat-bins` campaign](#hadronizing-a---pthat-bins-campaign) |
 | `--n-frag K` | Colorless fragmentations per event. With `K` equal to `N` every oversample gets its own fragmentation (`JetEvents.jet_event`) |
 | `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag`, e.g. `--tags jet_frag` to redo only the fragments with other settings |
 | `--seed` | base seed; every unit's seed derives from it and the production file (`file_uuid`), and is stored in `units/seed` |
@@ -571,6 +575,58 @@ with HadronFileReader("out_pth3") as r:
 `pthat_bin_sigma` averages the files' Pythia estimates weighted by their accepted events.
 Each window's `hist` is an event average, so the windows can have different event
 counts.
+
+#### Hadronizing a `--pthat-bins` campaign
+
+`hadronize.py` and `run_hadronize.py` need nothing new for these files. A `--pthat-bins`
+file is a `--reuse K·M` file (K windows, M = `--jets-per-bin`) with three more per-event
+columns (`events/pthat_bin`, `pthat`, `event_weight`), and hadronization works on events and
+backgrounds, not on windows:
+
+| tag | unit | with K windows, M jets per window |
+|---|---|---|
+| `bulk_jet` | event | one per event, whatever its window: `--oversample` samples each |
+| `jet_frag` | event | one per event: `--n-frag` fragmentations each |
+| `bulk_bg` | background | one per background, shared by its K·M events across all windows |
+
+- **Seeds** come from (`--seed`, the production file, tag, unit, sample), as for every
+  file: the window plays no role, and the events of different windows are sampled
+  independently.
+- **`--correlated`** works as under `--reuse`: every event's `bulk_jet` gets its
+  background's seed, in every window, and each sample k of an event pairs with sample k of
+  its background. It still needs equal sample counts, so no `--oversample-bg`.
+- **The background's oversampling is the one choice the windows affect.** At fixed CPU,
+  the error of jet − background is smallest when a background gets U × the jet leg's
+  samples, U = the number of events **in the average** that share it (the reasoning behind
+  `auto`). Which U applies depends on the analysis:
+
+| analysis | events sharing a background in the average | `--oversample-bg` |
+|---|---|---|
+| each window on its own (per-window spectra, wake per pT̂) | M | `per-pthat-bin` (M × `--oversample`); with M = 1 the same as leaving it out |
+| all windows together, equal weights | K·M | `auto` (K·M × `--oversample`) |
+| all windows stitched with their cross sections | between M·√K (one window dominates) and K·M | `per-pthat-bin` or `auto`; nearer `per-pthat-bin` when the σ weights differ by orders of magnitude, as for 20–40 vs 70–90 GeV |
+
+- **None of the choices is wrong.** More background samples only lower the error, and
+  `HadronFileReader` weighs every event the same whatever its unit's count
+  (`units/n_samples`). `auto` on a per-window analysis spends K times the needed background
+  CPU: per event, the background then costs about what the jet leg costs, instead of 1/K of
+  it, so up to ~2× the hadronization time.
+- **Both are capped** at `--oversample-bg-max` (default 2000, ~1.7 GB per iSS process).
+  With `--oversample 500`, `auto` needs K·M ≤ 4 to stay under it; `per-pthat-bin` needs
+  only M ≤ 4. `run_hadronize.py` estimates the memory from the same counts.
+- **Decide once per campaign**, like the precision: `--skip-complete` does not compare
+  sample counts, so a campaign hadronized half with `auto` and half with `per-pthat-bin`
+  is mixed. Mixed files are still averaged correctly, event by event.
+- **Reading back:** `HadronFileReader` evaluates each event against its own background
+  (`events/bg_unit`); `events=r.pthat_bin_events(k)` restricts any histogram, total or
+  `jet_minus_background` to window k (see *Analysis* above).
+
+Measured (GB10, seed 5, 3 windows):
+- A 3-event file (M = 1) with `--oversample 20 --oversample-bg auto` gave one `bulk_bg` unit
+  with 60 samples and 20 per event in `bulk_jet`. `HadronFileReader` put each event in its
+  window against that background.
+- A 6-event file (M = 2, one background) with `--oversample 10`: `--oversample-bg
+  per-pthat-bin` gave the background 20 samples (M × 10), `auto` 60 (K·M × 10).
 
 **Checks before such a campaign:** the null test with the windows,
 `python run_prod_jet.py --events 3 --seed 1 --pthat-bins 20-40,50-70,70-90 --no-deposit`,

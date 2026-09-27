@@ -315,8 +315,14 @@ Branches `surface_to_hadrons` in X-SCAPE (from `contrib`) and js-contrib (from `
    surface every event.
 6. **pytest:** 73 passed, 1 skipped.
    - The one failure is `test_surface_finder.py::test_lattice_spacing_is_honoured` (area 41.7
-     instead of 32). It needs a SurfaceFinder lattice fix that is not on `contrib`, and this
-     branch does not touch SurfaceFinder.
+     instead of 32). This branch does not touch SurfaceFinder.
+   - *Update 2026-09-27: the cause was the test, not a missing lattice fix* (that fix,
+     `n_lattice_cells`, is on `contrib`). The test froze out at exactly τ = 4.8, a stored
+     frame and a lattice time, where T − T_sw is float rounding noise (float32(0.15) is
+     6e-9 above 0.15, and interpolating between grid points adds noise of the same size).
+     Its sign then varies from node to node, and Cornelius finds the surface in the time
+     layers on both sides. T_sw = 0.1495 (τ_sw = 4.848, between lattice times) gives 32.00
+     on both lattices, and the test passes (js-contrib PR #26).
 
 ### Colored diagnostic (`hadronize.py --diagnose-colored`, seed 3, 3 events)
 

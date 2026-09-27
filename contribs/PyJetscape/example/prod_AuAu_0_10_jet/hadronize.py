@@ -10,6 +10,8 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
     python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5           # all three tags
     python hadronize.py P.h5 --tags bulk_jet,bulk_bg --oversample 200
     python hadronize.py P.h5 --oversample 200 --oversample-bg auto   # reused bg: N x 200
+    python hadronize.py P.h5 --oversample 200 --oversample-bg per-pthat-bin
+                                        # --pthat-bins file: M x 200, M jets per window per bg
     python hadronize.py P.h5 --tags jet_frag --n-frag 50
     python hadronize.py P.h5 --use-stored-seeds         # replay a --validate-inline job
     python hadronize.py P.h5 --diagnose-colored         # colour-flow diagnostic only
@@ -26,6 +28,12 @@ Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_
 A jet event is bulk_jet + jet_frag; its background is bulk_bg unit ``events/bg_unit`` of
 the particlize file (units/event in the bulk_bg file is the first event that used it).
 Oversamples of one event are samples of that event, not new events: average over them.
+
+pTHat windows.  A run_prod_jet.py --pthat-bins file is a --reuse K*M file (K windows, M jets
+per window per background) with events/pthat_bin; everything above applies unchanged, one
+background unit per K*M events.  Only the background's oversampling can take the windows into
+account: --oversample-bg auto gives it K*M x --oversample (right for averages over all
+windows), --oversample-bg per-pthat-bin M x --oversample (right for each window on its own).
 
 Initiators.  bulk_jet and jet_frag also get ``initiators/``: each event's shower-initiating
 partons, copied from the pair file's ``shower/initiators`` (the particlize file's
@@ -105,12 +113,15 @@ def parse_args(argv=None):
                    help="iSS samples per surface (default: hadronize.xml's "
                         "number_of_repeated_sampling)")
     p.add_argument("--oversample-bg", default=None, dest="oversample_bg",
-                   help="iSS samples per BACKGROUND surface: a number, or 'auto' = "
+                   help="iSS samples per BACKGROUND surface: a number; 'auto' = "
                         "--oversample x the number of events using that background (the "
-                        "optimal split under --reuse N; capped at --oversample-bg-max). "
-                        "Default: --oversample")
+                        "optimal split under --reuse N); or 'per-pthat-bin' (run_prod_jet.py "
+                        "--pthat-bins files) = --oversample x the events using it in one pTHat "
+                        "window (the optimal split for per-window results). Both are capped at "
+                        "--oversample-bg-max. Default: --oversample")
     p.add_argument("--oversample-bg-max", type=int, default=2000, dest="oversample_bg_max",
-                   help="cap for --oversample-bg auto (default 2000, ~1.7 GB for iSS)")
+                   help="cap for --oversample-bg auto / per-pthat-bin (default 2000, ~1.7 GB "
+                        "for iSS)")
     p.add_argument("--n-frag", type=int, default=10, dest="n_frag",
                    help="Colorless fragmentations per event (default 10)")
     p.add_argument("--seed", type=int, default=1, help="base seed (default 1)")
@@ -208,21 +219,47 @@ def _set_text(parent, tag, value):
     n.text = str(value)
 
 
+#: --oversample-bg values that give every background its own count (units/n_samples)
+PER_UNIT_OVERSAMPLE_BG = ("auto", "per-pthat-bin")
+
+
 def background_samples(pf, oversample, spec, cap):
     """-> ({background unit: iSS samples}, [units that hit the cap]).
 
     ``spec`` None: ``oversample``; a number: that; 'auto': ``oversample`` x the number of
-    events in the file that use the background (``events/bg_unit``), at most ``cap``.
+    events in the file that use the background (``events/bg_unit``); 'per-pthat-bin'
+    (run_prod_jet.py --pthat-bins files): ``oversample`` x the largest number of events that
+    use it in one pTHat window (``events/pthat_bin``), i.e. --jets-per-bin.  At most ``cap``.
     """
     n_bg, _ = pf.bg_units()
     if spec is None:
         return {u: oversample for u in range(n_bg)}, []
-    if str(spec).lower() != "auto":
-        n = int(spec)
+    mode = str(spec).lower()
+    if mode not in PER_UNIT_OVERSAMPLE_BG:
+        try:
+            n = int(spec)
+        except ValueError:
+            n = 0
         if n < 1:
-            raise ValueError(f"--oversample-bg must be >= 1 or 'auto', got {spec!r}")
+            raise ValueError(f"--oversample-bg must be >= 1, 'auto' or 'per-pthat-bin', got "
+                             f"{spec!r}")
         return {u: n for u in range(n_bg)}, []
-    uses = np.bincount(np.asarray(pf.events("bg_unit"), dtype=np.int64), minlength=n_bg)
+    bg_unit = np.asarray(pf.events("bg_unit"), dtype=np.int64)
+    if mode == "auto":
+        uses = np.bincount(bg_unit, minlength=n_bg)
+    else:
+        if not pf.has_events("pthat_bin"):
+            raise ValueError("--oversample-bg per-pthat-bin needs a run_prod_jet.py "
+                             "--pthat-bins file (events/pthat_bin); for --reuse use 'auto'")
+        window = np.asarray(pf.events("pthat_bin"), dtype=np.float64)
+        if np.isnan(window).any():
+            raise ValueError("--oversample-bg per-pthat-bin: some events have no "
+                             "events/pthat_bin")
+        window = window.astype(np.int64)
+        n_win = int(window.max()) + 1 if len(window) else 1
+        per_window = np.bincount(bg_unit * n_win + window,
+                                 minlength=n_bg * n_win).reshape(n_bg, n_win)
+        uses = per_window.max(axis=1)
     out, capped = {}, []
     for u in range(n_bg):
         n = oversample * max(int(uses[u]), 1)
@@ -428,7 +465,8 @@ def main(argv=None):
     except ValueError as err:
         sys.exit(f"hadronize.py: {err}")
     if bg_capped and "bulk_bg" in [t.strip() for t in a.tags.split(",")]:
-        print(f"hadronize.py: WARNING -- --oversample-bg auto capped {len(bg_capped)} "
+        print(f"hadronize.py: WARNING -- --oversample-bg {a.oversample_bg} capped "
+              f"{len(bg_capped)} "
               f"background(s) at --oversample-bg-max {a.oversample_bg_max}", file=sys.stderr)
 
     outs = {t: os.path.join(out_dir, f"{stem}_hadrons_{t}.h5") for t in tags}
@@ -530,8 +568,8 @@ def main(argv=None):
         if t == "jet_frag":
             n = n_frag
         elif t == "bulk_bg" and a.oversample_bg is not None:
-            auto = str(a.oversample_bg).lower() == "auto"
-            n = 0 if auto else int(a.oversample_bg)     # 0: per unit, see units/n_samples
+            per_unit = str(a.oversample_bg).lower() in PER_UNIT_OVERSAMPLE_BG
+            n = 0 if per_unit else int(a.oversample_bg)  # 0: per unit, see units/n_samples
             extra.update({"oversample_bg": str(a.oversample_bg),
                           "oversample_bg_max": int(a.oversample_bg_max),
                           "oversample_jet": int(oversample)})

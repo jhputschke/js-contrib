@@ -586,13 +586,13 @@ def _load_example(name):
     return mod
 
 
-def _particlize_with_backgrounds(path, bg_ids, complete=True):
+def _particlize_with_backgrounds(path, bg_ids, complete=True, pthat_bins=None):
     jet, bg = _Leg("MUSIC_2"), _Leg("MUSIC_1")
     w = ParticlizeH5Writer(path, legs=("jet", "bg"), music_input="")
     w.attach(_JS(bg, jet), manager=_Mgr())
     for k, b in enumerate(bg_ids):
         jet.cells, bg.cells = _cells(1, k), _cells(1, 10 + k)
-        w.Exec(k, bg_id=b)
+        w.Exec(k, bg_id=b, **({} if pthat_bins is None else {"pthat_bin": pthat_bins[k]}))
     w.Finish(complete=complete)
 
 
@@ -607,6 +607,23 @@ def test_oversample_bg_per_background(tmp_path):
         assert hz.background_samples(pf, 100, "auto", 250) == ({0: 250, 1: 100}, [0])
         with pytest.raises(ValueError):
             hz.background_samples(pf, 100, "0", 2000)
+        with pytest.raises(ValueError):                  # no pTHat windows in a --reuse file
+            hz.background_samples(pf, 100, "per-pthat-bin", 2000)
+
+
+def test_oversample_bg_per_pthat_bin(tmp_path):
+    """--pthat-bins file, 2 windows, 2 jets per window per background (--reuse 4): 'auto'
+    counts all 4 events of a background, 'per-pthat-bin' the 2 of one window."""
+    hz = _load_example("hadronize.py")
+    p = tmp_path / "w_particlize.h5"
+    _particlize_with_backgrounds(p, (0, 0, 0, 0, 4, 4, 4, 4),
+                                 pthat_bins=(0, 1, 0, 1, 0, 1, 0, 1))
+    with ParticlizeFile(p) as pf:
+        assert hz.background_samples(pf, 100, "auto", 2000) == ({0: 400, 1: 400}, [])
+        assert hz.background_samples(pf, 100, "per-pthat-bin", 2000) == ({0: 200, 1: 200}, [])
+        assert hz.background_samples(pf, 100, "Per-PtHat-Bin", 150) == ({0: 150, 1: 150},
+                                                                        [0, 1])
+        assert hz.background_samples(pf, 100, None, 2000) == ({0: 100, 1: 100}, [])
 
 
 def test_run_hadronize_finds_complete_inputs_and_finished_outputs(tmp_path):
