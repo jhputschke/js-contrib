@@ -745,3 +745,32 @@ def test_hadronize_add_initiators_without_the_extension(tmp_path, capsys):
     with pytest.raises(SystemExit, match="no initiators to add"):
         hz.main([f"{stem}_particlize.h5", "--add-initiators"])
     assert "not found" in capsys.readouterr().err
+
+
+def test_seeds_differ_between_production_files(tmp_path):
+    import uuid
+
+    hz = _load_example("hadronize.py")
+    # legacy: exactly the old scheme, the same for every production file
+    old = np.random.SeedSequence([1, hz.TAG_INDEX["bulk_bg"], 0, 0])
+    assert hz.unit_seed(1, "bulk_bg", 0) == int(old.generate_state(1, np.uint32)[0] & 0x7FFFFFFF)
+    a, b = _particlize_seeds(tmp_path, "a"), _particlize_seeds(tmp_path, "b")
+    ka, kb = hz.production_key(a), hz.production_key(b)
+    assert ka == uuid.UUID(a.attrs["file_uuid"]).int and ka != kb
+    for tag, unit, sample in (("bulk_jet", 0, 0), ("bulk_bg", 0, 0), ("jet_frag", 3, 7)):
+        sa, sb = hz.unit_seed(1, tag, unit, sample, ka), hz.unit_seed(1, tag, unit, sample, kb)
+        assert sa != sb and sa == hz.unit_seed(1, tag, unit, sample, ka)   # reproducible
+        assert sa != hz.unit_seed(1, tag, unit, sample)                      # not legacy
+    assert hz.unit_seed(1, "bulk_jet", 0, 0, ka) != hz.unit_seed(1, "bulk_bg", 0, 0, ka)
+    a.close(), b.close()
+
+    class _NoUuid:
+        attrs = {}
+    with pytest.raises(ValueError, match="legacy-seeds"):
+        hz.production_key(_NoUuid())
+
+
+def _particlize_seeds(tmp_path, name):
+    p = tmp_path / f"{name}_particlize.h5"
+    _particlize_with_backgrounds(p, (0,))
+    return ParticlizeFile(p)

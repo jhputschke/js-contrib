@@ -241,7 +241,8 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--oversample-bg auto` | per background: N × the number of events using it (`events/bg_unit`), capped at `--oversample-bg-max` (default 2000, ~1.7 GB) with a warning. Under `--reuse N` this minimizes the error of jet − background for the CPU spent: a reused background's noise averages down over N times fewer backgrounds. The count per background is in `units/n_samples` of the `bulk_bg` file |
 | `--n-frag K` | Colorless fragmentations per event. With `K` equal to `N` every oversample gets its own fragmentation (`JetEvents.jet_event`) |
 | `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag`, e.g. `--tags jet_frag` to redo only the fragments with other settings |
-| `--seed` | base seed; every unit's seed derives from it and is stored in `units/seed` |
+| `--seed` | base seed; every unit's seed derives from it and the production file (`file_uuid`), and is stored in `units/seed` |
+| `--legacy-seeds` | the seeds of hadron files made before the production file entered them (`seed_scheme` absent or `legacy`): to reproduce those. Their events share seeds across the files of a campaign |
 | `--correlated` | correlated sampling: iSS's random numbers are addressed by the cell, and each event's `bulk_jet` gets its background's seed (`--common-seeds`), so jet and background give the same hadrons where their surfaces agree. Same physics per leg, but jet − background is ~8× less noisy at \|η\| < 1 and ~40× less over the full acceptance: the same precision with ~8× fewer oversamples. Sample k of the jet leg belongs to sample k of its background: `HadronFileReader.jet_minus_background` then errs from the per-sample differences (`paired`, automatic). Not with `--use-stored-seeds` or `--oversample-bg` (below) |
 | `--correlated-block DTAU,DX,DETA` | its block size (default 0.5 fm/c, 1 fm, 0.5): the gain is flat from 0.25 to 1 |
 | `--common-seeds` | only the seeds of `--correlated`: with iSS's conventional sampling the legs decorrelate at the first hadron, so no gain alone (the null test) |
@@ -521,8 +522,12 @@ The fragmentation paired with oversample `k` is `k mod n_frag` (or `frag_sample=
 background comes from the particlize file's `events/bg_unit`, so reused backgrounds resolve.
 Oversamples of one event share one fluid: independent Cooper–Frye samplings, not independent
 collisions.
-Every unit's seed is derived from (`--seed`, tag, unit, sample) and stored in `units/seed`, so
-any unit can be regenerated alone. A jet event is `bulk_jet` + `jet_frag`; its background is
+Every unit's seed is derived from (`--seed`, the particlize file's `file_uuid`, tag, unit,
+sample) and stored in `units/seed`, so any unit can be regenerated alone, and the files of a
+campaign, which all get the same `--seed`, are sampled independently. Files made before that
+(`seed_scheme` attribute absent or `legacy`) gave event 0 of every file the same iSS and Pythia
+seeds; with `--correlated` their events are then correlated with each other. `--legacy-seeds`
+reproduces them, and `--skip-complete` warns when a complete file has the other scheme. A jet event is `bulk_jet` + `jet_frag`; its background is
 `bulk_bg` unit `events/bg_unit`. An empty surface (MUSIC stopped at the grid boundary) gives a
 unit with no samples.
 
