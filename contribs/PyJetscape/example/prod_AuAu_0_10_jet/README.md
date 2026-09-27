@@ -507,6 +507,21 @@ python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90 --jet
   MUSIC_1 and MUSIC_2 cost about the same, down to half for many windows. Campaign
   throughput with `-j 4 --mps` has not been measured. With `--write-particlize both`,
   the background surface is also stored (and `hadronize.py` samples it) once per K·M events.
+- **Memory (measured, GB10, seed 1: `--reuse 1` over 2 events against 3 windows over 6
+  events, the same two backgrounds).** The same: peak RSS (`ru_maxrss`) 20.1 vs 20.5 GB,
+  ~12.3 vs ~12.7 GB between MUSIC runs, ~4 MB per extra Pythia instance.
+  - The background's framework copy stays in memory for its whole group of events
+    (Matter/LBT query it for every jet). With `--reuse 1` it is held just as long within
+    its event, so reuse keeps it longer, not larger.
+  - Two backgrounds are never held at once: the old one is released before the next
+    MUSIC_1 run.
+  - The peak is a ~1 s spike while a background leg runs. Its size follows the
+    background's length (here the 111-frame one), not the reuse, and with reuse it comes
+    once per group instead of every event.
+  - The kept background is host memory, not GPU memory. Each MUSIC instance keeps its
+    GPU grid (100 × 100 × 60 cells) until its own next run, so MUSIC_1's and MUSIC_2's
+    grids coexist in either mode. On a discrete GPU that is two grids either way; on the
+    GB10 they are unified memory, which `nvidia-smi` does not count.
 - **Statistics.** Per window, a campaign with M = 1 is what a `--reuse 1` campaign of that
   window would be: one jet per background. The windows share their backgrounds, so results
   combined over windows (a spectrum stitched from the windows) have errors correlated
