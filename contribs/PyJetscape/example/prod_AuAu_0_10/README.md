@@ -72,6 +72,13 @@ Each job writes four files:
 restart an interrupted campaign with the same command. That check looks only at the seed
 and event count, so give each grid its own output directory.
 
+**A seed is a set of collisions, in every campaign.** The same seeds give the same events: two
+campaigns that both start at `FIRST_SEED` 1 with the same settings are bit-identical, and with
+only the output grid changed they are the same collisions on another grid. Merging such
+campaigns double-counts events (for FNO training, the same samples in training and validation).
+Give campaigns meant to be independent disjoint seed ranges (`FIRST_SEED` = 1, 1001, 2001, ...)
+and note them with the campaign. See also `../prod_AuAu_0_10_jet/README.md`, *Campaigns*.
+
 To check the output, open `check_output.ipynb` in Jupyter (it reads `out/AuAu_0_10_seed*.h5`;
 set `FILES` in its first cell or `PROD_H5_GLOB` for another directory). It needs only
 `numpy`, `h5py`, `matplotlib`, `pandas` and `ipywidgets`, no X-SCAPE build.

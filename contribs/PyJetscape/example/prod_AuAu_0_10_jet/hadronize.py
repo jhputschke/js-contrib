@@ -34,8 +34,13 @@ partons, copied from the pair file's ``shower/initiators`` (the particlize file'
 the hydro.  Without the pair file the outputs are written without them, with a warning.
 --add-initiators adds the group to existing outputs without hadronizing again.
 
-Seeds.  Every unit gets its own seed, derived from (--seed, tag, unit, sample), and it is
-recorded in ``units/seed``: any unit can be regenerated alone.  --use-stored-seeds takes
+Seeds.  Every unit gets its own seed, derived from (--seed, the production file, tag, unit,
+sample), and it is recorded in ``units/seed``: any unit can be regenerated alone.  The
+production file enters through the particlize file's ``file_uuid``, so the files of a campaign
+(which all get the same --seed) draw independent random numbers; before, event 0 of every
+file got the same iSS and Pythia seeds, which --correlated turns into correlated events.
+--legacy-seeds reproduces files made with the old scheme (``seed_scheme`` attribute: absent
+or "legacy").  --use-stored-seeds takes
 the seeds a --validate-inline job recorded instead (bulk_jet: iSS, jet_frag: Pythia, one
 fragmentation per event), so the result must equal that job's <stem>_inline_*.h5 exactly.
 --common-seeds gives each event's bulk_jet the seed of its background (bulk_bg unit), so
@@ -114,6 +119,10 @@ def parse_args(argv=None):
     p.add_argument("--use-stored-seeds", action="store_true", dest="use_stored_seeds",
                    help="replay the seeds a --validate-inline job recorded (bulk_jet and "
                         "jet_frag; one fragmentation per event)")
+    p.add_argument("--legacy-seeds", action="store_true", dest="legacy_seeds",
+                   help="derive the seeds from (--seed, tag, unit, sample) only, as before "
+                        "the production file entered them: to reproduce older hadron files. "
+                        "Their events share seeds across the files of a campaign")
     p.add_argument("--common-seeds", action="store_true", dest="common_seeds",
                    help="seed every event's bulk_jet with its background's bulk_bg seed, so "
                         "the two legs draw the same random numbers as long as they stay "
@@ -164,10 +173,32 @@ def parse_args(argv=None):
     return p.parse_args(argv)
 
 
-def unit_seed(base, tag, unit, sample=0):
-    """Independent, reproducible 31-bit seed per (base, tag, unit, sample)."""
-    s = np.random.SeedSequence([int(base), TAG_INDEX[tag], int(unit), int(sample)])
+#: ``seed_scheme`` attribute of the hadron files; files without it are "legacy"
+SEED_SCHEMES = ("production_file", "legacy")
+
+
+def unit_seed(base, tag, unit, sample=0, prod=None):
+    """Independent, reproducible 31-bit seed per (base, production file, tag, unit, sample).
+
+    ``prod`` is the production file's key (:func:`production_key`); None gives the legacy
+    seeds, the same for every production file."""
+    key = [int(base), TAG_INDEX[tag], int(unit), int(sample)]
+    if prod is not None:
+        key.insert(1, int(prod))
+    s = np.random.SeedSequence(key)
     return int(s.generate_state(1, dtype=np.uint32)[0] & 0x7FFFFFFF) or 1
+
+
+def production_key(pf):
+    """The production file's seed key: its particlize file's ``file_uuid`` as an integer."""
+    import uuid
+
+    text = str(pf.attrs.get("file_uuid", ""))
+    try:
+        return uuid.UUID(text).int
+    except ValueError:
+        raise ValueError(f"the particlize file has no valid file_uuid ({text!r}) to derive "
+                         "independent seeds from; pass --legacy-seeds") from None
 
 
 def _set_text(parent, tag, value):
@@ -228,6 +259,13 @@ def write_job_xml(a, path, n_exec, oversample):
             _set_text(iss, "correlated_block_deta", deta)
     tree.write(path)
     return ET.tostring(root, encoding="unicode")
+
+
+def seed_scheme_of(path):
+    """``seed_scheme`` of a hadron file ("legacy" when it predates the attribute)."""
+    import h5py
+    with h5py.File(path, "r") as f:
+        return str(f.attrs.get("seed_scheme", "legacy"))
 
 
 def _complete(path):
@@ -370,6 +408,11 @@ def main(argv=None):
         sys.exit("hadronize.py: --common-seeds / --correlated need the jet seeds derived "
                  "from the backgrounds and the same number of samples on both legs: drop "
                  "--use-stored-seeds / --oversample-bg")
+    try:
+        prod = None if a.legacy_seeds else production_key(pf)
+    except ValueError as err:
+        sys.exit(f"hadronize.py: {err}")
+    seed_scheme = "legacy" if a.legacy_seeds else "production_file"
     if a.use_stored_seeds:
         for key in ("inline_iss_seed_jet", "inline_pythia_seed"):
             if not pf.has_events(key):
@@ -396,6 +439,11 @@ def main(argv=None):
                   f"{', '.join(done)}")
         wanted = _keep_bits_map(keep_bits)
         for t in done:
+            have_scheme = seed_scheme_of(outs[t])
+            if have_scheme != seed_scheme:
+                print(f"hadronize.py: WARNING -- {os.path.basename(outs[t])} is complete but its "
+                      f"seeds are {have_scheme!r}, not {seed_scheme!r}; kept as it is "
+                      "(--force redoes it)", file=sys.stderr)
             have = hadron_precision(outs[t])
             if have != wanted:
                 print(f"hadronize.py: WARNING -- {os.path.basename(outs[t])} is complete but "
@@ -438,6 +486,7 @@ def main(argv=None):
              if "bulk_bg" in tags and set(bg_samples.values()) != {oversample} else "")
           + f", {n_frag} fragmentation(s)/event, base seed "
           f"{a.seed}{' (stored seeds)' if a.use_stored_seeds else ''}"
+          + (" (legacy seeds: shared across production files)" if a.legacy_seeds else "")
           + (f", p/x rounded to {a.keep_bits_p or 23}/{a.keep_bits_x or 23} mantissa bits"
              if any(v is not None for v in keep_bits.values()) else "")
           + f"\n  workdir {workdir}")
@@ -470,20 +519,22 @@ def main(argv=None):
               "source_uuid": str(pf.attrs.get("file_uuid", "")),
               "hadronize_xml": xml_text, "base_seed": a.seed,
               "stored_seeds": bool(a.use_stored_seeds),
-              "common_seeds": bool(a.common_seeds),
-              "correlated_sampling": bool(a.correlated),
+              "seed_scheme": seed_scheme,
               "music_input": pf.music_input()}
+    # how the two iSS legs were sampled relative to each other: only on bulk_jet and bulk_bg
+    # (jet_frag's Pythia seeds are its own whatever these options)
+    pairing = {"common_seeds": bool(a.common_seeds), "correlated_sampling": bool(a.correlated)}
     writers = {}
     for t in tags:
-        extra = {}
+        extra = {} if t == "jet_frag" else dict(pairing)
         if t == "jet_frag":
             n = n_frag
         elif t == "bulk_bg" and a.oversample_bg is not None:
             auto = str(a.oversample_bg).lower() == "auto"
             n = 0 if auto else int(a.oversample_bg)     # 0: per unit, see units/n_samples
-            extra = {"oversample_bg": str(a.oversample_bg),
-                     "oversample_bg_max": int(a.oversample_bg_max),
-                     "oversample_jet": int(oversample)}
+            extra.update({"oversample_bg": str(a.oversample_bg),
+                          "oversample_bg_max": int(a.oversample_bg_max),
+                          "oversample_jet": int(oversample)})
         else:
             n = oversample
         writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n, keep_bits=keep_bits,
@@ -527,9 +578,9 @@ def main(argv=None):
                 if a.use_stored_seeds:
                     seed = int(pf.events("inline_iss_seed_jet")[e])
                 elif a.common_seeds:
-                    seed = unit_seed(a.seed, "bulk_bg", int(pf.events("bg_unit")[e]))
+                    seed = unit_seed(a.seed, "bulk_bg", int(pf.events("bg_unit")[e]), prod=prod)
                 else:
-                    seed = unit_seed(a.seed, "bulk_jet", e)
+                    seed = unit_seed(a.seed, "bulk_jet", e, prod=prod)
                 cells = pf.surface_unit("jet", e)
                 h, used = run_iss(cells, seed, oversample)
                 writers["bulk_jet"].append_unit(h if h is not None else [], initiators_of(e),
@@ -540,7 +591,8 @@ def main(argv=None):
                 u = int(pf.events("bg_unit")[e])
                 if u not in bg_done:
                     cells = pf.surface_unit("bg", u)
-                    h, used = run_iss(cells, unit_seed(a.seed, "bulk_bg", u), bg_samples[u])
+                    h, used = run_iss(cells, unit_seed(a.seed, "bulk_bg", u, prod=prod),
+                                       bg_samples[u])
                     writers["bulk_bg"].append_unit(h if h is not None else [], unit=u,
                                                    event=bg_first[u], seed=used,
                                                    n_cells=len(cells))
@@ -551,7 +603,7 @@ def main(argv=None):
                 samples, seeds = [], []
                 for s in range(n_frag):
                     seed = (int(pf.events("inline_pythia_seed")[e]) if a.use_stored_seeds
-                            else unit_seed(a.seed, "jet_frag", e, s))
+                            else unit_seed(a.seed, "jet_frag", e, s, prod=prod))
                     if len(partons):
                         d = core.hadronize_partons(colorless, partons, seed)
                     else:

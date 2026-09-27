@@ -745,3 +745,70 @@ def test_hadronize_add_initiators_without_the_extension(tmp_path, capsys):
     with pytest.raises(SystemExit, match="no initiators to add"):
         hz.main([f"{stem}_particlize.h5", "--add-initiators"])
     assert "not found" in capsys.readouterr().err
+
+
+def test_seeds_differ_between_production_files(tmp_path):
+    import uuid
+
+    hz = _load_example("hadronize.py")
+    # legacy: exactly the old scheme, the same for every production file
+    old = np.random.SeedSequence([1, hz.TAG_INDEX["bulk_bg"], 0, 0])
+    assert hz.unit_seed(1, "bulk_bg", 0) == int(old.generate_state(1, np.uint32)[0] & 0x7FFFFFFF)
+    a, b = _particlize_seeds(tmp_path, "a"), _particlize_seeds(tmp_path, "b")
+    ka, kb = hz.production_key(a), hz.production_key(b)
+    assert ka == uuid.UUID(a.attrs["file_uuid"]).int and ka != kb
+    for tag, unit, sample in (("bulk_jet", 0, 0), ("bulk_bg", 0, 0), ("jet_frag", 3, 7)):
+        sa, sb = hz.unit_seed(1, tag, unit, sample, ka), hz.unit_seed(1, tag, unit, sample, kb)
+        assert sa != sb and sa == hz.unit_seed(1, tag, unit, sample, ka)   # reproducible
+        assert sa != hz.unit_seed(1, tag, unit, sample)                      # not legacy
+    assert hz.unit_seed(1, "bulk_jet", 0, 0, ka) != hz.unit_seed(1, "bulk_bg", 0, 0, ka)
+    a.close(), b.close()
+
+    class _NoUuid:
+        attrs = {}
+    with pytest.raises(ValueError, match="legacy-seeds"):
+        hz.production_key(_NoUuid())
+
+
+def _particlize_seeds(tmp_path, name):
+    p = tmp_path / f"{name}_particlize.h5"
+    _particlize_with_backgrounds(p, (0,))
+    return ParticlizeFile(p)
+
+
+def _particlize_campaign(tmp_path, name, bg_ids, keys, prod_seed, n_cells=(3, 4, 5)):
+    """A particlize file only (enough for HadronFileReader): background k has
+    n_cells[k] cells and hash keys[k]."""
+    jet, bg, mgr = _Leg("MUSIC_2"), _Leg("MUSIC_1"), _Mgr()
+    w = ParticlizeH5Writer(tmp_path / f"{name}_particlize.h5", legs=("jet", "bg"),
+                           music_input="", extra_attrs={"prod_seed": prod_seed})
+    w.attach(_JS(bg, jet), manager=mgr)
+    for k, b in enumerate(bg_ids):
+        jet.cells, bg.cells = _cells(2, k), _cells(n_cells[b], 10 + b)
+        w.Exec(k, bg_id=b, bg_key=keys[b])
+    w.Finish()
+
+
+def test_reader_flags_backgrounds_shared_between_campaigns(tmp_path):
+    import warnings
+
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    # a --reuse inside one file is fine: events 0 and 1 share background 0
+    _particlize_campaign(tmp_path, "a", (0, 0, 2), {0: "k0", 2: "k2"}, prod_seed=1)
+    _particlize_campaign(tmp_path, "b", (0, 1), {0: "x0", 1: "x1"}, prod_seed=2)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        with HadronFileReader(str(tmp_path)) as r:
+            assert r.duplicate_backgrounds() == []
+    # campaign c repeats a's first background bit for bit (same seed, same settings)
+    _particlize_campaign(tmp_path, "c", (0,), {0: "k0"}, prod_seed=1)
+    # campaign d: seed 1 again, same surface (3 cells) but another grid -> another hash
+    _particlize_campaign(tmp_path, "d", (0,), {0: "grid2"}, prod_seed=1)
+    with pytest.warns(RuntimeWarning, match="1 identical, 1 probably"):
+        r = HadronFileReader(str(tmp_path))
+    dup = r.duplicate_backgrounds()
+    # files a, b, c, d: events a0 = 0, b = 3.., c0 = 5, d0 = 6
+    assert {"kind": "identical", "events": [0, 5]} in dup
+    assert {"kind": "probable", "events": [0, 5, 6]} in dup
+    r.close()
