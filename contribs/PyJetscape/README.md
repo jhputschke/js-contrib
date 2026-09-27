@@ -1151,7 +1151,8 @@ and `jet_minus_background(...)` accumulate event by event, with each event weigh
 and a reused background re-evaluated per event (jet-relative observables via
 `info.initiators()`, from the hadron files' `initiators/` or else the pair file) and its
 errors correlated. Hadron files whose `source_uuid` doesn't match
-their particlize file are refused. Example:
+their particlize file are refused, and backgrounds that occur in more than one production
+file (campaigns over the same seeds) are reported (`duplicate_backgrounds()`). Example:
 `example/prod_AuAu_0_10_jet/README.md`, *C. Analysing a campaign*. Tests:
 `tests/test_particlize_h5.py`.
 

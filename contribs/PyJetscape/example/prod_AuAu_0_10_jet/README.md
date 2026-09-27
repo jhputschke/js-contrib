@@ -138,6 +138,21 @@ next to the particlize file. For many seeds at once, see the next section.
 - Give every distinct setting its own `OUTDIR`: the skip test looks only at the seed and the
   event count, not at the options.
 
+> **A seed is a set of collisions, in every campaign.** The seed fixes the initial condition,
+> Pythia and Matter/LBT. Two campaigns over the same seeds are therefore not independent:
+> - **Same settings:** the same events, bit for bit. Merging them double-counts every event.
+> - **Different jet settings** (pT̂ window, `--hard`, `--no-deposit`, liquefier or medium
+>   parameters): the same backgrounds, with different jets on top. Seed 1 at pT̂ 20–40 GeV and
+>   at 50–70 GeV gives a bit-identical background leg. Only a different task list changes the
+>   stream: the hydro-only `../prod_AuAu_0_10` has other initial conditions at the same seed.
+>
+> That is useful for comparing settings, where the shared backgrounds cancel in the
+> difference, and wrong for anything that treats the campaigns as more statistics: merged
+> hadron or FNO training sets, or errors that assume independent events. Give campaigns meant
+> to be independent disjoint seed ranges, e.g. `FIRST_SEED` = 1, 1001, 2001, ... one block per
+> campaign, and note them with the campaign. `hadronize.py` keys its seeds on the particlize
+> file, so its samples of repeated events differ, but the fluid underneath is still the same.
+
 ### A. Hydro pairs only (FNO training data)
 
 ```bash
@@ -355,6 +370,10 @@ What it does:
 - **Refuses mixed runs.** A hadron file whose recorded `source_uuid` isn't its particlize
   file's `file_uuid` (renamed, or from another run) is refused;
   `check_uuid=False` overrides.
+- **Flags repeated collisions.** A background found in more than one production file gives a
+  warning: bit-identical (`events/bg_key`), or probably the same collision on another output
+  grid (same `prod_seed` and freeze-out cell count). That is what campaigns over the same seeds
+  produce (see *Campaigns*). `r.duplicate_backgrounds()` lists them.
 - **Averages event by event.** For every event, the samples of its unit are histogrammed and
   divided by that unit's number of samples. These per-event means are then averaged over the
   events, so every event counts the same, even when files were hadronized with different

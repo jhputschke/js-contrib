@@ -757,6 +757,20 @@ class HadronFileReader:
                               "setting per campaign", RuntimeWarning, stacklevel=2)
         n = np.array([f["nevents"] for f in self._files], dtype=np.int64)
         self._offsets = np.concatenate([[0], np.cumsum(n)])
+        dup = self.duplicate_backgrounds()
+        if dup:
+            import warnings
+            n_id = sum(d["kind"] == "identical" for d in dup)
+            ex = dup[0]
+            where = ", ".join(f"{os.path.basename(self._files[self.locate(g)[0]]['stem'])} "
+                              f"event {self.locate(g)[1]}" for g in ex["events"][:3])
+            warnings.warn(
+                f"HadronFileReader: {len(dup)} background(s) occur in more than one production "
+                f"file ({n_id} identical, {len(dup) - n_id} probably the same collision on "
+                f"another output grid), e.g. {where}. Campaigns over the same seeds share "
+                "their collisions (the jets may differ): these events are not independent. "
+                "Use disjoint seed ranges per campaign; duplicate_backgrounds() lists them.",
+                RuntimeWarning, stacklevel=2)
         self._samples = {}              # (file index, tag) -> {unit id: n_samples}
         self._init_cache = {}
         self._je = (None, None)         # (file index, JetEvents) of the last lookup
@@ -776,7 +790,10 @@ class HadronFileReader:
                     "seed": pf.attrs.get("prod_seed"),
                     "pair_file": pf.attrs.get("pair_file"),
                     "bg_unit": (pf.events("bg_unit") if pf.has_events("bg_unit")
-                                else None)}
+                                else None),
+                    "bg_key": (pf.events("bg_key") if pf.has_events("bg_key") else None),
+                    "n_cells_bg": (pf.events("n_cells_bg") if pf.has_events("n_cells_bg")
+                                   else None)}
         info["tags"], info["precision"], info["correlated"] = {}, {}, {}
         for tag in TAGS:
             path = f"{stem}_hadrons_{tag}.h5"
@@ -799,6 +816,42 @@ class HadronFileReader:
     @property
     def n_events(self):
         return int(self._offsets[-1])
+
+    def duplicate_backgrounds(self):
+        """Backgrounds found in more than one production file, as a list of
+        ``{"kind", "events"}``: ``events`` the global index of the first event using that
+        background in each file.  ``kind`` "identical": the same background leg bit for bit
+        (particlize ``events/bg_key``, a hash of it on the output grid); "probable": same
+        production seed and the same number of freeze-out cells (``n_cells_bg``, which does
+        not depend on the output grid) but another hash, as for the same collision written
+        on another grid.  Both come from campaigns run over the same seeds."""
+        ident, fprint = {}, {}
+        for i, f in enumerate(self._files):
+            if f["bg_unit"] is None:
+                continue
+            first = {}
+            for local, u in enumerate(np.asarray(f["bg_unit"])):
+                first.setdefault(int(u), local)
+            for local in first.values():
+                g = self.global_event(i, local)
+                if f["bg_key"] is not None:
+                    key = f["bg_key"][local]
+                    key = key.decode() if isinstance(key, bytes) else str(key)
+                    if key:
+                        ident.setdefault(key, []).append((i, g))
+                if f["n_cells_bg"] is not None and f["seed"] is not None:
+                    n = int(f["n_cells_bg"][local])
+                    if n > 0:
+                        fprint.setdefault((int(f["seed"]), n), []).append((i, g))
+        out, seen = [], set()
+        for kind, table in (("identical", ident), ("probable", fprint)):
+            for items in table.values():
+                events = tuple(sorted(g for _, g in items))
+                if len({i for i, _ in items}) < 2 or events in seen:
+                    continue
+                seen.add(events)
+                out.append({"kind": kind, "events": list(events)})
+        return out
 
     @property
     def n_files(self):
