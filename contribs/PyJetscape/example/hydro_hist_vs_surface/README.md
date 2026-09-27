@@ -73,8 +73,8 @@ The steps one by one:
 ```bash
 DATA=/home/putschke/FNO_Hydro_Data/AuAu_0_10_h5_pair_surface_test
 OUT=$DATA/hist_vs_surface
-python make_surfaces.py hist      $DATA --out-dir $OUT/hist            # ~65 s per event (both legs)
-python make_surfaces.py ref_ideal $DATA --out-dir $OUT/ref_ideal       # ~1 min per file
+python make_surfaces.py hist      $DATA --out-dir $OUT/hist            # ~62 s per event (both legs)
+python make_surfaces.py ref_ideal $DATA --out-dir $OUT/ref_ideal       # ~40 s per file
 python ../prod_AuAu_0_10_jet/run_hadronize.py $OUT/hist -j 4 \
        --oversample 100 --n-frag 50 --correlated --keep-bits-p 12 --keep-bits-x 8
 python analyze.py --ref $DATA --variants-dir $OUT \
@@ -88,10 +88,38 @@ python make_surfaces.py hist $DATA/AuAu_0_10_jet_seed0001_particlize.h5 --out-di
 
 | step | time | disk |
 |---|---|---|
-| `make_surfaces.py hist` | ~31 s per leg and event with all 20 threads (OpenMP; the finder dominates), 1 h 44 min in all | ~70% of the reference's surface cells: ~2.7 GB per file |
-| `make_surfaces.py ref_*` | ~1 min per file (a copy) | 4.4 GB per file, as the reference |
-| `hadronize.py`, both legs, 100 oversamples | ~3.8 min for the 4 files at once (`-j 4`) | ~650 MB per file |
-| `analyze.py` | ~5.5 min (all 5 variants, 100 events) | < 10 MB |
+| `make_surfaces.py hist` | 1 h 44 min: 31 s per leg with all 20 threads (breakdown below) | 1.8–1.9 GB per file (70% of the reference's cells) |
+| `make_surfaces.py ref_*` | 35–47 s per file (a copy with columns zeroed) | 2.2 GB (`ref_ideal`), 2.3 GB (`ref_no_shear`), 4.2 GB (`ref_no_bulk`) per file; the reference is 4.3–4.6 GB |
+| `hadronize.py`, both legs, 100 oversamples | 3.6–3.9 min for the 4 files at once (`-j 4`) | ~0.6 GB per file (`--keep-bits-p 12 --keep-bits-x 8`) |
+| `analyze.py` | 5.4 min (all 5 variants, 100 events; 2 min hadrons, 3.4 min surfaces) | 1.9 MB |
+| **all** (`run_study.sh`) | **2 h 12 min** (12:17 → 14:30) | **51 GB** (hist 9.3, ref_ideal 12, ref_no_shear 12, ref_no_bulk 19) |
+
+`ref_no_bulk` is the largest because it keeps the ten $\pi^{\mu\nu}$ columns, which compress
+much worse than zeros.
+
+**The `hist` surfaces, in detail** (from `run_study.log`: the step ran 12:36:34 → 14:20:37,
+6243 s; the 200 per-leg times in the log add up to 6241 s). One process at a time, every
+leg with all 20 cores:
+
+| | legs | per leg (mean) | range | total |
+|---|---|---|---|---|
+| jet leg (`arr`) | 100 | 32.7 s | 26.7–41.0 s | 54.4 min |
+| background leg (`arr_bg`) | 100 | 29.8 s | 26.6–34.1 s | 49.6 min |
+| **all** | **200** | **31.2 s** | | **104.0 min** |
+
+- **Per file** it is very even: 25.9, 26.3, 25.5 and 26.3 min for seeds 1–4, i.e. ~62 s
+  per event for both legs.
+- **Jet legs take longer** because MUSIC_2 runs until the jet's droplets have frozen out,
+  so its history has more frames (`ntau_jet` 112 vs `ntau_bg` 102 on average). They find
+  about as many cells (800k vs 792k per leg), and time and cell count are only loosely
+  related (correlation 0.5): the search volume matters, not the output.
+- **What a leg contains:** reading the leg from the pair file, $T(e)$ and $P(e)$, loading
+  it into `FluidDynamics`, the finder, and writing the cells. Only the leg as a whole is
+  timed. The finder is most of it: on the untrimmed 143 frames it alone took ~38 s (all
+  threads; 102 s with 5), and dropping the all-zero frames after freeze-out brought it
+  down to the 31 s above.
+- **Rebuilding `hist`** therefore takes ~1 h 48 min with its hadronization (+~4 min). The
+  `ref_*` variants take ~6 min each, since they need no surface search.
 
 ## What `make_surfaces.py` does
 
