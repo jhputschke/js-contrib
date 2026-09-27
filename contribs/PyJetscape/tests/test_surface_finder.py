@@ -22,8 +22,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "python"))
 
 core = pytest.importorskip("jetscape.pyjetscape_core")
 
-T0, TAU0, T_SW = 0.30, 0.6, 0.15
-TAU_SW = TAU0 * (T0 / T_SW) ** 3          # 4.8 fm/c
+# T_sw is chosen so the surface does not sit on a lattice time.  With T_sw = 0.15 it froze
+# out at exactly tau = 4.8, a stored frame and a node of the default (dtau 0.1) and coarse
+# (dtau 0.2) lattices.  There T - T_sw is rounding noise (float32(0.15) is 6e-9 above 0.15,
+# and interpolating onto lattice points between grid points adds noise of the same size), so
+# its sign varies from node to node and Cornelius finds the surface in the time layers on
+# both sides: area 41.7 instead of 32 on the default lattice.  0.1495 puts it at 4.848.
+T0, TAU0, T_SW = 0.30, 0.6, 0.1495
+TAU_SW = TAU0 * (T0 / T_SW) ** 3          # 4.848 fm/c, between lattice times
 
 
 def _surface(v, *, dtau=0.0, dx=0.0, deta=0.0):
