@@ -200,6 +200,30 @@ droplet, and the sampled sum is not normalized to 1.
 - The wake's ΔP^μ follows the kernel-weighted deposit (to ~2% until τ ≈ 8 fm), not the droplet
   energy.
 
-This is independent of the LBT double counting and is not fixed yet. Until it is, the
-hydro-level results in the notebook describe the wake MUSIC evolved; they are normalized to
-the kernel-weighted deposit `E_inj_hydro`.
+This is independent of the LBT double counting. A second, smaller loss has the same effect:
+droplets at the hard vertex (τ_d = 0) were stored with η = 0/0, and the C++ kernel is then NaN
+everywhere, so MUSIC never received them (13 droplets, 56 GeV, in the pTHat 10–40 production).
+
+**The fix** (X-SCAPE branch `liquifier_kernel_normalization`, `<Liquefier>
+<normalize_on_hydro_grid>`, on by default):
+
+- `MusicWrapper` passes MUSIC's grid to the liquefier.
+- Before a droplet's deposit step, `LiquefierBase` computes its sampled kernel sum on that grid
+  and scales the droplet by its inverse. A droplet whose kernel misses every cell centre goes
+  whole into its nearest cell.
+- Vertex droplets get η = 0.
+
+Rerunning job 0003 of the pTHat 10–40 production with the same seeds:
+
+- the droplets, showers and background leg are bit-identical;
+- the wake follows the droplets themselves: ΔP⁰/droplets at τ = 7.5 fm has median 1.02 and
+  16–84% 0.95–1.06, against 0.70–1.11 before.
+
+Pair files made with the fix have the root attribute `liquefier_normalize_on_hydro_grid = 1`
+and each droplet's C++ kernel sum in `source/flux`. `wake_observables.py` then sets
+`inj_factor` = 1, i.e. MUSIC received each droplet exactly. For older files it uses the Python
+port (0 for vertex droplets), and the notebook's hydro-level results are normalized to the
+kernel-weighted deposit `E_inj_hydro`.
+
+Productions made before the fix cannot be repaired afterwards: their jet leg (`arr`) was
+evolved with the wrong source. Rerun them; with the same seeds, only `arr` changes.

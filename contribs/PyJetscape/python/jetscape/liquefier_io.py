@@ -19,7 +19,8 @@ import math
 
 import numpy as np
 
-__all__ = ["DROPLET_COLUMNS", "PARAM_KEYS", "droplets", "liquefier_params"]
+__all__ = ["DROPLET_COLUMNS", "PARAM_KEYS", "droplets", "droplet_fluxes", "liquefier_params",
+           "normalize_on_hydro_grid"]
 
 #: columns of one droplet row; the name and order fast_data stores as ``droplet_columns``
 DROPLET_COLUMNS = ("tau", "x", "y", "eta", "E", "px", "py", "pz")
@@ -37,6 +38,25 @@ def droplets(liq):
     ``ClearTask``.
     """
     return np.asarray(liq.droplets_numpy(), dtype=np.float64).reshape(-1, len(DROPLET_COLUMNS))
+
+
+def droplet_fluxes(liq):
+    """Per droplet, the sum of its point-sampled kernel on the hydro grid (X-SCAPE
+    ``LiquefierBase::get_droplet_flux``), or ``None`` if this X-SCAPE build does not normalize.
+
+    -1 marks a droplet that was never normalized.  With :func:`normalize_on_hydro_grid` true,
+    the hydro receives each normalized droplet's four-momentum exactly; without it, ``flux``
+    times it.
+    """
+    get = getattr(liq, "droplet_fluxes_numpy", None)
+    return None if get is None else np.asarray(get(), dtype=np.float64)
+
+
+def normalize_on_hydro_grid(liq):
+    """``<Liquefier><normalize_on_hydro_grid>`` of this liquefier, or ``None`` for an X-SCAPE
+    build without the normalization (every droplet deposits what its sampled kernel sums to)."""
+    get = getattr(liq, "get_normalize_on_hydro_grid", None)
+    return None if get is None else bool(get())
 
 
 def liquefier_params(liq):

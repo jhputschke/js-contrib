@@ -275,6 +275,11 @@
   <Liquefier>
     <threshold_energy_switch> 1 </threshold_energy_switch>
     <e_threshold> 2.0 </e_threshold>
+    <!-- each droplet deposits exactly its four-momentum on MUSIC's grid (X-SCAPE
+         LiquefierBase::normalize_active_droplets; needs X-SCAPE with the kernel
+         normalization, older builds ignore it).  0 reproduces the old runs, except that
+         droplets at the hard vertex (tau = 0) now deposit instead of being lost. -->
+    <normalize_on_hydro_grid> 1 </normalize_on_hydro_grid>
     <CausalLiquefier>
       <name>CausalLiquefier</name>
       <dtau> 0.02 </dtau>

@@ -136,7 +136,30 @@ void bind_liquefier(py::module_ &m) {
            },
            "Summed source current j^mu [GeV/fm^4] at a Milne point, causality-gated. "
            "This is the reference the pure-Python kernel is checked against.",
-           py::arg("tau"), py::arg("x"), py::arg("y"), py::arg("eta"));
+           py::arg("tau"), py::arg("x"), py::arg("y"), py::arg("eta"))
+#ifdef XSCAPE_LIQUEFIER_GRID_NORMALIZATION
+      // ── normalization on the hydro grid (X-SCAPE LiquefierBase) ────────────
+      .def("get_normalize_on_hydro_grid", &LiquefierBase::get_normalize_on_hydro_grid,
+           "Whether each droplet is normalized on the hydro grid it is sampled on "
+           "(<Liquefier><normalize_on_hydro_grid>, default on).")
+      .def("set_normalize_on_hydro_grid", &LiquefierBase::set_normalize_on_hydro_grid,
+           py::arg("on"))
+      .def("droplet_fluxes_numpy",
+           [](const LiquefierBase &liq) {
+             const int n = liq.get_dropletlist_size();
+             py::array_t<double> out(n);
+             auto r = out.mutable_unchecked<1>();
+             for (int i = 0; i < n; ++i) r(i) = liq.get_droplet_flux(i);
+             return out;
+           },
+           "Per droplet (droplets_numpy() order): the sum of its point-sampled kernel on "
+           "the hydro grid, i.e. the fraction of its four-momentum the hydro would receive "
+           "without normalization; -1 if it was never normalized (no grid, switched off, or "
+           "it never reached a hydro step).  With normalization on, the hydro receives "
+           "exactly the droplet (flux > 0, or flux 0: deposited into one cell).")
+      .def("normalization_summary", &LiquefierBase::normalization_summary)
+#endif
+      ;
 
   // ── CausalLiquefier ───────────────────────────────────────────────────────
   py::class_<CausalLiquefier, LiquefierBase, std::shared_ptr<CausalLiquefier>>(
