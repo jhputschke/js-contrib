@@ -633,6 +633,88 @@ Measured (GB10, seed 5, 3 windows):
 must give `arr == arr_bg` in every event; and in any job, `diag/bg_id` must repeat K·M
 times with `diag/pthat_bin` cycling 0 … K−1.
 
+### E. Parton rapidity cut (`--parton-ymax`)
+
+Most measurements are at mid-rapidity, but at low pT̂ the jets spread far in rapidity. In
+the `pth10-40` campaign (100 events per window) the hardest shower-initiating parton had
+|y| < 0.6 in only 43% (10–20 GeV), 66% (20–30) and 62% (30–40) of the events. Much of the
+hydro time went to events that cannot put a jet into a mid-rapidity measurement.
+`--parton-ymax` selects the events before they are simulated:
+
+```bash
+# the pth10-40 campaign, only events whose hardest parton has |y| < 0.6
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_pth10-40-y06 \
+    --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both
+
+# for inclusive jets measured at |eta_jet| < 0.6: either of the two hardest partons at
+# |y| < 0.7 (a margin for the jet axis, and the recoil leg counts too; see below)
+    ... --parton-ymax 0.7 --parton-y-mode any ...
+```
+
+- **What is cut.** The partons PythiaGun hands to the framework: status 62, after ISR
+  and MPI with primordial kT (the final partons with `FSR_on`), i.e. the partons that
+  start the showers (`shower/initiators`). The test is on their two hardest by pT:
+
+  | `--parton-y-mode` | keeps the event if | for |
+  |---|---|---|
+  | `leading` (default) | the hardest has \|y\| < Y | analyses that need the hardest jet (or a trigger on it) in the acceptance |
+  | `both` | the two hardest have \|y\| < Y | dijets, back-to-back observables |
+  | `any` | either of the two hardest has \|y\| < Y | inclusive jets and the medium response: either leg can put a jet or a wake into the acceptance |
+
+  Not on the hard process itself: its two outgoing partons have exactly the same pT at
+  leading order (checked: 400 of 400 events), so "the leading one" is only defined once
+  ISR has recoiled against them. "Any parton" would almost always pass, because the list
+  also holds soft MPI partons (2–12 partons per event).
+- **It selects events; nothing downstream is restricted.** The cut decides which events
+  are generated. An accepted event keeps all its partons, including a recoil parton at
+  forward rapidity, and MATTER, LBT and the hydro see the full event, so energy, momentum
+  and the medium response stay consistent. A rejected event is regenerated, like one with
+  fewer than two partons, before any shower or hydro: its jets never exist in the files,
+  wherever they would have ended up.
+- **Cross sections.** Pythia's `sigmaGen` still counts the rejected events, so per window
+  PythiaGun counts the events that reach the cut (`n_tried`) and pass it (`n_kept`), and
+  its cross section is σ = sigmaGen × kept/tried (error including the acceptance's). The
+  event header, `pthat_bin_sigma_gen` and `HadronFileReader.pthat_bin_sigma` are this σ;
+  `pthat_bin_sigma_gen_raw` is Pythia's own. Checked (10–20 GeV, leading \|y\| < 0.6,
+  30,000 events with and without the cut): σ with the cut = 2.3057e-3 mb, σ without ×
+  the fraction of uncut events passing = 2.3025e-3 mb (ratio 1.0014); acceptance
+  0.4027 ± 0.0018 counted, 0.4013 ± 0.0028 in the uncut sample.
+- **Choosing Y and the mode.** The analysis still applies its own cut on the
+  reconstructed jets or hadrons; the parton cut only has to leave out events that cannot
+  contribute to it. So Y must be *looser* than the analysis acceptance, by how far the
+  observable can move from its initiating parton. Otherwise events that would have put a
+  jet just inside the acceptance are never generated, and the sample is short near the
+  edge.
+  - *Jets.* The jet axis stays close to its parton (estimate: within ~0.1 for R = 0.4;
+    not yet measured at hadron level). For jets at \|η_jet\| < η_max, use
+    Y ≈ η_max + 0.1–0.2. Example: `--parton-ymax 0.6` is complete for jets at
+    \|η_jet\| up to about 0.4–0.5; for \|η_jet\| < 0.6 (R = 0.4), use 0.7–0.8.
+  - *The mode matters more than the margin.* With `leading`, an event whose hardest
+    parton is at y = 1.5 is rejected even if the second one, the recoil leg of similar pT,
+    is at y = 0.2, and its perfectly good mid-rapidity jet is lost. Quenching can also make
+    the second leg's jet the harder one. For inclusive jets use `any`: at 10–20 GeV and
+    \|y\| < 0.6 it keeps 66% of the events against 40% for `leading`.
+  - *Medium response.* The deposit sits at its parton's rapidity: in the `pth10-40`
+    campaign 68% of the energy the hardest parton's shower deposits (\|Δφ\| < 0.4 of it)
+    lies within \|η_s − y\| < 0.16. The wake's hadrons are then spread by Cooper–Frye,
+    thermal pions over roughly ±1 in rapidity (estimate). For wake hadrons at
+    \|η\| < η_max, use Y ≈ η_max + 1 with `any`.
+  - The migration can be measured once from a hadronized campaign (reconstructed jet η
+    or the wake's hadrons against `diag/parton_y_lead`) and Y fixed from it.
+- **Recorded.** Per event `diag/parton_y_lead`, `parton_pt_lead`, `parton_y_sub`,
+  `parton_pt_sub` (the two hardest handed-over partons; also in the particlize file's
+  `events/`). Per file `parton_ymax`, `parton_y_mode`, and at the end per window
+  `pthat_bin_n_tried`, `pthat_bin_n_kept`, `pthat_bin_acceptance`,
+  `pthat_bin_sigma_gen_raw`, `pthat_bin_sigma_err_raw` (and the `.json`).
+  `HadronFileReader.pthat_bin_acceptance(k)` sums them over a campaign.
+- **Cost.** Pythia regenerates an event in well under a millisecond (10,000 kept of
+  24,892 tried: 4.2 s, against 2.6 s without the cut, startup included); every hydro run is then an accepted event: 1/0.40 = 2.5×
+  more usable 10–20 GeV events per GPU hour at \|y\| < 0.6.
+- **Needs** X-SCAPE branch `pyGun_eta_cut` (PythiaGun and the `<partonYMax>` /
+  `<partonYMode>` defaults in `config/jetscape_main.xml`) and PyJetscape built against it;
+  the driver checks that PythiaGun reports the requested cut. Without `--parton-ymax`
+  nothing is cut and the files are as before.
+
 ### Planning numbers (GB10, one 0–10% event, measured)
 
 | | per event | disk per event |
@@ -658,6 +740,8 @@ processes keep up with a whole four-job GPU campaign.
 | `--bg-layout {auto,full,shared}` | How `arr_bg` is stored. `full`: one copy per event. `shared`: each background once, `arr_bg` a virtual dataset over it that reads the same (see [Shared backgrounds](#shared-backgrounds---bg-layout)). `auto` (default): `shared` when a background is reused (`--reuse` > 1, which includes `--pthat-bins` with more than one window or `--jets-per-bin` > 1), else `full`, so files without reuse are unchanged. |
 | `--pthat-bins A-B,C-D,...` | K PythiaGun pT̂ windows in one job, one Pythia each; event i uses window i mod K, and `--reuse` is set to K × `--jets-per-bin`. `--events` must be a multiple of that. Not with `--reuse`, `--pthat-min/max` or `--hard pgun`. See [D](#d-several-pthat-windows-per-background---pthat-bins). |
 | `--jets-per-bin M` | With `--pthat-bins`: jets per window per background (default 1). |
+| `--parton-ymax Y` | PythiaGun keeps only events whose handed-over partons (status 62) pass \|y\| < Y on their two hardest (`--parton-y-mode`); rejected events are regenerated before any shower or hydro, and the cross sections are Pythia's × kept/tried. With or without `--pthat-bins`. See [E](#e-parton-rapidity-cut---parton-ymax). |
+| `--parton-y-mode {leading,both,any}` | With `--parton-ymax`: the hardest parton (default), the two hardest, or either of them. |
 | `--no-deposit` | Null test: MUSIC_2 without the liquefier. `arr` must equal `arr_bg` bit for bit (`diag/frames_identical == ntau`). Showers and droplets are still recorded. |
 | `--native` | Both legs on MUSIC's own grid (100 × 100 × 60) instead of the YAML's. |
 | `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |

@@ -31,7 +31,7 @@ rpj = _run_prod_jet()
 
 def _args(**kw):
     a = dict(pthat_bins=None, jets_per_bin=1, hard="pythia", pthat_min=None, pthat_max=None,
-             reuse=1, events=6)
+             reuse=1, events=6, parton_ymax=None, parton_y_mode="leading")
     a.update(kw)
     return SimpleNamespace(**a)
 
@@ -65,3 +65,20 @@ def test_check_pthat_bins_sets_reuse():
 def test_check_pthat_bins_refuses(kw):
     with pytest.raises(ValueError):
         rpj.check_pthat_bins(_args(**kw))
+
+
+def test_check_parton_ycut():
+    rpj.check_parton_ycut(_args())                                   # no cut
+    rpj.check_parton_ycut(_args(parton_ymax=0.6, parton_y_mode="both"))
+    rpj.check_parton_ycut(_args(parton_ymax=0.6, pthat_bins="10-20,20-30"))
+
+
+@pytest.mark.parametrize("kw", [
+    dict(parton_y_mode="both"),                                  # a mode without a cut
+    dict(parton_ymax=0.6, hard="pgun"),
+    dict(parton_ymax=0.0),
+    dict(parton_ymax=-1.0),
+])
+def test_check_parton_ycut_refuses(kw):
+    with pytest.raises(ValueError):
+        rpj.check_parton_ycut(_args(**kw))

@@ -18,6 +18,8 @@ grid YAMLs, grid checks and environment checks this reuses.
     python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
     python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90
                                      # one background per 3 jets, one in each pTHat window
+    python run_prod_jet.py --events 30 --seed 1 --pthat-bins 10-20,20-30,30-40 --parton-ymax 0.6
+                                     # only events whose hardest parton has |y| < 0.6
     python run_prod_jet.py --events 10 --seed 1 --surface jet    # surface for the jet leg only
     python run_prod_jet.py --events 10 --seed 1 --write-particlize both
                                      # + <stem>_particlize.h5: both surfaces and the final
@@ -106,6 +108,18 @@ def parse_args() -> argparse.Namespace:
                         "PythiaGun with <pTHatBins>")
     p.add_argument("--jets-per-bin", type=int, default=1, dest="jets_per_bin",
                    help="with --pthat-bins: jets per window per background (default 1)")
+    p.add_argument("--parton-ymax", type=float, default=None, dest="parton_ymax",
+                   help="PythiaGun: keep only events whose partons handed to the framework "
+                        "(status 62 after ISR/MPI; final partons with FSR_on) pass |y| < YMAX "
+                        "on their two hardest (see --parton-y-mode). Rejected events are "
+                        "regenerated before any shower or hydro; the cross sections are "
+                        "Pythia's x kept/tried per window. Records the acceptance and the "
+                        "partons' rapidity per event. Needs X-SCAPE's PythiaGun with "
+                        "<partonYMax>")
+    p.add_argument("--parton-y-mode", choices=("leading", "both", "any"), default="leading",
+                   dest="parton_y_mode",
+                   help="with --parton-ymax: 'leading' the hardest parton (default), "
+                        "'both' the two hardest, 'any' either of the two hardest")
     p.add_argument("--bg-layout", choices=("auto", "full", "shared"), default="auto",
                    dest="bg_layout",
                    help="how arr_bg is stored: 'full' one copy per event; 'shared' each "
@@ -228,6 +242,18 @@ def check_pthat_bins(a) -> None:
                          "--jets-per-bin): the last background would miss windows")
 
 
+def check_parton_ycut(a) -> None:
+    """--parton-ymax / --parton-y-mode against the other options."""
+    if a.parton_ymax is None:
+        if a.parton_y_mode != "leading":
+            raise ValueError("--parton-y-mode needs --parton-ymax")
+        return
+    if a.hard != "pythia":
+        raise ValueError("--parton-ymax is for --hard pythia")
+    if not a.parton_ymax > 0:
+        raise ValueError(f"--parton-ymax must be > 0, got {a.parton_ymax:g}")
+
+
 def pthat_bins_text(windows) -> str:
     """The <pTHatBins> text: 'min max min max ...'."""
     return " ".join(f"{lo:g} {hi:g}" for lo, hi in windows)
@@ -296,6 +322,13 @@ def job_xml(a, out_h5: str):
             _set(pg, "pTHatBins", pthat_bins_text(a.pthat_windows))
         elif pg.find("pTHatBins") is not None:
             pg.remove(pg.find("pTHatBins"))      # a template's windows: only with --pthat-bins
+        if a.parton_ymax is not None:
+            _set(pg, "partonYMax", f"{a.parton_ymax:g}")
+            _set(pg, "partonYMode", a.parton_y_mode)
+        else:                                    # a template's cut: only with --parton-ymax
+            for tag in ("partonYMax", "partonYMode"):
+                if pg.find(tag) is not None:
+                    pg.remove(pg.find(tag))
     else:
         pgun = ET.SubElement(hard, "PGun")
         _set(pgun, "name", "PGun")
@@ -353,35 +386,48 @@ def job_xml(a, out_h5: str):
 PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_early",
                    "tau0_music", "ntau_jet", "ntau_bg", "frames_identical",
                    "jet_hit_boundary", "bg_hit_boundary", "pthat_bin", "pthat",
-                   "event_weight")
+                   "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
+                   "parton_pt_sub")
 
 
 def open_pthat_bins(a, jetscape):
-    """--pthat-bins: the PythiaGun task, after checking it runs exactly these windows.
+    """--pthat-bins / --parton-ymax: the PythiaGun task, after checking that it runs
+    exactly these windows and this cut.
 
-    A PythiaGun without <pTHatBins> would ignore the element and run pTHatMin-pTHatMax
-    alone, so the build is checked here rather than trusted.
+    A PythiaGun without <pTHatBins> or <partonYMax> would refuse the XML (no default in its
+    main XML) or, built otherwise, ignore it, so the build is checked here rather than
+    trusted.
     """
-    if not a.pthat_windows:
+    if not a.pthat_windows and a.parton_ymax is None:
         return None
     from jetscape import pyjetscape_core as core
 
     if not getattr(core, "PYTHIA_GUN_HAS_PTHAT_BINS", False):
-        sys.exit("run_prod_jet.py: --pthat-bins needs X-SCAPE's PythiaGun with <pTHatBins> "
-                 "(branch N_ptHat_per_hydro) and PyJetscape built against it")
+        sys.exit("run_prod_jet.py: --pthat-bins / --parton-ymax need X-SCAPE's PythiaGun "
+                 "with <pTHatBins> (branch N_ptHat_per_hydro) and PyJetscape built against it")
+    if a.parton_ymax is not None and not getattr(core, "PYTHIA_GUN_HAS_PARTON_Y_CUT", False):
+        sys.exit("run_prod_jet.py: --parton-ymax needs X-SCAPE's PythiaGun with <partonYMax> "
+                 "(branch pyGun_eta_cut) and PyJetscape built against it")
     tasks = {t.GetId(): t for t in jetscape.GetTaskList()}
     gun = tasks.get("PythiaGun")
     if gun is None:
-        sys.exit(f"run_prod_jet.py: --pthat-bins found no PythiaGun task (tasks: "
-                 f"{sorted(tasks)})")
+        sys.exit(f"run_prod_jet.py: --pthat-bins / --parton-ymax found no PythiaGun task "
+                 f"(tasks: {sorted(tasks)})")
     info = core.pythia_gun_bins(gun)
     got = [tuple(b) for b in info["bins"]]
-    if got != [tuple(w) for w in a.pthat_windows]:
+    if a.pthat_windows and got != [tuple(w) for w in a.pthat_windows]:
         sys.exit(f"run_prod_jet.py: PythiaGun runs the windows {got}, not "
                  f"{a.pthat_windows}")
+    if a.parton_ymax is not None and (abs(info["y_max"] - a.parton_ymax) > 1e-12
+                                      or info["y_mode"] != a.parton_y_mode):
+        sys.exit(f"run_prod_jet.py: PythiaGun cuts |y| < {info['y_max']:g} "
+                 f"({info['y_mode']}), not {a.parton_ymax:g} ({a.parton_y_mode})")
     print("  pTHat    " + ", ".join(f"window {k}: {lo:g}-{hi:g} GeV (Pythia seed {s})"
                                     for k, ((lo, hi), s) in enumerate(zip(got,
                                                                           info["seeds"]))))
+    if a.parton_ymax is not None:
+        print(f"  cut      handed-over partons, two hardest, |y| < {a.parton_ymax:g} "
+              f"({a.parton_y_mode})")
     return gun
 
 
@@ -392,8 +438,17 @@ def pthat_diag(gun) -> dict:
     from jetscape import pyjetscape_core as core
 
     h = core.hard_process_info(gun)
-    return {"pthat_bin": int(core.pythia_gun_bins(gun)["active"]),
-            "pthat": float(h["pthat"]), "event_weight": float(h["event_weight"])}
+    d = {"pthat_bin": int(core.pythia_gun_bins(gun)["active"]),
+         "pthat": float(h["pthat"]), "event_weight": float(h["event_weight"])}
+    if hasattr(core, "hard_partons_numpy"):
+        # the partons handed to the framework (what --parton-ymax cuts on), hardest first:
+        # pid, px, py, pz, E, pT, y
+        hp = core.hard_partons_numpy(gun)
+        if len(hp):
+            d.update(parton_y_lead=float(hp[0, 6]), parton_pt_lead=float(hp[0, 5]))
+            if len(hp) > 1:
+                d.update(parton_y_sub=float(hp[1, 6]), parton_pt_sub=float(hp[1, 5]))
+    return d
 
 
 def pthat_windows_final(gun) -> dict:
@@ -402,10 +457,21 @@ def pthat_windows_final(gun) -> dict:
     from jetscape import pyjetscape_core as core
 
     info = core.pythia_gun_bins(gun)
-    return {"pthat_bin_sigma_gen": np.asarray(info["sigma_gen"], dtype=np.float64),
-            "pthat_bin_sigma_err": np.asarray(info["sigma_err"], dtype=np.float64),
-            "pthat_bin_n_accepted": np.asarray(info["n_accepted"], dtype=np.int64),
-            "pthat_bin_seeds": np.asarray(info["seeds"], dtype=np.int64)}
+    out = {"pthat_bins": np.asarray(info["bins"], dtype=np.float64),
+           "pthat_bin_sigma_gen": np.asarray(info["sigma_gen"], dtype=np.float64),
+           "pthat_bin_sigma_err": np.asarray(info["sigma_err"], dtype=np.float64),
+           "pthat_bin_n_accepted": np.asarray(info["n_accepted"], dtype=np.int64),
+           "pthat_bin_seeds": np.asarray(info["seeds"], dtype=np.int64)}
+    if info.get("y_max", 0) > 0:
+        # sigma_gen is Pythia's x kept/tried; the raw values count the rejected events
+        out.update(pthat_bin_n_tried=np.asarray(info["n_tried"], dtype=np.int64),
+                   pthat_bin_n_kept=np.asarray(info["n_kept"], dtype=np.int64),
+                   pthat_bin_acceptance=np.asarray(info["acceptance"], dtype=np.float64),
+                   pthat_bin_sigma_gen_raw=np.asarray(info["sigma_gen_raw"],
+                                                      dtype=np.float64),
+                   pthat_bin_sigma_err_raw=np.asarray(info["sigma_err_raw"],
+                                                      dtype=np.float64))
+    return out
 
 
 class InlineHadrons:
@@ -459,6 +525,7 @@ def main() -> int:
         sys.exit("run_prod_jet.py: --reuse must be >= 1")
     try:
         check_pthat_bins(a)
+        check_parton_ycut(a)
     except ValueError as exc:
         sys.exit(f"run_prod_jet.py: {exc}")
     if a.validate_inline and a.write_particlize == "none":
@@ -494,6 +561,8 @@ def main() -> int:
                      f"{_text(root, 'Hard/PythiaGun/pTHatMax')} GeV")
     else:
         hard_desc = f"PGun pT {a.pgun_pt:g} GeV"
+    if a.parton_ymax is not None:
+        hard_desc += f", partons |y| < {a.parton_ymax:g} ({a.parton_y_mode})"
     print(f"prod_AuAu_0_10_jet: {a.events} event(s), seed {a.seed}"
           + (" (from OS entropy)" if a.seed_source == "os_entropy" else "")
           + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
@@ -538,6 +607,8 @@ def main() -> int:
         "prod_write_particlize": a.write_particlize,
         **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
+        **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
+           if a.parton_ymax is not None else {}),
         "system": "AuAu 200 GeV 0-10% (b in [0, 4.7] fm)",
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
@@ -617,6 +688,8 @@ def main() -> int:
                         "frame(s) of this event are zeros")
             if gun is not None:
                 msg += f", pTHat {d['pthat']:.1f} GeV (window {d['pthat_bin']})"
+                if "parton_y_lead" in d:
+                    msg += f", hardest parton y {d['parton_y_lead']:+.2f}"
             print(msg)
         windows = None if gun is None else pthat_windows_final(gun)
         jetscape.Finish()
@@ -651,7 +724,11 @@ def main() -> int:
     if writer.bg_layout == "shared":
         summary["bg_layout"] = "shared"
     if windows is not None:
-        summary.update(pthat_bins=a.pthat_windows, jets_per_bin=a.jets_per_bin,
+        if a.parton_ymax is not None:
+            summary.update(parton_ymax=a.parton_ymax, parton_y_mode=a.parton_y_mode,
+                           pthat_bin_acceptance=[round(float(x), 4) for x in
+                                                 windows["pthat_bin_acceptance"]])
+        summary.update(pthat_bins=windows["pthat_bins"].tolist(), jets_per_bin=a.jets_per_bin,
                        pthat_bin_sigma_gen_mb=list(windows["pthat_bin_sigma_gen"]),
                        pthat_bin_seeds=[int(x) for x in windows["pthat_bin_seeds"]])
     with open(os.path.splitext(out_h5)[0] + ".json", "w") as f:

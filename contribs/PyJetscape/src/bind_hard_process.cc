@@ -11,8 +11,15 @@
  *   PYTHIA_GUN_HAS_PTHAT_BINS True if X-SCAPE's PythiaGun has <pTHatBins>. An older
  *                             PythiaGun ignores the element and runs pTHatMin-pTHatMax
  *                             only, so a driver that writes it must check this.
+ *   hard_partons_numpy(task)  the partons the hard process handed to the framework
+ *                             this event: pid, px, py, pz, E, pT, y (by pT, hardest
+ *                             first) -- for PythiaGun what <partonYMax> cuts on
+ *   PYTHIA_GUN_HAS_PARTON_Y_CUT True if it has <partonYMax> / <partonYMode>; then
+ *                             pythia_gun_bins also gives the cut, per window the events
+ *                             tried / kept, the acceptance and Pythia's raw sigma.
  ******************************************************************************/
 
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -20,7 +27,13 @@
 #include <stdexcept>
 #include <string>
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <vector>
+
 #include "HardProcess.h"
+#include "JetScapeParticles.h"
 #include "JetScapeTask.h"
 #include "PythiaGun.h"
 
@@ -44,6 +57,11 @@ void bind_hard_process(py::module_ &m) {
   m.attr("PYTHIA_GUN_HAS_PTHAT_BINS") = true;
 #else
   m.attr("PYTHIA_GUN_HAS_PTHAT_BINS") = false;
+#endif
+#ifdef PYTHIAGUN_HAS_PARTON_Y_CUT
+  m.attr("PYTHIA_GUN_HAS_PARTON_Y_CUT") = true;
+#else
+  m.attr("PYTHIA_GUN_HAS_PARTON_Y_CUT") = false;
 #endif
 
   m.def(
@@ -90,6 +108,23 @@ void bind_hard_process(py::module_ &m) {
         d["sigma_gen"] = sigma;
         d["sigma_err"] = err;
         d["n_accepted"] = acc;
+#ifdef PYTHIAGUN_HAS_PARTON_Y_CUT
+        py::list tried, kept, accept, raw, raw_err;
+        for (int k = 0; k < n; ++k) {
+          tried.append(gun->GetNYTried(k));
+          kept.append(gun->GetNYKept(k));
+          accept.append(gun->GetYAcceptance(k));
+          raw.append(gun->GetSigmaGenRaw(k));
+          raw_err.append(gun->GetSigmaErrRaw(k));
+        }
+        d["y_max"] = gun->GetPartonYMax();       // 0: no cut
+        d["y_mode"] = gun->GetPartonYMode();
+        d["n_tried"] = tried;                    // events that reached the cut
+        d["n_kept"] = kept;                      // and passed it
+        d["acceptance"] = accept;                // kept / tried (1 without a cut)
+        d["sigma_gen_raw"] = raw;                // Pythia's, incl. the rejected events
+        d["sigma_err_raw"] = raw_err;
+#endif
         return d;
 #else
         throw std::runtime_error(
@@ -103,7 +138,41 @@ void bind_hard_process(py::module_ &m) {
         ``active`` (the current event's window: event i uses i mod n_bins), and
         per window ``seeds`` (Pythia's Random:seed), ``sigma_gen``, ``sigma_err``
         [mb] and ``n_accepted`` so far.  After Init(): the windows and seeds; after
-        the last event: the final cross sections.
+        the last event: the final cross sections.  With PYTHIA_GUN_HAS_PARTON_Y_CUT
+        also ``y_max`` (0 = no cut), ``y_mode`` and per window ``n_tried`` /
+        ``n_kept`` (events reaching / passing the cut), ``acceptance`` and
+        ``sigma_gen_raw`` / ``sigma_err_raw`` (Pythia's own, which counts the rejected
+        events; ``sigma_gen`` is it times the acceptance).
+      )pbdoc",
+      py::arg("task"));
+
+  m.def(
+      "hard_partons_numpy",
+      [](std::shared_ptr<JetScapeTask> task) {
+        auto h = as_hard(task);
+        std::vector<std::array<double, 7>> rows;
+        for (int i = 0; i < h->GetNHardPartons(); ++i) {
+          auto p = h->GetPartonAt(i);
+          const auto q = p->p_in();
+          const double pt = std::hypot(q.x(), q.y());
+          const double y = 0.5 * std::log((q.t() + q.z()) / (q.t() - q.z()));
+          rows.push_back({double(p->pid()), q.x(), q.y(), q.z(), q.t(), pt, y});
+        }
+        std::stable_sort(rows.begin(), rows.end(),
+                         [](const auto &a, const auto &b) { return a[5] > b[5]; });
+        py::array_t<double> out({py::ssize_t(rows.size()), py::ssize_t(7)});
+        auto r = out.mutable_unchecked<2>();
+        for (size_t i = 0; i < rows.size(); ++i)
+          for (int j = 0; j < 7; ++j)
+            r(i, j) = rows[i][j];
+        return out;
+      },
+      R"pbdoc(
+        The partons the hard process handed to the framework this event (for
+        PythiaGun: status 62 after ISR/MPI, or the final partons with FSR_on),
+        as an (n, 7) array pid, px, py, pz, E, pT, y, hardest first.  For
+        PythiaGun this is what <partonYMax> cuts on.  Call between
+        ExecPerEvent() and ClearPerEvent().
       )pbdoc",
       py::arg("task"));
 }
