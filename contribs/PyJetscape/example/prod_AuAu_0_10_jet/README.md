@@ -637,14 +637,18 @@ times with `diag/pthat_bin` cycling 0 … K−1.
 
 Most measurements are at mid-rapidity, but at low pT̂ the jets spread far in rapidity. In
 the `pth10-40` campaign (100 events per window) the hardest shower-initiating parton had
-|y| < 0.6 in only 43% (10–20 GeV), 66% (20–30) and 62% (30–40) of the events: the rest of
-the hydro time went to jets outside a |η| < 0.6 measurement. `--parton-ymax` spends it only
-on events in the acceptance:
+|y| < 0.6 in only 43% (10–20 GeV), 66% (20–30) and 62% (30–40) of the events. Much of the
+hydro time went to events that cannot put a jet into a mid-rapidity measurement.
+`--parton-ymax` selects the events before they are simulated:
 
 ```bash
 # the pth10-40 campaign, only events whose hardest parton has |y| < 0.6
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_pth10-40-y06 \
     --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both
+
+# for inclusive jets measured at |eta_jet| < 0.6: either of the two hardest partons at
+# |y| < 0.7 (a margin for the jet axis, and the recoil leg counts too; see below)
+    ... --parton-ymax 0.7 --parton-y-mode any ...
 ```
 
 - **What is cut.** The partons PythiaGun hands to the framework: status 62, after ISR
@@ -653,18 +657,20 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
 
   | `--parton-y-mode` | keeps the event if | for |
   |---|---|---|
-  | `leading` (default) | the hardest has \|y\| < Y | inclusive jets, hadron–jet, γ–jet |
+  | `leading` (default) | the hardest has \|y\| < Y | analyses that need the hardest jet (or a trigger on it) in the acceptance |
   | `both` | the two hardest have \|y\| < Y | dijets, back-to-back observables |
-  | `any` | either of the two hardest has \|y\| < Y | either leg in the acceptance |
+  | `any` | either of the two hardest has \|y\| < Y | inclusive jets and the medium response: either leg can put a jet or a wake into the acceptance |
 
   Not on the hard process itself: its two outgoing partons have exactly the same pT at
   leading order (checked: 400 of 400 events), so "the leading one" is only defined once
   ISR has recoiled against them. "Any parton" would almost always pass, because the list
   also holds soft MPI partons (2–12 partons per event).
-- **The event, not single partons.** An accepted event keeps all its partons, including
-  a recoil parton at forward rapidity, so energy, momentum and the medium response stay
-  consistent. A rejected one is regenerated, like an event with fewer than two partons,
-  before any shower or hydro.
+- **It selects events; nothing downstream is restricted.** The cut decides which events
+  are generated. An accepted event keeps all its partons, including a recoil parton at
+  forward rapidity, and MATTER, LBT and the hydro see the full event, so energy, momentum
+  and the medium response stay consistent. A rejected event is regenerated, like one with
+  fewer than two partons, before any shower or hydro: its jets never exist in the files,
+  wherever they would have ended up.
 - **Cross sections.** Pythia's `sigmaGen` still counts the rejected events, so per window
   PythiaGun counts the events that reach the cut (`n_tried`) and pass it (`n_kept`), and
   its cross section is σ = sigmaGen × kept/tried (error including the acceptance's). The
@@ -673,9 +679,28 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
   30,000 events with and without the cut): σ with the cut = 2.3057e-3 mb, σ without ×
   the fraction of uncut events passing = 2.3025e-3 mb (ratio 1.0014); acceptance
   0.4027 ± 0.0018 counted, 0.4013 ± 0.0028 in the uncut sample.
-- **Choose Y with a margin.** The final jet axis moves a little from the parton, and the
-  wake spreads over roughly ±1 in η_s. For jets measured at \|η_jet\| < 1 − R, Y ≈ 1 − R
-  (0.6 for R = 0.4); for the medium response at \|η\| < 1, a wider cut (1.2–1.5).
+- **Choosing Y and the mode.** The analysis still applies its own cut on the
+  reconstructed jets or hadrons; the parton cut only has to leave out events that cannot
+  contribute to it. So Y must be *looser* than the analysis acceptance, by how far the
+  observable can move from its initiating parton. Otherwise events that would have put a
+  jet just inside the acceptance are never generated, and the sample is short near the
+  edge.
+  - *Jets.* The jet axis stays close to its parton (estimate: within ~0.1 for R = 0.4;
+    not yet measured at hadron level). For jets at \|η_jet\| < η_max, use
+    Y ≈ η_max + 0.1–0.2. Example: `--parton-ymax 0.6` is complete for jets at
+    \|η_jet\| up to about 0.4–0.5; for \|η_jet\| < 0.6 (R = 0.4), use 0.7–0.8.
+  - *The mode matters more than the margin.* With `leading`, an event whose hardest
+    parton is at y = 1.5 is rejected even if the second one, the recoil leg of similar pT,
+    is at y = 0.2, and its perfectly good mid-rapidity jet is lost. Quenching can also make
+    the second leg's jet the harder one. For inclusive jets use `any`: at 10–20 GeV and
+    \|y\| < 0.6 it keeps 66% of the events against 40% for `leading`.
+  - *Medium response.* The deposit sits at its parton's rapidity: in the `pth10-40`
+    campaign 68% of the energy the hardest parton's shower deposits (\|Δφ\| < 0.4 of it)
+    lies within \|η_s − y\| < 0.16. The wake's hadrons are then spread by Cooper–Frye,
+    thermal pions over roughly ±1 in rapidity (estimate). For wake hadrons at
+    \|η\| < η_max, use Y ≈ η_max + 1 with `any`.
+  - The migration can be measured once from a hadronized campaign (reconstructed jet η
+    or the wake's hadrons against `diag/parton_y_lead`) and Y fixed from it.
 - **Recorded.** Per event `diag/parton_y_lead`, `parton_pt_lead`, `parton_y_sub`,
   `parton_pt_sub` (the two hardest handed-over partons; also in the particlize file's
   `events/`). Per file `parton_ymax`, `parton_y_mode`, and at the end per window
