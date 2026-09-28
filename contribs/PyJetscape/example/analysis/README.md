@@ -1,13 +1,15 @@
-# analysis — jet energy balance and the LBT/liquefier double counting
+# analysis — jet energy balance, the LBT/liquefier double counting, wake observables
 
-This folder has the analysis notebooks for the jet productions, plus two scripts about one
+This folder has the analysis notebooks for the jet productions. §1–§5 are about one
 question: **does the energy of the initial partons come back as surviving partons plus the
-energy deposited in the medium?**
+energy deposited in the medium?** §6 covers the parton- and hydro-level wake analysis.
 
-| script | what it is for | writes? |
+| file | what it is for | writes? |
 |---|---|---|
 | [`jet_edep_balance_check.py`](jet_edep_balance_check.py) | checks the balance and finds partons that are counted twice | no |
 | [`fix_lbt_double_counting.py`](fix_lbt_double_counting.py) | repairs files made before the X-SCAPE fix, so they can be hadronized | yes, in place, reversibly |
+| [`wake_observables.py`](wake_observables.py) | one pass over a production → `wake_observables.h5` | a new file only |
+| [`wake_observables.ipynb`](wake_observables.ipynb) | figures from `wake_observables.h5` only | no |
 
 Both scripts read the pair files that `run_prod_jet.py` writes (`<stem>.h5`), and the fix
 script also reads the `<stem>_particlize.h5` next to each one.
@@ -158,3 +160,46 @@ along the beam (`eCMforHadronization` = 200 in `hadronize.xml`). So the energy o
 per sample is the surviving parton energy plus 33.3 GeV per remnant. Removing a parton can add
 or remove a remnant. The remnant hadrons are very forward (pT ≈ 0.3 GeV), so a
 midrapidity cut removes them; a sum over all η does not.
+
+## 6. Wake observables: script, then notebook
+
+The analysis is split so that a new figure never needs another pass over the data:
+
+```
+python wake_observables.py DIR -j 10 -o DIR/wake_observables.h5    # ~1 min for 300 events
+jupyter lab wake_observables.ipynb                                 # WAKE_OBS=<file> to choose
+```
+
+[`wake_observables.py`](wake_observables.py) reads each pair file once and writes these
+tables and arrays to one HDF5 file (a few MB):
+
+- **`showers`:** per initial parton: kinematics; vertex; `cos_alpha` (heading in or out of the
+  fireball); the angle to the background's ψ₂; the exact energy bookkeeping from the graph;
+  deposition times. Also the medium along its straight path through the *background* leg: path
+  length above T_c = 0.16 GeV, ∫T², ∫T³, ∫(τ−τ_in)T³ and their flow-weighted versions with
+  γ(1 − v·n).
+- **`droplets`:** position, four-momentum, the shower it came from (assigned exactly through the
+  graph), background T and v at the deposit, and `kernel_flux` (see below).
+- **`events`:** pTHat window and cross section, ψ₂ and ε₂, freeze-out times, energy totals.
+- **`evolution`:** P^μ and S of both legs through every τ surface (ideal-fluid T^{μν} with the
+  EoS table MUSIC used), and the cumulative droplet four-momentum.
+- **`jetframe`:** the stacked wake about the leading-deposit leg's source, in (Δη, Δφ).
+
+To add a figure, add a cell to the notebook. To add a quantity, add it to the script and rerun
+it.
+
+**A second bug the analysis found: MUSIC_2 does not receive the droplets' energy.** The
+CausalLiquefier kernel is point-sampled at MUSIC's cell centres in the one step that deposits a
+droplet, and the sampled sum is not normalized to 1.
+
+- The kernel is a ball of radius c_diff (t − t_d), seen at t − t_d ≈ cosh η_d τ_delay. In lab z
+  one η cell is τ Δη cosh η long, so at large |η_s|, or late τ, the ball covers only a few cells.
+- The script ports the kernel (`KernelFlux`) and computes each droplet's `kernel_flux`, the
+  fraction MUSIC_2 actually receives. It ranges from ~0 to ~6.
+- In `AuAu_0_10_pth10-40_eta06` the injected energy is off by more than 20% in 40% of events.
+- The wake's ΔP^μ follows the kernel-weighted deposit (to ~2% until τ ≈ 8 fm), not the droplet
+  energy.
+
+This is independent of the LBT double counting and is not fixed yet. Until it is, the
+hydro-level results in the notebook describe the wake MUSIC evolved; they are normalized to
+the kernel-weighted deposit `E_inj_hydro`.
