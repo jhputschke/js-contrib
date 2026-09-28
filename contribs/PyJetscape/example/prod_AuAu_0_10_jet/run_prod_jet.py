@@ -106,6 +106,12 @@ def parse_args() -> argparse.Namespace:
                         "PythiaGun with <pTHatBins>")
     p.add_argument("--jets-per-bin", type=int, default=1, dest="jets_per_bin",
                    help="with --pthat-bins: jets per window per background (default 1)")
+    p.add_argument("--bg-layout", choices=("auto", "full", "shared"), default="auto",
+                   dest="bg_layout",
+                   help="how arr_bg is stored: 'full' one copy per event; 'shared' each "
+                        "background once (arr_bg_store) with arr_bg a virtual dataset over "
+                        "it that reads the same; 'auto' (default) shared when a background "
+                        "is reused (--reuse > 1, or --pthat-bins), else full")
     p.add_argument("--no-deposit", action="store_true", dest="no_deposit",
                    help="null test: MUSIC_2 without the liquefier, so arr must equal arr_bg")
     p.add_argument("--no-showers", action="store_true", dest="no_showers",
@@ -546,7 +552,8 @@ def main() -> int:
                     "eos_kind": "hotqcd (MUSIC EOS 9)",
                     "transport_mode": "MUSIC viscous: eta/s(T) and zeta/s(T) "
                                       "parametrization 3, second-order terms"},
-        keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True)
+        keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True,
+        bg_layout=a.bg_layout, reuse=a.reuse)
     pwriter = None
     if out_particlize:
         from jetscape.particlize_h5 import ParticlizeH5Writer
@@ -641,6 +648,8 @@ def main() -> int:
     if pwriter is not None:
         summary.update(particlize=out_particlize, particlize_legs=list(particlize_legs(a)),
                        particlize_events_written=pwriter.GetNumberOfEventsWritten())
+    if writer.bg_layout == "shared":
+        summary["bg_layout"] = "shared"
     if windows is not None:
         summary.update(pthat_bins=a.pthat_windows, jets_per_bin=a.jets_per_bin,
                        pthat_bin_sigma_gen_mb=list(windows["pthat_bin_sigma_gen"]),

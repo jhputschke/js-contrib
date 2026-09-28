@@ -25,6 +25,10 @@ Changes from the FNO4d original:
   layout follow FastHydro's pair files, so ``fasthydro.browse.PairBrowser`` reads them.
 * Every dataset with a tau axis carries a ``tau_axis`` attribute, and :func:`repad_to`
   finds the datasets to grow by it.
+* An evolution shared by several events can be stored once and read per event through a
+  *row view* (:func:`write_row_view`): a virtual dataset whose row i is row ``rows[i]`` of
+  the stored one, in the same file.  ``PairH5Writer`` uses it for reused backgrounds;
+  readers see an ordinary dataset.  :func:`repad_to` grows the store and rebuilds the view.
 * ``compression`` takes an :mod:`jetscape.h5_compression` spec and defaults to Blosc-zstd
   with byte shuffle (lzf before); ``keep_bits`` optionally rounds every evolution to that
   many float32 mantissa bits.  Both are recorded on each evolution dataset
@@ -537,6 +541,51 @@ class RaggedGroup:
             self._offsets[k:] = start + np.cumsum(counts)
 
 
+# ───────────────────────────────────────────── row views (shared evolutions)
+def write_row_view(f, name, store_name, rows_name):
+    """(Re)build the virtual dataset ``name``: row i is ``f[store_name][rows[i]]``.
+
+    ``rows = f[rows_name]`` has one entry per event; rows < 0 are not mapped and read as
+    0.0, like unwritten events.  The view has the store's shape on every axis but the
+    first, which is ``len(rows)``.  The source is this file (HDF5's ``"."``), so the file
+    can be moved or copied whole.  Views are metadata only; rebuilding one is cheap, and
+    needed whenever the store or ``rows`` changes shape.
+    """
+    import h5py
+
+    store = f[store_name]
+    rows = np.asarray(f[rows_name][:], dtype=np.int64)
+    layout = h5py.VirtualLayout(shape=(len(rows),) + tuple(store.shape[1:]),
+                                dtype=store.dtype)
+    src = h5py.VirtualSource(".", store.name, shape=store.shape, dtype=store.dtype)
+    for i, r in enumerate(rows):
+        if r >= 0:
+            layout[i] = src[int(r)]
+    if name in f:
+        del f[name]
+    view = f.create_virtual_dataset(name, layout, fillvalue=0.0)
+    view.attrs["row_view_of"] = store.name.lstrip("/")
+    view.attrs["row_view_rows"] = f[rows_name].name.lstrip("/")
+    return view
+
+
+def refresh_row_views(f):
+    """Rebuild every row view in ``f`` (after its store was resized).  Returns their names."""
+    import h5py
+
+    views = []
+
+    def visit(name, obj):
+        if isinstance(obj, h5py.Dataset) and "row_view_of" in obj.attrs:
+            views.append((name, str(obj.attrs["row_view_of"]),
+                          str(obj.attrs["row_view_rows"])))
+
+    f.visititems(visit)
+    for name, store, rows in views:
+        write_row_view(f, name, store, rows)
+    return [v[0] for v in views]
+
+
 # ───────────────────────────────────────────── reconciling files across jobs
 #: datasets that carry the tau axis, as (path, axis), for files written before the
 #: ``tau_axis`` attribute existed.  "arr" is required; the others are optional but must be
@@ -549,19 +598,21 @@ def _tau_datasets(f):
     """(path, axis) of every dataset in `f` with a tau axis.
 
     Datasets carrying a ``tau_axis`` attribute, plus any of the legacy
-    :data:`_TAU_DATASETS` present without one.
+    :data:`_TAU_DATASETS` present without one.  Row views (virtual datasets) are left out:
+    they follow their store and are rebuilt, not resized.
     """
     import h5py
 
     found = {}
 
     def visit(name, obj):
-        if isinstance(obj, h5py.Dataset) and "tau_axis" in obj.attrs:
+        if (isinstance(obj, h5py.Dataset) and "tau_axis" in obj.attrs
+                and not obj.is_virtual):
             found[name] = int(obj.attrs["tau_axis"])
 
     f.visititems(visit)
     for name, ax in _TAU_DATASETS:
-        if name in f and name not in found:
+        if name in f and name not in found and not f[name].is_virtual:
             found[name] = ax
     return sorted(found.items())
 
@@ -671,5 +722,6 @@ def repad_to(paths, choose_ntau=None, *, dry_run=False, verbose=True):
             for name, ax in v["datasets"]:
                 if f[name].shape[ax] < target:
                     f[name].resize(target, axis=ax)
+            refresh_row_views(f)                # e.g. arr_bg over arr_bg_store
             f.attrs["choose_ntau"] = target
     return target, changed
