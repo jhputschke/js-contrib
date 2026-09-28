@@ -30,6 +30,13 @@ Layout (on top of :class:`jetscape.fno_h5_writer.FnoH5Writer`)
 * ``arr`` / ``arr_bg`` with ``ntau_freezeout[_bg]``, ``tau_freezeout[_bg]``.  The tau axis
   grows to the longer leg (the jet leg usually outlives the background); the shorter one is
   exactly zero after its own freeze-out.  ``arr_bg.shape == arr.shape`` always.
+* With a reused background (``bg_layout="shared"``, the default for ``reuse > 1``) each
+  background is stored once: in ``arr_bg_store``, in the row of the first event that used
+  it (the other rows are never written and take no space), with ``arr_bg_rows`` giving
+  every event's row.  ``arr_bg`` is then a virtual dataset over the store (a row view,
+  :func:`jetscape.fno_h5_writer.write_row_view`): it reads exactly like the full layout,
+  event by event, and root attribute ``bg_layout`` is ``"shared"``.  Without reuse the
+  file is written as before (no ``bg_layout`` attribute).
 * ``source/droplets`` ``(M, 8)`` + ``source/offsets``, columns ``droplet_columns``.  There is no
   ``source/S``: MUSIC evaluates the liquefier kernel per cell and step and never keeps a
   gridded source, and a re-deposit on the output grid would not be what MUSIC applied.
@@ -71,7 +78,7 @@ import numpy as np
 
 from .bulk_sources import (Grid, attrs_from_grids, event_array, music_extra_attrs,
                            resample, resolve_out_grid)
-from .fno_h5_writer import FnoH5Writer
+from .fno_h5_writer import FnoH5Writer, write_row_view
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 from .liquefier_io import DROPLET_COLUMNS, droplets, liquefier_params
 from .showers import (FATES, INITIATOR_COLUMNS, PARTON_COLUMNS, VERTEX_COLUMNS,
@@ -81,6 +88,10 @@ __all__ = ["PairH5Writer", "shower_group_attrs"]
 
 #: relative tolerance for "the two legs are on the same grid"; bulk_info is float32
 _GRID_RTOL = 1e-5
+
+#: shared background layout (reuse): each background once in BG_STORE, event i's row in
+#: BG_ROWS, and arr_bg a virtual dataset (row view) over them
+BG_STORE, BG_ROWS = "arr_bg_store", "arr_bg_rows"
 
 
 def shower_group_attrs():
@@ -148,13 +159,22 @@ class PairH5Writer:
         More root attributes, written verbatim (run provenance).
     force : bool
         Overwrite an existing file.
+    bg_layout : {"auto", "full", "shared"}
+        How ``arr_bg`` is stored.  ``full``: one copy per event, as always.  ``shared``:
+        each background once (``arr_bg_store``, ``arr_bg_rows``), ``arr_bg`` a virtual
+        dataset over it that reads the same.  ``auto`` (default): ``shared`` if ``reuse``
+        > 1, else ``full``, so files without reuse do not change.
+    reuse : int
+        Events per background (``setReuseHydro``), for ``bg_layout="auto"``.  Which events
+        share a background is still decided from the data (``diag/bg_id``), never from this
+        number.
     """
 
     def __init__(self, out_file_name="pair_evo.h5", *, bg_id="MUSIC_1", jet_id="MUSIC_2",
                  grid_mode="grid", out_grid=None, tau_stride=1, choose_ntau=0,
                  compression=DEFAULT_COMPRESSION, keep_bits=None, store_droplets=True,
                  store_showers=True, keep_surface=(), provenance=None, extra_attrs=None,
-                 force=True, verbose=False):
+                 force=True, verbose=False, bg_layout="auto", reuse=1):
         if grid_mode not in ("grid", "native"):
             raise ValueError(f"grid_mode must be 'grid' or 'native', got {grid_mode!r}")
         self._out_file_name = str(out_file_name)
@@ -175,6 +195,13 @@ class PairH5Writer:
         self._extra_attrs = dict(extra_attrs or {})
         self._force = bool(force)
         self._verbose = bool(verbose)
+        if bg_layout not in ("auto", "full", "shared"):
+            raise ValueError(f"bg_layout must be 'auto', 'full' or 'shared', got {bg_layout!r}")
+        if bg_layout == "auto":
+            bg_layout = "shared" if int(reuse) > 1 else "full"
+        self._bg_layout = bg_layout
+        # the evolution the background frames go to
+        self._bg_ds = BG_STORE if bg_layout == "shared" else "arr_bg"
 
         self._bg = self._jet = self._liq = self._mgr = None
         self._deposition = None                 # True: MUSIC_2 has the liquefier
@@ -313,20 +340,27 @@ class PairH5Writer:
         # Background first, then the jet leg; frame hashes carry the comparison across.
         n_bg = self._clip(i, "background", bg_frames.shape[0])
         self._w.ensure_capacity(nevents=i + 1, choose_ntau=n_bg)
+        shared = self._bg_layout == "shared"
         bg_hashes = []
         for t in range(n_bg):
             frame = np.ascontiguousarray(bg_frames[t].transpose(3, 0, 1, 2))
-            self._w.write_frame(i, t, frame, dataset="arr_bg")
+            if not shared:
+                self._w.write_frame(i, t, frame, dataset="arr_bg")
             bg_hashes.append(hashlib.blake2b(frame.tobytes(), digest_size=16).digest())
-        del bg_frames
         tau_fo_bg = bg_src.tau_min + bg_src.ntau * bg_src.dtau
-        self._w.set_event_meta(i, n_bg, tau_fo_bg, dataset="arr_bg")
 
         # A new background run?  Hash the whole leg: on MUSIC's native grid the first
         # frame is at MUSIC's tau0, before any string deposits, and all zero.
         bg_key = hashlib.blake2b(b"".join(bg_hashes), digest_size=16).digest()
-        if bg_key != self._bg_hash:
+        new_bg = bg_key != self._bg_hash
+        if new_bg:
             self._bg_hash, self._bg_first = bg_key, i
+        if shared and new_bg:              # stored once, in its first event's row
+            for t in range(n_bg):
+                self._w.write_frame(i, t, np.ascontiguousarray(
+                    bg_frames[t].transpose(3, 0, 1, 2)), dataset=BG_STORE)
+        del bg_frames
+        self._w.set_event_meta(i, n_bg, tau_fo_bg, dataset=self._bg_ds)
 
         n_jet = self._clip(i, "jet", jet_frames.shape[0])
         self._w.ensure_capacity(nevents=i + 1, choose_ntau=n_jet)
@@ -356,6 +390,8 @@ class PairH5Writer:
                 d[f"{leg}_hit_boundary"] = int(hit)
         d.update(diag)
         self._w.write_diag(i, **d)
+        if shared:
+            self._set_bg_row(i)
         self._w.set_event_meta(i, n_jet, tau_fo_jet)          # primary last: marks written
         self._i += 1
         self._last = d
@@ -375,6 +411,8 @@ class PairH5Writer:
         """Close the file.  Idempotent."""
         if self._w is None:
             return
+        if self._bg_layout == "shared":
+            write_row_view(self._w.f, "arr_bg", BG_STORE, BG_ROWS)   # the final tau extent
         n, t = self._w.nevents, self._w.choose_ntau
         self._w.close()
         self._w = None
@@ -406,11 +444,25 @@ class PairH5Writer:
         return self._n_clipped
 
     @property
+    def bg_layout(self):
+        """``"full"`` (one arr_bg row per event) or ``"shared"`` (each background once)."""
+        return self._bg_layout
+
+    @property
     def deposition(self):
         """True if the jet leg has the liquefier, False in the null test, None before attach."""
         return self._deposition
 
     # ── internals ───────────────────────────────────────────────────────────────
+    def _set_bg_row(self, i):
+        """Shared layout: event ``i`` reads its background's stored row; rebuild the view
+        before the event is marked written, so a run killed later still reads it."""
+        rows = self._w.f[BG_ROWS]
+        if rows.shape[0] < self._w.nevents:
+            rows.resize((self._w.nevents,))
+        rows[i] = self._bg_first
+        write_row_view(self._w.f, "arr_bg", BG_STORE, BG_ROWS)
+
     def _read(self, hydro, framework):
         """(ntau, nx, ny, neta, 4) on the leg's source grid, and that grid (strided)."""
         if framework:
@@ -492,7 +544,15 @@ class PairH5Writer:
                               compression=self._compression, keep_bits=self._keep_bits,
                               chunk_events=1, chunk_tau=1,
                               growable_tau=growable, extra_attrs=extra, force=self._force)
-        self._w.add_evolution("arr_bg", fo_suffix="_bg")
+        self._w.add_evolution(self._bg_ds, fo_suffix="_bg")
+        if self._bg_layout == "shared":
+            self._w.f.create_dataset(BG_ROWS, (0,), maxshape=(None,), dtype=np.int32,
+                                     chunks=(256,), fillvalue=-1)
+            self._w.f[BG_STORE].attrs["note"] = (
+                "Each background once, in the row of the first event that used it; the "
+                "other rows are never written. Read arr_bg (a virtual dataset over this "
+                "one, row i = arr_bg_store[arr_bg_rows[i]]), not this dataset.")
+            self._w.f.attrs["bg_layout"] = "shared"
         if self._store_droplets:
             self._g_drop = self._w.ragged(
                 "source", "offsets", {"droplets": (np.float64, (len(DROPLET_COLUMNS),))},

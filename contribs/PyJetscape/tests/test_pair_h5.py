@@ -451,6 +451,64 @@ def test_a_reused_background_keeps_its_bg_id(tmp_path):
         np.testing.assert_array_equal(f["arr_bg"][0], f["arr_bg"][1])
 
 
+def _reused_run(tmp_path, name, **kw):
+    """Five events: background A for events 0-2, B for 3-4, a different jet every event."""
+    bg_evo = _evo(3, 1.0)
+    w, bg, jet, liq = _pair_writer(tmp_path / name, bg_evo, bg_evo.copy(), **kw)
+    for k in range(5):
+        if k == 3:
+            bg.evo = _evo(4, 5.0)                  # a new, longer background run
+        jet.evo = bg.evo.copy()
+        jet.evo[1:, 0, 0, 0, 0] += k + 1
+        w.Exec()
+    w.Finish()
+    return tmp_path / name / "pair.h5", w
+
+
+def test_shared_background_reads_like_the_full_layout(tmp_path):
+    full, wf = _reused_run(tmp_path, "full", bg_layout="full")
+    shared, ws = _reused_run(tmp_path, "shared", bg_layout="shared")
+    assert (wf.bg_layout, ws.bg_layout) == ("full", "shared")
+    with h5py.File(full, "r") as a, h5py.File(shared, "r") as b:
+        assert "bg_layout" not in a.attrs and not a["arr_bg"].is_virtual
+        assert b.attrs["bg_layout"] == "shared" and b["arr_bg"].is_virtual
+        assert b["arr_bg"].shape == b["arr"].shape == a["arr_bg"].shape
+        np.testing.assert_array_equal(b["arr_bg"][:], a["arr_bg"][:])
+        np.testing.assert_array_equal(b["arr"][:], a["arr"][:])
+        for k in ("ntau_freezeout_bg", "tau_freezeout_bg", "diag/bg_id",
+                  "diag/frames_identical"):
+            np.testing.assert_array_equal(b[k][:], a[k][:])
+        assert list(b["arr_bg_rows"][:]) == [0, 0, 0, 3, 3]
+        # only the two backgrounds' rows hold data: 3 + 4 frames, one chunk each
+        assert b["arr_bg_store"].id.get_num_chunks() == 7
+        assert a["arr_bg"].id.get_num_chunks() == 3 * 3 + 2 * 4
+
+
+def test_bg_layout_auto_follows_reuse(tmp_path):
+    from jetscape.pair_h5 import PairH5Writer
+
+    one = PairH5Writer(tmp_path / "a.h5", reuse=1)
+    three = PairH5Writer(tmp_path / "b.h5", reuse=3)
+    assert (one.bg_layout, three.bg_layout) == ("full", "shared")
+    assert PairH5Writer(tmp_path / "c.h5", reuse=3, bg_layout="full").bg_layout == "full"
+    with pytest.raises(ValueError):
+        PairH5Writer(tmp_path / "d.h5", bg_layout="copies")
+
+
+def test_repad_grows_the_store_and_rebuilds_the_view(tmp_path):
+    shared, _ = _reused_run(tmp_path, "shared", bg_layout="shared")
+    with h5py.File(shared, "r") as f:
+        before, n0 = f["arr_bg"][:], f["arr"].shape[5]
+    target, changed = repad_to(shared, n0 + 3, verbose=False)
+    assert target == n0 + 3 and changed == [str(shared)]
+    with h5py.File(shared, "r") as f:
+        assert f["arr_bg"].is_virtual
+        assert f["arr"].shape == f["arr_bg"].shape == f["arr_bg_store"].shape
+        assert f["arr_bg"].shape[5] == n0 + 3
+        np.testing.assert_array_equal(f["arr_bg"][..., :n0], before)
+        assert np.all(f["arr_bg"][..., n0:] == 0)
+
+
 def test_legs_on_different_grids_skip_the_event(tmp_path):
     w, bg, jet, liq = _pair_writer(tmp_path, _evo(3, 1.0), _evo(3, 1.0, nx=NX + 2))
     with pytest.warns(RuntimeWarning, match="different grids"):

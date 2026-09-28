@@ -639,6 +639,7 @@ times with `diag/pthat_bin` cycling 0 … K−1.
 |---|---|---|
 | A: hydro pair (`grid_fno.yaml`, Blosc-zstd) | 29.5 s alone; ~190 events/h with `-j 4 --mps` | 285 MB |
 | B: + `--write-particlize both` | 34.6–35.3 s alone (+5.4 s: MUSIC builds and hands over the two surfaces; +13.5 s before MUSIC4GPU `5058545`); `-j` throughput not measured | + 154 MB |
+| A with `--reuse N` or `--pthat-bins` (shared `arr_bg`) | as A, MUSIC_1 once per N events | ~160 MB + 148/N MB (measured at N = 3: 210 MB) |
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
 | `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before [`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md) Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8` |
 
@@ -653,7 +654,8 @@ processes keep up with a whole four-job GPU campaign.
 |---|---|
 | `--hard pythia` (default) | PythiaGun. The vertex is a 3dMCGlauber binary-collision point (x, y; z = t = 0). `--pthat-min/--pthat-max` override the XML's 50–70 GeV. |
 | `--hard pgun --pgun-pt P` | One parton at fixed pT, always from the origin: PGun zeroes the sampled vertex (`PGun.cc:117-120`). |
-| `--reuse N` | `setReuseHydro`: MUSIC_1 runs once per N events, MUSIC_2 every event (a new jet each time). `arr_bg` is still written per event, so it stays aligned with `arr`. `diag/bg_id` gives the first event that used each background. |
+| `--reuse N` | `setReuseHydro`: MUSIC_1 runs once per N events, MUSIC_2 every event (a new jet each time). `arr_bg` still reads per event, so it stays aligned with `arr`; it is stored once per background (`--bg-layout`). `diag/bg_id` gives the first event that used each background. |
+| `--bg-layout {auto,full,shared}` | How `arr_bg` is stored. `full`: one copy per event. `shared`: each background once, `arr_bg` a virtual dataset over it that reads the same (see [Shared backgrounds](#shared-backgrounds---bg-layout)). `auto` (default): `shared` when a background is reused (`--reuse` > 1, which includes `--pthat-bins` with more than one window or `--jets-per-bin` > 1), else `full`, so files without reuse are unchanged. |
 | `--pthat-bins A-B,C-D,...` | K PythiaGun pT̂ windows in one job, one Pythia each; event i uses window i mod K, and `--reuse` is set to K × `--jets-per-bin`. `--events` must be a multiple of that. Not with `--reuse`, `--pthat-min/max` or `--hard pgun`. See [D](#d-several-pthat-windows-per-background---pthat-bins). |
 | `--jets-per-bin M` | With `--pthat-bins`: jets per window per background (default 1). |
 | `--no-deposit` | Null test: MUSIC_2 without the liquefier. `arr` must equal `arr_bg` bit for bit (`diag/frames_identical == ntau`). Showers and droplets are still recorded. |
@@ -676,7 +678,8 @@ On top of the single-leg schema (`arr`, `ntau_freezeout`, `tau_freezeout`, grid 
 | | |
 |---|---|
 | `arr` | the **jet leg** (MUSIC_2), `(nevents, 4, nx, ny, neta, ntau)` float32, channels `energy_density, vx, vy, vz` |
-| `arr_bg`, `ntau_freezeout_bg`, `tau_freezeout_bg` | the **background leg** (MUSIC_1). Always the same shape as `arr`. The τ axis grows to the longer leg of any event, and each leg is exactly 0 after its own freeze-out. |
+| `arr_bg`, `ntau_freezeout_bg`, `tau_freezeout_bg` | the **background leg** (MUSIC_1). Always the same shape as `arr`. The τ axis grows to the longer leg of any event, and each leg is exactly 0 after its own freeze-out. With a reused background, `arr_bg` is a virtual dataset over `arr_bg_store` (below); it reads the same. |
+| `arr_bg_store`, `arr_bg_rows`, attribute `bg_layout = "shared"` | only with a reused background (`--bg-layout` shared, the default under reuse): each background once, in the row of the first event that used it (the other rows are never written and take no space), and every event's row. Read `arr_bg`, not the store. |
 | `source/droplets`, `source/offsets` | the droplets MUSIC_2 was given, `(M, 8)`: `tau, x, y, eta, E, px, py, pz` (Milne position, Cartesian momentum). Event `i` is rows `offsets[i]:offsets[i+1]`. Each droplet deposits at `tau + liquefier_tau_delay`. |
 | `shower/` | partons, vertices and initiators per event, as FastHydro writes them (`jetscape.showers`) |
 | `diag/` | `n_droplets`, `E_droplets`, `n/E_droplets_late` (deposit after the jet leg froze out), `n/E_droplets_early`, `n_showers`, `n_partons`, `tau0_music`, `ntau_jet`, `ntau_bg`, `bg_id`, `frames_identical`, `wall_s`; with `--pthat-bins` also `pthat_bin`, `pthat`, `event_weight` |
@@ -699,11 +702,48 @@ FastHydro's wake notebook and `Visualization/wake_pyvista.py` read the file the 
 plain h5py, the jet's effect in event `i` is `f["arr"][i] - f["arr_bg"][i]`.
 
 To bring files of a campaign to one τ length, run `repad_h5.py`, as for the single-leg files.
-It grows `arr` and `arr_bg` together:
+It grows `arr` and `arr_bg` together (with shared backgrounds, it grows `arr_bg_store` and
+rebuilds the `arr_bg` view):
 
 ```bash
 python ../../python/jetscape/repad_h5.py out/AuAu_0_10_jet_seed*.h5
 ```
+
+### Shared backgrounds (`--bg-layout`)
+
+Under `--reuse N` (and `--pthat-bins`) N events share one background. With the default
+`--bg-layout auto` it is stored once:
+
+- `arr_bg_store` holds each background in the row of the first event that used it. The
+  rows of the events that reuse it are never written, and HDF5 stores no data for them.
+- `arr_bg_rows[i]` is event i's row in the store (`= diag/bg_id[i]`).
+- `arr_bg` is an HDF5 virtual dataset whose row i is `arr_bg_store[arr_bg_rows[i]]`, in the
+  same file. It has `arr`'s shape and reads exactly like a full copy: `f["arr_bg"][i]`,
+  `PairBrowser`, the wake notebook, FNO4d's loader (`h5_key = arr_bg`, whose `unique_bg`
+  dedupe still works from `diag/bg_id`) need no change.
+
+Files without reuse keep the full layout and do not change. `--bg-layout full` forces it
+under reuse, for a tool that writes into `arr_bg` (a virtual dataset cannot be written to).
+Things to know about the shared layout:
+
+- **Copy the file whole** (`cp`, `rsync`, `h5repack`). The view points into its own file
+  (HDF5's `"."`), so moving or copying the file works (checked: a moved file, and
+  `h5repack`, read the same). Copying *only* the `arr_bg` dataset into another file
+  (`h5py`'s `copy`, `h5copy`) copies the view without its store, and it reads all zeros
+  (checked with h5py). To get a standalone array, read it (`f["arr_bg"][...]`) and write
+  that.
+- **Never read `arr_bg_store` directly** for an event that reused its background: its row
+  is empty (zeros). `arr_bg` resolves that.
+- **Needs HDF5 ≥ 1.10** to read (virtual datasets); every h5py since 2.9 has it.
+
+Measured (GB10, seed 2, 3 pT̂ windows = one background for 3 events): 629 MB shared
+against 925 MB full (210 vs 308 MB per event); `arr`, `arr_bg`, the freeze-out vectors
+and `diag/` bit-identical. A background copy is ~148 MB and the rest of an event ~160 MB, so
+a pair file takes about **160 + 148/N MB per event** with N events per background (the full
+layout 308 MB whatever N): 170 MB at N = 15, 45% less. `PairBrowser`, FNO4d's
+`read_3d_data_hdf5` (lazy and not, with and without `unique_bg`), both `h5_inspect`s and
+`repad_h5` give the same results on both layouts. A job without reuse writes the same
+datasets, attributes and file size as before.
 
 ## Hadron level: surfaces, partons, `hadronize.py`
 
