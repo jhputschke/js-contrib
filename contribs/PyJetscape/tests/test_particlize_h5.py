@@ -860,6 +860,26 @@ def test_reader_pthat_windows(tmp_path):
         assert n_w1 == n_all                           # every event has 3 hadrons
 
 
+def test_reader_pthat_acceptance(tmp_path):
+    """--parton-ymax: acceptance summed over the files; 1 without a cut."""
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    bins = np.array([[10.0, 20.0], [20.0, 30.0]])
+    for name, tried, kept in (("A", [100, 50], [40, 40]), ("B", [300, 50], [120, 30])):
+        _seed_files(tmp_path, name, (0, 0),
+                    events_extra=[{"pthat_bin": 0}, {"pthat_bin": 1}],
+                    attrs_extra={"pthat_bins": bins, "pthat_bin_sigma_gen": [1.0, 0.1],
+                                 "pthat_bin_sigma_err": [0.1, 0.01],
+                                 "pthat_bin_n_accepted": [40, 40],
+                                 "pthat_bin_n_tried": tried, "pthat_bin_n_kept": kept,
+                                 "parton_ymax": 0.6})
+    with HadronFileReader(str(tmp_path)) as r:
+        acc, err = r.pthat_bin_acceptance(0)
+        assert acc == pytest.approx(160 / 400)
+        assert err == pytest.approx(np.sqrt(0.4 * 0.6 / 400))
+        assert r.pthat_bin_acceptance(1)[0] == pytest.approx(70 / 100)
+
+
 def test_reader_without_pthat_windows(tmp_path):
     from jetscape.hadrons_h5 import HadronFileReader
 
@@ -868,3 +888,5 @@ def test_reader_without_pthat_windows(tmp_path):
         assert r.pthat_bins is None and r.event_info(0).pthat_bin is None
         with pytest.raises(ValueError):
             r.pthat_bin_events(0)
+        with pytest.raises(ValueError):
+            r.pthat_bin_acceptance(0)

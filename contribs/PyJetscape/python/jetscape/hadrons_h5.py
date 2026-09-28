@@ -806,9 +806,12 @@ class HadronFileReader:
             for key, attr in (("pthat_bins", "pthat_bins"),
                               ("sigma_gen", "pthat_bin_sigma_gen"),
                               ("sigma_err", "pthat_bin_sigma_err"),
-                              ("n_accepted", "pthat_bin_n_accepted")):
+                              ("n_accepted", "pthat_bin_n_accepted"),
+                              ("n_tried", "pthat_bin_n_tried"),
+                              ("n_kept", "pthat_bin_n_kept")):
                 v = pf.attrs.get(attr)
                 info[key] = None if v is None else np.asarray(v)
+            info["parton_ymax"] = pf.attrs.get("parton_ymax")
         info["tags"], info["precision"], info["correlated"] = {}, {}, {}
         for tag in TAGS:
             path = f"{stem}_hadrons_{tag}.h5"
@@ -939,6 +942,24 @@ class HadronFileReader:
             return float("nan"), float("nan")
         return (float(np.sum(n * sig) / n.sum()),
                 float(np.sqrt(np.sum((n * err) ** 2)) / n.sum()))
+
+    def pthat_bin_acceptance(self, k):
+        """Window ``k``'s acceptance of the parton rapidity cut (run_prod_jet.py
+        --parton-ymax) over the whole campaign: events kept / tried, and its binomial
+        error.  (1.0, 0.0) without a cut.  The cross sections (:meth:`pthat_bin_sigma`)
+        already include it (sigma_gen = Pythia's x kept/tried per file)."""
+        if self.pthat_bins is None:
+            raise ValueError("no pTHat windows in this campaign")
+        tried = kept = 0
+        for f in self._files:
+            if f["n_tried"] is None:
+                continue
+            tried += int(f["n_tried"][k])
+            kept += int(f["n_kept"][k])
+        if tried == 0:
+            return 1.0, 0.0
+        acc = kept / tried
+        return acc, float(np.sqrt(acc * (1.0 - acc) / tried))
 
     def global_event(self, file_index, local_event):
         return int(self._offsets[file_index]) + int(local_event)
