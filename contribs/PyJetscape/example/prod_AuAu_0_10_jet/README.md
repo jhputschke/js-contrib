@@ -471,6 +471,27 @@ Charged hadrons alone give the same fractions to within 1%.
    Results are then only right inside the smallest cut.
 4. To change the cut later, redo the files with `--force` or into a new `--out-dir`.
 
+#### Export to ROOT (`run_h5toROOT.py`)
+
+For analyses in ROOT, `run_h5toROOT.py` converts a hadronized campaign, `-j` files at a
+time. Each production file becomes one ROOT file. It holds its hadrons (`bulk_jet`,
+`bulk_bg`, `jet_frag`: one entry per oversample), an `events` table (the particlize file's
+event columns, window, cross section, samples, seeds, shower initiators), a `windows`
+table and the full provenance. A campaign file adds the cross section and the weight per
+event of every pT̂ window over all files:
+
+```bash
+python run_h5toROOT.py out_had -j 4                       # RNTuple (ROOT >= 6.34), next to the inputs
+python run_h5toROOT.py out_had -j 4 --out-dir out_root --no-x --eta-max 1 --charged
+python run_h5toROOT.py out_had -j 4 --format ttree        # for older ROOT
+```
+
+It needs uproot. PyROOT gives ~20% smaller files but isn't required. Converted files are
+skipped on a re-run. The file layout, the format study (RNTuple is 0.9× the HDF5 size and
+reads ~1.8× faster than a TTree) and how to weight and pair events are in
+[`root_export/README.md`](root_export/README.md). The 20-file `gridnorm` campaign took
+2 min 40 s with `-j 4`.
+
 ### C. Analysing a campaign: `HadronFileReader`
 
 The hadron files are read the way the hydro files are: side by side, one production file
