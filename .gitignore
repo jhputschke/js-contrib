@@ -7,6 +7,10 @@ build/
 *.o
 *.pcm
 *.rootmap
+# ROOT macros compiled with ACLiC (root 'macro.C+'): macro_C.so, .pcm (above), .d
+*_C.d
+*_cxx.d
+*_cpp.d
 *.gif
 *.npz
 
