@@ -13,12 +13,14 @@ hadronize.py::
 Layout::
 
     attrs   format, format_version, tag, n_samples (per unit, nominal), source (the
-            particlize file) + its file_uuid, generator settings ...; eta_max if only
-            hadrons with |eta| < eta_max were kept (absent: all)
+            particlize file) + its file_uuid, generator settings ...; the selection:
+            eta_max if only hadrons with |eta| < eta_max were kept (absent: all),
+            charged_only (absent: False), positions (absent: True)
     hadrons/pid            (N,)   int32
     hadrons/pstat          (N,)   int32
     hadrons/p              (N, 4) float32   [E, px, py, pz]  GeV
-    hadrons/x              (N, 4) float32   [t, x, y, z]     fm   (zero for Pythia)
+    hadrons/x              (N, 4) float32   [t, x, y, z]     fm   (zero for Pythia; absent
+                                            if the file was written with positions=False)
     hadrons/sample_offsets (S + 1,) int64   sample s is rows sample_offsets[s]:[s+1]
     hadrons/unit_offsets   (U + 1,) int64   unit u is samples unit_offsets[u]:[u+1]
     units/<key>            (U,)             unit (row in the source group), event (first
@@ -40,7 +42,9 @@ the bytes, with relative errors <= 1.2e-4 (p) and 2e-3 (x).  The inputs (particl
 |eta| < eta_max, for campaign storage too: at |eta| < 2 about half of a 0-10% Au+Au bulk
 event.  Every sample keeps its place (possibly empty), so the per-sample averages inside
 the cut are unchanged; outside it the file has no hadrons, which is not zero hadrons.
-:func:`hadron_eta_max` reads it back.
+``charged_only`` keeps only the charged hadrons (CHARGED), ``positions=False`` leaves out
+``x`` (~40% of the bytes).  Readers then give ``x`` as (N, 0) arrays: nothing to use, and
+nothing silently zero.  :func:`hadron_eta_max` and :func:`hadron_selection` read it back.
 
 Two levels of offsets because an oversample is a sample of the whole event: averages are
 over samples, and the samples of one unit are not independent events.  Errors on sample
@@ -87,7 +91,7 @@ from .showers import INITIATOR_COLUMNS
 
 __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "ORIGIN",
            "ROUNDABLE", "INITIATOR_COLUMNS", "INITIATOR_TAGS", "hadron_precision",
-           "hadron_eta_max", "pseudorapidity", "pair_initiators", "add_initiators", "HadronH5Writer", "Hadrons", "HadronFile",
+           "hadron_eta_max", "hadron_selection", "pseudorapidity", "pair_initiators", "add_initiators", "HadronH5Writer", "Hadrons", "HadronFile",
            "JetEvents", "HadronFileReader",
            "EventHadrons", "EventInfo"]
 
@@ -149,7 +153,8 @@ def hadron_precision(f):
     if not isinstance(f, h5py.File):
         with h5py.File(f, "r") as h:
             return hadron_precision(h)
-    return {k: dataset_keep_bits(f["hadrons"][k]) for k in ROUNDABLE}
+    return {k: dataset_keep_bits(f["hadrons"][k]) if k in f["hadrons"] else None
+            for k in ROUNDABLE}
 
 
 def hadron_eta_max(f):
@@ -161,6 +166,25 @@ def hadron_eta_max(f):
             return hadron_eta_max(h)
     v = f.attrs.get("eta_max")
     return None if v is None else float(v)
+
+
+def hadron_selection(f):
+    """What a hadron file (path or open h5py.File) stores: ``{"eta_max": cut or None,
+    "charged_only": bool, "positions": bool}`` (hadronize.py --eta-max, --charged,
+    --no-x)."""
+    import h5py
+
+    if not isinstance(f, h5py.File):
+        with h5py.File(f, "r") as h:
+            return hadron_selection(h)
+    return {"eta_max": hadron_eta_max(f),
+            "charged_only": bool(f.attrs.get("charged_only", False)),
+            "positions": "x" in f["hadrons"]}
+
+
+def _no_positions(n):
+    """``x`` of hadrons written without positions: (n, 0), nothing to read."""
+    return np.zeros((int(n), 0), np.float32)
 
 
 def pseudorapidity(p):
@@ -184,11 +208,14 @@ class HadronH5Writer:
     ``INITIATOR_COLUMNS`` order (None: none).
 
     ``eta_max`` (default None: all hadrons) keeps only hadrons with |eta| < eta_max
-    (:func:`pseudorapidity` of the stored, i.e. rounded, momenta); the samples stay, with
-    fewer hadrons.  Recorded as the ``eta_max`` attribute."""
+    (:func:`pseudorapidity` of the stored, i.e. rounded, momenta); ``charged_only`` only the
+    charged ones (|pid| in CHARGED); the samples stay, with fewer hadrons.  ``positions=False``
+    writes no ``x`` (``x`` given to :meth:`append_unit` is ignored).  Recorded as the
+    ``eta_max``, ``charged_only`` and ``positions`` attributes (:func:`hadron_selection`)."""
 
     def __init__(self, path, *, tag, n_samples, attrs=None, compression=DEFAULT_COMPRESSION,
-                 force=True, keep_bits=None, initiators=False, eta_max=None):
+                 force=True, keep_bits=None, initiators=False, eta_max=None,
+                 charged_only=False, positions=True):
         import h5py
 
         if tag not in TAGS:
@@ -199,7 +226,10 @@ class HadronH5Writer:
         if eta_max is not None and not float(eta_max) > 0:
             raise ValueError(f"eta_max must be > 0 (None: no cut), got {eta_max!r}")
         self.eta_max = None if eta_max is None else float(eta_max)
+        self.charged_only, self.positions = bool(charged_only), bool(positions)
         self.keep_bits = _keep_bits_map(keep_bits)
+        if not self.positions:
+            self.keep_bits["x"] = None
         self.path = str(path)
         if os.path.exists(self.path) and not force:
             raise FileExistsError(f"{self.path} exists (pass force=True)")
@@ -211,7 +241,8 @@ class HadronH5Writer:
         a["tag"] = tag
         a["n_samples"] = int(n_samples)
         a["p_columns"] = ["E", "px", "py", "pz"]
-        a["x_columns"] = ["t", "x", "y", "z"]
+        if self.positions:
+            a["x_columns"] = ["t", "x", "y", "z"]
         a["units"] = "p in GeV; x in fm (t in fm/c)"
         a["nunits_written"] = 0
         a["complete"] = False
@@ -219,18 +250,23 @@ class HadronH5Writer:
             a[k] = v
         if self.eta_max is not None:
             a["eta_max"] = self.eta_max
+        a["charged_only"] = self.charged_only
+        a["positions"] = self.positions
         g = self.f.require_group("hadrons")
-        self._h = RaggedGroup(g, "sample_offsets", {
-            "pid": (np.int32, ()), "pstat": (np.int32, ()),
-            "p": (np.float32, (4,)), "x": (np.float32, (4,))},
-            compression=compression, chunk_rows=1 << 17, unit="free")
+        fields = {"pid": (np.int32, ()), "pstat": (np.int32, ()), "p": (np.float32, (4,))}
+        if self.positions:
+            fields["x"] = (np.float32, (4,))
+        self._keys = tuple(fields)
+        self._h = RaggedGroup(g, "sample_offsets", fields,
+                              compression=compression, chunk_rows=1 << 17, unit="free")
         if any(v is not None for v in self.keep_bits.values()):
             import warnings
             with warnings.catch_warnings():         # RaggedGroup already warned, if at all
                 warnings.simplefilter("ignore")
                 label = h5_filter_kwargs(compression)[1]
             for k, v in self.keep_bits.items():
-                tag_dataset(g[k], label, v)
+                if k in g:
+                    tag_dataset(g[k], label, v)
         self._unit_off = g.create_dataset("unit_offsets", data=np.zeros(1, dtype=np.int64),
                                           maxshape=(None,), chunks=(4096,))
         from .particlize_h5 import _ScalarTable
@@ -246,7 +282,7 @@ class HadronH5Writer:
         if initiators is not None and self._ini is None:
             raise ValueError("initiators given, but the writer was made without "
                              "initiators=True")
-        keys = ("pid", "pstat", "p", "x")
+        keys = self._keys
         if isinstance(samples, dict):
             counts = np.asarray(samples.get("sample_counts", [len(samples["pid"])]),
                                 dtype=np.int64)
@@ -257,11 +293,16 @@ class HadronH5Writer:
                     for k in keys} if samples else None
         if rows is not None:
             for k, bits in self.keep_bits.items():
-                if bits is not None:
+                if bits is not None and k in rows:
                     rows[k] = round_mantissa(rows[k], bits)
+            keep = None
             if self.eta_max is not None:
                 # after the rounding, so every stored hadron passes the cut as read back
                 keep = np.abs(pseudorapidity(rows["p"])) < self.eta_max
+            if self.charged_only:
+                ch = np.isin(np.abs(np.asarray(rows["pid"])), CHARGED)
+                keep = ch if keep is None else keep & ch
+            if keep is not None:
                 if not keep.all():
                     counts = np.asarray(counts, dtype=np.int64)
                     sample = np.repeat(np.arange(len(counts)), counts)
@@ -348,9 +389,11 @@ class Hadrons:
             uo = g["unit_offsets"][:]
             attrs = dict(f.attrs)
             utab = {k: f["units"][k][:] for k in f["units"]} if "units" in f else {}
+            has_x = "x" in g
             if units is None:
                 pid, pstat = g["pid"][:], g["pstat"][:]
-                p, x = g["p"][:], g["x"][:]
+                p = g["p"][:]
+                x = g["x"][:] if has_x else _no_positions(len(pid))
             else:
                 sel = np.arange(len(uo) - 1)[units]
                 rows, s_new, u_new = [], [0], [0]
@@ -363,7 +406,8 @@ class Hadrons:
                 idx = (np.concatenate([np.arange(a, b) for a, b in rows])
                        if rows else np.zeros(0, dtype=np.int64))
                 pid, pstat = g["pid"][:][idx], g["pstat"][:][idx]
-                p, x = g["p"][:][idx], g["x"][:][idx]
+                p = g["p"][:][idx]
+                x = g["x"][:][idx] if has_x else _no_positions(len(idx))
                 so, uo = np.asarray(s_new), np.asarray(u_new)
                 utab = {k: v[sel] for k, v in utab.items()}
         return cls(pid, pstat, p, x, so, uo, attrs=attrs, units=utab)
@@ -493,7 +537,8 @@ class HadronFile:
         u = self.unit_index(unit)
         s = _sample_of(self.unit_offsets, u, k, unit)
         a, b = int(self.sample_offsets[s]), int(self.sample_offsets[s + 1])
-        return {name: self._g[name][a:b] for name in FIELDS}
+        return {name: (self._g[name][a:b] if name in self._g else _no_positions(b - a))
+                for name in FIELDS}
 
 
 class JetEvents:
@@ -811,6 +856,19 @@ class HadronFileReader:
                           f"|eta| cuts ({seen}; None = no cut): jet - background and "
                           "bulk + fragments are only right inside the smallest one; keep one "
                           "--eta-max per campaign", RuntimeWarning, stacklevel=2)
+        charged = {sel["charged_only"] for f in self._files for sel in f["selection"].values()}
+        if len(charged) > 1:
+            import warnings
+            warnings.warn("HadronFileReader: some hadron files hold only charged hadrons "
+                          "(hadronize.py --charged), others all: results for neutral or all "
+                          "hadrons are only right for the latter; keep one --charged setting "
+                          "per campaign", RuntimeWarning, stacklevel=2)
+        pos = {sel["positions"] for f in self._files for sel in f["selection"].values()}
+        if len(pos) > 1:
+            import warnings
+            warnings.warn("HadronFileReader: some hadron files have no positions "
+                          "(hadronize.py --no-x): their x is empty; keep one --no-x setting "
+                          "per campaign", RuntimeWarning, stacklevel=2)
         n = np.array([f["nevents"] for f in self._files], dtype=np.int64)
         self._offsets = np.concatenate([[0], np.cumsum(n)])
         dup = self.duplicate_backgrounds()
@@ -863,6 +921,7 @@ class HadronFileReader:
                 info[key] = None if v is None else np.asarray(v)
             info["parton_ymax"] = pf.attrs.get("parton_ymax")
         info["tags"], info["precision"], info["correlated"], info["eta_max"] = {}, {}, {}, {}
+        info["selection"] = {}
         for tag in TAGS:
             path = f"{stem}_hadrons_{tag}.h5"
             if not os.path.exists(path):
@@ -871,6 +930,7 @@ class HadronFileReader:
                 ftag, src = str(f.attrs.get("tag", "")), str(f.attrs.get("source_uuid", ""))
                 info["precision"][tag] = hadron_precision(f)
                 info["eta_max"][tag] = hadron_eta_max(f)
+                info["selection"][tag] = hadron_selection(f)
                 info["correlated"][tag] = bool(f.attrs.get("correlated_sampling", False))
             if ftag != tag:
                 raise ValueError(f"{path} holds tag {ftag!r}, not {tag!r}")
@@ -942,6 +1002,18 @@ class HadronFileReader:
             return dict(self._files[file_index]["eta_max"])
         cuts = [c for f in self._files for c in f["eta_max"].values() if c is not None]
         return min(cuts) if cuts else None
+
+    def selection(self, file_index=None):
+        """What the hadron files store (hadronize.py --eta-max, --charged, --no-x).
+        ``file_index`` None: the campaign's, ``{"eta_max": the smallest cut or None,
+        "charged_only": True if any file is, "positions": True if every file has them}``;
+        else ``{tag: selection}`` of that production file."""
+        if file_index is not None:
+            return dict(self._files[file_index]["selection"])
+        sels = [sel for f in self._files for sel in f["selection"].values()]
+        return {"eta_max": self.eta_max(),
+                "charged_only": any(x["charged_only"] for x in sels),
+                "positions": all(x["positions"] for x in sels)}
 
     def tags(self, file_index=None):
         """Tags present in every file (or in one file)."""

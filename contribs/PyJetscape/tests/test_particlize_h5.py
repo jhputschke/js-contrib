@@ -317,6 +317,82 @@ def test_reader_warns_about_mixed_eta_cuts(tmp_path):
     r.close()
 
 
+def test_hadron_file_charged_only_and_no_positions(tmp_path):
+    from jetscape.hadrons_h5 import (CHARGED, HadronFile, hadron_precision,
+                                     hadron_selection)
+
+    rng = np.random.default_rng(5)
+    pids = np.array([211, -211, 111, 22, 2212, -2112, 321, 130, 11, 3122], np.int32)
+
+    def sample(n):
+        s = _hadrons(n)
+        s["pid"] = rng.choice(pids, n).astype(np.int32)
+        s["p"][:, 3] = rng.uniform(-3, 3, n)
+        s["x"] = rng.normal(0, 5, (n, 4)).astype(np.float32)
+        return s
+
+    samples = [sample(40), sample(0), sample(25)]
+    soft = {k: np.concatenate([s[k] for s in samples]) for k in ("pid", "pstat", "p", "x")}
+    soft["sample_counts"] = np.array([len(s["pid"]) for s in samples])
+    for name, form in (("list", samples), ("soft", soft)):
+        path = tmp_path / f"{name}.h5"
+        with HadronH5Writer(path, tag="bulk_jet", n_samples=3, charged_only=True,
+                            positions=False, eta_max=1.5, keep_bits={"p": 12, "x": 8}) as w:
+            w.append_unit(form, unit=0, event=0, seed=1)
+        assert hadron_selection(path) == {"eta_max": 1.5, "charged_only": True,
+                                          "positions": False}
+        assert hadron_precision(path) == {"p": 12, "x": None}
+        with h5py.File(path, "r") as f:
+            assert "x" not in f["hadrons"] and "x_columns" not in f.attrs
+        h = Hadrons.from_h5(path)
+        want = [int((np.isin(np.abs(s["pid"]), CHARGED)
+                     & (np.abs(np.arcsinh(s["p"][:, 3] / 0.5)) < 1.5)).sum()) for s in samples]
+        assert list(np.diff(h.sample_offsets)) == want and sum(want) > 0
+        assert h.charged.all() and np.all(np.abs(h.eta) < 1.5)
+        assert h.x.shape == (len(h.pid), 0)
+        assert h.sample_event(0, 2)["x"].shape == (want[2], 0)
+        with HadronFile(path) as hf:
+            ev = hf.sample_event(0, 0)
+            assert ev["x"].shape == (want[0], 0) and len(ev["pid"]) == want[0]
+    with HadronH5Writer(tmp_path / "all.h5", tag="bulk_jet", n_samples=3) as w:
+        w.append_unit(samples, unit=0, event=0, seed=1)
+    assert hadron_selection(tmp_path / "all.h5") == {"eta_max": None, "charged_only": False,
+                                                     "positions": True}
+    assert Hadrons.from_h5(tmp_path / "all.h5").x.shape == (65, 4)
+
+
+def test_reader_warns_about_mixed_selections(tmp_path):
+    from jetscape.hadrons_h5 import HadronFileReader, JetEvents
+
+    a, b = _two_seeds(tmp_path)
+    with HadronFileReader(str(tmp_path)) as r:
+        assert r.selection() == {"eta_max": None, "charged_only": False, "positions": True}
+    for tag in ("bulk_jet", "bulk_bg", "jet_frag"):              # B as with --charged --no-x
+        with h5py.File(f"{b}_hadrons_{tag}.h5", "a") as f:
+            f.attrs["charged_only"] = True
+            del f["hadrons/x"]
+    with pytest.warns(RuntimeWarning) as rec:
+        r = HadronFileReader(str(tmp_path))
+    text = " ".join(str(x.message) for x in rec)
+    assert "only charged" in text and "no positions" in text
+    assert r.selection() == {"eta_max": None, "charged_only": True, "positions": False}
+    assert r.selection(1)["bulk_bg"] == {"eta_max": None, "charged_only": True,
+                                         "positions": False}
+    ev = r.jet_event(2, 0)                          # bulk + fragments without positions
+    assert ev["x"].shape == (len(ev["pid"]), 0)
+    r.close()
+    with JetEvents.from_stem(b) as je:
+        assert je.background_event(0, 1)["x"].shape[1] == 0
+
+
+def test_hadronize_charged_and_no_x_options():
+    hz = _load_example("hadronize.py")
+    a = hz.parse_args(["x_particlize.h5"])
+    assert not a.charged and not a.no_x
+    a = hz.parse_args(["x_particlize.h5", "--charged", "--no-x"])
+    assert a.charged and a.no_x
+
+
 def test_hadronize_eta_max_option():
     hz = _load_example("hadronize.py")
     assert hz.parse_args(["x_particlize.h5"]).eta_max is None
