@@ -377,6 +377,7 @@ def process_file(job):
         diag = {k: f["diag"][k][:] for k in f["diag"]}
         sig = np.atleast_1d(A.get("pthat_bin_sigma_gen", [np.nan])).astype(float)
         tau_delay = float(A["liquefier_tau_delay"])
+        e_fo = float(np.interp(float(A.get("T_fo", 0.15)), eos.T, eos.e))
         kflux = KernelFlux(A)
         normalized = int(A.get("liquefier_normalize_on_hydro_grid", -1)) == 1
         flux_ds = f["source/flux"] if "source/flux" in f else None
@@ -392,10 +393,12 @@ def process_file(job):
                 arrB = bg_ds[row, :, :, :, :, :ntb]
                 PB, SB = flux_series(arrB, eos, g)
                 bg = dict(key=(row, ntb), arr=arrB, P=PB, S=SB,
-                          pp=participant_plane(arrB[0, ..., 0], g))
+                          pp=participant_plane(arrB[0, ..., 0], g),
+                          e_last=float(arrB[0, ..., ntb - 1].max()))
             arrB = bg["arr"]
             arrJ = f["arr"][ev, :, :, :, :, :ntj]
             PJ, SJ = flux_series(arrJ, eos, g)
+            e_last_jet = float(arrJ[0, ..., ntj - 1].max())
             psi2, eps2, xc, yc = bg["pp"]
             live = min(ntj, ntb)
 
@@ -557,8 +560,17 @@ def process_file(job):
                 n_drop_unassigned=int((lab < 0).sum()),
                 tau_fo_jet=float(tfo[ev]), tau_fo_bg=float(f["tau_freezeout_bg"][ev]),
                 ntau_jet=ntj, ntau_bg=ntb, psi2=psi2, eps2=eps2, x_c=xc, y_c=yc,
-                double_count_fix=bool("lbt_double_count_fix" in A),
-                kernel_normalized=normalized))
+                # patched with fix_lbt_double_counting.py, or made by an X-SCAPE with the fix
+                # (every build that records the kernel normalization has it, X-SCAPE #154)
+                double_count_fix=bool("lbt_double_count_fix" in A or
+                                      int(A.get("liquefier_normalize_on_hydro_grid", -1)) >= 0),
+                kernel_normalized=normalized,
+                # MUSIC stops a leg once max e < e_fo; a leg whose last frame is still hot
+                # never froze out (MUSIC ran to its maximum time, or broke): its evolution,
+                # the wake and the freeze-out delay are not usable
+                e_last_jet=e_last_jet, e_last_bg=bg["e_last"],
+                jet_no_freezeout=bool(e_last_jet > 1.5 * e_fo),
+                bg_no_freezeout=bool(bg["e_last"] > 1.5 * e_fo)))
     return fi, ev_rows, sh_rows, dr_rows, evo, maps, time.time() - t0, NT, g.tau0, g.dtau
 
 
