@@ -80,7 +80,8 @@ from .bulk_sources import (Grid, attrs_from_grids, event_array, music_extra_attr
                            resample, resolve_out_grid)
 from .fno_h5_writer import FnoH5Writer, write_row_view
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
-from .liquefier_io import DROPLET_COLUMNS, droplets, liquefier_params
+from .liquefier_io import (DROPLET_COLUMNS, droplet_fluxes, droplets, liquefier_params,
+                           normalize_on_hydro_grid)
 from .showers import (FATES, INITIATOR_COLUMNS, PARTON_COLUMNS, VERTEX_COLUMNS,
                       showers_from_manager)
 
@@ -208,6 +209,7 @@ class PairH5Writer:
         self._tau_delay = 0.0
         self._w: Optional[FnoH5Writer] = None
         self._g_drop = self._g_sh = None
+        self._drop_flux = False
         self._i = 0
         self._n_clipped = 0
         self._bg_hash = None
@@ -378,7 +380,10 @@ class PairH5Writer:
 
         d = self._liq_rows(tau_fo_jet, jet_src.tau_min)
         if self._g_drop is not None:
-            self._g_drop.append({"droplets": d.pop("_rows")})
+            rows = {"droplets": d.pop("_rows")}
+            if self._drop_flux:
+                rows["flux"] = d.pop("_flux")
+            self._g_drop.append(rows)
         else:
             d.pop("_rows")
         d.update(self._shower_rows())
@@ -497,10 +502,15 @@ class PairH5Writer:
         deposits after the jet leg stopped, or before it started, never reaches MUSIC.
         """
         rows = np.zeros((0, len(DROPLET_COLUMNS)))
+        flux = None
         if self._liq is not None:
             rows = droplets(self._liq)
+            flux = droplet_fluxes(self._liq)
         e = rows[:, 4]
         d = {"_rows": rows, "n_droplets": int(len(rows)), "E_droplets": float(e.sum())}
+        if self._drop_flux:
+            d["_flux"] = (flux if flux is not None and len(flux) == len(rows)
+                          else np.full(len(rows), -1.0))
         if self._liq is not None and len(rows):
             t_dep = rows[:, 0] + self._tau_delay
             late, early = t_dep > tau_fo_jet, t_dep < tau0
@@ -536,8 +546,14 @@ class PairH5Writer:
         extra.update(xscape_grid_mode=self._grid_mode, xscape_tau_stride=self._tau_stride,
                      xscape_writer="jetscape.pair_h5.PairH5Writer")
         extra.update(self._provenance_attrs())
+        self._drop_flux = False
         if self._liq is not None:
             extra.update({f"liquefier_{k}": v for k, v in liquefier_params(self._liq).items()})
+            norm = normalize_on_hydro_grid(self._liq)
+            # 1: each droplet is normalized on MUSIC's grid (deposits exactly its
+            # four-momentum); 0: switched off; -1: an X-SCAPE build without it
+            extra["liquefier_normalize_on_hydro_grid"] = -1 if norm is None else int(norm)
+            self._drop_flux = droplet_fluxes(self._liq) is not None
         extra.update(self._extra_attrs)
 
         self._w = FnoH5Writer(self._out_file_name, attrs, nevents=0,
@@ -554,8 +570,11 @@ class PairH5Writer:
                 "one, row i = arr_bg_store[arr_bg_rows[i]]), not this dataset.")
             self._w.f.attrs["bg_layout"] = "shared"
         if self._store_droplets:
+            fields = {"droplets": (np.float64, (len(DROPLET_COLUMNS),))}
+            if self._drop_flux:
+                fields["flux"] = (np.float64, ())
             self._g_drop = self._w.ragged(
-                "source", "offsets", {"droplets": (np.float64, (len(DROPLET_COLUMNS),))},
+                "source", "offsets", fields,
                 attrs={"droplet_columns": list(DROPLET_COLUMNS),
                        "units": "tau in fm/c; x, y in fm; eta dimensionless; E, p in GeV",
                        "convention": (
@@ -563,7 +582,11 @@ class PairH5Writer:
                            "(arr) received them: Milne position (tau, x, y, eta), Cartesian "
                            "momentum (E, px, py, pz). Each deposits at tau + "
                            "liquefier_tau_delay. There is no source/S: MUSIC evaluates the "
-                           "kernel per cell and step and keeps no gridded source.")})
+                           "kernel per cell and step and keeps no gridded source. flux (if "
+                           "present): the sum of each droplet's point-sampled kernel on "
+                           "MUSIC's grid (-1: never reached a hydro step); with root attr "
+                           "liquefier_normalize_on_hydro_grid = 1 MUSIC received each droplet "
+                           "exactly, otherwise flux times it.")})
         if self._store_showers:
             widths = {"partons": len(PARTON_COLUMNS), "vertices": len(VERTEX_COLUMNS),
                       "initiators": len(INITIATOR_COLUMNS)}
@@ -586,7 +609,9 @@ class PairH5Writer:
             "arr_bg_is": (f"background leg ({self._bg_id}): identical initial condition, no "
                           "jet source"),
             "source_model": ("causal_liquefier (droplets from X-SCAPE Matter+LBT), "
-                             "point-sampled by MUSIC at its cell centres"),
+                             "point-sampled by MUSIC at its cell centres; normalized per "
+                             "droplet on MUSIC's grid if liquefier_normalize_on_hydro_grid "
+                             "= 1"),
             "source_mode": "xscape",
             "deposition": "on" if self._deposition else "off",
             "hard_vertex": "unknown",

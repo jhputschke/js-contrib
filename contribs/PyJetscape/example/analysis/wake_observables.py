@@ -25,11 +25,13 @@ Per **shower** (one per parton PYTHIA hands to the energy loss):
 
 Per **droplet**: position, four-momentum, shower, whether it was injected (deposited while
 the jet leg's hydro still ran), and the background e, T, v at the deposit. Also
-``kernel_flux``, the fraction of the droplet's four-momentum MUSIC_2 actually receives: the
-CausalLiquefier kernel is point-sampled at MUSIC's cell centres, which is not normalized and
-is far from 1 for droplets at large |eta_s| or late tau (see ``KernelFlux``). ``E_inj``
-(droplet), ``E_inj_hydro`` (shower, event) and ``evolution/D_hydro`` carry that weight; the
-wake in ``arr`` follows them, not the droplet energies.
+``kernel_flux``, the sum of the droplet's CausalLiquefier kernel point-sampled at MUSIC's cell
+centres: far from 1 for droplets at large |eta_s| or late tau (see ``KernelFlux``). It is the
+C++ value (``source/flux``) when the file stores it, else the Python port. ``inj_factor`` is
+the fraction of the droplet MUSIC_2 received: ``kernel_flux`` for files made before X-SCAPE
+normalized the kernel, and 1 (0 for a droplet off the grid) for files with root attribute
+``liquefier_normalize_on_hydro_grid = 1``. ``E_inj`` (droplet), ``E_inj_hydro`` (shower,
+event) and ``evolution/D_hydro`` carry ``inj_factor``; the wake in ``arr`` follows them.
 
 Per **event**: pTHat window and its cross section, the background's participant plane and
 eccentricity, freeze-out times, and the energy totals.
@@ -232,6 +234,15 @@ class KernelFlux:
         self.cell = float(A["dX_MUSIC"]) * float(A["dY_MUSIC"]) * float(A["deta_MUSIC"])
         self.X, self.Y = np.meshgrid(self.x, self.y, indexing="ij")
 
+    def on_grid(self, x, y, eta):
+        """Whether the nearest MUSIC cell of each point exists (the normalized source
+        deposits a droplet whose kernel misses every cell into that cell; off the grid it is
+        lost)."""
+        def inside(v, axis):
+            i = np.rint((np.asarray(v) - axis[0]) / (axis[1] - axis[0]))
+            return (i >= 0) & (i <= len(axis) - 1)
+        return inside(x, self.x) & inside(y, self.y) & inside(eta, self.eta)
+
     def _kernel(self, t, r):
         c, gam = self.c, self.gam
         damp = np.exp(-gam * t) / (4 * np.pi)
@@ -248,8 +259,11 @@ class KernelFlux:
         return damp * (rho + rd), damp * (jr + c * rd)
 
     def __call__(self, tau_d, x_d, y_d, eta_d):
-        if not np.isfinite(eta_d):       # a droplet at tau_d = 0 (t = z = 0): eta is 0/0, and
-            eta_d = 0.0                  # irrelevant, since t_d = z_d = 0 for any eta
+        if not np.isfinite(eta_d):
+            # a droplet at the hard vertex (t = z = 0) was stored with eta = 0/0 before
+            # X-SCAPE set it to 0: every kernel value is then NaN in the C++, and MUSIC never
+            # received it (the in-run C++ flux of such droplets is exactly 0)
+            return 0.0
         tau = self.tau0 + np.round((tau_d + self.delay - self.tau0) / self.dtau) * self.dtau
         t_d, z_d = tau_d * np.cosh(eta_d), tau_d * np.sinh(eta_d)
         total = 0.0
@@ -363,7 +377,10 @@ def process_file(job):
         diag = {k: f["diag"][k][:] for k in f["diag"]}
         sig = np.atleast_1d(A.get("pthat_bin_sigma_gen", [np.nan])).astype(float)
         tau_delay = float(A["liquefier_tau_delay"])
+        e_fo = float(np.interp(float(A.get("T_fo", 0.15)), eos.T, eos.e))
         kflux = KernelFlux(A)
+        normalized = int(A.get("liquefier_normalize_on_hydro_grid", -1)) == 1
+        flux_ds = f["source/flux"] if "source/flux" in f else None
         tfo = f["tau_freezeout"][:]
         g_off, gP = f["shower/parton_offsets"][:], f["shower/partons"]
         i_off, gI = f["shower/initiator_offsets"][:], f["shower/initiators"]
@@ -376,10 +393,12 @@ def process_file(job):
                 arrB = bg_ds[row, :, :, :, :, :ntb]
                 PB, SB = flux_series(arrB, eos, g)
                 bg = dict(key=(row, ntb), arr=arrB, P=PB, S=SB,
-                          pp=participant_plane(arrB[0, ..., 0], g))
+                          pp=participant_plane(arrB[0, ..., 0], g),
+                          e_last=float(arrB[0, ..., ntb - 1].max()))
             arrB = bg["arr"]
             arrJ = f["arr"][ev, :, :, :, :, :ntj]
             PJ, SJ = flux_series(arrJ, eos, g)
+            e_last_jet = float(arrJ[0, ..., ntj - 1].max())
             psi2, eps2, xc, yc = bg["pp"]
             live = min(ntj, ntb)
 
@@ -387,13 +406,19 @@ def process_file(job):
             I = gI[i_off[ev]:i_off[ev + 1]]
             D = gD[d_off[ev]:d_off[ev + 1]]
             lab = assign_droplets(Q, D) if len(D) else np.zeros(0, np.int64)
+            eta_d0 = np.where(np.isfinite(D[:, 3]), D[:, 3], 0.0)   # tau_d = 0: eta is 0/0
             tdep = D[:, 0] + tau_delay
             inj = tdep <= tfo[ev]
-            phi = np.array([kflux(*d[:4]) for d in D])       # what MUSIC_2 receives / droplet
-            winj = np.where(inj, phi, 0.0)
+            # the raw sampled kernel sum: the C++ value if stored, else the Python port
+            phi = (flux_ds[d_off[ev]:d_off[ev + 1]] if flux_ds is not None
+                   else np.full(len(D), -1.0))
+            phi = np.array([p if p >= 0 else kflux(*d[:4]) for p, d in zip(phi, D)])
+            # what MUSIC_2 received, as a fraction of the droplet
+            fac = (np.where(kflux.on_grid(D[:, 1], D[:, 2], eta_d0), 1.0, 0.0) if normalized
+                   else phi)
+            winj = np.where(inj, fac, 0.0)
 
             # background at every droplet
-            eta_d0 = np.where(np.isfinite(D[:, 3]), D[:, 3], 0.0)   # tau_d = 0: eta is 0/0
             kd = np.floor((tdep - g.tau0) / g.dtau + 1e-9)
             ok = (kd >= 0) & (kd <= ntb - 1)
             bgd = np.full((4, len(D)), np.nan)
@@ -406,6 +431,7 @@ def process_file(job):
                 dr_rows.append(dict(ev=ev, shower=int(lab[j]), tau_dep=tdep[j], x=D[j, 1],
                                     y=D[j, 2], eta=D[j, 3], E=D[j, 4], px=D[j, 5], py=D[j, 6],
                                     pz=D[j, 7], injected=bool(inj[j]), kernel_flux=phi[j],
+                                    inj_factor=winj[j],
                                     E_inj=winj[j] * D[j, 4], e_bg=e_d[j],
                                     T_bg=T_d[j], v_bg=v_d[j], vx_bg=bgd[1, j],
                                     vy_bg=bgd[2, j], vz_bg=bgd[3, j]))
@@ -514,7 +540,7 @@ def process_file(job):
             for k in range(NT):
                 sel = inj & (tdep <= g.tau(k))
                 Dcum[k] = D[sel][:, 4:8].sum(axis=0)
-                Dhyd[k] = (phi[sel, None] * D[sel][:, 4:8]).sum(axis=0)
+                Dhyd[k] = (winj[sel, None] * D[sel][:, 4:8]).sum(axis=0)
             pad = lambda a, n: np.concatenate([a, np.full((NT - n,) + a.shape[1:], np.nan)])
             evo.append(dict(P_jet=pad(PJ, ntj), P_bg=pad(bg["P"], ntb), S_jet=pad(SJ, ntj),
                             S_bg=pad(bg["S"], ntb), D_inj=Dcum, D_hydro=Dhyd))
@@ -534,7 +560,17 @@ def process_file(job):
                 n_drop_unassigned=int((lab < 0).sum()),
                 tau_fo_jet=float(tfo[ev]), tau_fo_bg=float(f["tau_freezeout_bg"][ev]),
                 ntau_jet=ntj, ntau_bg=ntb, psi2=psi2, eps2=eps2, x_c=xc, y_c=yc,
-                double_count_fix=bool("lbt_double_count_fix" in A)))
+                # patched with fix_lbt_double_counting.py, or made by an X-SCAPE with the fix
+                # (every build that records the kernel normalization has it, X-SCAPE #154)
+                double_count_fix=bool("lbt_double_count_fix" in A or
+                                      int(A.get("liquefier_normalize_on_hydro_grid", -1)) >= 0),
+                kernel_normalized=normalized,
+                # MUSIC stops a leg once max e < e_fo; a leg whose last frame is still hot
+                # never froze out (MUSIC ran to its maximum time, or broke): its evolution,
+                # the wake and the freeze-out delay are not usable
+                e_last_jet=e_last_jet, e_last_bg=bg["e_last"],
+                jet_no_freezeout=bool(e_last_jet > 1.5 * e_fo),
+                bg_no_freezeout=bool(bg["e_last"] > 1.5 * e_fo)))
     return fi, ev_rows, sh_rows, dr_rows, evo, maps, time.time() - t0, NT, g.tau0, g.dtau
 
 
