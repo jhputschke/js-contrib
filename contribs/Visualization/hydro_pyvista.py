@@ -517,6 +517,10 @@ def _maybe_start_xvfb(off_screen: bool) -> None:
     if off_screen and sys.platform.startswith("linux") and not os.environ.get("DISPLAY"):
         try:
             import pyvista as pv
+            if not hasattr(pv, "start_xvfb"):
+                # newer pyvista (0.49 has none); its vtk wheels (9.7) render headless
+                # without a display, so there is nothing to start
+                return
             pv.start_xvfb()
         except Exception as exc:
             print(f"  [!] start_xvfb failed ({exc}); off-screen render may fail.")

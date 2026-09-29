@@ -1,0 +1,6 @@
+# contribs/Visualization on the stored files: wake_pyvista.py (pair file) and
+# hydro_jet_particles_pyvista.py (pair file + hadron files). vtk comes with pyvista.
+# Skipped by `setup_analysis_env.sh --no-viz`.
+pyvista>=0.43
+imageio>=2.9
+imageio-ffmpeg        # .mp4 output (.gif works without)

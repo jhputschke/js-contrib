@@ -49,7 +49,7 @@ so developers can work against their own forks and branches.
 | `js-contrib/utils/Dockerfile.dev` | GH200-compatible (CUDA 12.6, sm_75–sm_90) |
 | `js-contrib/utils/Dockerfile.dev.blackwell` | Blackwell (CUDA 13.2.1, sm_75–sm_100) |
 | `X-SCAPE/docker/.devcontainer/devcontainer.json` | **File to create** (VS Code Dev Container config) |
-| `js-contrib/contribs/conda_install/install_js_fno_build_minimal.sh` | Reference for all conda/pip packages |
+| `js-contrib/utils/conda_install/install_js_fno_build_minimal.sh` | Reference for all conda/pip packages |
 | `X-SCAPE/CMakeLists.txt` | CMake flags verified: `USE_MUSIC`, `USE_CUDA`, `USE_ROOT`, `USE_3DGlauber`, `USE_ISS`, `USE_JS_CONTRIB`, `USE_JS_FNO_HYDRO`, `USE_JS_PYJETSCAPE` |
 | `X-SCAPE/external_packages/music4gpu/CMakeLists.txt` | `enable_language(CUDA)`, `find_package(CUDAToolkit)`, `CMAKE_CUDA_STANDARD 17`, `CMAKE_CUDA_ARCHITECTURES` |
 | `FNO4d/requirements-base.txt` | Python base dependencies (platform-agnostic) |

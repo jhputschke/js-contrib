@@ -58,6 +58,10 @@ the same YAML have the same spatial grid.
 
 ## Run
 
+> **Only analysing the files?** No X-SCAPE is needed: [`utils/analysis_env/setup_analysis_env.sh`](../../../../utils/analysis_env/README.md)
+> makes a Python venv for the HDF5 and ROOT files, `run_h5toROOT.py`, the notebooks and the
+> Visualization scripts.
+
 ```bash
 conda activate js_fno        # GB10; on macOS e.g. fno_env_mlx (see ../prod_AuAu_0_10/README.md)
 cd external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet

@@ -54,7 +54,7 @@ initial condition it agrees with MUSIC to ~0.3 % relative L2 in energy density a
 | PyTorch ≥ 2.0 | the solver only; the MC-Glauber and the readers are pure numpy |
 
 > **Interpreter mismatch.** The shipped extension is `cpython-313`, while
-> `contribs/conda_install/install_js_fno_minimal.sh` pins `PYTHON_VERSION=3.11`. Following
+> `utils/conda_install/install_js_fno_minimal.sh` pins `PYTHON_VERSION=3.11`. Following
 > that recipe verbatim gives `ImportError: No module named 'jetscape'`. Use the interpreter
 > that built `pyjetscape_core`.
 

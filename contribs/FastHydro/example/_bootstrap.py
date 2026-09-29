@@ -21,5 +21,5 @@ except ImportError as exc:                                    # pragma: no cover
         f"cannot import jetscape ({exc}).\n"
         "Build it with:  cmake --build $XSCAPE_BUILD --target pyjetscape_core\n"
         "and use the interpreter it was built against (the shipped extension is cpython-313, "
-        "while conda_install/install_js_fno_minimal.sh pins 3.11)."
+        "while utils/conda_install/install_js_fno_minimal.sh pins 3.11)."
     ) from exc

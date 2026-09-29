@@ -35,6 +35,30 @@ python utils/h5_inspect.py FILE.h5 --stats [--event 0]              # per-featur
 python utils/h5_inspect.py FILE.h5 --attr prod_user_xml             # one attribute in full
 ```
 
+### Conda environments
+
+[`utils/conda_install/`](utils/conda_install/) creates and checks the `js_fno` conda env: the
+Python/ML stack plus, optionally, the C++ build tools for X-SCAPE and js-contrib, minimal or
+pinned. See [contribs/README.md](contribs/README.md) for the steps.
+
+### Analysis environment (no X-SCAPE build)
+
+[`utils/analysis_env/`](utils/analysis_env/README.md) makes a Python venv for people who only
+analyse the files of a `prod_AuAu_0_10_jet` production. It needs this checkout and a
+Python ≥ 3.10, but no X-SCAPE, ROOT, conda or `pyjetscape_core`. It covers the pair,
+particlize and hadron HDF5 files, `run_h5toROOT.py` and its ROOT files (uproot), the
+analysis notebooks (fastjet), and the Visualization scripts on stored files (pyvista). It
+also downloads MUSIC's hotQCD EoS table. FastHydro is optional (`--with-fasthydro`). ROOT is
+optional too: made from the Python of a conda env with ROOT and `--system-site-packages`,
+the venv uses PyROOT. A single conda env with ROOT, `environment.yml`, also exists. See
+[With ROOT](utils/analysis_env/README.md#with-root).
+
+```bash
+./utils/analysis_env/setup_analysis_env.sh           # venv in ~/.venvs/js_analysis
+source ~/.venvs/js_analysis/bin/activate
+python utils/analysis_env/check_env.py /path/to/out  # opens every file of a production
+```
+
 ### Design notes and benchmarks
 
 [`docs/`](docs/README.md) holds the plans behind the HDF5 writers and the productions, the
@@ -60,6 +84,8 @@ All Python packages used by the contribs (examples, notebooks, Visualization, te
 listed in [`requirements.txt`](requirements.txt): `pip install -r requirements.txt` in the
 environment `pyjetscape_core` is built with. Leaner per-contrib installs:
 `pip install -e contribs/PyJetscape` (no torch) and `pip install -e "contribs/FastHydro[solver]"`.
+To only analyse production files, without X-SCAPE, use
+[`utils/analysis_env/setup_analysis_env.sh`](utils/analysis_env/README.md).
 
 ### Path A — via X-SCAPE CMake (recommended)
 
@@ -337,8 +363,9 @@ servers) several JETSCAPE C++ dependencies are absent from most package
 managers and container registries. For both cases the recommended approach is
 a native conda environment.
 
-See [contribs/README.md](contribs/README.md) for the step-by-step setup:
-dry-run package check, full build-environment install, and CMake integration.
+The scripts are in [`utils/conda_install/`](utils/conda_install/). See
+[contribs/README.md](contribs/README.md) for the step-by-step setup: dry-run package check,
+full build-environment install, and CMake integration.
 
 ## XML configuration requirements for new modules
 

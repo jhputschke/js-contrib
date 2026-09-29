@@ -15,6 +15,9 @@ same at hadron level, §8 the same distributions in ROOT.
 | [`wake_hadrons.ipynb`](wake_hadrons.ipynb) | hadron-level figures from `wake_hadrons.h5` + `wake_observables.h5` | no |
 | [`hadron_distributions.C`](hadron_distributions.C) | ROOT macro: η, φ, pT of background, background + deposition, jet fragments and the wake, from the ROOT files of `run_h5toROOT.py` | a new `.root` + `.pdf`/`.png` |
 
+Everything here except `hadron_distributions.C` runs without X-SCAPE, in the venv of
+[`utils/analysis_env`](../../../../utils/analysis_env/README.md).
+
 Both scripts read the pair files that `run_prod_jet.py` writes (`<stem>.h5`), and the fix
 script also reads the `<stem>_particlize.h5` next to each one.
 

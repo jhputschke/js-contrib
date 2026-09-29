@@ -1,0 +1,45 @@
+# A conda env with everything, ROOT included: the conda counterpart of setup_analysis_env.sh.
+#
+#     conda env create -f utils/analysis_env/environment.yml      # from the js-contrib root
+#     conda activate js_analysis
+#     python utils/analysis_env/check_env.py /path/to/out
+#
+# conda-forge only. The packages are those of requirements.txt and requirements_viz.txt;
+# keep the lists in sync. Everything conda-forge has comes from conda-forge, so pip doesn't
+# replace conda's numpy under ROOT; pip installs only the scikit-hep fastjet (the notebooks
+# use its API) and PyJetscape from this checkout. MUSIC's EoS table: see README.md.
+#
+# Not tested yet (2026-09-29). The tested ways to ROOT are in README.md, "With ROOT".
+name: js_analysis
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - root>=6.34           # PyROOT for run_h5toROOT.py; the root prompt, hadron_distributions.C
+  - pip
+  # HDF5 files
+  - numpy>=1.25
+  - h5py>=3.8
+  - hdf5plugin
+  - pyyaml>=6.0
+  # ROOT files without ROOT, the ROOT export
+  - uproot>=5
+  - awkward>=2
+  # analysis/ scripts and notebooks
+  - scipy>=1.10
+  - matplotlib-base>=3.7
+  - pandas
+  - vector>=1
+  # notebooks
+  - notebook>=7
+  - ipykernel
+  - ipywidgets>=8
+  - pytest>=7.0
+  # Visualization
+  - pyvista>=0.43
+  - imageio>=2.9
+  - imageio-ffmpeg
+  - pip:
+      - fastjet>=3.4     # scikit-hep's, with the FastJet library in the wheel
+      # paths are relative to this file; PyJetscape's dependencies are all above
+      - -e ../../contribs/PyJetscape

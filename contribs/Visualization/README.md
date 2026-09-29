@@ -37,6 +37,11 @@ conda activate fno_pyvista_env      # pyvista, scipy, vtk, imageio, numpy
 pip install imageio-ffmpeg          # only needed for .mp4 output (.gif works without)
 ```
 
+For `wake_pyvista.py` and `hydro_jet_particles_pyvista.py` on stored files, no X-SCAPE
+build is needed: the venv of
+[`utils/analysis_env`](../../utils/analysis_env/README.md)
+has everything, including MUSIC's EoS table. Live runs need the build:
+
 The compiled `pyjetscape_core` module must match this env's Python (built for
 CPython 3.13). Live hydro runs execute from the X-SCAPE build directory
 (default `<repo>/build_gpu`) so MUSIC can find `music_input`, `EOS/`, and the

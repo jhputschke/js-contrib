@@ -1,0 +1,32 @@
+# Analysis of prod_AuAu_0_10_jet output without an X-SCAPE build: the pair files
+# (<stem>.h5), the particlize and hadron files, run_h5toROOT.py and the ROOT files it
+# writes (read with uproot), the analysis/ scripts and notebooks, jet_wake.ipynb.
+#
+#     ./setup_analysis_env.sh            # installs this, requirements_viz.txt and PyJetscape
+#
+# The Visualization scripts need requirements_viz.txt in addition.
+
+# --- HDF5 files ---------------------------------------------------------------------------
+numpy>=1.25
+h5py>=3.8
+hdf5plugin            # Blosc filter of the default compression; without it the files don't open
+pyyaml>=6.0           # the production's grid YAMLs
+
+# --- ROOT export and ROOT files without ROOT (run_h5toROOT.py, root_export/) --------------
+uproot>=5
+awkward>=2
+
+# --- analysis/ scripts and notebooks ------------------------------------------------------
+scipy>=1.10
+matplotlib>=3.7
+pandas
+fastjet>=3.4          # jet_fastjet*.ipynb (scikit-hep wheels; includes the FastJet C++ library)
+vector>=1             # jet_fastjet_awkward.ipynb
+
+# --- notebooks ----------------------------------------------------------------------------
+notebook>=7
+ipykernel
+ipywidgets>=8
+
+# --- tests (check_env.py --tests) ---------------------------------------------------------
+pytest>=7.0
