@@ -227,3 +227,83 @@ kernel-weighted deposit `E_inj_hydro`.
 
 Productions made before the fix cannot be repaired afterwards: their jet leg (`arr`) was
 evolved with the wrong source. Rerun them; with the same seeds, only `arr` changes.
+
+### What the fix changes, and where it shows up
+
+The fix only changes what MUSIC_2 receives. For the same seeds, the droplets, the showers
+and the background leg are bit-identical.
+
+**Unchanged:** every parton-level quantity. That includes the surviving jet energy, ΔE vs pT,
+geometry, path length, A_J, deposition times and temperatures, the background hadrons
+(`bulk_bg`) and the jet fragments (`jet_frag`). Two productions made with different seeds
+differ here only statistically.
+
+**Changed:** the jet leg `arr`, i.e. the wake Δe, and everything built from it: the freeze-out
+surface of the jet leg, the `bulk_jet` hadrons, the freeze-out delay and FNO training pairs.
+The errors sit in three places.
+
+1. **Event by event.** Before the fix, 40% of events had their injected energy off by more
+   than 20%, with single droplets from 0.004× to 6×. The correlation of the wake's ΔP⁰ with
+   its own droplets at τ = 7.5 fm was 0.55; with the fix it is 0.97. Anything that relates a
+   wake to its own event was smeared: wake size against the jet's energy loss, the
+   freeze-out delay against the deposit (its spread falls from 0.88 to 0.66 fm between the
+   two productions), and the bulk energy recovered at hadron level per event.
+2. **At large |η_s|.** Most of the error is there: droplets at |η_s| > 1 carry 38% of the
+   deposited energy and had fluxes from 0 to 6. Job 0003, same seeds, 15 events, wake ΔP⁰ at
+   τ = 7.5 fm by |η_s| band [GeV] (the wake spreads in η after the deposit, so its bands are
+   not the droplets' bands):
+
+   | \|η_s\| | droplets deposited | old wake | fixed wake | Σ \|fixed − old\| per cell |
+   |---|---|---|---|---|
+   | 0 – 0.5 | 342 | 285 | 291 | 36 |
+   | 0.5 – 1 | 105 | 172 | 180 | 60 |
+   | 1 – 2 | 120 | 130 | 122 | 152 |
+   | 2 – 5 | 86 | 53 | 76 | 217 |
+
+   Near midrapidity the wake changes by about 2%. Forward, the energy is in the wrong
+   places: the cell-by-cell difference is larger than the whole wake there. This affects the
+   longitudinal shape of the wake, wide-Δη correlations, and hadrons from the forward part
+   of the surface.
+3. **Late deposits.** Droplets deposited after τ ≈ 7 fm had fluxes far below 1 (down to
+   0.013), so the late wake, and the reheating that extends freeze-out when a deposit comes
+   near the end, were underestimated.
+
+**For FNO training** this matters most. The model learns the map from droplets to Δe. Before
+the fix, Δe did not correspond to the droplets the model is given, especially at forward
+rapidity and late τ. That is noise it cannot learn away, and it is biased forward. The fixed
+productions give consistent pairs.
+
+**Nearly unchanged on average:** ensemble averages at midrapidity (the old energy-weighted
+mean flux was 0.97). Across the two 300-event productions:
+
+- the fraction of the stacked wake at |Δη| > 1 is 0.29 (old) against 0.28 (fixed);
+- the entropy per wake energy is 3.26 against 3.20 GeV⁻¹.
+
+So the midrapidity jet-frame maps and Δφ profiles of the old production still hold
+qualitatively.
+
+**The check across productions.** Wake ΔP⁰ against the droplets deposited by τ = 7.5 fm:
+
+| | median | 16–84% | correlation |
+|---|---|---|---|
+| `AuAu_0_10_pth10-40_eta06` (old) | 0.93 | 0.65 – 1.10 | 0.55 |
+| `AuAu_0_10_pth10-40_eta06_gridnorm` (fixed), 285 events | 0.99 | 0.91 – 1.06 | 0.97 |
+
+**Remaining limit:** normalization fixes the integral, not the shape. A hole concentrated on
+a few cells at large |η_s| can push a cell below zero energy. MUSIC then resets it
+(`reconst.cpp`), which adds energy, and that is where the remaining tails come from
+(2.5–97.5%: 0.74–1.21).
+
+### Legs that never froze out
+
+In `AuAu_0_10_pth10-40_eta06_gridnorm`, job 0002's background (MUSIC_1, no jet source)
+stops updating part of its grid at τ ≈ 4.6 fm. Its maximum e stays at 2.8 GeV/fm³, so it
+never freezes out: MUSIC runs to its maximum time and logs "Maximum allowed time reached".
+The leg's ΔP is then meaningless: about −6×10⁴ GeV at the "last live frame". This is a
+MUSIC4GPU problem with that initial condition. It is reproducible, and identical with X-SCAPE
+`contrib`, so it has nothing to do with the liquefier.
+
+`wake_observables.py` records each leg's hottest cell in its last frame and flags
+`jet_no_freezeout` / `bg_no_freezeout` when it is above 1.5 e_fo. The notebook leaves those
+events out of the hydro-level figures and names the files. To find such jobs:
+`grep -l "Maximum allowed time reached" DIR/*.log`.
