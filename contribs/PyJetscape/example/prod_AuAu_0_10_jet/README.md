@@ -79,6 +79,8 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
        --keep-bits-p 12 --keep-bits-x 8       # hadrons rounded: 58% of the disk (campaigns, see B)
 python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
        --eta-max 2                            # only hadrons at |η| < 2: ~60% of the disk (see B)
+python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
+       --charged --no-x                       # charged hadrons, no positions: ~40% (see B)
 
 ./run_jobs.sh 20 25 0                                        # 20 jobs x 25 events, unique seeds
 ./run_jobs.sh 20 25 0 --campaign pth50                       # the same, files named ..._pth50_00NN
@@ -342,6 +344,8 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--common-seeds` | only the seeds of `--correlated`: with iSS's conventional sampling the legs decorrelate at the first hadron, so no gain alone (the null test) |
 | `--keep-bits-p B`, `--keep-bits-x B` | round the hadrons' momenta `p` and positions `x` to `B` float32 mantissa bits (1–23; default: full precision). `12` and `8` store 58% of the bytes. Set once per campaign (below) |
 | `--eta-max X` | store only hadrons with pseudorapidity \|η\| < X, in all three tags (default: all). iSS still samples the whole surface: every sample and every result inside the cut is unchanged. `2` keeps ~54% of the bulk hadrons, ~60% of the bytes. Set once per campaign (below) |
+| `--charged` | store only charged hadrons, in all three tags: 58% of the bulk hadrons (below) |
+| `--no-x` | store no positions `t, x, y, z`: ~60% of the bytes; readers give `x` as empty `(N, 0)` arrays (below) |
 | `--add-initiators` | only add `initiators/` (each event's shower-initiating partons, from the pair file) to existing `bulk_jet` / `jet_frag` outputs, without hadronizing again: for files made before hadronize.py copied them. `--force` replaces an existing group |
 | `--no-initiators` | don't copy the initiators (by default they are copied whenever the pair file is next to the particlize file) |
 
@@ -399,17 +403,49 @@ The dN/dp_T column is the largest shift over 60 bins of 50 MeV (charged, \|η\| 
 4. Keep the validation job (check 1 in *Checks before a campaign*) at full precision: the
    in-job hadrons it compares against are not rounded.
 
-#### Hadron acceptance (`--eta-max`)
+#### Hadron selection (`--eta-max`, `--charged`, `--no-x`)
 
 The hadron files hold every hadron of the whole event, over the full η range of the
 freeze-out surface: ~7000 per sample in 0–10% Au+Au, so ~2.8 M per event at 400
-oversamples. Most analyses use only mid-rapidity. `--eta-max X` stores only the hadrons with
-pseudorapidity \|η\| < X:
+oversamples, each with its position. Most analyses need less. Three options store only
+part of it, in all three tags:
+
+| option | stores | bulk hadrons kept | bytes |
+|---|---|---|---|
+| `--eta-max X` | hadrons with pseudorapidity \|η\| < X | 54% at X = 2 | ~60% |
+| `--charged` | charged hadrons (\|pid\| in `jetscape.hadrons_h5.CHARGED`) | 58% | |
+| `--no-x` | no positions `t, x, y, z` | 100% | ~60% |
+| `--charged --no-x` | both | 58% | 39–42% |
 
 ```bash
 python run_hadronize.py out_had -j 16 --oversample 400 --n-frag 50 \
-       --keep-bits-p 12 --keep-bits-x 8 --eta-max 2
+       --keep-bits-p 12 --keep-bits-x 8 --eta-max 2 --charged --no-x
 ```
+
+The byte fractions are for files rounded to 12/8 bits. `--charged --no-x` was measured on c1
+file 0001 (2 events, 20 oversamples): `bulk_jet` came to 0.42 of the full file, `bulk_bg`
+to 0.39, and the options combine.
+
+##### `--charged` and `--no-x`
+
+- **What they change.** Only what is stored, as for `--eta-max`. The same seeds give the
+  same hadrons: on c1 file 0001, the `--charged --no-x` files are identical, hadron for
+  hadron and sample by sample, to the full files filtered to charged hadrons. Charged
+  jet − background + fragments at \|η\| < 1 is identical, errors included.
+- **Without positions** the files have no `hadrons/x` dataset. Readers (`Hadrons`,
+  `HadronFile`, `JetEvents`, `HadronFileReader`) give `x` as an empty `(N, 0)` array: code
+  that needs positions fails at once instead of reading zeros. `--keep-bits-x` is then
+  ignored. `run_h5toROOT.py` writes such files without `t, x, y, z`.
+- **What they rule out.** `--charged`: neutral hadrons, photons from decays, and the total
+  energy balance (neutral hadrons carry 44% of the bulk energy and 43% of the fragments'
+  on c1 file 0001). `--no-x`: space-time observables
+  (freeze-out positions, femtoscopy).
+- **Provenance.** The files record `charged_only` and `positions`.
+  `jetscape.hadrons_h5.hadron_selection(path)` reads all three selections back.
+  `HadronFileReader.selection()` returns the campaign's, and `selection(i)` returns it per
+  tag for production file i.
+
+##### `--eta-max`
 
 What a cut keeps. Measured on `pth10-40_eta06_gridnorm`, file 0001: 5 M `bulk_jet` hadrons,
 and all of `jet_frag`:
@@ -463,13 +499,14 @@ Charged hadrons alone give the same fractions to within 1%.
 - **Nothing is lost for good.** As with the precision, the particlize file and
   `units/seed` reproduce every hadron: `hadronize.py --force` without `--eta-max`.
 
-**For a campaign**, the same rules as for the precision:
-1. Choose X before the first `run_hadronize.py` call, and pass it to every call.
-2. `--skip-complete` keeps complete files whatever their cut. It prints a warning when the
-   cut differs from the requested one, but doesn't redo them.
-3. `HadronFileReader` warns when a campaign's files, or the tags of one file, mix cuts.
-   Results are then only right inside the smallest cut.
-4. To change the cut later, redo the files with `--force` or into a new `--out-dir`.
+**For a campaign**, the same rules as for the precision, for all three options:
+1. Choose the selection before the first `run_hadronize.py` call, and pass it to every call.
+2. `--skip-complete` keeps complete files whatever their selection. It prints a warning when
+   it differs from the requested one, but doesn't redo them.
+3. `HadronFileReader` warns when a campaign's files, or the tags of one file, mix cuts,
+   charged-only and all hadrons, or files with and without positions. Results are then
+   only right for what all of them hold.
+4. To change the selection later, redo the files with `--force` or into a new `--out-dir`.
 
 #### Export to ROOT (`run_h5toROOT.py`)
 
@@ -967,8 +1004,9 @@ the pair file's `shower/initiators` (`HadronFile.initiators(event)`). Without th
 they are written without it, with a warning.
 `p` and `x` are full float32 unless `--keep-bits-p/-x` rounded them; the precision is
 recorded per dataset (see [Hadron precision](#hadron-precision---keep-bits-p---keep-bits-x)).
-All hadrons are stored unless `--eta-max` cut them to \|η\| < X; the file's `eta_max`
-attribute records it (see [Hadron acceptance](#hadron-acceptance---eta-max)).
+All hadrons and their positions are stored unless `--eta-max`, `--charged` or `--no-x`
+selected them. The file's `eta_max`, `charged_only` and `positions` attributes record that
+(see [Hadron selection](#hadron-selection---eta-max---charged---no-x)).
 
 **Every oversample is an event on its own**, and `JetEvents` puts the tags together per event:
 

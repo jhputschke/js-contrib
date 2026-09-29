@@ -18,6 +18,7 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
     python hadronize.py P.h5 --skip-complete            # campaigns: only what is missing
     python hadronize.py P.h5 --keep-bits-p 12 --keep-bits-x 8   # rounded p, x: 58% of the bytes
     python hadronize.py P.h5 --eta-max 2        # only hadrons at |eta| < 2: ~60% of the bytes
+    python hadronize.py P.h5 --charged --no-x   # charged hadrons, no positions
     python hadronize.py P.h5 --add-initiators           # older outputs: add initiators/ only
 
 Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_h5):
@@ -66,15 +67,21 @@ recorded on the datasets (jetscape.hadrons_h5.hadron_precision).  Choose it once
 campaign: --skip-complete keeps complete files whatever precision they have (with a
 warning), and HadronFileReader warns about a campaign of mixed precision.
 
-Acceptance.  --eta-max X stores only hadrons with pseudorapidity |eta| < X, in all three
-tags (jetscape.hadrons_h5.pseudorapidity of the stored momenta).  iSS still samples the
-whole surface, so every sample and every average inside the cut is unchanged; only the
-hadrons outside it are dropped, e.g. ~46% of a 0-10% Au+Au bulk sample at X = 2 (~40% of
-the bytes).  Recorded as the files' ``eta_max`` attribute; like the precision, choose it
-once per campaign
-(--skip-complete warns about complete files with another cut, HadronFileReader about a
-campaign that mixes cuts).  Observables that need all hadrons (the total energy balance of
-jet - background) need files without it.
+Selection.  What is stored can be cut down, in all three tags, while iSS and Pythia still
+sample everything, so every sample and every average inside the selection is unchanged:
+
+    --eta-max X   only hadrons with |eta| < X (jetscape.hadrons_h5.pseudorapidity of the
+                  stored momenta); X = 2 drops ~46% of a 0-10% Au+Au bulk sample (~40% of
+                  the bytes)
+    --charged     only charged hadrons (|pid| in jetscape.hadrons_h5.CHARGED)
+    --no-x        no positions t, x, y, z (~40% of the bytes); readers give x as empty
+                  (N, 0) arrays
+
+They are recorded as the files' ``eta_max``, ``charged_only`` and ``positions`` attributes
+(jetscape.hadrons_h5.hadron_selection).  Like the precision, choose them once per campaign:
+--skip-complete warns about complete files with another selection, HadronFileReader about
+a campaign that mixes them.  Observables that need every hadron (the total energy balance
+of jet - background, neutral hadrons, space-time) need files without them.
 
 Settings come from hadronize.xml (the file --validate-inline also uses); the iSS paths are
 made absolute and the job's own music_input -- stored in the particlize file -- is written
@@ -182,6 +189,10 @@ def parse_args(argv=None):
                    help="store only hadrons with pseudorapidity |eta| < ETA_MAX (all tags; "
                         "default: all hadrons). 2: ~54%% of the bulk hadrons, ~60%% of the "
                         "bytes. Decide per campaign (see the README)")
+    p.add_argument("--charged", action="store_true",
+                   help="store only charged hadrons (all tags; default: all hadrons)")
+    p.add_argument("--no-x", action="store_true", dest="no_x",
+                   help="store no positions t, x, y, z (all tags; ~40%% of the bytes)")
     p.add_argument("--no-initiators", action="store_true", dest="no_initiators",
                    help="do not copy the pair file's shower initiators into bulk_jet and "
                         "jet_frag (initiators/)")
@@ -417,7 +428,7 @@ def main(argv=None):
     keep_bits = {"p": a.keep_bits_p, "x": a.keep_bits_x}
 
     from jetscape.hadrons_h5 import (INITIATOR_TAGS, HadronH5Writer, _keep_bits_map,
-                                     add_initiators, hadron_eta_max, hadron_precision)
+                                     add_initiators, hadron_precision, hadron_selection)
     from jetscape.particlize_h5 import ParticlizeFile
 
     pf = ParticlizeFile(a.particlize)
@@ -509,11 +520,14 @@ def main(argv=None):
                 print(f"hadronize.py: WARNING -- {os.path.basename(outs[t])} is complete but "
                       f"was written with precision {have}, not the requested {wanted} (None "
                       "= full float32); kept as it is (--force redoes it)", file=sys.stderr)
-            have_cut = hadron_eta_max(outs[t])
-            if have_cut != a.eta_max:
+            have_sel = hadron_selection(outs[t])
+            want_sel = {"eta_max": a.eta_max, "charged_only": bool(a.charged),
+                        "positions": not a.no_x}
+            if have_sel != want_sel:
                 print(f"hadronize.py: WARNING -- {os.path.basename(outs[t])} is complete but "
-                      f"was written with --eta-max {have_cut}, not the requested {a.eta_max} "
-                      "(None = no cut); kept as it is (--force redoes it)", file=sys.stderr)
+                      f"was written with the selection {have_sel}, not the requested "
+                      f"{want_sel} (--eta-max, --charged, --no-x); kept as it is (--force "
+                      "redoes it)", file=sys.stderr)
         tags = [t for t in tags if t not in done]
         outs = {t: outs[t] for t in tags}
         if not tags:
@@ -555,6 +569,8 @@ def main(argv=None):
           + (f", p/x rounded to {a.keep_bits_p or 23}/{a.keep_bits_x or 23} mantissa bits"
              if any(v is not None for v in keep_bits.values()) else "")
           + (f", only |eta| < {a.eta_max:g} stored" if a.eta_max is not None else "")
+          + (", charged hadrons only" if a.charged else "")
+          + (", no positions" if a.no_x else "")
           + f"\n  workdir {workdir}")
 
     jetscape = core.JetScapePerEvent()
@@ -604,7 +620,8 @@ def main(argv=None):
         else:
             n = oversample
         writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n, keep_bits=keep_bits,
-                                    eta_max=a.eta_max,
+                                    eta_max=a.eta_max, charged_only=a.charged,
+                                    positions=not a.no_x,
                                     initiators=ini is not None and t in INITIATOR_TAGS,
                                     attrs=dict(common, **extra, generator=(
                                         "ColorlessHadronization (X-SCAPE)" if t == "jet_frag"

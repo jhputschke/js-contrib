@@ -68,7 +68,7 @@ def load_columns(path, *, with_x=True, eta_max=None, charged=False, particlize=N
         so = g["sample_offsets"][:].astype(np.int64)
         uo = g["unit_offsets"][:].astype(np.int64)
         pid, pstat, p = g["pid"][:], g["pstat"][:], g["p"][:]
-        x = g["x"][:] if with_x else None
+        x = g["x"][:] if with_x and "x" in g else None      # hadronize.py --no-x: none
         units = {k: f["units"][k][:] for k in f["units"]}
         source = str(f.attrs.get("source", ""))
     n_units = len(uo) - 1

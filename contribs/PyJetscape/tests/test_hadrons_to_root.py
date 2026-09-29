@@ -105,6 +105,20 @@ def test_cli_auto_writer_falls_back_to_uproot(hadron_file, tmp_path, monkeypatch
         h2r.main([str(path), "-o", str(tmp_path / "b.root"), "--bits-p", "12"])
 
 
+def test_hadron_file_without_positions(tmp_path):
+    """hadronize.py --no-x files have no hadrons/x: converted without t, x, y, z."""
+    h2r = _h2r()
+    rng = np.random.default_rng(3)
+    path = tmp_path / "nox_hadrons_bulk_bg.h5"
+    with HadronH5Writer(path, tag="bulk_bg", n_samples=2, positions=False) as w:
+        w.append_unit([_sample(3, rng), _sample(2, rng)], unit=0, event=0, seed=1)
+    cols = h2r.load_columns(path)                     # positions asked for, none there
+    assert not cols["with_x"] and len(cols["pid"]) == 5
+    h2r.write_uproot(tmp_path / "nox.root", cols, fmt="rntuple")
+    with uproot.open(tmp_path / "nox.root") as f:
+        assert f["bulk_bg"].num_entries == 2 and "x" not in f["bulk_bg"].keys()
+
+
 def test_selection_keeps_every_sample(hadron_file):
     h2r = _h2r()
     path, samples = hadron_file
