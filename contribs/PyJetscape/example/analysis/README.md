@@ -2,7 +2,8 @@
 
 This folder has the analysis notebooks for the jet productions. §1–§5 are about one
 question: **does the energy of the initial partons come back as surviving partons plus the
-energy deposited in the medium?** §6 covers the parton- and hydro-level wake analysis.
+energy deposited in the medium?** §6 covers the parton- and hydro-level wake analysis, §7 the
+same at hadron level.
 
 | file | what it is for | writes? |
 |---|---|---|
@@ -10,6 +11,8 @@ energy deposited in the medium?** §6 covers the parton- and hydro-level wake an
 | [`fix_lbt_double_counting.py`](fix_lbt_double_counting.py) | repairs files made before the X-SCAPE fix, so they can be hadronized | yes, in place, reversibly |
 | [`wake_observables.py`](wake_observables.py) | one pass over a production → `wake_observables.h5` | a new file only |
 | [`wake_observables.ipynb`](wake_observables.ipynb) | figures from `wake_observables.h5` only | no |
+| [`wake_hadrons.py`](wake_hadrons.py) | one pass over a production's hadron files → `wake_hadrons.h5` | a new file only |
+| [`wake_hadrons.ipynb`](wake_hadrons.ipynb) | hadron-level figures from `wake_hadrons.h5` + `wake_observables.h5` | no |
 
 Both scripts read the pair files that `run_prod_jet.py` writes (`<stem>.h5`), and the fix
 script also reads the `<stem>_particlize.h5` next to each one.
@@ -307,3 +310,61 @@ MUSIC4GPU problem with that initial condition. It is reproducible, and identical
 `jet_no_freezeout` / `bg_no_freezeout` when it is above 1.5 e_fo. The notebook leaves those
 events out of the hydro-level figures and names the files. To find such jobs:
 `grep -l "Maximum allowed time reached" DIR/*.log`.
+
+## 7. The wake at hadron level: script, then notebook
+
+The same split as §6, for the hadron files `hadronize.py` writes (`bulk_jet`, `bulk_bg`,
+`jet_frag`):
+
+```
+python wake_hadrons.py DIR -j 10 -o DIR/wake_hadrons.h5    # ~3.5 min for 300 events, ~30 MB
+jupyter lab wake_hadrons.ipynb                             # WAKE_HAD=<file>, WAKE_OBS=<file>
+```
+
+[`wake_hadrons.py`](wake_hadrons.py) reads each production file's three hadron files once.
+For every event it stores per-event sample means, each with the variance of the mean, taken
+from the spread of the per-sample sums:
+
+- the jet leg;
+- that event's background, binned in the event's own frame;
+- the fragments.
+
+The frame is the leading initiator parton. There are four histograms:
+
+- `jetframe`: (Δη, Δφ, pT) of charged hadrons;
+- `dR`: ΔR profiles;
+- `spectra`: identified spectra at |y| < 1, near and away side;
+- `totals`: N, E, pT, pT cos Δφ, pz, p·n per |η| band and pT.
+
+The wake is jet leg − background, event by event. The notebook joins the file with
+`wake_observables.h5` for the deposit, the showers and the freeze-out times.
+
+**Bad runs.** Before loading any hadrons, the script runs these checks on every event:
+
+- the freeze-out test of `wake_observables.py`, from the pair file (the hottest cell of a
+  leg's last frame is above 1.5 e_fo);
+- a hadron-level test: the background's multiplicity per sample and its freeze-out cells must
+  be within 20% of the jet leg's (the wake changes them by < 1%);
+- the log's "Maximum allowed time reached" (reported only);
+- a cross-check against `wake_observables.h5`.
+
+Flagged events are not histogrammed (`usable` = False), unless `--keep-flagged` is given. In
+`AuAu_0_10_pth10-40_eta06_gridnorm` exactly job 0002 fails, on every check. Its background has
+11× the jet leg's hadrons and 3.2× its cells. Good jobs are within 0.7% and 1.8%.
+
+**Beam remnants.** ColorlessHadronization closes colour-unpaired strings with a remnant of
+√s/6 = 33.3 GeV (§5). The fragments' energy is E_surv + n_rem √s/6 with an integer n_rem per
+event (0–2 here), the same in every fragmentation. The notebook derives n_rem from that and
+takes the remnants out of the energy balance. Their strings put fragments at all Δη, so no η
+cut removes them.
+
+**Results for `AuAu_0_10_pth10-40_eta06_gridnorm`** (285 events; details in §9 of the notebook):
+
+- the wake's hadrons carry 1.01 ± 0.13 ± 0.18 of the energy MUSIC_2 received;
+- fragments − remnants + wake = 1.006 E_ini;
+- the wake has thermal chemistry and a harder spectrum than the background (⟨pT⟩ 0.85 against
+  0.54 GeV);
+- it peaks along both jets, with no significant depletion behind them;
+- it brings back 20% of the leading leg's deposit inside R = 0.4 and 70% inside 1.5;
+- it balances the fragments' pT with soft hadrons at 0.5–2 GeV.
+
