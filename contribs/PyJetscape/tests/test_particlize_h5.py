@@ -263,6 +263,69 @@ def test_hadron_file_keep_bits_rounds_p_and_x_only(tmp_path):
                        keep_bits={"pid": 8})
 
 
+def test_hadron_file_eta_max_drops_hadrons_not_samples(tmp_path):
+    from jetscape.hadrons_h5 import hadron_eta_max, pseudorapidity
+
+    def at(etas, e=1.0):
+        s = _hadrons(len(etas), e=e)
+        s["p"][:, 1:] = np.array([[np.cos(k), np.sin(k), np.sinh(eta)]
+                                  for k, eta in enumerate(etas)], np.float32)   # pT = 1
+        return s
+
+    beam = at([0.0])
+    beam["p"][0, 1:] = [0.0, 0.0, 3.0]                  # along the beam: dropped
+    rest = at([0.0])
+    rest["p"][0, 1:] = 0.0                              # p = 0: eta 0, kept
+    samples = [at([0.2, -1.5, 0.9, 3.0]), at([2.5, -2.5]), beam, rest, at([-0.99])]
+    soft = {k: np.concatenate([s[k] for s in samples]) for k in ("pid", "pstat", "p", "x")}
+    soft["sample_counts"] = np.array([len(s["pid"]) for s in samples])
+    for name, form in (("list", samples), ("soft", soft)):
+        path = str(tmp_path / f"{name}.h5")
+        with HadronH5Writer(path, tag="bulk_jet", n_samples=5, eta_max=1.0,
+                            keep_bits={"p": 12}) as w:
+            w.append_unit(form, unit=0, event=0, seed=1)
+            w.append_unit([], unit=1, event=1, seed=2)
+        assert hadron_eta_max(path) == 1.0
+        h = Hadrons.from_h5(path)
+        assert list(h.samples_per_unit) == [5, 0]      # every sample kept, some empty
+        assert list(np.diff(h.sample_offsets)) == [2, 0, 0, 1, 1]
+        assert np.all(np.abs(h.eta) < 1.0)
+        assert np.allclose(h.eta[[0, 1, 3]], [0.2, 0.9, -0.99], atol=1e-3)
+        assert np.array_equal(h.eta, pseudorapidity(h.p))
+    with HadronH5Writer(tmp_path / "all.h5", tag="bulk_jet", n_samples=5) as w:
+        w.append_unit(samples, unit=0, event=0, seed=1)
+    assert hadron_eta_max(tmp_path / "all.h5") is None
+    assert len(Hadrons.from_h5(tmp_path / "all.h5").pid) == 9
+    with pytest.raises(ValueError, match="eta_max"):
+        HadronH5Writer(tmp_path / "bad.h5", tag="bulk_jet", n_samples=1, eta_max=0)
+
+
+def test_reader_warns_about_mixed_eta_cuts(tmp_path):
+    import h5py
+
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    a, b = _two_seeds(tmp_path)
+    with HadronFileReader(str(tmp_path)) as r:
+        assert r.eta_max() is None and r.eta_max(0)["bulk_jet"] is None
+    with h5py.File(b + "_hadrons_bulk_bg.h5", "a") as f:        # as if made with --eta-max 2
+        f.attrs["eta_max"] = 2.0
+    with pytest.warns(RuntimeWarning, match="different \\|eta\\| cuts"):
+        r = HadronFileReader(str(tmp_path))
+    assert r.eta_max() == 2.0
+    assert r.eta_max(1) == {"bulk_jet": None, "bulk_bg": 2.0, "jet_frag": None}
+    r.close()
+
+
+def test_hadronize_eta_max_option():
+    hz = _load_example("hadronize.py")
+    assert hz.parse_args(["x_particlize.h5"]).eta_max is None
+    assert hz.parse_args(["x_particlize.h5", "--eta-max", "2"]).eta_max == 2.0
+    for bad in ("0", "-1"):
+        with pytest.raises(SystemExit):
+            hz.parse_args(["x_particlize.h5", "--eta-max", bad])
+
+
 def test_hadron_file_rejects_unknown_tags(tmp_path):
     with pytest.raises(ValueError, match="tag"):
         HadronH5Writer(tmp_path / "h.h5", tag="soft", n_samples=1)

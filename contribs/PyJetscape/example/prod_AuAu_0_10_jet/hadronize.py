@@ -17,6 +17,7 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
     python hadronize.py P.h5 --diagnose-colored         # colour-flow diagnostic only
     python hadronize.py P.h5 --skip-complete            # campaigns: only what is missing
     python hadronize.py P.h5 --keep-bits-p 12 --keep-bits-x 8   # rounded p, x: 58% of the bytes
+    python hadronize.py P.h5 --eta-max 2        # only hadrons at |eta| < 2: ~60% of the bytes
     python hadronize.py P.h5 --add-initiators           # older outputs: add initiators/ only
 
 Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_h5):
@@ -65,6 +66,16 @@ recorded on the datasets (jetscape.hadrons_h5.hadron_precision).  Choose it once
 campaign: --skip-complete keeps complete files whatever precision they have (with a
 warning), and HadronFileReader warns about a campaign of mixed precision.
 
+Acceptance.  --eta-max X stores only hadrons with pseudorapidity |eta| < X, in all three
+tags (jetscape.hadrons_h5.pseudorapidity of the stored momenta).  iSS still samples the
+whole surface, so every sample and every average inside the cut is unchanged; only the
+hadrons outside it are dropped, e.g. ~46% of a 0-10% Au+Au bulk sample at X = 2 (~40% of
+the bytes).  Recorded as the files' ``eta_max`` attribute; like the precision, choose it
+once per campaign
+(--skip-complete warns about complete files with another cut, HadronFileReader about a
+campaign that mixes cuts).  Observables that need all hadrons (the total energy balance of
+jet - background) need files without it.
+
 Settings come from hadronize.xml (the file --validate-inline also uses); the iSS paths are
 made absolute and the job's own music_input -- stored in the particlize file -- is written
 to iSS's working directory, so iSS reads the same EoS id and flags as it would have in the
@@ -100,6 +111,13 @@ def _mantissa_bits(text):
     v = int(text)
     if not 1 <= v <= 23:
         raise argparse.ArgumentTypeError(f"must be 1..23 (float32 mantissa bits), got {v}")
+    return v
+
+
+def _positive_float(text):
+    v = float(text)
+    if not v > 0:
+        raise argparse.ArgumentTypeError(f"must be > 0, got {text}")
     return v
 
 
@@ -160,6 +178,10 @@ def parse_args(argv=None):
     p.add_argument("--keep-bits-x", type=_mantissa_bits, default=None, dest="keep_bits_x",
                    help="round the positions x = (t, x, y, z) likewise; 8 bits: <= 2e-3, "
                         "i.e. <= 0.03 fm at 15 fm (MUSIC's cells are 0.2 fm)")
+    p.add_argument("--eta-max", type=_positive_float, default=None, dest="eta_max",
+                   help="store only hadrons with pseudorapidity |eta| < ETA_MAX (all tags; "
+                        "default: all hadrons). 2: ~54%% of the bulk hadrons, ~60%% of the "
+                        "bytes. Decide per campaign (see the README)")
     p.add_argument("--no-initiators", action="store_true", dest="no_initiators",
                    help="do not copy the pair file's shower initiators into bulk_jet and "
                         "jet_frag (initiators/)")
@@ -395,7 +417,7 @@ def main(argv=None):
     keep_bits = {"p": a.keep_bits_p, "x": a.keep_bits_x}
 
     from jetscape.hadrons_h5 import (INITIATOR_TAGS, HadronH5Writer, _keep_bits_map,
-                                     add_initiators, hadron_precision)
+                                     add_initiators, hadron_eta_max, hadron_precision)
     from jetscape.particlize_h5 import ParticlizeFile
 
     pf = ParticlizeFile(a.particlize)
@@ -487,6 +509,11 @@ def main(argv=None):
                 print(f"hadronize.py: WARNING -- {os.path.basename(outs[t])} is complete but "
                       f"was written with precision {have}, not the requested {wanted} (None "
                       "= full float32); kept as it is (--force redoes it)", file=sys.stderr)
+            have_cut = hadron_eta_max(outs[t])
+            if have_cut != a.eta_max:
+                print(f"hadronize.py: WARNING -- {os.path.basename(outs[t])} is complete but "
+                      f"was written with --eta-max {have_cut}, not the requested {a.eta_max} "
+                      "(None = no cut); kept as it is (--force redoes it)", file=sys.stderr)
         tags = [t for t in tags if t not in done]
         outs = {t: outs[t] for t in tags}
         if not tags:
@@ -527,6 +554,7 @@ def main(argv=None):
           + (" (legacy seeds: shared across production files)" if a.legacy_seeds else "")
           + (f", p/x rounded to {a.keep_bits_p or 23}/{a.keep_bits_x or 23} mantissa bits"
              if any(v is not None for v in keep_bits.values()) else "")
+          + (f", only |eta| < {a.eta_max:g} stored" if a.eta_max is not None else "")
           + f"\n  workdir {workdir}")
 
     jetscape = core.JetScapePerEvent()
@@ -576,6 +604,7 @@ def main(argv=None):
         else:
             n = oversample
         writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n, keep_bits=keep_bits,
+                                    eta_max=a.eta_max,
                                     initiators=ini is not None and t in INITIATOR_TAGS,
                                     attrs=dict(common, **extra, generator=(
                                         "ColorlessHadronization (X-SCAPE)" if t == "jet_frag"

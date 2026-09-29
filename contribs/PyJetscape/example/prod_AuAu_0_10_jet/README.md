@@ -77,6 +77,8 @@ python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --
 python run_hadronize.py out -j 4 --oversample 500 --n-frag 50    # every particlize file in out/
 python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
        --keep-bits-p 12 --keep-bits-x 8       # hadrons rounded: 58% of the disk (campaigns, see B)
+python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
+       --eta-max 2                            # only hadrons at |η| < 2: ~60% of the disk (see B)
 
 ./run_jobs.sh 20 25 0                                        # 20 jobs x 25 events, unique seeds
 ./run_jobs.sh 20 25 0 --campaign pth50                       # the same, files named ..._pth50_00NN
@@ -283,6 +285,10 @@ python run_hadronize.py out_pth3 -j 8 --oversample 200 --oversample-bg per-pthat
 # hadrons stored at reduced precision: 58% of the disk (decide before the campaign, see below)
 python run_hadronize.py out_had -j 8 --oversample 500 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8
 
+# only the hadrons at |η| < 2: ~60% of the disk, on top of the rounding (see below)
+python run_hadronize.py out_had -j 8 --oversample 500 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8 \
+       --eta-max 2
+
 python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 ```
 
@@ -335,6 +341,7 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--correlated-block DTAU,DX,DETA` | its block size (default 0.5 fm/c, 1 fm, 0.5): the gain is flat from 0.25 to 1 |
 | `--common-seeds` | only the seeds of `--correlated`: with iSS's conventional sampling the legs decorrelate at the first hadron, so no gain alone (the null test) |
 | `--keep-bits-p B`, `--keep-bits-x B` | round the hadrons' momenta `p` and positions `x` to `B` float32 mantissa bits (1–23; default: full precision). `12` and `8` store 58% of the bytes. Set once per campaign (below) |
+| `--eta-max X` | store only hadrons with pseudorapidity \|η\| < X, in all three tags (default: all). iSS still samples the whole surface: every sample and every result inside the cut is unchanged. `2` keeps ~54% of the bulk hadrons, ~60% of the bytes. Set once per campaign (below) |
 | `--add-initiators` | only add `initiators/` (each event's shower-initiating partons, from the pair file) to existing `bulk_jet` / `jet_frag` outputs, without hadronizing again: for files made before hadronize.py copied them. `--force` replaces an existing group |
 | `--no-initiators` | don't copy the initiators (by default they are copied whenever the pair file is next to the particlize file) |
 
@@ -391,6 +398,78 @@ The dN/dp_T column is the largest shift over 60 bins of 50 MeV (charged, \|η\| 
 3. To change it later, redo the files with `--force` or into a new `--out-dir`.
 4. Keep the validation job (check 1 in *Checks before a campaign*) at full precision: the
    in-job hadrons it compares against are not rounded.
+
+#### Hadron acceptance (`--eta-max`)
+
+The hadron files hold every hadron of the whole event, over the full η range of the
+freeze-out surface: ~7000 per sample in 0–10% Au+Au, so ~2.8 M per event at 400
+oversamples. Most analyses use only mid-rapidity. `--eta-max X` stores only the hadrons with
+pseudorapidity \|η\| < X:
+
+```bash
+python run_hadronize.py out_had -j 16 --oversample 400 --n-frag 50 \
+       --keep-bits-p 12 --keep-bits-x 8 --eta-max 2
+```
+
+What a cut keeps. Measured on `pth10-40_eta06_gridnorm`, file 0001: 5 M `bulk_jet` hadrons,
+and all of `jet_frag`:
+
+| \|η\| < | bulk hadrons | bulk energy | jet fragments | fragment energy |
+|---|---|---|---|---|
+| 1 | 27% | 5% | 65% | 53% |
+| 1.5 | 41% | 9% | 76% | 59% |
+| **2** | **54%** | 14% | 82% | 63% |
+| 3 | 76% | 30% | 91% | 72% |
+| 4 | 90% | 55% | 97% | 84% |
+| none (default) | 100% (up to \|η\| ≈ 12) | 100% | 100% | 100% |
+
+Charged hadrons alone give the same fractions to within 1%.
+
+- **What it changes.** Only what is stored. iSS still samples the whole surface with the
+  same seeds, so the stored hadrons are exactly those of a run without the cut, less the ones
+  outside it. Every sample keeps its place, empty if nothing in it passes, so per-sample
+  averages inside the cut are unchanged. Checked on c1 file 0001 (2 events, 20
+  oversamples, `--keep-bits-p 12 --keep-bits-x 8 --correlated`): `pid`, `pstat`, `p`, `x`
+  and the samples are identical, hadron for hadron, to the uncut files filtered at
+  \|η\| < 2. `jet_minus_background` for charged hadrons at \|η\| < 1 is identical,
+  including its paired errors.
+- **All three tags.** `bulk_jet`, `bulk_bg` and `jet_frag` get the same cut, so
+  jet − background and bulk + fragments are complete inside it. `jet_frag` is tiny, so the
+  saving there doesn't matter.
+- **Disk.** The files shrink less than the hadron count: the forward hadrons that are
+  dropped take fewer bytes each than the mid-rapidity ones that stay. At \|η\| < 2 the
+  files are 56–63% of the uncut size (`bulk_bg` / `bulk_jet`, 12/8 bits), against 54% of
+  the hadrons. The cut combines with `--keep-bits-*` and `--correlated`.
+- **Time and memory** are unchanged: iSS samples the whole surface either way.
+- **The definition.** The cut uses pseudorapidity η = atanh(p_z/\|p\|) of the stored,
+  i.e. rounded, momenta (`jetscape.hadrons_h5.pseudorapidity`). `Hadrons.eta` and
+  `EventHadrons.eta` use the same function, so every hadron read back has \|η\| < X exactly.
+  It is a cut on η, not on the rapidity y. For massive hadrons \|y\| ≤ \|η\|, so a hadron at
+  \|y\| < Y can have \|η\| > Y: an analysis in y at \|y\| < Y needs X well above Y (slow
+  protons at low p_T reach η ≫ y).
+- **Choosing X.** Leave a margin around what the analysis bins. R = 0.4 jets at
+  \|η_jet\| < 0.6 need hadrons at \|η\| < 1.0. The wake and the recoil correlations reach
+  further in η than the jet cone. \|η\| < 2 keeps a unit of η beyond such jets and still
+  saves ~40% of the disk.
+- **What it rules out.** Anything that needs the whole event: the total energy balance of
+  jet − background over all η, forward observables, and dN/dη beyond X. Outside the cut the
+  files have no hadrons, which is not the same as zero hadrons. Keep the validation job
+  (check 1 in *Checks before a campaign*) without `--eta-max`: the in-job hadrons it
+  compares against are not cut.
+- **Provenance.** The files record the cut as the `eta_max` attribute (absent: no cut).
+  `jetscape.hadrons_h5.hadron_eta_max(path)` reads it. `HadronFileReader.eta_max()` returns
+  the campaign's cut: the smallest of all its files, None without one. `eta_max(i)` returns
+  `{tag: cut}` for production file i.
+- **Nothing is lost for good.** As with the precision, the particlize file and
+  `units/seed` reproduce every hadron: `hadronize.py --force` without `--eta-max`.
+
+**For a campaign**, the same rules as for the precision:
+1. Choose X before the first `run_hadronize.py` call, and pass it to every call.
+2. `--skip-complete` keeps complete files whatever their cut. It prints a warning when the
+   cut differs from the requested one, but doesn't redo them.
+3. `HadronFileReader` warns when a campaign's files, or the tags of one file, mix cuts.
+   Results are then only right inside the smallest cut.
+4. To change the cut later, redo the files with `--force` or into a new `--out-dir`.
 
 ### C. Analysing a campaign: `HadronFileReader`
 
@@ -723,7 +802,7 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
 | B: + `--write-particlize both` | 34.6–35.3 s alone (+5.4 s: MUSIC builds and hands over the two surfaces; +13.5 s before MUSIC4GPU `5058545`); `-j` throughput not measured | + 154 MB |
 | A with `--reuse N` or `--pthat-bins` (shared `arr_bg`) | as A, MUSIC_1 once per N events | ~160 MB + 148/N MB (measured at N = 3: 210 MB) |
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
-| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before [`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md) Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8` |
+| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before [`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md) Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8`, and ~60% of that with `--eta-max 2` |
 
 Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` ~1.4 GB per surface
 up to ~1000 oversamples (1.6 GB for both legs), 1.7 GB at 2000 (it was 2.5 GB at 500 and
@@ -867,6 +946,8 @@ the pair file's `shower/initiators` (`HadronFile.initiators(event)`). Without th
 they are written without it, with a warning.
 `p` and `x` are full float32 unless `--keep-bits-p/-x` rounded them; the precision is
 recorded per dataset (see [Hadron precision](#hadron-precision---keep-bits-p---keep-bits-x)).
+All hadrons are stored unless `--eta-max` cut them to \|η\| < X; the file's `eta_max`
+attribute records it (see [Hadron acceptance](#hadron-acceptance---eta-max)).
 
 **Every oversample is an event on its own**, and `JetEvents` puts the tags together per event:
 

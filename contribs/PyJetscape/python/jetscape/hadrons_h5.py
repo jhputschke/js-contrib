@@ -13,7 +13,8 @@ hadronize.py::
 Layout::
 
     attrs   format, format_version, tag, n_samples (per unit, nominal), source (the
-            particlize file) + its file_uuid, generator settings ...
+            particlize file) + its file_uuid, generator settings ...; eta_max if only
+            hadrons with |eta| < eta_max were kept (absent: all)
     hadrons/pid            (N,)   int32
     hadrons/pstat          (N,)   int32
     hadrons/p              (N, 4) float32   [E, px, py, pz]  GeV
@@ -34,6 +35,12 @@ dataset, :func:`hadron_precision` reads them back); pid, pstat and the offsets a
 exact.  Rounding is for campaign storage: e.g. ``keep_bits={"p": 12, "x": 8}`` keeps 58% of
 the bytes, with relative errors <= 1.2e-4 (p) and 2e-3 (x).  The inputs (particlize file +
 ``units/seed``) reproduce the exact hadrons at any time.
+
+``eta_max`` (writer argument, file attribute) keeps only hadrons with pseudorapidity
+|eta| < eta_max, for campaign storage too: at |eta| < 2 about half of a 0-10% Au+Au bulk
+event.  Every sample keeps its place (possibly empty), so the per-sample averages inside
+the cut are unchanged; outside it the file has no hadrons, which is not zero hadrons.
+:func:`hadron_eta_max` reads it back.
 
 Two levels of offsets because an oversample is a sample of the whole event: averages are
 over samples, and the samples of one unit are not independent events.  Errors on sample
@@ -80,7 +87,7 @@ from .showers import INITIATOR_COLUMNS
 
 __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "ORIGIN",
            "ROUNDABLE", "INITIATOR_COLUMNS", "INITIATOR_TAGS", "hadron_precision",
-           "pair_initiators", "add_initiators", "HadronH5Writer", "Hadrons", "HadronFile",
+           "hadron_eta_max", "pseudorapidity", "pair_initiators", "add_initiators", "HadronH5Writer", "Hadrons", "HadronFile",
            "JetEvents", "HadronFileReader",
            "EventHadrons", "EventInfo"]
 
@@ -145,6 +152,26 @@ def hadron_precision(f):
     return {k: dataset_keep_bits(f["hadrons"][k]) for k in ROUNDABLE}
 
 
+def hadron_eta_max(f):
+    """The |eta| cut a hadron file (path or open h5py.File) was written with; None: none."""
+    import h5py
+
+    if not isinstance(f, h5py.File):
+        with h5py.File(f, "r") as h:
+            return hadron_eta_max(h)
+    v = f.attrs.get("eta_max")
+    return None if v is None else float(v)
+
+
+def pseudorapidity(p):
+    """eta of momenta ``p`` = (N, 4) [E, px, py, pz]; ~+-690 along the beam, 0 for p = 0.
+    The one definition used by the writer's cut and by :class:`Hadrons`."""
+    p = np.asarray(p, dtype=np.float64).reshape(-1, 4)
+    pz = p[:, 3]
+    pabs = np.sqrt(p[:, 1] ** 2 + p[:, 2] ** 2 + pz ** 2)
+    return 0.5 * np.log(np.clip(pabs + pz, 1e-300, None) / np.clip(pabs - pz, 1e-300, None))
+
+
 class HadronH5Writer:
     """Append units of samples of hadrons (see the module docstring).
 
@@ -154,10 +181,14 @@ class HadronH5Writer:
 
     ``initiators=True`` (bulk_jet and jet_frag only) adds the ``initiators/`` group: every
     :meth:`append_unit` then takes that event's shower initiators, a (K, 11) array in
-    ``INITIATOR_COLUMNS`` order (None: none)."""
+    ``INITIATOR_COLUMNS`` order (None: none).
+
+    ``eta_max`` (default None: all hadrons) keeps only hadrons with |eta| < eta_max
+    (:func:`pseudorapidity` of the stored, i.e. rounded, momenta); the samples stay, with
+    fewer hadrons.  Recorded as the ``eta_max`` attribute."""
 
     def __init__(self, path, *, tag, n_samples, attrs=None, compression=DEFAULT_COMPRESSION,
-                 force=True, keep_bits=None, initiators=False):
+                 force=True, keep_bits=None, initiators=False, eta_max=None):
         import h5py
 
         if tag not in TAGS:
@@ -165,6 +196,9 @@ class HadronH5Writer:
         if initiators and tag not in INITIATOR_TAGS:
             raise ValueError(f"initiators: only {INITIATOR_TAGS} have one event per unit, "
                              f"not {tag!r}")
+        if eta_max is not None and not float(eta_max) > 0:
+            raise ValueError(f"eta_max must be > 0 (None: no cut), got {eta_max!r}")
+        self.eta_max = None if eta_max is None else float(eta_max)
         self.keep_bits = _keep_bits_map(keep_bits)
         self.path = str(path)
         if os.path.exists(self.path) and not force:
@@ -183,6 +217,8 @@ class HadronH5Writer:
         a["complete"] = False
         for k, v in (attrs or {}).items():
             a[k] = v
+        if self.eta_max is not None:
+            a["eta_max"] = self.eta_max
         g = self.f.require_group("hadrons")
         self._h = RaggedGroup(g, "sample_offsets", {
             "pid": (np.int32, ()), "pstat": (np.int32, ()),
@@ -223,6 +259,14 @@ class HadronH5Writer:
             for k, bits in self.keep_bits.items():
                 if bits is not None:
                     rows[k] = round_mantissa(rows[k], bits)
+            if self.eta_max is not None:
+                # after the rounding, so every stored hadron passes the cut as read back
+                keep = np.abs(pseudorapidity(rows["p"])) < self.eta_max
+                if not keep.all():
+                    counts = np.asarray(counts, dtype=np.int64)
+                    sample = np.repeat(np.arange(len(counts)), counts)
+                    counts = np.bincount(sample[keep], minlength=len(counts))
+                    rows = {k: np.asarray(v)[keep] for k, v in rows.items()}
         # all samples in one write: one append per sample recompresses the partly
         # filled last chunk every time (most of hadronize.py's write time)
         self._h.append_many(rows, counts)
@@ -278,9 +322,7 @@ class Hadrons:
         E, px, py, pz = self.p.T if len(self.p) else (np.zeros(0),) * 4
         self.E, self.px, self.py, self.pz = E, px, py, pz
         self.pt = np.hypot(px, py)
-        pabs = np.sqrt(self.pt ** 2 + pz ** 2)
-        self.eta = 0.5 * np.log(np.clip(pabs + pz, 1e-300, None) /
-                                np.clip(pabs - pz, 1e-300, None))
+        self.eta = pseudorapidity(self.p)
         self.y = 0.5 * np.log(np.clip(E + pz, 1e-300, None) / np.clip(E - pz, 1e-300, None))
         self.phi = np.arctan2(py, px)
         self.charged = np.isin(np.abs(self.pid), CHARGED)
@@ -761,6 +803,14 @@ class HadronFileReader:
                 warnings.warn(f"HadronFileReader: the {tag} files were written with different "
                               f"precision ({seen}; None = full float32): keep one --keep-bits "
                               "setting per campaign", RuntimeWarning, stacklevel=2)
+        cuts = {c for f in self._files for c in f["eta_max"].values()}
+        if len(cuts) > 1:
+            import warnings
+            seen = ", ".join(str(c) for c in sorted(cuts, key=lambda c: (c is None, c or 0)))
+            warnings.warn(f"HadronFileReader: the hadron files were written with different "
+                          f"|eta| cuts ({seen}; None = no cut): jet - background and "
+                          "bulk + fragments are only right inside the smallest one; keep one "
+                          "--eta-max per campaign", RuntimeWarning, stacklevel=2)
         n = np.array([f["nevents"] for f in self._files], dtype=np.int64)
         self._offsets = np.concatenate([[0], np.cumsum(n)])
         dup = self.duplicate_backgrounds()
@@ -812,7 +862,7 @@ class HadronFileReader:
                 v = pf.attrs.get(attr)
                 info[key] = None if v is None else np.asarray(v)
             info["parton_ymax"] = pf.attrs.get("parton_ymax")
-        info["tags"], info["precision"], info["correlated"] = {}, {}, {}
+        info["tags"], info["precision"], info["correlated"], info["eta_max"] = {}, {}, {}, {}
         for tag in TAGS:
             path = f"{stem}_hadrons_{tag}.h5"
             if not os.path.exists(path):
@@ -820,6 +870,7 @@ class HadronFileReader:
             with h5py.File(path, "r") as f:
                 ftag, src = str(f.attrs.get("tag", "")), str(f.attrs.get("source_uuid", ""))
                 info["precision"][tag] = hadron_precision(f)
+                info["eta_max"][tag] = hadron_eta_max(f)
                 info["correlated"][tag] = bool(f.attrs.get("correlated_sampling", False))
             if ftag != tag:
                 raise ValueError(f"{path} holds tag {ftag!r}, not {tag!r}")
@@ -882,6 +933,15 @@ class HadronFileReader:
     def precision(self, file_index):
         """``{tag: {"p": bits, "x": bits}}`` of one production file (None = full float32)."""
         return dict(self._files[file_index]["precision"])
+
+    def eta_max(self, file_index=None):
+        """The |eta| cut the hadrons were stored with (hadronize.py --eta-max; None: none).
+        ``file_index`` None: the campaign's, i.e. the smallest cut of any file and tag;
+        else ``{tag: cut}`` of that production file."""
+        if file_index is not None:
+            return dict(self._files[file_index]["eta_max"])
+        cuts = [c for f in self._files for c in f["eta_max"].values() if c is not None]
+        return min(cuts) if cuts else None
 
     def tags(self, file_index=None):
         """Tags present in every file (or in one file)."""
