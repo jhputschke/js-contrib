@@ -376,7 +376,10 @@ def load_shower(path, event=0, min_energy=0.0):
     """
     import h5py
 
-    from fasthydro.showers import ABSORBED, segments, velocities
+    try:
+        from fasthydro.showers import ABSORBED, segments, velocities
+    except ImportError:     # FastHydro not checked out or installed: the module it re-exports
+        from jetscape.showers import ABSORBED, segments, velocities
 
     with h5py.File(str(path), "r") as f:
         if "shower/partons" not in f:

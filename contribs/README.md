@@ -2,7 +2,7 @@
 
 #### REMARK: Docker/Singularity containers for Linux x86 and arm64 will be provided asap. Mac Silicon containers, once there is MPS provided (maybe for testing purposes a CPU container will be provided soon).
 
-The `conda_install/` subdirectory contains scripts to create and verify the
+The [`utils/conda_install/`](../utils/conda_install/) directory contains scripts to create and verify the
 `js_fno` conda environment, which provides all Python and C++ build
 dependencies needed by the [PyJetscape](PyJetscape/README.md) and
 [FnoHydro](FnoHydro/README.md) contribs.  The
@@ -10,6 +10,9 @@ dependencies needed by the [PyJetscape](PyJetscape/README.md) and
 PyVista stack in its own env — see
 [Visualization contrib — PyVista dependencies](#visualization-contrib--pyvista-dependencies)
 below.
+
+**Only analysing production files?** The `js_fno` env and an X-SCAPE build aren't needed. See
+[Analysis-only install (no X-SCAPE)](#analysis-only-install-no-x-scape) below.
 
 ## Contribs at a glance
 
@@ -42,13 +45,16 @@ official JETSCAPE Docker images are a valid alternative.
 
 ## Files
 
+The scripts are in [`utils/conda_install/`](../utils/conda_install/); the commands below
+run from the js-contrib root.
+
 | Script | Purpose |
 |--------|---------|
-| `conda_install/test_js_fno_build_env.sh` | **Dry-run check** — verifies every package is reachable *without* installing anything. Run this first. |
-| `conda_install/install_js_fno_minimal.sh` | Python / ML stack only (PyTorch, ROOT, numpy, …). Use when X-SCAPE is already built. |
-| `conda_install/install_js_fno_build_minimal.sh` | **Full install** — Python stack + JETSCAPE C++ build tools (cmake, Boost, Pythia8, HepMC3, …). Use to build X-SCAPE + js-contrib from source inside the environment. |
-| `conda_install/pinned/install_js_fno_pinned.sh` | Exact-version pinned variant of the minimal install (for reproducibility). |
-| `conda_install/pinned/install_js_fno_build_pinned.sh` | Exact-version pinned variant of the full build install. |
+| `utils/conda_install/test_js_fno_build_env.sh` | **Dry-run check** — verifies every package is reachable *without* installing anything. Run this first. |
+| `utils/conda_install/install_js_fno_minimal.sh` | Python / ML stack only (PyTorch, ROOT, numpy, …). Use when X-SCAPE is already built. |
+| `utils/conda_install/install_js_fno_build_minimal.sh` | **Full install** — Python stack + JETSCAPE C++ build tools (cmake, Boost, Pythia8, HepMC3, …). Use to build X-SCAPE + js-contrib from source inside the environment. |
+| `utils/conda_install/pinned/install_js_fno_pinned.sh` | Exact-version pinned variant of the minimal install (for reproducibility). |
+| `utils/conda_install/pinned/install_js_fno_build_pinned.sh` | Exact-version pinned variant of the full build install. |
 
 ---
 
@@ -58,7 +64,7 @@ Before running any install script, check that every required package is
 reachable from your network and conda channels:
 
 ```bash
-bash conda_install/test_js_fno_build_env.sh
+bash utils/conda_install/test_js_fno_build_env.sh
 ```
 
 The script checks:
@@ -73,9 +79,9 @@ summary at the end.  A non-zero exit code means at least one check failed.
 
 ```bash
 # Examples
-bash conda_install/test_js_fno_build_env.sh          # auto-detect CUDA
-bash conda_install/test_js_fno_build_env.sh none     # force CPU/MPS mode (Mac Silicon)
-bash conda_install/test_js_fno_build_env.sh 12.1     # force CUDA 12.1 wheel index
+bash utils/conda_install/test_js_fno_build_env.sh          # auto-detect CUDA
+bash utils/conda_install/test_js_fno_build_env.sh none     # force CPU/MPS mode (Mac Silicon)
+bash utils/conda_install/test_js_fno_build_env.sh 12.1     # force CUDA 12.1 wheel index
 ```
 
 Only proceed to installation once you see:
@@ -88,22 +94,22 @@ All checks passed — safe to run install_js_fno_build_minimal.sh.
 
 ## Step 1 — Full install (build from source)
 
-Use `conda_install/install_js_fno_build_minimal.sh` when you need to compile
+Use `utils/conda_install/install_js_fno_build_minimal.sh` when you need to compile
 X-SCAPE and js-contrib from source inside the conda environment.  This is the
 typical case for Mac Silicon and Linux `aarch64`.
 
 ```bash
 # Mac Silicon / any CPU-only system
-bash conda_install/install_js_fno_build_minimal.sh none
+bash utils/conda_install/install_js_fno_build_minimal.sh none
 
 # Linux with CUDA (auto-detect)
-bash conda_install/install_js_fno_build_minimal.sh
+bash utils/conda_install/install_js_fno_build_minimal.sh
 
 # Linux with a specific CUDA version
-bash conda_install/install_js_fno_build_minimal.sh 12.1
+bash utils/conda_install/install_js_fno_build_minimal.sh 12.1
 
 # Custom Miniconda location (second argument)
-bash conda_install/install_js_fno_build_minimal.sh none /opt/miniconda3
+bash utils/conda_install/install_js_fno_build_minimal.sh none /opt/miniconda3
 ```
 
 What the script installs:
@@ -179,9 +185,9 @@ If X-SCAPE is already built by other means (e.g. the official JETSCAPE Docker
 image on x86_64) and you only need the Python/ML stack to run `PyFNOHydro`:
 
 ```bash
-bash conda_install/install_js_fno_minimal.sh none     # CPU/MPS
+bash utils/conda_install/install_js_fno_minimal.sh none     # CPU/MPS
 # or
-bash conda_install/install_js_fno_minimal.sh          # auto-detect CUDA
+bash utils/conda_install/install_js_fno_minimal.sh          # auto-detect CUDA
 ```
 
 This installs Python, ROOT, PyTorch, numpy, neuraloperator, uproot, and
@@ -190,14 +196,36 @@ dependencies.
 
 ---
 
+## Analysis-only install (no X-SCAPE)
+
+To analyse and visualize the files of a `prod_AuAu_0_10_jet` production without running
+X-SCAPE, use [`utils/analysis_env/`](../utils/analysis_env/README.md) instead. It makes a
+plain Python venv (≥ 3.10) with no conda, ROOT, compiler or `pyjetscape_core`. It covers the
+pair, particlize and hadron HDF5 files, `run_h5toROOT.py` (uproot), the analysis notebooks,
+and `wake_pyvista.py` / `hydro_jet_particles_pyvista.py` on the stored files. It also
+downloads MUSIC's hotQCD EoS table.
+
+```bash
+./utils/analysis_env/setup_analysis_env.sh           # from the js-contrib root; venv in ~/.venvs/js_analysis
+source ~/.venvs/js_analysis/bin/activate
+python utils/analysis_env/check_env.py /path/to/out  # opens every file of a production
+```
+
+FastHydro is optional (`--with-fasthydro`). For PyROOT and the ROOT macros, make the venv
+from a conda env with ROOT and add `--system-site-packages`, or use the conda env in
+`utils/analysis_env/environment.yml`. See
+[With ROOT](../utils/analysis_env/README.md#with-root).
+
+---
+
 ## Pinned-version installs
 
 For exact reproducibility (e.g. paper replication), use the pinned scripts in
-`conda_install/pinned/`:
+`utils/conda_install/pinned/`:
 
 ```bash
-bash conda_install/pinned/install_js_fno_build_pinned.sh none    # full build, CPU/MPS
-bash conda_install/pinned/install_js_fno_pinned.sh               # ML stack only, CUDA auto-detect
+bash utils/conda_install/pinned/install_js_fno_build_pinned.sh none    # full build, CPU/MPS
+bash utils/conda_install/pinned/install_js_fno_pinned.sh               # ML stack only, CUDA auto-detect
 ```
 
 Pinned scripts specify explicit package versions and are tested against the

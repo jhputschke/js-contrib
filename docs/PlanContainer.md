@@ -39,7 +39,7 @@ ROOT, HepMC3, FNO4d.
 | `X-SCAPE/external_packages/music4gpu/src/CMakeLists.txt` | CUDA source list, `set_source_files_properties(... LANGUAGE CUDA)`, `CUDA::cudart` link, `--use_fast_math`, `-Xcompiler` OpenMP passthrough |
 | `X-SCAPE/external_packages/music4gpu/src/gpu/CUDAPipelines.h` | CUDA singleton — uses `void*` for stream handles to avoid CUDA headers in C++ TUs |
 | `X-SCAPE/external_packages/music4gpu/src/advance.h` | `#ifdef USE_CUDA` guard includes `CUDAPipelines.h`; `using GPUPipelines = CUDAPipelines` alias |
-| `js-contrib/contribs/conda_install/install_js_fno_build_minimal.sh` | Reference for all conda/pip packages |
+| `js-contrib/utils/conda_install/install_js_fno_build_minimal.sh` | Reference for all conda/pip packages |
 | `FNO4d/requirements-base.txt` | Python base dependencies |
 | `FNO4d/requirements-linux.txt` | Linux-specific (includes base) |
 | `FNO4d/install.sh` | CUDA detection + editable install logic |

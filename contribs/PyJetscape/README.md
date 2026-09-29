@@ -56,7 +56,6 @@ Original development repository:
 | `python/jetscape/showers.py`, `liquefier_io.py` | Parton-shower graph and liquefier droplet/parameter readers (numpy only) |
 | `example/prod_AuAu_0_10/`, `example/prod_AuAu_0_10_jet/` | Productions: 0–10% Au+Au hydro-only, and the same with a jet as background/jet pairs |
 | `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
-| `conda_install/` | Conda environment installation scripts for the `js_fno` environment |
 | `pyproject.toml` | Source-only Python package metadata (`name = "pyjetscape"`) |
 
 ---
@@ -89,20 +88,21 @@ Original development repository:
 ## Conda Environment Setup
 
 The `js_fno` conda environment contains all Python and build-time dependencies.
-Setup scripts are in `conda_install/`:
+Setup scripts are in [`utils/conda_install/`](../../utils/conda_install/) (details in
+[contribs/README.md](../README.md)):
 
 | Script | Description |
 |--------|-------------|
 | `install_js_fno_minimal.sh` | Minimal install — top-level packages only, conda resolves dependencies |
-| `install_js_fno_pinned.sh` | Fully pinned versions for exact reproducibility |
+| `pinned/install_js_fno_pinned.sh` | Fully pinned versions for exact reproducibility |
 | `install_js_fno_build_minimal.sh` | Adds C++ build tools (CMake, compilers, ROOT) to the minimal env |
-| `install_js_fno_build_pinned.sh` | Pinned versions with build tools |
+| `pinned/install_js_fno_build_pinned.sh` | Pinned versions with build tools |
 | `test_js_fno_build_env.sh` | Smoke-test that the environment is correctly configured |
 
 **Quick start (CPU / macOS Apple Silicon):**
 
 ```bash
-cd contribs/PyJetscape/conda_install
+cd utils/conda_install                # from the js-contrib root
 bash install_js_fno_minimal.sh none   # "none" = CPU/MPS, no CUDA
 conda activate js_fno
 bash test_js_fno_build_env.sh

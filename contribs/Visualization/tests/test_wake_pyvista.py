@@ -365,8 +365,9 @@ def _music_pair(tmp_path, **attrs):
     return p
 
 
-def test_a_music_pair_reads_musics_table_from_its_build(tmp_path):
+def test_a_music_pair_reads_musics_table_from_its_build(tmp_path, monkeypatch):
     """PyJetscape's MUSIC pairs carry no eos/ group but name the EoS and the build."""
+    monkeypatch.delenv("MUSIC_EOS_TABLE", raising=False)    # it would win over the build
     build = tmp_path / "build"
     (build / "EOS" / "hotQCD").mkdir(parents=True)
     _write_music_table(build / "EOS" / "hotQCD" / "hrg_hotqcd_eos_binary.dat")
