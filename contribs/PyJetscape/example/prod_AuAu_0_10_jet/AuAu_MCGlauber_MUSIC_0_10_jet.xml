@@ -278,7 +278,7 @@
     <!-- X-SCAPE with the kernel normalization (LiquefierBase::normalize_active_droplets)
          deposits each droplet exactly on MUSIC's grid by default; the pair file records it
          (liquefier_normalize_on_hydro_grid).  To reproduce older runs add
-         <normalize_on_hydro_grid> 0 </normalize_on_hydro_grid> here -- only with such an
+         <normalize_on_hydro_grid> 0 </normalize_on_hydro_grid> here, but only with such an
          X-SCAPE: an older one stops on the unknown tag (no default in its main XML). -->
     <CausalLiquefier>
       <name>CausalLiquefier</name>
