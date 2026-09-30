@@ -367,13 +367,25 @@ precompiled image is for, so treat it as a fallback.
 ```bash
 apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu126
 
-apptainer exec --nv --bind "$SCRATCH/prod:/work" xscape_prod.sif \
+PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+apptainer exec --nv --pwd "$PROD" --bind "$SCRATCH/prod:/work" xscape_prod.sif \
   python run_prod_jet.py --events 25 --seed 0 --write-particlize both --outdir /work/out
 ```
 
 - `--nv` makes the host's NVIDIA driver visible in the container.
-- **Bind the parent of `--outdir`,** not `--outdir` itself: the seed registry of `--seed 0`
-  is `OUTDIR/../seeds_used.tsv`, and a registry inside the read-only image can't be written.
+- **`--pwd "$PROD"`:** Docker starts in the image's production directory (its `WORKDIR`).
+  Apptainer ignores that and starts in the directory you launched it from, usually your home.
+  Without `--pwd`, `python run_prod_jet.py` and `./run_jobs.sh` are not found, and a relative
+  OUTDIR such as `./` lands in that directory. The other way is to call the scripts by their
+  full path, `$PROD/run_jobs.sh`.
+- **OUTDIR's parent must be writable too:** every job records its seed, explicit or drawn, in
+  the seed registry `OUTDIR/../seeds_used.tsv`. So bind a directory and put OUTDIR one level
+  inside it (`--bind "$SCRATCH/prod:/work"`, OUTDIR `/work/out`), not the bound directory
+  itself; everything outside the bound directories is the read-only image.
+- **Your home directory:** Apptainer mounts it, but only the directory itself. Its parent
+  (e.g. `/home/group/`) is an empty stand-in inside the read-only image. So OUTDIR `~` (or `./`
+  started from home) fails with "Read-only file system" on `seeds_used.tsv`; use `~/prod/out`
+  instead. `run_jobs.sh` checks this before it starts any job and says what to do.
 - **Mixed clusters:** a `.sif` holds one CPU architecture, and `apptainer pull` takes the
   architecture of the machine it runs on. Where the login nodes are x86 but the GPU nodes are
   GH200/GB200 (arm64), pull with `--arch arm64`, or pull on a compute node.
@@ -416,7 +428,8 @@ docker run --rm --gpus all --user "$(id -u):$(id -g)" -v "$PWD/prod:/work" \
   wait'
 
 # Apptainer: the same inside one apptainer exec
-apptainer exec --nv --bind "$SCRATCH/prod:/work" xscape_prod.sif bash -c '
+PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+apptainer exec --nv --pwd "$PROD" --bind "$SCRATCH/prod:/work" xscape_prod.sif bash -c '
   trap "kill \$(jobs -p) 2>/dev/null; wait" INT TERM
   CUDA_VISIBLE_DEVICES=0 ./run_jobs.sh -j 4 --campaign gpu0 20 25 0 /work/out_gpu0 &
   CUDA_VISIBLE_DEVICES=1 ./run_jobs.sh -j 4 --campaign gpu1 20 25 0 /work/out_gpu1 &
@@ -503,7 +516,8 @@ docker run --rm --gpus all --user "$(id -u):$(id -g)" \
     --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
 
 # Apptainer
-apptainer exec --nv --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xscape_prod.sif \
+PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+apptainer exec --nv --pwd "$PROD" --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xscape_prod.sif \
   python run_prod_jet.py --user-xml /xml/PbPb_0_10.xml \
     --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
 
@@ -550,7 +564,8 @@ of a production: the hydro pairs with `--write-particlize both` on GPU nodes, th
 later on CPU nodes, from the stored `*_particlize.h5` files.
 
 ```bash
-apptainer exec --bind "$SCRATCH/prod:/work" xscape_prod.sif \
+PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+apptainer exec --pwd "$PROD" --bind "$SCRATCH/prod:/work" xscape_prod.sif \
   python run_hadronize.py /work/out -j 4 --oversample 500 --n-frag 50
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu126 \
   python hadronize.py /work/out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --n-frag 50

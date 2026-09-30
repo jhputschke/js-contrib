@@ -92,7 +92,10 @@ while [ $# -gt 0 ]; do
   case $1 in
     --campaign)   [ $# -ge 2 ] || usage; set_campaign "$2"; shift 2 ;;
     --campaign=*) set_campaign "${1#*=}"; shift ;;
-    --seed|--seed=*|--index|--index=*|--events|--events=*|--outdir|--outdir=*|--out|--out=*)
+    --outdir|--outdir=*)
+      echo "--outdir: give OUTDIR as the argument after FIRST_SEED instead, e.g." \
+           "run_jobs.sh $NJOBS $EVENTS $SEED0 /work/out" >&2; exit 2 ;;
+    --seed|--seed=*|--index|--index=*|--events|--events=*|--out|--out=*)
       echo "${1%%=*}: set by run_jobs.sh for every job (NJOBS EVENTS_PER_JOB FIRST_SEED" \
            "[OUTDIR]); don't pass it" >&2; exit 2 ;;
     *) pass+=("$1"); shift ;;
@@ -103,7 +106,34 @@ OUTDIR="${PROD_OUTDIR:-$HERE/out}"
 if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then   # an optional OUTDIR before the options
   OUTDIR=$1; shift
 fi
-OUTDIR="$(mkdir -p "$OUTDIR" && cd "$OUTDIR" && pwd)"
+OUTDIR="$(mkdir -p "$OUTDIR" && cd "$OUTDIR" && pwd)" ||
+  { echo "OUTDIR: cannot create it" >&2; exit 1; }
+
+# Every job records its seed in the registry (run_prod.py --seed-registry; default
+# seeds_used.tsv next to OUTDIR), so check once that it can be written rather than let every
+# job fail.  The usual cause is a container: only the bound directories are writable, and
+# Apptainer mounts the home directory itself, not its parent, so OUTDIR ~ puts the registry
+# into the read-only image.
+registry="$(dirname "$OUTDIR")/seeds_used.tsv"
+for (( i = 1; i <= $#; i++ )); do
+  case ${!i} in
+    --seed-registry)   j=$(( i + 1 )); [ $j -le $# ] && registry=${!j} ;;
+    --seed-registry=*) registry=${!i#*=} ;;
+  esac
+done
+case $registry in
+  [Nn][Oo][Nn][Ee]) ;;
+  *) d=$(dirname "$registry")                   # run_prod.py creates missing directories
+     while [ ! -e "$d" ]; do d=$(dirname "$d"); done
+     if { [ -e "$registry" ] && [ ! -w "$registry" ]; } ||
+        { [ ! -e "$registry" ] && [ ! -w "$d" ]; }; then
+       echo "The seed registry $registry can't be written (read-only, or no permission; in a" \
+            "container, is it inside a bound directory?). Put OUTDIR one level deeper, e.g." \
+            "$OUTDIR/out, choose the file with --seed-registry PATH, or turn it off with" \
+            "--seed-registry none (explicit seeds only: seed 0 then has no protection" \
+            "against repeats)." >&2; exit 1
+     fi ;;
+esac
 
 
 # ---- campaign: FIRST_SEED 0 (unique seeds) or --campaign names the files <base>_<name>_NNNN
