@@ -30,12 +30,22 @@ target machine:
 |---|---|---|---|
 | `xscape-prod:cu126` | defaults: `CUDA_VERSION=12.6.3`, `CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90"` | amd64, arm64 | RTX 20/30/40xx, A100, A40, L4, H100, GH200 |
 | `xscape-prod:cu130` | `CUDA_VERSION=13.2.1`, `CUDA_ARCHITECTURES="90-real;100-real;120-real;121"` | amd64, arm64 | GH200, B200/GB200, RTX 50xx / RTX PRO Blackwell, **GB10** |
+| `xscape-prod:cu124` | `CUDA_VERSION=12.4.1`, `UBUNTU=ubuntu22.04`, architectures as `cu126` | **amd64 only** | as `cu126`, on hosts with R550 drivers (CUDA 12.4) |
 
-One Dockerfile serves both: the variants differ only in the CUDA base image and the
-architecture list, so two copies could only drift apart.
+One Dockerfile serves all three: the variants differ only in the CUDA base image and the
+architecture list, so copies could only drift apart.
 
 Each tag is one multi-arch manifest: `docker pull` and `apptainer pull` pick the image of
-the machine's CPU architecture.
+the machine's CPU architecture. `cu124` holds only the amd64 image.
+
+**Why `cu124`.** On a host whose driver supports CUDA 12.4 but not 12.6 (the R550 series),
+Docker's NVIDIA runtime refuses to start the `cu126` image (the `nvidia/cuda` images require
+their CUDA version, `NVIDIA_REQUIRE_CUDA`). `cu124` is the same build on CUDA 12.4.
+- NVIDIA publishes CUDA 12.4 images only up to Ubuntu 22.04, so `cu124` is Ubuntu 22.04 based,
+  and nvcc's host compiler is that release's GCC 11 (supported by CUDA 12.4). The conda env,
+  and so the C++ compiler (GCC 14) and every library, are the same as in the other variants.
+- It is built only when requested (`variants=cu124` or `all`), and for amd64 only.
+- **Not built or tested yet**, locally or on GitHub.
 
 **Two independent architectures.** The CPU architecture (amd64 / arm64) decides which image
 of the manifest is used. The GPU architectures (`sm_*`) are compiled into each image. The
@@ -51,8 +61,8 @@ corrected.
 
 **Driver.** The CUDA version in the image must be supported by the host's driver:
 `nvidia-smi` shows the highest CUDA version it supports. CUDA 13 needs the R580 driver
-series or newer (the GB10 has 580.173); CUDA 12.6 runs on older drivers. Check a cluster
-before choosing the tag.
+series or newer (the GB10 has 580.173); CUDA 12.6 needs R560, CUDA 12.4 R550 (`cu124`).
+Check a cluster before choosing the tag.
 
 ---
 
@@ -208,7 +218,8 @@ setup: resolve the refs to commits, pick the variants and arches
   ├─ build cu126-amd64 ─┐
   ├─ build cu126-arm64 ─┴─ merge → <user>/xscape-prod:cu126, :cu126-<date>-<xscape7>
   ├─ build cu130-amd64 ─┐
-  └─ build cu130-arm64 ─┴─ merge → <user>/xscape-prod:cu130, :cu130-<date>-<xscape7>
+  ├─ build cu130-arm64 ─┴─ merge → <user>/xscape-prod:cu130, :cu130-<date>-<xscape7>
+  └─ build cu124-amd64 ─── merge → <user>/xscape-prod:cu124, :cu124-<date>-<xscape7>   (on request)
 ```
 
 ### Starting a build
@@ -217,7 +228,9 @@ On the website: **Actions** → **Build & push production images** → **Run wor
 the inputs, **Run workflow**. Or from the command line:
 
 ```bash
-gh workflow run docker-prod.yml                          # the latest versions, both variants and arches
+gh workflow run docker-prod.yml                          # the latest versions: cu126 + cu130, both arches
+gh workflow run docker-prod.yml -f variants=cu124        # CUDA 12.4, amd64 only
+gh workflow run docker-prod.yml -f variants=all          # cu126, cu130 and cu124
 gh workflow run docker-prod.yml -f variants=cu130 -f platforms=arm64 -f push=false   # test one image
 gh workflow run docker-prod.yml -f release_tag=2026.10   # + tags cu126-2026.10, cu130-2026.10
 gh run watch                                             # follow the run
@@ -233,8 +246,8 @@ commands for the new tags.
 | `xscape_ref` | `contrib` | a branch, a tag or a full commit hash of JETSCAPE/X-SCAPE |
 | `music4gpu_ref` | `XSCAPE` | the same for jhputschke/MUSIC4GPU, or `pinned`: the commit X-SCAPE's `get_music4gpu.sh` pins |
 | `js_contrib_ref` | `main` | the same for jhputschke/js-contrib |
-| `variants` | `both` | `cu126`, `cu130` or both (see [Images](#images)) |
-| `platforms` | `both` | `amd64`, `arm64` or both; a published tag should have both |
+| `variants` | `cu126+cu130` | `cu126+cu130`, `all` (+ `cu124`), `cu126`, `cu130` or `cu124` (see [Images](#images)) |
+| `platforms` | `both` | `amd64`, `arm64` or both; a published tag should have both. `cu124` is built for amd64 only, whatever is chosen (`cu124` with `arm64` stops with an error) |
 | `release_tag` | empty | an extra tag per variant, e.g. `2026.10` → `cu126-2026.10` |
 | `push` | on | off: build only, to test a change of the Dockerfile |
 
@@ -255,7 +268,7 @@ commands for the new tags.
 
 | tag | moves? | use |
 |---|---|---|
-| `cu126`, `cu130` | yes: every run overwrites it | trying out the latest build |
+| `cu126`, `cu130`, `cu124` | yes: every run that builds the variant overwrites it | trying out the latest build |
 | `cu126-<YYYYMMDD>-<xscape7>` | no | what a campaign should pull: a fixed image |
 | `cu126-<release_tag>` | only if the same `release_tag` is given again | a name for a campaign's image |
 

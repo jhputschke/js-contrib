@@ -7,6 +7,7 @@ name: Build & push production images
 #
 #   gh workflow run docker-prod.yml                                     # all defaults
 #   gh workflow run docker-prod.yml -f variants=cu130 -f platforms=arm64   # one image, a test
+#   gh workflow run docker-prod.yml -f variants=cu124                   # CUDA 12.4, amd64 only
 #   gh workflow run docker-prod.yml -f xscape_ref=<40-char hash> -f release_tag=2026.10
 #   gh run watch                                                        # follow the run
 #
@@ -22,11 +23,19 @@ name: Build & push production images
 #   iSS, 3dMCGlauber and the LBT tables always come at the commits their X-SCAPE get_*.sh
 #   scripts pin.
 #
+# Variants (the build arguments of utils/Dockerfile.prod):
+#   cu126  CUDA 12.6, Ubuntu 24.04, sm_75-90 + PTX       amd64 + arm64   (default)
+#   cu130  CUDA 13.2, Ubuntu 24.04, sm_90-121 + PTX      amd64 + arm64   (default)
+#   cu124  CUDA 12.4, Ubuntu 22.04, sm_75-90 + PTX       amd64 only      (on request)
+#          for hosts with R550 drivers (CUDA 12.4): Docker's NVIDIA runtime refuses the
+#          cuda:12.6 images there.  NVIDIA has no CUDA 12.4 image for Ubuntu 24.04.
+#
 # Tags pushed to Docker Hub as <DOCKERHUB_USERNAME>/xscape-prod:
-#   cu126, cu130                    moving: the latest build of each variant
+#   cu126, cu130, cu124             moving: the latest build of each variant
 #   cu126-<YYYYMMDD>-<xscape7>      immutable-ish: date + X-SCAPE commit of this run
 #   cu126-<release_tag>             only with the release_tag input; use one per campaign
-# Each tag is a multi-arch manifest (amd64 + arm64): docker/apptainer pull pick the arch.
+# Each tag is a multi-arch manifest (amd64 + arm64; cu124: amd64 only): docker/apptainer
+# pull pick the arch.
 #
 # One-time setup: the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repository secrets of the dev
 # workflow (utils/BuildContainerDev.md, "One-time setup").  The workflow file must be on the
@@ -51,12 +60,12 @@ on:
         required: true
         type: string
       variants:
-        description: "CUDA variants: cu126 (sm_75-90: A100, H100, GH200, ...), cu130 (sm_90-121: + Blackwell, GB10)"
-        default: both
+        description: "CUDA variants: cu126 (sm_75-90: A100, H100, GH200, ...), cu130 (sm_90-121: + Blackwell, GB10), cu124 (as cu126 for R550 drivers; amd64 only)"
+        default: cu126+cu130
         type: choice
-        options: [both, cu126, cu130]
+        options: [cu126+cu130, all, cu126, cu130, cu124]
       platforms:
-        description: "CPU architectures (a manifest normally has both)"
+        description: "CPU architectures (a manifest normally has both; cu124 is amd64 only)"
         default: both
         type: choice
         options: [both, amd64, arm64]
@@ -142,19 +151,34 @@ jobs:
           set -euo pipefail
           python3 - <<'EOF' >> "$GITHUB_OUTPUT"
           import json
-          variants = {  # the two build-argument sets of Dockerfile.prod
-              "cu126": {"cuda": "12.6.3", "archs": "75-real;80-real;86-real;89-real;90"},
-              "cu130": {"cuda": "13.2.1", "archs": "90-real;100-real;120-real;121"},
+          import sys
+          # the build-argument sets of Dockerfile.prod, and the CPU architectures each is
+          # built for
+          variants = {
+              "cu126": {"cuda": "12.6.3", "ubuntu": "ubuntu24.04",
+                        "archs": "75-real;80-real;86-real;89-real;90", "arches": ["amd64", "arm64"]},
+              "cu130": {"cuda": "13.2.1", "ubuntu": "ubuntu24.04",
+                        "archs": "90-real;100-real;120-real;121", "arches": ["amd64", "arm64"]},
+              # CUDA 12.4 images exist only up to Ubuntu 22.04; published for amd64 only
+              "cu124": {"cuda": "12.4.1", "ubuntu": "ubuntu22.04",
+                        "archs": "75-real;80-real;86-real;89-real;90", "arches": ["amd64"]},
           }
           platforms = {  # native runners: no QEMU emulation
               "amd64": {"runner": "ubuntu-latest", "platform": "linux/amd64"},
               "arm64": {"runner": "ubuntu-24.04-arm", "platform": "linux/arm64"},
           }
-          pick = lambda choice, all_: list(all_) if choice == "both" else [choice]
-          vs, ps = pick("${{ inputs.variants }}", variants), pick("${{ inputs.platforms }}", platforms)
-          include = [{"variant": v, "arch": p, **variants[v], **platforms[p]} for v in vs for p in ps]
+          vchoice, pchoice = "${{ inputs.variants }}", "${{ inputs.platforms }}"
+          vs = {"all": list(variants), "cu126+cu130": ["cu126", "cu130"]}.get(vchoice, [vchoice])
+          ps = list(platforms) if pchoice == "both" else [pchoice]
+          include = [{"variant": v, "arch": p, "cuda": variants[v]["cuda"],
+                      "ubuntu": variants[v]["ubuntu"], "archs": variants[v]["archs"], **platforms[p]}
+                     for v in vs for p in ps if p in variants[v]["arches"]]
+          if not include:
+              sys.exit(f"::error::nothing to build: {vchoice} is not built for {pchoice} "
+                       "(cu124 is amd64 only)")
+          built = sorted({i["variant"] for i in include}, key=vs.index)
           print("build_matrix=" + json.dumps({"include": include}))
-          print("variants=" + json.dumps(vs))
+          print("variants=" + json.dumps(built))
           EOF
 
   # ── One image per variant and CPU architecture, each on a native runner ─────────────
@@ -201,6 +225,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             CUDA_VERSION=${{ matrix.cuda }}
+            UBUNTU=${{ matrix.ubuntu }}
             CUDA_ARCHITECTURES=${{ matrix.archs }}
             XSCAPE_REPO=${{ env.XSCAPE_REPO }}
             XSCAPE_REF=${{ needs.setup.outputs.xscape_sha }}

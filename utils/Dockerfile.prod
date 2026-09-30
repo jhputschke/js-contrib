@@ -1,7 +1,7 @@
 # Dockerfile.prod — production image: X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape,
 # built in and ready to run the prod_AuAu_0_10_jet two-stage hydro productions.
 #
-# Plan and usage: BuildContainerProd.md.  One Dockerfile for both CUDA variants; they
+# Plan and usage: BuildContainerProd.md.  One Dockerfile for all CUDA variants; they
 # differ only in build arguments:
 #
 #   cu126 (default)  CUDA 12.6, sm_75-sm_90 + PTX: RTX 20-40xx, A100, A40, L4, H100, GH200
@@ -12,6 +12,12 @@
 #     docker build -t xscape-prod:cu130 -f Dockerfile.prod \
 #       --build-arg CUDA_VERSION=13.2.1 \
 #       --build-arg CUDA_ARCHITECTURES="90-real;100-real;120-real;121" .
+#
+#   cu124            CUDA 12.4, sm_75-sm_90 + PTX, as cu126, for hosts whose driver is too old
+#                    for 12.6 (R550).  NVIDIA publishes CUDA 12.4 images only up to Ubuntu
+#                    22.04 (system GCC 11 as nvcc's host compiler).  Published for amd64 only.
+#     docker build -t xscape-prod:cu124 -f Dockerfile.prod \
+#       --build-arg CUDA_VERSION=12.4.1 --build-arg UBUNTU=ubuntu22.04 .
 #
 # No GPU is needed to build: the CUDA architectures are listed explicitly (never
 # "native"), and nothing runs on a GPU during the build.
