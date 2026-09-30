@@ -1,0 +1,233 @@
+# Dockerfile.prod — production image: X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape,
+# built in and ready to run the prod_AuAu_0_10_jet two-stage hydro productions.
+#
+# Plan and usage: BuildContainerProd.md.  One Dockerfile for both CUDA variants; they
+# differ only in build arguments:
+#
+#   cu126 (default)  CUDA 12.6, sm_75-sm_90 + PTX: RTX 20-40xx, A100, A40, L4, H100, GH200
+#     docker build -t xscape-prod:cu126 -f Dockerfile.prod .
+#
+#   cu130            CUDA 13.2, sm_90, sm_100, sm_120, sm_121 + PTX: GH200, B200/GB200,
+#                    RTX 50xx / RTX PRO Blackwell, GB10
+#     docker build -t xscape-prod:cu130 -f Dockerfile.prod \
+#       --build-arg CUDA_VERSION=13.2.1 \
+#       --build-arg CUDA_ARCHITECTURES="90-real;100-real;120-real;121" .
+#
+# No GPU is needed to build: the CUDA architectures are listed explicitly (never
+# "native"), and nothing runs on a GPU during the build.
+#
+# Not included: PyTorch, FNO4d, JupyterLab, HepMC3 and -- by default -- ROOT: the pair and
+# particlize files are written from Python with h5py.  --build-arg WITH_ROOT=1 adds
+# conda-forge's root_base (ROOT's core libraries, not the full 'root' metapackage).
+
+ARG CUDA_VERSION=12.6.3
+ARG UBUNTU=ubuntu24.04
+
+# ══ Stage 1: build (not shipped) ══════════════════════════════════════════════════════
+FROM nvidia/cuda:${CUDA_VERSION}-devel-${UBUNTU} AS build
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+ARG CUDA_VERSION
+ARG CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90"
+ARG WITH_ROOT=0
+# Sources.  A *_REF is a full 40-character commit hash (GitHub serves single commits only
+# by their full hash), a branch or a tag.  MUSIC4GPU_REF empty: the commit
+# external_packages/get_music4gpu.sh pins (iSS and 3dMCGlauber always use their scripts').
+ARG XSCAPE_REPO=https://github.com/JETSCAPE/X-SCAPE.git
+# A ROOT-free build (WITH_ROOT=0) needs an X-SCAPE with JETSCAPE/X-SCAPE#157 and #158 (the
+# ROOT writers only with ROOT), on contrib since d31946c0.
+ARG XSCAPE_REF=d31946c0cde63f1bca33b56653417ae057e43313
+ARG MUSIC4GPU_REF=""
+ARG JS_CONTRIB_REPO=https://github.com/jhputschke/js-contrib.git
+ARG JS_CONTRIB_REF=main
+# Parallel compile jobs (empty: all cores).  nvcc compiles every .cu once per architecture.
+ARG JOBS=""
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# The nvidia/cuda images configure NVIDIA's CUDA apt repository; nothing here comes from it,
+# and a mirror sync in progress there would fail the build, so it is dropped.
+RUN rm -f /etc/apt/sources.list.d/cuda*.list \
+  && apt-get -o Acquire::Retries=5 update \
+  && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+    git wget curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+# build-essential (GCC 13, make) and nvcc come with the devel base.  The system GCC is
+# nvcc's host compiler (CUDAHOSTCXX below); the C++ code uses conda's GCC.
+
+# ── miniforge3 + the conda env (conda-forge only) ────────────────────────────────────
+RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
+  && wget -q "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${ARCH}.sh" \
+       -O /tmp/miniforge.sh \
+  && bash /tmp/miniforge.sh -b -p /opt/miniforge3 \
+  && rm /tmp/miniforge.sh \
+  && /opt/miniforge3/bin/conda config --set auto_activate_base false
+
+# One solve: the C++/HEP libraries X-SCAPE links (Pythia8 and HDF5 are required, Boost,
+# zlib and GSL too), the interpreter pyjetscape_core is built for, and the build tools.
+# cmake < 4: some external packages still declare cmake_minimum_required < 3.5, which
+# CMake 4 refuses.  GCC 14 as for the GB10's build_gpu.  pkg-config: conda's h5c++ wrapper,
+# which trento's CMake runs, calls it.
+RUN CARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "64") \
+  && /opt/miniforge3/bin/mamba create -n xscape -y -c conda-forge \
+       python=3.12 "numpy>=2" \
+       "cmake>=3.28,<4" make pkg-config "gcc_linux-${CARCH}=14" "gxx_linux-${CARCH}=14" "pybind11>=2.11" \
+       boost-cpp zlib hdf5 gsl pythia8 \
+  && if [ "$WITH_ROOT" = 1 ]; then \
+       /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge root_base ; fi \
+  && /opt/miniforge3/bin/conda remove -n xscape --force -y lhapdf \
+  && /opt/miniforge3/bin/mamba clean -afy
+# Recent conda-forge pythia8 builds pull in lhapdf 6.5 (for Pythia's optional LHAPDF6
+# plugin).  conda's -L$PREFIX/lib then comes first on the link line, and 3dMCGlauber's
+# Metropolis.e, compiled against the LHAPDF 6.2.1 it bundles, links conda's 6.5 and fails
+# (LHAPDF::mkPDF).  Removed (--force: pythia8 stays), as in the GB10's js_fno env: 3dMCGlauber
+# uses its own LHAPDF, the production uses no Pythia LHAPDF6 PDFs.  If Pythia itself needed
+# it, the ldd check at the end of stage 2 fails the build.
+
+# Python leaves of the production scripts (h5py's wheel bundles its own HDF5: fine for
+# Python-side I/O, independent of the conda hdf5 the C++ links).
+RUN /opt/miniforge3/envs/xscape/bin/pip install --no-cache-dir h5py hdf5plugin pyyaml
+
+ENV CONDA_ENV=/opt/miniforge3/envs/xscape \
+    CUDAHOSTCXX=/usr/bin/g++
+
+# Every build step runs in the activated env, so CC/CXX are conda's compilers.
+ARG ACT=". /opt/miniforge3/etc/profile.d/conda.sh && conda activate xscape"
+
+# ── Sources ──────────────────────────────────────────────────────────────────────────
+# X-SCAPE and js-contrib: one commit each, fetched shallowly by ref.
+RUN git init -q /opt/X-SCAPE && cd /opt/X-SCAPE \
+  && git remote add origin "$XSCAPE_REPO" \
+  && git fetch -q --depth 1 origin "$XSCAPE_REF" && git checkout -q FETCH_HEAD \
+  && git init -q external_packages/js-contrib && cd external_packages/js-contrib \
+  && git remote add origin "$JS_CONTRIB_REPO" \
+  && git fetch -q --depth 1 origin "$JS_CONTRIB_REF" && git checkout -q FETCH_HEAD
+
+WORKDIR /opt/X-SCAPE/external_packages
+
+# MUSIC4GPU (+ MUSIC's hotQCD EoS tables), iSS (+ HRG and delta-f tables), 3dMCGlauber
+# (+ LHAPDF, compiled here, and the CT10nnlo PDF set), each at the commit its script pins.
+RUN eval "$ACT" \
+  && bash get_music4gpu.sh \
+  && if [ -n "$MUSIC4GPU_REF" ]; then \
+       git -C music4gpu fetch -q origin "$MUSIC4GPU_REF" && git -C music4gpu checkout -q FETCH_HEAD ; fi \
+  && bash get_iSS.sh \
+  && bash get_3dglauber.sh
+
+# LBT tables (1.2 GB unpacked); the split archives and the extraction dir are dropped.
+RUN bash get_lbtTab.sh \
+  && git -C LBT-tables-repo rev-parse HEAD > /tmp/lbt_tables_commit \
+  && rm -rf LBT-tables-repo tmp
+
+# ── ROOT-free builds ─────────────────────────────────────────────────────────────────
+# X-SCAPE forces USE_ROOT on but finds ROOT optionally.  Before JETSCAPE/X-SCAPE#157 and
+# #158 it still compiled src/root/*.cc and JetScape.cc's ROOT writers without ROOT, and failed.
+# Stop here with a clear message instead of deep in the compile.
+RUN cd /opt/X-SCAPE \
+  && if [ "$WITH_ROOT" != 1 ] && { ! grep -q 'if(USE_ROOT AND ROOT_FOUND)' src/CMakeLists.txt \
+       || ! grep -B1 '#include "RootBulkWriter.h"' src/framework/JetScape.cc | grep -q USE_ROOT; }; then \
+       echo "XSCAPE_REF $XSCAPE_REF predates JETSCAPE/X-SCAPE#157/#158: it cannot be built" \
+            "without ROOT. Use a later X-SCAPE, or --build-arg WITH_ROOT=1." >&2; exit 1 ; fi
+
+# ── Configure and build ──────────────────────────────────────────────────────────────
+# The tree is called build_gpu, so the production scripts' default --build works as is.
+RUN eval "$ACT" \
+  && cmake -S /opt/X-SCAPE -B /opt/X-SCAPE/build_gpu \
+       -DCMAKE_BUILD_TYPE=Release \
+       -DUSE_CUDA=ON -DUSE_MUSIC=ON -DUSE_ISS=ON -DUSE_3DGlauber=ON \
+       -DUSE_JS_CONTRIB=ON -DUSE_JS_PYJETSCAPE=ON -DUSE_JS_FNO_HYDRO=OFF \
+       -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCHITECTURES" \
+       -DPYTHON_EXECUTABLE="$CONDA_PREFIX/bin/python" \
+       -DPython_EXECUTABLE="$CONDA_PREFIX/bin/python" \
+  && cmake --build /opt/X-SCAPE/build_gpu -j"${JOBS:-$(nproc)}"
+
+# ── Provenance, then drop what the runtime doesn't need ──────────────────────────────
+RUN cd /opt/X-SCAPE && eval "$ACT" \
+  && { echo "# X-SCAPE production image build $(date -u +%Y-%m-%dT%H:%M:%SZ)"; \
+       for d in . external_packages/music4gpu external_packages/iSS \
+                external_packages/3dMCGlauber external_packages/js-contrib; do \
+         echo "$d $(git -C $d rev-parse HEAD) $(git -C $d status --porcelain --untracked-files=no | wc -l) modified"; done; \
+       echo "LBT-tables $(cat /tmp/lbt_tables_commit)"; \
+       echo "CUDA $CUDA_VERSION, CMAKE_CUDA_ARCHITECTURES=$CUDA_ARCHITECTURES"; \
+       echo "nvcc: $(nvcc --version | tail -1)"; \
+       echo "CXX: $($CXX --version | head -1); CUDAHOSTCXX: $($CUDAHOSTCXX --version | head -1)"; \
+       echo "WITH_ROOT=$WITH_ROOT"; \
+     } > BUILD_INFO.txt \
+  && conda list -n xscape --explicit > conda-explicit.txt \
+  && pip freeze > pip-freeze.txt \
+  && cat BUILD_INFO.txt \
+  && find build_gpu -name CMakeFiles -type d -prune -exec rm -rf {} + \
+  && find build_gpu \( -name '*.o' -o -name '*.a' \) -delete \
+  && find . -name .git -type d -prune -exec rm -rf {} +
+
+# The runtime env: the explicit package list minus the build tools, so every library has
+# the exact build it was linked against.  The compiler packages carry the target arch in
+# their names (gcc_impl_linux-aarch64-14.3.0-...); ld_impl_linux stays (python needs it).
+RUN grep -vE '/((cmake|make|pkg-config|gcc|gxx|binutils|libsanitizer|pybind11|pybind11-global|pybind11-abi|rhash|libuv)-[0-9]|(gcc_impl_linux|gxx_impl_linux|gcc_linux|gxx_linux|binutils_impl_linux|binutils_linux|kernel-headers_linux|sysroot_linux|libgcc-devel_linux|libstdcxx-devel_linux)-(aarch64|64)-[0-9])' \
+       /opt/X-SCAPE/conda-explicit.txt > /opt/X-SCAPE/conda-runtime.txt \
+  && echo "runtime env: $(grep -c '^https' /opt/X-SCAPE/conda-runtime.txt) of $(grep -c '^https' /opt/X-SCAPE/conda-explicit.txt) packages"
+
+# ══ Stage 2: runtime (shipped) ════════════════════════════════════════════════════════
+# cuda:*-base: the CUDA runtime (libcudart) only -- MUSIC4GPU needs nothing else.
+FROM nvidia/cuda:${CUDA_VERSION}-base-${UBUNTU}
+
+ARG DEBIAN_FRONTEND=noninteractive
+ARG TARGETARCH
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN rm -f /etc/apt/sources.list.d/cuda*.list \
+  && apt-get -o Acquire::Retries=5 update \
+  && apt-get -o Acquire::Retries=5 install -y --no-install-recommends ca-certificates wget \
+  && rm -rf /var/lib/apt/lists/* \
+  && ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
+  && wget -q "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-${ARCH}.sh" \
+       -O /tmp/miniforge.sh \
+  && bash /tmp/miniforge.sh -b -p /opt/miniforge3 \
+  && rm /tmp/miniforge.sh \
+  && /opt/miniforge3/bin/conda config --set auto_activate_base false
+
+COPY --from=build /opt/X-SCAPE/conda-runtime.txt /opt/X-SCAPE/pip-freeze.txt /tmp/
+RUN /opt/miniforge3/bin/conda create -n xscape -y --file /tmp/conda-runtime.txt \
+  && /opt/miniforge3/envs/xscape/bin/pip install --no-cache-dir \
+       $(grep -iE '^(h5py|hdf5plugin|pyyaml)==' /tmp/pip-freeze.txt) \
+  && /opt/miniforge3/bin/conda clean -afy
+
+COPY --from=build /opt/X-SCAPE /opt/X-SCAPE
+
+ENV CONDA_ENV=/opt/miniforge3/envs/xscape \
+    PATH=/opt/miniforge3/envs/xscape/bin:/opt/miniforge3/bin:$PATH \
+    LD_LIBRARY_PATH=/opt/miniforge3/envs/xscape/lib:$LD_LIBRARY_PATH \
+    PYTHIA8DATA=/opt/miniforge3/envs/xscape/share/Pythia8/xmldoc \
+    XSCAPE=/opt/X-SCAPE
+
+# Fail the build, not the first job, if a library is missing: every shared object the
+# production loads must resolve, and pyjetscape_core must import (no GPU needed for that).
+RUN missing=$(ldd /opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python/jetscape/pyjetscape_core*.so \
+                | grep "not found" || true) \
+  && if [ -n "$missing" ]; then echo "$missing"; exit 1; fi \
+  && cd /tmp && python -c "import sys; sys.path.insert(0, '/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python'); \
+import jetscape, h5py, hdf5plugin, yaml; assert jetscape.HAS_CORE, 'pyjetscape_core does not import'; \
+print('pyjetscape_core ok, HAS_ROOT =', jetscape.HAS_ROOT)"
+
+# Declared here, not at the top of the stage: an ARG before a RUN is part of that step's
+# cache key, and these only label the image.
+ARG CUDA_VERSION
+ARG CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90"
+ARG XSCAPE_REF=d31946c0cde63f1bca33b56653417ae057e43313
+ARG JS_CONTRIB_REF=main
+ARG MUSIC4GPU_REF=""
+ARG WITH_ROOT=0
+LABEL org.opencontainers.image.title="xscape-prod" \
+      org.opencontainers.image.description="X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape for the prod_AuAu_0_10_jet productions" \
+      org.opencontainers.image.source="https://github.com/jhputschke/js-contrib" \
+      xscape.ref="${XSCAPE_REF}" \
+      xscape.js_contrib_ref="${JS_CONTRIB_REF}" \
+      xscape.music4gpu_ref="${MUSIC4GPU_REF:-pinned by get_music4gpu.sh}" \
+      xscape.cuda="${CUDA_VERSION}" \
+      xscape.cuda_architectures="${CUDA_ARCHITECTURES}" \
+      xscape.with_root="${WITH_ROOT}"
+
+WORKDIR /opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+CMD ["bash"]

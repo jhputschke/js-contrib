@@ -1,0 +1,280 @@
+name: Build & push production images
+
+# Builds the production images of utils/Dockerfile.prod (see utils/BuildContainerProd.md):
+# X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape, precompiled, no ROOT/PyTorch.
+#
+# Manual only: Actions -> "Build & push production images" -> "Run workflow", or
+#
+#   gh workflow run docker-prod.yml                                     # all defaults
+#   gh workflow run docker-prod.yml -f variants=cu130 -f platforms=arm64   # one image, a test
+#   gh workflow run docker-prod.yml -f xscape_ref=<40-char hash> -f release_tag=2026.10
+#   gh run watch                                                        # follow the run
+#
+# Which versions are built:
+#   * each *_ref input takes a branch, a tag or a FULL 40-character commit hash (GitHub
+#     serves single commits only by their full hash; `git rev-parse <short>` gives it);
+#   * the defaults are the heads of the development branches at the moment the run starts:
+#     X-SCAPE contrib, MUSIC4GPU XSCAPE, js-contrib main -- i.e. "the latest versions";
+#   * music4gpu_ref=pinned takes the commit X-SCAPE's external_packages/get_music4gpu.sh pins;
+#   * the first job resolves every branch/tag to a commit hash, so all builds of a run use the
+#     same commits even if someone pushes meanwhile; the hashes are in the run summary, the
+#     image labels (docker inspect) and /opt/X-SCAPE/BUILD_INFO.txt inside the image.
+#   iSS, 3dMCGlauber and the LBT tables always come at the commits their X-SCAPE get_*.sh
+#   scripts pin.
+#
+# Tags pushed to Docker Hub as <DOCKERHUB_USERNAME>/xscape-prod:
+#   cu126, cu130                    moving: the latest build of each variant
+#   cu126-<YYYYMMDD>-<xscape7>      immutable-ish: date + X-SCAPE commit of this run
+#   cu126-<release_tag>             only with the release_tag input; use one per campaign
+# Each tag is a multi-arch manifest (amd64 + arm64): docker/apptainer pull pick the arch.
+#
+# One-time setup: the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN repository secrets of the dev
+# workflow (utils/BuildContainerDev.md, "One-time setup").  The workflow file must be on the
+# default branch (main) for the "Run workflow" button to appear.
+
+on:
+  workflow_dispatch:
+    inputs:
+      xscape_ref:
+        description: "X-SCAPE (JETSCAPE/X-SCAPE): branch, tag or full commit hash"
+        default: contrib
+        required: true
+        type: string
+      music4gpu_ref:
+        description: "MUSIC4GPU (jhputschke/MUSIC4GPU): branch, tag, full hash, or 'pinned' (= X-SCAPE's get_music4gpu.sh)"
+        default: XSCAPE
+        required: true
+        type: string
+      js_contrib_ref:
+        description: "js-contrib (jhputschke/js-contrib): branch, tag or full commit hash"
+        default: main
+        required: true
+        type: string
+      variants:
+        description: "CUDA variants: cu126 (sm_75-90: A100, H100, GH200, ...), cu130 (sm_90-121: + Blackwell, GB10)"
+        default: both
+        type: choice
+        options: [both, cu126, cu130]
+      platforms:
+        description: "CPU architectures (a manifest normally has both)"
+        default: both
+        type: choice
+        options: [both, amd64, arm64]
+      release_tag:
+        description: "Optional extra tag, e.g. 2026.10 -> cu126-2026.10 (never overwrite one in use)"
+        default: ""
+        required: false
+        type: string
+      push:
+        description: "Push to Docker Hub (off: build only, to test the Dockerfile)"
+        default: true
+        type: boolean
+
+# One production build at a time: the moving tags would otherwise race.
+concurrency:
+  group: docker-prod
+  cancel-in-progress: false
+
+env:
+  XSCAPE_REPO: https://github.com/JETSCAPE/X-SCAPE.git
+  MUSIC4GPU_REPO: https://github.com/jhputschke/MUSIC4GPU.git
+  JS_CONTRIB_REPO: https://github.com/jhputschke/js-contrib.git
+
+jobs:
+  # ── Resolve the refs to commits, and build the job matrix ───────────────────────────
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      xscape_sha: ${{ steps.refs.outputs.xscape_sha }}
+      music4gpu_sha: ${{ steps.refs.outputs.music4gpu_sha }}
+      js_contrib_sha: ${{ steps.refs.outputs.js_contrib_sha }}
+      date: ${{ steps.refs.outputs.date }}
+      build_matrix: ${{ steps.matrix.outputs.build_matrix }}
+      variants: ${{ steps.matrix.outputs.variants }}
+    steps:
+      - name: Resolve branches and tags to commit hashes
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          # resolve REPO REF -> the commit hash (a full hash is taken as it is)
+          resolve() {
+            local repo=$1 ref=$2 out sha
+            if [[ $ref =~ ^[0-9a-f]{40}$ ]]; then echo "$ref"; return; fi
+            if [[ $ref =~ ^[0-9a-f]{7,39}$ ]]; then
+              echo "::error::'$ref' looks like a short commit hash: pass the full 40-character hash ($repo)" >&2
+              return 1
+            fi
+            out=$(git ls-remote "$repo" "refs/heads/$ref" "refs/tags/$ref" "refs/tags/$ref^{}")
+            # an annotated tag: its ^{} line is the commit
+            sha=$(awk '$2 ~ /\^\{\}$/ {print $1; exit}' <<<"$out")
+            [ -n "$sha" ] || sha=$(awk 'NR==1 {print $1}' <<<"$out")
+            if [ -z "$sha" ]; then
+              echo "::error::'$ref' is neither a branch nor a tag of $repo" >&2
+              return 1
+            fi
+            echo "$sha"
+          }
+          xs=$(resolve "$XSCAPE_REPO" "${{ inputs.xscape_ref }}")
+          jc=$(resolve "$JS_CONTRIB_REPO" "${{ inputs.js_contrib_ref }}")
+          if [ "${{ inputs.music4gpu_ref }}" = pinned ]; then
+            mu=""   # empty MUSIC4GPU_REF: Dockerfile.prod keeps get_music4gpu.sh's pin
+          else
+            mu=$(resolve "$MUSIC4GPU_REPO" "${{ inputs.music4gpu_ref }}")
+          fi
+          {
+            echo "xscape_sha=$xs"; echo "music4gpu_sha=$mu"; echo "js_contrib_sha=$jc"
+            echo "date=$(date -u +%Y%m%d)"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Sources of this run"
+            echo "| repo | requested | commit |"
+            echo "|---|---|---|"
+            echo "| X-SCAPE | \`${{ inputs.xscape_ref }}\` | \`$xs\` |"
+            echo "| MUSIC4GPU | \`${{ inputs.music4gpu_ref }}\` | \`${mu:-pinned by get_music4gpu.sh}\` |"
+            echo "| js-contrib | \`${{ inputs.js_contrib_ref }}\` | \`$jc\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Build matrix
+        id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json
+          variants = {  # the two build-argument sets of Dockerfile.prod
+              "cu126": {"cuda": "12.6.3", "archs": "75-real;80-real;86-real;89-real;90"},
+              "cu130": {"cuda": "13.2.1", "archs": "90-real;100-real;120-real;121"},
+          }
+          platforms = {  # native runners: no QEMU emulation
+              "amd64": {"runner": "ubuntu-latest", "platform": "linux/amd64"},
+              "arm64": {"runner": "ubuntu-24.04-arm", "platform": "linux/arm64"},
+          }
+          pick = lambda choice, all_: list(all_) if choice == "both" else [choice]
+          vs, ps = pick("${{ inputs.variants }}", variants), pick("${{ inputs.platforms }}", platforms)
+          include = [{"variant": v, "arch": p, **variants[v], **platforms[p]} for v in vs for p in ps]
+          print("build_matrix=" + json.dumps({"include": include}))
+          print("variants=" + json.dumps(vs))
+          EOF
+
+  # ── One image per variant and CPU architecture, each on a native runner ─────────────
+  build:
+    needs: setup
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 240   # X-SCAPE + MUSIC4GPU for 4-5 CUDA architectures on 4 cores
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.build_matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        # The build stage holds the CUDA devel image, the conda env, the sources, ~1.5 GB of
+        # tables and the build tree.
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: Log in to Docker Hub
+        # also without push: the nvidia/cuda base images are then pulled as an authenticated
+        # user, which avoids Docker Hub's anonymous pull limit
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build (${{ matrix.variant }}-${{ matrix.arch }})
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: utils/
+          file: utils/Dockerfile.prod
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            CUDA_VERSION=${{ matrix.cuda }}
+            CUDA_ARCHITECTURES=${{ matrix.archs }}
+            XSCAPE_REPO=${{ env.XSCAPE_REPO }}
+            XSCAPE_REF=${{ needs.setup.outputs.xscape_sha }}
+            MUSIC4GPU_REF=${{ needs.setup.outputs.music4gpu_sha }}
+            JS_CONTRIB_REPO=${{ env.JS_CONTRIB_REPO }}
+            JS_CONTRIB_REF=${{ needs.setup.outputs.js_contrib_sha }}
+          # Pushed untagged, by digest; the merge job puts the tags on the multi-arch
+          # manifest.  Without push the image is only built (a Dockerfile test).
+          outputs: ${{ inputs.push && format('type=image,name={0}/xscape-prod,push-by-digest=true,name-canonical=true,push=true', secrets.DOCKERHUB_USERNAME) || 'type=cacheonly' }}
+          # One GHA cache slot per variant and arch (10 GB in total, evicted LRU: a cold
+          # build after an eviction is slower, not wrong).
+          cache-from: type=gha,scope=prod-${{ matrix.variant }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=prod-${{ matrix.variant }}-${{ matrix.arch }},mode=max
+
+      - name: Save the digest for the merge
+        if: inputs.push
+        shell: bash
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"      # sha256:<hex>
+          touch "/tmp/digests/${digest#sha256:}"
+          echo "${{ matrix.variant }}-${{ matrix.arch }}: ${{ steps.build.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: inputs.push
+        with:
+          name: digests-${{ matrix.variant }}-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  # ── Tag the multi-arch manifests ─────────────────────────────────────────────────────
+  merge:
+    needs: [setup, build]
+    if: inputs.push
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: ${{ fromJSON(needs.setup.outputs.variants) }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digests-${{ matrix.variant }}-*
+          merge-multiple: true
+          path: /tmp/digests
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Set up buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Create and tag the manifest (${{ matrix.variant }})
+        shell: bash
+        env:
+          IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/xscape-prod
+          V: ${{ matrix.variant }}
+          XS: ${{ needs.setup.outputs.xscape_sha }}
+          DATE: ${{ needs.setup.outputs.date }}
+          RELEASE: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          tags=(-t "$IMAGE:$V" -t "$IMAGE:$V-$DATE-${XS:0:7}")
+          [ -n "$RELEASE" ] && tags+=(-t "$IMAGE:$V-$RELEASE")
+          srcs=$(cd /tmp/digests && printf "$IMAGE@sha256:%s " *)
+          docker buildx imagetools create "${tags[@]}" $srcs
+          docker buildx imagetools inspect "$IMAGE:$V-$DATE-${XS:0:7}"
+          {
+            echo "### $V"
+            echo "Pushed: \`$IMAGE:$V\`, \`$IMAGE:$V-$DATE-${XS:0:7}\`${RELEASE:+, \`$IMAGE:$V-$RELEASE\`}"
+            echo '```bash'
+            echo "apptainer pull xscape_prod_$V.sif docker://$IMAGE:$V-$DATE-${XS:0:7}"
+            echo "docker pull $IMAGE:$V-$DATE-${XS:0:7}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
