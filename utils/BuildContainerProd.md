@@ -38,6 +38,12 @@ architecture list, so copies could only drift apart.
 Each tag is one multi-arch manifest: `docker pull` and `apptainer pull` pick the image of
 the machine's CPU architecture. `cu124` holds only the amd64 image.
 
+**Remote storage.** Every image has Pelican/OSDF: `pelicanfs` for Python (`osdf://`,
+`pelican://`) and the `pelican` command-line tool. Google Cloud Storage for Python (`gcsfs`,
+`google-cloud-storage`) is optional: `--build-arg WITH_GCS=1`, published as `cu126-gcs`,
+`cu130-gcs`, `cu124-gcs`. The `gcloud` CLI is in neither (about 1 GB). See
+[Getting the outputs home](#getting-the-outputs-home).
+
 **Why `cu124`.** On a host whose driver supports CUDA 12.4 but not 12.6 (the R550 series),
 Docker's NVIDIA runtime refuses to start the `cu126` image (the `nvidia/cuda` images require
 their CUDA version, `NVIDIA_REQUIRE_CUDA`). `cu124` is the same build on CUDA 12.4.
@@ -160,6 +166,15 @@ math libraries. Then:
 1. **A runtime conda env:** stage 1's `conda list --explicit` minus the build tools (CMake,
    make, the compilers, binutils, the sysroot, pybind11), so every library is the exact build
    it was linked against. `h5py`, `hdf5plugin` and `pyyaml` at the versions stage 1 installed.
+1. **Remote storage** (stage 2 only; stage 1 doesn't need it):
+   - **`pelicanfs`**, from `analysis_env/requirements_pelican.txt`, the analysis
+     environment's file, so both environments get the same packages;
+   - **the `pelican` CLI**, `/usr/local/bin/pelican`: the release binary of
+     `PELICAN_VERSION` (default `7.26.2`), checked against the release's `checksums.txt`;
+   - **with `WITH_GCS=1`:** `gcsfs` and `google-cloud-storage`, from
+     `analysis_env/requirements_gcs.txt`.
+
+   This layer comes before the X-SCAPE copy, so a new X-SCAPE build reuses it.
 2. **The X-SCAPE tree** copied from stage 1 without build intermediates (`*.o`, `CMakeFiles/`,
    test binaries). What the production reads from it:
 
@@ -198,7 +213,10 @@ read-only assets from the build tree, and points `XSCAPE_DATA_DIR`, `HYDROPROGRA
 The build writes `/opt/X-SCAPE/BUILD_INFO.txt` and OCI labels
 (`org.opencontainers.image.revision`, …) with:
 - the commit of every repo above, and whether its tree was clean;
-- the CUDA version, `CMAKE_CUDA_ARCHITECTURES`, the compilers, the conda package list.
+- the CUDA version, `CMAKE_CUDA_ARCHITECTURES`, the compilers, the conda package list;
+- the `pelican` CLI and `pelicanfs` versions, and `WITH_GCS`. The labels `xscape.pelican`
+  and `xscape.with_gcs` carry the same, and `/opt/X-SCAPE/pip-freeze-runtime.txt` lists
+  every Python package of the runtime env.
 
 The production files already store the producing build (`prod_build`); in the container that
 is `/opt/X-SCAPE/build_gpu`, so the image tag (and digest) must be recorded per campaign,
@@ -233,6 +251,7 @@ gh workflow run docker-prod.yml -f variants=cu124        # CUDA 12.4, amd64 only
 gh workflow run docker-prod.yml -f variants=all          # cu126, cu130 and cu124
 gh workflow run docker-prod.yml -f variants=cu130 -f platforms=arm64 -f push=false   # test one image
 gh workflow run docker-prod.yml -f release_tag=2026.10   # + tags cu126-2026.10, cu130-2026.10
+gh workflow run docker-prod.yml -f with_gcs=true         # with GCS: tags cu126-gcs, cu130-gcs, ...
 gh run watch                                             # follow the run
 ```
 
@@ -248,6 +267,7 @@ commands for the new tags.
 | `js_contrib_ref` | `main` | the same for jhputschke/js-contrib |
 | `variants` | `cu126+cu130` | `cu126+cu130`, `all` (+ `cu124`), `cu126`, `cu130` or `cu124` (see [Images](#images)) |
 | `platforms` | `both` | `amd64`, `arm64` or both; a published tag should have both. `cu124` is built for amd64 only, whatever is chosen (`cu124` with `arm64` stops with an error) |
+| `with_gcs` | off | on: `WITH_GCS=1`, Google Cloud Storage for Python; every tag gets `-gcs` after the variant (`cu126-gcs`, `cu126-gcs-<YYYYMMDD>-<xscape7>`), so the images without it keep their tags |
 | `release_tag` | empty | an extra tag per variant, e.g. `2026.10` → `cu126-2026.10` |
 | `push` | on | off: build only, to test a change of the Dockerfile |
 
@@ -271,6 +291,9 @@ commands for the new tags.
 | `cu126`, `cu130`, `cu124` | yes: every run that builds the variant overwrites it | trying out the latest build |
 | `cu126-<YYYYMMDD>-<xscape7>` | no | what a campaign should pull: a fixed image |
 | `cu126-<release_tag>` | only if the same `release_tag` is given again | a name for a campaign's image |
+
+With `with_gcs`, the same tags with `-gcs` after the variant: `cu126-gcs`,
+`cu126-gcs-<YYYYMMDD>-<xscape7>`, `cu126-gcs-<release_tag>`.
 
 Every tag is one multi-arch manifest: the builds push their images untagged, by digest, and a
 merge job tags the manifest. Runs are serialized, so two builds never race for the moving
@@ -556,9 +579,50 @@ run on a CPU-only amd64 machine yet.
 
 ### Getting the outputs home
 
-Copy `OUTDIR` to Google Cloud Storage or a Pelican/OSDF namespace, with the command-line tools
-(`gcloud storage cp -r`, `pelican object put`) or with the Python interfaces of the analysis
-environment ([`analysis_env/README.md`](analysis_env/README.md#remote-files-google-cloud-storage-and-pelicanosdf)).
+Copy `OUTDIR` to Google Cloud Storage or a Pelican/OSDF namespace.
+- **From the host,** where `OUTDIR` is bind-mounted: with the command-line tools
+  (`gcloud storage cp -r`, `pelican object put`) or the Python interfaces of the analysis
+  environment
+  ([`analysis_env/README.md`](analysis_env/README.md#remote-files-google-cloud-storage-and-pelicanosdf)).
+- **From inside the container,** where the host has no tools, e.g. an OSPool job. On the
+  OSPool, HTCondor can also do the transfer itself, with `osdf://` URLs in the submit file.
+
+**Pelican/OSDF**, in every image:
+
+```bash
+pelican object put -r /work/out osdf:///NAMESPACE/campaign     # the whole OUTDIR
+pelican object put -t /work/token /work/out/FILE.h5 osdf:///NAMESPACE/campaign/FILE.h5
+pelican object get osdf:///NAMESPACE/inputs/PbPb_0_10.xml /work/xml/
+```
+
+or from Python, through fsspec:
+
+```python
+import fsspec
+fs = fsspec.filesystem("osdf")
+fs.put("/work/out/", "/NAMESPACE/campaign/", recursive=True)
+```
+
+**Google Cloud Storage**, in the `-gcs` images, from Python only (no `gcloud`):
+
+```python
+import fsspec
+fs = fsspec.filesystem("gs")                          # Google's default credentials
+fs.put("/work/out/", "BUCKET/campaign/", recursive=True)
+```
+
+**Credentials.** Pass them into the container.
+- **Pelican:** protected namespaces take a bearer token. Use `-t FILE` for the CLI; for
+  pelicanfs, `BEARER_TOKEN_FILE` (e.g. `docker run -e BEARER_TOKEN_FILE=/work/token`), or
+  one of the other places listed in the analysis README. On the OSPool, HTCondor's
+  credentials are found as well.
+- **GCS:** mount a service-account key and point `GOOGLE_APPLICATION_CREDENTIALS` at it
+  (`-v key.json:/key.json:ro -e GOOGLE_APPLICATION_CREDENTIALS=/key.json`). On a Google
+  Cloud VM, the VM's own service account works without a key.
+- **Public data** needs none.
+
+**Tested:** see [Tested](#tested). **Not tested:** writing (`put`) and credentials; only
+public reads were tried.
 
 ---
 
@@ -610,6 +674,24 @@ used a build from X-SCAPE `8c306762`, which has the same tree as `d31946c0`.)
   | hydro e, both legs | first frame within 1.9×10⁻⁹ GeV/fm³; any cell within 6×10⁻⁴ of the frame's maximum; per-frame total within 2.5×10⁻⁶ |
   | wake (jet − background) | within 1.1×10⁻³ of the maximum wake; its total within 10⁻⁴ |
   | freeze-out surfaces | jet 1 999 270 cells in both; background 989 692 vs 989 690 |
+
+**Remote storage**, tested 2026-09-30 on the GB10 (arm64 `cu130`, js-contrib branch
+`container_remote_storage`), built as `WITH_GCS=0` and `WITH_GCS=1`:
+- **Build:** 3 min 4 s for the default image (stage 1 not cached); the `WITH_GCS=1` build
+  then reused everything but the remote-storage layer and took 15 s. Sizes: 4.66 GB before,
+  4.74 GB default (+80 MB: the `pelican` CLI, pelicanfs and its dependencies), 4.78 GB with
+  GCS.
+- **Versions:** `pelican` 7.26.2 (checksum verified), pelicanfs 1.4.1, fsspec 2026.9.0; with
+  GCS also gcsfs 2026.8.1 and google-cloud-storage 3.15.1. No package already in the image
+  changed version (the conda env lists only the new ones as different).
+- **Public reads,** as a user without a home directory (`--user 12345:12345`, `HOME=/`), as
+  on HPC: an OSDF object with `pelican object get` and with pelicanfs, and a directory listing
+  with pelicanfs. With GCS: a public bucket listed anonymously with gcsfs and with
+  `google-cloud-storage`.
+- **Production:** `run_prod_jet.py --events 1 --seed 1` in the new default image completes
+  (39 s).
+- **Not tested:** writing (`pelican object put`, `fs.put`) and credentials (tokens, service
+  accounts), and the amd64 images (GitHub Actions).
 
 ---
 

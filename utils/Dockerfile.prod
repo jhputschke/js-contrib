@@ -25,6 +25,10 @@
 # Not included: PyTorch, FNO4d, JupyterLab, HepMC3 and -- by default -- ROOT: the pair and
 # particlize files are written from Python with h5py.  --build-arg WITH_ROOT=1 adds
 # conda-forge's root_base (ROOT's core libraries, not the full 'root' metapackage).
+#
+# Remote storage: Pelican/OSDF always (pelicanfs for Python, the pelican CLI);
+# --build-arg WITH_GCS=1 adds Google Cloud Storage for Python (gcsfs,
+# google-cloud-storage), not the gcloud CLI.
 
 ARG CUDA_VERSION=12.6.3
 ARG UBUNTU=ubuntu24.04
@@ -200,6 +204,29 @@ RUN /opt/miniforge3/bin/conda create -n xscape -y --file /tmp/conda-runtime.txt 
        $(grep -iE '^(h5py|hdf5plugin|pyyaml)==' /tmp/pip-freeze.txt) \
   && /opt/miniforge3/bin/conda clean -afy
 
+# ── Remote storage ───────────────────────────────────────────────────────────────────
+# For jobs that fetch inputs or ship outputs themselves (e.g. on the OSPool) instead of the
+# host doing it.  Pelican/OSDF always: pelicanfs (fsspec's osdf:// and pelican://) and the
+# pelican CLI (`pelican object get/put`), a static binary checked against the release's
+# checksums.  WITH_GCS=1: gcsfs (gs://) and google-cloud-storage; no gcloud CLI (~1 GB).
+# The requirement files are the analysis environment's (analysis_env/, in this build
+# context), so both environments get the same packages.  Before the X-SCAPE copy, so a new
+# X-SCAPE build reuses this layer.
+ARG PELICAN_VERSION=7.26.2
+ARG WITH_GCS=0
+COPY analysis_env/requirements_pelican.txt analysis_env/requirements_gcs.txt /tmp/
+RUN PARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "x86_64") \
+  && url="https://github.com/PelicanPlatform/pelican/releases/download/v${PELICAN_VERSION}" \
+  && cd /tmp && wget -q "$url/pelican_Linux_${PARCH}.tar.gz" "$url/checksums.txt" \
+  && grep " pelican_Linux_${PARCH}.tar.gz\$" checksums.txt | sha256sum -c - \
+  && tar xzf "pelican_Linux_${PARCH}.tar.gz" \
+  && install -m 755 "pelican-${PELICAN_VERSION}/pelican" /usr/local/bin/pelican \
+  && rm -rf pelican_Linux_* checksums.txt "pelican-${PELICAN_VERSION}" \
+  && /opt/miniforge3/envs/xscape/bin/pip install --no-cache-dir -r /tmp/requirements_pelican.txt \
+       $([ "$WITH_GCS" = 1 ] && echo "-r /tmp/requirements_gcs.txt") \
+  && mkdir -p /opt/X-SCAPE \
+  && /opt/miniforge3/envs/xscape/bin/pip freeze > /opt/X-SCAPE/pip-freeze-runtime.txt
+
 COPY --from=build /opt/X-SCAPE /opt/X-SCAPE
 
 ENV CONDA_ENV=/opt/miniforge3/envs/xscape \
@@ -214,8 +241,12 @@ RUN missing=$(ldd /opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/
                 | grep "not found" || true) \
   && if [ -n "$missing" ]; then echo "$missing"; exit 1; fi \
   && cd /tmp && python -c "import sys; sys.path.insert(0, '/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python'); \
-import jetscape, h5py, hdf5plugin, yaml; assert jetscape.HAS_CORE, 'pyjetscape_core does not import'; \
-print('pyjetscape_core ok, HAS_ROOT =', jetscape.HAS_ROOT)"
+import jetscape, h5py, hdf5plugin, yaml, pelicanfs; assert jetscape.HAS_CORE, 'pyjetscape_core does not import'; \
+print('pyjetscape_core ok, HAS_ROOT =', jetscape.HAS_ROOT)" \
+  && if [ "$WITH_GCS" = 1 ]; then python -c "import gcsfs, google.cloud.storage; print('gcsfs', gcsfs.__version__)"; fi \
+  && pelican --version | head -1 \
+  && { echo "pelican CLI $PELICAN_VERSION, pelicanfs $(pip show pelicanfs | sed -n 's/^Version: //p')"; \
+       echo "WITH_GCS=$WITH_GCS"; } >> /opt/X-SCAPE/BUILD_INFO.txt
 
 # Declared here, not at the top of the stage: an ARG before a RUN is part of that step's
 # cache key, and these only label the image.
@@ -233,7 +264,9 @@ LABEL org.opencontainers.image.title="xscape-prod" \
       xscape.music4gpu_ref="${MUSIC4GPU_REF:-pinned by get_music4gpu.sh}" \
       xscape.cuda="${CUDA_VERSION}" \
       xscape.cuda_architectures="${CUDA_ARCHITECTURES}" \
-      xscape.with_root="${WITH_ROOT}"
+      xscape.with_root="${WITH_ROOT}" \
+      xscape.with_gcs="${WITH_GCS}" \
+      xscape.pelican="${PELICAN_VERSION}"
 
 WORKDIR /opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 CMD ["bash"]

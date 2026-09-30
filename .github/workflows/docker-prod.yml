@@ -9,6 +9,7 @@ name: Build & push production images
 #   gh workflow run docker-prod.yml -f variants=cu130 -f platforms=arm64   # one image, a test
 #   gh workflow run docker-prod.yml -f variants=cu124                   # CUDA 12.4, amd64 only
 #   gh workflow run docker-prod.yml -f xscape_ref=<40-char hash> -f release_tag=2026.10
+#   gh workflow run docker-prod.yml -f with_gcs=true                    # + GCS, tags cu126-gcs, ...
 #   gh run watch                                                        # follow the run
 #
 # Which versions are built:
@@ -30,7 +31,11 @@ name: Build & push production images
 #          for hosts with R550 drivers (CUDA 12.4): Docker's NVIDIA runtime refuses the
 #          cuda:12.6 images there.  NVIDIA has no CUDA 12.4 image for Ubuntu 24.04.
 #
-# Tags pushed to Docker Hub as <DOCKERHUB_USERNAME>/xscape-prod:
+# Remote storage: every image has Pelican/OSDF (pelicanfs, the pelican CLI); with_gcs adds
+# Google Cloud Storage for Python (WITH_GCS=1: gcsfs, google-cloud-storage) and puts "-gcs"
+# after the variant in every tag, so the images without it keep theirs.
+#
+# Tags pushed to Docker Hub as <DOCKERHUB_USERNAME>/xscape-prod (with_gcs: cu126-gcs, ...):
 #   cu126, cu130, cu124             moving: the latest build of each variant
 #   cu126-<YYYYMMDD>-<xscape7>      immutable-ish: date + X-SCAPE commit of this run
 #   cu126-<release_tag>             only with the release_tag input; use one per campaign
@@ -69,6 +74,10 @@ on:
         default: both
         type: choice
         options: [both, amd64, arm64]
+      with_gcs:
+        description: "Add Google Cloud Storage for Python (gcsfs, google-cloud-storage); tags get '-gcs' (cu126-gcs, ...)"
+        default: false
+        type: boolean
       release_tag:
         description: "Optional extra tag, e.g. 2026.10 -> cu126-2026.10 (never overwrite one in use)"
         default: ""
@@ -232,6 +241,7 @@ jobs:
             MUSIC4GPU_REF=${{ needs.setup.outputs.music4gpu_sha }}
             JS_CONTRIB_REPO=${{ env.JS_CONTRIB_REPO }}
             JS_CONTRIB_REF=${{ needs.setup.outputs.js_contrib_sha }}
+            WITH_GCS=${{ inputs.with_gcs && '1' || '0' }}
           # Pushed untagged, by digest; the merge job puts the tags on the multi-arch
           # manifest.  Without push the image is only built (a Dockerfile test).
           outputs: ${{ inputs.push && format('type=image,name={0}/xscape-prod,push-by-digest=true,name-canonical=true,push=true', secrets.DOCKERHUB_USERNAME) || 'type=cacheonly' }}
@@ -284,7 +294,7 @@ jobs:
         shell: bash
         env:
           IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/xscape-prod
-          V: ${{ matrix.variant }}
+          V: ${{ matrix.variant }}${{ inputs.with_gcs && '-gcs' || '' }}
           XS: ${{ needs.setup.outputs.xscape_sha }}
           DATE: ${{ needs.setup.outputs.date }}
           RELEASE: ${{ inputs.release_tag }}
