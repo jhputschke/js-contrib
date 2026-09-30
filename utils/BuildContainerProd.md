@@ -358,6 +358,55 @@ docker run --rm --gpus all -v "$PWD/prod:/work" jhputschke/xscape-prod:cu126 \
 
 The VM needs the NVIDIA driver and the NVIDIA container toolkit.
 
+### A different collision system: your own user XML
+
+The physics comes from the **user XML**, a template that `run_prod_jet.py` fills in (events,
+seed, hard process). The image ships `AuAu_MCGlauber_MUSIC_0_10_jet.xml`; for another
+system, mount a directory with your own XML and pass it with `--user-xml`. The path is the
+one inside the container. Example for a `PbPb_0_10.xml` in `./xml`:
+
+```bash
+# Docker
+docker run --rm --gpus all --user "$(id -u):$(id -g)" \
+  -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu126 \
+  python run_prod_jet.py --user-xml /xml/PbPb_0_10.xml \
+    --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
+
+# Apptainer
+apptainer exec --nv --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xscape_prod.sif \
+  python run_prod_jet.py --user-xml /xml/PbPb_0_10.xml \
+    --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
+
+# a campaign: run_jobs.sh passes the arguments after OUTDIR on to run_prod_jet.py
+... jhputschke/xscape-prod:cu126 \
+  ./run_jobs.sh -j 4 --campaign PbPb 20 25 0 /work/out --user-xml /xml/PbPb_0_10.xml
+```
+
+- **`--out`** sets the file name. Without it the files are called `AuAu_0_10_jet_…`, because
+  the prefix is fixed in the scripts; in a campaign, `--campaign` at least puts the system
+  into the names.
+- **Add `--dry-run` first:** it checks the XML and the grid and writes the job XML without
+  running an event.
+- **A grid of your own** (`--grid /xml/grid_PbPb.yaml`) is mounted the same way.
+
+**What to change for Pb+Pb** in a copy of `AuAu_MCGlauber_MUSIC_0_10_jet.xml`:
+
+| where | Au+Au 200 GeV | Pb+Pb 5.02 TeV |
+|---|---|---|
+| `<MCGlauber>` `<projectile>`, `<target>` | `Au` | `Pb` |
+| `<MCGlauber>` `<sqrts>` (what `MCGlauberWrapper` reads, not `mcglauber.input`) | `200` | `5020` |
+| `<MCGlauber>` `<b_max>` for 0–10% | `4.7` fm | ~4.9–5.0 fm (geometric estimate) |
+| Pythia's `<eCM>` | `200` | `5020` |
+| the grid (`--grid` YAML; MUSIC's grid in the XML) | `grid_fno.yaml` | likely larger and longer: the fireball is bigger and lives longer |
+
+`<cenMin>`/`<cenMax>` are ignored inside X-SCAPE (see the XML's comment); the impact
+parameter range selects the centrality.
+
+Tested 2026-09-30 in the `cu130` test image: the mount, the templating and the naming (a copy
+of the Au+Au XML with `Pb` nuclei, `--dry-run`; the job XML has `Pb` as projectile and target,
+and the output is named `PbPb_0_10_jet_seed0001.h5`). The Pb+Pb physics settings above are
+not validated: a first real event will show whether the grid is large enough.
+
 ### Machines without an NVIDIA GPU (no CUDA)
 
 The same image runs on machines without an NVIDIA GPU or driver, e.g. an amd64 cluster or
