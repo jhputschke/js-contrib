@@ -822,7 +822,11 @@ class HadronFileReader:
     the files were hadronized with different ``--oversample``.  Errors are compound-Poisson
     per event, added over events; :meth:`jet_minus_background` of correlated legs
     (hadronize.py --correlated) takes its error from the per-sample differences instead
-    (``paired``).  ``values``, ``mask`` and ``weights`` are either
+    (``paired``).  With common seeds (hadronize.py --common-seeds or --correlated) the jet
+    legs of the events sharing a background draw its random numbers, sample by sample, so
+    they are not independent: bulk_jet's error then comes from the spread of their
+    per-sample sums (the events of one background summed per sample, as ``paired`` does).
+    ``values``, ``mask`` and ``weights`` are either
     a name (an :class:`EventHadrons` attribute, or 'charged', or a species name for
     ``mask``) or a callable ``f(ev, info)`` returning one value per hadron, where ``ev`` is
     an :class:`EventHadrons` and ``info`` an :class:`EventInfo` -- so jet-relative
@@ -930,7 +934,7 @@ class HadronFileReader:
                 info[key] = None if v is None else np.asarray(v)
             info["parton_ymax"] = pf.attrs.get("parton_ymax")
         info["tags"], info["precision"], info["correlated"], info["eta_max"] = {}, {}, {}, {}
-        info["selection"] = {}
+        info["selection"], info["common_seeds"] = {}, {}
         for tag in TAGS:
             path = f"{stem}_hadrons_{tag}.h5"
             if not os.path.exists(path):
@@ -941,6 +945,8 @@ class HadronFileReader:
                 info["eta_max"][tag] = hadron_eta_max(f)
                 info["selection"][tag] = hadron_selection(f)
                 info["correlated"][tag] = bool(f.attrs.get("correlated_sampling", False))
+                info["common_seeds"][tag] = bool(f.attrs.get("common_seeds", False)
+                                                 or info["correlated"][tag])
             if ftag != tag:
                 raise ValueError(f"{path} holds tag {ftag!r}, not {tag!r}")
             if check_uuid and src != uuid:
@@ -1361,6 +1367,12 @@ class HadronFileReader:
             with HadronFile(self._path(i, tag)) as hf:
                 positions = [hf.unit_index(u) for u in by_unit]
             h = self._hadrons(i, tag, positions)
+            if tag == "bulk_jet" and self._files[i]["common_seeds"].get(tag, False):
+                t, s2, n, by_unit = self._common_seed_sums(i, h, by_unit, counts, values,
+                                                           edges, shape, mask, weights)
+                total += t
+                sq += s2
+                n_used += n
             for u, evs in by_unit.items():
                 ev = EventHadrons(h, h.unit_index(u))
                 infos = [EventInfo(self, self.global_event(i, e), i, e) for e in evs]
@@ -1393,6 +1405,43 @@ class HadronFileReader:
                     sq += _correlated_sq(binned, len(ev), nbins)
         norm = max(n_used, 1)
         return (total / norm).reshape(shape), (np.sqrt(sq) / norm).reshape(shape)
+
+    def _common_seed_sums(self, i, h, by_unit, counts, values, edges, shape, mask, weights):
+        """The jet legs of file ``i`` with common seeds: the events sharing a background
+        drew the same random numbers, so their samples are summed per sample, S_k, and the
+        error is the spread of S_k.  -> (sum of the events' means, its variance, events
+        used, the units left for the per-event path: groups of unequal sample counts or of
+        a single sample, with a warning)."""
+        nbins = int(np.prod(shape))
+        groups = {}
+        for u, evs in by_unit.items():
+            for e in evs:
+                groups.setdefault(self._unit_of(i, "bulk_bg", e), []).append((u, e))
+        total, var, n_used, rest = np.zeros(nbins), np.zeros(nbins), 0, {}
+        for bu, members in groups.items():
+            K = {counts[u] for u, _ in members}
+            if len(K) != 1 or min(K) < 2:
+                import warnings
+                warnings.warn(f"{self._files[i]['stem']}: the jet legs of background {bu} "
+                              f"have {sorted(K)} samples; with common seeds their error "
+                              "needs the same number (>= 2) for each: taken as "
+                              "independent instead", RuntimeWarning, stacklevel=4)
+                for u, e in members:
+                    rest.setdefault(u, []).append(e)
+                continue
+            K = K.pop()
+            S = np.zeros(K * nbins)
+            for u, e in members:
+                ev = EventHadrons(h, h.unit_index(u))
+                info = EventInfo(self, self.global_event(i, e), i, e)
+                idx, w, rows = _binned(ev, info, values, edges, shape, mask, weights)
+                S += np.bincount(ev.sample[rows] * nbins + idx, weights=w,
+                                 minlength=K * nbins)
+            S = S.reshape(K, nbins)
+            total += S.mean(0)
+            var += S.var(0, ddof=1) / K
+            n_used += len(members)
+        return total, var, n_used, rest
 
     def close(self):
         if self._je[1] is not None:

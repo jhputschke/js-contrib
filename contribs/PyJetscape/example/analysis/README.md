@@ -329,7 +329,7 @@ The same split as §6, for the hadron files `hadronize.py` writes (`bulk_jet`, `
 `jet_frag`):
 
 ```
-python wake_hadrons.py DIR -j 10 -o DIR/wake_hadrons.h5    # ~3.5 min for 300 events, ~30 MB
+python wake_hadrons.py DIR -j 10 -o DIR/wake_hadrons.h5    # ~3.5 min for 300 events, ~30 MB (common seeds: ~190 MB / 1000 ev)
 jupyter lab wake_hadrons.ipynb                             # WAKE_HAD=<file>, WAKE_OBS=<file>
 ```
 
@@ -350,6 +350,58 @@ The frame is the leading initiator parton. There are four histograms:
 
 The wake is jet leg − background, event by event. The notebook joins the file with
 `wake_observables.h5` for the deposit, the showers and the freeze-out times.
+
+**Common seeds.** With `hadronize.py --common-seeds` or `--correlated`, the jet legs of the
+events sharing a background draw its random numbers sample by sample. With `--correlated`
+they also share most of their hadrons with it. So neither the jet leg nor the wake is
+independent from event to event. For such files the script also stores the jet leg and the
+wake (jet − bg) as `--batches` (default 10) means over aligned blocks of samples, in
+`hist/<name>/{jet,wake}/batch`. The notebook sums them over the events of each background and
+takes the error of the bkg + wake and wake curves from their spread. That spread holds all
+these correlations, across bins too. The bkg and fragment errors are computed as before.
+
+The batch means are rounded to `--batch-bits` (default 10) mantissa bits, a relative error
+below 5e-4 per value. The difference jet − bg is taken before rounding. Rounding the two legs
+separately would not work: where they share most hadrons, the wake is much smaller than
+either leg, and the legs' rounding errors would swamp its noise (up to 7× in single
+`jetframe` bins).
+
+Errors for `AuAu_0_10_pth10-40_eta06_c1` (1005 events, 15 per background, 100 samples per
+leg, `--correlated`), per event:
+
+| | before (legs added) | batch means |
+|---|---|---|
+| wake E | ±1.21 GeV | ±0.16 GeV |
+| wake N_ch at \|y\| < 1 | ±0.51 | ±0.12 |
+| wake N_ch, near side (\|Δφ\| < π/3, \|Δη\| < 1) | ±0.27 | ±0.04 |
+| wake behind the leading jet, 0–1 GeV (leading leg < 30%) | ±0.32 | ±0.06 |
+| bkg + wake N_ch at \|η\| < 1 | ±0.12 (too small) | ±0.48 |
+
+The means don't change. The wake errors drop 4–8× and now sit below the file-bootstrap
+errors. The bkg + wake error rises about √15, since the 15 jet legs of a background are nearly
+fully correlated. Against `HadronFileReader`'s exact per-sample errors, the batch means agree
+within 2% (wake ±0.111 vs ±0.109, bkg + wake ±0.4806 vs ±0.4807, N_ch at \|η\| < 1). Rounding
+to 10 bits changes the errors by less than 6e-4 in every bin, and no number the notebook
+prints.
+
+File size for the same campaign:
+
+| `wake_hadrons.h5` | size |
+|---|---|
+| without batches (version 1, or independent files) | 59 MB |
+| with batches, lossless (`--batch-bits 23`) | 254 MB |
+| with batches, 10 bits (default) | 189 MB |
+| with `--batches 5` and 10 bits (estimate) | ~125 MB |
+
+`jetframe` (3840 bins per event) is two thirds of the batches. Independently sampled files get
+no batches: their files and results are unchanged.
+
+**Stored hadrons.** `hadronize.py --eta-max` and `--charged` store only part of the hadrons,
+and every histogram then holds only that part. The script records the cut per event
+(`events/eta_max`, `events/charged_only`) and warns, and so does the notebook. The c1 campaign
+keeps |η| < 2. Its "all η" rows are therefore |η| < 2, and the energy balance misses the
+forward hadrons and ColorlessHadronization's beam remnants. The jet frame is also cut at
+|Δη| ≈ 2 − |η_jet|.
 
 **Bad runs.** Before loading any hadrons, the script runs these checks on every event:
 
