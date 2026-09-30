@@ -28,7 +28,7 @@ target machine:
 
 | Image tag | build arguments of `Dockerfile.prod` | CPU arch | Target GPUs |
 |---|---|---|---|
-| `xscape-prod:cu126` | defaults: `CUDA_VERSION=12.6.3`, `CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90"` | amd64, arm64 | RTX 20/30/40xx, A100, A40, L4, H100, GH200 |
+| `xscape-prod:cu126` | defaults: `CUDA_VERSION=12.6.3`, `CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"` | amd64, arm64 | V100, RTX 20/30/40xx, A100, A40, L4, H100, GH200 |
 | `xscape-prod:cu130` | `CUDA_VERSION=13.2.1`, `CUDA_ARCHITECTURES="90-real;100-real;120-real;121"` | amd64, arm64 | GH200, B200/GB200, RTX 50xx / RTX PRO Blackwell, **GB10** |
 | `xscape-prod:cu124` | `CUDA_VERSION=12.4.1`, `UBUNTU=ubuntu22.04`, architectures as `cu126` | **amd64 only** | as `cu126`, on hosts with R550 drivers (CUDA 12.4) |
 
@@ -52,6 +52,12 @@ their CUDA version, `NVIDIA_REQUIRE_CUDA`). `cu124` is the same build on CUDA 12
   and so the C++ compiler (GCC 14) and every library, are the same as in the other variants.
 - It is built only when requested (`variants=cu124` or `all`), and for amd64 only.
 - **Not built or tested yet**, locally or on GitHub.
+
+**V100 (sm_70) needs `cu126` or `cu124`.** CUDA 13 dropped Volta, so `cu130` has no code
+for it. The embedded PTX only runs on GPUs as new as its architecture or newer (compute_90
+in `cu126`), never older ones. A build without the GPU's architecture fails on it with "no
+kernel image is available for execution on the device". Before MUSIC4GPU stopped on that
+error, such a run went on and wrote files with meaningless hydro; discard them.
 
 **Two independent architectures.** The CPU architecture (amd64 / arm64) decides which image
 of the manifest is used. The GPU architectures (`sm_*`) are compiled into each image. The
@@ -122,7 +128,7 @@ cmake -S /opt/X-SCAPE -B /opt/X-SCAPE/build_gpu \
   -DCMAKE_BUILD_TYPE=Release \
   -DUSE_CUDA=ON -DUSE_MUSIC=ON -DUSE_ISS=ON -DUSE_3DGlauber=ON \
   -DUSE_JS_CONTRIB=ON -DUSE_JS_PYJETSCAPE=ON -DUSE_JS_FNO_HYDRO=OFF \
-  -DCMAKE_CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90"   # cu130: "90-real;100-real;120-real;121"
+  -DCMAKE_CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"   # cu130: "90-real;100-real;120-real;121"
 cmake --build /opt/X-SCAPE/build_gpu -j"$(nproc)"
 ```
 

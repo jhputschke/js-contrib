@@ -25,9 +25,9 @@ name: Build & push production images
 #   scripts pin.
 #
 # Variants (the build arguments of utils/Dockerfile.prod):
-#   cu126  CUDA 12.6, Ubuntu 24.04, sm_75-90 + PTX       amd64 + arm64   (default)
+#   cu126  CUDA 12.6, Ubuntu 24.04, sm_70-90 + PTX       amd64 + arm64   (default)
 #   cu130  CUDA 13.2, Ubuntu 24.04, sm_90-121 + PTX      amd64 + arm64   (default)
-#   cu124  CUDA 12.4, Ubuntu 22.04, sm_75-90 + PTX       amd64 only      (on request)
+#   cu124  CUDA 12.4, Ubuntu 22.04, sm_70-90 + PTX       amd64 only      (on request)
 #          for hosts with R550 drivers (CUDA 12.4): Docker's NVIDIA runtime refuses the
 #          cuda:12.6 images there.  NVIDIA has no CUDA 12.4 image for Ubuntu 24.04.
 #
@@ -65,7 +65,7 @@ on:
         required: true
         type: string
       variants:
-        description: "CUDA variants: cu126 (sm_75-90: A100, H100, GH200, ...), cu130 (sm_90-121: + Blackwell, GB10), cu124 (as cu126 for R550 drivers; amd64 only)"
+        description: "CUDA variants: cu126 (sm_70-90: V100, A100, H100, GH200, ...), cu130 (sm_90-121: + Blackwell, GB10), cu124 (as cu126 for R550 drivers; amd64 only)"
         default: cu126+cu130
         type: choice
         options: [cu126+cu130, all, cu126, cu130, cu124]
@@ -165,12 +165,12 @@ jobs:
           # built for
           variants = {
               "cu126": {"cuda": "12.6.3", "ubuntu": "ubuntu24.04",
-                        "archs": "75-real;80-real;86-real;89-real;90", "arches": ["amd64", "arm64"]},
+                        "archs": "70-real;75-real;80-real;86-real;89-real;90", "arches": ["amd64", "arm64"]},
               "cu130": {"cuda": "13.2.1", "ubuntu": "ubuntu24.04",
                         "archs": "90-real;100-real;120-real;121", "arches": ["amd64", "arm64"]},
               # CUDA 12.4 images exist only up to Ubuntu 22.04; published for amd64 only
               "cu124": {"cuda": "12.4.1", "ubuntu": "ubuntu22.04",
-                        "archs": "75-real;80-real;86-real;89-real;90", "arches": ["amd64"]},
+                        "archs": "70-real;75-real;80-real;86-real;89-real;90", "arches": ["amd64"]},
           }
           platforms = {  # native runners: no QEMU emulation
               "amd64": {"runner": "ubuntu-latest", "platform": "linux/amd64"},

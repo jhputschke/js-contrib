@@ -4,7 +4,7 @@
 # Plan and usage: BuildContainerProd.md.  One Dockerfile for all CUDA variants; they
 # differ only in build arguments:
 #
-#   cu126 (default)  CUDA 12.6, sm_75-sm_90 + PTX: RTX 20-40xx, A100, A40, L4, H100, GH200
+#   cu126 (default)  CUDA 12.6, sm_70-sm_90 + PTX: V100, RTX 20-40xx, A100, A40, L4, H100, GH200
 #     docker build -t xscape-prod:cu126 -f Dockerfile.prod .
 #
 #   cu130            CUDA 13.2, sm_90, sm_100, sm_120, sm_121 + PTX: GH200, B200/GB200,
@@ -13,7 +13,7 @@
 #       --build-arg CUDA_VERSION=13.2.1 \
 #       --build-arg CUDA_ARCHITECTURES="90-real;100-real;120-real;121" .
 #
-#   cu124            CUDA 12.4, sm_75-sm_90 + PTX, as cu126, for hosts whose driver is too old
+#   cu124            CUDA 12.4, sm_70-sm_90 + PTX, as cu126, for hosts whose driver is too old
 #                    for 12.6 (R550).  NVIDIA publishes CUDA 12.4 images only up to Ubuntu
 #                    22.04 (system GCC 11 as nvcc's host compiler).  Published for amd64 only.
 #     docker build -t xscape-prod:cu124 -f Dockerfile.prod \
@@ -39,7 +39,7 @@ FROM nvidia/cuda:${CUDA_VERSION}-devel-${UBUNTU} AS build
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TARGETARCH
 ARG CUDA_VERSION
-ARG CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90"
+ARG CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
 ARG WITH_ROOT=0
 # Sources.  A *_REF is a full 40-character commit hash (GitHub serves single commits only
 # by their full hash), a branch or a tag.  MUSIC4GPU_REF empty: the commit
@@ -251,7 +251,7 @@ print('pyjetscape_core ok, HAS_ROOT =', jetscape.HAS_ROOT)" \
 # Declared here, not at the top of the stage: an ARG before a RUN is part of that step's
 # cache key, and these only label the image.
 ARG CUDA_VERSION
-ARG CUDA_ARCHITECTURES="75-real;80-real;86-real;89-real;90"
+ARG CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
 ARG XSCAPE_REF=d31946c0cde63f1bca33b56653417ae057e43313
 ARG JS_CONTRIB_REF=main
 ARG MUSIC4GPU_REF=""
