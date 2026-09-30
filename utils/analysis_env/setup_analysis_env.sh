@@ -16,6 +16,11 @@
 #   --with-fasthydro     also install FastHydro (jetscape-fasthydro), for FastHydro's own
 #                        files and readers (fast_data, fasthydro.browse); not needed for the
 #                        prod_AuAu_0_10_jet files. The solver also needs `pip install torch`.
+#   --with-gcs           also install the Google Cloud Storage interfaces: gcsfs (gs:// for
+#                        fsspec, h5py and uproot) and google-cloud-storage
+#                        (requirements_gcs.txt)
+#   --with-pelican       also install pelicanfs: pelican:// and osdf:// for fsspec, h5py
+#                        and uproot (requirements_pelican.txt)
 #   --eos-table PATH     copy MUSIC's hotQCD table from PATH (a MUSIC/X-SCAPE EOS/hotQCD
 #                        directory or the hrg_hotqcd_eos_binary.dat) instead of downloading it
 #   --no-eos             neither download nor copy it (no e -> T: the visualization uses a
@@ -40,6 +45,8 @@ USE_UV=0
 SYSSITE=0
 VIZ=1
 FASTHYDRO=0
+GCS=0
+PELICAN=0
 EOS=download
 EOS_SRC=""
 KERNEL=""
@@ -55,6 +62,8 @@ while [ $# -gt 0 ]; do
         --system-site-packages) SYSSITE=1; shift ;;
         --no-viz)          VIZ=0; shift ;;
         --with-fasthydro)  FASTHYDRO=1; shift ;;
+        --with-gcs)        GCS=1; shift ;;
+        --with-pelican)    PELICAN=1; shift ;;
         --eos-table)       EOS=copy; EOS_SRC="${2:?--eos-table needs a path}"; shift 2 ;;
         --no-eos)          EOS=none; shift ;;
         --kernel)          KERNEL="${2:?--kernel needs a name}"; shift 2 ;;
@@ -106,8 +115,11 @@ pip_install() {
 [ "$USE_UV" = 1 ] || "$VPY" -m pip install --upgrade --quiet pip
 
 REQS=(-r "$HERE/requirements.txt")
-[ "$VIZ" = 1 ] && REQS+=(-r "$HERE/requirements_viz.txt")
-echo "==> installing the analysis packages$( [ "$VIZ" = 1 ] && echo ' + visualization')"
+EXTRA=""
+[ "$VIZ" = 1 ] && { REQS+=(-r "$HERE/requirements_viz.txt"); EXTRA+=" + visualization"; }
+[ "$GCS" = 1 ] && { REQS+=(-r "$HERE/requirements_gcs.txt"); EXTRA+=" + Google Cloud Storage"; }
+[ "$PELICAN" = 1 ] && { REQS+=(-r "$HERE/requirements_pelican.txt"); EXTRA+=" + Pelican/OSDF"; }
+echo "==> installing the analysis packages$EXTRA"
 pip_install "${REQS[@]}"
 
 # PyJetscape's Python package (jetscape.*: the HDF5 readers), editable from this checkout.
@@ -192,6 +204,7 @@ fi
 echo "==> checking the environment"
 CHECK_ARGS=()
 [ -n "$CHECK_DIR" ] && CHECK_ARGS=("$CHECK_DIR")
+[ "$GCS" = 1 ] || [ "$PELICAN" = 1 ] && CHECK_ARGS+=(--remote-test)   # one public read each
 ( [ "$eos_ok" = 1 ] && export MUSIC_EOS_TABLE="$EOS_TABLE"; "$VPY" "$HERE/check_env.py" ${CHECK_ARGS[@]+"${CHECK_ARGS[@]}"} )
 
 cat <<EOF

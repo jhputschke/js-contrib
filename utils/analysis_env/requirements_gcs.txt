@@ -1,0 +1,7 @@
+# Google Cloud Storage from Python (setup_analysis_env.sh --with-gcs):
+#   gcsfs                 fsspec's gs:// and gcs:// (fsspec.open, uproot.open("gs://..."))
+#   google-cloud-storage  Google's own client (buckets, blobs, signed URLs)
+# Credentials: `gcloud auth application-default login`, or GOOGLE_APPLICATION_CREDENTIALS
+# pointing at a service-account key; public buckets need none (token="anon").
+gcsfs>=2024.2
+google-cloud-storage>=2.0

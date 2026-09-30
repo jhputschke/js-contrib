@@ -1,0 +1,4 @@
+# Pelican / OSDF from Python (setup_analysis_env.sh --with-pelican):
+#   pelicanfs   fsspec's pelican:// and osdf:// (fsspec.open, uproot.open("osdf:///..."))
+# Public namespaces need no token; for protected ones see README.md, "Remote files".
+pelicanfs>=1.0

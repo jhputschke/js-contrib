@@ -9,6 +9,9 @@
 # replace conda's numpy under ROOT; pip installs only the scikit-hep fastjet (the notebooks
 # use its API) and PyJetscape from this checkout. MUSIC's EoS table: see README.md.
 #
+# Remote files (Google Cloud Storage, Pelican/OSDF): pip install -r requirements_gcs.txt
+# and/or requirements_pelican.txt in the env (README.md, "Remote files").
+#
 # Not tested yet (2026-09-29). The tested ways to ROOT are in README.md, "With ROOT".
 name: js_analysis
 channels:

@@ -17,6 +17,7 @@ python utils/analysis_env/check_env.py /path/to/out  # opens every file in a pro
 | `setup_analysis_env.sh` | makes or updates the venv, gets MUSIC's EoS table, runs `check_env.py` |
 | `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector), Jupyter |
 | `requirements_viz.txt` | pyvista (+ vtk), imageio, imageio-ffmpeg for `contribs/Visualization` |
+| `requirements_gcs.txt`, `requirements_pelican.txt` | optional: Google Cloud Storage (gcsfs, google-cloud-storage) and Pelican/OSDF (pelicanfs), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
 | `check_env.py` | checks the packages, the Blosc filter, PyROOT, the EoS table and off-screen rendering; with a directory, opens its pair, hadron and ROOT files |
 | `environment.yml` | the same as one conda env, ROOT included (see [With ROOT](#with-root)) |
 
@@ -51,6 +52,8 @@ evolve a live event. The ROOT macro `analysis/hadron_distributions.C` needs ROOT
 | `--system-site-packages` | let the venv see the packages of the Python it is made from, e.g. PyROOT of a conda env with ROOT ([With ROOT](#with-root)). On an existing venv, it switches this on. |
 | `--no-viz` | skip `requirements_viz.txt` (pyvista/vtk/ffmpeg: ~0.6 GB of the ~1.6 GB) |
 | `--with-fasthydro` | also install [FastHydro](../../contribs/FastHydro/README.md) (`jetscape-fasthydro`), for FastHydro's own files and readers (`fast_data`, `fasthydro.browse`). **Not needed for the `prod_AuAu_0_10_jet` files**; the visualization falls back to `jetscape.showers` without it. The FastHydro solver also needs `pip install torch`. |
+| `--with-gcs` | also install the Google Cloud Storage interfaces, `requirements_gcs.txt`: gcsfs (`gs://` URLs for fsspec, h5py and uproot) and Google's `google-cloud-storage` client |
+| `--with-pelican` | also install pelicanfs, `requirements_pelican.txt`: `osdf://` and `pelican://` URLs for fsspec, h5py and uproot |
 | `--eos-table PATH` | copy MUSIC's hotQCD table from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or its `hrg_hotqcd_eos_binary.dat`) instead of downloading it |
 | `--no-eos` | neither download nor copy it |
 | `--kernel NAME` | register a Jupyter kernel `NAME` for the venv (in `~/.local/share/jupyter`) |
@@ -143,6 +146,75 @@ conda activate js_analysis                               # again, to pick up the
 
 **`environment.yml` has not been tested yet**; A is the tested way. Its package list
 duplicates `requirements*.txt`, so a change to one needs the same change in the other.
+
+## Remote files: Google Cloud Storage and Pelican/OSDF
+
+For productions kept in a Google Cloud Storage bucket or in a Pelican federation such as the
+OSDF, the venv can get the Python interfaces of either or both:
+
+```bash
+./utils/analysis_env/setup_analysis_env.sh --with-gcs --with-pelican   # or one of them
+```
+
+Both are [fsspec](https://filesystem-spec.readthedocs.io) file systems, so the URLs work
+wherever fsspec does. `check_env.py --remote-test` reads one public object from each (the
+setup script does that when either option is given). On an existing venv, re-run the script
+with the option. In the conda env of `environment.yml`, run
+`pip install -r utils/analysis_env/requirements_gcs.txt` (or `_pelican.txt`) instead.
+
+**Reading files in place.** uproot takes the URL directly; h5py takes the file object
+fsspec opens (with `hdf5plugin` imported for Blosc). Only the chunks read travel over the
+network:
+
+```python
+import fsspec, h5py, hdf5plugin, uproot
+
+# ROOT files of run_h5toROOT.py
+events = uproot.open("gs://BUCKET/campaign/AuAu_0_10_jet_c1_0001_hadrons.root")["events"]
+bulk = uproot.open("osdf:///NAMESPACE/campaign/AuAu_0_10_jet_c1_0001_hadrons.root")["bulk_jet"]
+
+# HDF5 files: pair, particlize and hadron files
+with fsspec.open("gs://BUCKET/campaign/AuAu_0_10_jet_c1_0001.h5", "rb") as fo, \
+        h5py.File(fo, "r") as f:
+    e_last = f["arr"][0, 0, :, :, :, -1]
+```
+
+**Whole campaigns, for the repo's tools.** `HadronFileReader`, `run_h5toROOT.py`, the
+`analysis/` scripts and the Visualization scripts take local paths. Copy the files first,
+optionally only what the analysis reads:
+
+```python
+import fsspec
+
+fs = fsspec.filesystem("gs")                  # or "osdf"
+fs.get("BUCKET/campaign/*_hadrons_*.h5", "out/")          # hadron files
+fs.get("BUCKET/campaign/*_particlize.h5", "out/")         # HadronFileReader needs these too
+```
+
+The command-line tools do the same: `gcloud storage cp -r gs://BUCKET/campaign out/`, and
+`pelican object get osdf:///NAMESPACE/campaign/FILE out/`.
+
+**Credentials.**
+- **GCS:** gcsfs and `google-cloud-storage` use Google's default credentials: those of
+  `gcloud auth application-default login`, or a service-account key in
+  `GOOGLE_APPLICATION_CREDENTIALS`. A public bucket needs none:
+  `fsspec.filesystem("gs", token="anon")`, `storage.Client.create_anonymous_client()`.
+- **Pelican/OSDF:** public namespaces need no token. For a protected one, pelicanfs takes a
+  bearer token from `BEARER_TOKEN` or the file in `BEARER_TOKEN_FILE`, from the WLCG default
+  token location, from `TOKEN`, or from HTCondor's credentials, in that order. It can also be
+  passed explicitly: `fsspec.filesystem("osdf", headers={"Authorization": "Bearer " + tok})`.
+  With the `pelican` binary on `PATH`, pelicanfs can also get one through OAuth.
+
+Tested 2026-09-30 on the GB10 with gcsfs 2026.8.1, google-cloud-storage 3.15.1 and
+pelicanfs 1.4.1:
+- a public GCS bucket listed anonymously with gcsfs and with `google-cloud-storage`; without
+  credentials gcsfs falls back to anonymous access, with a warning;
+- a public OSDF object read, and a glob over its directory, with pelicanfs;
+- uproot's reads over `gs://` and `osdf://` (on public files that aren't ROOT files, so it
+  stopped at their first bytes), and h5py with Blosc through an fsspec file object.
+
+Not tested: our own productions in a bucket or a namespace, a whole remote ROOT file, and
+credentials.
 
 ## MUSIC's EoS table
 

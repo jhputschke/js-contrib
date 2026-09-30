@@ -4,6 +4,7 @@
     python check_env.py               # packages, Blosc filter, EoS table, off-screen rendering
     python check_env.py out           # + open the production files in out/
     python check_env.py out --no-render
+    python check_env.py --remote-test # + read a public object from GCS and from OSDF
 
 Exits 1 if something the analysis needs is missing or a file doesn't open. Optional parts
 (visualization, FastHydro, the EoS table, the compiled pyjetscape_core) are reported only.
@@ -199,10 +200,62 @@ def check_dir(d):
             fail(f"{os.path.basename(p)}: {exc}")
 
 
+# public objects, readable without credentials
+REMOTE_TESTS = {
+    "gcs": ("gcsfs", "gcs://gcp-public-data-landsat", {"token": "anon"}),
+    "pelican": ("pelicanfs", "osdf:///ospool/uc-shared/public/OSG-Staff/validation/test.txt", {}),
+}
+
+
+def check_remote(test):
+    """The optional remote-storage interfaces (--with-gcs, --with-pelican): packages, the
+    fsspec URL schemes they register, and with ``test`` one public read each."""
+    from importlib.metadata import PackageNotFoundError
+    from importlib.metadata import version as dist_version
+
+    print("Remote storage (optional)")
+    have = {}
+    for what, dists, schemes, flag in (
+            ("gcs", ("gcsfs", "google-cloud-storage"), ("gs", "gcs"), "--with-gcs"),
+            ("pelican", ("pelicanfs",), ("osdf", "pelican"), "--with-pelican")):
+        try:
+            got = ", ".join(f"{d} {dist_version(d)}" for d in dists)
+        except PackageNotFoundError:
+            warn(f"{' / '.join(dists)} not installed ({flag})")
+            continue
+        try:
+            import fsspec
+            for sc in schemes:
+                fsspec.get_filesystem_class(sc)
+            ok(f"{got}: {', '.join(s + '://' for s in schemes)} for fsspec, h5py and uproot")
+            have[what] = True
+        except Exception as exc:  # noqa: BLE001
+            fail(f"{got} installed, but {schemes} are not fsspec schemes: {exc}")
+    if not test:
+        return
+    import fsspec
+    for what, (pkg, url, kw) in REMOTE_TESTS.items():
+        if not have.get(what):
+            continue
+        try:
+            if what == "gcs":
+                fs = fsspec.filesystem("gcs", **kw)
+                n = len(fs.ls(url.split("://", 1)[1]))
+                ok(f"{pkg}: listed {url} anonymously ({n} entries)")
+            else:
+                with fsspec.open(url, "rb") as f:
+                    ok(f"{pkg}: read {url} ({f.read(64)!r})")
+        except Exception as exc:  # noqa: BLE001
+            warn(f"{pkg}: could not read {url} ({exc.__class__.__name__}: "
+                 f"{str(exc)[:120]}); network or proxy?")
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("dir", nargs="?", help="a production directory to open (e.g. out)")
+    ap.add_argument("--remote-test", action="store_true",
+                    help="read a public object from GCS and OSDF (network)")
     ap.add_argument("--no-render", action="store_true",
                     help="skip the off-screen rendering test")
     args = ap.parse_args(argv)
@@ -210,6 +263,7 @@ def main(argv=None):
     check_packages()
     check_pyroot()
     check_viz(render=not args.no_render)
+    check_remote(test=args.remote_test)
     if args.dir:
         check_dir(args.dir)
 

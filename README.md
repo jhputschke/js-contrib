@@ -51,7 +51,10 @@ analysis notebooks (fastjet), and the Visualization scripts on stored files (pyv
 also downloads MUSIC's hotQCD EoS table. FastHydro is optional (`--with-fasthydro`). ROOT is
 optional too: made from the Python of a conda env with ROOT and `--system-site-packages`,
 the venv uses PyROOT. A single conda env with ROOT, `environment.yml`, also exists. See
-[With ROOT](utils/analysis_env/README.md#with-root).
+[With ROOT](utils/analysis_env/README.md#with-root). For productions in Google Cloud Storage
+or a Pelican federation (OSDF), `--with-gcs` and `--with-pelican` add gcsfs /
+google-cloud-storage and pelicanfs; see
+[Remote files](utils/analysis_env/README.md#remote-files-google-cloud-storage-and-pelicanosdf).
 
 ```bash
 ./utils/analysis_env/setup_analysis_env.sh           # venv in ~/.venvs/js_analysis
