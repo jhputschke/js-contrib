@@ -12,7 +12,7 @@ and resamples it onto an output grid you choose in a YAML file (default: the FNO
 | `grid_fno.yaml` | default output grid: the FNO4d Au+Au grid (65 × 65 × 33, τ from 0.5 in steps of 0.1) |
 | `grid_x10_eta2p5.yaml` | example: the same grid cut to \|η_s\| ≤ 2.5 (17 η cells, about half the storage) |
 | `run_prod.py` | one job: one seed, N events, one `.h5` file |
-| `run_jobs.sh` | runs many jobs on one GPU (`-j P` at a time), one seed per job, and can resume |
+| `run_jobs.sh` | runs many jobs on one GPU or several (`--gpus`), `-j P` at a time, one seed per job, and can resume |
 | `check_output.ipynb` | checks the `.h5` output: sanity scan, ε and flow vs τ, freeze-out times, x–y viewer |
 
 ## Run
@@ -30,11 +30,23 @@ python run_prod.py --events 1 --seed 1 --grid my_grid.yaml --dry-run   # check a
 ./run_jobs.sh 20 25 1                           # seeds 1..20, files AuAu_0_10_seed00NN.h5
 ./run_jobs.sh -j 2 20 25 0                      # two jobs at a time (~1.7x throughput)
 ./run_jobs.sh -j 4 --mps 20 25 0                # four at a time, GPU shared via CUDA MPS
+./run_jobs.sh -j 8 --mps --gpus 0,1 20 25 0     # eight at a time, four on each of GPUs 0 and 1
 ./run_jobs.sh 20 25 0 /data/AuAu_0_10           # into another directory
 ./run_jobs.sh 20 25 0 out_eta2p5 --grid grid_x10_eta2p5.yaml
 ```
 
 You can launch it from any directory.
+
+**Several GPUs (`--gpus 0,1,…`, CUDA).** music4gpu always runs on the first visible CUDA
+device, so without `--gpus` every job lands on GPU 0. With it, each job starts on the listed
+GPU that has the fewest of the campaign's jobs running, as its `CUDA_VISIBLE_DEVICES`, and
+the log line names the GPU. `-j P` counts all GPUs together (`-j 8 --gpus 0,1` = four per
+GPU), and with `--mps` one daemon serves them all. The numbers are CUDA's: set
+`CUDA_DEVICE_ORDER=PCI_BUS_ID` to match `nvidia-smi` on machines with mixed GPUs. If
+`CUDA_VISIBLE_DEVICES` is already set (e.g. by SLURM), the numbers are positions in it:
+with `CUDA_VISIBLE_DEVICES=2,3`, `--gpus 0,1` uses GPUs 2 and 3. That combined with `--mps`
+is refused (untested); unset `CUDA_VISIBLE_DEVICES` if the allocation's GPUs are the only
+ones visible anyway.
 
 On macOS, `run_jobs.sh` runs under the system bash (3.2). `--mps` is CUDA-only. With
 `-j` > 1, split the cores between the jobs, e.g. `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive

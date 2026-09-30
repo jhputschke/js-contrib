@@ -91,6 +91,7 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
 ./run_jobs.sh -j 2 20 25 0 out_pgun --hard pgun
 ./run_jobs.sh -j 4 --mps 20 25 0                             # 4 at a time, GPU shared via CUDA MPS
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both   # + hadronization input
+./run_jobs.sh -j 8 --mps --gpus 0,1 20 25 0                  # 4 on each of GPUs 0 and 1 (see ../prod_AuAu_0_10)
 
 # GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (../../../../docs/BENCHMARK_GB10.md)
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0

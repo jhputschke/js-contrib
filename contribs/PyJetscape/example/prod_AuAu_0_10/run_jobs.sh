@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # example/prod_AuAu_0_10/run_jobs.sh
 #
-# Run N production jobs on one GPU, one seed (and one .h5 file) per job, P at a time.
+# Run N production jobs on one GPU (or several, --gpus), one seed (and one .h5 file) per
+# job, P at a time.
 #
-#   ./run_jobs.sh [-j P] [--mps] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod.py args...]
+#   ./run_jobs.sh [-j P] [--mps] [--gpus LIST] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod.py args...]
 #   ./run_jobs.sh 20 25 0                         # unique seeds -> ./out/AuAu_0_10_<start time>_00NN.h5
 #   ./run_jobs.sh 20 25 0 --campaign mb_a         # the same, named ./out/AuAu_0_10_mb_a_00NN.h5
 #   ./run_jobs.sh 20 25 1                         # seeds 1..20 -> ./out/AuAu_0_10_seed00NN.h5
 #   ./run_jobs.sh -j 4 --mps 20 25 0              # four at a time, sharing the GPU via CUDA MPS
+#   ./run_jobs.sh -j 8 --mps --gpus 0,1 20 25 0   # eight at a time, four on each of GPUs 0 and 1
 #   ./run_jobs.sh 20 25 0 out_eta2p5 --grid grid_x10_eta2p5.yaml
 #
 # FIRST_SEED 0 (a campaign): every job draws its own seed from OS entropy (run_prod.py
@@ -31,6 +33,19 @@
 # path (~100 characters for its UNIX sockets): $MPS_DIR, default
 # ${XDG_RUNTIME_DIR:-/tmp}/xscape-mps.<pid>.
 #
+# --gpus LIST (CUDA, e.g. 0,1,2,3) spreads the jobs over those GPUs: each job starts on the
+# listed GPU with the fewest of this campaign's jobs running, as its CUDA_VISIBLE_DEVICES
+# (music4gpu always uses the first visible device), and the log line names it.  -j P is the
+# total over all GPUs, so -j 8 --gpus 0,1 keeps four on each; OMP_NUM_THREADS ~ cores / P as
+# above.  With --mps one daemon serves all the GPUs.  The numbers are CUDA's device
+# numbering: nvidia-smi's with CUDA_DEVICE_ORDER=PCI_BUS_ID (CUDA's default order puts the
+# fastest first, which differs on mixed machines).  If CUDA_VISIBLE_DEVICES is already set
+# (e.g. by SLURM for the allocation), the numbers are positions in it, as CUDA counts them:
+# with CUDA_VISIBLE_DEVICES=2,3, --gpus 0,1 runs the jobs on 2 and 3.  That with --mps is
+# refused (MPS may number its clients' devices relative to its daemon; not tested):
+# unset CUDA_VISIBLE_DEVICES where the allocation's GPUs are the only ones visible anyway.
+# Without --gpus the jobs inherit CUDA_VISIBLE_DEVICES and all run on its first GPU.
+#
 # macOS (Metal): --mps does not apply.  With -j > 1 split the cores between the jobs, or
 # the OpenMP threads oversubscribe them and -j 3 gains nothing: prod_AuAu_0_10_jet on an
 # M3 Max (16 cores), events/h: -j 1 132; -j 3 148 by default, 213 with
@@ -50,22 +65,58 @@
 # OUTDIR); see ../prod_AuAu_0_10_jet/run_jobs.sh.
 set -u
 
-usage() { sed -n '6,12p' "$0"; exit 2; }
+usage() { sed -n '7,14p' "$0"; exit 2; }
 
 PAR=1
 MPS=0
+GPUS=
 CAMPAIGN=
 while [ $# -gt 0 ]; do
   case $1 in
     -j)    [ $# -ge 2 ] || usage; PAR=$2; shift 2 ;;
     -j*)   PAR=${1#-j}; shift ;;
     --mps) MPS=1; shift ;;
+    --gpus)   [ $# -ge 2 ] || usage; GPUS=$2; [ -n "$GPUS" ] || usage; shift 2 ;;
+    --gpus=*) GPUS=${1#*=}; [ -n "$GPUS" ] || usage; shift ;;
     --campaign)   [ $# -ge 2 ] || usage; CAMPAIGN=$2; [ -n "$CAMPAIGN" ] || usage; shift 2 ;;
     --campaign=*) CAMPAIGN=${1#*=}; [ -n "$CAMPAIGN" ] || usage; shift ;;
     *)     break ;;
   esac
 done
 case $PAR in ''|*[!0-9]*|0) echo "-j needs a positive integer, got '$PAR'" >&2; exit 2 ;; esac
+gpus=()
+if [ -n "$GPUS" ]; then
+  case ,$GPUS, in
+    *,,*|*[!0-9,]*) echo "--gpus needs CUDA device numbers like 0,1,2, got '$GPUS'" >&2; exit 2 ;;
+  esac
+  IFS=, read -r -a gpus <<< "$GPUS"
+  visible=(); nvis=
+  if [ -n "${CUDA_VISIBLE_DEVICES+x}" ] && [ -z "$CUDA_VISIBLE_DEVICES" ]; then
+    echo "--gpus: CUDA_VISIBLE_DEVICES is set but empty, so no GPU is visible" >&2; exit 2
+  elif [ -n "${CUDA_VISIBLE_DEVICES:-}" ]; then   # the numbers are positions in it
+    if [ "$MPS" -eq 1 ]; then
+      echo "--gpus with --mps: CUDA_VISIBLE_DEVICES is set ('$CUDA_VISIBLE_DEVICES'). Unset it" \
+           "if only the allocation's GPUs are visible, or run without --mps." >&2; exit 2
+    fi
+    IFS=, read -r -a visible <<< "$CUDA_VISIBLE_DEVICES"; nvis=${#visible[@]}
+    where="CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES has $nvis"
+  elif command -v nvidia-smi > /dev/null; then
+    nvis=$(nvidia-smi -L 2>/dev/null | grep -c '^GPU '); where="nvidia-smi lists $nvis"
+  fi
+  for (( i = 0; i < ${#gpus[@]}; i++ )); do
+    gpus[$i]=$(( 10#${gpus[$i]} ))           # 01 -> 1, so duplicates are found
+    for (( j = 0; j < i; j++ )); do
+      [ "${gpus[$j]}" = "${gpus[$i]}" ] &&
+        { echo "--gpus: GPU ${gpus[$i]} is listed twice" >&2; exit 2; }
+    done
+    if [ -n "$nvis" ] && [ "${gpus[$i]}" -ge "$nvis" ]; then
+      echo "--gpus: no GPU ${gpus[$i]}, $where (0..$(( nvis - 1 )))" >&2; exit 2
+    fi
+  done
+  if [ ${#visible[@]} -gt 0 ]; then              # what the jobs are given
+    for (( i = 0; i < ${#gpus[@]}; i++ )); do gpus[$i]=${visible[${gpus[$i]}]}; done
+  fi
+fi
 
 [ $# -ge 3 ] || usage
 NJOBS=$1; EVENTS=$2; SEED0=$3
@@ -92,6 +143,8 @@ while [ $# -gt 0 ]; do
   case $1 in
     --campaign)   [ $# -ge 2 ] || usage; set_campaign "$2"; shift 2 ;;
     --campaign=*) set_campaign "${1#*=}"; shift ;;
+    -j|-j*|--mps|--gpus|--gpus=*)
+      echo "${1%%=*}: a run_jobs.sh option, give it before NJOBS" >&2; exit 2 ;;
     --seed|--seed=*|--index|--index=*|--events|--events=*|--outdir|--outdir=*|--out|--out=*)
       echo "${1%%=*}: set by run_jobs.sh for every job (NJOBS EVENTS_PER_JOB FIRST_SEED" \
            "[OUTDIR]); don't pass it" >&2; exit 2 ;;
@@ -175,10 +228,10 @@ if [ "$MPS" -eq 1 ]; then
   echo "[$(date +%F\ %T)] MPS: daemon started, pipe directory $CUDA_MPS_PIPE_DIRECTORY"
 fi
 
-# Running jobs as parallel indexed arrays (pids[i] runs jobs[i]) and a polling reap, not an
-# associative array and `wait -n -p`: those need bash >= 5.1, and macOS ships 3.2.
-# The ${a[@]+...} forms keep `set -u` quiet on empty arrays in bash < 4.4.
-pids=(); jobs_k=()
+# Running jobs as parallel indexed arrays (pids[i] runs jobs_k[i], on GPU jobs_gpu[i]) and a
+# polling reap, not an associative array and `wait -n -p`: those need bash >= 5.1, and macOS
+# ships 3.2.  The ${a[@]+...} forms keep `set -u` quiet on empty arrays in bash < 4.4.
+pids=(); jobs_k=(); jobs_gpu=()
 # Background jobs of a non-interactive shell ignore Ctrl-C, so pass it on to them.
 trap 'trap - INT TERM; echo "interrupted: stopping ${#pids[@]} running job(s)" >&2;
       [ ${#pids[@]} -gt 0 ] && kill ${pids[@]+"${pids[@]}"} 2>/dev/null; wait; exit 130' INT TERM
@@ -191,7 +244,7 @@ reap() {   # wait for one running job to finish and report it
       pid=${pids[$i]}
       kill -0 "$pid" 2>/dev/null && continue
       wait "$pid"; rc=$?      # the saved exit status
-      k=${jobs_k[$i]}; unset "pids[$i]" "jobs_k[$i]"
+      k=${jobs_k[$i]}; unset "pids[$i]" "jobs_k[$i]" "jobs_gpu[$i]"
       break 2
     done
     sleep 1
@@ -202,6 +255,15 @@ reap() {   # wait for one running job to finish and report it
   else
     echo "[$(date +%F\ %T)] $label: FAILED (see $OUTDIR/$tag.log)"; failed+=("$label")
   fi
+}
+least_busy_gpu() {   # the --gpus entry with the fewest running jobs (the first on a tie)
+  local g best= nbest n i
+  for g in "${gpus[@]}"; do
+    n=0
+    for i in ${jobs_gpu[@]+"${!jobs_gpu[@]}"}; do [ "${jobs_gpu[$i]}" = "$g" ] && n=$(( n + 1 )); done
+    if [ -z "$best" ] || [ "$n" -lt "$nbest" ]; then best=$g; nbest=$n; fi
+  done
+  echo "$best"
 }
 
 for (( k = 0; k < NJOBS; k++ )); do
@@ -217,10 +279,17 @@ for (( k = 0; k < NJOBS; k++ )); do
     echo "[$(date +%F\ %T)] $label: already complete, skipping"; continue
   fi
   while [ ${#pids[@]} -ge "$PAR" ]; do reap; done
-  echo "[$(date +%F\ %T)] $label: job $((k + 1))/$NJOBS, $EVENTS events -> $OUTDIR/$tag.h5"
-  python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" ${naming[@]+"${naming[@]}"} \
-    --outdir "$OUTDIR" ${1+"$@"} > "$OUTDIR/$tag.log" 2>&1 &
-  pids+=("$!"); jobs_k+=("$k")
+  gpu=; on=
+  if [ ${#gpus[@]} -gt 0 ]; then gpu=$(least_busy_gpu); on=" on GPU $gpu"; fi
+  echo "[$(date +%F\ %T)] $label: job $((k + 1))/$NJOBS, $EVENTS events$on -> $OUTDIR/$tag.h5"
+  if [ -n "$gpu" ]; then
+    CUDA_VISIBLE_DEVICES=$gpu python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" \
+      ${naming[@]+"${naming[@]}"} --outdir "$OUTDIR" ${1+"$@"} > "$OUTDIR/$tag.log" 2>&1 &
+  else
+    python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" ${naming[@]+"${naming[@]}"} \
+      --outdir "$OUTDIR" ${1+"$@"} > "$OUTDIR/$tag.log" 2>&1 &
+  fi
+  pids+=("$!"); jobs_k+=("$k"); jobs_gpu+=("${gpu:--}")
 done
 while [ ${#pids[@]} -gt 0 ]; do reap; done
 trap - INT TERM

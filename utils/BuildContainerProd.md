@@ -357,7 +357,8 @@ apptainer exec --nv --bind "$SCRATCH/prod:/work" xscape_prod.sif \
 - **Threads:** set `OMP_NUM_THREADS` to the job's cores (see the machine settings in
   [`BENCHMARK_GB10.md`](../docs/BENCHMARK_GB10.md)).
 - **Campaigns:** one GPU per job through the scheduler (a SLURM job array: seed 0 per array
-  task, `--campaign NAME`), or `run_jobs.sh -j P` inside one allocation. `run_jobs.sh --mps`
+  task, `--campaign NAME`), or `run_jobs.sh -j P` inside one allocation, with
+  `--gpus 0,1,…` to spread its jobs over the allocation's GPUs. `run_jobs.sh --mps`
   starts CUDA MPS; whether its control binary is reachable inside the container depends on the
   site's Apptainer `--nv` setup. Test it before relying on it.
 - A SLURM job-array template, `utils/slurm_prod_array.sh`, is planned next to the Dockerfiles.
