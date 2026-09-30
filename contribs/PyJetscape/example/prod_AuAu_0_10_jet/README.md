@@ -566,6 +566,7 @@ with HadronFileReader("out_had") as r:      # every *_particlize.h5 in the direc
     # one tag, any observable: names of EventHadrons attributes, or callables
     E_mid, E_err = r.total("bulk_jet", weights="E", mask=lambda ev, info: np.abs(ev.eta) < 1)
     pt_spec, pt_err = r.hist("bulk_bg", "pt", np.linspace(0, 3, 31), mask="charged")
+    eta_pt, _ = r.hist("bulk_bg", ("eta", "pt"), (np.linspace(-1, 1, 5), np.linspace(0, 3, 31)))
 
     # single events, numbered across all seeds
     ev = r.jet_event(2, 17)                 # global event 2, oversample 17 + fragments
@@ -598,9 +599,17 @@ What it does:
   one bin make it ~20% too small for soft multiplicities, which `paired=True` avoids for
   independent legs too, given equal sample counts.)
 - **Gives each event its own background.** A background shared by several events
-  (`--reuse`) is evaluated once per event with that event's `info`, which is what
-  jet-relative observables need. Its hadrons, counted several times, enter the error as the
-  correlated sum they are.
+  (`--reuse`, `--pthat-bins`) counts once for each of them. Its hadrons, counted several
+  times, enter the error as the correlated sum they are.
+  - With callables, it is evaluated once per event with that event's `info`, which is what
+    jet-relative observables need.
+  - With names only (`values`, `mask`, `weights`; a tuple of names for N-d), nothing can
+    depend on the event: the background is binned once and counted for each of its events,
+    with the same result. A gridnorm file, whose one background of 2000 oversamples serves
+    15 events, then costs one pass over it instead of 15.
+  - `per_event=False` gives the single pass to a callable that doesn't use `info` (e.g.
+    `lambda ev, info: (ev.eta, ev.phi, ev.pt)`); `per_event=True` forces the per-event
+    evaluation.
 - **Keeps jet and background consistent.** `jet_minus_background` uses only events whose jet
   leg *and* background have samples (an empty surface drops the event from both), each event
   against its own background.
@@ -612,7 +621,7 @@ What it does:
 The callables receive an `EventHadrons` (`pid`, `pstat`, `p`, `x`, `E`, `px`, `py`, `pz`,
 `pt`, `eta`, `y`, `phi`, `charged`, `sample`, `n_samples`, `species()`: all samples of that
 tag for that event) and an `EventInfo` (`event`, `stem`, `local_event`, `bg_unit`, `seed`,
-`initiators()`). `values` may return a tuple for an N-d histogram. `initiators()` reads the
+`initiators()`). `values` may return a tuple for an N-d histogram, or be a tuple of names. `initiators()` reads the
 `initiators/` group `hadronize.py` copies into `bulk_jet` and `jet_frag`, so an analysis needs
 only the particlize and hadron files. For hadron files without it, it falls back to the pair
 file's `shower/` group (next to the particlize file); `hadronize.py --add-initiators` adds the

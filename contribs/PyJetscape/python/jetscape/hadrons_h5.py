@@ -826,11 +826,20 @@ class HadronFileReader:
     a name (an :class:`EventHadrons` attribute, or 'charged', or a species name for
     ``mask``) or a callable ``f(ev, info)`` returning one value per hadron, where ``ev`` is
     an :class:`EventHadrons` and ``info`` an :class:`EventInfo` -- so jet-relative
-    observables use ``info.initiators()``.  ``values`` may return a tuple for an N-d
-    histogram.  A background reused by several events is evaluated once per event (with
-    that event's ``info``), and its hadrons, counted several times, enter the error as the
+    observables use ``info.initiators()``.  For an N-d histogram ``values`` is a tuple of
+    names, or a callable returning a tuple.  A background reused by several events counts
+    once for each of them, and its hadrons, counted several times, enter the error as the
     correlated sum they are.  Events whose unit has no samples (an empty surface) are
     skipped.
+
+    ``per_event`` decides how a reused background is evaluated.  Names depend on the
+    hadrons only, so by default (None) a background is binned once and counted for each of
+    its events when ``values``, ``mask`` and ``weights`` are all names -- n events sharing
+    a background cost one pass, not n.  A callable may depend on the event (its ``info``),
+    so with one the background is binned once per event with that event's ``info``.  Pass
+    ``per_event=False`` for callables that don't use ``info`` (a lab-frame tuple such as
+    ``lambda ev, info: (ev.eta, ev.phi, ev.pt)``) to get the single pass for them too;
+    ``True`` forces the per-event evaluation.  Both give the same result.
     """
 
     def __init__(self, source, *, check_uuid=True):
@@ -1201,14 +1210,18 @@ class HadronFileReader:
             yield self.jet_event(event, k, frag_sample=frag_sample)
 
     # ── histograms ──────────────────────────────────────────────────────────────
-    def hist(self, tag, values, bins, *, mask=None, weights=None, events=None):
+    def hist(self, tag, values, bins, *, mask=None, weights=None, events=None,
+             per_event=None):
         """Sample-averaged histogram of ``tag`` over ``events`` (default all) and its
-        error.  See the class docstring for ``values``, ``mask`` and ``weights``."""
-        return self._accumulate(tag, values, bins, mask, weights, self.events(events))
+        error.  See the class docstring for ``values``, ``mask``, ``weights`` and
+        ``per_event``."""
+        return self._accumulate(tag, values, bins, mask, weights, self.events(events),
+                                per_event)
 
-    def total(self, tag, *, mask=None, weights=None, events=None):
+    def total(self, tag, *, mask=None, weights=None, events=None, per_event=None):
         """Sample-averaged sum over hadrons (default: count) and its error."""
-        h, e = self._accumulate(tag, None, None, mask, weights, self.events(events))
+        h, e = self._accumulate(tag, None, None, mask, weights, self.events(events),
+                                per_event)
         return float(h[0]), float(e[0])
 
     @property
@@ -1219,7 +1232,7 @@ class HadronFileReader:
                    for t in ("bulk_jet", "bulk_bg"))
 
     def jet_minus_background(self, values, bins, *, mask=None, weights=None, events=None,
-                             fragments=False, paired=None):
+                             fragments=False, paired=None, per_event=None):
         """<bulk_jet> (+ <jet_frag>) - <bulk_bg> over the events that have both surfaces,
         each event against its own background.  -> (difference, error).
 
@@ -1230,6 +1243,7 @@ class HadronFileReader:
         the added one ignores that the legs' noise cancels and is ~3x too large.  None
         (default): paired if the files were sampled correlated (:attr:`correlated`).
         Paired needs the same number of samples, at least 2, on both legs of an event.
+        ``per_event``: see the class docstring.
         """
         g = self.events(events)
         keep = np.array([self.n_samples("bulk_jet", e) > 0
@@ -1238,27 +1252,34 @@ class HadronFileReader:
         if paired is None:
             paired = self.correlated
         if paired:
-            d, err = self._paired_difference(values, bins, mask, weights, g)
+            d, err = self._paired_difference(values, bins, mask, weights, g, per_event)
             var = err ** 2
         else:
-            hj, ej = self._accumulate("bulk_jet", values, bins, mask, weights, g)
-            hb, eb = self._accumulate("bulk_bg", values, bins, mask, weights, g)
+            hj, ej = self._accumulate("bulk_jet", values, bins, mask, weights, g, per_event)
+            hb, eb = self._accumulate("bulk_bg", values, bins, mask, weights, g, per_event)
             d, var = hj - hb, ej ** 2 + eb ** 2
         if fragments:
-            hf, ef = self._accumulate("jet_frag", values, bins, mask, weights, g)
+            hf, ef = self._accumulate("jet_frag", values, bins, mask, weights, g, per_event)
             d, var = d + hf, var + ef ** 2
         return d, np.sqrt(var)
 
-    def _paired_difference(self, values, bins, mask, weights, g):
+    def _paired_difference(self, values, bins, mask, weights, g, per_event=None):
         """<bulk_jet> - <bulk_bg> and its error from the per-sample differences.
 
         The events sharing a background are correlated with it (and with each other)
         sample by sample, so they are summed per sample first: S_k = sum over those events
-        of (J_ek - B_k), with B evaluated with each event's info.  Different backgrounds
-        are independent.  -> (mean over events, error)."""
+        of (J_ek - B_k), with B evaluated with each event's info (or once, if nothing
+        depends on the event).  Different backgrounds are independent.  -> (mean over
+        events, error)."""
         edges = _edges(bins)
         shape = tuple(len(e) - 1 for e in edges) if edges is not None else (1,)
         nbins = int(np.prod(shape))
+        once = not _depends_on_event(per_event, values, mask, weights)
+
+        def per_sample(ev, info, K):
+            idx, w, rows = _binned(ev, info, values, edges, shape, mask, weights)
+            return np.bincount(ev.sample[rows] * nbins + idx, weights=w, minlength=K * nbins)
+
         total = np.zeros(nbins)
         var = np.zeros(nbins)
         n_used = 0
@@ -1284,6 +1305,7 @@ class HadronFileReader:
                     raise ValueError(f"{self._files[i]['stem']}: background {u} has {K} "
                                      "sample(s); paired errors need at least 2")
                 S = np.zeros(K * nbins)
+                bg_once = None
                 for e in evs:
                     evj = EventHadrons(hj, hj.unit_index(self._unit_of(i, "bulk_jet", e)))
                     if evj.n_samples != K:
@@ -1292,11 +1314,13 @@ class HadronFileReader:
                             f"but {K} background samples; paired needs equal counts "
                             "(or pass paired=False)")
                     info = EventInfo(self, self.global_event(i, e), i, e)
-                    for ev, sign in ((evj, 1.0), (evb, -1.0)):
-                        idx, w, rows = _binned(ev, info, values, edges, shape, mask,
-                                               weights)
-                        S += sign * np.bincount(ev.sample[rows] * nbins + idx, weights=w,
-                                                minlength=K * nbins)
+                    S += per_sample(evj, info, K)
+                    if not once:
+                        S -= per_sample(evb, info, K)
+                    else:                               # the same B_k for every event
+                        if bg_once is None:
+                            bg_once = per_sample(evb, info, K)
+                        S -= bg_once
                     n_used += 1
                 S = S.reshape(K, nbins)
                 total += S.mean(0)
@@ -1312,13 +1336,15 @@ class HadronFileReader:
         self._loaded = (i, tag, set(positions), h)
         return h
 
-    def _accumulate(self, tag, values, bins, mask, weights, g):
+    def _accumulate(self, tag, values, bins, mask, weights, g, per_event=None):
         edges = _edges(bins)
         shape = tuple(len(e) - 1 for e in edges) if edges is not None else (1,)
         nbins = int(np.prod(shape))
         total = np.zeros(nbins)
         sq = np.zeros(nbins)
         n_used = 0
+        once = not _depends_on_event(per_event, values, mask, weights)
+        fixed_selection = not _depends_on_event(None, mask, weights)
         if len(g) == 0:
             return total.reshape(shape), sq.reshape(shape)
         files = np.searchsorted(self._offsets, g, side="right") - 1
@@ -1337,24 +1363,34 @@ class HadronFileReader:
             h = self._hadrons(i, tag, positions)
             for u, evs in by_unit.items():
                 ev = EventHadrons(h, h.unit_index(u))
-                keys, wsum = [], []
-                for e in evs:
-                    info = EventInfo(self, self.global_event(i, e), i, e)
-                    idx, w, rows = _binned(ev, info, values, edges, shape, mask, weights)
+                infos = [EventInfo(self, self.global_event(i, e), i, e) for e in evs]
+                n = len(evs)
+                if once:
+                    # nothing depends on the event: bin the unit once and count it for each
+                    # of its n events; a hadron's n equal weights add before squaring (n^2)
+                    idx, w, _ = _binned(ev, infos[0], values, edges, shape, mask, weights)
+                    w = w / ev.n_samples            # the per-sample mean
+                    total += n * np.bincount(idx, weights=w, minlength=nbins)
+                    sq += n * n * np.bincount(idx, weights=w * w, minlength=nbins)
+                    n_used += n
+                    continue
+                sel = (_selection(ev, infos[0], mask, weights) if fixed_selection
+                       else None)
+                binned = []
+                for info in infos:
+                    idx, w, rows = _binned(ev, info, values, edges, shape, mask, weights,
+                                           sel)
                     w = w / ev.n_samples            # this event's per-sample mean
                     total += np.bincount(idx, weights=w, minlength=nbins)
                     n_used += 1
-                    if len(evs) == 1:
-                        sq += np.bincount(idx, weights=w * w, minlength=nbins)
-                    else:
-                        keys.append(rows.astype(np.int64) * nbins + idx)
-                        wsum.append(w)
-                if len(evs) > 1 and keys:
+                    binned.append((rows, idx, w))
+                if n == 1:
+                    sq += np.bincount(binned[0][1], weights=binned[0][2] ** 2,
+                                      minlength=nbins)
+                else:
                     # the same hadrons, counted once per event: their weights add per
                     # (hadron, bin) before squaring
-                    k, inv = np.unique(np.concatenate(keys), return_inverse=True)
-                    wk = np.bincount(inv, weights=np.concatenate(wsum))
-                    sq += np.bincount(k % nbins, weights=wk * wk, minlength=nbins)
+                    sq += _correlated_sq(binned, len(ev), nbins)
         norm = max(n_used, 1)
         return (total / norm).reshape(shape), (np.sqrt(sq) / norm).reshape(shape)
 
@@ -1408,9 +1444,56 @@ def _edges(bins):
     return [np.asarray(bins, dtype=float)]
 
 
+def _depends_on_event(per_event, *specs):
+    """Whether ``values``/``mask``/``weights`` must be evaluated once per event:
+    ``per_event`` if given, else whether any of them is a callable (a name, or a tuple of
+    names, reads the hadrons only)."""
+    if per_event is not None:
+        return bool(per_event)
+    return any(callable(s) or (isinstance(s, tuple) and any(callable(x) for x in s))
+               for s in specs)
+
+
+def _correlated_sq(binned, n_rows, nbins, block=None):
+    """Per bin, the sum over the hadrons of one unit of (their summed weight in the bin)^2,
+    for a unit binned once per event: ``binned`` = [(rows, idx, w)] per event, rows
+    ascending (a hadron at most once per event).
+
+    A hadron can land in the same bin for several events; those weights add before
+    squaring.  The E bin indices of each hadron are sorted along the event axis, so equal
+    (hadron, bin) pairs end up next to each other and the keys come out sorted: O(N log E)
+    instead of a sort over all N = E x hadrons keys.  ``block`` hadrons at a time (default
+    ~4 M entries) bound the memory."""
+    n_ev = len(binned)
+    block = block or max(1, (1 << 22) // n_ev)
+    sq = np.zeros(nbins)
+    for r0 in range(0, n_rows, block):
+        r1 = min(r0 + block, n_rows)
+        b = np.full((r1 - r0, n_ev), -1, np.int64)        # -1: not selected in that event
+        wt = np.zeros((r1 - r0, n_ev))
+        for e, (rows, idx, w) in enumerate(binned):
+            lo, hi = np.searchsorted(rows, (r0, r1))
+            b[rows[lo:hi] - r0, e] = idx[lo:hi]
+            wt[rows[lo:hi] - r0, e] = w[lo:hi]
+        order = np.argsort(b, axis=1)
+        b = np.take_along_axis(b, order, axis=1)
+        wt = np.take_along_axis(wt, order, axis=1)
+        ok = (b >= 0).ravel()
+        key = (np.arange(r1 - r0)[:, None] * nbins + b).ravel()[ok]   # already sorted
+        if not len(key):
+            continue
+        wk = wt.ravel()[ok]
+        start = np.flatnonzero(np.r_[True, key[1:] != key[:-1]])
+        s = np.add.reduceat(wk, start)
+        sq += np.bincount(key[start] % nbins, weights=s * s, minlength=nbins)
+    return sq
+
+
 def _resolve(spec, ev, info):
     if callable(spec):
         return spec(ev, info)
+    if isinstance(spec, tuple):                           # N-d: one spec per dimension
+        return tuple(_resolve(s, ev, info) for s in spec)
     if spec in ("charged", "all") or spec in SPECIES:
         return ev.species(spec)
     return getattr(ev, spec)
@@ -1421,12 +1504,20 @@ def _select(ev, info, mask):
                                                                  dtype=bool)
 
 
-def _binned(ev, info, values, edges, shape, mask, weights):
-    """-> (flat bin index, weight, row in ev) of the selected hadrons inside the bins."""
+def _selection(ev, info, mask, weights):
+    """-> (mask, rows of the selected hadrons, their weights)."""
     m = _select(ev, info, mask)
     rows = np.flatnonzero(m)
     w = np.ones(len(rows)) if weights is None else np.asarray(
         _resolve(weights, ev, info), dtype=float)[m]
+    return m, rows, w
+
+
+def _binned(ev, info, values, edges, shape, mask, weights, selection=None):
+    """-> (flat bin index, weight, row in ev) of the selected hadrons inside the bins.
+    ``selection``: :func:`_selection`'s result, when it doesn't depend on the event."""
+    m, rows, w = (_selection(ev, info, mask, weights) if selection is None
+                  else selection)
     if edges is None:
         return np.zeros(len(w), dtype=np.int64), w, rows
     v = _resolve(values, ev, info)
