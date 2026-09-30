@@ -19,6 +19,16 @@ everything is a sample mean, and its error comes from the spread of the per-samp
 (right for the fragments, whose samples conserve the partons' energy, and for decay
 daughters; Poisson counting would not be).
 
+With common seeds (``hadronize.py --common-seeds``, implied by ``--correlated``) the jet
+legs of the events sharing a background draw its random numbers, sample by sample. With
+``--correlated`` they and the background then share most of their hadrons. So the jet leg
+of one event is not independent of the jet legs of the others, nor of its background, and
+neither is the wake. For such files the jet leg and the wake (jet - bg) are also stored as
+means over ``--batches`` M blocks of aligned samples (block b of the jet leg with block b of
+its background, and of every other event of that background). Any sum over events, bins
+and weights then has the variance var_b(sum over the events of a background) / M, added
+over backgrounds. Files sampled independently get no batches, and nothing else changes.
+
 Jet frame
 ---------
 Angles are measured from the event's **leading initiator** (the highest-pT parton that
@@ -38,6 +48,22 @@ mean):
   = all (every particle, neutrinos included: the energy balance), charged; n = the leading
   initiator's direction. The last |eta| band (> 5) holds ColorlessHadronization's beam
   remnants (E = sqrt(s)/6 each, pT ~ 0.3 GeV).
+
+With common seeds also ``hist/<name>/{jet,wake}/batch``, shape (event, quantity, batch,
+...): the batch means of the jet leg and of jet - bg (NaN for events without them,
+``events/batched`` = False). The difference is taken before rounding to ``--batch-bits``
+mantissa bits (default 10: relative error < 2**-11 = 5e-4 per value). Rounding each leg
+instead would not do: where the legs share most hadrons, the difference is much smaller
+than either leg, and their rounding errors would swamp its noise.
+
+Stored hadrons
+--------------
+``hadronize.py --eta-max X`` and ``--charged`` store only part of what iSS and Pythia made.
+Each event records the cut of its files (``events/eta_max``, inf without one;
+``events/charged_only``), the file its tightest one (attributes ``eta_max``,
+``charged_only``), and the script warns. With a cut, "all" means "all inside the cut": the
+|eta| bands beyond it are empty, the fragments lose ColorlessHadronization's beam remnants,
+and the jet frame is cut at |d_eta| ~ X - |eta_L|.
 
 Bad runs
 --------
@@ -60,6 +86,7 @@ rows, ``usable`` = False) unless ``--keep-flagged``:
 Usage::
 
     python wake_hadrons.py DIR [...] -o DIR/wake_hadrons.h5 [-j 8] [--wake-obs FILE]
+                           [--batches M] [--batch-bits B]
 """
 
 import argparse
@@ -79,8 +106,23 @@ except ImportError:
 
 from wake_observables import EoS, find_eos
 
+
+def _h5_compression():
+    """jetscape/h5_compression.py by its path: importing the jetscape package would load
+    pyjetscape_core, which this script does not need (the module is self-contained)."""
+    import importlib.util
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "python",
+                        "jetscape", "h5_compression.py")
+    spec = importlib.util.spec_from_file_location("_js_h5_compression", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_H5C = _h5_compression()
+
 FORMAT = "js-contrib/wake_hadrons"
-VERSION = 1
+VERSION = 2                 # 2: batch means for common-seed files
 SOURCES = ("jet", "bg", "frag")
 TAG_OF = {"jet": "bulk_jet", "bg": "bulk_bg", "frag": "jet_frag"}
 HOT_FACTOR = 1.5            # as wake_observables.py: last frame hotter than 1.5 e_fo
@@ -150,23 +192,28 @@ class Unit:
                             else np.isin(self.pid, v)) for k, v in SPECIES.items()}
 
 
-def sample_means(u, rows, idx, nbins, weights):
+def sample_means(u, rows, idx, nbins, weights, batches=0):
     """Per bin: mean over u's samples of the per-sample sum of each weight, and the variance
     of that mean (from the spread of the per-sample sums). ``rows``: the hadrons (indices
-    into u), ``idx``: their flat bins. -> (nq, nbins) twice."""
+    into u), ``idx``: their flat bins. With ``batches`` M (a divisor of u.K) also the means
+    over M blocks of consecutive samples. -> (nq, nbins) twice, (nq, M, nbins) or None."""
     K = u.K
     key = u.sample[rows] * nbins + idx
     mean, var = np.zeros((len(weights), nbins)), np.zeros((len(weights), nbins))
+    batch = np.zeros((len(weights), batches, nbins)) if batches else None
     for q, w in enumerate(weights):
         S = np.bincount(key, weights=w, minlength=K * nbins).reshape(K, nbins)
         mean[q] = S.mean(0)
         var[q] = S.var(0, ddof=1) / K if K > 1 else 0.0
-    return mean, var
+        if batches:
+            batch[q] = S.reshape(batches, K // batches, nbins).mean(1)
+    return mean, var, batch
 
 
-def bin_unit(u, ax):
+def bin_unit(u, ax, batches=0):
     """All histograms of one unit in the frame ``ax`` (phi_L, eta_L, n3). -> {name: (mean,
-    var)} with shapes (nq,) + SHAPES[name]."""
+    var, batch)} with shapes (nq,) + SHAPES[name] and (nq, batches) + SHAPES[name] (None
+    without ``batches``)."""
     phi_L, eta_L, n3 = ax
     dphi = np.mod(u.phi - phi_L + np.pi / 2, 2 * np.pi) - np.pi / 2       # [-pi/2, 3pi/2)
     dphi_s = np.where(dphi > np.pi, dphi - 2 * np.pi, dphi)               # [-pi, pi]
@@ -182,7 +229,7 @@ def bin_unit(u, ax):
     s = u.charged & ptok & (ie >= 0) & (ie < nE)
     idx = (ie[s] * nP + ip[s]) * nT + u.ipt[s]
     out["jetframe"] = sample_means(u, np.flatnonzero(s), idx, nE * nP * nT,
-                                   (np.ones(s.sum()), u.pt[s]))
+                                   (np.ones(s.sum()), u.pt[s]), batches)
 
     # (group, dR, pT)
     ir = np.searchsorted(DR_EDGES, dR, side="right") - 1
@@ -191,7 +238,8 @@ def bin_unit(u, ax):
     for gi, grp in enumerate(GROUPS_DR):
         s = getattr(u, grp) & ptok & (ir >= 0) & (ir < nR)
         parts.append((s, (gi * nR + ir[s]) * nT + u.ipt[s]))
-    out["dR"] = _groups(u, parts, nG * nR * nT, lambda s: (np.ones(s.sum()), u.pt[s], u.E[s]))
+    out["dR"] = _groups(u, parts, nG * nR * nT, lambda s: (np.ones(s.sum()), u.pt[s], u.E[s]),
+                        batches)
 
     # (region, species, pT) at |y| < 1
     nRg, nS, nT = SHAPES["spectra"]
@@ -201,7 +249,7 @@ def bin_unit(u, ax):
     for si, name in enumerate(SPECIES):
         s = sok & u.species[name]
         parts.append((s, (away[s] * nS + si) * nT + u.ispt[s]))
-    out["spectra"] = _groups(u, parts, nRg * nS * nT, lambda s: (np.ones(s.sum()),))
+    out["spectra"] = _groups(u, parts, nRg * nS * nT, lambda s: (np.ones(s.sum()),), batches)
 
     # (group, |eta| band, pT) totals
     nG, nB, nT = SHAPES["totals"]
@@ -212,18 +260,20 @@ def bin_unit(u, ax):
         parts.append((s, (gi * nB + u.iband[s]) * nT + u.ipt[s]))
     out["totals"] = _groups(u, parts, nG * nB * nT, lambda s: (
         np.ones(s.sum()), u.E[s], u.pt[s], u.pt[s] * np.cos(dphi[s]),
-        u.pt[s] * np.sin(dphi[s]), u.pz[s], pn[s]))
-    return {k: (m.reshape((len(QUANTITIES[k]),) + SHAPES[k]),
-                v.reshape((len(QUANTITIES[k]),) + SHAPES[k])) for k, (m, v) in out.items()}
+        u.pt[s] * np.sin(dphi[s]), u.pz[s], pn[s]), batches)
+    nq = {k: len(QUANTITIES[k]) for k in out}
+    return {k: (m.reshape((nq[k],) + SHAPES[k]), v.reshape((nq[k],) + SHAPES[k]),
+                None if b is None else b.reshape((nq[k], batches) + SHAPES[k]))
+            for k, (m, v, b) in out.items()}
 
 
-def _groups(u, parts, nbins, weights):
+def _groups(u, parts, nbins, weights, batches=0):
     """sample_means over (selection, flat index) parts that fill disjoint bins; one hadron
     may enter several parts (e.g. charged and visible). ``weights(sel)`` -> the weights."""
     rows = np.concatenate([np.flatnonzero(s) for s, _ in parts])
     idx = np.concatenate([i for _, i in parts])
     ws = [np.concatenate(w) for w in zip(*(weights(s) for s, _ in parts))]
-    return sample_means(u, rows, idx, nbins, ws)
+    return sample_means(u, rows, idx, nbins, ws, batches)
 
 
 # ── the axis ────────────────────────────────────────────────────────────────────
@@ -289,7 +339,7 @@ def wake_obs_flags(path):
 
 # ── one production file ─────────────────────────────────────────────────────────
 def process_stem(job):
-    fi, stem, eos_path, wo, max_events, keep_flagged = job
+    fi, stem, eos_path, wo, max_events, keep_flagged, batches = job
     t0 = time.time()
     part = h5py.File(f"{stem}_particlize.h5", "r")
     hf = {s: h5py.File(f"{stem}_hadrons_{TAG_OF[s]}.h5", "r") for s in SOURCES}
@@ -297,6 +347,14 @@ def process_stem(job):
     for s, f in hf.items():
         if str(f.attrs.get("source_uuid", "")) != uuid:
             raise ValueError(f"{f.filename}: made from another particlize file than {stem}")
+    # common seeds: the jet legs of a background draw its random numbers (batches below)
+    common = bool(batches) and any(bool(hf["jet"].attrs.get(k, False))
+                                   for k in ("common_seeds", "correlated_sampling"))
+    no_batch = []
+    # what hadronize.py kept (--eta-max, --charged): the tightest of the three files
+    cuts = [hf[s].attrs.get("eta_max") for s in SOURCES]
+    eta_max = min((float(c) for c in cuts if c is not None), default=np.inf)
+    charged_only = any(bool(hf[s].attrs.get("charged_only", False)) for s in SOURCES)
     pev = {k: part["events"][k][:] for k in part["events"]}
     n_ev = len(pev["bg_unit"])
     if max_events:
@@ -353,7 +411,7 @@ def process_stem(job):
                    E_droplets=float(pev["E_droplets"][ev]) if "E_droplets" in pev else np.nan,
                    ntau_jet=int(pev.get("ntau_jet", [-1] * (ev + 1))[ev]),
                    ntau_bg=int(pev.get("ntau_bg", [-1] * (ev + 1))[ev]),
-                   log_max_time=log_max)
+                   log_max_time=log_max, eta_max=eta_max, charged_only=charged_only)
         rec["sigma_bin"] = float(sig[rec["pthat_bin"]]) if rec["pthat_bin"] < len(sig) else np.nan
         if hot is not None:
             ej, eb, e_fo = hot
@@ -381,18 +439,37 @@ def process_stem(job):
         rec.update(arec)
 
         H = None
+        nb = 0
         if ax is not None and kj > 0 and kb > 0 and (rec["usable"] or keep_flagged):
+            if common:
+                if kj == kb and kj % batches == 0:
+                    nb = batches
+                else:
+                    no_batch.append(ev)
             H = {}
-            H["jet"] = bin_unit(Unit(hf["jet"], pj), ax)
+            H["jet"] = bin_unit(Unit(hf["jet"], pj), ax, nb)
             if bg_cache[0] != pb:
                 bg_cache = (pb, Unit(hf["bg"], pb))
-            H["bg"] = bin_unit(bg_cache[1], ax)
+            H["bg"] = bin_unit(bg_cache[1], ax, nb)
             H["frag"] = bin_unit(Unit(hf["frag"], pf), ax) if kf > 0 else None
+            if nb:          # keep the jet leg's and the wake's batches, not the background's
+                H["wake"] = {k: (None, None, (H["jet"][k][2] - H["bg"][k][2]).astype(np.float32))
+                             for k in SHAPES}
+                for s in ("jet", "bg"):
+                    H[s] = {k: (m, v, b.astype(np.float32) if s == "jet" else None)
+                            for k, (m, v, b) in H[s].items()}
         rec["processed"] = H is not None
+        rec["common_seeds"] = common
+        rec["batched"] = nb > 0
         rows.append(rec)
         hists.append(H)
     for f in hf.values():
         f.close()
+    if no_batch:
+        print(f"WARNING: {os.path.basename(stem)}: common seeds, but {len(no_batch)} event(s) "
+              f"(e.g. {no_batch[:3]}) have unequal jet / background samples or a count not "
+              f"divisible by --batches {batches}: no batches, their errors are taken as "
+              "independent", file=sys.stderr)
     return fi, rows, hists, time.time() - t0
 
 
@@ -423,7 +500,17 @@ def main(argv=None):
     ap.add_argument("--keep-flagged", action="store_true",
                     help="histogram flagged events too (their 'usable' stays False)")
     ap.add_argument("--max-events", type=int, default=0, help="per file, for tests")
+    ap.add_argument("--batches", type=int, default=10,
+                    help="batch means per event for common-seed files (a divisor of the "
+                         "samples per leg; default 10, 0: none)")
+    ap.add_argument("--batch-bits", type=int, default=10, dest="batch_bits",
+                    help="mantissa bits kept of the batch means (default 10: relative error "
+                         "< 5e-4; 23: lossless float32)")
     args = ap.parse_args(argv)
+    if args.batches < 0 or args.batches == 1:
+        ap.error("--batches must be 0 or >= 2")
+    if not 1 <= args.batch_bits <= 23:
+        ap.error("--batch-bits must be 1..23")
 
     stems = find_stems(args.paths)
     if not stems:
@@ -437,7 +524,8 @@ def main(argv=None):
     attrs = h5py.File(pair, "r").attrs if os.path.exists(pair) else {}
     eos_path = find_eos(dict(attrs), args.eos) if attrs else ""
 
-    jobs = [(i, s, eos_path, wo, args.max_events, args.keep_flagged) for i, s in enumerate(stems)]
+    jobs = [(i, s, eos_path, wo, args.max_events, args.keep_flagged, args.batches)
+            for i, s in enumerate(stems)]
     results = [None] * len(stems)
     t0 = time.time()
     with Pool(max(1, min(args.jobs, len(stems)))) as pool:
@@ -456,13 +544,17 @@ def main(argv=None):
             hists.append(h)
             ev_file.append(fi)
     n = len(rows)
+    eta_cut = min((r["eta_max"] for r in rows), default=np.inf)
+    charged_only = any(r["charged_only"] for r in rows)
     with h5py.File(args.out, "w") as out:
         out.attrs.update(dict(
             format=FORMAT, version=VERSION, created=time.strftime("%Y-%m-%d %H:%M:%S"),
             pt_edges=PT_EDGES, deta_edges=DETA_EDGES, dphi_edges=DPHI_EDGES, dR_edges=DR_EDGES,
             eta_bands=ETA_BANDS, spec_pt_edges=SPEC_PT_EDGES, y_spectra=Y_SPECTRA,
             species=list(SPECIES), groups_dR=list(GROUPS_DR), groups_tot=list(GROUPS_TOT),
-            regions=list(REGIONS), hot_factor=HOT_FACTOR, ratio_max=RATIO_MAX, doc=__doc__))
+            regions=list(REGIONS), hot_factor=HOT_FACTOR, ratio_max=RATIO_MAX,
+            eta_max=eta_cut, charged_only=charged_only,
+            batches=args.batches if any(r["batched"] for r in rows) else 0, doc=__doc__))
         out.create_dataset("files", data=np.array(stems, dtype="S"))
         ge = out.create_group("events")
         keys = sorted({k for r in rows for k in r})
@@ -486,7 +578,25 @@ def main(argv=None):
                             a[i] = h[s][name][j]
                     g.create_dataset(f"{s}/{part}", data=a, compression="gzip",
                                      compression_opts=4, chunks=(1,) + full[1:])
+            for s in ("jet", "wake") if out.attrs["batches"] else ():
+                fb = full[:2] + (args.batches,) + shape
+                a = np.full(fb, np.nan, np.float32)
+                for i, h in enumerate(hists):
+                    if h is not None and h.get(s) is not None and h[s][name][2] is not None:
+                        a[i] = h[s][name][2]
+                ds = g.create_dataset(f"{s}/batch", data=_H5C.round_mantissa(a, args.batch_bits),
+                                      compression="gzip", compression_opts=4, shuffle=True,
+                                      chunks=(1,) + fb[1:])
+                _H5C.tag_dataset(ds, "gzip:4+shuffle", args.batch_bits)
     n_flag = sum(r["flagged"] for r in rows)
+    kept = []
+    if np.isfinite(eta_cut):
+        kept.append(f"|eta| < {eta_cut:g}")
+    if charged_only:
+        kept.append("charged hadrons")
+    if kept:
+        print(f"WARNING: the hadron files keep only {' and '.join(kept)} (hadronize.py "
+              "--eta-max / --charged): every histogram holds only those", file=sys.stderr)
     print(f"\n{n} events, {sum(r['processed'] for r in rows)} histogrammed, {n_flag} flagged "
           f"-> {args.out}  [{time.time() - t0:.0f} s]")
     for fi, s in enumerate(stems):

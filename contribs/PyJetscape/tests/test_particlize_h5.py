@@ -668,6 +668,34 @@ def test_reader_paired_difference_uses_the_per_sample_spread(tmp_path):
         assert np.isfinite(r.jet_minus_background("pt", bins, paired=False)[1][0])
 
 
+def test_reader_common_seeds_sum_the_jet_legs_of_a_background_per_sample(tmp_path):
+    import h5py
+
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    _campaign(tmp_path)          # events 0 and 1 share background 0; event 2 has no jet
+    bins = np.array([0.0, 10.0])
+    # jet samples k = 0, 1, 2 have 2 + k hadrons in both events
+    with HadronFileReader(str(tmp_path), check_uuid=False) as r:
+        n, e = r.total("bulk_jet")
+        h, eh = r.hist("bulk_jet", "pt", bins)
+        others = [r.total(t) for t in ("bulk_bg", "jet_frag")]
+    # independent legs: compound Poisson, (2 + 3 + 4) hadrons of weight 1/3 per event
+    assert n == pytest.approx(3.0) and e == pytest.approx(np.sqrt(2 * 9 / 9) / 2)
+    with h5py.File(tmp_path / "run_hadrons_bulk_jet.h5", "a") as f:
+        f.attrs["common_seeds"] = True                   # as hadronize.py --common-seeds
+    # S_k = 2 (2 + k) = 4, 6, 8: mean 6 over 2 events, variance of the mean 4 / 3
+    expected = np.sqrt(4 / 3) / 2
+    with HadronFileReader(str(tmp_path), check_uuid=False) as r:
+        assert r.total("bulk_jet") == pytest.approx((3.0, expected))
+        hc, ec = r.hist("bulk_jet", "pt", bins)
+        assert hc == pytest.approx(h) and ec[0] == pytest.approx(expected)
+        # one event per background: nothing to sum, the spread of its own samples
+        assert r.total("bulk_jet", events=[0])[1] == pytest.approx(np.sqrt(1 / 3))
+        # the background and the fragments are not affected
+        assert [r.total(t) for t in ("bulk_bg", "jet_frag")] == others
+
+
 def _random_background(stem, rng, n_samples=2, n_hadrons=40):
     """Replace a seed's bulk_bg by random hadrons: mixed species, momenta and energies, so
     a shared background spreads over many bins."""
