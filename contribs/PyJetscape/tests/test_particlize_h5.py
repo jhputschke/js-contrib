@@ -668,6 +668,111 @@ def test_reader_paired_difference_uses_the_per_sample_spread(tmp_path):
         assert np.isfinite(r.jet_minus_background("pt", bins, paired=False)[1][0])
 
 
+def _random_background(stem, rng, n_samples=2, n_hadrons=40):
+    """Replace a seed's bulk_bg by random hadrons: mixed species, momenta and energies, so
+    a shared background spreads over many bins."""
+    import h5py
+
+    from jetscape.hadrons_h5 import HadronH5Writer
+
+    with h5py.File(f"{stem}_hadrons_bulk_bg.h5", "r") as f:
+        attrs = {"source_uuid": f.attrs["source_uuid"]}
+    with ParticlizeFile(f"{stem}_particlize.h5") as pf:
+        bg_unit = pf.events("bg_unit")
+
+    def sample():
+        p = np.zeros((n_hadrons, 4), np.float32)
+        p[:, 1:3] = rng.normal(0, 1, (n_hadrons, 2))
+        p[:, 3] = rng.normal(0, 2, n_hadrons)
+        p[:, 0] = np.sqrt((p[:, 1:] ** 2).sum(1) + 0.14 ** 2)
+        return {"pid": rng.choice(np.array([211, -211, 321, 2212, 22, 111], np.int32),
+                                  n_hadrons),
+                "pstat": np.zeros(n_hadrons, np.int32), "p": p,
+                "x": np.zeros((n_hadrons, 4), np.float32)}
+
+    with HadronH5Writer(f"{stem}_hadrons_bulk_bg.h5", tag="bulk_bg", n_samples=n_samples,
+                        attrs=attrs) as w:
+        for u in range(int(bg_unit.max()) + 1):
+            w.append_unit([sample() for _ in range(n_samples)], unit=u,
+                          event=int(np.flatnonzero(bg_unit == u)[0]), seed=u)
+
+
+def _same(a, b):
+    return all(np.allclose(x, y, rtol=1e-12, atol=0) for x, y in zip(a, b))
+
+
+def test_reader_single_pass_over_a_shared_background_equals_per_event(tmp_path):
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    rng = np.random.default_rng(7)
+    for stem in _two_seeds(tmp_path):                    # seed A: 2 events share unit 0
+        _random_background(stem, rng)
+    bins3 = [np.linspace(-3, 3, 7), np.linspace(-np.pi, np.pi, 5), np.linspace(0, 3, 4)]
+
+    def lab(ev, info):
+        return ev.eta, ev.phi, ev.pt
+
+    with HadronFileReader(str(tmp_path)) as r:
+        # names: one pass per background by default; per_event=True is the reference
+        for values, bins, mask, weights in ((("eta", "phi", "pt"), bins3, "charged", None),
+                                            ("pt", np.linspace(0, 3, 7), None, "E"),
+                                            ("eta", np.linspace(-3, 3, 13), "pi+", "pt")):
+            ref = r.hist("bulk_bg", values, bins, mask=mask, weights=weights,
+                         per_event=True)
+            got = r.hist("bulk_bg", values, bins, mask=mask, weights=weights)
+            assert _same(got, ref) and ref[1].max() > 0
+        assert _same(r.total("bulk_bg", weights="E"),
+                     r.total("bulk_bg", weights="E", per_event=True))
+        # a callable is evaluated per event unless per_event=False says it may not be
+        ref = r.hist("bulk_bg", lab, bins3, mask="charged", weights="E")
+        assert _same(r.hist("bulk_bg", lab, bins3, mask="charged", weights="E",
+                            per_event=False), ref)
+        # a tuple of names is the same histogram as the callable returning the tuple
+        assert _same(r.hist("bulk_bg", ("eta", "phi", "pt"), bins3, mask="charged",
+                            weights="E"), ref)
+
+        def dphi(ev, info):                              # relative to this event's jet
+            ini = info.initiators()[0]
+            return np.mod(ev.phi - np.arctan2(ini[4], ini[3]), 2 * np.pi)
+
+        # jet-relative: seed A's shared background lands in other bins for each event, so
+        # the per-event default and a (wrong) single pass differ
+        bins = np.linspace(0, 2 * np.pi, 9)
+        assert not _same(r.hist("bulk_bg", dphi, bins, events=[0, 1]),
+                         r.hist("bulk_bg", dphi, bins, events=[0, 1], per_event=False))
+
+
+def test_correlated_sq_matches_a_sort_over_all_keys():
+    from jetscape.hadrons_h5 import _correlated_sq
+
+    rng = np.random.default_rng(3)
+    n_rows, nbins = 1000, 7
+    binned = []
+    for _ in range(5):
+        rows = np.flatnonzero(rng.random(n_rows) < 0.7)      # each event its own selection
+        idx = rng.integers(0, nbins, len(rows))              # few bins: many repeats
+        binned.append((rows, idx, rng.random(len(rows))))
+    # the reference: np.unique over every event's (hadron, bin) keys, as before
+    keys = np.concatenate([rows * nbins + idx for rows, idx, _ in binned])
+    k, inv = np.unique(keys, return_inverse=True)
+    wk = np.bincount(inv, weights=np.concatenate([w for *_, w in binned]))
+    ref = np.bincount(k % nbins, weights=wk * wk, minlength=nbins)
+    for block in (None, 1, 37, n_rows):
+        assert np.allclose(_correlated_sq(binned, n_rows, nbins, block=block), ref,
+                           rtol=1e-12, atol=0)
+
+
+def test_reader_paired_single_pass_equals_per_event(tmp_path):
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    _campaign(tmp_path)          # events 0 and 1 share background 0
+    bins = np.array([0.0, 5.0, 15.0, 60.0])
+    with HadronFileReader(str(tmp_path), check_uuid=False) as r:
+        got = r.jet_minus_background("E", bins, paired=True)
+        ref = r.jet_minus_background("E", bins, paired=True, per_event=True)
+        assert _same(got, ref) and ref[1].max() > 0
+
+
 def test_reader_refuses_files_from_another_run(tmp_path):
     import h5py
 

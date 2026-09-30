@@ -195,6 +195,14 @@ tables and arrays to one HDF5 file (a few MB):
 To add a figure, add a cell to the notebook. To add a quantity, add it to the script and rerun
 it.
 
+**Speed.** `-j` processes files in parallel; within a file, the time goes to reading the legs
+(Blosc decompression of one chunk per τ frame) and to P^μ and S through every frame. The script
+reads event k + 1 in a thread while it computes event k (h5py releases the GIL while it reads),
+reads a reused background once, and finds the EoS interval without a search, since MUSIC's table
+is uniform in e. On a gridnorm file (15 events, one background) that took one core from 17–19 s
+to 10.5 s, with bit-identical output. The read-ahead holds one more event per job, ~0.5 GB with
+its background: budget for it with a large `-j`.
+
 **A second bug the analysis found: MUSIC_2 does not receive the droplets' energy.** The
 CausalLiquefier kernel is point-sampled at MUSIC's cell centres in the one step that deposits a
 droplet, and the sampled sum is not normalized to 1.

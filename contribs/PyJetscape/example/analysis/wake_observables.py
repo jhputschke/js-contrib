@@ -68,6 +68,7 @@ import os
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import Pool
 
 import h5py
@@ -94,7 +95,14 @@ DPHI_EDGES = np.linspace(0.0, 2 * np.pi, 25)
 
 # ── EoS and grid ────────────────────────────────────────────────────────────────
 class EoS:
-    """MUSIC's hotQCD table (e, P, s, T), interpolated in log e."""
+    """MUSIC's hotQCD table (e, P, s, T), interpolated in log e.
+
+    The interpolation is np.interp's (the same interval and formula), but the interval is
+    found once for all columns, and without a search when the table is uniform in e, as
+    MUSIC's are (100k points): a third of wake_observables' time went into three binary
+    searches per cell and frame."""
+
+    _LOW = {"P": 1.0, "s": 0.75, "T": 0.25}          # below the table: P ~ e, s ~ e^3/4
 
     def __init__(self, path):
         t = np.fromfile(path, dtype="<f8").reshape(-1, 4)
@@ -102,19 +110,49 @@ class EoS:
         self.e, self.P, self.s, self.T = t.T
         self.le = np.log(self.e)
         self.cs2 = np.gradient(self.P, self.e)
+        dle = np.diff(self.le)
+        self._slope = {c: np.diff(getattr(self, c)) / dle for c in self._LOW}
+        de = np.diff(self.e)
+        self._de = float(de[0]) if np.allclose(de, de[0], rtol=1e-9, atol=0) else None
 
     def __call__(self, e):
         """(P, s, T) for energy density e [GeV/fm^3]; below the table, P ~ e, s ~ e^3/4."""
+        return self._eval(e, ("P", "s", "T"))
+
+    def _locate(self, e):
+        """-> (log e clamped to the table, j): le[j] <= log e < le[j + 1], np.interp's
+        interval (j = n - 2 at the top)."""
+        n = len(self.e)
+        ec = np.clip(e, self.e[0], self.e[-1])
+        le = np.log(ec)
+        with np.errstate(invalid="ignore"):              # NaN e: any j, the value stays NaN
+            if self._de is None:
+                j = np.searchsorted(self.le, le, side="right") - 1
+            else:
+                j = ((ec - self.e[0]) / self._de).astype(np.intp)
+        j = np.clip(j, 0, n - 2)
+        if self._de is not None:
+            for _ in range(2):                           # rounding next to a node
+                j = j - (le < self.le[j]) + ((le >= self.le[j + 1]) & (j < n - 2))
+                j = np.clip(j, 0, n - 2)
+        return le, j
+
+    def _eval(self, e, cols):
         e = np.asarray(e, dtype=np.float64)
-        le = np.log(np.maximum(e, self.e[0]))
-        P, s, T = (np.interp(le, self.le, c) for c in (self.P, self.s, self.T))
+        le, j = self._locate(e)
+        top = le >= self.le[-1]                          # np.interp: the last value
+        out = []
+        for c in cols:
+            f = getattr(self, c)
+            v = np.asarray(self._slope[c][j] * (le - self.le[j]) + f[j])
+            v[top] = f[-1]
+            out.append(v)
         low = e < self.e[0]
         if np.any(low):
             r = np.clip(e[low], 0.0, None) / self.e[0]
-            P[low] *= r
-            s[low] *= r ** 0.75
-            T[low] *= r ** 0.25
-        return P, s, T
+            for c, v in zip(cols, out):
+                v[low] *= r ** self._LOW[c]
+        return tuple(out)
 
     def cs(self, e):
         le = np.log(np.maximum(np.asarray(e, dtype=np.float64), self.e[0]))
@@ -156,21 +194,29 @@ def find_eos(attrs, override):
 
 
 # ── hydro: fluxes through a tau surface ─────────────────────────────────────────
-def flux_cells(frame, tau, eos, g):
-    """Per cell: the contribution to P^mu (4, nx, ny, neta) and to S (nx, ny, neta)."""
+def _flux_terms(frame, tau, eos, g):
+    """Per cell: p0, px, py, pz and S of the tau = const surface, and the temperature T,
+    each (nx, ny, neta).  T isn't used yet; it comes with the same EoS lookup."""
     e = frame[0].astype(np.float64)
     vx, vy, vz = (frame[i].astype(np.float64) for i in (1, 2, 3))
-    P, s, _ = eos(e)
+    P, s, T = eos(e)
     g2 = 1.0 / (1.0 - np.clip(vx * vx + vy * vy + vz * vz, 0.0, 1.0 - 1e-12))
     w = (e + P) * g2
     ch, sh = g.ch, g.sh
     dv = tau * g.dx * g.dy * g.deta
+    a = ch - sh * vz                                     # in px, py and S
     p0 = dv * (ch * (w - P) - sh * w * vz)
-    px = dv * w * vx * (ch - sh * vz)
-    py = dv * w * vy * (ch - sh * vz)
+    px = dv * w * vx * a
+    py = dv * w * vy * a
     pz = dv * (ch * w * vz - sh * (w * vz * vz + P))
-    S = dv * s * np.sqrt(g2) * (ch - sh * vz)
-    return np.stack([p0, px, py, pz]), S
+    S = dv * s * np.sqrt(g2) * a
+    return p0, px, py, pz, S, T
+
+
+def flux_cells(frame, tau, eos, g):
+    """Per cell: the contribution to P^mu (4, nx, ny, neta) and to S (nx, ny, neta)."""
+    *p, S, _ = _flux_terms(frame, tau, eos, g)
+    return np.stack(p), S
 
 
 def flux_series(arr, eos, g):
@@ -178,9 +224,25 @@ def flux_series(arr, eos, g):
     nt = arr.shape[-1]
     P, S = np.zeros((nt, 4)), np.zeros(nt)
     for k in range(nt):
-        c, s = flux_cells(arr[..., k], g.tau(k), eos, g)
-        P[k], S[k] = c.sum(axis=(1, 2, 3)), s.sum()
+        *p, s, _ = _flux_terms(arr[..., k], g.tau(k), eos, g)
+        P[k], S[k] = [c.sum() for c in p], s.sum()
     return P, S
+
+
+def prefetch(items, load):
+    """load(item) for each item in turn, the next one loaded in a thread while the caller
+    works on this one: h5py releases the GIL while HDF5 reads and decompresses, and
+    NumPy while it computes, so the two overlap.  Holds one item more in memory."""
+    items = list(items)
+    if not items:
+        return
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        nxt = ex.submit(load, items[0])
+        for k in range(len(items)):
+            cur = nxt.result()
+            if k + 1 < len(items):
+                nxt = ex.submit(load, items[k + 1])
+            yield cur
 
 
 def participant_plane(e0, g):
@@ -380,23 +442,34 @@ def process_file(job):
         e_fo = float(np.interp(float(A.get("T_fo", 0.15)), eos.T, eos.e))
         kflux = KernelFlux(A)
         normalized = int(A.get("liquefier_normalize_on_hydro_grid", -1)) == 1
-        flux_ds = f["source/flux"] if "source/flux" in f else None
-        tfo = f["tau_freezeout"][:]
-        g_off, gP = f["shower/parton_offsets"][:], f["shower/partons"]
-        i_off, gI = f["shower/initiator_offsets"][:], f["shower/initiators"]
-        d_off, gD = f["source/offsets"][:], f["source/droplets"]
+        # everything but the two legs up front: in the loop, only the prefetch thread
+        # touches the file
+        flux_ds = f["source/flux"][:] if "source/flux" in f else None
+        tfo, tfo_bg = f["tau_freezeout"][:], f["tau_freezeout_bg"][:]
+        ntau_j, ntau_b = f["ntau_freezeout"][:], f["ntau_freezeout_bg"][:]
+        g_off, gP = f["shower/parton_offsets"][:], f["shower/partons"][:]
+        i_off, gI = f["shower/initiator_offsets"][:], f["shower/initiators"][:]
+        d_off, gD = f["source/offsets"][:], f["source/droplets"][:]
+        keys = [(int(bg_rows[ev]), int(ntau_b[ev])) for ev in range(n_ev)]
+
+        def load(ev):
+            """The jet leg of event ev, and its background when it isn't the previous
+            event's (a reused background is read once)."""
+            arrJ = f["arr"][ev, :, :, :, :, :int(ntau_j[ev])]
+            new_bg = ev == 0 or keys[ev] != keys[ev - 1]
+            row, ntb = keys[ev]
+            return arrJ, (bg_ds[row, :, :, :, :, :ntb] if new_bg else None)
+
         bg = None
-        for ev in range(n_ev):
-            ntj, ntb = int(f["ntau_freezeout"][ev]), int(f["ntau_freezeout_bg"][ev])
+        for ev, (arrJ, arrB_new) in enumerate(prefetch(range(n_ev), load)):
+            ntj, ntb = int(ntau_j[ev]), int(ntau_b[ev])
             row = int(bg_rows[ev])
-            if bg is None or bg["key"] != (row, ntb):
-                arrB = bg_ds[row, :, :, :, :, :ntb]
-                PB, SB = flux_series(arrB, eos, g)
-                bg = dict(key=(row, ntb), arr=arrB, P=PB, S=SB,
-                          pp=participant_plane(arrB[0, ..., 0], g),
-                          e_last=float(arrB[0, ..., ntb - 1].max()))
+            if arrB_new is not None:
+                PB, SB = flux_series(arrB_new, eos, g)
+                bg = dict(key=(row, ntb), arr=arrB_new, P=PB, S=SB,
+                          pp=participant_plane(arrB_new[0, ..., 0], g),
+                          e_last=float(arrB_new[0, ..., ntb - 1].max()))
             arrB = bg["arr"]
-            arrJ = f["arr"][ev, :, :, :, :, :ntj]
             PJ, SJ = flux_series(arrJ, eos, g)
             e_last_jet = float(arrJ[0, ..., ntj - 1].max())
             psi2, eps2, xc, yc = bg["pp"]
@@ -558,7 +631,7 @@ def process_file(job):
                 E_inj_hydro=float((winj * D[:, 4]).sum()),
                 E_drop_unassigned=float(D[lab < 0, 4].sum()), n_drop=len(D),
                 n_drop_unassigned=int((lab < 0).sum()),
-                tau_fo_jet=float(tfo[ev]), tau_fo_bg=float(f["tau_freezeout_bg"][ev]),
+                tau_fo_jet=float(tfo[ev]), tau_fo_bg=float(tfo_bg[ev]),
                 ntau_jet=ntj, ntau_bg=ntb, psi2=psi2, eps2=eps2, x_c=xc, y_c=yc,
                 # patched with fix_lbt_double_counting.py, or made by an X-SCAPE with the fix
                 # (every build that records the kernel normalization has it, X-SCAPE #154)
