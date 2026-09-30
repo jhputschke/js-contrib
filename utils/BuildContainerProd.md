@@ -358,8 +358,10 @@ apptainer exec --nv --bind "$SCRATCH/prod:/work" xscape_prod.sif \
   [`BENCHMARK_GB10.md`](../docs/BENCHMARK_GB10.md)).
 - **Campaigns:** one GPU per job through the scheduler (a SLURM job array: seed 0 per array
   task, `--campaign NAME`), or `run_jobs.sh -j P` inside one allocation. `run_jobs.sh --mps`
-  starts CUDA MPS; whether its control binary is reachable inside the container depends on the
-  site's Apptainer `--nv` setup. Test it before relying on it.
+  starts CUDA MPS. Inside a container that is not assured: on the GB10 under Docker the MPS
+  daemon does not start (see [Several GPUs on one machine](#several-gpus-on-one-machine)),
+  so test it on each site before relying on it. For several GPUs in one allocation, see that
+  section too.
 - A SLURM job-array template, `utils/slurm_prod_array.sh`, is planned next to the Dockerfiles.
 
 ### Cloud VMs: Docker
@@ -370,6 +372,98 @@ docker run --rm --gpus all -v "$PWD/prod:/work" jhputschke/xscape-prod:cu126 \
 ```
 
 The VM needs the NVIDIA driver and the NVIDIA container toolkit.
+
+### Several GPUs on one machine
+
+music4gpu always runs on the first CUDA device it sees (`cudaSetDevice(0)`), and
+`run_jobs.sh` doesn't assign GPUs. So one campaign on a machine with several GPUs puts every
+job on GPU 0; the other GPUs sit idle. Nothing fails; you only lose throughput. Run one
+campaign per GPU instead, as in
+[`prod_AuAu_0_10/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10/README.md). This
+needs only environment variables, so the current images support it. **One container is
+enough:**
+
+```bash
+# Docker: one container with all GPUs, one campaign per GPU inside it
+docker run --rm --gpus all --user "$(id -u):$(id -g)" -v "$PWD/prod:/work" \
+  jhputschke/xscape-prod:cu126 bash -c '
+  trap "kill \$(jobs -p) 2>/dev/null; wait" INT TERM
+  CUDA_VISIBLE_DEVICES=0 ./run_jobs.sh -j 4 --campaign gpu0 20 25 0 /work/out_gpu0 &
+  CUDA_VISIBLE_DEVICES=1 ./run_jobs.sh -j 4 --campaign gpu1 20 25 0 /work/out_gpu1 &
+  wait'
+
+# Apptainer: the same inside one apptainer exec
+apptainer exec --nv --bind "$SCRATCH/prod:/work" xscape_prod.sif bash -c '
+  trap "kill \$(jobs -p) 2>/dev/null; wait" INT TERM
+  CUDA_VISIBLE_DEVICES=0 ./run_jobs.sh -j 4 --campaign gpu0 20 25 0 /work/out_gpu0 &
+  CUDA_VISIBLE_DEVICES=1 ./run_jobs.sh -j 4 --campaign gpu1 20 25 0 /work/out_gpu1 &
+  wait'
+```
+
+- **`trap … INT TERM`** passes `docker stop` or Ctrl-C on to the campaigns, which then stop
+  their jobs. Without it, `bash` ignores `docker stop` (as the container's first process it
+  has no default signal handling), and the campaigns ignore Ctrl-C (background jobs of a
+  script do). `docker stop` then waits its 10 s and kills everything. Either way the
+  unfinished jobs rerun when you start the same command again.
+- **`wait`** keeps the container alive until both campaigns end. Without it, the container
+  exits right after starting them in the background.
+- **Seeds:** `/work/out_gpu0` and `/work/out_gpu1` share the seed registry
+  `/work/seeds_used.tsv`, so with seed `0` no two jobs draw the same seed, on either GPU.
+- **`--campaign gpu0` / `gpu1`** gives the two directories different file names. Otherwise
+  both campaigns, started in the same second, are named after the same start time.
+- **Threads:** `OMP_NUM_THREADS` ≈ cores / all jobs (here 8), e.g. `docker run -e
+  OMP_NUM_THREADS=…`, or set it inside the `bash -c`.
+- **`--mps`** is left out: on the GB10 the MPS daemon does not start inside a container
+  (below). Where it does, add `--mps` and give each campaign its own `MPS_DIR` (e.g.
+  `MPS_DIR=/tmp/mps0` and `/tmp/mps1`) so the two daemons' sockets don't collide.
+- **SLURM with Apptainer:** `apptainer exec` passes the host's `CUDA_VISIBLE_DEVICES` into
+  the container. If SLURM set it to e.g. `2,3`, use those numbers (`CUDA_VISIBLE_DEVICES=2`
+  and `=3`). On nodes that show a job only its own GPUs it is usually `0,1` anyway.
+
+**Two containers (Docker), one per GPU, work as well.** `--gpus device=N` shows each
+container only its GPU, as GPU 0, so no `CUDA_VISIBLE_DEVICES` is needed. `run_jobs.sh` is
+the container's first process here and handles `docker stop` itself. Mount the same `/work`
+in both so they share the seed registry:
+
+```bash
+docker run -d --gpus device=0 --user "$(id -u):$(id -g)" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu126 \
+  ./run_jobs.sh -j 4 --campaign gpu0 20 25 0 /work/out_gpu0
+docker run -d --gpus device=1 --user "$(id -u):$(id -g)" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu126 \
+  ./run_jobs.sh -j 4 --campaign gpu1 20 25 0 /work/out_gpu1
+```
+
+**Tested** 2026-09-30 on the GB10 (one GPU, so both campaigns on GPU 0) with the arm64
+`cu130` image and a stand-in for `run_prod_jet.py` that only sleeps:
+- **Both variants start and run their campaigns.**
+- **Stopping:** `docker stop` ends the one-container variant in under 1 s with the `trap`,
+  and after 10 s (killed) without it. `docker kill -s INT`, like Ctrl-C, works with the
+  `trap` too. The two-container variant stops in about 1 s.
+- **MPS in a container fails on the GB10.** `nvidia-cuda-mps-control` is present (the NVIDIA
+  runtime mounts it from the host), but `-d` exits with code 33 and writes no log. It fails
+  the same way in the plain `nvidia/cuda` base image, as root, with `--privileged`, and with
+  `--ipc=host --pid=host`. On the host it starts. `run_jobs.sh --mps` then stops at the start
+  with "could not start the MPS daemon", before any job runs. The cause is not known. It
+  may be tied to the GB10's integrated GPU with unified CPU–GPU memory, where MPS runs in
+  `-force-tegra` mode even on the host.
+- **Still to test: MPS in a container on a system without unified memory** (a discrete GPU,
+  e.g. an x86 node or an HPC GPU node), with Docker and with Apptainer. Until that is done,
+  don't count on `--mps` inside the container. Check on each machine type with
+  `nvidia-cuda-mps-control -d` in the container (exit code 0 and a `control.log` in
+  `$CUDA_MPS_LOG_DIRECTORY`).
+
+**Not tested yet:**
+- **Several real GPUs:** none of these commands has run on a machine with more than one.
+- **Real production jobs** in this setup (the test used the sleeping stand-in).
+- **Apptainer:** not tested.
+- **The seed registry's lock** (`fcntl`) holds on a local disk. Some network filesystems
+  (NFS, Lustre) are mounted without lock support; check before many campaigns share one
+  registry there.
+
+A `run_jobs.sh --gpus 0,1,…` option that spreads one campaign over the GPUs is on the
+js-contrib branch `run_jobs_gpus`, being tested. The images are built from js-contrib
+`main`, so to try it in a container, build with `--build-arg JS_CONTRIB_REF=run_jobs_gpus`,
+or bind-mount the branch's `contribs/PyJetscape/example/prod_AuAu_0_10/run_jobs.sh` over
+the image's.
 
 ### A different collision system: your own user XML
 
@@ -526,7 +620,11 @@ used a build from X-SCAPE `8c306762`, which has the same tree as `d31946c0`.)
 - **Validation steps not run yet:** the null test (`--no-deposit`), hadronization inside the
   image *with* a GPU attached (without one it is tested, see
   [Machines without an NVIDIA GPU](#machines-without-an-nvidia-gpu-no-cuda)), throughput with
-  several jobs, Apptainer, and the amd64 images on an amd64 machine.
+  several jobs, Apptainer, the amd64 images on an amd64 machine, and
+  [several GPUs](#several-gpus-on-one-machine) (one campaign per GPU), and **MPS inside a
+  container on a system without unified memory** (discrete GPU). On the GB10 (integrated
+  GPU, unified memory) its daemon does not start in a container, so this has to be tested
+  on a non-unified system before `--mps` goes into container campaigns.
 - **`OMP_WAIT_POLICY=passive`** could be set in the image (`ENV`) instead of per run: MUSIC
   asks for it on the CPU path (the M3 Max campaign settings in the production README set it
   too; the GB10's only set `OMP_NUM_THREADS`).

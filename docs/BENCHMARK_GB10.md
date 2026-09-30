@@ -163,6 +163,10 @@ daemon.
   to start then.
 - **On the GB10,** the MPS server runs in `-force-tegra` mode (integrated GPU), which works
   as expected.
+- **Not inside a container on the GB10:** there the MPS daemon exits at once (code 33, no
+  log), in Docker even with `--privileged`. Whether this happens on systems without unified
+  memory (discrete GPUs) still has to be tested. See
+  [`BuildContainerProd.md`](../utils/BuildContainerProd.md#several-gpus-on-one-machine).
 
 ### Before the speed-ups (first measurement)
 

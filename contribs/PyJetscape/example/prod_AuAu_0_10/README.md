@@ -36,6 +36,34 @@ python run_prod.py --events 1 --seed 1 --grid my_grid.yaml --dry-run   # check a
 
 You can launch it from any directory.
 
+**Several GPUs: one campaign per GPU.** music4gpu always runs on the first visible CUDA
+device (`cudaSetDevice(0)`), and `run_jobs.sh` doesn't assign GPUs. So on a machine with
+several GPUs, every job, `--mps` or not, lands on GPU 0 and the others sit idle. Nothing
+fails; you only lose throughput. To use them all, start one campaign per GPU, each seeing
+only its GPU through `CUDA_VISIBLE_DEVICES`, with its own `OUTDIR` and MPS directory:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 MPS_DIR=/tmp/mps0 ./run_jobs.sh -j 4 --mps 20 25 0 out_gpu0 &
+CUDA_VISIBLE_DEVICES=1 MPS_DIR=/tmp/mps1 ./run_jobs.sh -j 4 --mps 20 25 0 out_gpu1 &
+```
+
+- **Output directories:** each campaign needs its own, since `run_jobs.sh` allows one
+  campaign per `OUTDIR`.
+- **MPS:** each campaign starts its own daemon, which sees only its GPU. `MPS_DIR` keeps the
+  two daemons' sockets apart.
+- **Seeds:** `out_gpu0` and `out_gpu1` share one parent directory, so they share the seed
+  registry `seeds_used.tsv`. With `FIRST_SEED 0` the two campaigns never draw the same seed.
+  The registry is locked, so starting both together is safe. With explicit seeds, give each
+  GPU its own range, e.g. `20 25 1` and `20 25 21`.
+- **File names:** started in the same second, both campaigns get the same start-time name
+  (`..._<start time>_0001.h5` in each directory). Add `--campaign gpu0` / `--campaign gpu1`
+  to tell the files apart after merging.
+- **Threads:** split the cores over all the jobs: `OMP_NUM_THREADS` ≈ cores / (jobs per
+  GPU × GPUs).
+- **Stopping:** `wait` waits for both campaigns. Ctrl-C in that shell does not reach
+  background (`&`) campaigns, so stop them with `kill %1 %2`; each one then stops its jobs
+  and its MPS daemon.
+
 On macOS, `run_jobs.sh` runs under the system bash (3.2). `--mps` is CUDA-only. With
 `-j` > 1, split the cores between the jobs, e.g. `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive
 KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 …` on a 16-core M3 Max. Without that, the jobs' OpenMP

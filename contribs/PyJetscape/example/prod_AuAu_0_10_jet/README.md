@@ -97,6 +97,10 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 --campaign pth50     # named campaign
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1                      # seeds 1..20
 
+# Several GPUs: one campaign per GPU (all jobs of one campaign run on GPU 0; see ../prod_AuAu_0_10/README.md)
+CUDA_VISIBLE_DEVICES=0 MPS_DIR=/tmp/mps0 ./run_jobs.sh -j 4 --mps 20 25 0 out_gpu0 &
+CUDA_VISIBLE_DEVICES=1 MPS_DIR=/tmp/mps1 ./run_jobs.sh -j 4 --mps 20 25 0 out_gpu1 &
+
 # macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (../../../../docs/BENCHMARK_M3MAX.md)
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 0
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 0 --campaign pth50
