@@ -18,6 +18,8 @@ A store (GcsStore, OsdfStore) gives the commands:
     upload(path, name)     local file -> name
     download(name, path)   name -> local file path
     read_bytes(name)       the content of a small file, None if there is none
+    delete(name)           remove a file (FileNotFoundError if there is none)
+    remove_dir(name)       remove an empty directory (OSError if it isn't empty)
     native_checksums       True: the store keeps a CRC32C of every object and checks
                            transfers against it (GCS)
     manifest               True: no CRC32C from the store, so one is kept in a manifest
@@ -500,6 +502,130 @@ def cmd_download(a, store):
     return 1 if failed else 0
 
 
+def drop_from_manifests(store, names):
+    """Take removed files out of their directories' manifests (the manifest goes when it
+    is then empty)."""
+    by_dir = {}
+    for name in names:
+        by_dir.setdefault(os.path.dirname(name), set()).add(os.path.basename(name))
+    for d, gone in by_dir.items():
+        m = read_manifest(store, d)
+        if not gone & set(m):
+            continue
+        rest = {k: v for k, v in m.items() if k not in gone}
+        if not rest:
+            try:
+                store.delete(_manifest_name(d))
+            except FileNotFoundError:
+                pass
+            continue
+        doc = {"format": "js_transfer crc32c manifest", "crc32c": "base64, as GCS",
+               "files": dict(sorted(rest.items()))}
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(doc, f, indent=1)
+        try:
+            store.upload(Path(f.name), _manifest_name(d))
+        finally:
+            os.unlink(f.name)
+
+
+def _confirm(question):
+    if not sys.stdin.isatty():
+        die("rm asks before it removes anything: run it on a terminal, or with --yes")
+    try:
+        return input(f"{PROG}: {question} [y/N] ").strip().lower() in ("y", "yes")
+    except EOFError:
+        return False
+
+
+def cmd_rm(a, store):
+    """Remove files, patterns and (-r) directories, after asking (--yes: without)."""
+    files, dirs = {}, set()                           # name -> size; directories to remove
+    empty = set()                                     # directories without files, or nothing
+    for target in a.targets:
+        t = store.relative(target)
+        if not t:
+            die(f"rm needs a directory, file or pattern, not the whole {store.label}")
+        if any(c in t for c in WILDCARDS):             # a pattern: the matching files
+            found, kinds = match(t, store)
+            sel = {n: v[0] for n, v in found.items() if kinds.get(n) in a.what}
+            say(f"{store.label}/{t}: {len(sel)} of {len(found)} matching file(s) selected")
+            files.update(sel)
+        elif (v := store.stat(t)) is not None:         # one file
+            files[t] = v[0]
+        else:                                          # a directory
+            remote = store.list(t)
+            if not remote and not a.recursive:
+                die(f"nothing at {store.label}/{t}")
+            if not a.recursive:
+                die(f"{store.label}/{t} is a directory: rm -r")
+            if not remote:                             # at most empty directories
+                dirs.add(t)
+                empty.add(t)
+                continue
+            if a.what == set(KINDS):                   # all of it, the manifests too,
+                files.update({n: v[0] for n, v in remote.items()})
+                dirs.add(t)                            # and the directory
+            else:                                      # only the --what kinds
+                kinds = classify(list(remote))
+                sizes = {n: v[0] for n, v in remote.items()}
+                say(f"{store.label}/{t}/: "
+                    f"{_summary(kinds, sizes, a.what) or 'nothing selected'}")
+                files.update({n: sizes[n] for n in sizes if kinds.get(n) in a.what})
+    shown = [n for n in sorted(files) if os.path.basename(n) != MANIFEST]
+    total = sum(files[n] for n in shown)
+    say(f"{len(shown)} file(s) ({fmt_size(total)}) to remove"
+        + (f", and the directories {', '.join(sorted(d + '/' for d in dirs))}" if dirs else ""))
+    if not files and not dirs:
+        return 0
+    if a.dry_run or not a.yes:
+        for n in shown if a.dry_run else shown[:20]:
+            print(f"  {'would remove' if a.dry_run else 'remove'}  {fmt_size(files[n]):>9}  "
+                  f"{store.label}/{n}")
+        if not a.dry_run and len(shown) > 20:
+            print(f"  ... and {len(shown) - 20} more (--dry-run lists them all)")
+    if a.dry_run:
+        return 0
+    what = (f"these {len(shown)} file(s)" if shown else "these directories")
+    if not a.yes and not _confirm(f"remove {what} from {store.label}? This can't be undone"):
+        say("nothing removed")
+        return 1
+
+    def remove(n):
+        try:
+            store.delete(n)
+        except FileNotFoundError:                      # gone already: the same
+            pass
+    jobs = {n: (files[n], lambda n=n: remove(n)) for n in sorted(files)}
+    failed, results, interrupted = _run(jobs, a.jobs, "rm  ") if jobs else ([], {}, False)
+    if store.manifest:                                 # the directories that stay
+        drop_from_manifests(store, [n for n in results if not any(
+            n.startswith(d + "/") for d in dirs)])
+    if interrupted:
+        sys.exit(130)
+    for d in sorted(dirs):
+        try:
+            _remove_tree(store, d)
+            if d in empty:
+                say(f"removed {store.label}/{d}/ (no files in it)")
+        except FileNotFoundError:
+            if d in empty:
+                failed.append(d)
+                say(f"nothing at {store.label}/{d}")
+        except OSError as e:
+            failed.append(d)
+            print(f"  FAILED  {d}/: {type(e).__name__}: {e}", flush=True)
+    return 1 if failed else 0
+
+
+def _remove_tree(store, d):
+    """Remove directory d, its files gone: the (empty) directories below it first, also
+    those no file listing shows."""
+    for sub in store.top_level(d)[0]:
+        _remove_tree(store, sub.rstrip("/"))
+    store.remove_dir(d)
+
+
 def cmd_ls(a, store):
     prefix = store.relative(a.prefix) if a.prefix else ""
     if any(c in prefix for c in WILDCARDS):
@@ -526,8 +652,9 @@ def cmd_ls(a, store):
 
 
 # ── command line ──────────────────────────────────────────────────────────────────
-def build_parser(doc, add_store_args, root_help):
-    """The common command line; add_store_args(parser) adds the store's own options."""
+def build_parser(doc, add_store_args, root_help, add_commands=None):
+    """The common command line; add_store_args(parser) adds the store's own options,
+    add_commands(subparsers) its own commands (see main's commands)."""
     p = argparse.ArgumentParser(description=doc,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     add_store_args(p)
@@ -570,16 +697,37 @@ def build_parser(doc, add_store_args, root_help):
     ls.add_argument("--what", type=parse_what, default=set(KINDS),
                     help="pair, h5, root or all (lists recursively, with the kinds)")
     ls.add_argument("-r", "--recursive", action="store_true", help="every file below")
+    rm = sub.add_parser("rm", help="remove files, patterns or (-r) directories; asks first")
+    rm.add_argument("targets", nargs="+", metavar="TARGET",
+                    help=f"a file, a pattern with * ? [..] (quote it), or with -r a "
+                         f"directory; NAME or {root_help}/NAME")
+    rm.add_argument("-r", "--recursive", action="store_true",
+                    help="remove directories: every file below and the directories")
+    rm.add_argument("--what", type=parse_what, default=set(KINDS),
+                    help="only these kinds, from directories and patterns (default all; "
+                         "then the directories go too)")
+    rm.add_argument("-y", "--yes", action="store_true", help="don't ask")
+    rm.add_argument("--dry-run", action="store_true", dest="dry_run",
+                    help="show what would be removed")
+    rm.add_argument("-j", "--jobs", type=int, default=4, help="files at once (default 4)")
     st = sub.add_parser("setup", help="make the environment (--reinstall: again; --remove: "
                         "delete it)")
     g = st.add_mutually_exclusive_group()
     g.add_argument("--reinstall", action="store_true", help="make it again")
     g.add_argument("--remove", action="store_true", help="delete it")
+    if add_commands:
+        add_commands(sub)
+    for q in sub.choices.values():                 # the store's options after the command
+        n = len(q._actions)                        # too; there unset ones keep p's value
+        add_store_args(q)
+        for act in q._actions[n:]:
+            act.default = argparse.SUPPRESS
     return p
 
 
-def main(prog, parser, env, make_store, required_modules, argv=None):
-    """Run a command: parse, check the environment, make the store, dispatch."""
+def main(prog, parser, env, make_store, required_modules, argv=None, commands=None):
+    """Run a command: parse, check the environment, make the store, dispatch.  commands:
+    {name: fn(args)} for the script's own commands, which run without a store."""
     global PROG
     PROG = prog
     a = parser.parse_args(sys.argv[1:] if argv is None else argv)
@@ -594,9 +742,12 @@ def main(prog, parser, env, make_store, required_modules, argv=None):
             __import__(m)
     except ImportError as e:
         die(f"{e}: the environment {env.dir} is broken; run ./{prog}.py setup --reinstall")
+    if commands and a.cmd in commands:
+        return commands[a.cmd](a)
     store = make_store(a)
     try:
-        return {"upload": cmd_upload, "download": cmd_download, "ls": cmd_ls}[a.cmd](a, store)
+        return {"upload": cmd_upload, "download": cmd_download, "ls": cmd_ls,
+                "rm": cmd_rm}[a.cmd](a, store)
     except (OSError, ConnectionError, TimeoutError, RuntimeError) as e:
         die(f"{store.label}: {describe(e)}")
     except Exception as e:                             # noqa: BLE001  the client's own errors

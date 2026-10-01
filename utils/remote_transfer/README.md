@@ -1,13 +1,14 @@
 # remote_transfer — productions to and from Google Cloud Storage and Pelican/OSDF
 
-Two command-line tools upload production directories and files and download them again.
+Two command-line tools upload production directories and files, download them again, and
+remove them.
 They pick the files by kind: pair files, the HDF5 hadron files, the ROOT files, or all of
 them.
 
 | script | where | credentials |
 |---|---|---|
-| [`js_gcs.py`](js_gcs.py) | a Google Cloud Storage bucket, default `gs://test_fno` | a service-account JSON key |
-| [`js_osdf.py`](js_osdf.py) | a Pelican namespace on the OSDF, default `osdf:///fno4hic` (pelicanfs) | a bearer token for writing; reads of a public namespace need none |
+| [`js_gcs.py`](js_gcs.py) | a Google Cloud Storage bucket, default `gs://test_fno` | a service-account JSON key, for reading too |
+| [`js_osdf.py`](js_osdf.py) | a Pelican namespace on the OSDF, default `osdf:///fno4hic` (pelicanfs) | for writing (`upload`, `rm`) a browser login (`login`) or a bearer token; reading (`ls`, `download`) `/fno4hic` needs none: it is public |
 
 Both have the same commands and options and follow the same rules. The code they share is
 in [`transfer_core.py`](transfer_core.py); keep the three files together. Each script makes
@@ -28,9 +29,12 @@ cd utils/remote_transfer
                                                        # single files (§ Single files)
 ./js_gcs.py download AuAu_c1/AuAu_c1_0003_hadrons.root 'AuAu_c1/*_0004_*' --to here
 
+./js_osdf.py login                                               # once: log in in a browser (§ Credentials)
 ./js_osdf.py upload /data/AuAu_0_10_pth10-40_eta06_c1 --what root    # -> osdf:///fno4hic/AuAu_0_10_pth10-40_eta06_c1/
 ./js_osdf.py download AuAu_0_10_pth10-40_eta06_c1 --what root --to /scratch
 ./js_osdf.py ls                                                  # the namespace (osdf:///fno4hic)
+./js_osdf.py rm -r AuAu_0_10_pth10-40_eta06_c1 --dry-run          # what would be removed (§ Removing)
+./js_osdf.py rm AuAu_c1/AuAu_c1_0003_hadrons.root 'AuAu_c1/*_0004_*'   # files and patterns; asks first
 ```
 
 ## What: `--what`
@@ -95,6 +99,33 @@ and other 4 files 35 MB.
   both places. Two remote files that would land on the same local file are refused;
   download them with different `--to`.
 
+## Removing: `rm`
+
+```bash
+./js_osdf.py rm AuAu_c1/AuAu_c1_0003_hadrons.root     # one file
+./js_osdf.py rm 'AuAu_c1/*_0004_*'                     # a pattern (quoted)
+./js_osdf.py rm -r AuAu_c1 --dry-run                   # a directory: what would go
+./js_osdf.py rm -r AuAu_c1                             # ... then all of it
+./js_osdf.py rm -r AuAu_c1 --what h5                   # only a kind; the directory stays
+```
+
+- **It asks first.** `rm` lists what it will remove (the first 20 files; `--dry-run` lists
+  all and removes nothing) and removes only after `y`. `--yes` doesn't ask. Without a
+  terminal (a script, a batch job) it refuses unless `--yes`. Removed files can't be
+  brought back.
+- **Targets** are files, patterns (`*`, `?`, `[..]`, as for `download`) and, with `-r`,
+  directories. A directory without `-r` is refused, and so is the whole bucket or
+  namespace.
+- **A directory with `-r`** goes with everything below it: the files, the manifests and
+  the directories, also empty ones. With `--what` only the files of those kinds go, and
+  the directories stay.
+- **The manifest** of a directory that stays loses the entries of the removed files; it is
+  removed when it is then empty.
+- `-j` removes that many files at once (default 4). A file already gone counts as removed.
+- **OSDF:** `rm` needs `storage.modify` on the namespace (the browser login has it). The
+  removal is an HTTP DELETE at the origin; pelicanfs has none. **GCS:** the service account
+  needs delete rights on the bucket.
+
 ## Safe to re-run
 
 - **Files already there are skipped:** the same size and the same CRC32C as the remote file
@@ -137,17 +168,58 @@ and other 4 files 35 MB.
    `~/.config/js_gcs/`.
 
 The service account needs read access to the bucket for `ls` and `download`, and write
-access for `upload`.
+access for `upload`. Without the key nothing can be read: the bucket isn't public.
 
-**OSDF: a bearer token** (a SciToken / WLCG token). `upload` needs one with write access to
-the namespace. `ls` and `download` need one only for a protected namespace. Looked for in
-this order:
+**OSDF: a browser login or a bearer token, for writing only.** `upload` and `rm` need write
+access to the namespace. `ls` and `download` need credentials only for a protected
+namespace.
+
+**Reading `/fno4hic` is public**, as opposed to `gs://test_fno`: anyone can list and
+download its files, with no login, no token and no account; the director reports
+`require-token=false` for it. Writing without credentials is refused (HTTP 403). So
+`./js_osdf.py ls` and `download` work on any machine as they are, and whatever is uploaded
+to `/fno4hic` can be read by everyone.
+
+**The browser login** needs no token file:
+
+```bash
+./js_osdf.py login              # prints a link; log in and approve in any browser, on any machine
+./js_osdf.py upload /data/AuAu_c1 --what root     # later commands use the login by themselves
+./js_osdf.py upload /data/AuAu_c1 --web           # or: log in when needed, in the same command
+./js_osdf.py logout             # revoke the login at the issuer and forget it
+```
+
+- **How:** the OAuth2 device flow of the namespace's own token issuer, which the director
+  names for the namespace (for `/fno4hic` the Wayne origin's issuer). The login asks for
+  `storage.read`, `storage.create` and `storage.modify` on the namespace; `modify` is what
+  lets `--force` and the manifest overwrite files. It is the login the `pelican` CLI does,
+  without the CLI.
+- **Kept:** in `~/.config/js_osdf/web/<federation>_<namespace>.json` (mode 600), with the
+  refresh token. The token (20 min on `/fno4hic`) is renewed by itself before every
+  request, also in the middle of a long upload. When the issuer no longer renews it,
+  `login` again: a command already running then reports its files FAILED (re-run it), a
+  new one says so and goes on without a token.
+- **`--web` is not for one command only.** It keeps the login as `login` does, and every
+  later command uses it, with or without `--web` (for one command only, `logout` after
+  it). `--web` differs from a command without it in two ways:
+  - it logs in when there is no login or it can no longer be renewed (it prints the link
+    and waits); without `--web` the command says so and goes on without credentials, so
+    an upload then fails;
+  - it uses the browser login even if there is a bearer token.
+- **How long:** until the refresh token expires (the issuer decides that; it isn't known
+  for `/fno4hic`) or `logout`.
+- **Which credential:** without `--web` a bearer token found as below comes first, then the
+  browser login. `--web` uses the browser login even if there is a token; it doesn't go
+  with `--token-file`.
+- Options like `--web` and `--token-file` go before or after the command.
+
+**A bearer token** (a SciToken / WLCG token) is looked for in this order:
 1. `--token-file PATH`;
 2. `$JS_OSDF_TOKEN_FILE`, then `$BEARER_TOKEN_FILE`;
 3. `$BEARER_TOKEN` (the token itself);
 4. `osdf.token` in the current directory, next to `js_osdf.py`, or in `~/.config/js_osdf/`.
 
-With none of these, pelicanfs looks for one itself, e.g. in the WLCG default place
+With none of these and no browser login, pelicanfs looks for one itself, e.g. in the WLCG default place
 (`$XDG_RUNTIME_DIR/bt_u$UID`, `/tmp/bt_u$UID`). With the `pelican` CLI on `PATH` it can also
 get one through the namespace's OAuth flow. Tokens expire, typically after hours, so a long
 upload needs one that lasts.
@@ -181,14 +253,21 @@ upload needs one that lasts.
 
 ## Tested
 
-- **Offline:** `pytest utils/remote_transfer/test_transfer.py` (25 tests). Every command
-  runs against two stores: an in-memory GCS bucket, and `OsdfStore` on fsspec's in-memory
-  file system in place of pelicanfs. The tests cover:
+- **Offline:** `pytest utils/remote_transfer/test` (30 tests, in
+  [`test/test_transfer.py`](test/test_transfer.py)). Every command runs against two
+  stores: an in-memory GCS bucket, and `OsdfStore` on fsspec's in-memory file system in
+  place of pelicanfs. The tests cover:
   - directories, single files (`--flat`) and patterns;
   - skipping, incomplete HDF5 files, `.part` files, overlaps and local name clashes;
   - the manifest: written, added to, used for skipping, a corrupted download caught, an
     unreadable manifest;
-  - the key and token lookup, remote names, and that the CRC32C matches GCS's.
+  - the key and token lookup, remote names, and that the CRC32C matches GCS's;
+  - the browser login against a fake Pelican issuer: the login (pending, consent_required,
+    then the token), the login file, renewal before a request and in the middle of a run, a
+    refused renewal, `--web`, and `logout`;
+  - `rm`: files, patterns, directories with their manifests and empty directories below,
+    `--what`, `--dry-run`, the question (no terminal, no, yes), and targets that aren't
+    there.
 - **On `gs://test_fno` (GB10, 2026-10-01):**
   - the environment was made from `/usr/bin/python3` (3.12) outside any conda env;
   - `ls` listed the bucket;
@@ -199,9 +278,12 @@ upload needs one that lasts.
   - on the public `/ospool/uc-shared/public/OSG-Staff`: `ls`, `ls` with a pattern, and
     downloads of a directory, a pattern and one file. The files are right, and a second
     run skipped them.
-  - **`/fno4hic` could not be reached.** Its origin,
-    `wayne-origin.nationalresearchplatform.org:8090`, presents a TLS certificate that
-    expired on 2026-09-21, so every request fails before authentication. The `pelican` CLI
-    fails the same way.
-- **Not tested yet:** real uploads and downloads on either store (only dry runs on
-  `gs://test_fno`), and uploads to `/fno4hic`.
+  - on `/fno4hic`, with the browser login: `login` granted `storage.read:/`,
+    `storage.create:/` and `storage.modify:/`; a file uploaded to `js_osdf_test/` (with the
+    manifest), downloaded identical, overwritten with `--force`; an expired token renewed
+    from the refresh token; `rm` of one file, of a pattern, and `rm -r` of a nested
+    directory (with its manifests and an empty directory below), `--dry-run`, and the
+    refusal without a terminal. (Its origin's TLS certificate, expired on 2026-09-21, was renewed
+    by then, until 2026-12-30.)
+- **Not tested yet:** real uploads, downloads and `rm` on `gs://test_fno` (only dry runs),
+  and large uploads to `/fno4hic`.

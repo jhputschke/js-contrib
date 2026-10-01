@@ -16,7 +16,12 @@ transfer_core.py next to it.
     ./js_osdf.py download 'AuAu_c1/*_0004_*' --to here        # files -> here/<file>
     ./js_osdf.py ls                                    # the namespace's top level
     ./js_osdf.py ls AuAu_c1 --what h5                  # files, sizes, kinds
+    ./js_osdf.py rm -r AuAu_c1 --dry-run               # what would be removed; then without
+    ./js_osdf.py rm AuAu_c1/AuAu_c1_0003_hadrons.root 'AuAu_c1/*_0004_*'   # files, patterns
     ./js_osdf.py setup --reinstall | --remove          # remake / delete the environment
+    ./js_osdf.py login                                 # log in in a browser (no token file)
+    ./js_osdf.py upload /data/AuAu_c1 --web            # the same, when needed, then upload
+    ./js_osdf.py logout                                # forget the browser login
 
 What (``--what``, a comma list; default all) -- by file name, as for js_gcs.py:
 
@@ -34,19 +39,36 @@ skip check and downloads use the manifest's CRC32C; files it doesn't know (put t
 other tools) are compared by size.  Listings, sizes and downloads come from the origin
 (pelicanfs direct_reads), not from a cache that may hold an older copy.
 
-The token (writing needs one; a public namespace reads without): --token-file, else
-$JS_OSDF_TOKEN_FILE, else $BEARER_TOKEN_FILE, else $BEARER_TOKEN, else osdf.token in the
-current directory, next to this script, or in ~/.config/js_osdf/; with none of them,
-pelicanfs looks in the WLCG default place and can get one through the pelican CLI (OAuth).
+Credentials (writing needs them; a public namespace reads without):
+
+  - a browser login: ``login`` (or ``--web`` on any command) runs the OAuth2 device flow
+    of the namespace's own token issuer, which the director names: it prints a link, you
+    log in in any browser, on any machine.  The token and its refresh token are kept in
+    ~/.config/js_osdf/web/ and renewed by themselves, also during a long upload, until
+    the refresh token expires; then ``login`` again.  ``logout`` forgets them.
+  - a bearer token: --token-file, else $JS_OSDF_TOKEN_FILE, else $BEARER_TOKEN_FILE, else
+    $BEARER_TOKEN, else osdf.token in the current directory, next to this script, or in
+    ~/.config/js_osdf/.
+
+--web uses the browser login even if there is a token; without --web a token comes first,
+then a browser login made before.  With neither, pelicanfs looks in the WLCG default place
+and can get a token through the pelican CLI (OAuth).
 The namespace: --namespace, else $JS_OSDF_NAMESPACE, else /fno4hic; the federation:
 --federation, else osg-htc.org (the OSDF).
 """
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import os
 import sys
+import threading
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
 import warnings
 from pathlib import Path
 
@@ -84,6 +106,248 @@ def namespace_path(text):
     return ns
 
 
+# ── the browser login (OAuth2 device flow) ────────────────────────────────────────
+WEB_DIR = "~/.config/js_osdf/web"         # the logins, one file per federation + namespace
+MARGIN = 120                              # s: a token with less left is renewed
+DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+# the device flow is still waiting for the browser: Pelican's issuer says consent_required
+# from the login until the approval (its own client polls on, as here)
+WAITING = ("authorization_pending", "consent_required")
+
+
+def _http(url, form=None, json_body=None, redirect=True, timeout=30, method=None,
+          headers=None):
+    """(status, headers, body) of a GET, or of a POST of a form or of JSON (or method)."""
+    # a User-Agent of our own: osg-htc.org refuses urllib's
+    data, headers = None, {"Accept": "application/json", "User-Agent": "js_osdf",
+                           **(headers or {})}
+    if form is not None:
+        data = urllib.parse.urlencode(form).encode()
+        headers["Content-Type"] = "application/x-www-form-urlencoded"
+    elif json_body is not None:
+        data = json.dumps(json_body).encode()
+        headers["Content-Type"] = "application/json"
+
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kw):
+            return None
+
+    opener = (urllib.request.build_opener() if redirect
+              else urllib.request.build_opener(NoRedirect))
+    try:
+        req = urllib.request.Request(url, data, headers, method=method)
+        with opener.open(req, timeout=timeout) as r:
+            return r.status, r.headers, r.read()
+    except urllib.error.HTTPError as e:                # 3xx without redirect, 4xx, 5xx
+        return e.code, e.headers, e.read()
+
+
+def _json(body):
+    try:
+        d = json.loads(body)
+    except (ValueError, TypeError):
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _claims(jwt):
+    """The claims of a JWT, unverified ({} if it isn't one): for its exp, sub and scope."""
+    try:
+        part = jwt.split(".")[1]
+        return json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
+    except (IndexError, ValueError, AttributeError):
+        return {}
+
+
+def token_issuer(federation, namespace):
+    """(issuer URL, the namespace's path for the scopes) from the director's
+    X-Pelican-Token-Generation header for the namespace."""
+    st, _, body = _http(f"https://{federation}/.well-known/pelican-configuration")
+    director = _json(body).get("director_endpoint")
+    if st != 200 or not director:
+        raise RuntimeError(f"{federation}: no director in its pelican-configuration "
+                           f"(HTTP {st})")
+    st, h, _ = _http(f"{director.rstrip('/')}/api/v1.0/director/origin{namespace}/",
+                     redirect=False)
+    gen = h.get("X-Pelican-Token-Generation") if h else None
+    if not gen:
+        raise RuntimeError(f"the director names no token issuer for {namespace} (HTTP {st})")
+    info = {}
+    for kv in gen.split(","):
+        k, _, v = kv.strip().partition("=")
+        info.setdefault(k, v)                          # the first issuer, if several
+    if info.get("strategy", "OAuth2") != "OAuth2" or not info.get("issuer"):
+        raise RuntimeError(f"{namespace}: no OAuth2 token issuer ({gen})")
+    base = "/" + info.get("base-path", "").strip("/")
+    if namespace == base or namespace.startswith(base.rstrip("/") + "/"):
+        path = namespace[len(base.rstrip("/")):] or "/"
+    else:
+        path = namespace
+    return info["issuer"].rstrip("/"), path
+
+
+class WebLogin:
+    """A token from the namespace's issuer through the OAuth2 device flow, kept with its
+    refresh token in WEB_DIR and renewed when it has less than MARGIN left.  Thread-safe:
+    the transfers ask for a token before each request."""
+
+    def __init__(self, namespace, federation=OSDF):
+        self.ns, self.federation = namespace, federation
+        self.file = (Path(WEB_DIR).expanduser()
+                     / f"{federation}{namespace.replace('/', '_')}.json")
+        self._lock = threading.Lock()
+        try:
+            self.state = json.loads(self.file.read_text())
+        except (OSError, ValueError):
+            self.state = {}
+
+    def exists(self):
+        return bool(self.state.get("refresh_token") or self.state.get("access_token"))
+
+    def _save(self):
+        self.file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        tmp = self.file.with_suffix(".tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(self.state, f, indent=1)
+        os.replace(tmp, self.file)
+
+    # -- the issuer and this script's client there
+    def _issuer(self):
+        s = self.state
+        if "token_endpoint" not in s:
+            s["issuer"], s["scope_path"] = token_issuer(self.federation, self.ns)
+            st, _, body = _http(f"{s['issuer']}/.well-known/openid-configuration")
+            cfg = _json(body)
+            if st != 200 or "device_authorization_endpoint" not in cfg:
+                raise RuntimeError(f"{s['issuer']}: no device flow (HTTP {st})")
+            for k in ("token_endpoint", "device_authorization_endpoint",
+                      "registration_endpoint", "revocation_endpoint"):
+                s[k] = cfg.get(k)
+        return s
+
+    def _scopes(self):
+        p = self.state["scope_path"]
+        return (f"offline_access wlcg storage.read:{p} storage.create:{p} "
+                f"storage.modify:{p}")
+
+    def _client(self):
+        s = self._issuer()
+        exp = int(s.get("client_secret_expires_at") or 0)
+        if not s.get("client_id") or (exp and exp < time.time() + MARGIN):
+            if not s.get("registration_endpoint"):
+                raise RuntimeError(f"{s['issuer']}: no client registration")
+            st, _, body = _http(s["registration_endpoint"], json_body={
+                "client_name": "js_osdf", "scope": self._scopes(),
+                "grant_types": ["refresh_token", DEVICE_GRANT]})
+            reg = _json(body)
+            if st not in (200, 201) or "client_id" not in reg:
+                raise RuntimeError(f"{s['issuer']}: client registration failed (HTTP {st}: "
+                                   f"{body[:200]!r})")
+            s.update(client_id=reg["client_id"], client_secret=reg.get("client_secret", ""),
+                     client_secret_expires_at=reg.get("client_secret_expires_at", 0))
+        return {"client_id": s["client_id"], "client_secret": s["client_secret"]}
+
+    def _take(self, tok):
+        """Keep a token response."""
+        s, claims = self.state, _claims(tok["access_token"])
+        s["access_token"] = tok["access_token"]
+        if tok.get("refresh_token"):
+            s["refresh_token"] = tok["refresh_token"]
+        s["expires_at"] = int(claims.get("exp") or time.time() + int(tok.get("expires_in", 600)))
+        s["scope"] = claims.get("scope") or tok.get("scope", "")
+        s["sub"] = claims.get("sub", s.get("sub", ""))
+        self._save()
+
+    # -- the flows
+    def login(self, out=None):
+        """The device flow: prints the link (to stderr), waits for the browser login."""
+        out = out or sys.stderr
+        client = self._client()
+        s = self.state
+        st, _, body = _http(s["device_authorization_endpoint"],
+                            form={**client, "scope": self._scopes()})
+        dev = _json(body)
+        if st != 200 or "device_code" not in dev:
+            raise RuntimeError(f"{s['issuer']}: device authorization failed (HTTP {st}: "
+                               f"{body[:200]!r})")
+        link = dev.get("verification_uri_complete") or dev["verification_uri"]
+        print(f"js_osdf: log in for {self.ns} in a browser (any machine):\n\n    {link}\n\n"
+              f"  or open {dev['verification_uri']} and enter the code {dev['user_code']}"
+              f"\n  waiting (up to {int(dev.get('expires_in', 900)) // 60} min; "
+              f"Ctrl-C aborts) ...", file=out, flush=True)
+        interval = int(dev.get("interval", 5))
+        end = time.time() + int(dev.get("expires_in", 900))
+        try:
+            while time.time() < end:
+                time.sleep(interval)
+                st, _, body = _http(s["token_endpoint"], form={
+                    **client, "grant_type": DEVICE_GRANT, "device_code": dev["device_code"],
+                    "scope": self._scopes()})
+                tok = _json(body)
+                if st == 200 and "access_token" in tok:
+                    self._take(tok)
+                    return s["access_token"]
+                err = tok.get("error", f"HTTP {st}")
+                if err == "slow_down":
+                    interval += 5
+                elif err not in WAITING:
+                    raise RuntimeError(f"login failed: {err} {tok.get('error_description', '')}")
+        except KeyboardInterrupt:
+            raise RuntimeError("login aborted") from None
+        raise RuntimeError("login timed out: the link was not used in time")
+
+    def refresh(self):
+        """A new token from the refresh token; False if there is none or it is refused."""
+        s = self.state
+        if not s.get("refresh_token") or not s.get("token_endpoint"):
+            return False
+        st, _, body = _http(s["token_endpoint"], form={
+            **self._client(), "grant_type": "refresh_token",
+            "refresh_token": s["refresh_token"]})
+        tok = _json(body)
+        if st != 200 or "access_token" not in tok:
+            return False
+        self._take(tok)
+        return True
+
+    def token(self, interactive=False):
+        """A token with at least MARGIN left: kept, renewed, or (interactive) a new login;
+        else None."""
+        with self._lock:
+            s = self.state
+            if s.get("access_token") and s.get("expires_at", 0) > time.time() + MARGIN:
+                return s["access_token"]
+            if self.refresh():
+                return s["access_token"]
+            if interactive:
+                return self.login()
+            return None
+
+    def logout(self):
+        """Revoke the refresh token (if the issuer can) and forget the login."""
+        s = self.state
+        if s.get("refresh_token") and s.get("revocation_endpoint") and s.get("client_id"):
+            try:
+                _http(s["revocation_endpoint"], form={
+                    "client_id": s["client_id"], "client_secret": s.get("client_secret", ""),
+                    "token": s["refresh_token"], "token_type_hint": "refresh_token"})
+            except OSError:
+                pass
+        existed = self.file.exists()
+        self.file.unlink(missing_ok=True)
+        self.state = {}
+        return existed
+
+    def describe(self):
+        s = self.state
+        left = int(s.get("expires_at", 0) - time.time())
+        return (f"{s.get('sub') or '?'} at {s.get('issuer')}; scopes {s.get('scope') or '?'}; "
+                f"token valid for {max(left, 0) // 60} min, renewed by itself"
+                + ("" if s.get("refresh_token") else " -- NO refresh token: login again then")
+                + f" ({self.file})")
+
+
 class OsdfStore:
     """A namespace of a Pelican federation (transfer_core's store interface)."""
 
@@ -91,20 +355,39 @@ class OsdfStore:
     manifest = True
 
     def __init__(self, namespace, federation=OSDF, token=None, fs=None):
+        """token: the bearer token, or a function giving the current one (WebLogin.token),
+        asked before every request."""
         self.ns, self.federation = namespace, federation
         self.label = (f"osdf://{namespace}" if federation == OSDF
                       else f"pelican://{federation}{namespace}")
-        self.fs = fs if fs is not None else self._make_fs(federation, token)
+        self._token_fn = token if callable(token) else None
+        self._headers, self._bearer = {}, None    # pelicanfs's HTTP requests use _headers
+        self._origin = None                       # the namespace's URL at its origin (rm)
+        self.fs = None
+        self._set_token(token() if callable(token) else token)
+        self.fs = fs if fs is not None else self._make_fs(federation, self._headers)
+
+    def _set_token(self, token):
+        if token and token != self._bearer:
+            self._bearer = token
+            self._headers["Authorization"] = f"Bearer {token}"
+            if self.fs is not None:
+                self.fs.token = self._headers["Authorization"]   # its WebDAV requests
+
+    def _auth(self):
+        if self._token_fn:
+            self._set_token(self._token_fn())
 
     @staticmethod
-    def _make_fs(federation, token):
+    def _make_fs(federation, headers):
         # pelicanfs 1.4 leaves an un-awaited coroutine and unclosed sessions behind: harmless
         warnings.filterwarnings("ignore", message="coroutine .* was never awaited")
         logging.getLogger("asyncio").setLevel(logging.CRITICAL)
         from pelicanfs.core import OSDFFileSystem, PelicanFileSystem
-        kw = {"direct_reads": True}                    # the origin's view, not a cache's
-        if token:
-            kw["headers"] = {"Authorization": f"Bearer {token}"}
+        # the origin's view, not a cache's; headers: the same dict, so a renewed token
+        # reaches the HTTP requests
+        # (skip_instance_cache: not fsspec's cached instance, with another headers dict)
+        kw = {"direct_reads": True, "headers": headers, "skip_instance_cache": True}
         if federation == OSDF:
             return OSDFFileSystem(**kw)
         return PelicanFileSystem(f"pelican://{federation}", **kw)
@@ -129,14 +412,17 @@ class OsdfStore:
         return t.strip("/")
 
     def list(self, prefix):
+        self._auth()
         try:
             found = self.fs.find(self.path(prefix.strip("/")), detail=True)
         except FileNotFoundError:
             return {}
+        # (an empty directory comes without a size, and as a "file")
         return {self.name_of(p): (int(info["size"]), None) for p, info in found.items()
-                if info.get("type", "file") == "file"}
+                if info.get("type", "file") == "file" and info.get("size") is not None}
 
     def stat(self, name):
+        self._auth()
         p = self.path(name)
         self.fs.invalidate_cache(p)
         try:
@@ -149,6 +435,7 @@ class OsdfStore:
         return int(info["size"]), None
 
     def top_level(self, prefix):
+        self._auth()
         try:
             entries = self.fs.ls(self.path(prefix.strip("/")), detail=True)
         except FileNotFoundError:
@@ -159,22 +446,53 @@ class OsdfStore:
         return sorted(dirs), files
 
     def upload(self, path, name):
+        self._auth()
         self.fs.put_file(str(path), self.path(name))
         self.fs.invalidate_cache(self.path(name))
 
     def download(self, name, path):
+        self._auth()
         self.fs.get_file(self.path(name), str(path))
 
     def read_bytes(self, name):
+        self._auth()
         try:
             return self.fs.cat_file(self.path(name))
         except FileNotFoundError:
             return None
 
+    def delete(self, name):
+        self._auth()
+        self._rm(name)
+        self.fs.invalidate_cache(self.path(name))
+
+    remove_dir = delete                           # the origin removes empty ones alike
+
+    def _rm(self, name):
+        """HTTP DELETE at the origin (pelicanfs has no delete): a file, an empty directory."""
+        if self._origin is None:
+            from fsspec.asyn import sync
+            self._origin = sync(self.fs.loop, self.fs.get_origin_url, self.ns)[0].rstrip("/")
+        st, _, body = _http(f"{self._origin}/{urllib.parse.quote(name)}", method="DELETE",
+                            headers=self._headers, timeout=120)
+        if st in (200, 202, 204):
+            return
+        if st == 404:
+            raise FileNotFoundError(f"{self.label}/{name}")
+        if st == 409:
+            raise OSError(f"{self.label}/{name}/ is not empty")
+        if st in (401, 403):
+            raise PermissionError(f"HTTP {st}: no right to remove {self.label}/{name} "
+                                  "(./js_osdf.py login, or a token that may modify)")
+        raise OSError(f"HTTP {st} removing {self.label}/{name}: {body[:200]!r}")
+
 
 def add_args(p):
     p.add_argument("--token-file", dest="token_file", default=None,
                    help=f"bearer token file (default: see above; {TOKEN_NAME})")
+    p.add_argument("--web", action="store_true",
+                   help="use the browser login (OAuth2 device flow), logging in if needed, "
+                        "instead of a token")
     p.add_argument("--namespace", type=namespace_path,
                    default=os.environ.get("JS_OSDF_NAMESPACE", DEFAULT_NAMESPACE),
                    help="namespace (default /fno4hic, or $JS_OSDF_NAMESPACE)")
@@ -182,15 +500,68 @@ def add_args(p):
                    help=f"Pelican federation (default {OSDF}, the OSDF)")
 
 
+def add_commands(sub):
+    sub.add_parser("login", help="log in in a browser (OAuth2 device flow); later commands "
+                                 "use the login without a token")
+    sub.add_parser("logout", help="forget the browser login (and revoke it at the issuer)")
+
+
 def parse_args(argv):
-    return core.build_parser(__doc__, add_args, "osdf:///NAMESPACE").parse_args(argv)
+    return core.build_parser(__doc__, add_args, "osdf:///NAMESPACE",
+                             add_commands).parse_args(argv)
+
+
+def cmd_login(a):
+    w = WebLogin(a.namespace, a.federation)
+    try:
+        w.login()
+    except (OSError, RuntimeError) as e:
+        core.die(f"{a.namespace}: {core.describe(e)}")
+    core.say(f"logged in: {w.describe()}")
+    return 0
+
+
+def cmd_logout(a):
+    w = WebLogin(a.namespace, a.federation)
+    core.say(f"logged out of {a.namespace} ({w.file} removed)" if w.logout()
+             else f"no browser login for {a.namespace}")
+    return 0
+
+
+def credential(a):
+    """The token for the store: a fixed one, WebLogin.token, or None (see above)."""
+    if a.web and a.token_file:
+        core.die("--web or --token-file, not both")
+    token = None if a.web else find_token(a.token_file)
+    if token:
+        return token
+    w = WebLogin(a.namespace, a.federation)
+    if not a.web and not w.exists():
+        return None
+    try:
+        if w.token(interactive=a.web) is None:
+            core.say(f"the browser login for {a.namespace} has expired: ./js_osdf.py login "
+                     "(going on without a token)")
+            return None
+    except (OSError, RuntimeError) as e:
+        core.die(f"{a.namespace}: {core.describe(e)}")
+
+    def current():
+        t = w.token(interactive=a.web)
+        if t is None:
+            raise RuntimeError(f"the browser login for {a.namespace} has expired and could "
+                               "not be renewed: ./js_osdf.py login, then run again")
+        return t
+    current.login = w
+    return current
 
 
 def main(argv=None):
-    return core.main("js_osdf", core.build_parser(__doc__, add_args, "osdf:///NAMESPACE"),
-                     ENV, lambda a: OsdfStore(a.namespace, a.federation,
-                                              find_token(a.token_file)),
-                     ("pelicanfs", "google_crc32c"), argv)
+    return core.main("js_osdf", core.build_parser(__doc__, add_args, "osdf:///NAMESPACE",
+                                                  add_commands),
+                     ENV, lambda a: OsdfStore(a.namespace, a.federation, credential(a)),
+                     ("pelicanfs", "google_crc32c"), argv,
+                     commands={"login": cmd_login, "logout": cmd_logout})
 
 
 if __name__ == "__main__":

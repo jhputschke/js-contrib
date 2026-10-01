@@ -18,6 +18,8 @@ to it.  js_osdf.py is the same for Pelican/OSDF.
                                                        # files -> here/<file>
     ./js_gcs.py ls                                     # the bucket's top level
     ./js_gcs.py ls AuAu_c1 --what h5                   # files, sizes, kinds
+    ./js_gcs.py rm -r AuAu_c1 --dry-run                # what would be removed; then without
+    ./js_gcs.py rm AuAu_c1/AuAu_c1_0003_hadrons.root 'AuAu_c1/*_0004_*'   # files, patterns
     ./js_gcs.py setup --reinstall | --remove           # remake / delete the environment
 
 What (``--what``, a comma list; default all) -- by file name, as run_prod_jet.py,
@@ -143,6 +145,18 @@ class GcsStore:
     def read_bytes(self, name):
         b = self.bucket().get_blob(name)
         return None if b is None else b.download_as_bytes()
+
+    def delete(self, name):
+        from google.api_core.exceptions import NotFound
+        try:
+            self.bucket().blob(name).delete(timeout=60)
+        except NotFound:
+            raise FileNotFoundError(f"{self.label}/{name}") from None
+
+    def remove_dir(self, name):
+        """GCS has no directories: only the placeholder object 'name/' some tools make
+        (FileNotFoundError without one)."""
+        self.delete(name + "/")
 
 
 def add_args(p):

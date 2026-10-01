@@ -1,26 +1,27 @@
 """
-utils/remote_transfer/test_transfer.py
+utils/remote_transfer/test/test_transfer.py
 
 js_gcs.py and js_osdf.py without the network.  The commands of transfer_core run against
 two stores: an in-memory stand-in for a GCS bucket (CRC32C from the store), and
 js_osdf.OsdfStore on fsspec's in-memory file system in place of pelicanfs (sizes only, so
-the CRC32C manifest).  Also: file kinds, --what, the key and token lookup, names, and the
-environment's removal.
+the CRC32C manifest).  Also: file kinds, --what, the key and token lookup, names, the
+environment's removal, rm, and the browser login against a fake Pelican issuer.
 
-    pytest utils/remote_transfer/test_transfer.py -q
+    pytest utils/remote_transfer/test -q
 """
 
 from __future__ import annotations
 
 import base64
 import json
+import os
 import sys
 import threading
 from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))   # the scripts, one up
 google_crc32c = pytest.importorskip("google_crc32c")
 h5py = pytest.importorskip("h5py")
 memory = pytest.importorskip("fsspec.implementations.memory")
@@ -70,6 +71,19 @@ class FakeGcs:
     def read_bytes(self, name):
         return self.objects.get(name)
 
+    def delete(self, name):
+        if self.objects.pop(name, None) is None:
+            raise FileNotFoundError(name)
+
+    def remove_dir(self, name):
+        self.delete(name + "/")
+
+    def top_level(self, prefix):
+        p = prefix.strip("/") + "/" if prefix.strip("/") else ""
+        below = [n[len(p):] for n in self.objects if n.startswith(p)]
+        return (sorted({p + b.split("/")[0] + "/" for b in below if "/" in b}),
+                {p + b: self.stat(p + b) for b in below if "/" not in b})
+
     def data(self):
         return dict(self.objects)
 
@@ -96,6 +110,17 @@ class MemOsdf(js_osdf.OsdfStore):
         with self._lock:
             self.downloads.append(name)
             super().download(name, path)
+
+    def _rm(self, name):                       # what the origin does with a DELETE
+        p = self.path(name)
+        if self.fs.isfile(p):
+            self.fs.rm_file(p)
+        elif not self.fs.isdir(p):
+            raise FileNotFoundError(p)
+        elif self.fs.ls(p):
+            raise OSError(f"{p}/ is not empty")
+        else:
+            self.fs.rmdir(p)
 
     def data(self):
         return {self.name_of(p): self.fs.cat_file(p) for p in self.fs.find(self.ns)
@@ -401,3 +426,169 @@ def test_upload_as(tmp_path, store):
         _up(store, [str(d / f"{STEM}.json"), "--as", "x", "--flat"])
     with pytest.raises(SystemExit, match="needs a name"):
         _up(store, [str(d), "--as", "/"])
+
+
+# ── the browser login (js_osdf.WebLogin) against a fake issuer ────────────────────────
+def _jwt(**claims):
+    body = base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+    return f"e30.{body}.sig"
+
+
+class FakeIssuer:
+    """The OSDF's pelican-configuration, its director and a Pelican token issuer, in place
+    of js_osdf._http.  refuse_refresh: the refresh token is no longer accepted."""
+
+    ISS = "https://origin.example.org:8455"
+
+    def __init__(self):
+        self.calls, self.pending, self.n, self.refuse_refresh = [], 2, 0, False
+
+    def token(self):
+        self.n += 1
+        return {"access_token": _jwt(exp=int(js_osdf.time.time()) + 1200, sub="user@wayne",
+                                     jti=self.n, scope="storage.read:/ storage.create:/"),
+                "refresh_token": f"refresh-{self.n}", "expires_in": 1200}
+
+    def __call__(self, url, form=None, json_body=None, redirect=True, timeout=30):
+        self.calls.append((url, form or json_body))
+        if url == "https://osg-htc.org/.well-known/pelican-configuration":
+            return 200, {}, b'{"director_endpoint": "https://director.example.org"}'
+        if url == "https://director.example.org/api/v1.0/director/origin/fno4hic/":
+            assert not redirect
+            return 307, {"X-Pelican-Token-Generation": f"issuer={self.ISS}, max-scope-depth=3,"
+                         " strategy=OAuth2, base-path=/fno4hic"}, b""
+        if url == f"{self.ISS}/.well-known/openid-configuration":
+            return 200, {}, json.dumps({k: f"{self.ISS}/{k}" for k in (
+                "token_endpoint", "device_authorization_endpoint", "registration_endpoint",
+                "revocation_endpoint")}).encode()
+        if url == f"{self.ISS}/registration_endpoint":
+            assert "storage.create:/" in json_body["scope"]
+            return 201, {}, b'{"client_id": "cid", "client_secret": "sec"}'
+        if url == f"{self.ISS}/device_authorization_endpoint":
+            assert form["client_id"] == "cid" and "storage.modify:/" in form["scope"]
+            return 200, {}, json.dumps({
+                "device_code": "dc", "user_code": "ABC", "interval": 5, "expires_in": 900,
+                "verification_uri": f"{self.ISS}/device",
+                "verification_uri_complete": f"{self.ISS}/device?user_code=ABC"}).encode()
+        if url == f"{self.ISS}/token_endpoint":
+            if form["grant_type"] == js_osdf.DEVICE_GRANT:
+                assert "storage.create:/" in form["scope"]
+                if self.pending:                       # Pelican: pending, then consent
+                    self.pending -= 1
+                    return 400, {}, json.dumps({"error": (
+                        "authorization_pending" if self.pending else "consent_required")}).encode()
+                return 200, {}, json.dumps(self.token()).encode()
+            assert form["grant_type"] == "refresh_token"
+            if self.refuse_refresh:
+                return 400, {}, b'{"error": "invalid_grant"}'
+            return 200, {}, json.dumps(self.token()).encode()
+        if url == f"{self.ISS}/revocation_endpoint":
+            return 200, {}, b""
+        raise AssertionError(url)
+
+
+def test_web_login(tmp_path, monkeypatch, capsys):
+    issuer = FakeIssuer()
+    monkeypatch.setattr(js_osdf, "_http", issuer)
+    monkeypatch.setattr(js_osdf, "WEB_DIR", str(tmp_path / "web"))
+    monkeypatch.setattr(js_osdf.time, "sleep", lambda s: None)
+    for v in ("JS_OSDF_TOKEN_FILE", "BEARER_TOKEN_FILE", "BEARER_TOKEN"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(js_osdf, "__file__", str(tmp_path / "bin" / "js_osdf.py"))
+    assert js_osdf.credential(js_osdf.parse_args(["ls"])) is None      # no login yet
+
+    assert js_osdf.cmd_login(js_osdf.parse_args(["login"])) == 0
+    out = capsys.readouterr()
+    assert f"{issuer.ISS}/device?user_code=ABC" in out.err and "user@wayne" in out.out
+    w = js_osdf.WebLogin("/fno4hic")
+    assert w.file.stat().st_mode & 0o777 == 0o600 and w.state["refresh_token"] == "refresh-1"
+
+    # later commands use it without --web; the store asks for the token before each request
+    cred = js_osdf.credential(js_osdf.parse_args(["upload", "x"]))
+    fs = memory.MemoryFileSystem()
+    s = js_osdf.OsdfStore("/fno4hic", token=cred, fs=fs)
+    assert s._headers["Authorization"] == f"Bearer {w.state['access_token']}"
+    # expired: renewed from the refresh token, the next request carries the new one
+    st = json.loads(w.file.read_text())
+    st["expires_at"] = 0
+    w.file.write_text(json.dumps(st))
+    cred = js_osdf.credential(js_osdf.parse_args(["ls"]))
+    s = js_osdf.OsdfStore("/fno4hic", token=cred, fs=fs)
+    assert json.loads(w.file.read_text())["refresh_token"] == "refresh-2"
+    first = s._headers["Authorization"]
+    cred.login.state["expires_at"] = 0           # expires mid-run
+    s.list("")
+    assert s._headers["Authorization"] != first and fs.token == s._headers["Authorization"]
+    # the refresh token refused: a run already going fails its requests, a new one goes on
+    # without a token (reads of a public namespace), and --web logs in again
+    issuer.refuse_refresh = True
+    cred.login.state["expires_at"] = 0
+    cred.login._save()
+    with pytest.raises(RuntimeError, match="expired"):
+        s.upload(tmp_path / "f", "f")
+    assert js_osdf.credential(js_osdf.parse_args(["ls"])) is None
+    assert "has expired" in capsys.readouterr().out
+    issuer.pending = 0
+    assert callable(js_osdf.credential(js_osdf.parse_args(["ls", "--web"])))
+    with pytest.raises(SystemExit, match="not both"):
+        js_osdf.credential(js_osdf.parse_args(["--web", "--token-file", "t", "ls"]))
+
+    assert js_osdf.cmd_logout(js_osdf.parse_args(["logout"])) == 0
+    assert not w.file.exists() and issuer.calls[-1][0].endswith("revocation_endpoint")
+    assert "logged out" in capsys.readouterr().out
+
+
+def _rm(store, argv):
+    return core.cmd_rm(_args(store, ["rm", *argv]), store)
+
+
+def test_rm(tmp_path, store, capsys):
+    d = _prod(tmp_path)
+    assert _up(store, [str(d)]) == 0
+    _up(store, [str(d / f"{STEM}.xml"), "--as", "AuAu_a/sub/deeper"])
+    every = set(store.data())
+    with pytest.raises(SystemExit, match="not the whole"):
+        _rm(store, ["", "--yes"])
+    with pytest.raises(SystemExit, match="is a directory: rm -r"):
+        _rm(store, ["AuAu_a", "--yes"])
+    with pytest.raises(SystemExit, match="nothing at"):
+        _rm(store, ["AuAu_b", "--yes"])
+    assert _rm(store, ["AuAu_b", "-r", "--yes"]) == 1
+    assert "nothing at" in capsys.readouterr().out
+    assert _rm(store, ["-r", "AuAu_a", "--dry-run"]) == 0
+    assert set(store.data()) == every and "would remove" in capsys.readouterr().out
+    # one file and a pattern; their manifest entries go too
+    assert _rm(store, [f"AuAu_a/{STEM}.log", f"{store.label}/AuAu_a/*_hadrons_bulk_*",
+                       "--yes"]) == 0
+    gone = {f"AuAu_a/{STEM}.log", f"AuAu_a/{STEM}_hadrons_bulk_jet.h5",
+            f"AuAu_a/{STEM}_hadrons_bulk_bg.h5"}
+    assert set(store.data()) == every - gone
+    if isinstance(store, MemOsdf):
+        assert not {os.path.basename(n) for n in gone} & set(store.manifest_of("AuAu_a"))
+    # emptied by a pattern: an empty directory, which no file listing shows
+    assert _rm(store, ["AuAu_a/sub/deeper/*", "--yes"]) == 0
+    if isinstance(store, MemOsdf):
+        assert store.fs.isdir("/fno4hic/AuAu_a/sub/deeper") and not store.list("AuAu_a/sub")
+        assert _rm(store, ["-r", "AuAu_a/sub", "--yes"]) == 0       # only empty ones
+        assert not store.fs.exists("/fno4hic/AuAu_a/sub")
+    # a kind out of a directory: the directory stays
+    assert _rm(store, ["-r", "AuAu_a", "--what", "root", "--yes"]) == 0
+    assert not [n for n in store.data() if n.endswith(".root")] and store.data()
+    # asks first: no terminal, no; then yes
+    monkey = pytest.MonkeyPatch()
+    monkey.setattr(sys.stdin, "isatty", lambda: False, raising=False)
+    with pytest.raises(SystemExit, match="--yes"):
+        _rm(store, ["-r", "AuAu_a"])
+    monkey.setattr(sys.stdin, "isatty", lambda: True, raising=False)
+    monkey.setattr("builtins.input", lambda q: "n")
+    assert _rm(store, ["-r", "AuAu_a"]) == 1 and store.data()
+    assert "nothing removed" in capsys.readouterr().out
+    monkey.setattr("builtins.input", lambda q: "y")
+    assert _rm(store, ["-r", "AuAu_a"]) == 0
+    monkey.undo()
+    # all of it: the files, the manifests and the directories, the deepest first
+    assert store.data() == {} and store.list("") == {}
+    if isinstance(store, MemOsdf):
+        assert not store.fs.exists("/fno4hic/AuAu_a")
