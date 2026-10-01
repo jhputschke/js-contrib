@@ -187,7 +187,7 @@ What the script installs:
 | JETSCAPE C++ deps | boost-cpp, zlib, hdf5, pythia8, hepmc3, fastjet (scikit-hep's: the C++ library and the Python API), gsl, openmpi |
 | ROOT | root ≥ 6.34, < 6.38 (conda-forge, ARM-native on macOS/Linux aarch64). 6.38 writes truncated-float TTree leaves that uproot can't read yet |
 | PyTorch | torch, torchvision — CPU/MPS build (pip) or CUDA build (pip from pytorch.org) |
-| ML / analysis | numpy, matplotlib, scipy, h5py, hdf5plugin, pyyaml, pandas, seaborn, tqdm, jupyterlab, notebook, ipykernel, ipywidgets, networkx, vector |
+| ML / analysis | numpy, matplotlib, scipy, h5py, hdf5plugin, pyyaml, pandas, seaborn, tqdm, jupyterlab, notebook, ipykernel, metakernel (ROOT's C++ kernel), ipywidgets, networkx, vector |
 | Build and test | pybind11, pytest |
 | pip | neuraloperator ≥ 2.0, uproot ≥ 5, awkward ≥ 2, pyvista, imageio, imageio-ffmpeg |
 | MLX | `mlx` ≥ 0.30, Apple Silicon only (`JS_FNO_NO_MLX=1` skips it) |

@@ -36,6 +36,7 @@ dependencies:
   # notebooks
   - notebook>=7
   - ipykernel
+  - metakernel           # ROOT's C++ Jupyter kernel (root --notebook, analysis_root/*.ipynb)
   - ipywidgets>=8
   - pytest>=7.0
   # Visualization

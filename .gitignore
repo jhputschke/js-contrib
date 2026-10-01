@@ -12,6 +12,8 @@ build/
 *_cxx.d
 *_cpp.d
 *.gif
+# ROOT output files (macros, notebooks, run_h5toROOT.py); none is tracked
+*.root
 *.npz
 
 # PyTorch model weights (large binary files — download separately)

@@ -85,7 +85,7 @@ In this order (conda packages from conda-forge; `mamba` is used when available):
 | C++ build | cmake, make, compilers, boost-cpp, zlib, hdf5, pythia8, hepmc3, fastjet, gsl, openmpi | `*_build_*` |
 | ROOT | `root>=6.34,<6.38` (pinned: 6.32.2). 6.38 writes truncated-float TTree leaves uproot can't read yet. | all |
 | PyTorch (pip) | torch, torchvision: CUDA wheels, or CPU/MPS with `none` | all |
-| Analysis (conda) | numpy, scipy, matplotlib, h5py, hdf5plugin, pandas, seaborn, tqdm, pyyaml, jupyterlab, notebook, ipykernel, ipywidgets, networkx, vector, pybind11, pytest; fastjet in the minimal Python-only script | all |
+| Analysis (conda) | numpy, scipy, matplotlib, h5py, hdf5plugin, pandas, seaborn, tqdm, pyyaml, jupyterlab, notebook, ipykernel, metakernel (for ROOT's C++ kernel), ipywidgets, networkx, vector, pybind11, pytest; fastjet in the minimal Python-only script | all |
 | pip | neuraloperator ≥ 2.0, uproot ≥ 5, awkward ≥ 2, pyvista, imageio, imageio-ffmpeg | all |
 | MLX (pip) | `mlx>=0.30` (pinned: 0.32.3), Apple Silicon only | all |
 | js-contrib | `pip install -e` of PyJetscape and FastHydro, when run from a checkout | all |

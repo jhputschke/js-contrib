@@ -113,6 +113,11 @@ be switched over by re-running the script with `--system-site-packages` from the
 env. It must be a venv made from that env's Python, since `--system-site-packages` shows the
 packages of the venv's own base Python.
 
+The ROOT C++ notebooks (`analysis_root/*.ipynb`) run in the conda env too: ROOT's C++ kernel
+is installed there, not in the venv. It needs Jupyter and `metakernel` in that env
+(`conda install -c conda-forge notebook metakernel`), then `root --notebook`. Not tested on
+this route.
+
 The same works with any other ROOT that has PyROOT (LCG/CVMFS, Homebrew, a source build).
 Make the venv from the `python3` that `import ROOT` works in:
 `--python "$(which python3)" --system-site-packages`.

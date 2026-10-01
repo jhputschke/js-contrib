@@ -177,7 +177,7 @@ fi
 echo "==> Installing Python analysis packages (conda-forge)"
 ${SOLVER} install -n "${ENV_NAME}" \
     numpy matplotlib scipy h5py seaborn tqdm \
-    jupyterlab notebook ipykernel \
+    jupyterlab notebook ipykernel metakernel \
     hdf5plugin pyyaml pandas ipywidgets \
     pybind11 pytest networkx vector \
     -c conda-forge -y

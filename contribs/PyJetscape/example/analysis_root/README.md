@@ -10,6 +10,7 @@ The Python analyses of the HDF5 files are in [`../analysis`](../analysis/README.
 |---|---|---|
 | [`HadronFileReader.h`](HadronFileReader.h) | header-only reader: the hadrons of an event's oversample as `std::vector<Hadron>`, for background, background + deposition, the whole jet event and the fragments (§1) | no |
 | [`read_hadrons.C`](read_hadrons.C) | the reader by example: pT spectra and Δφ to the leading parton, per source and for the wake (§2) | a new `.root` |
+| [`read_hadrons.ipynb`](read_hadrons.ipynb) | `read_hadrons.C` as a ROOT C++ notebook, one step per cell, with the histograms drawn (§2) | a new `.root` |
 | [`hadron_distributions.C`](hadron_distributions.C) | RDataFrame macro: η, φ, pT of background, background + deposition, jet fragments and the wake (§3) | a new `.root` + `.pdf`/`.png` |
 
 Everything here needs ROOT itself, **≥ 6.34** for the RNTuple files that `run_h5toROOT.py`
@@ -173,6 +174,32 @@ Both are divided by the bin width. They are per event, or dσ/dX in mb with `xse
 pT spectra equal `hadron_distributions.C`'s `h_ptlog_*`, bin for bin. `full` differs only in
 its errors: here each fragmentation is filled once per jet-leg sample it is paired with,
 whereas `hadron_distributions.C` adds `bkgdep` and `frag` in quadrature.
+
+**As a notebook: [`read_hadrons.ipynb`](read_hadrons.ipynb).** The same steps, one per cell
+(settings, reader, event loop, normalization, figures, output file), and three figures: the
+pT spectra, the wake's pT spectrum with the fragments, and Δφ. Its histograms equal the
+macro's, bin for bin (checked on `prod_AuAu_0_10_jet/out` and on a 67-file campaign, 1005
+events, every oversample). It runs interpreted; on that campaign the event loop takes 38 s,
+the ACLiC macro 34 s. `HADRON_DIR`, `HADRON_OUT` and `MAX_SAMPLES` in the environment
+override `dir`, `out` and `max_samples`.
+
+```bash
+conda activate js_fno
+pip install metakernel                  # only in an env made before 2026-10-01 (see below)
+cd example/analysis_root
+root --notebook                         # or Jupyter, kernel "ROOT C++"
+HADRON_DIR=/path/to/campaign jupyter nbconvert --to notebook --execute read_hadrons.ipynb
+```
+
+- **`metakernel`:** without it the ROOT C++ kernel dies at start ("Kernel died before
+  replying"). The conda install scripts and `utils/analysis_env/environment.yml` install it
+  since 2026-10-01; add it to an older env with `pip install metakernel`.
+- **Another Python first on `PATH`** (an active venv): the kernel runs the first
+  `python3.12` on `PATH`; if that one lacks ROOT or `metakernel`, the kernel dies the same
+  way. Deactivate the venv first.
+- **Run the cells in order;** to change a setting, restart the kernel. Top-level
+  declarations in the cells are not `const`: cling leaves a `const` global of class type
+  with a run-time initializer empty.
 
 ## 3. Hadron distributions in RDataFrame: `hadron_distributions.C`
 

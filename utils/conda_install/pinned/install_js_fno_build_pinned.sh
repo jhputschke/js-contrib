@@ -183,6 +183,7 @@ ${SOLVER} install -n "${ENV_NAME}" \
     tqdm=4.66.5 \
     jupyterlab=4.2.5 \
     ipykernel=6.29.5 \
+    metakernel=0.30.2 \
     hdf5plugin=5.0.0 \
     pyyaml=6.0.2 \
     pandas=2.2.3 \
