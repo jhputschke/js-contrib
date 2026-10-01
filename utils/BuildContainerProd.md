@@ -1,10 +1,20 @@
 # Building and Publishing the Production Container Images
 
-> **Status (2026-09-30).** [`Dockerfile.prod`](Dockerfile.prod) exists, one Dockerfile for
-> both CUDA variants (see [Images](#images)). The `cu130` arm64 image was built and tested
-> on the GB10 (see [Tested](#tested)). The GitHub workflow that builds and publishes all
-> images, amd64 included, is [Option A](#option-a--github-actions-recommended); it hasn't run
-> yet. The dev images are in [`BuildContainerDev.md`](BuildContainerDev.md).
+> **Status (2026-10-01).** [`Dockerfile.prod`](Dockerfile.prod) exists, one Dockerfile for
+> all CUDA variants (see [Images](#images)).
+> - **Published:** the [GitHub workflow](#option-a--github-actions-recommended) has built and
+>   pushed `jhputschke/xscape-prod:cu126` and `:cu130` (amd64 + arm64, 2026-09-30, from
+>   js-contrib `f0a1a08`) and `:cu124` (amd64, 2026-10-01, from `818fdbf`), all with X-SCAPE
+>   `d31946c`.
+> - **`cu126` and `cu130` predate two Dockerfile changes:** Pelican/OSDF (`03349ea`) and, in
+>   `cu126`, V100 code (sm_70, `818fdbf`). Until the workflow runs again, the published
+>   `cu126` and `cu130` have no Pelican and `cu126` doesn't run on a V100; `cu124` has both.
+> - **Tested:** a local arm64 `cu130` build on the GB10 (see [Tested](#tested)): production
+>   runs and agrees with the native build. The published images, and every amd64 image, are
+>   not tested on a machine yet.
+>
+> The dev images are in [`BuildContainerDev.md`](BuildContainerDev.md): published for amd64
+> and arm64, not tested on aarch64.
 
 **For running a production with the images** (Docker, Apptainer, SLURM, hadronization on
 CPUs, analysis and ROOT export), see the user guide
@@ -56,7 +66,7 @@ their CUDA version, `NVIDIA_REQUIRE_CUDA`). `cu124` is the same build on CUDA 12
   and nvcc's host compiler is that release's GCC 11 (supported by CUDA 12.4). The conda env,
   and so the C++ compiler (GCC 14) and every library, are the same as in the other variants.
 - It is built only when requested (`variants=cu124` or `all`), and for amd64 only.
-- **Not built or tested yet**, locally or on GitHub.
+- **Built and published** on GitHub (2026-10-01); not tested on a machine yet.
 
 **V100 (sm_70) needs `cu126` or `cu124`.** CUDA 13 dropped Volta, so `cu130` has no code
 for it. The embedded PTX only runs on GPUs as new as its architecture or newer (compute_90
