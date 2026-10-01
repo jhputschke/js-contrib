@@ -299,7 +299,115 @@ also run next to stage 1 with `--follow`.
 
 ---
 
-## 4. Moving the files
+## 4. A realistic campaign: pT̂ windows, several jets per background
+
+The examples above give every event its own background. For a real production, as on an
+HPC cluster, **share each background among several jets in several pT̂ windows**: the
+background leg (MUSIC_1) doesn't depend on the jet, and it costs about as much as the jet
+leg. This is what campaign `pth10-40_eta06_c1` did on the GB10 (2026-09-29):
+
+| | c1 |
+|---|---|
+| pT̂ windows | 10–20, 20–30, 30–40 GeV: `--pthat-bins 10-20,20-30,30-40` (K = 3) |
+| jets per window per background | 5: `--jets-per-bin 5` (M = 5), so one background per K × M = **15 events** (`--reuse 15`, set automatically) |
+| rapidity cut | hardest parton \|y\| < 0.6: `--parton-ymax 0.6` (events outside are regenerated before any shower or hydro) |
+| jobs | 67 × 15 events = **1005 events on 67 backgrounds**, `-j 4 --mps`, seeds from OS entropy |
+| time | 179.7 min on one GB10: **336 events/h** (a new background every event: ~190, measured at 50–70 GeV) |
+| disk | 170 MB per event (pair, shared `arr_bg`) + 94 MB (particlize): **265 GB** |
+| checks | energy balance closed, 0 double-counted partons, all legs froze out, no grid-boundary hits |
+
+**The rules.**
+- **Events per job must be a multiple of K × M** (here 15): event i uses window i mod K,
+  and every background gets exactly M jets in each window. So `EVENTS_PER_JOB` is 15, 30, …
+- **Cost per event** ≈ (1 + 1/(K·M)) / 2 of an event with its own background: 0.53 for
+  K·M = 15. The GB10 measured 1.8× the throughput.
+- **Memory** is the same as without reuse (~20 GB peak per job): one background is held at
+  a time, just longer.
+- **Cross sections:** each window is its own Pythia with its own σ, recorded per file;
+  combine windows with those weights (§6).
+- **Statistics:** the M jets of one window share their background (like `--reuse M` per
+  window), and spectra stitched over windows have errors correlated through the
+  backgrounds. Per-window results and jet − background are unaffected.
+- **The cut** `--parton-ymax 0.6` (mode `leading`) is complete for jets up to
+  \|η_jet\| ≈ 0.4–0.5. For inclusive R = 0.4 jets at \|η_jet\| < 0.6, use
+  `--parton-ymax 0.7 --parton-y-mode any`. Details: [`prod_AuAu_0_10_jet/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md),
+  sections *D. Several pTHat windows per background* and *E. Parton rapidity cut*.
+
+### Stage 1
+
+**On one machine** (Docker; Apptainer the same with `--pwd` and `--bind`), the c1 command:
+
+```bash
+docker run -d --name c1 --gpus all --user "$(id -u):$(id -g)" \
+  -e OMP_NUM_THREADS=5 -e OMP_WAIT_POLICY=passive -v "$HOME/prod:/work" $IMG \
+  ./run_jobs.sh -j 4 --campaign pth10-40_eta06_c1 67 15 0 /work/AuAu_0_10_pth10-40_eta06_c1 \
+    --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both
+```
+
+**On an HPC cluster** (SLURM array, one GPU per task, `P = 4` jobs per GPU):
+
+```bash
+SIF=$PWD/xscape_prod.sif CAMPAIGN=pth10-40_eta06_c2 NJOBS=40 EVENTS=15 \
+  EXTRA_ARGS="--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both" \
+  sbatch --array=0-19 utils/slurm_prod_array.sh
+```
+
+That is 20 tasks × 40 jobs × 15 events = **12 000 events on 800 backgrounds**. Planning
+numbers, scaled from c1:
+
+| | per task (40 jobs, 600 events) | campaign (20 tasks) |
+|---|---|---|
+| GPU time at the GB10's rate (336 events/h) | ~1.8 h | ~36 GPU-hours, ~1.8 h wall on 20 GPUs |
+| disk, stage 1 | ~160 GB | ~3.2 TB |
+| disk, hadrons (stage 2 below) | ~46 GB | ~0.9 TB |
+
+- **Time limit:** a task's jobs run 4 at a time, ~10–12 min per 15-event job on the GB10.
+  Allow 2–3× on slower nodes (`--time` in the script is 24 h). A task that runs out of time
+  resumes when submitted again.
+- **Size:** per task 4 jobs × ~22 GB host memory and ~20 cores, the script's defaults.
+- **Smaller trial first:** `NJOBS=2 EVENTS=15 sbatch --array=0-1 --time=2:00:00 …`.
+
+### Stage 2
+
+The background of each window is shared by M = 5 jets, so sample it more:
+`--oversample-bg per-pthat-bin` gives each background --oversample × M samples per window
+(capped at 2000), the optimal split for per-window results. The c1 plan:
+
+```bash
+apptainer exec --env OMP_NUM_THREADS=1 --pwd "$PROD" --bind "$SCRATCH/prod:/work" \
+  xscape_prod.sif ./run_hadronize.py "/work/pth10-40_eta06_c2/t*/*_particlize.h5" -j 16 \
+  --oversample 400 --oversample-bg per-pthat-bin --n-frag 50 --keep-bits-p 12 --keep-bits-x 8
+```
+
+- **The quoted pattern** is expanded by `run_hadronize.py` inside the container (the host
+  shell doesn't see `/work`); it must name particlize files, not directories.
+- 400 samples per jet event, 5 × 400 = 2000 per background and window, 50 fragmentations.
+  `--keep-bits-p 12 --keep-bits-x 8` stores 58 % of the bytes.
+- **Time:** ~170–380 s per 15-event file and process (measured on the GB10 for the same
+  setup, campaign `pth10-40_eta06_gridnorm`), so `-j 16` on a 16-core node does ~200 files
+  in ~1 h. Memory up to ~1.7 GB per process (2000-sample backgrounds): ask for
+  ~2 GB per core.
+- **Disk:** ~1.15 GB per file, ~77 MB per event (estimate from the same campaign).
+
+### Analysis
+
+```python
+# the whole campaign, all tasks: a glob of the particlize files
+with HadronFileReader("/path/to/pth10-40_eta06_c2/t*/*_particlize.h5") as r:
+    r.pthat_bins                       # (3, 2): the windows
+    sigma, err = r.pthat_bin_sigma(1)  # window 20-30 GeV: σ after the cut [mb]
+    acc, acc_err = r.pthat_bin_acceptance(1)
+    ev = r.pthat_bin_events(1)         # its global events, for events= in hist/total
+```
+
+In the ROOT export, `<campaign>_campaign.root` holds per window `sigma_mb` and
+`weight_mb = sigma_mb / n_events`, the weight of one event of that window in a
+cross-section-weighted sum. For c1 the windows' σ after the cut were 2.3 × 10⁻³,
+4.4 × 10⁻⁵ and 2.1 × 10⁻⁶ mb.
+
+---
+
+## 5. Moving the files
 
 The outputs are in the bound directory on the host, so the host's tools can copy them. From
 inside the container (e.g. jobs on the OSPool), every image has Pelican:
@@ -316,7 +424,7 @@ directory.
 
 ---
 
-## 5. Analysis in a local venv
+## 6. Analysis in a local venv
 
 The analysis doesn't need X-SCAPE, the container, a GPU, conda or ROOT: a Python ≥ 3.10 venv
 with this checkout reads every file
@@ -389,7 +497,7 @@ with uproot (`uproot.open(f)["bulk_jet"].arrays()`) and the format choices are i
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 | symptom | cause and fix |
 |---|---|
