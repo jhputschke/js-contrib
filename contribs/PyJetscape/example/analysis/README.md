@@ -3,7 +3,7 @@
 This folder has the analysis notebooks for the jet productions. §1–§5 are about one
 question: **does the energy of the initial partons come back as surviving partons plus the
 energy deposited in the medium?** §6 covers the parton- and hydro-level wake analysis, §7 the
-same at hadron level, §8 the same distributions in ROOT.
+same at hadron level, §8 points to the ROOT analyses in [`../analysis_root`](../analysis_root/README.md).
 
 | file | what it is for | writes? |
 |---|---|---|
@@ -13,9 +13,8 @@ same at hadron level, §8 the same distributions in ROOT.
 | [`wake_observables.ipynb`](wake_observables.ipynb) | figures from `wake_observables.h5` only | no |
 | [`wake_hadrons.py`](wake_hadrons.py) | one pass over a production's hadron files → `wake_hadrons.h5` | a new file only |
 | [`wake_hadrons.ipynb`](wake_hadrons.ipynb) | hadron-level figures from `wake_hadrons.h5` + `wake_observables.h5` | no |
-| [`hadron_distributions.C`](hadron_distributions.C) | ROOT macro: η, φ, pT of background, background + deposition, jet fragments and the wake, from the ROOT files of `run_h5toROOT.py` | a new `.root` + `.pdf`/`.png` |
 
-Everything here except `hadron_distributions.C` runs without X-SCAPE, in the venv of
+Everything here runs without X-SCAPE, in the venv of
 [`utils/analysis_env`](../../../../utils/analysis_env/README.md).
 
 Both scripts read the pair files that `run_prod_jet.py` writes (`<stem>.h5`), and the fix
@@ -433,56 +432,11 @@ cut removes them.
 - it balances the fragments' pT with soft hadrons at 0.5–2 GeV.
 
 
-## 8. Hadron distributions in ROOT: `hadron_distributions.C`
+## 8. In ROOT: [`../analysis_root`](../analysis_root/README.md)
 
-A ROOT macro for the ROOT files of
-[`../prod_AuAu_0_10_jet/run_h5toROOT.py`](../prod_AuAu_0_10_jet/run_h5toROOT.py) (layout in
-[`../prod_AuAu_0_10_jet/root_export/README.md`](../prod_AuAu_0_10_jet/root_export/README.md)).
-It histograms η, φ and pT for each source of a jet event:
-
-| name | ROOT ntuple | what |
-|---|---|---|
-| `bkg` | `bulk_bg` | iSS on the background's surface (MUSIC_1) |
-| `bkgdep` | `bulk_jet` | iSS on the jet leg's surface (MUSIC_2): background + deposition |
-| `frag` | `jet_frag` | ColorlessHadronization of the surviving partons |
-| `wake` | | `bkgdep` − `bkg` |
-| `full` | | `bkgdep` + `frag`, the whole jet event |
-
-```bash
-cd example/analysis
-root -l -b -q 'hadron_distributions.C+("DIR")'                 # per event, all windows
-root -l -b -q 'hadron_distributions.C+("DIR", 2)'              # pT-hat window 2 only
-root -l -b -q 'hadron_distributions.C+("DIR", -1, true)'       # cross-section weighted [mb]
-root -l -b -q 'hadron_distributions.C+("DIR", -1, false, false, 1.0, "out.root", 8)'
-         # all hadrons (not only charged), |eta| < 1 for pT and phi, output file, 8 threads
-```
-
-Arguments: `dir, window = -1, xsec = false, charged = true, eta_cut = 1.0, out =
-"hadron_distributions.root", threads = 1, keep_flagged = false`. η is filled for all pT;
-pT and φ for \|η\| < `eta_cut`. The output holds `h_{eta,phi,pt,ptlog}_{bkg,bkgdep,frag,wake,full}`,
-divided by the bin width, plus one page of plots (`.pdf`, `.png`). The rows of that page are
-background vs background + deposition, fragments, and wake.
-
-**Normalization is `HadronFileReader`'s.**
-- **Per event.** Each event is the mean over its oversamples, so a hadron of event e
-  weighs w_e / n_samples. A background shared by several events counts once for each of
-  them.
-- **Per event** (default): w_e = 1/N, so the histograms are dN/dX per event.
-- **`xsec`**: w_e = σ_k / N_k, the window's cross section from the campaign file over its
-  selected events, so the sum over windows is dσ/dX in mb. N_k counts only the events used,
-  so dropping flagged events does not change the cross section.
-- **Errors** are the compound-Poisson errors of independent sampling. For `--correlated`
-  hadron files the wake's paired error is much smaller: use
-  `HadronFileReader.jet_minus_background` for it.
-
-**Bad runs** are dropped as in `wake_hadrons.py`: an event whose background has more than
-20% more or fewer freeze-out cells than its jet leg (`events.n_cells_bg / n_cells_jet`) is
-flagged and left out, unless `keep_flagged`. In `AuAu_0_10_pth10-40_eta06_gridnorm` those
-are the 15 events of job 0002.
-
-**Checked** on `AuAu_0_10_pth10-40_eta06_gridnorm`, 285 events, charged hadrons at
-\|η\| < 1: every pT bin of `bkg`, `bkgdep`, `frag` and `wake`, and its error, equals
-`HadronFileReader.hist` / `jet_minus_background` on the HDF5 files to 10⁻¹². Per event:
-1308 (bkg), 1317 (bkg + deposition), 7.0 (fragments), 9.0 (wake) charged hadrons. The
-campaign takes 21 s with 8 threads, against ~6 min for the same histograms with
-`HadronFileReader` on the HDF5 files.
+The ROOT analyses of the files of
+[`../prod_AuAu_0_10_jet/run_h5toROOT.py`](../prod_AuAu_0_10_jet/run_h5toROOT.py) have their
+own folder: `HadronFileReader.h`, a C++ reader that returns an event's background,
+background + deposition and whole jet event as vectors of hadrons; `read_hadrons.C`, an
+example; and `hadron_distributions.C`, the η, φ and pT distributions of every source and of
+the wake.

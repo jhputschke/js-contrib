@@ -35,8 +35,10 @@ python utils/analysis_env/check_env.py /path/to/out  # opens every file in a pro
 **What doesn't work in it:** anything that runs X-SCAPE, i.e. `run_prod_jet.py`,
 `run_jobs.sh`, `hadronize.py`/`run_hadronize.py` (iSS and the Pythia fragmentation are in
 `pyjetscape_core`), and `hydro_pyvista.py`/`hydro_jet_pyvista.py` without `--file`, which
-evolve a live event. The ROOT macro `analysis/hadron_distributions.C` needs ROOT itself
-([With ROOT](#with-root)); the same distributions are in `hadron_distributions.ipynb`.
+evolve a live event. The ROOT macros and the C++ reader in
+[`analysis_root`](../../contribs/PyJetscape/example/analysis_root/README.md) need ROOT itself
+([With ROOT](#with-root)); the distributions of `hadron_distributions.C` are also in
+`hadron_distributions.ipynb`.
 
 ## Options
 
@@ -68,7 +70,7 @@ PyJetscape is installed editable (`pip install -e contribs/PyJetscape --no-deps`
 ROOT isn't needed: `run_h5toROOT.py` falls back to uproot, and the ntuples it writes hold
 the same hadrons. With PyROOT, `run_h5toROOT.py` writes with ROOT by default
 (`--writer auto`), which is needed for `--bits-p`/`--bits-x`. With ROOT itself, you also
-get the `root` prompt, the browser and the `hadron_distributions.C` macro. A venv only
+get the `root` prompt, the browser and the macros of `analysis_root`. A venv only
 sees ROOT when it is made **from the Python that ROOT was built for**, with
 `--system-site-packages`. There are two ways to get there.
 
@@ -102,7 +104,7 @@ source ~/.venvs/js_analysis_root/bin/activate      # PyROOT works from the venv 
 python contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_h5toROOT.py /path/to/out -j 4
 
 conda activate root                                # the root prompt and compiled macros
-root -l -b -q 'contribs/PyJetscape/example/analysis/hadron_distributions.C+("/path/to/out")'
+root -l -b -q 'contribs/PyJetscape/example/analysis_root/hadron_distributions.C+("/path/to/out")'
 ```
 
 The macro needs `conda activate`: without it, ACLiC doesn't find the system headers

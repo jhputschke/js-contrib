@@ -1,4 +1,4 @@
-// example/analysis/hadron_distributions.C
+// example/analysis_root/hadron_distributions.C
 //
 // eta, phi and pT distributions of the hadrons of a campaign converted to ROOT
 // (prod_AuAu_0_10_jet/run_h5toROOT.py), for the three sources of a jet event:
@@ -39,8 +39,8 @@
 // keep_flagged = true to keep them.
 //
 // frag includes what ColorlessHadronization's beam remnants make (E = sqrt(s)/6 each,
-// README.md section 7): the remnants sit at |eta| > 5, but their strings put fragments at
-// all eta, so no eta cut removes them.
+// ../analysis/README.md section 7): the remnants sit at |eta| > 5, but their strings put
+// fragments at all eta, so no eta cut removes them.
 
 #include <TCanvas.h>
 #include <TFile.h>
