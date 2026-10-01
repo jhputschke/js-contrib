@@ -15,6 +15,7 @@ and the production READMEs
 | [`PLAN_pair_h5_music.md`](PLAN_pair_h5_music.md) | background/jet MUSIC pairs → pair files (`pair_h5.py`, `prod_AuAu_0_10_jet`) |
 | [`PLAN_particlize_h5.md`](PLAN_particlize_h5.md) | hadron level: stored surfaces and partons, `hadronize.py`, validation |
 | [`PLAN_iSS_optim.md`](PLAN_iSS_optim.md) | faster iSS (Part A, bit-identical) and correlated jet/background sampling (Part B) |
+| [`PLAN_slim_bulk_info.md`](PLAN_slim_bulk_info.md) | a 6-field background copy (`bulk_info`): ~20 → ~14 GB peak per jet job, bit-identical (not started) |
 | [`README_h5_optim.md`](README_h5_optim.md) | HDF5 compression of `arr` / `arr_bg`: Blosc-zstd default, `keep_bits` |
 
 ## Benchmarks
