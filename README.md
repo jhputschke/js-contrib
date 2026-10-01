@@ -100,9 +100,9 @@ The source files in this repository were copied from
 
 ## Compatibility
 
-| js-contrib | X-SCAPE | JETSCAPE-FNO branch |
-|------------|---------|---------------------|
-| v0.1.x     | ≥ main  | PythonTest          |
+| js-contrib |     X-SCAPE    |   MUSIC4GPU   |
+|------------|----------------|---------------|
+| v0.x       | contrib (head) | XSCAPE (head) |
 
 ## Installation
 
