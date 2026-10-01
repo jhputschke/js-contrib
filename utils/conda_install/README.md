@@ -8,13 +8,18 @@ this page is the reference for the scripts themselves.
 
 ## Why a conda install
 
-**Mainly for macOS on Apple Silicon.** On Linux, the dev and production Docker images
-([`utils/BuildContainerDev.md`](../BuildContainerDev.md),
-[`utils/BuildContainerProd.md`](../BuildContainerProd.md)) are the reference environment,
-with CUDA passed through to the container. On a Mac they don't help: Docker runs the
-containers in a Linux VM, which has no access to the Apple GPU. Metal, and with it PyTorch's
-MPS backend and MLX, isn't available inside a container, so PyTorch there runs on the CPU
-only. The images are also built for Linux and don't have Metal backends such as
+**Mainly for macOS on Apple Silicon.** On Linux with an NVIDIA GPU, the Docker images are
+the reference environment, with CUDA passed through to the container. Both sets are
+published for amd64 and arm64 (aarch64):
+
+| Images | aarch64 status |
+|---|---|
+| production `xscape-prod` ([`utils/BuildContainerProd.md`](../BuildContainerProd.md)): X-SCAPE and PyJetscape built in | working: `cu130` arm64 tested on the GB10 |
+| dev `xscape-fno4d-dev` ([`utils/BuildContainerDev.md`](../BuildContainerDev.md)): the build environment, without sources | built and published, not tested yet on aarch64 |
+
+On a Mac neither helps: Docker runs the containers in a Linux VM, which has no access to the
+Apple GPU. Metal, and with it PyTorch's MPS backend and MLX, isn't available inside a
+container, so PyTorch there runs on the CPU only. The images are also built for Linux and don't have Metal backends such as
 music4gpu's.
 
 A native conda env gives the Mac the GPU-accelerated stack: PyTorch with MPS, MLX, and
@@ -94,10 +99,12 @@ left alone.
   minimal scripts take the newest release, which today needs macOS ≥ 14. MLX is installed as
   well; its wheels also need macOS ≥ 14, and a failed MLX install only warns.
 - **Linux aarch64 (e.g. GB10, Graviton).** conda-forge has native builds of all the C++
-  dependencies. CUDA 12.x wheels run on a CUDA 13 driver.
-- **Linux x86_64.** Works the same; the dev and production containers
-  ([`utils/BuildContainerDev.md`](../BuildContainerDev.md),
-  [`utils/BuildContainerProd.md`](../BuildContainerProd.md)) are the alternative.
+  dependencies. CUDA 12.x wheels run on a CUDA 13 driver. To run productions, the tested
+  production image is the alternative; to build X-SCAPE yourself, use this env (the dev
+  image is untested on aarch64, see [above](#why-a-conda-install)).
+- **Linux x86_64.** Works the same; the production and dev containers
+  ([`utils/BuildContainerProd.md`](../BuildContainerProd.md),
+  [`utils/BuildContainerDev.md`](../BuildContainerDev.md)) are the alternative.
 
 ## FNO4d
 
