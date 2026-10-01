@@ -44,7 +44,7 @@ the top each show one feature of the bindings.
 
 | script | shows | docs |
 |---|---|---|
-| [`per_event_loop.py`](per_event_loop.py) | the event loop in Python (Mode C, `JetScapePerEvent`): each event's modules can be inspected before they are cleared; XML task list or a manual pipeline | [PyJetscape README, *Example Script*](../README.md#example-script) |
+| [`per_event_loop.py`](per_event_loop.py) | the event loop in Python (Mode C, `JetScapePerEvent`): each event's modules can be inspected before they are cleared; XML task list or a manual pipeline | [PyJetscape README, *Example Scripts*](../README.md#example-scripts) |
 | [`python_bulk_h5_writer.py`](python_bulk_h5_writer.py) | `H5BulkWriter`: the hydro evolution straight to FNO4d HDF5, no ROOT; native, grid and framework modes | [*Python HDF5 Bulk Writer*](../README.md#python-hdf5-bulk-writer-fast_h5_bulkpy) |
 | [`validate_h5_vs_root.py`](validate_h5_vs_root.py) | the C++ `FastRootBulkWriter` and `H5BulkWriter` on the same events, compared (bit for bit in native mode) | [*Python HDF5 Bulk Writer*, Examples and tests](../README.md#examples-and-tests) |
 | [`python_fast_bulk_root_writer.py`](python_fast_bulk_root_writer.py) | the C++ `FastRootBulkWriter` from Python, the file read back; `--check-numpy` compares MUSIC's native store in numpy with it | [*C++ `FastRootBulkWriter` from Python*](../README.md#c-fastrootbulkwriter-from-python) |

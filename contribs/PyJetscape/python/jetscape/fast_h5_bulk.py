@@ -32,9 +32,8 @@ Usage
 
     writer = H5BulkWriter(out_file_name="hydro_evo.h5", grid_mode="native")
     jetscape.Add(writer)
-    jetscape.Init(); jetscape.Exec(); jetscape.Finish()
-    writer.Finish()   # must be called explicitly -- JetScape::Finish() calls FinishTasks(),
-                      # which is a no-op; sub-task Finish() is never propagated.
+    jetscape.Init(); jetscape.Exec(); jetscape.Finish()   # also finishes the writer:
+                      # JetScape::Finish() calls Finish() on every active task
 
 ``Finish()`` is idempotent, and the writer is a context manager, so the safe form is:
 

@@ -53,10 +53,8 @@ Usage
     jetscape.Add(bulk_writer)
     jetscape.Init()
     jetscape.Exec()
-    jetscape.Finish()
-    bulk_writer.Finish()   # must be called explicitly — JetScape::Finish()
-                           # calls FinishTasks() which is a no-op; sub-task
-                           # Finish() is never propagated by the framework.
+    jetscape.Finish()      # also calls bulk_writer.Finish(): JetScape::Finish()
+                           # finishes every active task (JetScapeTask::FinishTasks)
 """
 
 from __future__ import annotations

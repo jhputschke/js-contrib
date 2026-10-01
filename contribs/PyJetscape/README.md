@@ -33,21 +33,27 @@ Original development repository:
 | Path | Description |
 |------|-------------|
 | `src/pyjetscape_core.cc` | Top-level pybind11 module definition; imports all sub-modules |
-| `src/bind_framework.cc` | Bindings for `JetScape`, `JetScapeTask` |
-| `src/bind_evolution.cc` | Bindings for `JetEnergyLoss`, `JetEnergyLossManager`, `Hadronization`, `HadronizationManager` |
-| `src/bind_initial_state.cc` | Bindings for `InitialState` |
-| `src/bind_fluid_dynamics.cc` | `FluidDynamics` trampoline — enables Python subclasses as JETSCAPE hydro modules |
-| `src/bind_music.cc` | Bindings for the MUSIC module (incl. native-store numpy export for `dump_hydro_only`) |
+| `src/bind_framework.cc` | Bindings for `JetScape`, `JetScapeTask`, `JetScapePerEvent`, the `JetScapeModuleBase` trampoline (Python modules), `create_module`, `load_xml` |
+| `src/bind_evolution.cc` | Bindings for `FluidCellInfo`, `SurfaceCellInfo`, `EvolutionHistory` |
+| `src/bind_initial_state.cc` | Bindings for `InitialState`, with a trampoline for Python initial states |
+| `src/bind_fluid_dynamics.cc` | `FluidDynamics` trampoline — enables Python subclasses as JETSCAPE hydro modules; also `PreequilibriumDynamics`, `Parameter`, `HydroStatus`, `SURFACE_CELL_COLUMNS` |
+| `src/bind_music.cc` | Bindings for the MUSIC module (`MpiMusic`, incl. native-store numpy export for `dump_hydro_only`) and `TrentoInitial` |
+| `src/bind_jet.cc` | `Parton`, `Vertex`, `PartonShower`, `JetEnergyLoss`, `JetEnergyLossManager`, `FINAL_PARTON_COLUMNS` |
+| `src/bind_liquefier.cc` | `Droplet`, `LiquefierBase`, `CausalLiquefier` |
+| `src/bind_hard_process.cc` | The hard process: `hard_process_info`, `pythia_gun_bins`, `hard_partons_numpy` |
 | `src/bind_root_bulk_writer.cc` | Binding for the C++ `FastRootBulkWriter` (ROOT builds only, see `HAS_ROOT`) |
 | `src/bind_signal_manager.cc` | Bindings for `JetScapeSignalManager` |
-| `python/jetscape/__init__.py` | Package entry point; re-exports key symbols from `pyjetscape_core` |
+| `python/jetscape/__init__.py` | Package entry point; re-exports key symbols from `pyjetscape_core` and the HDF5 tooling; `HAS_CORE`, `HAS_H5PY`, `HAS_ROOT` |
 | `python/jetscape/fno_hydro.py` | `PyFNOHydro` — Python FluidDynamics backed by a PyTorch FNO model |
 | `python/jetscape/utils.py` | NumPy/PyTorch ↔ JETSCAPE bulk-info conversion helpers |
 | `python/jetscape/run_jetscape.py` | High-level simulation drivers: `run_automatic()` (Mode A), `run_manual()` (Mode B), `per_event_loop()` / `run_per_event()` (Mode C) |
 | `python/jetscape/bulk_root_writer.py` | Python ROOT bulk-evolution writer via uproot |
 | `python/jetscape/fast_root_bulk.py` | Reader for `FastRootBulkWriter` ROOT files (uproot) |
 | `python/jetscape/fast_h5_bulk.py` | `H5BulkWriter`: one hydro evolution per event → FNO4d HDF5 |
-| `python/jetscape/fno_h5_writer.py` | The FNO4d HDF5 writer both HDF5 writers use (h5py + numpy only), plus `repad_to` |
+| `python/jetscape/fno_h5_writer.py` | The FNO4d HDF5 writer the HDF5 writers use (h5py + numpy only), `RaggedGroup`, plus `repad_to` |
+| `python/jetscape/bulk_sources.py` | The hydro sources of the HDF5 writers (native, grid, framework), `Grid`, resampling |
+| `python/jetscape/h5_compression.py` | Compression filters (Blosc-zstd default, lzf, gzip), `round_mantissa` |
+| `python/jetscape/repad_h5.py` | `python -m jetscape.repad_h5`: one `choose_ntau` for a set of files |
 | `python/jetscape/pair_h5.py` | `PairH5Writer`: a two-stage MUSIC run (background + jet leg) → one pair file in FastHydro's layout |
 | `python/jetscape/particlize_h5.py` | `ParticlizeH5Writer` / `ParticlizeFile`: each leg's freeze-out surface (every field iSS reads) + the final partons, to hadronize later |
 | `python/jetscape/hadrons_h5.py` | `HadronH5Writer` / `Hadrons`: hadrons with every oversample kept apart, sample averages with compound-Poisson errors |
@@ -57,7 +63,8 @@ Original development repository:
 | [`example/`](example/README.md) | Index of the examples: productions, analyses (Python and ROOT), single-feature scripts |
 | `example/prod_AuAu_0_10/`, `example/prod_AuAu_0_10_jet/` | Productions: 0–10% Au+Au hydro-only, and the same with a jet as background/jet pairs |
 | `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
-| `pyproject.toml` | Source-only Python package metadata (`name = "pyjetscape"`) |
+| `tests/` | pytest suites of the Python tooling; most run without an X-SCAPE build |
+| `CMakeLists.txt`, `pyproject.toml`, `setup.py` | The `pyjetscape_core` build; source-only Python package metadata (`name = "pyjetscape"`) |
 
 ---
 
@@ -65,10 +72,10 @@ Original development repository:
 
 | Dependency | Version | Notes |
 |------------|---------|-------|
-| X-SCAPE or JETSCAPE | ≥ 4.0 | Built and available; see [Path A](#path-a--via-x-scape-cmake) / [Path B](#path-b--standalone-build) |
+| X-SCAPE | branch `contrib` | Built and available; see [Path A](#path-a--via-x-scape-cmake). `JetScapePerEvent`, `get_js_contrib.sh`, the `USE_JS_*` options and the hooks the bindings use exist only on X-SCAPE's `contrib` branch, not on `main` or in the original JETSCAPE |
 | CMake | ≥ 3.18 | `FindPython3` with the `Development.Module` component |
-| Python | ≥ 3.8 | 3.11 used in the `js_fno` conda environment |
-| pybind11 | ≥ 2.11 | Build time only: `pip install pybind11` or conda; CMake stops if it is not found |
+| Python | ≥ 3.9 | 3.11 used in the `js_fno` conda environment |
+| pybind11 | ≥ 2.11 | Build time only: `pip install pybind11` or conda (the `js_fno` scripts don't install it); CMake stops if it is not found |
 | numpy | ≥ 1.21 | |
 | h5py | ≥ 3 | HDF5 writers and readers (`fno_h5_writer.py`, `fast_h5_bulk.py`, `pair_h5.py`); sets `jetscape.HAS_H5PY` |
 | hdf5plugin | | Blosc filter of the default compression ([README_h5_optim.md](../../docs/README_h5_optim.md)). Without it the writers fall back to lzf with a warning and Blosc files cannot be read; `import jetscape` registers the filter |
@@ -77,12 +84,15 @@ Original development repository:
 | — | — | All of the above are installed by `pip install -e contribs/PyJetscape`. `jetscape.HAS_CORE` reports whether the compiled extension is importable. The HDF5 tooling (`FnoH5Writer`, `grid_attrs`, `repad_to`, `read_fast_h5_bulk`) stays usable without an X-SCAPE build; `H5BulkWriter` is a framework module and raises a clear error without one. |
 | PyTorch | ≥ 2.0 | Optional (`pip install -e "contribs/PyJetscape[fno]"`): only `PyFNOHydro` needs it; `pyjetscape_core` does not link libtorch |
 | uproot | ≥ 5 | Optional (`[root]`): only `bulk_root_writer.py` and `fast_root_bulk.py` |
+| networkx | | Optional: only `jetscape.utils.shower_to_networkx` |
 
-> **Important — import order:** when PyTorch is used, `torch` must be imported **before**
-> `pyjetscape_core` (i.e., before `import jetscape`).  Both ROOT (loaded by
-> the C++ extension) and PyTorch ship their own `libomp`; the one initialised
-> second will cause a segfault on some platforms.  All example scripts handle
-> this correctly.
+> **Important — import order:** when PyTorch is used, `torch` must be loaded **before**
+> `pyjetscape_core`.  Both ROOT (loaded by the C++ extension) and PyTorch ship their own
+> `libomp`; the one initialised second will cause a segfault on some platforms.
+> `import jetscape` takes care of it: it imports `fno_hydro` (and with it torch, if
+> installed) before the extension. The rule matters when importing
+> `jetscape.pyjetscape_core` directly, or ROOT before `jetscape`. Importing `torch` first,
+> as the example scripts do, is always safe.
 
 ---
 
@@ -94,33 +104,31 @@ Setup scripts are in [`utils/conda_install/`](../../utils/conda_install/) (detai
 
 | Script | Description |
 |--------|-------------|
-| `install_js_fno_minimal.sh` | Minimal install — top-level packages only, conda resolves dependencies |
-| `pinned/install_js_fno_pinned.sh` | Fully pinned versions for exact reproducibility |
-| `install_js_fno_build_minimal.sh` | Adds C++ build tools (CMake, compilers, ROOT) to the minimal env |
-| `pinned/install_js_fno_build_pinned.sh` | Pinned versions with build tools |
-| `test_js_fno_build_env.sh` | Smoke-test that the environment is correctly configured |
+| `install_js_fno_minimal.sh` | The Python/ML stack only (PyTorch, ROOT, uproot, HDF5, notebooks) — top-level packages, conda resolves dependencies; enough to run, not to build |
+| `pinned/install_js_fno_pinned.sh` | The same with fully pinned versions |
+| `install_js_fno_build_minimal.sh` | Full install: the Python/ML stack **plus** the C++ build dependencies of X-SCAPE and js-contrib (CMake, compilers, Boost, HDF5, Pythia8, HepMC3, FastJet, GSL, OpenMPI) |
+| `pinned/install_js_fno_build_pinned.sh` | The full install with pinned versions |
+| `test_js_fno_build_env.sh` | Dry run, before installing: checks that every package of `install_js_fno_build_minimal.sh` is available, without creating or installing anything |
 
-**Quick start (CPU / macOS Apple Silicon):**
-
-```bash
-cd utils/conda_install                # from the js-contrib root
-bash install_js_fno_minimal.sh none   # "none" = CPU/MPS, no CUDA
-conda activate js_fno
-bash test_js_fno_build_env.sh
-```
-
-**Quick start (Linux with CUDA):**
+**Quick start, to build X-SCAPE and PyJetscape:**
 
 ```bash
-bash install_js_fno_minimal.sh        # auto-detects CUDA version
-# or: bash install_js_fno_minimal.sh 12.1   # force a specific CUDA version
+cd utils/conda_install                      # from the js-contrib root
+bash test_js_fno_build_env.sh               # optional: are all packages available?
+bash install_js_fno_build_minimal.sh        # auto-detects CUDA
+#    bash install_js_fno_build_minimal.sh none   # CPU/MPS, e.g. macOS Apple Silicon
+#    bash install_js_fno_build_minimal.sh 12.1   # force a CUDA version
 conda activate js_fno
-bash test_js_fno_build_env.sh
+pip install pybind11                        # not installed by the scripts
 ```
 
-After activation, the `js_fno` environment provides `python`, `cmake`,
-`pytorch`, `pybind11`, `numpy`, `uproot`, ROOT, and the HDF5/notebook packages
-(`h5py`, `hdf5plugin`, `pyyaml`, `scipy`, `matplotlib`, `pandas`, `ipywidgets`, `jupyterlab`).
+`install_js_fno_minimal.sh` (same arguments) installs only the Python side, for running
+against an existing build; it has no CMake or compilers.
+
+After activation, the `js_fno` environment provides `python`, PyTorch, `numpy`, `uproot`,
+ROOT and the HDF5/notebook packages (`h5py`, `hdf5plugin`, `pyyaml`, `scipy`, `matplotlib`,
+`pandas`, `ipywidgets`, `jupyterlab`); the build scripts add CMake, the compilers and the
+C++ libraries.
 
 ---
 
@@ -130,10 +138,13 @@ After activation, the `js_fno` environment provides `python`, `cmake`,
 
 This is the recommended approach when you are already building X-SCAPE.
 
-**Step 1**: Download js-contrib into X-SCAPE's `external_packages/`:
+**Step 1**: Download js-contrib into X-SCAPE's `external_packages/`. X-SCAPE must be on its
+`contrib` branch, which has the script and the CMake options below:
 
 ```bash
-cd /path/to/X-SCAPE/external_packages
+cd /path/to/X-SCAPE
+git checkout contrib
+cd external_packages
 ./get_js_contrib.sh        # clones https://github.com/jhputschke/js-contrib
 ```
 
@@ -153,11 +164,16 @@ cmake .. \
   -DUSE_MUSIC=ON \
   -DUSE_ISS=ON \
   -DUSE_JS_CONTRIB=ON \
-  -DUSE_JS_PYJETSCAPE=ON \
-  -DCMAKE_PREFIX_PATH="$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
+  -DUSE_JS_PYJETSCAPE=ON
 
 make -j$(nproc) pyjetscape_core
 ```
+
+- `-DUSE_MUSIC=ON` is required: the bindings include MUSIC's wrapper.
+- `-DUSE_ISS=ON` is needed for the hadron-level tools (`hadronize.py`).
+- `-DUSE_ROOT=ON` adds the `FastRootBulkWriter` binding (`jetscape.HAS_ROOT`).
+- PyJetscape doesn't link libtorch, so it needs no `CMAKE_PREFIX_PATH` to PyTorch. Only
+  the C++ FnoHydro contrib does (`-DUSE_JS_FNO_HYDRO=ON`, see its README).
 
 The compiled extension `pyjetscape_core.so` (or `.pyd` on Windows) is written
 to `contribs/PyJetscape/python/jetscape/` inside the js-contrib source tree.
@@ -185,37 +201,27 @@ and the notebooks (see [Prerequisites](#prerequisites)); PyTorch stays optional.
 Or let CMake do this automatically on every build by adding
 `-DJS_PIP_INSTALL_PYJETSCAPE=ON` to the `cmake` command above.
 
-Verify:
+Verify (`True` once the compiled extension is found):
 
 ```bash
-python -c "import jetscape; print(jetscape.__version__)"
+python -c "import jetscape; print(jetscape.HAS_CORE)"
 ```
 
 ---
 
-### Path B — Standalone Build
+### Path B — Standalone Build (not working at present)
 
-Use this when you have an existing JETSCAPE/X-SCAPE build and want to build
-js-contrib independently.
+js-contrib's CMake has a standalone mode against an existing X-SCAPE build:
 
 ```bash
-conda activate js_fno
-
-git clone https://github.com/jhputschke/js-contrib.git
-cd js-contrib
-mkdir build && cd build
-
-cmake .. \
-  -DBUILD_PYJETSCAPE=ON \
-  -DJETSCAPE_DIR=/path/to/xscape-build \
-  -DCMAKE_PREFIX_PATH="$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
-
+cmake .. -DBUILD_PYJETSCAPE=ON -DJETSCAPE_DIR=/path/to/xscape-build
 make -j$(nproc) pyjetscape_core
 ```
 
-Then make the package importable via PYTHONPATH or `pip install -e` as shown
-in [Path A Step 4](#path-a--via-x-scape-cmake).
-To have CMake run `pip install -e` automatically, add `-DJS_PIP_INSTALL_PYJETSCAPE=ON`.
+It is not tested, and as things stand it can't compile the bindings. The `JetScape`
+package config that X-SCAPE exports doesn't carry the include directories of MUSIC
+(`bind_music.cc` needs `music.h`), GSL, Pythia8, Boost or ROOT, and without `USE_ROOT`
+`HAS_ROOT` is always False. Use [Path A](#path-a--via-x-scape-cmake).
 
 ---
 
@@ -233,26 +239,27 @@ import jetscape
 
 All modules are instantiated from the JETSCAPE XML by the C++ factory.  No
 Python module injection is needed.  `enableAutomaticTaskListDetermination`
-must be `true` in the user XML.
+must be `true`, the default of `jetscape_main.xml` (the user XML must not set it to
+`false`). `run_automatic` runs `Init()`, `Exec()` and `Finish()` itself and returns the
+finished `JetScape` object:
 
 ```python
 import torch
 from jetscape.run_jetscape import run_automatic
 
 js = run_automatic(
-    main_xml="config/jetscape_main.xml",
+    main_xml="config/jetscape_main.xml",          # X-SCAPE's config/
     user_xml="config/jetscape_user_MUSIC.xml",
 )
-js.Init()
-js.Exec()
-js.Finish()
 ```
 
 ### Mode B — Python Module Injection
 
 Modules are supplied explicitly as a Python list.  Python trampoline modules
 (e.g. `PyFNOHydro`) are fully supported.  Set
-`enableAutomaticTaskListDetermination` to `false` in the user XML.
+`enableAutomaticTaskListDetermination` to `false` in the user XML. Like `run_automatic`,
+`run_manual` runs `Init()`, `Exec()` and `Finish()` and returns the finished object
+(`n_events=` overrides `<nEvents>`):
 
 ```python
 import torch
@@ -260,30 +267,25 @@ from jetscape import create_module
 from jetscape.fno_hydro import PyFNOHydro, fno_config_from_xml
 from jetscape.run_jetscape import run_manual
 
-# --- Configure the FNO grid (must match the trained model) ---
-config = fno_config_from_xml("config/jetscape_user_fno.xml")
+# a user XML with a <Hydro><FNO> block, e.g. FnoHydro's config/jetscape_user_root_bulk_test.xml
+user_xml = "jetscape_user_fno.xml"
+config = fno_config_from_xml(user_xml)        # the FNO grid; must match the trained model
 
-# --- Build modules ---
-ini      = create_module("TrentoInitial")
-preeq    = create_module("FreestreamMilne")
-fno      = PyFNOHydro("models/traced_JS3.7_10k_3feat_fno_model_cpu_0_10_59bins.pt", config)
-jloss_mgr = create_module("JetEnergyLossManager")
-jloss     = create_module("JetEnergyLoss")
-matter    = create_module("Matter")
+ini   = create_module("TrentoInitial")
+preeq = create_module("FreestreamMilne")      # needs X-SCAPE with USE_FREESTREAM
+fno   = PyFNOHydro("models/<traced model>.pt", config)
 
-jloss.Add(matter)
-jloss_mgr.Add(jloss)
-
-# --- Run ---
-js = run_manual(
-    main_xml="config/jetscape_main.xml",
-    user_xml="config/jetscape_user_fno.xml",
-    modules=[ini, preeq, fno, jloss_mgr],
-)
-js.Init()
-js.Exec()
-js.Finish()
+js = run_manual(main_xml="config/jetscape_main.xml", user_xml=user_xml,
+                modules=[ini, preeq, fno])
 ```
+
+Jet energy loss in a manual pipeline: `JetEnergyLossManager` and `JetEnergyLoss` are not
+registered in the module factory, so `create_module()` can't make them. Construct the
+bound classes directly (`from jetscape.pyjetscape_core import JetEnergyLossManager,
+JetEnergyLoss`), `Add()` a `create_module("Matter")` to the `JetEnergyLoss` and that to the
+manager. Hadronization managers are not bound; a pipeline that needs them is best built
+from the XML (Mode A or C). `example/python_fno_test.py` runs the
+initial state → pre-equilibrium → `PyFNOHydro` chain.
 
 ### Mode C — Per-Event External Loop
 
@@ -312,6 +314,7 @@ for js in per_event_loop("config/jetscape_main.xml",
 Callback form (`run_per_event`):
 
 ```python
+from jetscape import JetScapeSignalManager
 from jetscape.run_jetscape import run_per_event
 
 def analyse(js):
@@ -335,7 +338,7 @@ js.SetXMLMainFileName("config/jetscape_main.xml")
 js.SetXMLUserFileName("config/jetscape_user_MUSIC.xml")
 js.Init()
 for _ in range(js.GetNumberOfEvents()):
-    js.ExecPerEvent()       # run one event; data stays in memory
+    js.ExecPerEvent()       # run one event (calls ExecInit() first, once); data stays in memory
     # ... read module data here ...
     js.ClearPerEvent()      # release memory, advance counter
 js.Finish()
@@ -368,26 +371,28 @@ hydro = PyFNOHydro((net, "checkpoints/epoch50.pt"), config)
 hydro = PyFNOHydro(net, config)
 ```
 
-The `config` dict must specify the FNO grid parameters:
+The `config` dict gives the FNO grid; it must match the model:
 
 ```python
 config = dict(
-    nx=60, ny=60, ntau=59,
-    x_min=-15.0, y_min=-15.0,
-    dx=0.5, dy=0.5, dtau=0.1,
-    tau0=0.5,
-    n_features=3,
-    freezeout_temperature=0.136,
-    EOS_id_MUSIC=91,
-    device="cpu",   # or "cuda", "mps"
+    nx=60, ny=60, ntau=59,          # required
+    n_features=3,                   # required
+    x_min=-15.0, y_min=-15.0,       # required; dx = -2*x_min/nx, dy likewise
+    dtau=0.1,                       # required
+    T_freeze=0.136,                 # required: freeze-out temperature [GeV]
+    neta=1, deta=0.0,               # optional
+    tau_normalise=True,             # optional
+    device="cpu",                   # optional: "cpu", "cuda", "mps"
 )
 ```
 
-Alternatively, parse the config directly from a JETSCAPE XML file:
+τ₀ is not a key: it is taken from the pre-equilibrium module's end time. Alternatively,
+parse the config from the `<Hydro><FNO>` block of a user XML, or pass `config=None` and
+`PyFNOHydro` reads that block itself at `InitializeHydro`:
 
 ```python
 from jetscape.fno_hydro import fno_config_from_xml
-config = fno_config_from_xml("config/jetscape_user_fno.xml", device="cpu")
+config = fno_config_from_xml("jetscape_user_fno.xml", device="cpu")
 ```
 
 > For pre-trained model files see the
@@ -401,34 +406,38 @@ config = fno_config_from_xml("config/jetscape_user_fno.xml", device="cpu")
 ```python
 from jetscape.utils import bulk_info_to_numpy, bulk_info_to_tensor, rebin_preeq_to_fno_grid
 
-# Convert JETSCAPE BulkInfo to numpy array
-arr = bulk_info_to_numpy(bulk_info)   # shape: (nx, ny, n_features)
+# EvolutionHistory (hydro.get_bulk_info()) -> numpy, float32, (ntau, nx, ny, n_features)
+arr = bulk_info_to_numpy(bulk_info, n_features=4)
 
-# Convert to PyTorch tensor (on the specified device)
-t = bulk_info_to_tensor(bulk_info, device="cpu")
+# -> PyTorch tensor (1, n_features, nx, ny, ntau) on the given device
+t = bulk_info_to_tensor(bulk_info, n_features=4, device="cpu")
 
-# Rebin pre-equilibrium output to FNO grid
-fno_input = rebin_preeq_to_fno_grid(preeq_output, config)
+# the pre-equilibrium module's output on the FNO grid: (n_features, nx_fno, ny_fno, 1)
+fno_input = rebin_preeq_to_fno_grid(preeq, ini, nx_fno, ny_fno, x_min_fno, y_min_fno,
+                                    dx_fno, dy_fno, n_features=4)
 ```
 
 ---
 
 ## Python ROOT Bulk Writer (`bulk_root_writer.py`)
 
-`BulkRootWriter` writes the JETSCAPE hydro bulk evolution to a ROOT `TTree`
+`PyBulkRootWriter` writes the JETSCAPE hydro bulk evolution to a ROOT `TTree`
 (via [uproot](https://github.com/scikit-hep/uproot5)) in the same format used
-by the C++ `bulkRootWriter` executable, making the output directly usable for
-FNO model training.
+by the C++ `bulkRootWriter` executable (FnoHydro), making the output directly usable for
+FNO model training. It is a Python module: add it to the pipeline after the hydro; it
+reads the hydro in `Exec()` and closes the file in `Finish()`. Without uproot it writes an
+`.npz` instead.
 
 ```python
-from jetscape.bulk_root_writer import BulkRootWriter
+from jetscape.bulk_root_writer import PyBulkRootWriter
 
-writer = BulkRootWriter("output_bulk.root")
-writer.open()
-# ... inside the event loop:
-writer.write_event(bulk_info)
-writer.close()
+writer = PyBulkRootWriter("output_bulk.root", n_features=3, tau_max=5.0, d_tau=0.1, d_x=0.5)
+jetscape.Add(writer)                       # after the hydro module
+jetscape.Init(); jetscape.Exec(); jetscape.Finish()
+data = PyBulkRootWriter.read_root("output_bulk.root")
 ```
+
+`example/python_bulk_root_writer.py` is a complete run.
 
 ---
 
@@ -575,12 +584,14 @@ from jetscape.fast_h5_bulk import H5BulkWriter
 
 writer = H5BulkWriter(out_file_name="hydro_evo.h5", grid_mode="native")
 jetscape.Add(writer)          # must come AFTER the hydro module
-jetscape.Init(); jetscape.Exec(); jetscape.Finish()
-writer.Finish()               # JetScape::Finish() does not propagate to sub-tasks
+jetscape.Init(); jetscape.Exec(); jetscape.Finish()   # Finish() reaches the writer too
 ```
 
-`Finish()` is idempotent and the writer is a context manager, so `with H5BulkWriter(...)`
-is the safe form.
+`JetScape.Finish()` calls `Finish()` on every active task, Python modules included, and
+that closes the file. `Finish()` is idempotent, and the writer is a context manager, so
+`with H5BulkWriter(...)` (or an explicit `writer.Finish()`) is safe whatever the pipeline
+does. Further options: `tau_stride`, `compression`, `keep_bits`, `choose_ntau`, `force`,
+`extra_attrs`; `out_grid` also takes a `jetscape.bulk_sources.Grid`.
 
 ### Output
 
@@ -673,6 +684,9 @@ raises a clear `ImportError`), so this works unchanged on a training machine:
 from jetscape import repad_to, FnoH5Writer, read_fast_h5_bulk   # h5py + numpy only
 ```
 
+(Files written with the default Blosc-zstd compression also need `hdf5plugin` to be read;
+without it the writers fall back to lzf, with a warning.)
+
 `fno_h5_writer.py`, `repad_h5.py` and `h5_compression.py` are also self-contained — copy
 the three anywhere and run `python repad_h5.py *.h5` with no package at all.
 
@@ -710,18 +724,22 @@ MultiH5Array now: 4 events, item (4, 32, 32, 8, 21)
 live_tau_lengths preserved: [10, 14, 9, 21]
 ```
 
-It refuses, rather than damaging anything, in three cases: the files disagree on
-`(nFeatures, nx, ny, neta)` and could never be concatenated; the target is *smaller* than
-some file, since shrinking an HDF5 dataset discards data permanently; or a file's tau axis
-has no `maxshape` — FNO4d's own `FnoH5Writer` pre-allocates, so its files must be
-rewritten rather than resized. Re-running with the same target is a no-op.
+It refuses, rather than damaging anything, when:
+- the files disagree on `(nFeatures, nx, ny, neta)` and could never be concatenated;
+- the target is *smaller* than some file, since shrinking an HDF5 dataset discards data
+  permanently;
+- a file's tau axis has no `maxshape` — FNO4d's own `FnoH5Writer` pre-allocates, so its
+  files must be rewritten rather than resized;
+- a file's tau-bearing datasets already disagree with each other.
+
+Re-running with the same target is a no-op.
 
 This is the h5-to-h5 counterpart of `root2hdf5/root_to_hdf5.py --global-ntau`.
 
 ### Things worth knowing
 
 * **`choose_ntau` is a cross-file contract** — see
-  [Sharing `choose_ntau` across jobs](#sharing-choose_ntau-across-jobs) below. It is the one
+  [Sharing `choose_ntau` across jobs](#sharing-choose_ntau-across-jobs) above. It is the one
   real cost of `arr` being rectangular, and the one thing most likely to bite a campaign.
 * **The tau chunk extent is 1.** That is what makes the frame-by-frame write cover exactly
   one whole HDF5 chunk (no read-modify-write) and what makes the zero padding of short
@@ -749,9 +767,8 @@ This is the h5-to-h5 counterpart of `root2hdf5/root_to_hdf5.py --global-ntau`.
   log is `Initialize PreequilibriumDynamics` appearing twice.
 * **Events cut short at the grid edge are flagged.** MUSIC stops an event whose freeze-out
   surface reaches the transverse grid boundary (it expects a re-run on a larger grid, which
-  X-SCAPE does not do), so that evolution is truncated. With an X-SCAPE build that has
-  `MpiMusic.get_hit_grid_boundary()` (X-SCAPE `ca8dd84a`), the writer stores
-  `diag/hit_grid_boundary` per event and warns.
+  X-SCAPE does not do), so that evolution is truncated. The writer stores
+  `diag/hit_grid_boundary` per event (from `MpiMusic.get_hit_grid_boundary()`) and warns.
 * **XML prerequisites differ by mode and are mutually exclusive.** `native`/`grid` need
   `<dump_hydro_only>1` plus `<output_evolution_to_memory>1`; `framework` needs
   `<output_evolution_to_memory>1` *without* `dump_hydro_only`, since it reads
@@ -780,6 +797,7 @@ then calls the C++ writer by hand.
 transcription of the C++ `EvolutionHistory::get()` and the output against FNO4d's loaders.
 
 ```bash
+cd X-SCAPE
 pytest external_packages/js-contrib/contribs/PyJetscape/tests/test_h5_bulk.py -q
 ```
 
@@ -803,15 +821,16 @@ IS (e.g. 3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
 
 * **MUSIC with a jet source slot**, so that MUSIC_2 gets both the initial-state source
   (e.g. 3D MC-Glauber strings) and the droplets:
-  * music4gpu: MUSIC4GPU `XSCAPE` from `3037be7` on; X-SCAPE's `get_music4gpu.sh` pins it.
+  * music4gpu: the commit X-SCAPE's `get_music4gpu.sh` pins (MUSIC4GPU `XSCAPE`). It has
+    the jet source (`3037be7`), the `<freeze_out_surface>` switch and the parallel surface
+    search (`5058545`).
   * CPU MUSIC: MUSIC `cee9460` (X-SCAPE PR #138). It works, but evaluates every droplet at
     every step (see *Timing* below).
   * Without the slot, MUSIC_2 silently ignores the droplets, and the writer warns that the
     jet leg is identical to the background.
-* **X-SCAPE with the pair support** (branch `pair_h5_music`), for the MpiMusic bindings
-  `set_dump_hydro_only`, `set_skip_surface` and `get_hit_grid_boundary`, and for the
-  per-step droplet pruning. The `<freeze_out_surface>` switch below needs X-SCAPE branch
-  `pair_h5_music_surface_off` and MUSIC4GPU branch `XSCAPE_surface_off`.
+* **X-SCAPE `contrib`.** The pair support (MpiMusic `set_dump_hydro_only`,
+  `set_skip_surface`, `get_hit_grid_boundary`, `set_freeze_out_surface`, the per-step
+  droplet pruning) is merged there (PRs #141, #142), and the bindings need it.
 * **A user XML with:**
   * two `<Hydro><MUSIC>` blocks named `MUSIC_1` and `MUSIC_2`, in that order.
     Every MUSIC instance reads the **first** block, so all MUSIC settings go there. The first
@@ -823,8 +842,11 @@ IS (e.g. 3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
   * with NullPreDynamics and strings, `<Preequilibrium><evolutionInMemory>0`.
   * optionally `<freeze_out_surface>0`, the fast setting for training data (next section).
 
-`example/prod_AuAu_0_10_jet/AuAu_MCGlauber_MUSIC_0_10_jet.xml` is a complete example, and
-`run_prod_jet.py` checks all of the above before it runs.
+`example/prod_AuAu_0_10_jet/AuAu_MCGlauber_MUSIC_0_10_jet.xml` is a complete example.
+`run_prod_jet.py` checks the XML before it runs: the MUSIC_1/MUSIC_2 names and order,
+`output_evolution_to_memory`, `dump_hydro_only`, `evolutionInMemory`, `<Eloss><AddLiquefier>`
+and the liquefier's `dtau`. It sets MUSIC_2's `AddLiquefier`, both `freeze_out_surface`
+values and the single hard process itself.
 
 ### Usage
 
@@ -863,12 +885,15 @@ for i in range(jetscape.GetNumberOfEvents()):
     idx = writer.Exec()      # both legs are in memory here; returns the event index or None
     jetscape.ClearPerEvent()
 jetscape.Finish()
-writer.Finish()              # idempotent; the writer is also a context manager
+writer.Finish()              # not a framework task: call it yourself (idempotent)
 ```
 
 `attach()` finds the legs by module id (`bg_id="MUSIC_1"`, `jet_id="MUSIC_2"`), the
 liquefier, and the shower manager. `writer.write_diag(idx, wall_s=...)` adds per-event
-scalars after `Exec()`.
+scalars after `Exec()`. Further options: `compression`, `keep_bits`, `tau_stride`,
+`choose_ntau`, `store_droplets`, `store_showers`, `provenance`, and for reused backgrounds
+`bg_layout` (`auto`, `full`, `shared`: one stored background per `bg_id`, with `arr_bg` a
+virtual view of its rows) with `reuse=`.
 
 ### What is written
 
@@ -1052,8 +1077,8 @@ freeze-out surface and the final partons. Hadronizing them later gives exactly w
 `ColorlessHadronization` would have given inside the job (checked bit for bit). The production
 driver is `example/prod_AuAu_0_10_jet` (`run_prod_jet.py --write-particlize`, `hadronize.py`,
 see its README); the design is in [`docs/Plans/PLAN_particlize_h5.md`](../../docs/Plans/PLAN_particlize_h5.md) (js-contrib top level). Needs
-X-SCAPE branch `surface_to_hadrons` (seed hooks in `SoftParticlization` and
-`ColorlessHadronization`, `<JetHadronization><reseed_per_event>`).
+X-SCAPE `contrib`: the seed hooks in `SoftParticlization` and `ColorlessHadronization`,
+`<JetHadronization><reseed_per_event>`, and iSS's compact output (PRs #148, #150, #151).
 
 **Bindings** (`pyjetscape_core`):
 
@@ -1066,6 +1091,7 @@ X-SCAPE branch `surface_to_hadrons` (seed hooks in `SoftParticlization` and
 | `soft_hadrons_numpy(task)` | a SoftParticlization module's (iSS) hadrons, all oversamples, with `sample_counts` |
 | `soft_set_next_random_seed(task, s)`, `soft_last_random_seed(task)` | one-shot iSS seed; the seed the last event used |
 | `soft_set_number_of_samples(task, n)` | iSS oversamples from the next event on (e.g. more for a reused background) |
+| `soft_set_compact_output(task, on=True)` | from the next event on, iSS hands its hadrons over as flat arrays (~8× less memory); call `soft_hadrons_numpy` once per event |
 | `hadronization_hadrons_numpy(task)` | a HadronizationManager's output hadrons |
 | `hadronize_partons(module, partons, seed=None)` | run a jet hadronization module on stored partons; `seed` reseeds ColorlessHadronization first |
 | `jet_hadronization_last_random_seed(task)` | ColorlessHadronization's last seed (with `<reseed_per_event>1`) |
@@ -1123,16 +1149,25 @@ stored verbatim) there first.
 `phi`, `charged`, the unit and sample of every hadron, and `hist()` / `total()` averaged over
 the samples of the selected units with compound-Poisson errors.
 
-**Jet axis:** `HadronH5Writer(..., initiators=True)` (bulk_jet, jet_frag) stores each event's
-shower-initiating partons in `initiators/`, and `hadronize.py` copies them from the pair file's
-`shower/initiators`. `HadronFile.initiators(event)` reads them; `add_initiators(path, *pair_initiators(pair))`
-adds them to an existing file (`hadronize.py --add-initiators`).
+**Jet axis:** the shower-initiating partons travel with the files.
+- Particlize files of format version 2 (since 2026-10-01) carry them in their own
+  `initiators/` (`ParticlizeFile.initiators()`, `particlize_initiators()`), so they are
+  self-contained. Older ones get them from their pair file once, with
+  `example/prod_AuAu_0_10_jet/add_initiators.py` (`add_initiators_from_pair()`).
+- `HadronH5Writer(..., initiators=True)` (bulk_jet, jet_frag) stores them per unit in the
+  hadron files (`append_unit(..., initiators=...)`). `hadronize.py` takes them from the
+  particlize file, else from the pair file's `shower/initiators`.
+- `HadronFile.initiators(event)` reads them back, and
+  `add_initiators(path, *pair_initiators(pair))` adds them to an existing hadron file
+  (`hadronize.py --add-initiators`).
 
 **Precision:** `HadronH5Writer(..., keep_bits={"p": 12, "x": 8})` (`hadronize.py
 --keep-bits-p 12 --keep-bits-x 8`) rounds momenta and positions to that many float32 mantissa
 bits: 58% of the bytes, relative errors ≤ 1.2e-4 / 2e-3. The default is full precision.
 `hadron_precision(path)` reads the setting back. Choose it once per campaign
-(`example/prod_AuAu_0_10_jet/README.md`, *Hadron precision*).
+(`example/prod_AuAu_0_10_jet/README.md`, *Hadron precision*). A selection at writing time,
+`eta_max`, `charged_only`, `positions` (`hadronize.py --eta-max`, `--charged`, `--no-x`),
+is recorded too (`hadron_eta_max()`, `hadron_selection()`).
 
 **Single events:** every sample (oversample, fragmentation) is a complete event.
 `Hadrons.sample_event(unit, k)` (in memory) and `HadronFile(path).sample_event(unit, k)`
@@ -1150,12 +1185,21 @@ It numbers events globally (`locate`, `event_info`, `jet_event(g, k)`,
 `background_event(g, k)`). `hist(tag, values, bins, mask=, weights=, events=)`, `total(...)`
 and `jet_minus_background(...)` accumulate event by event, with each event weighted equally
 and a reused background re-evaluated per event (jet-relative observables via
-`info.initiators()`, from the hadron files' `initiators/` or else the pair file) and its
-errors correlated. Hadron files whose `source_uuid` doesn't match
-their particlize file are refused, and backgrounds that occur in more than one production
-file (campaigns over the same seeds) are reported (`duplicate_backgrounds()`). Example:
+`info.initiators()`, from the hadron files' `initiators/`, else the particlize file's, else
+the pair file) and its errors correlated; `per_event=` decides whether a shared background
+is binned once or per event. Hadron files whose `source_uuid` doesn't match
+their particlize file are refused (`check_uuid=`), and backgrounds that occur in more than
+one production file (campaigns over the same seeds) are reported
+(`duplicate_backgrounds()`). For `--pthat-bins` campaigns, `pthat_bins()`,
+`pthat_bin_events(k)`, `pthat_bin_sigma(k)` and `pthat_bin_acceptance(k)` give the windows
+and their cross sections. Correlated jet/background sampling (`hadronize.py
+--correlated`, `--common-seeds`) gives `jet_minus_background` its paired errors. Example:
 `example/prod_AuAu_0_10_jet/README.md`, *C. Analysing a campaign*. Tests:
 `tests/test_particlize_h5.py`.
+
+**ROOT:** `example/prod_AuAu_0_10_jet/run_h5toROOT.py` converts a hadronized campaign to
+ROOT files (layout in `example/prod_AuAu_0_10_jet/root_export/README.md`), and
+`example/analysis_root/HadronFileReader.h` reads them in C++.
 
 ---
 
@@ -1172,25 +1216,30 @@ file (campaigns over the same seeds) are reported (`duplicate_backgrounds()`). E
 
 ---
 
-## Example Script
+## Example Scripts
 
-A per-event (Mode C) example is included at `example/per_event_loop.py`. It
-runs the event loop in Python and reads the live hydro module for each event.
-It supports both the XML task list and a manual pipeline:
+All examples are listed in [`example/README.md`](example/README.md). The single-feature
+scripts run from the X-SCAPE build directory; their XML defaults are X-SCAPE's `config/`
+and FnoHydro's `config/`.
+
+`example/per_event_loop.py` is a per-event (Mode C) example. It runs the event loop in
+Python and reads the live hydro module for each event, with the XML task list or a manual
+pipeline:
 
 ```bash
 conda activate js_fno
-export PYTHONPATH="/path/to/js-contrib/contribs/PyJetscape/python:$PYTHONPATH"
+cd X-SCAPE/build_gpu
+EX=../external_packages/js-contrib/contribs/PyJetscape/example
 
 # XML-driven task list (user XML: enableAutomaticTaskListDetermination = true)
-python example/per_event_loop.py \
-  --main config/jetscape_main.xml \
-  --user config/jetscape_user.xml \
+python $EX/per_event_loop.py \
+  --main ../config/jetscape_main.xml \
+  --user ../config/jetscape_user.xml \
   --events 5
 
 # Manual pipeline (user XML: enableAutomaticTaskListDetermination = false)
-python example/per_event_loop.py --manual \
-  --user config/jetscape_user_MUSIC.xml \
+python $EX/per_event_loop.py --manual \
+  --user ../config/jetscape_user_MUSIC.xml \
   --initial-state TrentoInitial \
   --preequilibrium NullPreDynamics \
   --hydro-module MUSIC \
@@ -1202,46 +1251,37 @@ via `create_module()` and hands the list to `per_event_loop(..., modules=[...])`
 swap in a Python trampoline module (e.g. `PyFNOHydro`) for the hydro stage as
 needed.
 
-A full end-to-end example (Mode B with PyFNOHydro) is included in the
-JETSCAPE-FNO repository at
-`examples/python_fno_test.py`.  To run it after installing PyJetscape:
+`example/python_fno_test.py` is the Mode B example with `PyFNOHydro` (initial state →
+pre-equilibrium → FNO). It needs PyTorch and a model: put the `.pt` into
+`contribs/FnoHydro/models/` first (see that folder's README) or pass `--model`:
 
 ```bash
-conda activate js_fno
-export PYTHONPATH="/path/to/js-contrib/contribs/PyJetscape/python:$PYTHONPATH"
-
-cd /path/to/JETSCAPE-FNO
-python examples/python_fno_test.py \
-  --model fno_hydro/models/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt \
-  --main  config/jetscape_main.xml \
-  --user  fno_hydro/config/jetscape_user_root_bulk_test.xml \
-  --events 5 \
-  --device cpu
+python $EX/python_fno_test.py \
+  --model ../external_packages/js-contrib/contribs/FnoHydro/models/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt \
+  --events 5 --device cpu
 ```
 
 ---
 
 ## Troubleshooting
 
-**`ImportError: cannot import name 'pyjetscape_core'`**
+**`ImportError: cannot import name 'pyjetscape_core'`**, or `jetscape.HAS_CORE` is False
 : The `.so` is not in `python/jetscape/`.  Rebuild with `make pyjetscape_core`
-and confirm `PYTHONPATH` includes `contribs/PyJetscape/python`.
+and confirm `PYTHONPATH` includes `contribs/PyJetscape/python` (or use `pip install -e`).
+The HDF5 tooling works without it.
 
 **Segfault on `import jetscape` after `import ROOT`**
 : Import `torch` before `jetscape` (and before any ROOT import) to avoid the
 dual-OpenMP initialisation crash.  See note in [Prerequisites](#prerequisites).
 
-**`pybind11 not found`**
-: CMake will attempt to download pybind11 via `FetchContent`.  Ensure internet
-access during the first configure, or install pybind11 manually
-(`conda install pybind11` or `pip install pybind11`) and add its prefix to
-`CMAKE_PREFIX_PATH`.
+**`Could not find pybind11`** (CMake stops)
+: Install it in the Python CMake uses (`pip install pybind11` or
+`conda install -c conda-forge pybind11`); CMake asks that Python for pybind11's CMake
+directory. Or set `pybind11_DIR` to the directory with `pybind11Config.cmake`.
 
-**`libtorch_cpu.so: cannot open shared object file`**
-: Add the PyTorch library directory to `LD_LIBRARY_PATH`:
-```bash
-export LD_LIBRARY_PATH="$(python -c 'import torch; import os; print(os.path.dirname(torch.__file__))')/lib:$LD_LIBRARY_PATH"
-```
+**`No module named 'torch'`** from `PyFNOHydro`
+: Only `PyFNOHydro` needs PyTorch: `pip install -e "contribs/PyJetscape[fno]"`, or the
+`js_fno` env. `pyjetscape_core` itself doesn't link libtorch.
 
 ---
 

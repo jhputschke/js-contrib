@@ -47,17 +47,15 @@ Usage example (Mode B):
     ini      = create_module("TrentoInitial")
     preeq    = create_module("FreestreamMilne")
     fno      = PyFNOHydro("models/traced.pt", config)
-    jloss_mgr = create_module("JetEnergyLossManager")
-    jloss     = create_module("JetEnergyLoss")
-    matter    = create_module("Matter")
-    jloss.Add(matter)
-    jloss_mgr.Add(jloss)
+    # JetEnergyLossManager / JetEnergyLoss are not in the module factory: for jet
+    # energy loss construct pyjetscape_core.JetEnergyLossManager() and JetEnergyLoss()
+    # directly and Add() a create_module("Matter") to them.
 
     js = run_manual(
         "config/jetscape_main.xml",
-        "config/jetscape_user_fno_python.xml",
-        [ini, preeq, fno, jloss_mgr],
-    )
+        "jetscape_user_fno.xml",           # a user XML with a <Hydro><FNO> block
+        [ini, preeq, fno],
+    )   # runs Init(), Exec() and Finish()
 """
 
 from __future__ import annotations
