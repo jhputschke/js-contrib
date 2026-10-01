@@ -29,6 +29,7 @@ CMakeFiles/
 cmake_install.cmake
 Makefile
 
-# Service-account keys (utils/gcs_transfer/js_gcs.py looks for them next to itself)
+# Credentials (utils/remote_transfer/js_gcs.py and js_osdf.py look for them next to themselves)
 fnotest-wayne-gcs.json
-utils/gcs_transfer/*.json
+utils/remote_transfer/*.json
+utils/remote_transfer/*token*

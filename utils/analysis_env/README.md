@@ -195,10 +195,11 @@ fs.get("BUCKET/campaign/*_particlize.h5", "out/")         # HadronFileReader nee
 
 The command-line tools do the same: `gcloud storage cp -r gs://BUCKET/campaign out/`, and
 `pelican object get osdf:///NAMESPACE/campaign/FILE out/`.
-[`utils/gcs_transfer/js_gcs.py`](../gcs_transfer/README.md) uploads and downloads
-production directories, single files or patterns with a service-account key, by kind
-(`--what pair|h5|root|all`), and skips the files already there. It runs in an environment
-of its own.
+[`utils/remote_transfer`](../remote_transfer/README.md) has two command-line tools for
+whole production directories, single files or patterns: `js_gcs.py` for a GCS bucket (with
+a service-account key) and `js_osdf.py` for a Pelican/OSDF namespace (pelicanfs, with a
+token). Both pick files by kind (`--what pair|h5|root|all`), skip the files already there,
+and run in an environment of their own.
 
 **Credentials.**
 - **GCS:** gcsfs and `google-cloud-storage` use Google's default credentials: those of
