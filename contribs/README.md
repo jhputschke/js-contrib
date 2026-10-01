@@ -47,7 +47,8 @@ images above are a valid alternative.
 
 ## Files
 
-The scripts are in [`utils/conda_install/`](../utils/conda_install/); the commands below
+The scripts are in [`utils/conda_install/`](../utils/conda_install/) (reference for their
+arguments and settings: [its README](../utils/conda_install/README.md)); the commands below
 run from the js-contrib root.
 
 | Script | Purpose |
@@ -189,6 +190,7 @@ What the script installs:
 | ML / analysis | numpy, matplotlib, scipy, h5py, hdf5plugin, pyyaml, pandas, seaborn, tqdm, jupyterlab, notebook, ipykernel, ipywidgets, networkx, vector |
 | Build and test | pybind11, pytest |
 | pip | neuraloperator ≥ 2.0, uproot ≥ 5, awkward ≥ 2, pyvista, imageio, imageio-ffmpeg |
+| MLX | `mlx` ≥ 0.30, Apple Silicon only (`JS_FNO_NO_MLX=1` skips it) |
 | js-contrib | `pip install -e` of PyJetscape and FastHydro (from a checkout) |
 
 The script auto-installs Miniconda if `conda` is not found, downloads the
