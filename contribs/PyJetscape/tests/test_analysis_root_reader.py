@@ -93,8 +93,11 @@ def test_reader_matches_h5(campaign, tmp_path, cxx, fmt, writer, opt):  # noqa: 
     assert r.n_files() == 2 and r.n_events() == h5.n_events == 4
     assert r.n_windows() == 2
     with uproot.open(out / "tiny_campaign.root") as f:
-        weight = f["windows"].arrays()["weight_mb"]
+        win = f["windows"].arrays()
+    weight = win["weight_mb"]
     assert np.allclose([r.weight_mb(k) for k in range(2)], weight)
+    assert np.allclose([r.sigma_err_mb(k) for k in range(2)], win["sigma_err_mb"])
+    assert r.sigma_source().startswith("campaign file")
     assert list(r.select_events()) == [0, 1, 2, 3] and list(r.select_events(1)) == [1, 3]
 
     for e in range(h5.n_events):
@@ -155,3 +158,44 @@ def test_filter_and_kinematics(campaign, tmp_path, cxx):  # noqa: F811
         assert len(r.bkg_dep_frag(e, 1)) == int(charged.sum())
         r.clear_filter()
         assert len(r.bkg_dep_frag(e, 1)) == len(ev["pid"])
+
+
+def test_cross_sections_without_campaign_file(campaign, tmp_path, cxx):  # noqa: F811
+    """No *_campaign.root: the files' windows tables, combined as the campaign file is;
+    weight_mb over the events of the files read."""
+    out = tmp_path / "root"
+    assert r2r.main([str(campaign), "--out-dir", str(out), "--writer", "uproot",
+                     "--format", "ttree"]) == 0
+    with uproot.open(out / "tiny_campaign.root") as f:
+        win = f["windows"].arrays()
+    h5 = HadronFileReader(str(campaign))
+    (out / "tiny_campaign.root").unlink()
+    r = cxx.HadronFileReader(str(out))
+    assert r.campaign_file() == "" and "windows tables of the 2 file(s)" in r.sigma_source()
+    assert r.n_windows() == 2
+    for k in range(2):
+        sig, err = h5.pthat_bin_sigma(k)
+        assert r.sigma_mb(k) == pytest.approx(sig) == pytest.approx(win["sigma_mb"][k])
+        assert r.sigma_err_mb(k) == pytest.approx(err)
+        assert r.weight_mb(k) == pytest.approx(win["weight_mb"][k])
+        assert r.n_window_events(k) == 2
+        assert (r.pthat_lo(k), r.pthat_hi(k)) == tuple(win[c][k] for c in ("pthat_lo",
+                                                                            "pthat_hi"))
+    assert [r.info(e).weight_mb for e in range(4)] == pytest.approx(
+        [win["weight_mb"][b] for b in (0, 1, 0, 1)])
+    # one file: its own cross sections, over its own events
+    one = cxx.HadronFileReader(str(out / "run_B_hadrons.root"))
+    assert [one.sigma_mb(k) for k in range(2)] == pytest.approx(SIGMA["B"])
+    assert [one.weight_mb(k) for k in range(2)] == pytest.approx(SIGMA["B"])  # 1 event each
+    # the campaign file with all files gives the same; with another campaign's windows, an
+    # error
+    assert r2r.main([str(campaign), "--out-dir", str(out), "--writer", "uproot",
+                     "--format", "ttree"]) == 0
+    with_camp = cxx.HadronFileReader(str(out))
+    assert [with_camp.sigma_mb(k) for k in range(2)] == pytest.approx(
+        [r.sigma_mb(k) for k in range(2)])
+    with uproot.recreate(tmp_path / "other_campaign.root") as f:
+        f["windows"] = {"pthat_lo": np.array([1.0, 2.0]), "pthat_hi": np.array([2.0, 3.0]),
+                        "sigma_mb": np.array([1.0, 1.0]), "weight_mb": np.array([1.0, 1.0])}
+    with pytest.raises(Exception, match="other pTHat windows"):
+        cxx.HadronFileReader(str(out), False, str(tmp_path / "other_campaign.root"))

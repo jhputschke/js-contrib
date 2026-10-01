@@ -31,6 +31,11 @@
 // samples with 1 / n_samples to get the per-event mean (hadron_distributions.C,
 // README.md): bkg uses n_bg_samples(e), bkg_dep n_oversamples(e), frag n_frag(e).
 //
+// Cross sections of a --pthat-bins campaign come from the *_campaign.root next to the
+// files; without one, from the files' own windows tables, combined as the campaign file
+// does it (combine_windows).  weight_mb(k) = sigma_mb(k) / the hadronized events of
+// window k in the files read, so it is right for a subset of the files too.
+//
 // set_filter keeps only the hadrons a predicate accepts (e.g. charged at |eta| < 1), which
 // keeps the vectors small.  Positions (t, x, y, z) are read only with positions = true,
 // and only from files that have them (run_h5toROOT.py --no-x leaves them out); else 0.
@@ -138,7 +143,7 @@ struct EventInfo {
   int n_samples_jet = 0, n_samples_bg = 0, n_samples_frag = 0;
   int n_cells_jet = -1, n_cells_bg = -1;
   double sigma_file_mb = std::numeric_limits<double>::quiet_NaN();   // this file's estimate
-  double weight_mb = std::numeric_limits<double>::quiet_NaN();       // campaign weight_mb
+  double weight_mb = std::numeric_limits<double>::quiet_NaN();       // weight_mb(pthat_bin)
   std::vector<Initiator> initiators;
 
   // the legs are not alike: background over jet-leg freeze-out cells outside
@@ -318,11 +323,101 @@ struct Tag {
 
 }  // namespace detail
 
+// the pTHat windows of a windows table (a production file's, or the campaign file's)
+struct Windows {
+  std::vector<double> pthat_lo, pthat_hi, sigma_mb, sigma_err_mb;
+  std::vector<double> n_accepted;            // production files only (empty otherwise)
+  size_t size() const { return pthat_lo.size(); }
+  bool same_bins(const Windows &o) const {
+    return pthat_lo == o.pthat_lo && pthat_hi == o.pthat_hi;
+  }
+};
+
+namespace detail {
+
+// a numeric column as doubles, whatever its type (uproot writes int64 as Long64_t in a
+// TTree, std::int64_t in an RNTuple)
+inline std::vector<double> take_double(ROOT::RDataFrame &df, const std::string &c) {
+  const std::string t = df.GetColumnType(c);
+  auto conv = [](const auto &v) { return std::vector<double>(v.begin(), v.end()); };
+  if (t == "double" || t == "Double_t") return *df.Take<double>(c);
+  if (t == "float" || t == "Float_t") return conv(*df.Take<float>(c));
+  if (t == "int" || t == "Int_t" || t == "std::int32_t") return conv(*df.Take<int>(c));
+  if (t == "Long64_t" || t == "long long") return conv(*df.Take<Long64_t>(c));
+  if (t == "long" || t == "Long_t" || t == "std::int64_t") return conv(*df.Take<long>(c));
+  throw std::runtime_error("HadronFileReader: column " + c + " has type " + t);
+}
+
+}  // namespace detail
+
+// the windows table of a file; nullopt if it has none (not a --pthat-bins run).  Columns
+// it lacks (cross sections of a job that did not finish) stay empty.
+inline std::optional<Windows> read_windows(const std::string &path) {
+  {
+    std::unique_ptr<TFile> f(TFile::Open(path.c_str()));
+    if (!f || f->IsZombie())
+      throw std::runtime_error("HadronFileReader: cannot open " + path);
+    if (!f->GetKey("windows")) return std::nullopt;
+  }
+  ROOT::RDataFrame df("windows", path);
+  Windows w;
+  w.pthat_lo = detail::take_double(df, "pthat_lo");
+  w.pthat_hi = detail::take_double(df, "pthat_hi");
+  if (df.HasColumn("sigma_mb")) w.sigma_mb = detail::take_double(df, "sigma_mb");
+  if (df.HasColumn("sigma_err_mb")) w.sigma_err_mb = detail::take_double(df, "sigma_err_mb");
+  if (df.HasColumn("n_accepted")) w.n_accepted = detail::take_double(df, "n_accepted");
+  return w;
+}
+
+// The campaign's cross section per pTHat window from the production files' own windows
+// tables, as run_h5toROOT.py's campaign file (HadronFileReader.pthat_bin_sigma) does it:
+// the files' estimates weighted by their accepted events, sigma = sum n_k sigma_k / sum n_k,
+// error sqrt(sum (n_k err_k)^2) / sum n_k.  nullopt, with the reason in *why, if a file
+// has no windows, other windows than the first, or no cross sections.
+inline std::optional<Windows> combine_windows(const std::vector<std::string> &files,
+                                              std::string *why = nullptr) {
+  auto fail = [why](const std::string &m) -> std::optional<Windows> {
+    if (why) *why = m;
+    return std::nullopt;
+  };
+  std::optional<Windows> out;
+  std::vector<double> num, err2;
+  for (const auto &path : files) {
+    const auto w = read_windows(path);
+    if (!w) return fail(path + " has no pTHat windows");
+    const size_t n = w->size();
+    if (w->sigma_mb.size() != n || w->sigma_err_mb.size() != n || w->n_accepted.size() != n)
+      return fail(path + " has no cross sections (job not finished?)");
+    if (!out) {
+      out = *w;
+      out->n_accepted.assign(n, 0.0);
+      num.assign(n, 0.0);
+      err2.assign(n, 0.0);
+    } else if (!out->same_bins(*w)) {
+      return fail(path + " has other pTHat windows than " + files[0]);
+    }
+    for (size_t k = 0; k < n; ++k) {
+      out->n_accepted[k] += w->n_accepted[k];
+      num[k] += w->n_accepted[k] * w->sigma_mb[k];
+      err2[k] += std::pow(w->n_accepted[k] * w->sigma_err_mb[k], 2);
+    }
+  }
+  if (!out) return fail("no files");
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  for (size_t k = 0; k < out->size(); ++k) {
+    const double n = out->n_accepted[k];
+    out->sigma_mb[k] = n > 0 ? num[k] / n : nan;
+    out->sigma_err_mb[k] = n > 0 ? std::sqrt(err2[k]) / n : nan;
+  }
+  return out;
+}
+
 class HadronFileReader {
  public:
-  // source: a directory (its *_hadrons.root, and the *_campaign.root for weight_mb) or one
+  // source: a directory (its *_hadrons.root, and its *_campaign.root if any) or one
   // *_hadrons.root file.  positions: also read t, x, y, z.  campaign: the campaign file
-  // (default: the *_campaign.root next to the files, if there is one; "none": no weights)
+  // (default: the *_campaign.root next to the files, if there is one; "none": don't use
+  // one).  Without a campaign file the cross sections come from the files themselves.
   explicit HadronFileReader(const std::string &source, bool positions = false,
                             const std::string &campaign = "")
       : positions_(positions) {
@@ -365,11 +460,20 @@ class HadronFileReader {
   int n_bg_samples(long event) const { return info(event).n_samples_bg; }
   int n_frag(long event) const { return info(event).n_samples_frag; }
 
-  // pTHat windows of the campaign file (0 without one, or for a run without windows)
-  int n_windows() const { return int(sigma_mb_.size()); }
-  double sigma_mb(int window) const { return sigma_mb_.at(window); }
-  // campaign weight_mb = sigma_mb / n_events of the window (counting flagged events too)
+  // pTHat windows (0 for a run without them, or without cross sections) and their cross
+  // sections [mb]: from the campaign file, else combined from the files' windows tables
+  int n_windows() const { return int(windows_.size()); }
+  double pthat_lo(int window) const { return windows_.pthat_lo.at(window); }
+  double pthat_hi(int window) const { return windows_.pthat_hi.at(window); }
+  double sigma_mb(int window) const { return windows_.sigma_mb.at(window); }
+  double sigma_err_mb(int window) const { return windows_.sigma_err_mb.at(window); }
+  // hadronized events of the window in the files read (flagged ones too)
+  long n_window_events(int window) const { return n_window_.at(window); }
+  // sigma_mb / n_window_events: mb per event (0 for an empty window)
   double weight_mb(int window) const { return weight_mb_.at(window); }
+  // where the cross sections come from: the campaign file, the files' windows tables, or
+  // "" (none)
+  const std::string &sigma_source() const { return sigma_source_; }
 
   // hadronized events (n_oversamples > 0) of a window (-1: all), without the flagged ones
   // unless keep_flagged
@@ -462,26 +566,46 @@ class HadronFileReader {
   }
 
   void init(const std::string &campaign) {
-    if (campaign != "none") read_campaign(campaign);
     tags_.resize(files_.size());
     for (size_t f = 0; f < files_.size(); ++f) {
       offsets_.push_back(n_events());
       read_events(int(f));
     }
-  }
-
-  void read_campaign(const std::string &path) {
-    campaign_ = path;
-    std::unique_ptr<TFile> cf(TFile::Open(path.c_str()));
-    if (!cf || cf->IsZombie())
-      throw std::runtime_error("HadronFileReader: cannot open " + path);
-    if (!cf->GetKey("windows")) return;                // not a --pthat-bins campaign
-    cf.reset();
-    ROOT::RDataFrame w("windows", path);
-    auto s = w.Take<double>("sigma_mb");
-    auto wt = w.Take<double>("weight_mb");
-    sigma_mb_ = *s;
-    weight_mb_ = *wt;
+    bool binned = false;
+    for (const auto &e : events_) binned |= e.pthat_bin >= 0;
+    if (!binned) return;                               // not a --pthat-bins run
+    std::string why;
+    const auto from_files = combine_windows(files_, &why);
+    std::optional<Windows> camp;
+    if (campaign != "none") {
+      campaign_ = campaign;
+      camp = read_windows(campaign);
+      if (camp && from_files && !camp->same_bins(*from_files))
+        throw std::runtime_error("HadronFileReader: " + campaign + " has other pTHat "
+                                 "windows than the files: not their campaign file");
+    }
+    if (camp && camp->sigma_mb.size() == camp->size()) {
+      windows_ = *camp;
+      sigma_source_ = "campaign file " + campaign;
+    } else if (from_files) {
+      windows_ = *from_files;
+      sigma_source_ = "the windows tables of the " + std::to_string(n_files()) + " file(s)";
+      std::printf("HadronFileReader: no campaign file, cross sections from %s\n",
+                  sigma_source_.c_str());
+    } else {
+      std::printf("HadronFileReader: no cross sections: no campaign file, and %s\n",
+                  why.c_str());
+      return;
+    }
+    n_window_.assign(windows_.size(), 0);
+    for (const auto &e : events_)
+      if (e.pthat_bin >= 0 && e.pthat_bin < n_windows() && e.n_samples_jet > 0)
+        ++n_window_[e.pthat_bin];
+    weight_mb_.resize(windows_.size());
+    for (size_t k = 0; k < windows_.size(); ++k)
+      weight_mb_[k] = n_window_[k] > 0 ? windows_.sigma_mb[k] / n_window_[k] : 0.0;
+    for (auto &e : events_)
+      if (e.pthat_bin >= 0 && e.pthat_bin < n_windows()) e.weight_mb = weight_mb_[e.pthat_bin];
   }
 
   // the events table of file f -> events_
@@ -527,7 +651,6 @@ class HadronFileReader {
       e.n_samples_frag = get(nsf, i, 0);
       e.n_cells_jet = get(ncj, i, -1);
       e.n_cells_bg = get(ncb, i, -1);
-      if (e.pthat_bin >= 0 && e.pthat_bin < n_windows()) e.weight_mb = weight_mb_[e.pthat_bin];
       if (has_ini) {
         const size_t n = (**ii[0])[i].size();
         e.initiators.resize(n);
@@ -577,7 +700,10 @@ class HadronFileReader {
   std::string campaign_;
   std::vector<long> offsets_;
   std::vector<EventInfo> events_;
-  std::vector<double> sigma_mb_, weight_mb_;
+  Windows windows_;
+  std::string sigma_source_;
+  std::vector<long> n_window_;
+  std::vector<double> weight_mb_;
   std::vector<std::array<detail::Tag, 3>> tags_;
   Filter keep_;
 };

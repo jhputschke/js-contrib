@@ -19,8 +19,9 @@
 //   root -l -b -q 'read_hadrons.C+("DIR", -1, true)'          // cross-section weighted
 //   root -l -b -q 'read_hadrons.C+("DIR", -1, false, 1.0, "out.root", 20)'
 //
-// Arguments: the directory with the <stem>_hadrons.root files (and the *_campaign.root for
-// xsec); the pTHat window (-1: all); xsec: weigh each event with sigma_k / N_k of its
+// Arguments: the directory with the <stem>_hadrons.root files (and its *_campaign.root, if
+// any: HadronFileReader takes the cross sections from there, else from the files); the
+// pTHat window (-1: all); xsec: weigh each event with sigma_k / N_k of its
 // window (N_k its selected events), else 1 / N; eta_cut; the output file; max_samples > 0:
 // only the first max_samples oversamples of each event (faster, noisier).  Flagged events
 // are left out (EventInfo::flagged, as hadron_distributions.C does).
@@ -91,7 +92,7 @@ void read_hadrons(const char *dir, int window = -1, bool xsec = false, double et
     return;
   }
   if (xsec && r.n_windows() == 0) {
-    std::printf("read_hadrons: xsec needs a --pthat-bins campaign file next to the files\n");
+    std::printf("read_hadrons: xsec needs the cross sections of a --pthat-bins campaign\n");
     return;
   }
   std::map<int, long> n_window;                        // selected events per window

@@ -56,7 +56,8 @@ for (long e : r.select_events()) {         // hadronized events, flagged ones le
 - `HadronFileReader(source, positions = false, campaign = "")`. `source` is a directory or
   one `*_hadrons.root` file. `campaign` is the campaign file for the cross sections. By
   default the reader takes the `*_campaign.root` next to the files, if there is one;
-  `"none"` skips it. A `std::vector<std::string>` of files works too.
+  `"none"` skips it. A `std::vector<std::string>` of files works too. The campaign file is
+  optional (*Cross sections*, below).
 - `positions`: read t, x, y, z as well. That costs time, and files written with `--no-x`
   have none; without them they are 0.
 - Events are numbered globally over the files, sorted by name: `event_offset(file) +
@@ -65,10 +66,9 @@ for (long e : r.select_events()) {         // hadronized events, flagged ones le
 - `select_events(window = -1, keep_flagged = false)`: the hadronized events
   (`n_oversamples > 0`), of one pT̂ window or all. Events whose legs are not alike are left
   out (`EventInfo::flagged`, below).
-- `n_windows()`, `sigma_mb(k)`, `weight_mb(k)`: the campaign file's `windows`.
-  `weight_mb = sigma_mb / n_events` counts flagged events too. To leave them out without
-  changing the cross section, use `sigma_mb(k) / N_k` with N_k the selected events of
-  window k, as `read_hadrons.C` does.
+- `n_windows()`, `pthat_lo(k)`, `pthat_hi(k)`, `sigma_mb(k)`, `sigma_err_mb(k)`,
+  `n_window_events(k)`, `weight_mb(k)`, `sigma_source()`: the pT̂ windows and their cross
+  sections (*Cross sections*, below).
 - `set_filter(f)` keeps only the hadrons `f(const Hadron&)` accepts, while reading, so the
   vectors stay small. `set_charged_eta(eta_max)` is the common case (`eta_max <= 0`: no η
   cut). `clear_filter()` turns it off.
@@ -81,16 +81,36 @@ for (long e : r.select_events()) {         // hadronized events, flagged ones le
 beam), `charged()` its `CHARGED` list. For FastJet: `fastjet::PseudoJet(h.px, h.py, h.pz,
 h.E)`.
 
-**`EventInfo`** (`r.info(e)`) holds the event's row of the `events` table, plus the campaign
-weight:
+**`EventInfo`** (`r.info(e)`) holds the event's row of the `events` table, plus the
+event's weight:
 - `event`, `file_index`, `local_event`, `bg_unit`, `pthat_bin`, `pthat`;
 - `n_samples_jet/bg/frag` and `n_cells_jet/bg`;
-- `sigma_file_mb` (this file's estimate) and `weight_mb` (the campaign's);
+- `sigma_file_mb` (this file's estimate) and `weight_mb` (`weight_mb(pthat_bin)`);
 - `initiators`, the shower-initiating partons (`Initiator`: `shower, pid, pstat, px, py,
   pz, E, x, y, z, t`, with `pt()`, `eta()`, `phi()`), and `leading()`, the one with the
   largest pT;
 - `flagged()`: the background has more than 20% more or fewer freeze-out cells than the jet
   leg, so one surface is not a freeze-out surface (as in `wake_hadrons.py`).
+
+**Cross sections** (`--pthat-bins` campaigns). The cross section of window k is the
+combination of all production files' Pythia estimates, weighted by their accepted events:
+σ = Σ nᵢσᵢ / Σ nᵢ. This is `HadronFileReader.pthat_bin_sigma`.
+- **Where σ comes from.** With a `*_campaign.root`, `sigma_mb(k)` is read from it.
+  Without one, the reader computes the same combination from the `windows` tables of the
+  files it reads (`combine_windows`), with one line of output saying so. `sigma_source()`
+  tells which one was used.
+- **Without either.** If a file has no cross sections (a job that didn't finish) or other
+  windows than the rest, `n_windows()` is 0 and a line says why. A campaign file whose
+  windows differ from the files' throws: it belongs to another campaign.
+- **Weights.** `weight_mb(k)` is σ_k over `n_window_events(k)`, the hadronized events of
+  window k in the files read, flagged ones included. For all files of a campaign this is
+  the campaign file's `weight_mb`. For a subset it is right for that subset; σ still comes
+  from the campaign file when there is one, and from that subset when there isn't.
+- **Flagged events.** To leave them out without changing the cross section, use
+  `sigma_mb(k) / N_k` with N_k the selected events of window k, as `read_hadrons.C` does.
+- **The building blocks** are free functions. `read_windows(path)` reads one file's
+  `windows` table into a `Windows` struct, and `combine_windows(files)` combines several,
+  as above. `hadron_distributions.C` uses them as well.
 
 **Normalization and errors.** Oversamples share one fluid: they are samplings of one
 event, not independent events. Average each event over its own samples: weigh a hadron of
@@ -125,8 +145,12 @@ needed twice.
 **Checked.** `tests/test_analysis_root_reader.py` covers RNTuple and TTree, the uproot and
 ROOT writers, truncated floats (`--bits-p 12`) and `--no-x`. On every event, oversample and
 source it gets the same hadrons as `HadronFileReader` on the HDF5 files (pid, pstat, E, p,
-x, origin). It also checks the event table, the campaign weights, the initiators and a
-background shared by two events. On `prod_AuAu_0_10_jet/out`, `read_hadrons.C` and
+x, origin). It also checks the event table, the initiators, a background shared by two
+events and the cross sections. With the campaign file, and with the campaign file deleted,
+`sigma_mb`, `sigma_err_mb` and `weight_mb` equal the campaign file's and
+`pthat_bin_sigma`; for one file they are that file's own; another campaign's file is
+refused. `hadron_distributions.C` and `read_hadrons.C` give the same `xsec` histograms with
+the campaign file and without it. On `prod_AuAu_0_10_jet/out`, `read_hadrons.C` and
 `hadron_distributions.C` fill the same pT histograms, bin for bin.
 
 ## 2. `read_hadrons.C`: the reader by example
@@ -153,7 +177,8 @@ whereas `hadron_distributions.C` adds `bkgdep` and `frag` in quadrature.
 ## 3. Hadron distributions in RDataFrame: `hadron_distributions.C`
 
 `hadron_distributions.C` histograms η, φ and pT for each source of a jet event. It reads
-the ntuples with RDataFrame, without the reader, which makes it fast and multithreaded:
+the ntuples with RDataFrame rather than through the reader, which makes it fast and
+multithreaded:
 
 | name | ROOT ntuple | what |
 |---|---|---|
@@ -183,8 +208,9 @@ background vs background + deposition, fragments, and wake.
   weighs w_e / n_samples. A background shared by several events counts once for each of
   them.
 - **Per event** (default): w_e = 1/N, so the histograms are dN/dX per event.
-- **`xsec`**: w_e = σ_k / N_k, the window's cross section from the campaign file over its
-  selected events, so the sum over windows is dσ/dX in mb. N_k counts only the events used,
+- **`xsec`**: w_e = σ_k / N_k, the window's cross section over its selected events. σ_k
+  comes from the campaign file; without one, it is combined from the files' `windows`
+  tables, as the reader does it, so the sum over windows is dσ/dX in mb. N_k counts only the events used,
   so dropping flagged events does not change the cross section.
 - **Errors** are the compound-Poisson errors of independent sampling. For `--correlated`
   hadron files the wake's paired error is much smaller: use

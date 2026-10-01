@@ -16,18 +16,20 @@
 //   root -l -b -q 'hadron_distributions.C+("DIR", -1, false, false, 1.0, "out.root", 8)'
 //
 // Arguments: the directory with the <stem>_hadrons.root files (and <campaign>_campaign.root
-// for the cross sections); the pTHat window (-1: all); xsec: weigh each event with its
-// window's weight_mb from the campaign file (distributions in mb) instead of the same
-// weight for every event (distributions per event); charged: charged hadrons only (else
-// all); eta_cut: pT and phi are filled for |eta| < eta_cut, eta for all pT; the output
-// file (histograms, plus a .pdf and .png of the same name); threads for RDataFrame (1: none).
+// for the cross sections; without it the files' own windows tables); the pTHat window
+// (-1: all); xsec: weigh each event with its window's cross section over its selected
+// events (distributions in mb) instead of the same weight for every event (distributions
+// per event); charged: charged hadrons only (else all); eta_cut: pT and phi are filled for
+// |eta| < eta_cut, eta for all pT; the output file (histograms, plus a .pdf and .png of the
+// same name); threads for RDataFrame (1: none).
 //
 // Normalization, as HadronFileReader does it: every event is the mean over its
 // oversamples, so a hadron of event e weighs w_e / n_samples(unit); a background shared by
 // several events counts once for each event using it (the sum of their w_e).  Per event:
 // w_e = 1 / N (N selected events); xsec: w_e = sigma_k / N_k, the window's cross section
-// (campaign file) over its selected events, so the sum over windows is d(sigma)/dX.  N_k
-// counts only the events used, so leaving flagged events out does not change sigma.
+// (campaign file, else combined from the files) over its selected events, so the sum over
+// windows is d(sigma)/dX.  N_k counts only the events used, so leaving flagged events out
+// does not change sigma.
 // The errors are Sumw2 of these weights: the compound-Poisson errors of HadronFileReader
 // (independent sampling).  wake adds the two legs' errors, which is right for
 // independent sampling only: for hadronize.py --correlated files the paired error is much
@@ -56,12 +58,15 @@
 #include <ROOT/RDataFrame.hxx>
 #include <ROOT/RVec.hxx>
 
+#include "HadronFileReader.h"                       // read_windows, combine_windows
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -203,22 +208,30 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
   }
   std::vector<double> sigma_mb;
   if (xsec) {
+    // the campaign file's; without one, the files' own windows tables, combined as
+    // run_h5toROOT.py combines them for the campaign file
     const auto camp = list_files(dir, "_campaign.root");
-    if (camp.empty()) {
-      std::printf("hadron_distributions: xsec needs the *_campaign.root of run_h5toROOT.py "
-                  "in %s\n", dir);
-      return;
+    std::optional<hadrons_root::Windows> w;
+    std::string from, why;
+    if (!camp.empty()) {
+      w = hadrons_root::read_windows(camp[0]);
+      from = camp[0];
+      if (!w) {
+        std::printf("hadron_distributions: ERROR -- %s has no pTHat windows (not a "
+                    "--pthat-bins campaign): no cross sections for xsec\n", camp[0].c_str());
+        return;
+      }
+    } else {
+      w = hadrons_root::combine_windows(files, &why);
+      from = Form("the windows tables of the %zu file(s) (no *_campaign.root)", files.size());
+      if (!w) {
+        std::printf("hadron_distributions: ERROR -- xsec needs cross sections: no "
+                    "*_campaign.root in %s, and %s\n", dir, why.c_str());
+        return;
+      }
     }
-    std::unique_ptr<TFile> cf(TFile::Open(camp[0].c_str()));
-    if (!cf || !cf->GetKey("windows")) {
-      std::printf("hadron_distributions: ERROR -- %s has no pTHat windows (not a "
-                  "--pthat-bins campaign): no cross sections for xsec\n", camp[0].c_str());
-      return;
-    }
-    cf.reset();
-    ROOT::RDataFrame w("windows", camp[0]);
-    sigma_mb = *w.Take<double>("sigma_mb");
-    std::printf("hadron_distributions: cross sections from %s:", camp[0].c_str());
+    sigma_mb = w->sigma_mb;
+    std::printf("hadron_distributions: cross sections from %s:", from.c_str());
     for (double x : sigma_mb) std::printf(" %.4g", x);
     std::printf(" mb\n");
   }
