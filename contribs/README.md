@@ -63,6 +63,9 @@ All four install scripts:
   it);
 - take another name from `JS_FNO_ENV_NAME=<name>`, e.g. to try a new install next to a
   working `js_fno`;
+- on Apple Silicon (Darwin-arm64) also install MLX (`mlx`, pinned to 0.32.3 in the
+  pinned scripts; needs macOS ≥ 14, a failed install only warns; `JS_FNO_NO_MLX=1`
+  skips it);
 - install the pip packages with the new environment's own Python, so an active venv
   elsewhere on `PATH` is left alone;
 - end with `pip install -e` of PyJetscape and FastHydro when run from a js-contrib
@@ -79,10 +82,44 @@ All four install scripts:
 | Python analyses (`example/analysis`, notebooks) | numpy, scipy, matplotlib, pandas, Jupyter, fastjet + vector (FastJet notebooks) | every script |
 | ROOT analyses (`example/analysis_root`) | ROOT ≥ 6.34 for the default RNTuple files | the unpinned scripts (ROOT 6.34–6.37); the pinned ROOT 6.32 reads only `run_h5toROOT.py --format ttree` files |
 | FastHydro | numpy, scipy, h5py; PyTorch for the solver | every script |
-| `PyFNOHydro`, FnoHydro, FNO4d training | PyTorch, neuraloperator | every script (FnoHydro's C++ build also needs libtorch: its README) |
+| `PyFNOHydro`, FnoHydro | PyTorch, neuraloperator | every script (FnoHydro's C++ build also needs libtorch: its README) |
+| FNO4d training / evaluation | PyTorch, FNO4d's 4D neuraloperator fork, `loc_libs`; on Mac `neuralop_mlx` + MLX | every script, then FNO4d's `install.sh --conda` ([below](#fno4d-in-the-js_fno-environment)) |
 | Visualization (`contribs/Visualization`) | pyvista (+ vtk), imageio, imageio-ffmpeg | every script |
 | Tests (`contribs/*/tests`, `utils/remote_transfer`) | pytest | every script |
 | `utils/remote_transfer` (GCS, OSDF) | nothing from conda: each tool makes its own venv | — |
+
+### FNO4d in the js_fno environment
+
+The scripts don't install FNO4d itself. To run FNO4d from the env, add it from an FNO4d checkout
+with its own installer, into the active env:
+
+```bash
+conda activate js_fno
+cd ~/FNO4d
+bash install.sh --conda      # refuses to run in 'base'; add --gcs / --s3 for cloud storage
+```
+
+The js_fno env alone falls short of FNO4d in three places, which `install.sh --conda` fills:
+
+- **neuraloperator** — the scripts install `neuraloperator` from PyPI. Its FNO model works for
+  4D, but `H1Loss`, `HdivLoss`, `FiniteDiff` and `FourierDiff` accept only `d ≤ 3`, so the
+  FNO4d training scripts (`H1Loss(d=4)`) fail with it. `install.sh` replaces it with the
+  editable fork `neuraloperator-4d-2.0.0` from the checkout.
+- **FNO4d's own packages** — `loc_libs` (editable) and, on Apple Silicon, `neuralop_mlx`
+  (editable; MLX itself is already in the env, see above).
+- **two dependencies** — `scikit-image` (contour plots in `loc_libs`) and `zarr` (the zarr data
+  path in `loc_libs/data`).
+
+PyTorch is not touched: `install.sh` sees it importable and keeps the env's build.
+
+Check that `neuralop` resolves to the fork afterwards (`install.sh` prints this check, too):
+
+```bash
+python -c "import neuralop, loc_libs; print(neuralop.__file__); print(loc_libs.__file__)"
+```
+
+`fast_data` exists both in FastHydro and in FNO4d; FastHydro refuses a foreign one on the
+path ([`FastHydro/VENDORING.md`](FastHydro/VENDORING.md#name-collision)).
 
 ---
 

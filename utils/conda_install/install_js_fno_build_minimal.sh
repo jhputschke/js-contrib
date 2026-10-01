@@ -18,6 +18,7 @@
 #   JS_FNO_ENV_NAME=<name>   the environment's name (default js_fno)
 #   JS_FNO_FORCE=1           replace an existing environment of that name (else: stop)
 #   JS_FNO_NO_EDITABLE=1     skip the final `pip install -e` of PyJetscape and FastHydro
+#   JS_FNO_NO_MLX=1          skip MLX (installed on Apple Silicon, Darwin-arm64, only)
 set -euo pipefail
 
 ENV_NAME="${JS_FNO_ENV_NAME:-js_fno}"      # JS_FNO_ENV_NAME=<name>: another name
@@ -195,6 +196,14 @@ echo "==> Installing pip packages"
     "pyvista>=0.43" \
     "imageio>=2.9" \
     imageio-ffmpeg
+
+# MLX (Apple's array framework, Metal) on Apple Silicon only; wheels need macOS >= 14,
+# so a failed install warns instead of stopping the script.  It doesn't require torch.
+if [[ "$(uname -s)-$(uname -m)" == "Darwin-arm64" && "${JS_FNO_NO_MLX:-0}" != "1" ]]; then
+    echo "==> Installing MLX (Apple Silicon)"
+    "${ENV_PY}" -m pip install "mlx>=0.30" \
+        || echo "WARNING: MLX install failed (macOS >= 14 needed); the env works without it" >&2
+fi
 
 # ---------------------------------------------------------------------------
 # The js-contrib Python packages, editable, when the script runs from a checkout

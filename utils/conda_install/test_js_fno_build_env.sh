@@ -188,6 +188,10 @@ _check_pip pyvista
 _check_pip imageio
 _check_pip imageio-ffmpeg
 
+if [[ "$(uname -s)-$(uname -m)" == "Darwin-arm64" ]]; then
+    _check_pip mlx      # Apple Silicon only
+fi
+
 # ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
