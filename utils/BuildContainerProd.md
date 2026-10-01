@@ -397,13 +397,76 @@ apptainer exec --nv --pwd "$PROD" --bind "$SCRATCH/prod:/work" xscape_prod.sif \
   GH200/GB200 (arm64), pull with `--arch arm64`, or pull on a compute node.
 - **Threads:** set `OMP_NUM_THREADS` to the job's cores (see the machine settings in
   [`BENCHMARK_GB10.md`](../docs/BENCHMARK_GB10.md)).
-- **Campaigns:** one GPU per job through the scheduler (a SLURM job array: seed 0 per array
-  task, `--campaign NAME`), or `run_jobs.sh -j P` inside one allocation. `run_jobs.sh --mps`
+- **Campaigns:** `run_jobs.sh -j P` inside one allocation, and a SLURM job array for many
+  GPUs, one GPU per array task ([SLURM](#slurm-one-gpu-per-array-task)). `run_jobs.sh --mps`
   starts CUDA MPS. Inside a container that is not assured: on the GB10 under Docker the MPS
   daemon does not start (see [Several GPUs on one machine](#several-gpus-on-one-machine)),
   so test it on each site before relying on it. For several GPUs in one allocation, see that
   section too.
-- A SLURM job-array template, `utils/slurm_prod_array.sh`, is planned next to the Dockerfiles.
+- **SLURM:** see [SLURM: one GPU per array task](#slurm-one-gpu-per-array-task).
+
+### SLURM: one GPU per array task
+
+[`slurm_prod_array.sh`](slurm_prod_array.sh) runs a campaign as a SLURM job array: each
+array task gets one GPU and fills it with `P` production jobs at once (`run_jobs.sh -j P`).
+
+**Why not one SLURM job per production job:** SLURM gives each job whole GPUs. One
+production job keeps a GPU only partly busy, because the CPU stages dominate an event
+(~40 % on the GB10, less on faster GPUs). Only jobs inside one allocation can share its
+GPU. If the site offers GPU sharing (`--gres=shard` or `--gres=mps`), many small SLURM
+jobs are an option too.
+
+```bash
+apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu126-<YYYYMMDD>-<xscape7>
+SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb sbatch slurm_prod_array.sh     # 10 tasks = 10 GPUs
+SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb sbatch --array=0-19 slurm_prod_array.sh
+SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb BINDS="$HOME/xml:/xml" \
+  EXTRA_ARGS="--user-xml /xml/PbPb_0_10.xml" sbatch slurm_prod_array.sh
+```
+
+Settings, as environment variables at `sbatch` (defaults in the script). `sbatch` passes
+your environment to the job by default (`--export=ALL`); where a site turns that off, use
+`sbatch --export=ALL,CAMPAIGN=PbPb,…` or edit the defaults in the script.
+
+| variable | default | meaning |
+|---|---|---|
+| `SIF` | `$HOME/xscape_prod.sif` | the image |
+| `WORK` | `$SCRATCH/xscape_prod` (`$HOME/…` without `$SCRATCH`) | bound to `/work`: writable, the same for all tasks |
+| `CAMPAIGN` | `AuAu_0_10_jet` | the campaign; task `t` writes `WORK/CAMPAIGN/t<ttt>/`, named `CAMPAIGN_t<ttt>` |
+| `P` | 4 | production jobs at once per GPU |
+| `NJOBS`, `EVENTS` | 40, 25 | jobs (files) per task, events per job |
+| `SEED_MODE` | `registry` | `registry` or `ranges`, see below |
+| `SEED_BASE` | 1 | `ranges`: the first seed of task 0 |
+| `USE_MPS` | 0 | 1: `run_jobs.sh --mps` (test it on the site first) |
+| `BINDS`, `EXTRA_ARGS` | empty | more binds; arguments for `run_prod_jet.py` |
+
+- **Resources per task:** `#SBATCH --gres=gpu:1 --cpus-per-task=20 --mem=100G --time=24:00:00`
+  in the script, for `P=4`. Each production job takes ~5 cores and ~22 GB of host memory,
+  so match `P` to what one GPU comes with on the node. The script sets
+  `OMP_NUM_THREADS = cpus-per-task / P` and `OMP_WAIT_POLICY=passive` for the jobs.
+- **Time limit:** choose `NJOBS × EVENTS` so a task fits `--time`: ~30–50 s per event and
+  job, `P` jobs at once. A task that runs out of time resumes when you submit the same
+  command again: it skips its finished jobs.
+- **Seeds, `SEED_MODE=registry` (default):** every job draws a new seed (`FIRST_SEED 0`),
+  checked against `WORK/CAMPAIGN/seeds_used.tsv`, which all tasks share under a file lock.
+  Tasks on different nodes need that lock to hold across nodes. The script reads the mount
+  options of `WORK`'s file system and stops on node-local or missing locks (Lustre
+  `localflock` or `noflock`; NFS `nolock`, `local_lock=flock` or `local_lock=all`). It also
+  stops if a test lock fails.
+- **`SEED_MODE=ranges`:** task `t` runs seeds `SEED_BASE + t × NJOBS` to `… + NJOBS − 1`, so
+  no lock is needed. Keep the ranges of different campaigns apart yourself, e.g.
+  `SEED_BASE=100001` for the next one.
+- **MPS:** off by default. Inside containers it is not assured (on the GB10 its daemon does
+  not start in a container, see [Several GPUs](#several-gpus-on-one-machine)). Without it the
+  jobs take turns on the GPU. If the site runs MPS itself (`--gres=mps`), leave
+  `USE_MPS=0`.
+
+Tested on the GB10 without SLURM: the script ran with the SLURM variables set by hand and a
+stand-in for `apptainer` that ran the same container through Docker. Two array tasks of
+2 × 1-event real jobs (`P=2`) completed and shared one registry (4 different seeds); a
+resubmission skipped the finished jobs. The seed ranges, the lock checks (Lustre
+`localflock`, NFS `local_lock=flock`, a failing lock) and the setting checks were tested
+with stand-ins for `findmnt` and `flock`. **Not tested on a real SLURM cluster.**
 
 ### Cloud VMs: Docker
 
