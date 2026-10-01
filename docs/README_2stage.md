@@ -26,6 +26,9 @@ production has two stages, and the analysis comes after them:
   oversamples, other cuts).
 - **Analysis** needs neither X-SCAPE nor the container: a Python venv reads every file and
   converts the hadrons to ROOT for analysis code that expects ROOT.
+- **Between them**, the files can travel through Google Cloud Storage or the OSDF with the
+  tools in [`utils/remote_transfer`](../utils/remote_transfer/README.md)
+  ([§5](#5-moving-the-files)).
 
 The physics and every option of the production are in [`prod_AuAu_0_10_jet/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md); the images
 themselves (variants, building, testing) in
@@ -421,11 +424,36 @@ pelican object put -t /work/token /work/AuAu_a/FILE.h5 osdf:///NAMESPACE/AuAu_a/
 The `-gcs` images write to Google Cloud Storage from Python (`fsspec.filesystem("gs")`).
 Credentials: `BuildContainerProd.md`, *Getting the outputs home*.
 
+**With the transfer tools.** For whole campaigns,
+[`utils/remote_transfer`](../utils/remote_transfer/README.md) has `js_gcs.py` (GCS, default
+`gs://test_fno`) and `js_osdf.py` (OSDF, default `osdf:///fno4hic`). Both take whole
+directories, single files or patterns, picked by kind with `--what pair|h5|root|all`. They
+skip what is already there, so an interrupted transfer finishes when the command is run
+again, and they check every file by size and CRC32C.
+
+```bash
+utils/remote_transfer/js_osdf.py upload /work/AuAu_a --what h5 --dry-run    # what would go
+utils/remote_transfer/js_osdf.py upload /work/AuAu_a --what h5              # -> osdf:///fno4hic/AuAu_a/
+utils/remote_transfer/js_gcs.py upload /work/AuAu_a --what pair -j 8        # -> gs://test_fno/AuAu_a/
+utils/remote_transfer/js_osdf.py download AuAu_a --what h5 --to /scratch    # on the CPU cluster
+```
+
+- **Where they run:** on the host, from a js-contrib checkout. Images built from js-contrib
+  after 2026-10-01 have them under
+  `/opt/X-SCAPE/external_packages/js-contrib/utils/remote_transfer/`.
+- **Their environment:** each script makes its own on first use, which needs PyPI access and
+  a writable home directory. In the `-gcs` images `JS_GCS_NO_ENV=1` and `JS_OSDF_NO_ENV=1`
+  use the image's packages instead.
+- **Credentials:** a service-account key for GCS, a bearer token for writing to OSDF. See
+  the tools' README.
+
 **What to move where.** The particlize files are **self-contained** (format version 2, from
 2026-10-01): surfaces, partons and the shower initiators. So the CPU cluster for stage 2,
 and the analysis, need only `<stem>_particlize.h5` and the hadron files next to it, not the
 large hydro pair files `<stem>.h5` (~170–285 MB per event), which can stay where the FNO
-training uses them. Particlize files made before carry no initiators; add them once, where
+training uses them. With the transfer tools that is `--what h5` (particlize and hadron
+files) for stage 2 and the analysis, `--what pair` for the FNO training, and `--what root`
+for the ROOT files of `run_h5toROOT.py`. Particlize files made before carry no initiators; add them once, where
 the pair files are next to them, with `add_initiators.py` (in the production folder; in
 the container or the venv):
 

@@ -23,6 +23,9 @@ and [contribs/Visualization/README.md](contribs/Visualization/README.md).
 
 ### Utilities
 
+[`utils/README.md`](utils/README.md) lists everything in `utils/`: environments, container
+images, the SLURM script and the data tools below.
+
 [`utils/h5_inspect.py`](utils/h5_inspect.py) lists every group and dataset of an HDF5 file
 with its shape, dtype, storage and attributes. For the js-contrib hydro files
 (`xscape/hydro_evolution`, `fast_data/hydro_evolution`, pairs, legacy FNO4d, IC files) it
@@ -60,6 +63,28 @@ google-cloud-storage and pelicanfs; see
 ./utils/analysis_env/setup_analysis_env.sh           # venv in ~/.venvs/js_analysis
 source ~/.venvs/js_analysis/bin/activate
 python utils/analysis_env/check_env.py /path/to/out  # opens every file of a production
+```
+
+### Moving productions: Google Cloud Storage and Pelican/OSDF
+
+[`utils/remote_transfer/`](utils/remote_transfer/README.md) has two command-line tools with
+the same commands: `js_gcs.py` for a GCS bucket (default `gs://test_fno`, a
+service-account key) and `js_osdf.py` for a Pelican namespace on the OSDF (default
+`osdf:///fno4hic`, pelicanfs, a bearer token for writing). They upload and download whole
+production directories, single files or patterns, and pick the files by kind:
+- `pair`: the hydro pair files;
+- `h5`: the particlize and hadron files;
+- `root`: the ROOT files of `run_h5toROOT.py`;
+- `all`: everything.
+
+Files already there are skipped, unfinished HDF5 files are left out, and every transfer is
+checked by size and CRC32C. Each script builds its own Python environment on first use, so
+a plain `python3` is all it needs.
+
+```bash
+utils/remote_transfer/js_gcs.py upload /data/AuAu_c1 --what root --dry-run   # -> gs://test_fno/AuAu_c1/
+utils/remote_transfer/js_osdf.py upload /data/out --what h5 --as AuAu_c1      # -> osdf:///fno4hic/AuAu_c1/
+utils/remote_transfer/js_gcs.py download AuAu_c1 --what root --to /scratch
 ```
 
 ### Design notes and benchmarks
