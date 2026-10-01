@@ -146,7 +146,7 @@ python bench_formats.py RUN_hadrons_bulk_jet.h5 --out-dir /scratch/root_bench   
 |---|---|
 | writing with `--writer root` (the smallest, fastest files; truncated floats) | yes, PyROOT |
 | writing with `--writer uproot` (TTree or RNTuple, float32) | no: uproot + awkward |
-| reading in Python (uproot) | no: uproot 5.7 reads every variant here |
+| reading in Python (uproot) | no: uproot 5.7 reads every variant here, except a TTree with truncated floats written with ROOT ≥ 6.38 (below) |
 | reading in C++ / RDataFrame | yes (≥ 6.34 for RNTuple) |
 
 `--writer auto`, the default, uses ROOT when PyROOT imports, and uproot otherwise, with a
@@ -155,6 +155,13 @@ larger and reads ~1.2× slower in ROOT (measured below): uproot stores the float
 `Real32` columns, while ROOT byte-splits them (`SplitReal32`) before compressing. That is
 the same trick as Blosc's shuffle, and it is worth 25% on `px` alone (85 against 107 MB).
 ROOT with PyROOT needs no compilation: `conda install -c conda-forge root`.
+
+**ROOT 6.38 and truncated-float TTrees.** ROOT 6.38 titles a truncated-float leaf with the
+whole leaf list (`x[n]/f[0,0,12]`, against `f[0,0,12]` up to 6.36). uproot (checked: 5.7.3
+and 5.7.6) then stops with `UnboundLocalError: ... 'low'`. ROOT reads these files as
+before, and RNTuple files with truncated floats are not affected. For uproot readers,
+write such TTrees with ROOT < 6.38 or without `--bits-p`/`--bits-x`; the `js_fno` install
+scripts cap ROOT below 6.38 for this reason.
 
 Reading in ROOT:
 

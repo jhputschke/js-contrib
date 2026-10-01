@@ -75,7 +75,7 @@ Original development repository:
 | X-SCAPE | branch `contrib` | Built and available; see [Path A](#path-a--via-x-scape-cmake). `JetScapePerEvent`, `get_js_contrib.sh`, the `USE_JS_*` options and the hooks the bindings use exist only on X-SCAPE's `contrib` branch, not on `main` or in the original JETSCAPE |
 | CMake | ≥ 3.18 | `FindPython3` with the `Development.Module` component |
 | Python | ≥ 3.9 | 3.11 used in the `js_fno` conda environment |
-| pybind11 | ≥ 2.11 | Build time only: `pip install pybind11` or conda (the `js_fno` scripts don't install it); CMake stops if it is not found |
+| pybind11 | ≥ 2.11 | Build time only: in `js_fno`, else `pip install pybind11` or conda; CMake stops if it is not found |
 | numpy | ≥ 1.21 | |
 | h5py | ≥ 3 | HDF5 writers and readers (`fno_h5_writer.py`, `fast_h5_bulk.py`, `pair_h5.py`); sets `jetscape.HAS_H5PY` |
 | hdf5plugin | | Blosc filter of the default compression ([README_h5_optim.md](../../docs/README_h5_optim.md)). Without it the writers fall back to lzf with a warning and Blosc files cannot be read; `import jetscape` registers the filter |
@@ -119,16 +119,16 @@ bash install_js_fno_build_minimal.sh        # auto-detects CUDA
 #    bash install_js_fno_build_minimal.sh none   # CPU/MPS, e.g. macOS Apple Silicon
 #    bash install_js_fno_build_minimal.sh 12.1   # force a CUDA version
 conda activate js_fno
-pip install pybind11                        # not installed by the scripts
 ```
 
 `install_js_fno_minimal.sh` (same arguments) installs only the Python side, for running
 against an existing build; it has no CMake or compilers.
 
-After activation, the `js_fno` environment provides `python`, PyTorch, `numpy`, `uproot`,
-ROOT and the HDF5/notebook packages (`h5py`, `hdf5plugin`, `pyyaml`, `scipy`, `matplotlib`,
-`pandas`, `ipywidgets`, `jupyterlab`); the build scripts add CMake, the compilers and the
-C++ libraries.
+After activation, the `js_fno` environment provides `python`, PyTorch, ROOT, pybind11,
+pytest, the HDF5 and analysis packages (`h5py`, `hdf5plugin`, `pyyaml`, `numpy`, `scipy`,
+`matplotlib`, `pandas`, `uproot`, `awkward`, `fastjet`, `vector`), Jupyter, PyVista, and
+PyJetscape and FastHydro as editable installs; the build scripts add CMake, the compilers
+and the C++ libraries. What each workflow needs: [contribs/README.md](../README.md#what-each-workflow-needs).
 
 ---
 

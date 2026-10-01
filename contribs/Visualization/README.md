@@ -33,17 +33,21 @@ production event past freeze-out, into its **hadrons**.
 ## Environment
 
 ```bash
-conda activate fno_pyvista_env      # pyvista, scipy, vtk, imageio, numpy
-pip install imageio-ffmpeg          # only needed for .mp4 output (.gif works without)
+conda activate js_fno               # pyvista, vtk, scipy, imageio, imageio-ffmpeg, numpy
 ```
+
+The `js_fno` install scripts ([`contribs/README.md`](../README.md)) include the PyVista
+stack; `imageio-ffmpeg` is needed only for `.mp4` output (`.gif` works without). For
+another env: `pip install pyvista imageio imageio-ffmpeg`.
 
 For `wake_pyvista.py` and `hydro_jet_particles_pyvista.py` on stored files, no X-SCAPE
 build is needed: the venv of
 [`utils/analysis_env`](../../utils/analysis_env/README.md)
-has everything, including MUSIC's EoS table. Live runs need the build:
+has everything, including MUSIC's EoS table. Live runs need the build.
 
-The compiled `pyjetscape_core` module must match this env's Python (built for
-CPython 3.13). Live hydro runs execute from the X-SCAPE build directory
+For live runs, the compiled `pyjetscape_core` module must match the env's Python: in
+`js_fno` it does, since X-SCAPE is built with that Python; in an env of its own, build it
+for that Python. Live hydro runs execute from the X-SCAPE build directory
 (default `<repo>/build_gpu`) so MUSIC can find `music_input`, `EOS/`, and the
 tables — the script `chdir`'s there for you.
 
@@ -123,7 +127,7 @@ renders NaN as a hole in the data rather than as "no wake here", and it would po
 the percentile the colour limit is built from. `--rel-clim` sets the limit by hand.
 
 ```bash
-conda activate fno_pyvista_env
+conda activate js_fno                # or the analysis venv
 python wake_pyvista.py --file ../../../build_gpu/out_wake/wake_ideal.h5 \
     --nt 48 --nz 160 --z-oversample 3 --movie wake_ideal.mp4
 ```

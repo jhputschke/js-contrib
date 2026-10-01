@@ -170,8 +170,8 @@ fi
 echo ""
 echo "=== 6. Python analysis packages (conda-forge) ==="
 
-for pkg in numpy matplotlib scipy h5py seaborn tqdm jupyterlab ipykernel \
-           hdf5plugin pyyaml pandas ipywidgets; do
+for pkg in numpy matplotlib scipy h5py seaborn tqdm jupyterlab notebook ipykernel \
+           hdf5plugin pyyaml pandas ipywidgets pybind11 pytest networkx vector; do
     _check_conda "${pkg}"
 done
 
@@ -184,6 +184,9 @@ echo "=== 7. pip-only packages ==="
 _check_pip neuraloperator
 _check_pip uproot
 _check_pip awkward
+_check_pip pyvista
+_check_pip imageio
+_check_pip imageio-ffmpeg
 
 # ---------------------------------------------------------------------------
 # Summary

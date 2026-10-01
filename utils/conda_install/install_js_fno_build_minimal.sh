@@ -13,9 +13,14 @@
 #     bash install_js_fno_build_minimal.sh 12.1                   # force CUDA 12.1
 #     bash install_js_fno_build_minimal.sh none                   # CPU/MPS — Mac Silicon
 #     bash install_js_fno_build_minimal.sh none /opt/miniconda3   # custom conda prefix
+#
+# Environment variables:
+#   JS_FNO_ENV_NAME=<name>   the environment's name (default js_fno)
+#   JS_FNO_FORCE=1           replace an existing environment of that name (else: stop)
+#   JS_FNO_NO_EDITABLE=1     skip the final `pip install -e` of PyJetscape and FastHydro
 set -euo pipefail
 
-ENV_NAME="js_fno"
+ENV_NAME="${JS_FNO_ENV_NAME:-js_fno}"      # JS_FNO_ENV_NAME=<name>: another name
 PYTHON_VERSION="3.11"
 CONDA_PREFIX="${2:-${HOME}/miniconda3}"
 
@@ -97,13 +102,36 @@ command -v mamba &>/dev/null && SOLVER="mamba"
 # ---------------------------------------------------------------------------
 # Create environment
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Never replace an existing environment by accident (conda create -y would)
+# ---------------------------------------------------------------------------
+if conda env list | awk '{print $1}' | grep -qx "${ENV_NAME}"; then
+    if [[ "${JS_FNO_FORCE:-0}" != "1" ]]; then
+        echo "Environment '${ENV_NAME}' exists already. Remove it first" >&2
+        echo "(conda env remove -n ${ENV_NAME}), set JS_FNO_FORCE=1 to replace it, or" >&2
+        echo "choose another name with JS_FNO_ENV_NAME=<name>." >&2
+        exit 1
+    fi
+    echo "==> JS_FNO_FORCE=1: replacing the existing environment '${ENV_NAME}'"
+fi
+
 echo "==> Creating environment '${ENV_NAME}' with Python ${PYTHON_VERSION}"
 ${SOLVER} create -n "${ENV_NAME}" python="${PYTHON_VERSION}" -y
+
+# The new environment's own python, by full path: `conda run -n ENV pip` takes the first
+# pip on PATH, which is another environment's when a venv is active
+ENV_PY="$(conda env list | awk -v n="${ENV_NAME}" '$1 == n {print $NF}')/bin/python"
+if [[ ! -x "${ENV_PY}" ]]; then
+    echo "Can't find the python of the new environment '${ENV_NAME}' (${ENV_PY})" >&2
+    exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # JETSCAPE C++ build dependencies (conda-forge)
 # CMakeLists.txt required: Boost, ZLIB, Pythia8, HDF5
 # CMakeLists.txt optional: HepMC3, FastJet, GSL, OpenMPI, ROOT, cmake
+# fastjet is scikit-hep's conda package: the FastJet C++ library and its Python API
+# (example/analysis/jet_fastjet*.ipynb)
 # ---------------------------------------------------------------------------
 echo "==> Installing JETSCAPE C++ build dependencies (conda-forge)"
 ${SOLVER} install -n "${ENV_NAME}" \
@@ -123,18 +151,22 @@ ${SOLVER} install -n "${ENV_NAME}" \
 # ROOT — install before PyTorch so the solver sees all constraints at once
 # ---------------------------------------------------------------------------
 echo "==> Installing ROOT (conda-forge)"
-${SOLVER} install -n "${ENV_NAME}" root -c conda-forge -y
+# ROOT >= 6.34 reads the RNTuple files of run_h5toROOT.py.  < 6.38: ROOT 6.38 titles a
+# truncated-float TTree leaf with the whole leaf list ('x[n]/f[0,0,12]'), which uproot
+# can't parse (UnboundLocalError), so --format ttree --bits-p files become unreadable
+# with uproot.  Lift the cap once uproot handles it.
+${SOLVER} install -n "${ENV_NAME}" "root>=6.34,<6.38" -c conda-forge -y
 
 # ---------------------------------------------------------------------------
 # PyTorch (pip — conda channel no longer officially supported)
 # ---------------------------------------------------------------------------
 if [[ "${CUDA_VERSION}" == "none" ]]; then
     echo "==> Installing PyTorch (CPU/MPS — no CUDA)"
-    conda run -n "${ENV_NAME}" pip install torch torchvision
+    "${ENV_PY}" -m pip install torch torchvision
 else
     CUDA_TAG="cu$(echo "${CUDA_VERSION}" | tr -d '.')"
     echo "==> Installing PyTorch with CUDA ${CUDA_VERSION} support (${CUDA_TAG})"
-    conda run -n "${ENV_NAME}" pip install torch torchvision \
+    "${ENV_PY}" -m pip install torch torchvision \
         --index-url "https://download.pytorch.org/whl/${CUDA_TAG}"
 fi
 
@@ -144,19 +176,38 @@ fi
 echo "==> Installing Python analysis packages (conda-forge)"
 ${SOLVER} install -n "${ENV_NAME}" \
     numpy matplotlib scipy h5py seaborn tqdm \
-    jupyterlab ipykernel \
+    jupyterlab notebook ipykernel \
     hdf5plugin pyyaml pandas ipywidgets \
+    pybind11 pytest networkx vector \
     -c conda-forge -y
 
 # ---------------------------------------------------------------------------
 # pip-only packages
 # ---------------------------------------------------------------------------
 echo "==> Installing pip packages"
-conda run -n "${ENV_NAME}" pip install --no-deps \
+# With their dependencies (none of them requires torch, so the CUDA build stays):
+#   uproot/awkward: awkward-cpp, cramjam, xxhash, fsspec; neuraloperator: tensorly, ...
+#   pyvista (+ vtk), imageio, imageio-ffmpeg: contribs/Visualization
+"${ENV_PY}" -m pip install \
     "neuraloperator>=2.0" \
-    uproot \
-    awkward
+    "uproot>=5" \
+    "awkward>=2" \
+    "pyvista>=0.43" \
+    "imageio>=2.9" \
+    imageio-ffmpeg
+
+# ---------------------------------------------------------------------------
+# The js-contrib Python packages, editable, when the script runs from a checkout
+# (pyjetscape_core is built later, with X-SCAPE; `import jetscape` works before,
+# with jetscape.HAS_CORE False)
+# ---------------------------------------------------------------------------
+_JS_CONTRIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+if [[ -f "${_JS_CONTRIB}/contribs/PyJetscape/pyproject.toml" && "${JS_FNO_NO_EDITABLE:-0}" != "1" ]]; then
+    echo "==> pip install -e PyJetscape and FastHydro from ${_JS_CONTRIB}"
+    "${ENV_PY}" -m pip install -e "${_JS_CONTRIB}/contribs/PyJetscape" \
+        -e "${_JS_CONTRIB}/contribs/FastHydro"
+fi
 
 echo ""
 echo "Done. Activate with:  conda activate ${ENV_NAME}"
-echo "Register Jupyter kernel:  conda run -n ${ENV_NAME} python -m ipykernel install --user --name ${ENV_NAME}"
+echo "Register Jupyter kernel:  ${ENV_PY} -m ipykernel install --user --name ${ENV_NAME}"
