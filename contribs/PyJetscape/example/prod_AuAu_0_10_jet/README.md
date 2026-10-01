@@ -11,6 +11,9 @@ IS (3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
    -> MUSIC_2                    same strings + the droplets      -> arr
 ```
 
+> **Running it with the containers** (Docker, Apptainer, SLURM), hadronizing on CPUs with the
+> same image, and analysing in a local venv or in ROOT: [`README_2stage.md`](README_2stage.md).
+
 `arr - arr_bg` is the jet's effect on the medium and nothing else: both legs start from the
 same initial condition, and before the first droplet deposits they are bit-identical.
 
@@ -97,9 +100,10 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 --campaign pth50     # named campaign
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1                      # seeds 1..20
 
-# Several GPUs: one campaign per GPU (all jobs of one campaign run on GPU 0; see ../prod_AuAu_0_10/README.md)
-CUDA_VISIBLE_DEVICES=0 MPS_DIR=/tmp/mps0 ./run_jobs.sh -j 4 --mps 20 25 0 out_gpu0 &
-CUDA_VISIBLE_DEVICES=1 MPS_DIR=/tmp/mps1 ./run_jobs.sh -j 4 --mps 20 25 0 out_gpu1 &
+# Several GPUs: one campaign per GPU, without --mps (all jobs of one campaign run on GPU 0;
+# see ../prod_AuAu_0_10/README.md and README_2stage.md)
+CUDA_VISIBLE_DEVICES=0 ./run_jobs.sh -j 4 --campaign gpu0 20 25 0 out_gpu0 &
+CUDA_VISIBLE_DEVICES=1 ./run_jobs.sh -j 4 --campaign gpu1 20 25 0 out_gpu1 &
 
 # macOS (Metal): split the cores between the jobs, or -j 3 gains nothing (../../../../docs/BENCHMARK_M3MAX.md)
 OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 25 0

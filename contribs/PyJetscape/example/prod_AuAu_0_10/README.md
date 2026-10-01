@@ -40,17 +40,24 @@ You can launch it from any directory.
 device (`cudaSetDevice(0)`), and `run_jobs.sh` doesn't assign GPUs. So on a machine with
 several GPUs, every job, `--mps` or not, lands on GPU 0 and the others sit idle. Nothing
 fails; you only lose throughput. To use them all, start one campaign per GPU, each seeing
-only its GPU through `CUDA_VISIBLE_DEVICES`, with its own `OUTDIR` and MPS directory:
+only its GPU through `CUDA_VISIBLE_DEVICES`, with its own `OUTDIR`, **without `--mps`**:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 MPS_DIR=/tmp/mps0 ./run_jobs.sh -j 4 --mps 20 25 0 out_gpu0 &
-CUDA_VISIBLE_DEVICES=1 MPS_DIR=/tmp/mps1 ./run_jobs.sh -j 4 --mps 20 25 0 out_gpu1 &
+CUDA_VISIBLE_DEVICES=0 ./run_jobs.sh -j 4 --campaign gpu0 20 25 0 out_gpu0 &
+CUDA_VISIBLE_DEVICES=1 ./run_jobs.sh -j 4 --campaign gpu1 20 25 0 out_gpu1 &
 ```
+
+Tested (2026-10-01) on a two-GPU machine: both GPUs busy.
 
 - **Output directories:** each campaign needs its own, since `run_jobs.sh` allows one
   campaign per `OUTDIR`.
-- **MPS:** each campaign starts its own daemon, which sees only its GPU. `MPS_DIR` keeps the
-  two daemons' sockets apart.
+- **No `--mps` here.** With `--mps` in each campaign, each starts a daemon that sees only
+  its GPU, and in the same test only one GPU was used: probably the second GPU's jobs found
+  no GPU behind their daemon and fell back to the CPU (`No CUDA device found` in their
+  logs; not yet confirmed). To use MPS on several GPUs, start one daemon over all GPUs
+  yourself (`nvidia-cuda-mps-control -d` with no `CUDA_VISIBLE_DEVICES`) and run the
+  campaigns without `--mps`; that is untested. `run_jobs.sh --gpus` on branch
+  `run_jobs_gpus` (not merged) does it that way.
 - **Seeds:** `out_gpu0` and `out_gpu1` share one parent directory, so they share the seed
   registry `seeds_used.tsv`. With `FIRST_SEED 0` the two campaigns never draw the same seed.
   The registry is locked, so starting both together is safe. With explicit seeds, give each
@@ -61,8 +68,7 @@ CUDA_VISIBLE_DEVICES=1 MPS_DIR=/tmp/mps1 ./run_jobs.sh -j 4 --mps 20 25 0 out_gp
 - **Threads:** split the cores over all the jobs: `OMP_NUM_THREADS` ≈ cores / (jobs per
   GPU × GPUs).
 - **Stopping:** `wait` waits for both campaigns. Ctrl-C in that shell does not reach
-  background (`&`) campaigns, so stop them with `kill %1 %2`; each one then stops its jobs
-  and its MPS daemon.
+  background (`&`) campaigns, so stop them with `kill %1 %2`; each one then stops its jobs.
 
 On macOS, `run_jobs.sh` runs under the system bash (3.2). `--mps` is CUDA-only. With
 `-j` > 1, split the cores between the jobs, e.g. `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive

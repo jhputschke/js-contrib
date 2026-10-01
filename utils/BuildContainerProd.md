@@ -6,6 +6,11 @@
 > images, amd64 included, is [Option A](#option-a--github-actions-recommended); it hasn't run
 > yet. The dev images are in [`BuildContainerDev.md`](BuildContainerDev.md).
 
+**For running a production with the images** (Docker, Apptainer, SLURM, hadronization on
+CPUs, analysis and ROOT export), see the user guide
+[`README_2stage.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README_2stage.md).
+This file is about the images themselves.
+
 The production images run the two-stage hydro productions of
 [`prod_AuAu_0_10_jet`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md)
 (`run_prod_jet.py`, `run_jobs.sh`, `hadronize.py`) on machines other than the GB10: HPC
@@ -518,9 +523,10 @@ apptainer exec --nv --pwd "$PROD" --bind "$SCRATCH/prod:/work" xscape_prod.sif b
   both campaigns, started in the same second, are named after the same start time.
 - **Threads:** `OMP_NUM_THREADS` ≈ cores / all jobs (here 8), e.g. `docker run -e
   OMP_NUM_THREADS=…`, or set it inside the `bash -c`.
-- **`--mps`** is left out: on the GB10 the MPS daemon does not start inside a container
-  (below). Where it does, add `--mps` and give each campaign its own `MPS_DIR` (e.g.
-  `MPS_DIR=/tmp/mps0` and `/tmp/mps1`) so the two daemons' sockets don't collide.
+- **No `--mps`.** On the GB10 the MPS daemon does not start inside a container (below).
+  And `--mps` in each per-GPU campaign left one GPU unused in a two-GPU test: each daemon
+  sees only its campaign's GPU (see the `prod_AuAu_0_10` README). Without MPS, one campaign
+  per GPU uses both GPUs (tested 2026-10-01, two-GPU machine, Docker).
 - **SLURM with Apptainer:** `apptainer exec` passes the host's `CUDA_VISIBLE_DEVICES` into
   the container. If SLURM set it to e.g. `2,3`, use those numbers (`CUDA_VISIBLE_DEVICES=2`
   and `=3`). On nodes that show a job only its own GPUs it is usually `0,1` anyway.
