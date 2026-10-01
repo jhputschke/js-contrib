@@ -224,10 +224,14 @@ def test_run_jobs_takes_campaign_anywhere_and_refuses_its_own_options(tmp_path):
     r = _run_jobs(tmp_path, "--campaign", "a", "1", "5", "0", str(tmp_path / "o2"),
                   "--campaign", "b")
     assert r.returncode == 2 and "given as 'a' and 'b'" in r.stderr
-    for opt in ("--seed", "--index", "--events", "--outdir", "--out", "--seed=3"):
+    for opt in ("--seed", "--index", "--events", "--out", "--seed=3"):
         r = _run_jobs(tmp_path, "1", "5", "0", str(tmp_path / "o3"),
                       *([opt] if "=" in opt else [opt, "7"]))
         assert r.returncode == 2 and "set by run_jobs.sh" in r.stderr, opt
+    for opt in ("--outdir", "--outdir=x"):            # OUTDIR is an argument: say where
+        r = _run_jobs(tmp_path, "1", "5", "0", str(tmp_path / "o3"),
+                      *([opt] if "=" in opt else [opt, "7"]))
+        assert r.returncode == 2 and "argument after FIRST_SEED" in r.stderr, opt
 
 
 def test_drivers_take_no_abbreviated_options():

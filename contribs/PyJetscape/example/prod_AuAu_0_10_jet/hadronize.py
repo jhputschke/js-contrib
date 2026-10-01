@@ -38,11 +38,13 @@ account: --oversample-bg auto gives it K*M x --oversample (right for averages ov
 windows), --oversample-bg per-pthat-bin M x --oversample (right for each window on its own).
 
 Initiators.  bulk_jet and jet_frag also get ``initiators/``: each event's shower-initiating
-partons, copied from the pair file's ``shower/initiators`` (the particlize file's
-``pair_file``, looked up next to it).  Jet-relative analyses (HadronFileReader's
+partons, from the particlize file's own ``initiators/`` (format version 2: the file is
+self-contained).  For an older particlize file they come from the pair file's
+``shower/initiators`` (its ``pair_file``, looked up next to it); without either the outputs
+are written without them, with a warning.  Jet-relative analyses (HadronFileReader's
 ``info.initiators()``) then need only the particlize and hadron files, not the pair file with
-the hydro.  Without the pair file the outputs are written without them, with a warning.
---add-initiators adds the group to existing outputs without hadronizing again.
+the hydro.  --add-initiators adds the group to existing outputs without hadronizing again;
+``add_initiators.py`` adds it to an old particlize file.
 
 Seeds.  Every unit gets its own seed, derived from (--seed, the production file, tag, unit,
 sample), and it is recorded in ``units/seed``: any unit can be regenerated alone.  The
@@ -351,10 +353,14 @@ def _complete(path):
 
 
 def read_initiators(pf, particlize):
-    """``(data, offsets)`` of the shower initiators in the pair file next to ``particlize``,
-    or None (with a warning) when there is no pair file or it does not match."""
+    """``(data, offsets)`` of the shower initiators: the particlize file's own
+    ``initiators/`` (format version 2), else the pair file's next to ``particlize``; None
+    (with a warning) when neither has them."""
     from jetscape.hadrons_h5 import pair_initiators
 
+    own = pf.initiators_all()
+    if own is not None:
+        return own
     pair = pf.attrs.get("pair_file")
     path = os.path.join(os.path.dirname(particlize), str(pair)) if pair else None
     try:
@@ -366,9 +372,9 @@ def read_initiators(pf, particlize):
                else f"{path} has no shower/initiators" if path
                else "the particlize file names no pair_file")
     if found is None:
-        print(f"hadronize.py: WARNING -- no shower initiators ({why}): bulk_jet and "
-              "jet_frag are written without initiators/, so jet-relative analyses will need "
-              "the pair file", file=sys.stderr)
+        print(f"hadronize.py: WARNING -- no shower initiators (not in the particlize file, "
+              f"and {why}): bulk_jet and jet_frag are written without initiators/, so "
+              "jet-relative analyses will need the pair file", file=sys.stderr)
     return found
 
 

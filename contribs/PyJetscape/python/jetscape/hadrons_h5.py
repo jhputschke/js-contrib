@@ -91,7 +91,8 @@ from .showers import INITIATOR_COLUMNS
 
 __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "ORIGIN",
            "ROUNDABLE", "INITIATOR_COLUMNS", "INITIATOR_TAGS", "hadron_precision",
-           "hadron_eta_max", "hadron_selection", "pseudorapidity", "pair_initiators", "add_initiators", "HadronH5Writer", "Hadrons", "HadronFile",
+           "hadron_eta_max", "hadron_selection", "pseudorapidity", "particlize_initiators",
+           "pair_initiators", "add_initiators", "HadronH5Writer", "Hadrons", "HadronFile",
            "JetEvents", "HadronFileReader",
            "EventHadrons", "EventInfo"]
 
@@ -660,6 +661,24 @@ def _initiator_rows(ini):
     return {"data": rows}
 
 
+def particlize_initiators(path, nevents=None):
+    """``(data, offsets)`` of a particlize file's ``initiators/`` (format version 2, or
+    added with ``add_initiators.py``), or None when the file
+    or the group is missing.  With ``nevents`` the file must hold that many events."""
+    if not path or not os.path.exists(path):
+        return None
+    from .particlize_h5 import ParticlizeFile
+
+    with ParticlizeFile(path) as pf:
+        found = pf.initiators_all()
+        n = pf.nevents
+    if found is None:
+        return None
+    if nevents is not None and n != int(nevents):
+        raise ValueError(f"{path} has {n} event(s), expected {nevents}: not the same run")
+    return found
+
+
 def pair_initiators(path, nevents=None):
     """``(data, offsets)`` of a pair file's ``shower/initiators``, or None when the file or
     the group is missing.  With ``nevents`` the pair file must hold that many events."""
@@ -1177,14 +1196,18 @@ class HadronFileReader:
                     ids = hf.units.get("unit", np.arange(hf.n_units))
                     return (hf.f["initiators/data"][:], hf.f["initiators/offsets"][:],
                             {int(u): k for k, u in enumerate(ids)})
+        found = particlize_initiators(f"{f['stem']}_particlize.h5")
+        if found is not None:
+            return found[0], found[1], None
         pair = f["pair_file"]
         path = os.path.join(os.path.dirname(f["stem"]), str(pair)) if pair else None
         found = pair_initiators(path)
         if found is None:
             raise FileNotFoundError(
-                f"{f['stem']}: no initiators/ in its hadron files and pair file {path!r} not "
-                "found (initiators() reads either; hadronize.py --add-initiators adds them "
-                "to existing hadron files)")
+                f"{f['stem']}: no initiators/ in its hadron or particlize files, and pair "
+                f"file {path!r} not found (example/prod_AuAu_0_10_jet/add_initiators.py "
+                "adds them to the particlize file, hadronize.py --add-initiators to the "
+                "hadron files; both need the pair file once)")
         return found[0], found[1], None
 
     # ── single events ───────────────────────────────────────────────────────────

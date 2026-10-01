@@ -9,6 +9,7 @@ the jet hadronization receives.  ParticlizeFile reads it back.
         surface/bg  <- MUSIC_1's surface (once per background, see --reuse)
         surface/jet <- MUSIC_2's surface
         partons/    <- JetEnergyLossManager's final partons
+        initiators/ <- the shower-initiating partons (as the pair file's shower/initiators)
                                                     -> <stem>_particlize.h5
     later, anywhere, as often as wanted (example/prod_AuAu_0_10_jet/hadronize.py):
         iSS on surface/jet -> bulk_jet, iSS on surface/bg -> bulk_bg,
@@ -26,6 +27,10 @@ Why this is exact
 
 It is a separate file from the FNO4d pair file on purpose: the training data never carries
 hadronization inputs, and these files can be moved, reprocessed or deleted on their own.
+From format version 2 it is **self-contained** for hadronization and the jet-relative
+analyses: ``initiators/`` holds each event's shower initiators, which before were only in
+the pair file's ``shower/initiators``.  :func:`add_initiators_from_pair` adds them to a
+version-1 file from its pair file (``example/prod_AuAu_0_10_jet/add_initiators.py``).
 
 Layout
 ------
@@ -41,6 +46,8 @@ Layout
     surface/bg/bg_id     (n_bg,) int64     the first event that used this background
     partons/data         (K, 14) float64   FINAL_PARTON_COLUMNS         (RaggedGroup)
     partons/offsets      (nevents + 1,) int64
+    initiators/data      (J, 11) float64   jetscape.showers.INITIATOR_COLUMNS: shower, pid,
+    initiators/offsets   (nevents + 1,)    pstat, px, py, pz, E, x, y, z, t  (version >= 2)
     events/<key>         (nevents,)        per event: bg_id, bg_unit (row of surface/bg),
                                            bg_key, n_cells_jet, n_cells_bg, n_partons,
                                            n_showers, plus whatever the driver passes
@@ -66,12 +73,15 @@ import numpy as np
 
 from .fno_h5_writer import RaggedGroup
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
+from .showers import INITIATOR_COLUMNS, initiators_from_manager
 
 __all__ = ["FORMAT", "FORMAT_VERSION", "SURFACE_COLUMNS", "FINAL_PARTON_COLUMNS",
-           "ParticlizeH5Writer", "ParticlizeFile"]
+           "INITIATOR_COLUMNS", "ParticlizeH5Writer", "ParticlizeFile",
+           "add_initiators_from_pair"]
 
 FORMAT = "xscape/particlize_input"
-FORMAT_VERSION = 1
+#: 2: + initiators/ (the shower initiators, so the file needs no pair file)
+FORMAT_VERSION = 2
 
 #: columns of a surface row: the fields of SurfaceCellInfo that iSS reads, in its FO_surf
 #: order.  Mirrors pyjetscape_core.SURFACE_CELL_COLUMNS (checked when the core is present).
@@ -111,7 +121,7 @@ class ParticlizeH5Writer:
         (``<freeze_out_surface>1``) and hand it over (``skip_surface`` off, e.g.
         ``PairH5Writer(keep_surface=legs)``).
     store_partons : bool
-        Write ``partons/``.
+        Write ``partons/`` and ``initiators/`` (both from the energy-loss manager).
     bg_id, jet_id : str
         Module ids of the two MUSIC instances.
     compression : str or None
@@ -155,6 +165,7 @@ class ParticlizeH5Writer:
         self._surf = {}
         self._bg_ids = None
         self._partons = None
+        self._initiators = None
         self._events = None
         self._i = 0
         self._last_bg_id = None
@@ -250,6 +261,14 @@ class ParticlizeH5Writer:
                 "data": (np.float64, (len(FINAL_PARTON_COLUMNS),))},
                 compression="gzip", chunk_rows=16384)
             g.attrs["data_columns"] = list(FINAL_PARTON_COLUMNS)
+            g = self.f.require_group("initiators")
+            self._initiators = RaggedGroup(g, "offsets", {
+                "data": (np.float64, (len(INITIATOR_COLUMNS),))},
+                compression="gzip", chunk_rows=1024)
+            g.attrs["data_columns"] = list(INITIATOR_COLUMNS)
+            g.attrs["source"] = ("JetEnergyLossManager shower-initiating partons "
+                                 "(jetscape.showers.initiators_from_manager), the rows of "
+                                 "the pair file's shower/initiators")
         self._events = _ScalarTable(self.f.require_group("events"))
 
     # ── per event ───────────────────────────────────────────────────────────────
@@ -302,6 +321,15 @@ class ParticlizeH5Writer:
             self._partons.append({"data": rows})
             row["n_partons"] = len(rows)
             row["n_showers"] = int(len(np.unique(rows[:, 0]))) if len(rows) else 0
+            ini = np.zeros((0, len(INITIATOR_COLUMNS)))
+            if self._mgr is not None:
+                try:
+                    ini = initiators_from_manager(self._mgr)
+                except Exception as exc:              # noqa: BLE001 - keep the surfaces
+                    warnings.warn(f"ParticlizeH5Writer: event {k}: shower initiators not "
+                                  f"captured ({exc}); stored as an empty unit",
+                                  RuntimeWarning, stacklevel=2)
+            self._initiators.append({"data": ini})
         if bg_key is not None:
             row["bg_key"] = str(bg_key)
         row.update(diag)
@@ -409,6 +437,29 @@ class ParticlizeFile:
         off = g["offsets"]
         return g["data"][int(off[event]):int(off[event + 1])]
 
+    @property
+    def has_initiators(self):
+        """True if the file holds ``initiators/`` (format version 2, or added later).  A
+        group without a single row (bindings without ``get_shower_initiating_partons``)
+        counts as absent, so readers fall back to the pair file: every real event has at
+        least one initiator."""
+        return _has_initiators(self.f)
+
+    def initiators(self, event):
+        """Shower initiators of ``event``, (J, 11) in ``INITIATOR_COLUMNS`` order; None
+        without ``initiators/``."""
+        if not self.has_initiators:
+            return None
+        off = self.f["initiators/offsets"]
+        return self.f["initiators/data"][int(off[event]):int(off[event + 1])]
+
+    def initiators_all(self):
+        """``(data, offsets)`` of every event, as the pair file's ``shower/initiators``
+        and ``shower/initiator_offsets``; None without ``initiators/``."""
+        if not self.has_initiators:
+            return None
+        return self.f["initiators/data"][:], self.f["initiators/offsets"][: self.nevents + 1]
+
     def music_input(self):
         return str(self.attrs.get("music_input", ""))
 
@@ -485,3 +536,61 @@ def _cast(v, dtype):
     if dtype.kind in ("O", "S", "U"):
         return str(v)
     return v
+
+
+# ── adding initiators to version-1 files ────────────────────────────────────────
+def _has_initiators(f):
+    return ("initiators/data" in f and "initiators/offsets" in f
+            and f["initiators/data"].shape[0] > 0)
+
+
+def add_initiators_from_pair(path, pair=None, *, force=False):
+    """Copy the pair file's ``shower/initiators`` into the particlize file ``path``, so it no
+    longer needs the pair file.  ``pair`` defaults to the file's ``pair_file``, next to it.
+
+    Returns True if added, False if the file already had ``initiators/`` (kept unless
+    ``force``).  Raises if the pair file is missing, holds no initiators, or has another
+    number of events.
+    """
+    import h5py
+
+    from . import h5_compression  # noqa: F401  (registers the Blosc filter)
+
+    path = str(path)
+    with h5py.File(path, "r") as f:
+        if f.attrs.get("format") != FORMAT:
+            raise ValueError(f"{path}: not a {FORMAT} file")
+        nev = int(f.attrs.get("nevents_written", f.attrs.get("nevents", 0)))
+        have = _has_initiators(f)
+        name = f.attrs.get("pair_file")
+    if have and not force:
+        return False
+    if pair is None:
+        if not name:
+            raise ValueError(f"{path}: names no pair_file; pass the pair file")
+        pair = os.path.join(os.path.dirname(os.path.abspath(path)), str(name))
+    pair = str(pair)
+    if not os.path.exists(pair):
+        raise FileNotFoundError(f"{path}: pair file {pair} not found")
+    with h5py.File(pair, "r") as f:
+        if "shower/initiators" not in f or "shower/initiator_offsets" not in f:
+            raise ValueError(f"{pair} has no shower/initiators (a --no-showers run?)")
+        cols = f["shower"].attrs.get("initiator_columns")
+        if cols is not None and tuple(str(c) for c in cols) != INITIATOR_COLUMNS:
+            raise ValueError(f"{pair}: initiator columns {list(cols)} are not "
+                             f"{list(INITIATOR_COLUMNS)}")
+        data = f["shower/initiators"][:]
+        off = f["shower/initiator_offsets"][:]
+    if len(off) - 1 != nev:
+        raise ValueError(f"{pair} has initiators for {len(off) - 1} event(s), {path} "
+                         f"{nev}: not the same run")
+    with h5py.File(path, "a") as f:
+        if "initiators" in f:
+            del f["initiators"]
+        g = f.create_group("initiators")
+        g.create_dataset("data", data=np.asarray(data, np.float64).reshape(
+            -1, len(INITIATOR_COLUMNS)), compression="gzip")
+        g.create_dataset("offsets", data=np.asarray(off, np.int64))
+        g.attrs["data_columns"] = list(INITIATOR_COLUMNS)
+        g.attrs["source"] = f"copied from {os.path.basename(pair)} shower/initiators"
+    return True

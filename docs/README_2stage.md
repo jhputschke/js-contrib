@@ -281,7 +281,8 @@ files, or globs), `-j` at a time, and skips files whose hadrons are already comp
 
 Output per production file, next to it: `<stem>_hadrons_bulk_jet.h5` (iSS on the jet surface:
 bulk + wake), `<stem>_hadrons_bulk_bg.h5` (iSS on the background), `<stem>_hadrons_jet_frag.h5`
-(the fragmented partons). Restart with the same command; incomplete outputs are redone.
+(the fragmented partons). Restart with the same command; incomplete outputs are redone. Only
+the particlize files are needed: copy just those to the CPU cluster (§5).
 
 **On a SLURM CPU partition:**
 
@@ -418,9 +419,23 @@ pelican object put -t /work/token /work/AuAu_a/FILE.h5 osdf:///NAMESPACE/AuAu_a/
 ```
 
 The `-gcs` images write to Google Cloud Storage from Python (`fsspec.filesystem("gs")`).
-Credentials: `BuildContainerProd.md`, *Getting the outputs home*. For the analysis, keep
-each `<stem>.h5`, `<stem>_particlize.h5` and `<stem>_hadrons_*.h5` together in one
-directory.
+Credentials: `BuildContainerProd.md`, *Getting the outputs home*.
+
+**What to move where.** The particlize files are **self-contained** (format version 2, from
+2026-10-01): surfaces, partons and the shower initiators. So the CPU cluster for stage 2,
+and the analysis, need only `<stem>_particlize.h5` and the hadron files next to it, not the
+large hydro pair files `<stem>.h5` (~170–285 MB per event), which can stay where the FNO
+training uses them. Particlize files made before carry no initiators; add them once, where
+the pair files are next to them, with `add_initiators.py` (in the production folder; in
+the container or the venv):
+
+```bash
+./add_initiators.py /work/AuAu_a                     # in the container (Docker/Apptainer --pwd)
+python contribs/PyJetscape/example/prod_AuAu_0_10_jet/add_initiators.py DIR   # in the venv
+```
+
+In images built before this script existed, run it from a js-contrib checkout bound into the
+container, or in the venv.
 
 ---
 

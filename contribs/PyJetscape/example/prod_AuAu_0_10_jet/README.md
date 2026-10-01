@@ -45,6 +45,7 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
 | `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
+| `add_initiators.py` | makes older particlize files (before 2026-10-01) self-contained: copies the shower initiators in from their pair files |
 | `paired_noise.py` | noise of jet − background per oversample, independent vs correlated legs (`--correlated`), and each leg's physics in both modes ([`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md), Part B) |
 | `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
@@ -358,8 +359,8 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--eta-max X` | store only hadrons with pseudorapidity \|η\| < X, in all three tags (default: all). iSS still samples the whole surface: every sample and every result inside the cut is unchanged. `2` keeps ~54% of the bulk hadrons, ~60% of the bytes. Set once per campaign (below) |
 | `--charged` | store only charged hadrons, in all three tags: 58% of the bulk hadrons (below) |
 | `--no-x` | store no positions `t, x, y, z`: ~60% of the bytes; readers give `x` as empty `(N, 0)` arrays (below) |
-| `--add-initiators` | only add `initiators/` (each event's shower-initiating partons, from the pair file) to existing `bulk_jet` / `jet_frag` outputs, without hadronizing again: for files made before hadronize.py copied them. `--force` replaces an existing group |
-| `--no-initiators` | don't copy the initiators (by default they are copied whenever the pair file is next to the particlize file) |
+| `--add-initiators` | only add `initiators/` (each event's shower-initiating partons, from the particlize file, or for an older one the pair file) to existing `bulk_jet` / `jet_frag` outputs, without hadronizing again: for files made before hadronize.py copied them. `--force` replaces an existing group |
+| `--no-initiators` | don't copy the initiators (by default they are copied from the particlize file, or for an older one from the pair file next to it) |
 
 #### Hadron precision (`--keep-bits-p`, `--keep-bits-x`)
 
@@ -631,9 +632,9 @@ The callables receive an `EventHadrons` (`pid`, `pstat`, `p`, `x`, `E`, `px`, `p
 tag for that event) and an `EventInfo` (`event`, `stem`, `local_event`, `bg_unit`, `seed`,
 `initiators()`). `values` may return a tuple for an N-d histogram, or be a tuple of names. `initiators()` reads the
 `initiators/` group `hadronize.py` copies into `bulk_jet` and `jet_frag`, so an analysis needs
-only the particlize and hadron files. For hadron files without it, it falls back to the pair
-file's `shower/` group (next to the particlize file); `hadronize.py --add-initiators` adds the
-group to such files.
+only the particlize and hadron files. For hadron files without it, it falls back to the
+particlize file's own `initiators/`, then to the pair file's `shower/` group (next to the
+particlize file); `hadronize.py --add-initiators` adds the group to such hadron files.
 
 **Option if needed: merging into single files.** A campaign could also be merged into one
 file per tag (`merge_hadrons.py`, not written). It would concatenate the units, shift the
@@ -1005,8 +1006,18 @@ python hadronize.py out/AuAu_0_10_jet_seed0001_particlize.h5 --oversample 500 --
 | `surface/jet/cells` | MUSIC_2's freeze-out surface, `(N, 32)` float32, columns `surface_columns`: exactly the fields iSS reads (x^μ, dσ_μ, u^μ, e, T, P, charges, μ's, π^{μν}, Π). The framework's `SurfaceCellInfo` is float, so this is lossless. One unit per event (`offsets`). |
 | `surface/bg/cells`, `surface/bg/bg_id` | MUSIC_1's, one unit per **new** background (with `--reuse N`, once per N events); `events/bg_unit` says which unit an event used. |
 | `partons/data` | the final partons the jet hadronization receives (`JetEnergyLossManager::GetFinalStatePartons`), `(K, 14)`: shower, pid, pstat, E, p, t, x, y, z, mass, col, acol |
+| `initiators/data` | each event's shower-initiating partons, `(J, 11)`: shower, pid, pstat, px, py, pz, E, x, y, z, t; the same rows as the pair file's `shower/initiators` (format version 2, from 2026-10-01) |
 | `events/` | per event: `bg_id`, `bg_unit`, `bg_key` (hash of the whole background leg), cell and parton counts, droplet energies, MUSIC τ0, boundary flags |
 | attributes | `music_input` (the job's own, verbatim: iSS reads its EoS id and `Include_Bulk_Visc` flag from it), `T_fo`, `pair_file`, `file_uuid`, provenance |
+
+**Self-contained.** From format version 2 (2026-10-01), the particlize file is all that
+hadronization and the jet-relative analyses need: the hydro pair file can stay behind (FNO
+training data, ~170–285 MB per event). Files made before carry no `initiators/`; copy them in
+once from their pair files:
+
+```bash
+./add_initiators.py out_had            # a directory, particlize files or globs; needs the pair files once
+```
 
 **`hadronize.py`** (CPU only: no MUSIC, no GPU) writes one file per tag (`jetscape.hadrons_h5`,
 read with `Hadrons.from_h5`):
@@ -1021,8 +1032,9 @@ Each file keeps every sample apart (`sample_offsets`, `unit_offsets`), so averag
 oversamples of one event, with compound-Poisson errors (`Hadrons.hist`, `Hadrons.total`).
 `bulk_jet` and `jet_frag` also carry `initiators/data` `(K, 11)` + `initiators/offsets`: each
 event's shower-initiating partons (`shower, pid, pstat, px, py, pz, E, x, y, z, t`), copied from
-the pair file's `shower/initiators` (`HadronFile.initiators(event)`). Without the pair file
-they are written without it, with a warning.
+the particlize file's `initiators/` (`HadronFile.initiators(event)`). For an older particlize
+file (format version 1) they come from the pair file's `shower/initiators` next to it; without
+either they are written without it, with a warning.
 `p` and `x` are full float32 unless `--keep-bits-p/-x` rounded them; the precision is
 recorded per dataset (see [Hadron precision](#hadron-precision---keep-bits-p---keep-bits-x)).
 All hadrons and their positions are stored unless `--eta-max`, `--charged` or `--no-x`
