@@ -1,27 +1,33 @@
 """
-examples/inspect_bulk_info.py
+example/inspect_bulk_info.py
 
-Load the evolution history from a completed JETSCAPE-FNO run and inspect it
-as numpy arrays and PyTorch tensors.  Produces matplotlib plots of energy
-density, temperature, and velocity field slices at selected proper-time steps.
+Load the evolution history of a JETSCAPE run and inspect it as numpy arrays and
+PyTorch tensors.  Produces matplotlib plots of energy density, temperature, and
+velocity field slices at selected proper-time steps.
+
+Run it from the X-SCAPE build directory, with PyJetscape built (-DUSE_JS_PYJETSCAPE=ON)
+and PyTorch installed.  The XML defaults are found from where js-contrib sits
+(X-SCAPE/external_packages/js-contrib).
 
 Usage (two modes):
 
   1. Run a fresh simulation (Mode B, explicit module pipeline), then inspect:
        conda activate js_fno
-       python examples/inspect_bulk_info.py \\
-           --main config/jetscape_main.xml \\
-           --user config/jetscape_user_AA_dukeTune.xml
+       cd X-SCAPE/build_gpu
+       python ../external_packages/js-contrib/contribs/PyJetscape/example/inspect_bulk_info.py \\
+           --main ../config/jetscape_main.xml \\
+           --user ../config/jetscape_user_MUSIC.xml
 
-     Use --hydro-module to choose the C++ hydro module (default: FnoHydro):
-       python examples/inspect_bulk_info.py --hydro-module MusicWrapper
+     --hydro-module chooses the C++ hydro module (default: MUSIC).
 
-  2. Pass in a pre-computed bulk_info numpy file (saved by a previous run):
-       python examples/inspect_bulk_info.py --load bulk_info.npy
+  2. Pass in a pre-computed bulk_info numpy file (saved by a previous run with --save):
+       python ../external_packages/js-contrib/contribs/PyJetscape/example/inspect_bulk_info.py \\
+           --load bulk_info.npy
 
 Optional flags:
-    --main          Path to main XML config (default: config/jetscape_main.xml)
-    --user          Path to user XML config (default: config/jetscape_user_MUSIC.xml)
+    --main          Path to main XML config (default: X-SCAPE's config/jetscape_main.xml)
+    --user          Path to user XML config (default: FnoHydro's
+                    config/jetscape_user_root_bulk_test.xml)
     --load          Load a previously saved .npy file instead of running a sim
     --save          Save the extracted numpy array to this path (e.g. bulk_info.npy)
     --n-feat        Number of features to extract (default: 4)
@@ -43,9 +49,13 @@ import numpy as np
 os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 # ── Make sure the python package is importable ────────────────────────────────
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
+# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib), and the
+# FnoHydro contrib next to PyJetscape, for the default XMLs
+_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
+_FNOHYDRO = os.path.normpath(os.path.join(_REPO_ROOT, "..", "FnoHydro"))
 
 
 def parse_args() -> argparse.Namespace:
@@ -53,8 +63,9 @@ def parse_args() -> argparse.Namespace:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--main",   default=os.path.join(_REPO_ROOT, "config", "jetscape_main.xml"))
-    p.add_argument("--user",   default=os.path.join(_REPO_ROOT, "fno_hydro/config", "jetscape_user_root_bulk_test.xml"))
+    p.add_argument("--main",   default=os.path.join(_XSCAPE, "config", "jetscape_main.xml"))
+    p.add_argument("--user",   default=os.path.join(_FNOHYDRO, "config",
+                                                    "jetscape_user_root_bulk_test.xml"))
     p.add_argument("--load",   default=None,
                    help="Load bulk_info from a previously saved .npy file.")
     p.add_argument("--save",   default=None,

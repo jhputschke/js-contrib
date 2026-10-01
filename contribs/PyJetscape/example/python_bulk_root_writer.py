@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-examples/python_bulk_root_writer.py
+example/python_bulk_root_writer.py
 
-Python equivalent of fno_hydro/root_bulk/bulkRootWriter.cc.
+Python equivalent of js-contrib's contribs/FnoHydro/root_bulk/bulkRootWriter.cc.
 
 Demonstrates:
   1. Building a JETSCAPE pipeline with Python modules
@@ -10,17 +10,23 @@ Demonstrates:
      bulk info to a ROOT file via uproot
   3. Reading back and visualising the stored data
 
-Run from the build directory:
-    python ../examples/python_bulk_root_writer.py
+Run from the X-SCAPE build directory:
+    cd X-SCAPE/build_gpu
+    python ../external_packages/js-contrib/contribs/PyJetscape/example/python_bulk_root_writer.py
+
+The XMLs (MAIN_XML, USER_XML below) are X-SCAPE's config/jetscape_main.xml and FnoHydro's
+config/jetscape_user_root_bulk_test.xml, found from where js-contrib sits
+(X-SCAPE/external_packages/js-contrib).
 
 Prerequisites:
-    uproot    (pip install uproot)     — for ROOT output
+    uproot    (pip install uproot)     — for ROOT output (without it: an .npz)
     matplotlib (pip install matplotlib) — for the quick-look plot
     numpy     (pip install numpy)
 
 Build requirements:
-    cmake .. -DUSE_ROOT=ON -DUSE_MUSIC=ON -DUSE_PYTHON=ON
-    (same as bulkRootWriter.cc)
+    X-SCAPE with MUSIC and PyJetscape:
+    cmake .. -DUSE_MUSIC=ON -DUSE_JS_CONTRIB=ON -DUSE_JS_PYJETSCAPE=ON
+    (uproot writes the ROOT file, so the C++ build needs no ROOT)
 """
 
 from __future__ import annotations
@@ -34,9 +40,11 @@ import time
 # into <repo>/python/jetscape/ by the CMake rule:
 #   set_target_properties(pyjetscape_core PROPERTIES
 #       LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/python/jetscape")
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
+# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib)
+_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
 
 # ── JETSCAPE Python bindings ──────────────────────────────────────────────────
 import python.jetscape as js
@@ -55,8 +63,9 @@ except ImportError:
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 
-MAIN_XML = "../config/jetscape_main.xml"
-USER_XML = "../fno_hydro/config/jetscape_user_root_bulk_test.xml"
+MAIN_XML = os.path.join(_XSCAPE, "config", "jetscape_main.xml")
+USER_XML = os.path.join(_REPO_ROOT, "..", "FnoHydro", "config",
+                        "jetscape_user_root_bulk_test.xml")
 OUTPUT   = "bulk_root_writer_python_test.root"
 
 # User-resolution grid parameters (mirrors bulkRootWriter.cc defaults)

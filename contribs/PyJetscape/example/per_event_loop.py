@@ -1,25 +1,31 @@
 """
-examples/per_event_loop.py
+example/per_event_loop.py
 
 Drive a JETSCAPE simulation one event at a time from Python, using the new
 JetScapePerEvent class. The event loop runs here (not inside JetScape::Exec),
 so the per-event module results can be inspected *after* each event executes
 and *before* its memory is released.
 
-This is the Python counterpart of examples/custom_examples/JetScapePerEventTest.cc.
+This is the Python counterpart of X-SCAPE's examples/custom_examples/JetScapePerEventTest.cc.
+
+Run it from the X-SCAPE build directory, with PyJetscape built (-DUSE_JS_PYJETSCAPE=ON).
+--main and --user default to X-SCAPE's config/jetscape_main.xml and
+config/jetscape_user.xml, found from where js-contrib sits (X-SCAPE/external_packages).
 
 Usage (Mode A — XML-driven task list; user XML has
        enableAutomaticTaskListDetermination = true):
     conda activate js_fno
-    python examples/per_event_loop.py \\
-        --main config/jetscape_main.xml \\
-        --user config/jetscape_user.xml \\
+    cd X-SCAPE/build_gpu
+    python ../external_packages/js-contrib/contribs/PyJetscape/example/per_event_loop.py \\
+        --main ../config/jetscape_main.xml \\
+        --user ../config/jetscape_user.xml \\
         --events 5
 
 Usage (Mode B — manual pipeline; user XML has
        enableAutomaticTaskListDetermination = false):
-    python examples/per_event_loop.py --manual \\
-        --user config/jetscape_user_MUSIC.xml \\
+    python ../external_packages/js-contrib/contribs/PyJetscape/example/per_event_loop.py \\
+        --manual \\
+        --user ../config/jetscape_user_MUSIC.xml \\
         --initial-state TrentoInitial \\
         --preequilibrium NullPreDynamics \\
         --hydro-module MUSIC \\
@@ -41,9 +47,12 @@ import os
 import sys
 
 # ── Make sure the python package is importable ────────────────────────────────
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
+# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib), for the
+# default XMLs in its config/
+_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
 
 
 def parse_args() -> argparse.Namespace:
@@ -52,10 +61,10 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--main",
-                   default=os.path.join(_REPO_ROOT, "config", "jetscape_main.xml"),
+                   default=os.path.join(_XSCAPE, "config", "jetscape_main.xml"),
                    help="Path to the main XML config.")
     p.add_argument("--user",
-                   default=os.path.join(_REPO_ROOT, "config", "jetscape_user.xml"),
+                   default=os.path.join(_XSCAPE, "config", "jetscape_user.xml"),
                    help="Path to the user XML config.")
     p.add_argument("--events", type=int, default=None,
                    help="Override the number of events from the XML.")

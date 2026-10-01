@@ -387,7 +387,7 @@ arm64 (e.g. GH200, GB10). On HPC clusters, Apptainer/Singularity pulls the same 
 
 | | images | what | docs |
 |---|---|---|---|
-| **dev** | `jhputschke/xscape-fno4d-dev:cu126`, `:cu132` | the build and runtime environment (CUDA, conda env, PyTorch) **without sources**: mount your X-SCAPE / js-contrib checkouts and build in it | [`utils/BuildContainerDev.md`](utils/BuildContainerDev.md), [`docs/PlanContainerDev.md`](docs/PlanContainerDev.md) |
+| **dev** | `jhputschke/xscape-fno4d-dev:cu126`, `:cu132` | the build and runtime environment (CUDA, conda env, PyTorch) **without sources**: mount your X-SCAPE / js-contrib checkouts and build in it | [`utils/BuildContainerDev.md`](utils/BuildContainerDev.md), [`docs/Plans/PlanContainerDev.md`](docs/Plans/PlanContainerDev.md) |
 | **production** | `jhputschke/xscape-prod:cu126`, `:cu124` (amd64 only), `:cu130`; `-gcs` variants | X-SCAPE, MUSIC4GPU, iSS, 3dMCGlauber and PyJetscape **built in**, ready to run `prod_AuAu_0_10_jet`; the same image hadronizes on CPU nodes | [`docs/README_2stage.md`](docs/README_2stage.md) (running a production), [`utils/BuildContainerProd.md`](utils/BuildContainerProd.md) (the images) |
 
 **Not for Apple Silicon with Metal.** Docker on macOS runs containers in a Linux VM without

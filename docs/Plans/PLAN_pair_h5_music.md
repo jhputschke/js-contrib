@@ -95,7 +95,7 @@ Three things stand in the way today:
 5. **Leave alone:** X-SCAPE `KoKKos-Music-Port` stays separate, like the MUSIC4GPU Kokkos
    branches; no merges.
 6. **js-contrib:** new branch `pair_h5_music` from `main`, with the same name as the X-SCAPE branch.
-   Its first commit is this plan, archived as `docs/PLAN_pair_h5_music.md` (already
+   Its first commit is this plan, archived as `docs/Plans/PLAN_pair_h5_music.md` (already
    written, untracked). Keep it up to date as phases land.
 
 ## Phase 2: MUSIC source fix (C++)

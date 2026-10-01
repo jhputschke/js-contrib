@@ -1,5 +1,5 @@
 """
-examples/python_fno_test.py
+example/python_fno_test.py
 
 Brick validation test replacing the C++ FnoHydro module with the Python
 PyFNOHydro trampoline.
@@ -9,16 +9,21 @@ The pipeline (Mode B — manual task list) is:
                 → JetEnergyLossManager → JetEnergyLoss (Matter)
                 → HadronizationManager → Hadronization (ColorlessHadronization)
 
-Run from the JETSCAPE-FNO repository root:
+Run it from the X-SCAPE build directory, with PyJetscape built (-DUSE_JS_PYJETSCAPE=ON)
+and PyTorch installed:
     conda activate js_fno
-    cd /path/to/JETSCAPE-FNO
-    python examples/python_fno_test.py
+    cd X-SCAPE/build_gpu
+    python ../external_packages/js-contrib/contribs/PyJetscape/example/python_fno_test.py
+
+The model files are not in git: put the .pt into js-contrib's contribs/FnoHydro/models/
+first (where to get it: that folder's README.md), or pass --model.  The defaults are
+found from where js-contrib sits (X-SCAPE/external_packages/js-contrib).
 
 Optional arguments:
-    --model   Path to a TorchScript .pt file.
-              Default: fno_hydro/model/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt
-    --main    Path to main XML.   Default: config/jetscape_main.xml
-    --user    Path to user XML.   Default: config/jetscape_user_AA_dukeTune.xml
+    --model   Path to a TorchScript .pt file.  Default: FnoHydro's
+              models/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt
+    --main    Path to main XML.   Default: X-SCAPE's config/jetscape_main.xml
+    --user    Path to user XML.   Default: FnoHydro's config/jetscape_user_root_bulk_test.xml
     --events  Number of events.   Default: 1
     --device  torch device.       Default: cpu
 """
@@ -30,9 +35,13 @@ import os
 import sys
 
 # ── Make sure the python package is importable ────────────────────────────────
-_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
+# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib), and the
+# FnoHydro contrib next to PyJetscape, for the default model and XMLs
+_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
+_FNOHYDRO = os.path.normpath(os.path.join(_REPO_ROOT, "..", "FnoHydro"))
 
 # torch must be imported BEFORE pyjetscape_core (loaded via jetscape.__init__)
 # to avoid a dual-OpenMP-runtime crash: ROOT (pulled in by pyjetscape_core)
@@ -47,12 +56,11 @@ from jetscape.utils import bulk_info_to_numpy, bulk_info_to_tensor
 # ── Defaults ──────────────────────────────────────────────────────────────────
 
 _DEFAULT_MODEL = os.path.join(
-    _REPO_ROOT,
-    "fno_hydro", "models",
+    _FNOHYDRO, "models",
     "traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt",
 )
-_DEFAULT_MAIN = os.path.join(_REPO_ROOT, "config", "jetscape_main.xml")
-_DEFAULT_USER = os.path.join(_REPO_ROOT, "fno_hydro/config", "jetscape_user_root_bulk_test.xml")
+_DEFAULT_MAIN = os.path.join(_XSCAPE, "config", "jetscape_main.xml")
+_DEFAULT_USER = os.path.join(_FNOHYDRO, "config", "jetscape_user_root_bulk_test.xml")
 
 # FNO grid configuration — must match the model the .pt file was trained on.
 # These values correspond to traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt

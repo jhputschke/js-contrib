@@ -12,7 +12,7 @@
 #
 # This image contains only build/runtime dependencies.
 # Source trees are mounted at runtime; the user performs configure/build/install.
-# See ../docs/PlanContainerDev.md for the full user workflow.
+# See ../docs/Plans/PlanContainerDev.md for the full user workflow.
 
 # ── Phase 1: Base layer ────────────────────────────────────────────────────
 FROM nvidia/cuda:12.6.3-devel-ubuntu24.04

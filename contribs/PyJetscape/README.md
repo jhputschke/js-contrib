@@ -54,6 +54,7 @@ Original development repository:
 | `python/jetscape/surface_replay.py` | `SurfaceReplay`: a FluidDynamics that hands a stored surface to iSS |
 | `src/bind_hadronization.cc` | iSS / jet-hadronization output as numpy, per-event seeds, `hadronize_partons` on stored partons |
 | `python/jetscape/showers.py`, `liquefier_io.py` | Parton-shower graph and liquefier droplet/parameter readers (numpy only) |
+| [`example/`](example/README.md) | Index of the examples: productions, analyses (Python and ROOT), single-feature scripts |
 | `example/prod_AuAu_0_10/`, `example/prod_AuAu_0_10_jet/` | Productions: 0–10% Au+Au hydro-only, and the same with a jet as background/jet pairs |
 | `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
 | `pyproject.toml` | Source-only Python package metadata (`name = "pyjetscape"`) |
@@ -1050,7 +1051,7 @@ A two-stage run can store what hadronization needs instead of hadrons: each leg'
 freeze-out surface and the final partons. Hadronizing them later gives exactly what iSS and
 `ColorlessHadronization` would have given inside the job (checked bit for bit). The production
 driver is `example/prod_AuAu_0_10_jet` (`run_prod_jet.py --write-particlize`, `hadronize.py`,
-see its README); the design is in [`docs/PLAN_particlize_h5.md`](../../docs/PLAN_particlize_h5.md) (js-contrib top level). Needs
+see its README); the design is in [`docs/Plans/PLAN_particlize_h5.md`](../../docs/Plans/PLAN_particlize_h5.md) (js-contrib top level). Needs
 X-SCAPE branch `surface_to_hadrons` (seed hooks in `SoftParticlization` and
 `ColorlessHadronization`, `<JetHadronization><reseed_per_event>`).
 

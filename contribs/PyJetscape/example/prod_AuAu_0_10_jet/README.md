@@ -26,13 +26,13 @@ same initial condition, and before the first droplet deposits they are bit-ident
 > `pair_h5_music_surface_off` and MUSIC4GPU branch `XSCAPE_surface_off`.
 >
 > Without the slot, MUSIC_2 silently ignores the droplets, and the writer then warns that the
-> jet leg is identical to the background. Plan and status: [`PLAN_pair_h5_music.md`](../../../../docs/PLAN_pair_h5_music.md).
+> jet leg is identical to the background. Plan and status: [`PLAN_pair_h5_music.md`](../../../../docs/Plans/PLAN_pair_h5_music.md).
 >
 > **Hadron level (2026-09-26, branches `surface_to_hadrons` in X-SCAPE and js-contrib).**
 > `--write-particlize` stores both freeze-out surfaces and the final partons next to the pair;
 > `hadronize.py` turns them into iSS and Colorless hadrons offline, bit-identical to running
 > them inside the job. See [Hadron level](#hadron-level-surfaces-partons-hadronizepy) and
-> [`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md).
+> [`PLAN_particlize_h5.md`](../../../../docs/Plans/PLAN_particlize_h5.md).
 >
 > **Several pT̂ windows per background (2026-09-27, branches `N_ptHat_per_hydro` in X-SCAPE
 > and js-contrib).** `--pthat-bins 20-40,50-70,70-90` runs every background with one jet per
@@ -46,13 +46,13 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
 | `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
 | `add_initiators.py` | makes older particlize files (before 2026-10-01) self-contained: copies the shower initiators in from their pair files |
-| `paired_noise.py` | noise of jet − background per oversample, independent vs correlated legs (`--correlated`), and each leg's physics in both modes ([`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md), Part B) |
+| `paired_noise.py` | noise of jet − background per oversample, independent vs correlated legs (`--correlated`), and each leg's physics in both modes ([`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md), Part B) |
 | `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
 
 Design notes and measurements are in [js-contrib `docs/`](../../../../docs/README.md): the hadron-level path
-([`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md)), faster iSS and correlated
-jet/background sampling ([`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md)), and the machine
+([`PLAN_particlize_h5.md`](../../../../docs/Plans/PLAN_particlize_h5.md)), faster iSS and correlated
+jet/background sampling ([`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md)), and the machine
 settings ([`BENCHMARK_GB10.md`](../../../../docs/BENCHMARK_GB10.md),
 [`BENCHMARK_M3MAX.md`](../../../../docs/BENCHMARK_M3MAX.md)).
 
@@ -882,7 +882,7 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
 | B: + `--write-particlize both` | 34.6–35.3 s alone (+5.4 s: MUSIC builds and hands over the two surfaces; +13.5 s before MUSIC4GPU `5058545`); `-j` throughput not measured | + 154 MB |
 | A with `--reuse N` or `--pthat-bins` (shared `arr_bg`) | as A, MUSIC_1 once per N events | ~160 MB + 148/N MB (measured at N = 3: 210 MB) |
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
-| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before [`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md) Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8`, and ~60% of that with `--eta-max 2` |
+| `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before [`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md) Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8`, and ~60% of that with `--eta-max 2` |
 
 Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` ~1.4 GB per surface
 up to ~1000 oversamples (1.6 GB for both legs), 1.7 GB at 2000 (it was 2.5 GB at 500 and
@@ -991,7 +991,7 @@ datasets, attributes and file size as before.
 ## Hadron level: surfaces, partons, `hadronize.py`
 
 The hydro pair stops at the fluid. To compare the wake in hadrons, the job stores the
-**input** to hadronization, not hadrons, and hadronization runs later ([`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md)
+**input** to hadronization, not hadrons, and hadronization runs later ([`PLAN_particlize_h5.md`](../../../../docs/Plans/PLAN_particlize_h5.md)
 has the reasons and the alternatives):
 
 ```bash
@@ -1081,10 +1081,10 @@ unit with no samples.
   extra GPU→host copies 1.2 s, the hand-off and the write ~1.4 s). With the serial surface
   finder of MUSIC4GPU before `5058545` it was 43.0 s (+13.5 s, ~9.6 s of it the search).
   The surfaces are bit-identical either way, apart from the pressure column (see
-  [`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md), *Surface finder*). Peak memory
+  [`PLAN_particlize_h5.md`](../../../../docs/Plans/PLAN_particlize_h5.md), *Surface finder*). Peak memory
   +0.5 GB.
 - `hadronize.py`: ~6 s per surface for 100 iSS oversamples and ~8 s for 500 on one core
-  (~20 s and ~30 s before [`PLAN_iSS_optim.md`](../../../../docs/PLAN_iSS_optim.md) Part A); Colorless is negligible.
+  (~20 s and ~30 s before [`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md) Part A); Colorless is negligible.
 - **Exact.** A `--validate-inline` job (2 events, 100 oversamples) and
   `hadronize.py --use-stored-seeds` on its particlize file give bit-identical hadrons:
   1,710,050 iSS hadrons and all Colorless fragments.
@@ -1092,7 +1092,7 @@ unit with no samples.
 **Things to know:**
 - **Colored jet hadronization is not supported** for this setup: LBT assigns no colour tags and
   the liquefier removes partons from colour chains. `hadronize.py --diagnose-colored` measures
-  it; [`PLAN_particlize_h5.md`](../../../../docs/PLAN_particlize_h5.md) has the details.
+  it; [`PLAN_particlize_h5.md`](../../../../docs/Plans/PLAN_particlize_h5.md) has the details.
 - **pstat decides what is fragmented.** Colorless takes 0 (shower), 1 (recoil), 22 and −1.
   Partons the liquefier absorbed (−11), absorbed holes (−17) and the momentum missing at a
   vertex (−13) went into the droplets, so they are never hadronized twice. In the seed-1 event

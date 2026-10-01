@@ -73,7 +73,7 @@ GPUs newer than the list at the first launch.
 12.1, and `build_gpu` compiles MUSIC4GPU with `-arch=native`, which CMake resolves to
 `121-real`. sm_100 code does not run on it (only the embedded compute_100 PTX would, through
 JIT compilation at the first launch). [`BuildContainerDev.md`](BuildContainerDev.md),
-`Dockerfile.dev.blackwell` and `docs/PlanContainerDev.md` list GB10 as sm_100 and should be
+`Dockerfile.dev.blackwell` and `docs/Plans/PlanContainerDev.md` list GB10 as sm_100 and should be
 corrected.
 
 **Driver.** The CUDA version in the image must be supported by the host's driver:
@@ -810,4 +810,4 @@ used a build from X-SCAPE `8c306762`, which has the same tree as `d31946c0`.)
   Container Registry (`ghcr.io`) avoids Docker Hub's pull limits on clusters. For the
   OSPool, images can also be distributed unpacked through CVMFS.
 - **Corrections elsewhere:** GB10 as sm_121 (not sm_100) in `BuildContainerDev.md`,
-  `Dockerfile.dev.blackwell` and `docs/PlanContainerDev.md`.
+  `Dockerfile.dev.blackwell` and `docs/Plans/PlanContainerDev.md`.
