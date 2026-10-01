@@ -255,23 +255,29 @@ def event_table(stem, tags):
         cols[f"n_samples_{name}"] = np.array([n_s.get(int(u), 0) for u in key], np.int32)
         cols[f"seed_{name}"] = np.array([seed.get(int(u), -1) for u in key], np.int64)
     if ini is None:
-        ini = _pair_file_initiators(stem, n, INITIATOR_COLUMNS)
+        ini = _stored_initiators(stem, n, INITIATOR_COLUMNS)
     return cols, ini
 
 
-def _pair_file_initiators(stem, n, columns):
-    """Initiators from the pair file next to the particlize file (hadron files made before
-    hadronize.py copied them), as HadronFileReader finds them; None if it is not there."""
-    from jetscape.hadrons_h5 import pair_initiators
+def _stored_initiators(stem, n, columns):
+    """Initiators when the hadron files have none (made before hadronize.py copied them):
+    the particlize file's own initiators/ (format version 2), else the pair file next to
+    it, as HadronFileReader finds them; None if neither has them."""
+    from jetscape.hadrons_h5 import pair_initiators, particlize_initiators
 
-    pair = _attrs(f"{stem}_particlize.h5").get("pair_file")
-    if not pair:
-        return None
-    path = os.path.join(os.path.dirname(stem), os.path.basename(str(pair)))
     try:
-        found = pair_initiators(path, nevents=n)
+        found = particlize_initiators(f"{stem}_particlize.h5", nevents=n)
     except ValueError:
-        return None
+        found = None
+    if found is None:
+        pair = _attrs(f"{stem}_particlize.h5").get("pair_file")
+        if not pair:
+            return None
+        path = os.path.join(os.path.dirname(stem), os.path.basename(str(pair)))
+        try:
+            found = pair_initiators(path, nevents=n)
+        except ValueError:
+            return None
     if found is None:
         return None
     data, off = found

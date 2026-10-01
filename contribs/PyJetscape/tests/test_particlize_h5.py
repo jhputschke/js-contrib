@@ -1162,3 +1162,135 @@ def test_reader_without_pthat_windows(tmp_path):
             r.pthat_bin_events(0)
         with pytest.raises(ValueError):
             r.pthat_bin_acceptance(0)
+
+
+# ───────────────────────────────── self-contained particlize files: initiators/ in them
+class _Parton:
+    """Duck-types a JetScapeParticle as get_shower_initiating_partons returns it."""
+
+    def __init__(self, pid, px, py, pz, e, x=0.0, y=0.0, z=0.0, t=0.0, pstat=0):
+        self._v = dict(pid=pid, pstat=pstat, px=px, py=py, pz=pz, e=e, x=x, y=y, z=z, t=t)
+
+    def __getattr__(self, name):
+        v = self.__dict__["_v"]
+        if name in v:
+            return lambda: v[name]
+        raise AttributeError(name)
+
+
+class _MgrIni(_Mgr):
+    def __init__(self):
+        super().__init__()
+        self.ini = []
+
+    def get_shower_initiating_partons(self):
+        return self.ini
+
+
+def test_particlize_file_stores_the_shower_initiators(tmp_path):
+    from jetscape.showers import INITIATOR_COLUMNS, initiators_from_manager
+
+    jet, bg, mgr = _Leg("MUSIC_2"), _Leg("MUSIC_1"), _MgrIni()
+    w = ParticlizeH5Writer(tmp_path / "p.h5", legs=("jet", "bg"), music_input="")
+    w.attach(_JS(bg, jet), manager=mgr)
+    events = [[_Parton(21, 30.0, 0.0, 1.0, 30.1), _Parton(1, -29.0, 0.5, 2.0, 29.2, x=0.3)],
+              [None, _Parton(2, 0.0, 40.0, 0.0, 40.0, t=0.1)],    # a None is skipped
+              []]
+    for k, ini in enumerate(events):
+        jet.cells, bg.cells, mgr.ini = _cells(1, k), _cells(1, k), ini
+        mgr.rows = _partons(1)
+        w.Exec(k, bg_id=k)
+    w.Finish()
+    with ParticlizeFile(tmp_path / "p.h5") as pf:
+        assert pf.attrs["format_version"] == 2 and pf.has_initiators
+        assert list(pf.f["initiators"].attrs["data_columns"]) == list(INITIATOR_COLUMNS)
+        mgr.ini = events[0]
+        np.testing.assert_array_equal(pf.initiators(0), initiators_from_manager(mgr))
+        assert pf.initiators(0)[1].tolist() == [1, 1, 0, -29.0, 0.5, 2.0, 29.2, 0.3, 0, 0, 0]
+        assert pf.initiators(1).tolist() == [[1, 2, 0, 0.0, 40.0, 0.0, 40.0, 0, 0, 0, 0.1]]
+        assert pf.initiators(2).shape == (0, 11)
+        data, off = pf.initiators_all()
+        assert list(off) == [0, 2, 3, 3] and data.shape == (3, 11)
+
+
+def test_an_empty_initiator_group_counts_as_absent(tmp_path):
+    # bindings without get_shower_initiating_partons: every unit empty -> fall back
+    w, jet, bg, mgr = _writer(tmp_path)
+    jet.cells, bg.cells = _cells(1, 0), _cells(1, 0)
+    w.Exec(0, bg_id=0)
+    w.Finish()
+    with ParticlizeFile(tmp_path / "p.h5") as pf:
+        assert "initiators" in pf.f and not pf.has_initiators
+        assert pf.initiators(0) is None and pf.initiators_all() is None
+
+
+def test_add_initiators_from_pair_makes_an_old_file_self_contained(tmp_path):
+    import os
+
+    import h5py
+
+    from jetscape.particlize_h5 import add_initiators_from_pair
+
+    a, b = _two_seeds(tmp_path)                 # particlize files without initiators
+    with ParticlizeFile(f"{a}_particlize.h5") as pf:
+        assert not pf.has_initiators
+    assert add_initiators_from_pair(f"{a}_particlize.h5")
+    with ParticlizeFile(f"{a}_particlize.h5") as pf:
+        assert pf.has_initiators
+        assert np.allclose(pf.initiators(1)[0, 3:5],
+                           [np.cos(PHI_JET[("A", 1)]), np.sin(PHI_JET[("A", 1)])])
+    assert not add_initiators_from_pair(f"{a}_particlize.h5")           # kept ...
+    assert add_initiators_from_pair(f"{a}_particlize.h5", force=True)   # ... unless forced
+    with h5py.File(f"{b}.h5", "a") as f:                     # another run: 3 events, not 2
+        del f["shower/initiators"], f["shower/initiator_offsets"]
+        f["shower/initiators"] = np.zeros((3, 11))
+        f["shower/initiator_offsets"] = np.arange(4)
+    with pytest.raises(ValueError, match="not the same run"):
+        add_initiators_from_pair(f"{b}_particlize.h5")
+    os.remove(f"{b}.h5")
+    with pytest.raises(FileNotFoundError, match="not found"):
+        add_initiators_from_pair(f"{b}_particlize.h5")
+    cli = _load_example("add_initiators.py")
+    assert cli.main([str(tmp_path)]) == 1                               # b failed, a kept
+    assert cli.main([f"{a}_particlize.h5"]) == 0                        # a alone: kept, ok
+
+
+def test_reader_and_hadronize_need_no_pair_file_once_the_particlize_file_has_them(tmp_path):
+    import os
+
+    from jetscape.hadrons_h5 import HadronFileReader
+    from jetscape.particlize_h5 import add_initiators_from_pair
+
+    a, b = _two_seeds(tmp_path)
+    for stem in (a, b):
+        add_initiators_from_pair(f"{stem}_particlize.h5")
+        os.remove(f"{stem}.h5")                              # the pair file is gone
+    with HadronFileReader(str(tmp_path)) as r:               # hadron files have none either
+        for g, key in enumerate((("A", 0), ("A", 1), ("B", 0), ("B", 1))):
+            ini = r.event_info(g).initiators()
+            assert np.allclose(ini[0, 3:5], [np.cos(PHI_JET[key]), np.sin(PHI_JET[key])])
+
+    hz = _load_example("hadronize.py")
+    with ParticlizeFile(f"{a}_particlize.h5") as pf:
+        data, off = hz.read_initiators(pf, f"{a}_particlize.h5")   # no pair file: own copy
+        assert list(off) == [0, 1, 2]
+        assert np.allclose(data[1, 3:5], [np.cos(PHI_JET[("A", 1)]), np.sin(PHI_JET[("A", 1)])])
+
+
+def test_root_export_takes_initiators_from_the_particlize_file(tmp_path):
+    import os
+    import sys
+
+    from jetscape.particlize_h5 import add_initiators_from_pair
+    from jetscape.showers import INITIATOR_COLUMNS
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "example"
+                           / "prod_AuAu_0_10_jet"))
+    import run_h5toROOT as r2r
+
+    a, _ = _two_seeds(tmp_path)
+    add_initiators_from_pair(f"{a}_particlize.h5")
+    os.remove(f"{a}.h5")                                     # no pair file, no hadron copy
+    ini = r2r._stored_initiators(a, 2, INITIATOR_COLUMNS)
+    assert ini is not None and list(ini["px"][1]) == [1, 1]     # one initiator per event
+    assert np.allclose(ini["px"][0], [np.cos(PHI_JET[("A", 0)]), np.cos(PHI_JET[("A", 1)])])

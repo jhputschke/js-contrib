@@ -76,7 +76,7 @@ from __future__ import annotations
 import numpy as np
 
 __all__ = ["PARTON_COLUMNS", "VERTEX_COLUMNS", "INITIATOR_COLUMNS", "FATES", "ABSORBED",
-           "ShowerRecord", "showers_from_manager", "empty_record",
+           "ShowerRecord", "showers_from_manager", "initiators_from_manager", "empty_record",
            "segments", "first_child", "split_times", "velocities", "to_milne", "fates"]
 
 PARTON_COLUMNS = ("shower", "i_src", "i_tgt", "pid", "pstat",
@@ -161,17 +161,26 @@ def showers_from_manager(mgr):
                 np.full(len(e), ish, dtype=np.float64), i_src, i_tgt, e[:, 2:]]))
         v_base += len(v)
 
+    cat = lambda rows, w: (np.concatenate(rows, 0) if rows else np.zeros((0, w)))
+    return ShowerRecord(cat(partons, len(PARTON_COLUMNS)),
+                        cat(vertices, len(VERTEX_COLUMNS)),
+                        initiators_from_manager(mgr))
+
+
+def initiators_from_manager(mgr):
+    """-> (K, 11) float64, one row per shower-initiating parton, :data:`INITIATOR_COLUMNS`.
+
+    The rows `showers_from_manager` stores as ``shower/initiators``; the particlize writer
+    stores the same rows, so the two files agree by construction.  Same window as
+    `showers_from_manager`: after the manager's Exec, before ClearPerEvent.
+    """
+    inits = []
     for ish, p in enumerate(_initiators(mgr)):
         if p is None:
             continue
         inits.append([ish, p.pid(), p.pstat(), p.px(), p.py(), p.pz(), p.e(),
                       p.x(), p.y(), p.z(), p.t()])
-
-    cat = lambda rows, w: (np.concatenate(rows, 0) if rows else np.zeros((0, w)))
-    return ShowerRecord(cat(partons, len(PARTON_COLUMNS)),
-                        cat(vertices, len(VERTEX_COLUMNS)),
-                        np.asarray(inits, dtype=np.float64).reshape(-1,
-                                                                    len(INITIATOR_COLUMNS)))
+    return np.asarray(inits, dtype=np.float64).reshape(-1, len(INITIATOR_COLUMNS))
 
 
 def _initiators(mgr):
