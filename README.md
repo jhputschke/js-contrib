@@ -97,8 +97,6 @@ GB10 and Apple M3 Max benchmarks, the HDF5 compression study and the container p
 The source files in this repository were copied from
 [JETSCAPE-FNO](https://github.com/JETSCAPE/JETSCAPE-FNO) at commit
 `jhputschke/JETSCAPE-FNO @ PythonTest` (April 2026).
-JETSCAPE-FNO remains the upstream source of truth; changes should be made there
-and synced here.
 
 ## Compatibility
 
