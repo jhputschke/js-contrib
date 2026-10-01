@@ -503,6 +503,10 @@ oversample entry like an event: the hadrons of `bulk_jet` (the event with the je
 `bulk_bg` (its background) and of `jet_frag` (the jet's own hadrons). Reading in C++ or
 with uproot (`uproot.open(f)["bulk_jet"].arrays()`) and the format choices are in
 [`root_export/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/root_export/README.md).
+In C++, [`analysis_root/HadronFileReader.h`](../contribs/PyJetscape/example/analysis_root/README.md)
+returns an event's oversample as vectors of hadrons (`r.bkg(e, k)`, `r.bkg_dep(e, k)`,
+`r.bkg_dep_frag(e, k)`), and `hadron_distributions.C` there histograms every source and the
+wake.
 
 - **Weights:** for windowed runs (`--pthat-bins`), weight each event with its window's
   `weight_mb` from the campaign file.
