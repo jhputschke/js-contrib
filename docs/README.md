@@ -7,6 +7,9 @@ and the production READMEs
 ([`prod_AuAu_0_10`](../contribs/PyJetscape/example/prod_AuAu_0_10/README.md),
 [`prod_AuAu_0_10_jet`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md)).
 
+**Running a production with the containers** (Docker, Apptainer, SLURM; hadronization on
+CPUs; analysis and ROOT export): [`README_2stage.md`](README_2stage.md).
+
 ## HDF5 writers and productions
 
 | file | contents |
@@ -29,10 +32,12 @@ and the production READMEs
 
 | file | contents |
 |---|---|
+| [`README_2stage.md`](README_2stage.md) | **user guide**: the two-stage production with the production images, from GPU jobs to hadrons and ROOT files |
 | [`PlanContainer.md`](PlanContainer.md) | one Docker image with X-SCAPE, music4gpu, js-contrib and FNO4d built in |
 | [`PlanContainerDev.md`](PlanContainerDev.md) | source-free dev containers (`utils/Dockerfile.dev`, `utils/Dockerfile.dev.blackwell`) |
 
-How to build and publish the dev images: [`utils/BuildContainerDev.md`](../utils/BuildContainerDev.md).
+How to build and publish the images: [`utils/BuildContainerDev.md`](../utils/BuildContainerDev.md)
+(dev) and [`utils/BuildContainerProd.md`](../utils/BuildContainerProd.md) (production).
 
 ## Retired
 

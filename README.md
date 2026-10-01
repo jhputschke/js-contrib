@@ -355,16 +355,29 @@ files are required.
 | Path B — build-tree standalone | `JETSCAPE_DIR=/path/to/xscape/build` | `JetScapeConfig.cmake` in build dir |
 | Path C — installed prefix | `CMAKE_PREFIX_PATH=/opt/xscape` | `find_package(XSCAPE)` → `XSCAPE::JetScape` alias |
 
-## Environment setup (Mac Silicon / Linux aarch64)
+## Containers
 
-#### REMARK: Docker/Singularity containers for Linux x86 and arm64 will be provided asap. Mac Silicon containers, once there is MPS provided (maybe for testing purposes a CPU container will be provided soon).
+Two sets of Docker images exist, for **Linux with NVIDIA GPUs (CUDA)**, each for amd64 and
+arm64 (e.g. GH200, GB10). On HPC clusters, Apptainer/Singularity pulls the same images.
 
-The official JETSCAPE Docker images target Linux x86_64. On **Mac Silicon
-(`arm64`)** the MPS (Metal Performance Shaders) PyTorch backend is not
-available inside containers, and on **Linux `aarch64`** (AWS Graviton, ARM
-servers) several JETSCAPE C++ dependencies are absent from most package
-managers and container registries. For both cases the recommended approach is
-a native conda environment.
+| | images | what | docs |
+|---|---|---|---|
+| **dev** | `jhputschke/xscape-fno4d-dev:cu126`, `:cu132` | the build and runtime environment (CUDA, conda env, PyTorch) **without sources**: mount your X-SCAPE / js-contrib checkouts and build in it | [`utils/BuildContainerDev.md`](utils/BuildContainerDev.md), [`docs/PlanContainerDev.md`](docs/PlanContainerDev.md) |
+| **production** | `jhputschke/xscape-prod:cu126`, `:cu124` (amd64 only), `:cu130`; `-gcs` variants | X-SCAPE, MUSIC4GPU, iSS, 3dMCGlauber and PyJetscape **built in**, ready to run `prod_AuAu_0_10_jet`; the same image hadronizes on CPU nodes | [`docs/README_2stage.md`](docs/README_2stage.md) (running a production), [`utils/BuildContainerProd.md`](utils/BuildContainerProd.md) (the images) |
+
+**Not for Apple Silicon with Metal.** Docker on macOS runs containers in a Linux VM without
+access to the Metal GPU, so neither MUSIC4GPU's Metal back-end nor PyTorch's MPS backend
+works in a container. To use Metal on a Mac, build natively with the conda environment
+below. (The arm64 images might run CPU-only on a Mac, e.g. for hadronization; that is not
+tested.)
+
+## Native environment (Mac Silicon / Linux aarch64)
+
+A native conda environment is the way to **use Metal on a Mac** (MUSIC4GPU's Metal back-end,
+PyTorch's MPS backend) and to develop outside a container. On **Linux `aarch64`** (AWS
+Graviton, ARM servers) several JETSCAPE C++ dependencies are absent from most package
+managers; the conda environment provides them (with an NVIDIA GPU, the arm64 containers
+above are the alternative).
 
 The scripts are in [`utils/conda_install/`](utils/conda_install/). See
 [contribs/README.md](contribs/README.md) for the step-by-step setup: dry-run package check,

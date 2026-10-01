@@ -27,9 +27,9 @@ production has two stages, and the analysis comes after them:
 - **Analysis** needs neither X-SCAPE nor the container: a Python venv reads every file and
   converts the hadrons to ROOT for analysis code that expects ROOT.
 
-The physics and every option of the production are in [`README.md`](README.md); the images
+The physics and every option of the production are in [`prod_AuAu_0_10_jet/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md); the images
 themselves (variants, building, testing) in
-[`utils/BuildContainerProd.md`](../../../../utils/BuildContainerProd.md).
+[`utils/BuildContainerProd.md`](../utils/BuildContainerProd.md).
 
 ---
 
@@ -129,7 +129,7 @@ docker logs -f xscape          # progress;  docker stop xscape  stops it cleanly
 - `--user` makes the files yours; `-v` binds a host directory to `/work`.
 - **Own XML** (another collision system): bind it and pass `--user-xml`:
   `-v "$PWD/xml:/xml:ro" … ./run_jobs.sh … /work/PbPb --user-xml /xml/PbPb_0_10.xml`
-  (see [`README.md`](README.md) and `BuildContainerProd.md`, *A different collision system*).
+  (see [`prod_AuAu_0_10_jet/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md) and `BuildContainerProd.md`, *A different collision system*).
 
 ### Apptainer (HPC)
 
@@ -159,7 +159,7 @@ Environment variables can also come from your shell (`export OMP_NUM_THREADS=4` 
 
 ### SLURM: one GPU per array task
 
-[`utils/slurm_prod_array.sh`](../../../../utils/slurm_prod_array.sh) runs a campaign as a job
+[`utils/slurm_prod_array.sh`](../utils/slurm_prod_array.sh) runs a campaign as a job
 array: each task gets one GPU and runs `P` jobs on it (`run_jobs.sh -j P`).
 
 ```bash
@@ -320,7 +320,7 @@ directory.
 
 The analysis doesn't need X-SCAPE, the container, a GPU, conda or ROOT: a Python ≥ 3.10 venv
 with this checkout reads every file
-([`utils/analysis_env/README.md`](../../../../utils/analysis_env/README.md)):
+([`utils/analysis_env/README.md`](../utils/analysis_env/README.md)):
 
 ```bash
 git clone https://github.com/jhputschke/js-contrib.git && cd js-contrib
@@ -346,19 +346,20 @@ with HadronFileReader("/path/to/AuAu_a") as r:            # every particlize fil
 ```
 
 `r.jet_minus_background(...)` gives the wake (jet leg − background) with its error; more in
-[`README.md`](README.md), *C. Analysing a campaign: `HadronFileReader`*. Ready-made analyses:
-[`jet_wake.ipynb`](jet_wake.ipynb) (a pair file and its hadrons), and
-[`../analysis/`](../analysis/README.md) (`wake_hadrons.py`, `jet_edep_balance_check.py`,
-`hadron_distributions.ipynb`, FastJet notebooks). The hydro pair's layout: [`README.md`](README.md),
+[`prod_AuAu_0_10_jet/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md), *C. Analysing a campaign: `HadronFileReader`*. Ready-made analyses:
+[`jet_wake.ipynb`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/jet_wake.ipynb) (a pair file and its hadrons), and
+[`analysis/`](../contribs/PyJetscape/example/analysis/README.md) (`wake_hadrons.py`, `jet_edep_balance_check.py`,
+`hadron_distributions.ipynb`, FastJet notebooks). The hydro pair's layout: [`prod_AuAu_0_10_jet/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md),
 *What is written* and *Reading it*.
 
 ### Converting to ROOT for existing analysis code
 
-[`run_h5toROOT.py`](run_h5toROOT.py) turns a hadronized campaign into ROOT files, in the same
+[`run_h5toROOT.py`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_h5toROOT.py) turns a hadronized campaign into ROOT files, in the same
 venv. It writes with uproot, or with ROOT when PyROOT imports (needed only for the
 truncated-float options):
 
 ```bash
+cd contribs/PyJetscape/example/prod_AuAu_0_10_jet                    # in the js-contrib checkout
 python run_h5toROOT.py /path/to/AuAu_a -j 4                          # RNTuple, next to the inputs
 python run_h5toROOT.py /path/to/AuAu_a -j 4 --format ttree           # TTree, for ROOT < 6.34
 python run_h5toROOT.py /path/to/AuAu_a -j 4 --out-dir root --charged --eta-max 1 --no-x
@@ -378,7 +379,7 @@ plus `<campaign>_campaign.root` with the cross sections over all files (`windows
 oversample entry like an event: the hadrons of `bulk_jet` (the event with the jet), of
 `bulk_bg` (its background) and of `jet_frag` (the jet's own hadrons). Reading in C++ or
 with uproot (`uproot.open(f)["bulk_jet"].arrays()`) and the format choices are in
-[`root_export/README.md`](root_export/README.md).
+[`root_export/README.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/root_export/README.md).
 
 - **Weights:** for windowed runs (`--pthat-bins`), weight each event with its window's
   `weight_mb` from the campaign file.

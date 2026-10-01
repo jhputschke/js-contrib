@@ -8,7 +8,7 @@
 
 **For running a production with the images** (Docker, Apptainer, SLURM, hadronization on
 CPUs, analysis and ROOT export), see the user guide
-[`README_2stage.md`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README_2stage.md).
+[`docs/README_2stage.md`](../docs/README_2stage.md).
 This file is about the images themselves.
 
 The production images run the two-stage hydro productions of

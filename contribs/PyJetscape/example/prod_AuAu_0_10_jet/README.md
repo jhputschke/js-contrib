@@ -12,7 +12,7 @@ IS (3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
 ```
 
 > **Running it with the containers** (Docker, Apptainer, SLURM), hadronizing on CPUs with the
-> same image, and analysing in a local venv or in ROOT: [`README_2stage.md`](README_2stage.md).
+> same image, and analysing in a local venv or in ROOT: [`docs/README_2stage.md`](../../../../docs/README_2stage.md).
 
 `arr - arr_bg` is the jet's effect on the medium and nothing else: both legs start from the
 same initial condition, and before the first droplet deposits they are bit-identical.
@@ -101,7 +101,7 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 --campaign pth50     # named 
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 1                      # seeds 1..20
 
 # Several GPUs: one campaign per GPU, without --mps (all jobs of one campaign run on GPU 0;
-# see ../prod_AuAu_0_10/README.md and README_2stage.md)
+# see ../prod_AuAu_0_10/README.md and docs/README_2stage.md)
 CUDA_VISIBLE_DEVICES=0 ./run_jobs.sh -j 4 --campaign gpu0 20 25 0 out_gpu0 &
 CUDA_VISIBLE_DEVICES=1 ./run_jobs.sh -j 4 --campaign gpu1 20 25 0 out_gpu1 &
 
