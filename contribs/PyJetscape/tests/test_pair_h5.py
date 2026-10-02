@@ -484,6 +484,46 @@ def test_shared_background_reads_like_the_full_layout(tmp_path):
         assert a["arr_bg"].id.get_num_chunks() == 3 * 3 + 2 * 4
 
 
+def test_store_evolution_off_keeps_the_bookkeeping_and_writes_no_file(tmp_path):
+    """--particlize-only: the same indices, diag and background keys, no pair file."""
+    def run(name, **kw):
+        bg_evo = _evo(3, 1.0)
+        w, bg, jet, liq = _pair_writer(tmp_path / name, bg_evo, bg_evo.copy(),
+                                       drops=[[0.6, 0, 0, 0, 3.0, 1, 0, 0]], reuse=3, **kw)
+        out = []
+        for k in range(5):
+            if k == 3:
+                bg.evo = _evo(4, 5.0)              # a new, longer background run
+            jet.evo = bg.evo.copy()
+            jet.evo[1:, 0, 0, 0, 0] += k + 1
+            out.append((w.Exec(pthat=10.0 + k), w.last_event_diag, w.last_bg_key))
+        w.Finish()
+        w.Finish()                                 # idempotent
+        return out, w, jet
+
+    full, wf, _ = run("full")
+    slim, ws, jet = run("slim", store_evolution=False)
+    assert (tmp_path / "full" / "pair.h5").exists()
+    assert not (tmp_path / "slim" / "pair.h5").exists()
+    assert jet.cleared == 5                        # the native store is still released
+    assert ws.GetNumberOfEventsWritten() == wf.GetNumberOfEventsWritten() == 5
+    assert [i for i, _, _ in slim] == [i for i, _, _ in full] == list(range(5))
+    assert [k for _, _, k in slim] == [k for _, _, k in full]
+    for (_, ds, _), (_, df, _) in zip(slim, full):
+        assert {k: v for k, v in df.items() if k not in ("n_showers", "n_partons")} == ds
+    assert [d["bg_id"] for _, d, _ in slim] == [0, 0, 0, 3, 3]
+
+
+def test_store_evolution_off_still_clips_at_a_pinned_ntau(tmp_path):
+    w, *_ = _pair_writer(tmp_path, _evo(4, 1.0), _evo(5, 1.0), store_evolution=False,
+                         choose_ntau=3)
+    with pytest.warns(RuntimeWarning, match="clipping"):
+        w.Exec()
+    w.Finish()
+    assert w.n_clipped == 2
+    assert (w.last_event_diag["ntau_jet"], w.last_event_diag["ntau_bg"]) == (3, 3)
+
+
 def test_bg_layout_auto_follows_reuse(tmp_path):
     from jetscape.pair_h5 import PairH5Writer
 

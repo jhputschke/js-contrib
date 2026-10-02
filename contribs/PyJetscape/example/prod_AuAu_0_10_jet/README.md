@@ -95,6 +95,8 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
 ./run_jobs.sh -j 2 20 25 0 out_pgun --hard pgun
 ./run_jobs.sh -j 4 --mps 20 25 0                             # 4 at a time, GPU shared via CUDA MPS
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both   # + hadronization input
+./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both --particlize-only
+                                                             # hadronization input only, no pair file
 
 # GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (../../../../docs/BENCHMARK_GB10.md)
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0
@@ -161,7 +163,7 @@ not built into the scripts):
 Each job writes the following, next to each other. The stem is `AuAu_0_10_jet_seedNNNN` for
 an explicit `--seed` (`AuAu_0_10_jet_<campaign>_seedNNNN` with `--campaign`), and
 `AuAu_0_10_jet_<campaign>_NNNN`, NNNN the job number, for `--seed 0` (see the next section):
-- `<stem>.h5`: the data.
+- `<stem>.h5`: the data (not with `--particlize-only`).
 - `<stem>_particlize.h5`: with `--write-particlize` only, the input for
   `hadronize.py` (see [Hadron level](#hadron-level-surfaces-partons-hadronizepy)).
 - `.xml`: the exact job XML.
@@ -277,6 +279,22 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 30 0 out_had_reuse3 --write-partic
 Don't combine it with `--surface`: `--write-particlize` builds the surfaces it stores, and a
 surface built but not stored only costs time (the job warns if you do). `--validate-inline`
 is for validation jobs only: it changes the jet sample of a seed (see *Seeds*).
+
+**Hadronization input only: `--particlize-only`.** When the evolutions are not wanted (no FNO
+training), add `--particlize-only`: the job writes `<stem>_particlize.h5` and the `.json`, no
+pair file. The particlize file holds everything `hadronize.py` and `run_h5toROOT.py` need
+(surfaces, final partons, shower initiators), so nothing downstream changes. MUSIC still runs
+both legs (Matter/LBT read MUSIC_1's evolution) and the pair writer still reads, resamples
+and checks them per event, so the job is hardly faster; what it saves is the disk and the
+write of the pair file. Lost with it: the evolutions, `source/droplets` and the full shower
+graph `shower/` (their per-event counts and energies are in the particlize file's `events/`).
+The particlize file is the same as without the flag, except that it names no `pair_file`
+and its `events/` also get `wall_s`. `run_jobs.sh` restarts work as usual: the skip test
+reads the `.json`.
+
+```bash
+OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both --particlize-only
+```
 
 **Hadronizing the campaign: `run_hadronize.py`.** `hadronize.py` needs only the particlize
 files and an X-SCAPE build with iSS: no GPU, no MUSIC. It runs on one core, one production
@@ -906,6 +924,7 @@ processes keep up with a whole four-job GPU campaign.
 | `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |
 | `--no-showers` | Skip `shower/`. |
 | `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +5.4 s per event for `both` (+13.5 s before MUSIC4GPU `5058545`; measured, below). |
+| `--particlize-only` | Write only `<stem>_particlize.h5` (and the `.json`), no pair file: the evolutions, `source/` and `shower/` are computed and checked but not stored. Needs `--write-particlize`. See *Hadronization input only* in B. |
 | `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
 | `--hadronize-xml FILE` | Settings for `--validate-inline` (default `hadronize.xml`). |
 | `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface (`<freeze_out_surface>` in the first `<Hydro><MUSIC>` block, i.e. the background and the default, and in MUSIC_2's own block). On its own it produces nothing: only `--write-particlize` hands a surface to the framework and stores it, and it builds its legs itself. So a leg built but not stored costs ~3 s per MUSIC run (~6 s before MUSIC4GPU `5058545`) for no output, and the job warns about it. `none` (default) gives a bit-identical evolution. |

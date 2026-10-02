@@ -24,6 +24,8 @@ grid YAMLs, grid checks and environment checks this reuses.
     python run_prod_jet.py --events 10 --seed 1 --write-particlize both
                                      # + <stem>_particlize.h5: both surfaces and the final
                                      #   partons, for hadronize.py (PLAN_particlize_h5.md)
+    python run_prod_jet.py --events 10 --seed 1 --write-particlize both --particlize-only
+                                     # only <stem>_particlize.h5 (+ .json): no pair file
     python run_prod_jet.py --events 1 --seed 1 --dry-run         # check, print the plan
     python run_prod_jet.py --events 10 --seed 0 --campaign test  # unique seed from OS entropy,
                                                                  # -> out/AuAu_0_10_jet_test_0001.h5
@@ -142,6 +144,12 @@ def parse_args() -> argparse.Namespace:
                         "background) plus the final partons, everything hadronize.py needs "
                         "to hadronize the event exactly. Switches on the surface of those "
                         "legs (see --surface). Default none")
+    p.add_argument("--particlize-only", action="store_true", dest="particlize_only",
+                   help="write the particlize file only, no pair file: the evolutions are "
+                        "still computed (Matter/LBT need MUSIC_1's) and checked, but neither "
+                        "they nor source/droplets and shower/ are stored. The particlize "
+                        "file is the same as with the pair file, except that it names no "
+                        "pair_file and its events/ also get wall_s. Needs --write-particlize")
     p.add_argument("--validate-inline", action="store_true", dest="validate_inline",
                    help="validation only: also run iSS on the jet leg and Colorless jet "
                         "hadronization inside the job (settings from --hadronize-xml, "
@@ -531,6 +539,9 @@ def main() -> int:
     if a.validate_inline and a.write_particlize == "none":
         sys.exit("run_prod_jet.py: --validate-inline compares with the stored surfaces and "
                  "partons; add --write-particlize jet (or both)")
+    if a.particlize_only and a.write_particlize == "none":
+        sys.exit("run_prod_jet.py: --particlize-only keeps only the particlize file; add "
+                 "--write-particlize jet (or both)")
     a.hadronize_xml = os.path.abspath(a.hadronize_xml)
     unused = sorted(surface_legs(a) - set(particlize_legs(a)))
     if unused:
@@ -570,6 +581,7 @@ def main() -> int:
           f"{hard_desc}, reuse {a.reuse}, deposition {'OFF (null test)' if a.no_deposit else 'on'}, "
           f"freeze-out surface: {'+'.join(sorted(surface_legs(a))) or 'none'}"
           + (f", particlize input: {a.write_particlize}" if particlize_legs(a) else "")
+          + (" (no pair file)" if a.particlize_only else "")
           + (" + inline iSS/Colorless (validation)" if a.validate_inline else ""))
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
@@ -580,7 +592,8 @@ def main() -> int:
             + f"; max_ntau = {max_ntau or 'auto'}")
     else:
         print(rp.describe(grid, max_ntau))
-    print(f"  output   {out_h5}")
+    if not a.particlize_only:
+        print(f"  output   {out_h5}")
     stem = os.path.splitext(out_h5)[0]
     out_particlize = stem + "_particlize.h5" if particlize_legs(a) else None
     if out_particlize:
@@ -605,6 +618,7 @@ def main() -> int:
         "prod_reuse": a.reuse,
         "prod_surface": a.surface,
         "prod_write_particlize": a.write_particlize,
+        **({"prod_particlize_only": True} if a.particlize_only else {}),
         **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
@@ -624,13 +638,13 @@ def main() -> int:
                     "transport_mode": "MUSIC viscous: eta/s(T) and zeta/s(T) "
                                       "parametrization 3, second-order terms"},
         keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True,
-        bg_layout=a.bg_layout, reuse=a.reuse)
+        bg_layout=a.bg_layout, reuse=a.reuse, store_evolution=not a.particlize_only)
     pwriter = None
     if out_particlize:
         from jetscape.particlize_h5 import ParticlizeH5Writer
         pwriter = ParticlizeH5Writer(
             out_particlize, legs=particlize_legs(a), bg_id=BG_ID, jet_id=JET_ID,
-            T_fo=provenance["T_fo"], pair_file=out_h5,
+            T_fo=provenance["T_fo"], pair_file=None if a.particlize_only else out_h5,
             extra_attrs={k: v for k, v in provenance.items() if k != "T_fo"},
             verbose=True)
 
@@ -674,6 +688,8 @@ def main() -> int:
                 print(f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} SKIPPED (see warning)")
                 continue
             writer.write_diag(idx, wall_s=wall)
+            if a.particlize_only:                # the only per-event record of it
+                pwriter.write_events(idx, wall_s=wall)
             d = writer.last_event_diag
             droplets += d["n_droplets"]
             e_late += d["E_droplets_late"]
@@ -702,16 +718,21 @@ def main() -> int:
             inline.close()
 
     n = writer.GetNumberOfEventsWritten()
-    if n:
+    if n and not a.particlize_only:
         with h5py.File(out_h5, "a") as f:
             f.attrs["prod_wall_s_total"] = time.time() - t_job
             if windows is not None:
                 f.attrs.update(windows)
-        if windows is not None and out_particlize and pwriter.GetNumberOfEventsWritten():
+    if out_particlize and pwriter.GetNumberOfEventsWritten():
+        if windows is not None:
             with h5py.File(out_particlize, "a") as f:
                 f.attrs.update(windows)
-    summary = {"out": out_h5, "seed": a.seed, "seed_source": a.seed_source,
-               "campaign": a.campaign, "index": a.index, "grid": a.grid, "hard": hard_desc,
+        if a.particlize_only:
+            with h5py.File(out_particlize, "a") as f:
+                f.attrs["prod_wall_s_total"] = time.time() - t_job
+    summary = {"out": None if a.particlize_only else out_h5, "seed": a.seed,
+               "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
+               "grid": a.grid, "hard": hard_desc,
                "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,
                "events_requested": a.events, "events_written": n,
                "events_tau0_after_tau_min": late,
@@ -721,6 +742,8 @@ def main() -> int:
     if pwriter is not None:
         summary.update(particlize=out_particlize, particlize_legs=list(particlize_legs(a)),
                        particlize_events_written=pwriter.GetNumberOfEventsWritten())
+    if a.particlize_only:
+        summary["particlize_only"] = True
     if writer.bg_layout == "shared":
         summary["bg_layout"] = "shared"
     if windows is not None:

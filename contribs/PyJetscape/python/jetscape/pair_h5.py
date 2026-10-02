@@ -50,6 +50,12 @@ Layout (on top of :class:`jetscape.fno_h5_writer.FnoH5Writer`)
   ``arr_bg_is``, ``source_model``, ``liquefier_*`` ...), so ``fasthydro.browse.PairBrowser``,
   the wake notebook and ``wake_pyvista.py`` read the file unchanged.
 
+With ``store_evolution=False`` no file is written at all: both legs are still read,
+resampled and hashed exactly as above, so ``last_event_diag``, ``last_bg_key`` and the
+event count are what a full run gives, for a
+:class:`jetscape.particlize_h5.ParticlizeH5Writer` that is then the job's only output
+(``run_prod_jet.py --particlize-only``).  ``source/`` and ``shower/`` are not kept either.
+
 Usage (see example/prod_AuAu_0_10_jet/run_prod_jet.py)
 -----------------------------------------------------
     jetscape = js.JetScapePerEvent(); ...; jetscape.Init()
@@ -169,13 +175,18 @@ class PairH5Writer:
         Events per background (``setReuseHydro``), for ``bg_layout="auto"``.  Which events
         share a background is still decided from the data (``diag/bg_id``), never from this
         number.
+    store_evolution : bool
+        False: write no file (no evolutions, droplets or showers) but run every per-event
+        step and check, so ``Exec()``'s index, ``last_event_diag`` and ``last_bg_key`` are
+        unchanged -- the bookkeeping a particlize file needs without the pair file.
     """
 
     def __init__(self, out_file_name="pair_evo.h5", *, bg_id="MUSIC_1", jet_id="MUSIC_2",
                  grid_mode="grid", out_grid=None, tau_stride=1, choose_ntau=0,
                  compression=DEFAULT_COMPRESSION, keep_bits=None, store_droplets=True,
                  store_showers=True, keep_surface=(), provenance=None, extra_attrs=None,
-                 force=True, verbose=False, bg_layout="auto", reuse=1):
+                 force=True, verbose=False, bg_layout="auto", reuse=1,
+                 store_evolution=True):
         if grid_mode not in ("grid", "native"):
             raise ValueError(f"grid_mode must be 'grid' or 'native', got {grid_mode!r}")
         self._out_file_name = str(out_file_name)
@@ -203,11 +214,14 @@ class PairH5Writer:
         self._bg_layout = bg_layout
         # the evolution the background frames go to
         self._bg_ds = BG_STORE if bg_layout == "shared" else "arr_bg"
+        self._store_evolution = bool(store_evolution)
 
         self._bg = self._jet = self._liq = self._mgr = None
         self._deposition = None                 # True: MUSIC_2 has the liquefier
         self._tau_delay = 0.0
         self._w: Optional[FnoH5Writer] = None
+        self._shape = None                      # (nx, ny, neta) of the first event
+        self._finished = False
         self._g_drop = self._g_sh = None
         self._drop_flux = False
         self._i = 0
@@ -272,8 +286,10 @@ class PairH5Writer:
         self._tau_delay = (float(liquefier_params(liquefier)["tau_delay"])
                            if liquefier is not None else 0.0)
         mode ="on" if self._deposition else "OFF (null test: the jet leg has no liquefier)"
+        out = (self._out_file_name if self._store_evolution
+               else "none (store_evolution off: bookkeeping only)")
         print(f"PairH5Writer: {self._bg_id} -> arr_bg (framework copy), {self._jet_id} -> "
-              f"arr (native store), deposition {mode}, output -> {self._out_file_name}")
+              f"arr (native store), deposition {mode}, output -> {out}")
 
     # ── per event ───────────────────────────────────────────────────────────────
     def Exec(self, **diag):
@@ -331,23 +347,27 @@ class PairH5Writer:
         bg_frames, bg_src, bg_out = legs.pop("background")
         del legs
 
-        if self._w is None:
-            self._open(bg_src, bg_out)
-        elif (bg_out.nx, bg_out.ny, bg_out.neta) != tuple(self._w.arr.shape[2:5]):
-            warnings.warn(f"PairH5Writer: skipping event {i}: grid "
-                          f"{(bg_out.nx, bg_out.ny, bg_out.neta)} differs from the file's "
-                          f"{tuple(self._w.arr.shape[2:5])}", RuntimeWarning, stacklevel=3)
+        shape = (bg_out.nx, bg_out.ny, bg_out.neta)
+        if self._shape is None:
+            self._shape = shape
+            if self._store_evolution:
+                self._open(bg_src, bg_out)
+        elif shape != self._shape:
+            warnings.warn(f"PairH5Writer: skipping event {i}: grid {shape} differs from the "
+                          f"file's {self._shape}", RuntimeWarning, stacklevel=3)
             return None
+        w = self._w                             # None: store_evolution off, nothing written
 
         # Background first, then the jet leg; frame hashes carry the comparison across.
         n_bg = self._clip(i, "background", bg_frames.shape[0])
-        self._w.ensure_capacity(nevents=i + 1, choose_ntau=n_bg)
+        if w is not None:
+            w.ensure_capacity(nevents=i + 1, choose_ntau=n_bg)
         shared = self._bg_layout == "shared"
         bg_hashes = []
         for t in range(n_bg):
             frame = np.ascontiguousarray(bg_frames[t].transpose(3, 0, 1, 2))
-            if not shared:
-                self._w.write_frame(i, t, frame, dataset="arr_bg")
+            if w is not None and not shared:
+                w.write_frame(i, t, frame, dataset="arr_bg")
             bg_hashes.append(hashlib.blake2b(frame.tobytes(), digest_size=16).digest())
         tau_fo_bg = bg_src.tau_min + bg_src.ntau * bg_src.dtau
 
@@ -357,19 +377,22 @@ class PairH5Writer:
         new_bg = bg_key != self._bg_hash
         if new_bg:
             self._bg_hash, self._bg_first = bg_key, i
-        if shared and new_bg:              # stored once, in its first event's row
+        if w is not None and shared and new_bg:   # stored once, in its first event's row
             for t in range(n_bg):
-                self._w.write_frame(i, t, np.ascontiguousarray(
+                w.write_frame(i, t, np.ascontiguousarray(
                     bg_frames[t].transpose(3, 0, 1, 2)), dataset=BG_STORE)
         del bg_frames
-        self._w.set_event_meta(i, n_bg, tau_fo_bg, dataset=self._bg_ds)
+        if w is not None:
+            w.set_event_meta(i, n_bg, tau_fo_bg, dataset=self._bg_ds)
 
         n_jet = self._clip(i, "jet", jet_frames.shape[0])
-        self._w.ensure_capacity(nevents=i + 1, choose_ntau=n_jet)
+        if w is not None:
+            w.ensure_capacity(nevents=i + 1, choose_ntau=n_jet)
         identical, same = 0, True
         for t in range(n_jet):
             frame = np.ascontiguousarray(jet_frames[t].transpose(3, 0, 1, 2))
-            self._w.write_frame(i, t, frame)
+            if w is not None:
+                w.write_frame(i, t, frame)
             if same and t < n_bg and hashlib.blake2b(
                     frame.tobytes(), digest_size=16).digest() == bg_hashes[t]:
                 identical += 1
@@ -394,10 +417,11 @@ class PairH5Writer:
             if hit is not None:
                 d[f"{leg}_hit_boundary"] = int(hit)
         d.update(diag)
-        self._w.write_diag(i, **d)
-        if shared:
-            self._set_bg_row(i)
-        self._w.set_event_meta(i, n_jet, tau_fo_jet)          # primary last: marks written
+        if w is not None:
+            w.write_diag(i, **d)
+            if shared:
+                self._set_bg_row(i)
+            w.set_event_meta(i, n_jet, tau_fo_jet)            # primary last: marks written
         self._i += 1
         self._last = d
         self._check_pair(i, d, n_bg, n_jet)
@@ -415,6 +439,10 @@ class PairH5Writer:
     def Finish(self):
         """Close the file.  Idempotent."""
         if self._w is None:
+            if not self._store_evolution and not self._finished:
+                print(f"PairH5Writer: {self._i} pair(s) processed, none stored "
+                      "(store_evolution off)")
+            self._finished = True
             return
         if self._bg_layout == "shared":
             write_row_view(self._w.f, "arr_bg", BG_STORE, BG_ROWS)   # the final tau extent
@@ -487,13 +515,16 @@ class PairH5Writer:
         return arr if out is src else resample(arr, src, out)
 
     def _clip(self, i, leg, n):
-        if self._w.growable_tau or n <= self._w.choose_ntau:
+        if self._w is None:                     # store_evolution off: the pinned value
+            cap = self._choose_ntau or n
+        else:
+            cap = n if self._w.growable_tau else self._w.choose_ntau
+        if n <= cap:
             return n
         self._n_clipped += 1
         warnings.warn(f"PairH5Writer: event {i}: {leg} leg has {n} frames but choose_ntau "
-                      f"is pinned at {self._w.choose_ntau}; clipping.",
-                      RuntimeWarning, stacklevel=4)
-        return self._w.choose_ntau
+                      f"is pinned at {cap}; clipping.", RuntimeWarning, stacklevel=4)
+        return cap
 
     def _liq_rows(self, tau_fo_jet, tau0):
         """This event's droplets plus their counts and energies.
