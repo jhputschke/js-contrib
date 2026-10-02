@@ -519,6 +519,7 @@ def test_web_login(tmp_path, monkeypatch, capsys):
     assert json.loads(w.file.read_text())["refresh_token"] == "refresh-2"
     first = s._headers["Authorization"]
     cred.login.state["expires_at"] = 0           # expires mid-run
+    cred.login._save()
     s.list("")
     assert s._headers["Authorization"] != first and fs.token == s._headers["Authorization"]
     # the refresh token refused: a run already going fails its requests, a new one goes on
@@ -626,3 +627,92 @@ def test_status(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("BEARER_TOKEN", _jwt(sub="robot", scope="storage.create:/",
                                             exp=int(now) + 7200))
     assert status() == 0 and "a bearer token comes first" in capsys.readouterr().out
+
+
+def test_shared_login_renewed_once(tmp_path, monkeypatch):
+    """Jobs sharing a login (one home directory): one renews, the others read its token,
+    although the issuer accepts each refresh token once only."""
+    import fcntl
+    import multiprocessing
+    monkeypatch.setattr(js_osdf, "WEB_DIR", str(tmp_path / "web"))
+    issuer_state, calls = tmp_path / "issuer.json", tmp_path / "calls"
+    issuer_state.write_text(json.dumps({"rt": "rt-0", "n": 0}))
+    iss = "https://iss.example.org"
+
+    def http(url, form=None, json_body=None, redirect=True, timeout=30, **kw):
+        assert url == f"{iss}/token" and form["grant_type"] == "refresh_token"
+        with open(issuer_state, "r+") as f:            # the issuer, across processes
+            fcntl.flock(f, fcntl.LOCK_EX)
+            st = json.load(f)
+            with open(calls, "a") as c:
+                c.write(form["refresh_token"] + "\n")
+            if form["refresh_token"] != st["rt"]:
+                return 400, {}, b'{"error": "invalid_grant"}'
+            js_osdf.time.sleep(0.2)                    # the others are waiting meanwhile
+            st["n"] += 1
+            st["rt"] = f"rt-{st['n']}"
+            f.seek(0), f.truncate(), json.dump(st, f), f.flush()
+        return 200, {}, json.dumps({"access_token": _jwt(exp=int(js_osdf.time.time()) + 1200,
+                                                         jti=st["n"]),
+                                    "refresh_token": st["rt"]}).encode()
+    monkeypatch.setattr(js_osdf, "_http", http)
+    w = js_osdf.WebLogin("/fno4hic")
+    w.state = {"access_token": "old", "expires_at": 0, "refresh_token": "rt-0",
+               "token_endpoint": f"{iss}/token", "issuer": iss, "client_id": "c",
+               "client_secret": "s", "scope_path": "/"}
+    w._save()
+
+    ctx = multiprocessing.get_context("fork")
+    barrier, out = ctx.Barrier(6), ctx.Queue()
+
+    def job():
+        login = js_osdf.WebLogin("/fno4hic")           # read at the start, all expired
+        barrier.wait()
+        out.put(login.token() or f"FAILED {login.error}")
+    procs = [ctx.Process(target=job) for _ in range(6)]
+    for p in procs:
+        p.start()
+    tokens = [out.get(timeout=30) for _ in procs]
+    for p in procs:
+        p.join(timeout=30)
+    assert calls.read_text().split() == ["rt-0"]       # renewed once, by one of them
+    assert len(set(tokens)) == 1 and not tokens[0].startswith("FAILED")
+    assert json.loads(w.file.read_text())["refresh_token"] == "rt-1"
+    assert not list(w.file.parent.glob("*.tmp"))
+    # a refused renewal says why
+    w = js_osdf.WebLogin("/fno4hic")
+    w.state.update(expires_at=0, refresh_token="rt-0")
+    w._save()
+    assert w.token() is None and "invalid_grant" in w.error
+
+
+def test_refresh_falls_back_to_the_logins(tmp_path, monkeypatch):
+    """The Wayne issuer (OA4MP) fails on refresh tokens from a renewal (HTTP 500, "Null
+    pointer") but takes the login's again: renewals fall back to it."""
+    monkeypatch.setattr(js_osdf, "WEB_DIR", str(tmp_path / "web"))
+    sent, n = [], [0]
+
+    def http(url, form=None, json_body=None, redirect=True, timeout=30, **kw):
+        sent.append(form["refresh_token"])
+        if form["refresh_token"] != "rt-login":
+            return 500, {}, b'error="server_error"\nerror_description="Null+pointer"\n'
+        n[0] += 1
+        return 200, {}, json.dumps({"access_token": _jwt(exp=int(js_osdf.time.time()) + 1200,
+                                                         jti=n[0]),
+                                    "refresh_token": f"rt-renewed-{n[0]}"}).encode()
+    monkeypatch.setattr(js_osdf, "_http", http)
+    w = js_osdf.WebLogin("/fno4hic")
+    w.state = {"access_token": "old", "expires_at": 0, "refresh_token": "rt-login",
+               "token_endpoint": "https://iss/token", "client_id": "c", "client_secret": "s"}
+    w._save()
+    for i in range(3):
+        w.state["expires_at"] = 0
+        w._save()
+        assert w.token() is not None, w.error
+    assert sent == ["rt-login", "rt-renewed-1", "rt-login", "rt-renewed-2", "rt-login"]
+    saved = json.loads(w.file.read_text())
+    assert saved["login_refresh_token"] == "rt-login" and saved["refresh_token"] == "rt-renewed-3"
+    # both refused: the error names both answers
+    w.state.update(expires_at=0, login_refresh_token="rt-gone")
+    w._save()
+    assert w.token() is None and w.error.count("Null pointer") == 2

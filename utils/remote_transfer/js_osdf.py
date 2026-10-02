@@ -61,10 +61,12 @@ The namespace: --namespace, else $JS_OSDF_NAMESPACE, else /fno4hic; the federati
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import logging
 import os
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -214,6 +216,7 @@ class WebLogin:
 
     def __init__(self, namespace, federation=OSDF):
         self.ns, self.federation = namespace, federation
+        self.error = ""                           # why the last renewal failed
         self.file = (Path(WEB_DIR).expanduser()
                      / f"{federation}{namespace.replace('/', '_')}.json")
         self._lock = threading.Lock()
@@ -227,11 +230,39 @@ class WebLogin:
 
     def _save(self):
         self.file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        tmp = self.file.with_suffix(".tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w") as f:
-            json.dump(self.state, f, indent=1)
-        os.replace(tmp, self.file)
+        # a temporary file of its own (mode 600): jobs sharing the login may save at once
+        fd, tmp = tempfile.mkstemp(dir=self.file.parent, prefix=self.file.name, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(self.state, f, indent=1)
+            os.replace(tmp, self.file)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
+
+    def _reload(self):
+        """The login as saved: another job sharing it may have renewed it."""
+        try:
+            self.state = json.loads(self.file.read_text())
+        except (OSError, ValueError):
+            pass
+
+    @contextlib.contextmanager
+    def _shared(self):
+        """Hold a lock on <file>.lock, across the processes sharing the login (cluster jobs
+        with the same home directory), so that one of them renews for all.  Where the file
+        system has no locks, without: re-reading the login still catches most renewals."""
+        self.file.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        fd = os.open(f"{self.file}.lock", os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            try:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            except (ImportError, OSError):
+                pass
+            yield
+        finally:
+            os.close(fd)                               # releases the lock
 
     # -- the issuer and this script's client there
     def _issuer(self):
@@ -307,7 +338,10 @@ class WebLogin:
                     "scope": self._scopes()})
                 tok = _json(body)
                 if st == 200 and "access_token" in tok:
+                    s.pop("login_refresh_token", None)
                     self._take(tok)
+                    s["login_refresh_token"] = s.get("refresh_token")
+                    self._save()
                     return s["access_token"]
                 err = tok.get("error", f"HTTP {st}")
                 if err == "slow_down":
@@ -319,28 +353,45 @@ class WebLogin:
         raise RuntimeError("login timed out: the link was not used in time")
 
     def refresh(self):
-        """A new token from the refresh token; False if there is none or it is refused."""
+        """A new token from the refresh token; False if there is none or it is refused
+        (why: self.error)."""
         s = self.state
         if not s.get("refresh_token") or not s.get("token_endpoint"):
+            self.error = "no refresh token"
             return False
-        st, _, body = _http(s["token_endpoint"], form={
-            **self._client(), "grant_type": "refresh_token",
-            "refresh_token": s["refresh_token"]})
-        tok = _json(body)
-        if st != 200 or "access_token" not in tok:
-            return False
-        self._take(tok)
-        return True
+        # the newest refresh token, else the login's own: the Wayne issuer (OA4MP) fails
+        # on some refresh tokens it gave out with a renewal (HTTP 500, "Null pointer"), but
+        # takes the login's again and again (tested 2026-10-01)
+        s.setdefault("login_refresh_token", s["refresh_token"])   # (logins made before)
+        errors = []
+        for rt in dict.fromkeys((s["refresh_token"], s["login_refresh_token"])):
+            st, _, body = _http(s["token_endpoint"], form={
+                **self._client(), "grant_type": "refresh_token", "refresh_token": rt})
+            tok = _json(body)
+            if st == 200 and "access_token" in tok:
+                self._take(tok)
+                return True
+            # some issuers answer in key="value" lines, not JSON
+            text = body.decode(errors="replace") if isinstance(body, bytes) else str(body)
+            errors.append(f"HTTP {st}: " + " ".join(
+                urllib.parse.unquote_plus(text).replace('"', "").split())[:200])
+        self.error = "; then with the login's refresh token: ".join(errors)
+        return False
+
+    def _valid(self):
+        s = self.state
+        return bool(s.get("access_token")) and s.get("expires_at", 0) > time.time() + MARGIN
 
     def token(self, interactive=False):
-        """A token with at least MARGIN left: kept, renewed, or (interactive) a new login;
-        else None."""
+        """A token with at least MARGIN left: kept, renewed by another job sharing the
+        login, renewed here, or (interactive) a new login; else None (why: self.error)."""
         with self._lock:
-            s = self.state
-            if s.get("access_token") and s.get("expires_at", 0) > time.time() + MARGIN:
-                return s["access_token"]
-            if self.refresh():
-                return s["access_token"]
+            if self._valid():
+                return self.state["access_token"]
+            with self._shared():                       # one job renews, the others read
+                self._reload()
+                if self._valid() or self.refresh():
+                    return self.state["access_token"]
             if interactive:
                 return self.login()
             return None
@@ -357,6 +408,7 @@ class WebLogin:
                 pass
         existed = self.file.exists()
         self.file.unlink(missing_ok=True)
+        Path(f"{self.file}.lock").unlink(missing_ok=True)
         self.state = {}
         return existed
 
@@ -375,12 +427,17 @@ class WebLogin:
         s, when = self.state, lambda t: time.strftime("%Y-%m-%d %H:%M", time.localtime(t))
         exp = s.get("expires_at", 0)
         rexp = _refresh_expiry(s.get("refresh_token", ""))
+        login_rt = s.get("login_refresh_token") or s.get("refresh_token", "")
+        lexp = _refresh_expiry(login_rt)
         if not s.get("refresh_token"):
             refresh = "none: when the token expires, login again"
-        elif rexp:
-            refresh = (f"valid until {when(rexp)} ({_left(rexp)}); each renewal brings a "
-                       "new one" if rexp > time.time() else
-                       f"expired {when(rexp)}: ./js_osdf.py login")
+        elif lexp:
+            refresh = (f"until {when(lexp)} ({_left(lexp)}), the login's: login again before "
+                       "then" if lexp > time.time() else
+                       f"expired {when(lexp)}: ./js_osdf.py login")
+            if rexp and login_rt != s["refresh_token"] and rexp > time.time():
+                refresh += (f"\n  {'':<8} a newer one from a renewal, until {when(rexp)}, is "
+                            "tried first")
         else:
             refresh = "kept (its expiry is the issuer's)"
         return [
@@ -586,9 +643,11 @@ def cmd_status(a):
     core.say(f"browser login for {a.namespace}:")
     for k, v in w.status():
         print(f"  {k:<8} {v}")
-    rexp = _refresh_expiry(w.state.get("refresh_token", ""))
-    usable = (w.state.get("expires_at", 0) > time.time()
-              or (w.state.get("refresh_token") and (rexp is None or rexp > time.time())))
+    st = w.state
+    exps = [_refresh_expiry(st.get(k) or "") for k in ("refresh_token", "login_refresh_token")
+            if st.get(k)]
+    usable = (st.get("expires_at", 0) > time.time()
+              or any(e is None or e > time.time() for e in exps))
     return 0 if usable or token else 1
 
 
@@ -611,8 +670,8 @@ def credential(a):
         return None
     try:
         if w.token(interactive=a.web) is None:
-            core.say(f"the browser login for {a.namespace} has expired: ./js_osdf.py login "
-                     "(going on without a token)")
+            core.say(f"the browser login for {a.namespace} has expired and could not be "
+                     f"renewed ({w.error}): ./js_osdf.py login (going on without a token)")
             return None
     except (OSError, RuntimeError) as e:
         core.die(f"{a.namespace}: {core.describe(e)}")
@@ -621,7 +680,8 @@ def credential(a):
         t = w.token(interactive=a.web)
         if t is None:
             raise RuntimeError(f"the browser login for {a.namespace} has expired and could "
-                               "not be renewed: ./js_osdf.py login, then run again")
+                               f"not be renewed ({w.error}): ./js_osdf.py login, then run "
+                               "again")
         return t
     current.login = w
     return current

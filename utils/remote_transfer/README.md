@@ -207,9 +207,12 @@ to `/fno4hic` can be read by everyone.
     and waits); without `--web` the command says so and goes on without credentials, so
     an upload then fails;
   - it uses the browser login even if there is a bearer token.
-- **How long:** until the refresh token expires, or `logout`. On `/fno4hic` a refresh token
-  lasts 15 days, and every renewal of the token brings a new one: a login used at least
-  once in 15 days doesn't need the browser again.
+- **How long: 15 days from the login** on `/fno4hic`, or until `logout`. A refresh token
+  lasts 15 days, and a renewal brings a new one, but the Wayne issuer (OA4MP) fails on
+  those (HTTP 500, "Null pointer"; tested 2026-10-01) while it takes the login's own
+  refresh token again and again. So a renewal tries the newest refresh token, then the
+  login's, and the login lasts as long as the login's refresh token: `login` again within
+  15 days. `status` shows when.
 - **`status`** shows the login without asking the issuer: the user, the issuer, the
   scopes, the time left of the token and of the refresh token, and a bearer token that
   would come first. It exits 1 when there is nothing to write with.
@@ -219,14 +222,27 @@ to `/fno4hic` can be read by everyone.
     user     Joern Putschke
     issuer   https://wayne-origin.nationalresearchplatform.org:8455
     scopes   storage.modify:/ storage.create:/ storage.read:/
-    token    valid until 2026-10-01 20:58 (20 min left)
-    refresh  valid until 2026-10-16 20:38 (15.0 days); each renewal brings a new one
+    token    valid until 2026-10-01 21:25 (20 min left)
+    refresh  until 2026-10-16 21:04 (15.0 days), the login's: login again before then
+             a newer one from a renewal, until 2026-10-16 21:05, is tried first
     file     ~/.config/js_osdf/web/osg-htc.org_fno4hic.json
   ```
 - **Which credential:** without `--web` a bearer token found as below comes first, then the
   browser login. `--web` uses the browser login even if there is a token; it doesn't go
   with `--token-file`.
 - Options like `--web` and `--token-file` go before or after the command.
+- **On a cluster** the jobs can share the login, when they see the same home directory:
+  - log in once, on a login node (`./js_osdf.py login`); the jobs then need no `--web`
+    and no browser;
+  - jobs that find the token expired renew it one at a time, under a lock on the login
+    file (`<file>.lock`); the first renews, the others read its token. Where the file
+    system has no locks, each job still re-reads the login before it renews;
+  - the compute nodes need outbound HTTPS to the director (`osdf-director.osg-htc.org`),
+    the issuer (`wayne-origin.nationalresearchplatform.org:8455`) and the origin
+    (`…:8090`);
+  - the jobs must be done within the 15 days of the login, the time in the queue
+    included: `status` before submitting, `login` again if it is close;
+  - tested with four commands started at once on one expired login: all ran, one token.
 
 **A bearer token** (a SciToken / WLCG token) is looked for in this order:
 1. `--token-file PATH`;
@@ -268,7 +284,7 @@ upload needs one that lasts.
 
 ## Tested
 
-- **Offline:** `pytest utils/remote_transfer/test` (31 tests, in
+- **Offline:** `pytest utils/remote_transfer/test` (33 tests, in
   [`test/test_transfer.py`](test/test_transfer.py)). Every command runs against two
   stores: an in-memory GCS bucket, and `OsdfStore` on fsspec's in-memory file system in
   place of pelicanfs. The tests cover:
@@ -279,7 +295,9 @@ upload needs one that lasts.
   - the key and token lookup, remote names, and that the CRC32C matches GCS's;
   - the browser login against a fake Pelican issuer: the login (pending, consent_required,
     then the token), the login file, renewal before a request and in the middle of a run, a
-    refused renewal, `--web`, `logout`, and `status`;
+    refused renewal, `--web`, `logout`, and `status`; six processes sharing one expired
+    login, against an issuer that takes each refresh token once (one renewal, one token
+    for all); the fallback to the login's refresh token;
   - `rm`: files, patterns, directories with their manifests and empty directories below,
     `--what`, `--dry-run`, the question (no terminal, no, yes), and targets that aren't
     there.
