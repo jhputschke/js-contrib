@@ -592,3 +592,37 @@ def test_rm(tmp_path, store, capsys):
     assert store.data() == {} and store.list("") == {}
     if isinstance(store, MemOsdf):
         assert not store.fs.exists("/fno4hic/AuAu_a")
+
+
+def test_status(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(js_osdf, "WEB_DIR", str(tmp_path / "web"))
+    for v in ("JS_OSDF_TOKEN_FILE", "BEARER_TOKEN_FILE", "BEARER_TOKEN"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(js_osdf, "__file__", str(tmp_path / "bin" / "js_osdf.py"))
+    status = lambda: js_osdf.cmd_status(js_osdf.parse_args(["status"]))   # noqa: E731
+    assert status() == 1 and "no browser login" in capsys.readouterr().out
+    now = js_osdf.time.time()
+
+    def refresh(issued, lifetime_s):                  # an OA4MP refresh token
+        url = (f"https://iss.example.org:8455/refreshToken/x/{int(issued * 1000)}?type="
+               f"refreshToken&ts={int(issued * 1000)}&version=v2.0&lifetime={lifetime_s * 1000}")
+        return base64.b32encode(url.encode()).decode().rstrip("=")
+    assert abs(js_osdf._refresh_expiry(refresh(now, 3600)) - (now + 3600)) < 1
+    assert js_osdf._refresh_expiry("not-a-token") is None
+    w = js_osdf.WebLogin("/fno4hic")
+    w.state = {"access_token": _jwt(exp=int(now) + 600), "expires_at": int(now) + 600,
+               "refresh_token": refresh(now, 15 * 86400), "sub": "user@wayne",
+               "issuer": "https://iss.example.org:8455", "scope": "storage.read:/"}
+    w._save()
+    assert status() == 0
+    out = capsys.readouterr().out
+    assert "user@wayne" in out and "storage.read:/" in out and "10 min left" in out
+    assert "15.0 days" in out
+    w.state.update(expires_at=0, refresh_token=refresh(now - 20 * 86400, 15 * 86400))
+    w._save()
+    assert status() == 1 and "./js_osdf.py login" in capsys.readouterr().out
+    monkeypatch.setenv("BEARER_TOKEN", _jwt(sub="robot", scope="storage.create:/",
+                                            exp=int(now) + 7200))
+    assert status() == 0 and "a bearer token comes first" in capsys.readouterr().out

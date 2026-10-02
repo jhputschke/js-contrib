@@ -186,6 +186,7 @@ to `/fno4hic` can be read by everyone.
 ./js_osdf.py login              # prints a link; log in and approve in any browser, on any machine
 ./js_osdf.py upload /data/AuAu_c1 --what root     # later commands use the login by themselves
 ./js_osdf.py upload /data/AuAu_c1 --web           # or: log in when needed, in the same command
+./js_osdf.py status             # who, the scopes, the time left of the token and the login
 ./js_osdf.py logout             # revoke the login at the issuer and forget it
 ```
 
@@ -206,8 +207,22 @@ to `/fno4hic` can be read by everyone.
     and waits); without `--web` the command says so and goes on without credentials, so
     an upload then fails;
   - it uses the browser login even if there is a bearer token.
-- **How long:** until the refresh token expires (the issuer decides that; it isn't known
-  for `/fno4hic`) or `logout`.
+- **How long:** until the refresh token expires, or `logout`. On `/fno4hic` a refresh token
+  lasts 15 days, and every renewal of the token brings a new one: a login used at least
+  once in 15 days doesn't need the browser again.
+- **`status`** shows the login without asking the issuer: the user, the issuer, the
+  scopes, the time left of the token and of the refresh token, and a bearer token that
+  would come first. It exits 1 when there is nothing to write with.
+
+  ```text
+  js_osdf: browser login for /fno4hic:
+    user     Joern Putschke
+    issuer   https://wayne-origin.nationalresearchplatform.org:8455
+    scopes   storage.modify:/ storage.create:/ storage.read:/
+    token    valid until 2026-10-01 20:58 (20 min left)
+    refresh  valid until 2026-10-16 20:38 (15.0 days); each renewal brings a new one
+    file     ~/.config/js_osdf/web/osg-htc.org_fno4hic.json
+  ```
 - **Which credential:** without `--web` a bearer token found as below comes first, then the
   browser login. `--web` uses the browser login even if there is a token; it doesn't go
   with `--token-file`.
@@ -253,7 +268,7 @@ upload needs one that lasts.
 
 ## Tested
 
-- **Offline:** `pytest utils/remote_transfer/test` (30 tests, in
+- **Offline:** `pytest utils/remote_transfer/test` (31 tests, in
   [`test/test_transfer.py`](test/test_transfer.py)). Every command runs against two
   stores: an in-memory GCS bucket, and `OsdfStore` on fsspec's in-memory file system in
   place of pelicanfs. The tests cover:
@@ -264,7 +279,7 @@ upload needs one that lasts.
   - the key and token lookup, remote names, and that the CRC32C matches GCS's;
   - the browser login against a fake Pelican issuer: the login (pending, consent_required,
     then the token), the login file, renewal before a request and in the middle of a run, a
-    refused renewal, `--web`, and `logout`;
+    refused renewal, `--web`, `logout`, and `status`;
   - `rm`: files, patterns, directories with their manifests and empty directories below,
     `--what`, `--dry-run`, the question (no terminal, no, yes), and targets that aren't
     there.

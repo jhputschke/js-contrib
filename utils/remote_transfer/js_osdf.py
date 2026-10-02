@@ -21,6 +21,7 @@ transfer_core.py next to it.
     ./js_osdf.py setup --reinstall | --remove          # remake / delete the environment
     ./js_osdf.py login                                 # log in in a browser (no token file)
     ./js_osdf.py upload /data/AuAu_c1 --web            # the same, when needed, then upload
+    ./js_osdf.py status                                # who, scopes, time left
     ./js_osdf.py logout                                # forget the browser login
 
 What (``--what``, a comma list; default all) -- by file name, as for js_gcs.py:
@@ -157,6 +158,26 @@ def _claims(jwt):
         return json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))
     except (IndexError, ValueError, AttributeError):
         return {}
+
+
+def _refresh_expiry(token):
+    """When an OA4MP refresh token expires (unix time), or None: such a token is a base32
+    URL whose query has ts (issued, ms) and lifetime (ms)."""
+    try:
+        url = base64.b32decode(token + "=" * (-len(token) % 8)).decode()
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        return (int(q["ts"][0]) + int(q["lifetime"][0])) / 1000
+    except (ValueError, KeyError, IndexError, UnicodeDecodeError):
+        return None
+
+
+def _left(t):
+    """'5 min', '3.2 h', '14.9 days' until unix time t ('expired' if past)."""
+    d = t - time.time()
+    if d <= 0:
+        return "expired"
+    return (f"{d / 60:.0f} min" if d < 5400 else f"{d / 3600:.1f} h" if d < 172800
+            else f"{d / 86400:.1f} days")
 
 
 def token_issuer(federation, namespace):
@@ -341,11 +362,37 @@ class WebLogin:
 
     def describe(self):
         s = self.state
-        left = int(s.get("expires_at", 0) - time.time())
+        rexp = _refresh_expiry(s.get("refresh_token", ""))
         return (f"{s.get('sub') or '?'} at {s.get('issuer')}; scopes {s.get('scope') or '?'}; "
-                f"token valid for {max(left, 0) // 60} min, renewed by itself"
+                f"token valid for {_left(s.get('expires_at', 0))}, renewed by itself"
                 + ("" if s.get("refresh_token") else " -- NO refresh token: login again then")
+                + (f" until {time.strftime('%Y-%m-%d %H:%M', time.localtime(rexp))}"
+                   if rexp else "")
                 + f" ({self.file})")
+
+    def status(self):
+        """Lines about the login, from the login file only (no network)."""
+        s, when = self.state, lambda t: time.strftime("%Y-%m-%d %H:%M", time.localtime(t))
+        exp = s.get("expires_at", 0)
+        rexp = _refresh_expiry(s.get("refresh_token", ""))
+        if not s.get("refresh_token"):
+            refresh = "none: when the token expires, login again"
+        elif rexp:
+            refresh = (f"valid until {when(rexp)} ({_left(rexp)}); each renewal brings a "
+                       "new one" if rexp > time.time() else
+                       f"expired {when(rexp)}: ./js_osdf.py login")
+        else:
+            refresh = "kept (its expiry is the issuer's)"
+        return [
+            ("user", s.get("sub") or "?"),
+            ("issuer", s.get("issuer", "?")),
+            ("scopes", s.get("scope") or "?"),
+            ("token", (f"valid until {when(exp)} ({_left(exp)} left)" if exp > time.time()
+                       else (f"expired {when(exp)}" if exp else "expired")
+                       + (": renewed by the next command" if s.get("refresh_token") else ""))),
+            ("refresh", refresh),
+            ("file", str(self.file)),
+        ]
 
 
 class OsdfStore:
@@ -504,6 +551,7 @@ def add_commands(sub):
     sub.add_parser("login", help="log in in a browser (OAuth2 device flow); later commands "
                                  "use the login without a token")
     sub.add_parser("logout", help="forget the browser login (and revoke it at the issuer)")
+    sub.add_parser("status", help="who is logged in, the scopes, the time left (no network)")
 
 
 def parse_args(argv):
@@ -519,6 +567,29 @@ def cmd_login(a):
         core.die(f"{a.namespace}: {core.describe(e)}")
     core.say(f"logged in: {w.describe()}")
     return 0
+
+
+def cmd_status(a):
+    """The credentials a command would use, and the browser login's state (no network)."""
+    token = find_token(a.token_file)
+    if token:
+        c = _claims(token)
+        exp = c.get("exp")
+        core.say(f"a bearer token comes first (unless --web): {c.get('sub', '?')}, scopes "
+                 f"{c.get('scope', '?')}"
+                 + (f", {_left(exp)} left" if exp else ""))
+    w = WebLogin(a.namespace, a.federation)
+    if not w.exists():
+        core.say(f"no browser login for {a.namespace}: ./js_osdf.py login"
+                 + ("" if token else "  (reading a public namespace needs none)"))
+        return 0 if token else 1
+    core.say(f"browser login for {a.namespace}:")
+    for k, v in w.status():
+        print(f"  {k:<8} {v}")
+    rexp = _refresh_expiry(w.state.get("refresh_token", ""))
+    usable = (w.state.get("expires_at", 0) > time.time()
+              or (w.state.get("refresh_token") and (rexp is None or rexp > time.time())))
+    return 0 if usable or token else 1
 
 
 def cmd_logout(a):
@@ -561,7 +632,8 @@ def main(argv=None):
                                                   add_commands),
                      ENV, lambda a: OsdfStore(a.namespace, a.federation, credential(a)),
                      ("pelicanfs", "google_crc32c"), argv,
-                     commands={"login": cmd_login, "logout": cmd_logout})
+                     commands={"login": cmd_login, "logout": cmd_logout,
+                               "status": cmd_status})
 
 
 if __name__ == "__main__":
