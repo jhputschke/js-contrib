@@ -307,6 +307,21 @@ docs/Plans/PLAN_slim_bulk_info.md).
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both --particlize-only
 ```
 
+*Follow-up (not done): MUSIC_2 without its stored evolution.* MUSIC_2 still copies every
+output frame into its in-memory store (8 floats per cell, ~2–2.5 GiB at 0–10%), which only
+the pair file's `arr` needs. With `--particlize-only` nothing reads those frames: the
+surface comes from MUSIC's live state during the run, the droplets are applied during the
+run, and Matter/LBT read MUSIC_1's copy. What is still used is MUSIC's step count and end
+time (`events/ntau_jet_music`, and the jet leg's freeze-out time behind `E_droplets_late`),
+and MUSIC counts those while filling the store (`HydroinfoMUSIC::get_ntau()` is `itaumax`,
+incremented per appended frame). So switching the store off would need a "count, don't
+store" mode: MUSIC4GPU `HydroinfoMUSIC` keeps the tau bookkeeping but skips the cells, an
+X-SCAPE `MusicWrapper` switch for MUSIC_2 only (MUSIC_1 must keep storing for the
+hand-off), its PyJetscape binding, and `run_prod_jet.py` turning it on with
+`--particlize-only` only. Expected: peak ~7.5 → ~5 GiB (estimated from the RSS trace, where
+MUSIC_2's store is resident at the peak), particlize file unchanged. Worth it when memory
+per job limits `-j`.
+
 **Hadronizing the campaign: `run_hadronize.py`.** `hadronize.py` needs only the particlize
 files and an X-SCAPE build with iSS: no GPU, no MUSIC. It runs on one core, one production
 file at a time; `run_hadronize.py` runs it over a whole campaign, `-j P` at a time:
