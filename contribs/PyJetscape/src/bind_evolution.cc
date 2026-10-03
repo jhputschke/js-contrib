@@ -12,12 +12,73 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <stdexcept>
+#include <string>
+#include <vector>
+
 #include "FluidCellInfo.h"
 #include "FluidEvolutionHistory.h"
 #include "SurfaceCellInfo.h"
 
 namespace py = pybind11;
 using namespace Jetscape;
+
+namespace {
+
+// Named fields of bulk_info's cells, in either layout: the FluidCellInfo vector
+// (data) or the flat data_vector described by data_info (e.g. MUSIC's slim
+// copy, <slim_bulk_info>).  A field the slim copy does not hold is an error
+// here, not zeros.
+class FieldReader {
+ public:
+  FieldReader(const EvolutionHistory &h, std::vector<std::string> names,
+              const char *who)
+      : h_(h), width_(h.data_info.size()) {
+    if (h.get_data_size() == 0)
+      throw std::runtime_error(std::string(who) +
+                               ": bulk_info is empty — run EvolveHydro() first.");
+    for (const auto &name : names) {
+      if (width_ == 0) {
+        member_.push_back(Member(name));
+        continue;
+      }
+      std::size_t at = 0;
+      while (at < width_ && h.data_info[at] != name) ++at;
+      if (at == width_) {
+        std::string held;
+        for (const auto &n : h.data_info) held += (held.empty() ? "" : ", ") + n;
+        throw std::runtime_error(std::string(who) + ": bulk_info holds {" + held +
+                                 "}, no '" + name + "' (a slim copy?)");
+      }
+      offset_.push_back(at);
+    }
+  }
+
+  // field f of the cell at flat index `cell`
+  float operator()(std::size_t cell, std::size_t f) const {
+    if (width_) return h_.data_vector[cell * width_ + offset_[f]];
+    return h_.data[cell].*member_[f];
+  }
+
+ private:
+  static Jetscape::real FluidCellInfo::*Member(const std::string &name) {
+    if (name == "energy_density") return &FluidCellInfo::energy_density;
+    if (name == "entropy_density") return &FluidCellInfo::entropy_density;
+    if (name == "temperature") return &FluidCellInfo::temperature;
+    if (name == "pressure") return &FluidCellInfo::pressure;
+    if (name == "vx") return &FluidCellInfo::vx;
+    if (name == "vy") return &FluidCellInfo::vy;
+    if (name == "vz") return &FluidCellInfo::vz;
+    throw std::invalid_argument("FieldReader: unknown field " + name);
+  }
+
+  const EvolutionHistory &h_;
+  std::size_t width_;
+  std::vector<std::size_t> offset_;
+  std::vector<Jetscape::real FluidCellInfo::*> member_;
+};
+
+}  // namespace
 
 void bind_evolution(py::module_ &m) {
 
@@ -130,7 +191,14 @@ void bind_evolution(py::module_ &m) {
       .def_readwrite("neta",    &EvolutionHistory::neta)
       .def_readwrite("boost_invariant", &EvolutionHistory::boost_invariant)
       .def_readwrite("tau_eta_is_tz",   &EvolutionHistory::tau_eta_is_tz)
-      .def_readwrite("data_info",       &EvolutionHistory::data_info)
+      .def_property("data_info",
+           [](const EvolutionHistory &h) { return h.data_info; },
+           &EvolutionHistory::SetDataInfo,
+           "Entry names of one data_vector record (empty: the FluidCellInfo "
+           "layout). Set through SetDataInfo, which also resolves them.")
+      .def("uses_data_vector", &EvolutionHistory::UsesDataVector,
+           "True if cells are the flat data_vector described by data_info "
+           "(e.g. MUSIC's slim copy), False for the FluidCellInfo vector.")
       // Coordinate helpers
       .def("Tau0",   &EvolutionHistory::Tau0)
       .def("TauMax", &EvolutionHistory::TauMax)
@@ -141,7 +209,7 @@ void bind_evolution(py::module_ &m) {
       .def("EtaMin", &EvolutionHistory::EtaMin)
       .def("EtaMax", &EvolutionHistory::EtaMax)
       .def("get_data_size", &EvolutionHistory::get_data_size,
-           "Return len(data) — number of FluidCellInfo entries.")
+           "Number of stored cells, in either layout.")
       // Zero-copy numpy view of data_vector (float32 raw buffer)
       .def("data_vector_numpy",
            [](EvolutionHistory &h) -> py::array_t<float> {
@@ -223,7 +291,7 @@ void bind_evolution(py::module_ &m) {
            )pbdoc",
            py::arg("id_tau"), py::arg("x"), py::arg("y"), py::arg("eta"))
       .def("clear_up_evolution_data", &EvolutionHistory::clear_up_evolution_data,
-           "Clear the FluidCellInfo data vector.")
+           "Clear the stored cells (data and data_vector).")
       // Fast bulk export: runs the cell loop in C++ and returns a numpy array
       // in a single boundary crossing, avoiding ~850K per-cell pybind11 calls.
       .def("to_numpy",
@@ -232,9 +300,11 @@ void bind_evolution(py::module_ &m) {
                throw std::invalid_argument(
                    "to_numpy: n_features must be 1-6, got " +
                    std::to_string(n_features));
-             if (h.data.empty())
-               throw std::runtime_error(
-                   "to_numpy: bulk_info.data is empty — run EvolveHydro() first.");
+             static const std::vector<std::string> layout = {
+                 "energy_density", "temperature", "vx", "vy",
+                 "entropy_density", "pressure"};
+             const FieldReader field(
+                 h, {layout.begin(), layout.begin() + n_features}, "to_numpy");
 
              py::array_t<float> arr({h.ntau, h.nx, h.ny, n_features});
              auto buf = arr.mutable_unchecked<4>();
@@ -242,13 +312,8 @@ void bind_evolution(py::module_ &m) {
              for (int k = 0; k < h.ntau; ++k)
                for (int i = 0; i < h.nx; ++i)
                  for (int j = 0; j < h.ny; ++j) {
-                   const auto &c = h.data[h.CellIndex(k, i, j, 0)];
-                   if (n_features >= 1) buf(k, i, j, 0) = c.energy_density;
-                   if (n_features >= 2) buf(k, i, j, 1) = c.temperature;
-                   if (n_features >= 3) buf(k, i, j, 2) = c.vx;
-                   if (n_features >= 4) buf(k, i, j, 3) = c.vy;
-                   if (n_features >= 5) buf(k, i, j, 4) = c.entropy_density;
-                   if (n_features >= 6) buf(k, i, j, 5) = c.pressure;
+                   const std::size_t c = h.CellIndex(k, i, j, 0);
+                   for (int f = 0; f < n_features; ++f) buf(k, i, j, f) = field(c, f);
                  }
              return arr;
            },
@@ -273,9 +338,8 @@ void bind_evolution(py::module_ &m) {
       // event (~1.3 GB for a 0-10% Au+Au background) on the Python side.
       .def("frame_numpy",
            [](const EvolutionHistory &h, int id_tau) -> py::array_t<float> {
-             if (h.data.empty())
-               throw std::runtime_error(
-                   "frame_numpy: bulk_info.data is empty — run EvolveHydro() first.");
+             const FieldReader field(h, {"energy_density", "vx", "vy", "vz"},
+                                     "frame_numpy");
              if (id_tau < 0 || id_tau >= h.ntau)
                throw std::out_of_range("frame_numpy: id_tau " + std::to_string(id_tau) +
                                        " outside [0, " + std::to_string(h.ntau) + ")");
@@ -285,11 +349,8 @@ void bind_evolution(py::module_ &m) {
              for (int i = 0; i < h.nx; ++i)
                for (int j = 0; j < h.ny; ++j)
                  for (int l = 0; l < neta; ++l) {
-                   const auto &c = h.data[h.CellIndex(id_tau, i, j, l)];
-                   buf(i, j, l, 0) = c.energy_density;
-                   buf(i, j, l, 1) = c.vx;
-                   buf(i, j, l, 2) = c.vy;
-                   buf(i, j, l, 3) = c.vz;
+                   const std::size_t c = h.CellIndex(id_tau, i, j, l);
+                   for (int f = 0; f < 4; ++f) buf(i, j, l, f) = field(c, f);
                  }
              return arr;
            },
@@ -309,9 +370,11 @@ void bind_evolution(py::module_ &m) {
                throw std::invalid_argument(
                    "to_numpy_full: n_features must be 1-6, got " +
                    std::to_string(n_features));
-             if (h.data.empty())
-               throw std::runtime_error(
-                   "to_numpy_full: bulk_info.data is empty — run EvolveHydro() first.");
+             static const std::vector<std::string> layout = {
+                 "energy_density", "temperature", "vx", "vy", "vz",
+                 "entropy_density"};
+             const FieldReader field(
+                 h, {layout.begin(), layout.begin() + n_features}, "to_numpy_full");
 
              const int neta = (h.neta > 0) ? h.neta : 1;
              py::array_t<float> arr({h.ntau, h.nx, h.ny, neta, n_features});
@@ -321,13 +384,9 @@ void bind_evolution(py::module_ &m) {
                for (int i = 0; i < h.nx; ++i)
                  for (int j = 0; j < h.ny; ++j)
                    for (int l = 0; l < neta; ++l) {
-                     const auto &c = h.data[h.CellIndex(k, i, j, l)];
-                     if (n_features >= 1) buf(k, i, j, l, 0) = c.energy_density;
-                     if (n_features >= 2) buf(k, i, j, l, 1) = c.temperature;
-                     if (n_features >= 3) buf(k, i, j, l, 2) = c.vx;
-                     if (n_features >= 4) buf(k, i, j, l, 3) = c.vy;
-                     if (n_features >= 5) buf(k, i, j, l, 4) = c.vz;
-                     if (n_features >= 6) buf(k, i, j, l, 5) = c.entropy_density;
+                     const std::size_t c = h.CellIndex(k, i, j, l);
+                     for (int f = 0; f < n_features; ++f)
+                       buf(k, i, j, l, f) = field(c, f);
                    }
              return arr;
            },
