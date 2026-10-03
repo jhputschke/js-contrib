@@ -524,6 +524,51 @@ def test_store_evolution_off_still_clips_at_a_pinned_ntau(tmp_path):
     assert (w.last_event_diag["ntau_jet"], w.last_event_diag["ntau_bg"]) == (3, 3)
 
 
+def test_read_jet_off_takes_the_jet_leg_from_musics_metadata(tmp_path):
+    """--particlize-only: the jet leg's evolution is never read, its native store still
+    released; the background bookkeeping is unchanged."""
+    from jetscape.pair_h5 import PairH5Writer
+
+    def run(name, **kw):
+        bg_evo = _evo(3, 1.0)
+        w, bg, jet, liq = _pair_writer(tmp_path / name, bg_evo, bg_evo.copy(),
+                                       drops=[[0.6, 0, 0, 0, 3.0, 1, 0, 0],
+                                              [9.0, 0, 0, 0, 2.0, 1, 0, 0]],
+                                       store_evolution=False, tau_stride=2, **kw)
+        native = jet.get_native_evolution_numpy
+        jet.reads = 0
+
+        def counted(tau_stride=1):
+            jet.reads += 1
+            return native(tau_stride)
+        jet.get_native_evolution_numpy = counted
+        out = []
+        for k in range(4):
+            if k == 2:
+                bg.evo = _evo(4, 5.0)              # a new background run
+            jet.evo = np.concatenate([bg.evo, bg.evo[-1:]])   # one step longer
+            jet.evo[1:, 0, 0, 0, 0] += k + 1
+            out.append((w.Exec(), w.last_event_diag, w.last_bg_key))
+        w.Finish()
+        return out, jet
+
+    read, jet_read = run("read")
+    skip, jet = run("skip", read_jet=False)
+    assert jet_read.reads == 4 and jet.reads == 0
+    assert jet.cleared == 4                        # the native store is still released
+    assert [k for _, _, k in skip] == [k for _, _, k in read]
+    for (i, ds, _), (j, dr, _) in zip(skip, read):
+        assert i == j
+        assert "frames_identical" not in ds and "ntau_jet" not in ds
+        assert ds["ntau_jet_music"] == dr["ntau_jet"]          # native grid, stride 2
+        same = {k: v for k, v in dr.items() if k not in ("frames_identical", "ntau_jet")}
+        assert {k: v for k, v in ds.items() if k != "ntau_jet_music"} == same
+    assert [d["bg_id"] for _, d, _ in skip] == [0, 0, 2, 2]
+    assert [d["n_droplets_late"] for _, d, _ in skip] == [1, 1, 1, 1]
+    with pytest.raises(ValueError, match="store_evolution=False"):
+        PairH5Writer(tmp_path / "x.h5", read_jet=False)
+
+
 def test_bg_layout_auto_follows_reuse(tmp_path):
     from jetscape.pair_h5 import PairH5Writer
 

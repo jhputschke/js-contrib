@@ -145,11 +145,12 @@ def parse_args() -> argparse.Namespace:
                         "to hadronize the event exactly. Switches on the surface of those "
                         "legs (see --surface). Default none")
     p.add_argument("--particlize-only", action="store_true", dest="particlize_only",
-                   help="write the particlize file only, no pair file: the evolutions are "
-                        "still computed (Matter/LBT need MUSIC_1's) and checked, but neither "
-                        "they nor source/droplets and shower/ are stored. The particlize "
-                        "file is the same as with the pair file, except that it names no "
-                        "pair_file and its events/ also get wall_s. Needs --write-particlize")
+                   help="write the particlize file only, no pair file: MUSIC still runs "
+                        "both legs, but only the background's evolution is read (to "
+                        "recognise a reused one), and no evolution, source/droplets or "
+                        "shower/ is stored. The particlize file's events/ then have "
+                        "ntau_jet_music (MUSIC steps) instead of ntau_jet, no "
+                        "frames_identical, and wall_s. Needs --write-particlize")
     p.add_argument("--validate-inline", action="store_true", dest="validate_inline",
                    help="validation only: also run iSS on the jet leg and Colorless jet "
                         "hadronization inside the job (settings from --hadronize-xml, "
@@ -392,7 +393,7 @@ def job_xml(a, out_h5: str):
 #: pair-writer diag/ values copied into the particlize file's events/ (energy bookkeeping
 #: for the hadron-level balance, and the flags that make an event suspect)
 PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_early",
-                   "tau0_music", "ntau_jet", "ntau_bg", "frames_identical",
+                   "tau0_music", "ntau_jet", "ntau_jet_music", "ntau_bg", "frames_identical",
                    "jet_hit_boundary", "bg_hit_boundary", "pthat_bin", "pthat",
                    "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
                    "parton_pt_sub")
@@ -618,7 +619,8 @@ def main() -> int:
         "prod_reuse": a.reuse,
         "prod_surface": a.surface,
         "prod_write_particlize": a.write_particlize,
-        **({"prod_particlize_only": True} if a.particlize_only else {}),
+        **({"prod_particlize_only": True, "prod_jet_leg_read": False}
+           if a.particlize_only else {}),
         **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
@@ -638,7 +640,8 @@ def main() -> int:
                     "transport_mode": "MUSIC viscous: eta/s(T) and zeta/s(T) "
                                       "parametrization 3, second-order terms"},
         keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True,
-        bg_layout=a.bg_layout, reuse=a.reuse, store_evolution=not a.particlize_only)
+        bg_layout=a.bg_layout, reuse=a.reuse, store_evolution=not a.particlize_only,
+        read_jet=not a.particlize_only)
     pwriter = None
     if out_particlize:
         from jetscape.particlize_h5 import ParticlizeH5Writer
@@ -693,11 +696,15 @@ def main() -> int:
             d = writer.last_event_diag
             droplets += d["n_droplets"]
             e_late += d["E_droplets_late"]
+            frames = (f"jet/bg frames {d['ntau_jet']}/{d['ntau_bg']}" if "ntau_jet" in d
+                      else f"jet {d['ntau_jet_music']} MUSIC steps, bg {d['ntau_bg']} frames")
             msg = (f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} done in {wall:.1f} s, "
-                   f"MUSIC tau0 = {d['tau0_music']:.3f} fm/c, jet/bg frames "
-                   f"{d['ntau_jet']}/{d['ntau_bg']}, {d['n_droplets']} droplets "
-                   f"({d['E_droplets']:.1f} GeV, {d['E_droplets_late']:.1f} after freeze-out), "
-                   f"{d['frames_identical']} leading frames identical, bg {d['bg_id']}")
+                   f"MUSIC tau0 = {d['tau0_music']:.3f} fm/c, {frames}, {d['n_droplets']} "
+                   f"droplets ({d['E_droplets']:.1f} GeV, {d['E_droplets_late']:.1f} after "
+                   f"freeze-out), "
+                   + (f"{d['frames_identical']} leading frames identical, "
+                      if "frames_identical" in d else "")
+                   + f"bg {d['bg_id']}")
             if not a.native and d["tau0_music"] > grid.tau_min + rp._TOL:
                 late += 1
                 msg += (f"  WARNING: tau0 after tau.min = {grid.tau_min:g}, so the first "
