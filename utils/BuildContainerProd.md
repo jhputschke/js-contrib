@@ -458,12 +458,11 @@ your environment to the job by default (`--export=ALL`); where a site turns that
 | `USE_MPS` | 0 | 1: `run_jobs.sh --mps` (test it on the site first) |
 | `BINDS`, `EXTRA_ARGS` | empty | more binds; arguments for `run_prod_jet.py` |
 
-- **Resources per task:** `#SBATCH --gres=gpu:1 --cpus-per-task=20 --mem=100G --time=24:00:00`
-  in the script, for `P=4`. Each production job takes ~5 cores and ~22 GB of host memory,
-  so match `P` to what one GPU comes with on the node. (22 GB is the size from before the
-  memory fixes in X-SCAPE `cbc72639` / js-contrib `9356bf4`: a job alone now peaks at
-  ~9 GB, but a `-j 4` campaign with the fixes is still to be measured; see
-  docs/Plans/PLAN_slim_bulk_info.md.) The script sets
+- **Resources per task:** `#SBATCH --gres=gpu:1 --cpus-per-task=20 --mem=48G --time=24:00:00`
+  in the script, for `P=4`. Each production job takes ~5 cores and ~12 GB of host memory
+  (4 jobs used 29 GB on the GB10; `--mem=64G` with `--bulk-info full`; ~22 GB per job
+  before the memory fixes in X-SCAPE `cbc72639` / js-contrib `9356bf4`), so match `P` to
+  what one GPU comes with on the node. The script sets
   `OMP_NUM_THREADS = cpus-per-task / P` and `OMP_WAIT_POLICY=passive` for the jobs.
 - **Time limit:** choose `NJOBS × EVENTS` so a task fits `--time`: ~30–50 s per event and
   job, `P` jobs at once. A task that runs out of time resumes when you submit the same

@@ -71,9 +71,14 @@ so Matter/LBT saw the same medium; `source/flux` varies in the last bit run to r
 From ~20 GiB at the start: 8.7 GiB with the pair file, 7.5 GiB particlize-only. The peak is
 now at the end of the largest event (MUSIC_2's surface and the writer); with
 `--particlize-only` MUSIC_2's run (its own store, ~2.5 GiB) comes close, which not storing
-MUSIC_2's evolution would remove. Not yet checked: longer jobs and `-j 4` (the sizing in
-README_2stage.md, BuildContainerProd.md and `utils/slurm_prod_array.sh` still says ~22 GB
-per job).
+MUSIC_2's evolution would remove.
+
+`-j` sweep with the merged code (GB10, `--mps`, `OMP_NUM_THREADS ≈ 20/P`, 3 events per job,
+no `--write-particlize`; docs/BENCHMARK_GB10.md): `-j 4` 197 events/h in **28.8 GB** for the
+whole machine (66–69 GB before), `-j 5` 201 / 33.5 GB, `-j 6` 205 / 36.9 GB, `-j 8` 202 /
+52.8 GB, 7.2–8.0 GiB per job. The sizing is now ~12 GB per job (`--mem=48G` for `P=4`).
+Not yet run: a long campaign with `--write-particlize both` (one such job alone peaks at
+8.7 GiB).
 
 ## Context
 
