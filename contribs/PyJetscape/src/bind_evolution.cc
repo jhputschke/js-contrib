@@ -268,6 +268,37 @@ void bind_evolution(py::module_ &m) {
              -------
              np.ndarray, shape (ntau, nx, ny, n_features), dtype float32
            )pbdoc")
+      // One tau frame of the full 3+1D export, (e, vx, vy, vz): the same floats
+      // as to_numpy_full(5)[id_tau][..., [0, 2, 3, 4]], without holding the whole
+      // event (~1.3 GB for a 0-10% Au+Au background) on the Python side.
+      .def("frame_numpy",
+           [](const EvolutionHistory &h, int id_tau) -> py::array_t<float> {
+             if (h.data.empty())
+               throw std::runtime_error(
+                   "frame_numpy: bulk_info.data is empty — run EvolveHydro() first.");
+             if (id_tau < 0 || id_tau >= h.ntau)
+               throw std::out_of_range("frame_numpy: id_tau " + std::to_string(id_tau) +
+                                       " outside [0, " + std::to_string(h.ntau) + ")");
+             const int neta = (h.neta > 0) ? h.neta : 1;
+             py::array_t<float> arr({h.nx, h.ny, neta, 4});
+             auto buf = arr.mutable_unchecked<4>();
+             for (int i = 0; i < h.nx; ++i)
+               for (int j = 0; j < h.ny; ++j)
+                 for (int l = 0; l < neta; ++l) {
+                   const auto &c = h.data[h.CellIndex(id_tau, i, j, l)];
+                   buf(i, j, l, 0) = c.energy_density;
+                   buf(i, j, l, 1) = c.vx;
+                   buf(i, j, l, 2) = c.vy;
+                   buf(i, j, l, 3) = c.vz;
+                 }
+             return arr;
+           },
+           py::arg("id_tau"),
+           R"pbdoc(
+             One tau frame of bulk_info.data, shape (nx, ny, neta, 4), float32:
+             [energy_density, vx, vy, vz].  The same values as
+             to_numpy_full(5)[id_tau][..., [0, 2, 3, 4]].
+           )pbdoc")
       // Full 3+1D export: keeps the eta (space-time rapidity) axis and exposes
       // vz, so a Milne->Cartesian resampler can map different z to different
       // eta.  to_numpy() collapses to id_eta=0 and has no vz, which is only

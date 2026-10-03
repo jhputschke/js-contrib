@@ -298,8 +298,9 @@ In the particlize file `events/ntau_jet` (frames on the output grid) becomes
 
 Measured (GB10, one job alone, seed 1, 3 events, `--write-particlize both`): 101.5 s against
 111.1 s with the pair file (-3.2 s per event: -1.3 s the pair-file write, -1.9 s the jet-leg
-read and resample), and ~300 MB less disk per event (no reuse). The peak memory, 20.7 GB,
-is unchanged: it is reached when MUSIC_1 hands its evolution to the framework.
+read and resample), and ~300 MB less disk per event (no reuse). Peak memory: 13.0 GiB,
+against 14.2 GiB with the pair file (both with X-SCAPE/MUSIC4GPU `free_evolution_memory`;
+~20 GiB before, see docs/Plans/PLAN_slim_bulk_info.md).
 
 ```bash
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both --particlize-only

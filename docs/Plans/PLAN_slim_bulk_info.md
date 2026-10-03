@@ -1,6 +1,43 @@
-<!-- Plan, written 2026-09-30. Status: not started. -->
+<!-- Plan, written 2026-09-30. Status: not started; Phase 0 measured and three
+     smaller fixes done first (2026-10-02, below). -->
 
 # Plan: a slim background copy (`bulk_info`) for the jet production
+
+## Status 2026-10-02: where the 20 GB came from, and F1-F3
+
+An RSS trace (0.1 s, tagged with the job's log line; seed 1, 3 events, `--reuse 1`) showed
+that ~10 GiB of the peak was memory nothing used any more, not the copy itself:
+
+- `EvolutionHistory::clear_up_evolution_data()` only calls `data.clear()`, which keeps the
+  capacity. An event larger than every earlier one (event 2 here: 67.2 M cells after 57.6 M)
+  reallocates in `PassHydroEvolutionHistoryToFramework`'s `resize` with the old buffer
+  still resident: 6.0 + 7.0 GiB at once, the 20 GiB spike. Smaller events reuse it.
+- `HydroinfoMUSIC::clean_hydro_event()` (MUSIC4GPU) also only calls `clear()`: each MUSIC
+  instance kept its largest store (~2 GiB) for the rest of the job, MUSIC_2's included.
+- The pair writer read the background as `to_numpy_full(5)` plus a 4-field copy: +2.7 GiB.
+
+Fixed, output byte-identical (pair and particlize files, every dataset; `source/flux`
+varies in the last bit between runs of the same build anyway):
+
+| | change | where |
+|---|---|---|
+| F1 | free the old copy before a larger one is allocated | X-SCAPE `MusicWrapper.cc` (branch `free_evolution_memory`) |
+| F2 | `clean_hydro_event()` releases the store (swap with an empty vector) | MUSIC4GPU `HydroinfoMUSIC.cpp` (branch `free_evolution_memory`) |
+| F3 | the writer reads the background frame by frame (`EvolutionHistory.frame_numpy`, `bulk_sources.FrameworkFrames`) | js-contrib PyJetscape (branch `free_evolution_memory`) |
+
+Measured (GB10, one job alone, peak RSS from `/proc/<pid>/status`, before → after):
+
+| job | peak RSS | wall time |
+|---|---|---|
+| 3 events, `--write-particlize both` | 19.99 → **14.24 GiB** | 109.2 → 107.6 s |
+| 2 events, `--reuse 2`, `--write-particlize both` | 15.65 → **12.24 GiB** | 52.3 → 49.0 s |
+| 3 events, `--particlize-only` | 19.94 → **13.02 GiB** | 100.6 → 100.5 s |
+
+The hand-off spike is gone (12.3 GiB there now); the peak is now at the end of the largest
+event, MUSIC_2's surface plus the writer, with the framework copy (7 GiB) still held. That
+copy is what option A below shrinks, so the numbers in "What is in memory now" are the
+pre-fix ones. Not yet checked: longer jobs and `-j 4` (the sizing in README_2stage.md,
+BuildContainerProd.md and `utils/slurm_prod_array.sh` still says ~22 GB per job).
 
 ## Context
 
