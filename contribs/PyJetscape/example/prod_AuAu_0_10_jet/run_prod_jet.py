@@ -151,6 +151,12 @@ def parse_args() -> argparse.Namespace:
                         "shower/ is stored. The particlize file's events/ then have "
                         "ntau_jet_music (MUSIC steps) instead of ntau_jet, no "
                         "frames_identical, and wall_s. Needs --write-particlize")
+    p.add_argument("--bulk-info", choices=("slim", "full"), default="slim", dest="bulk_info",
+                   help="the background's framework copy, which Matter, LBT and the liquefier "
+                        "read: 'slim' (default) keeps e, s, T, vx, vy, vz per cell, ~7 GiB "
+                        "less memory at 0-10%%, same output; 'full' the whole FluidCellInfo "
+                        "(also P; viscous fields and mu's are zero from MUSIC's store anyway), "
+                        "for modules that read more (<Hydro><MUSIC><slim_bulk_info>)")
     p.add_argument("--validate-inline", action="store_true", dest="validate_inline",
                    help="validation only: also run iSS on the jet leg and Colorless jet "
                         "hadronization inside the job (settings from --hadronize-xml, "
@@ -355,6 +361,7 @@ def job_xml(a, out_h5: str):
         if _text(music, "dump_hydro_only") != "0":
             problems.append(f"{BG_ID} needs <dump_hydro_only>0: Matter/LBT read its "
                             "framework medium (MUSIC_2 is switched to 1 in Python)")
+        _set(music, "slim_bulk_info", 1 if a.bulk_info == "slim" else 0)
         _set(hydros[1], "AddLiquefier", "false" if a.no_deposit else "true")
         # First block: the background leg and the default for every instance; MUSIC_2's
         # own block always gets an explicit value, which overrides it for the jet leg.
@@ -397,6 +404,24 @@ PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_ea
                    "jet_hit_boundary", "bg_hit_boundary", "pthat_bin", "pthat",
                    "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
                    "parton_pt_sub")
+
+
+def check_bulk_info(a, jetscape):
+    """--bulk-info: the background leg runs it (a build without <slim_bulk_info> would
+    ignore the XML tag and keep the full copy)."""
+    bg = {t.GetId(): t for t in jetscape.GetTaskList()}.get(BG_ID)
+    get = getattr(bg, "get_slim_bulk_info", None)
+    if get is None:
+        if a.bulk_info == "slim":
+            sys.exit("run_prod_jet.py: --bulk-info slim needs X-SCAPE with "
+                     "<Hydro><MUSIC><slim_bulk_info> (branch slim_bulk_info) and PyJetscape "
+                     "built against it; use --bulk-info full with this build")
+        return
+    if get() != (a.bulk_info == "slim"):
+        sys.exit(f"run_prod_jet.py: {BG_ID} runs slim_bulk_info = {int(get())}, not "
+                 f"--bulk-info {a.bulk_info}")
+    print(f"  bulk     {BG_ID} -> framework: {a.bulk_info} copy"
+          + (" (e, s, T, vx, vy, vz)" if a.bulk_info == "slim" else ""))
 
 
 def open_pthat_bins(a, jetscape):
@@ -619,6 +644,7 @@ def main() -> int:
         "prod_reuse": a.reuse,
         "prod_surface": a.surface,
         "prod_write_particlize": a.write_particlize,
+        "prod_bulk_info": a.bulk_info,
         **({"prod_particlize_only": True, "prod_jet_leg_read": False}
            if a.particlize_only else {}),
         **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
@@ -664,6 +690,7 @@ def main() -> int:
     jetscape.SetXMLMainFileName(main_xml)
     jetscape.SetXMLUserFileName(xml)
     jetscape.Init()
+    check_bulk_info(a, jetscape)
     writer.attach(jetscape)                  # after Init: MUSIC_2 -> dump_hydro_only
     if pwriter is not None:
         pwriter.attach(jetscape)             # reads ./music_input: the job's own
@@ -741,6 +768,7 @@ def main() -> int:
                "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
                "grid": a.grid, "hard": hard_desc,
                "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,
+               "bulk_info": a.bulk_info,
                "events_requested": a.events, "events_written": n,
                "events_tau0_after_tau_min": late,
                "legs_cut_at_max_ntau": writer.n_clipped,

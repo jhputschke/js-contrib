@@ -367,6 +367,59 @@ def event_array(hydro, grid_mode="native", tau_stride=1, out_spec=None):
     return resample(arr, src, out), src, out
 
 
+class FrameworkFrames:
+    """The framework copy as a read-only ``(ntau, nx, ny, neta, 4)`` array of
+    ``(energy_density, vx, vy, vz)`` that fetches one tau frame at a time.
+
+    The values are those of ``event_array(hydro, "framework")`` (the same floats, through
+    ``EvolutionHistory.frame_numpy``), but only the last frame read is held: whole, that
+    event is 1.3 GB as ``to_numpy_full(5)`` plus 1.1 GB as its 4-field copy for a 0-10%
+    Au+Au background.  Supports what :func:`resample` and the writers use: ``shape``,
+    ``len()``, ``a[k]`` and ``a[k, ...slices]`` with an integer ``k``.
+    """
+
+    def __init__(self, bulk_info, tau_stride=1):
+        self._b = bulk_info
+        self._stride = max(1, int(tau_stride))
+        n = -(-int(bulk_info.ntau) // self._stride)
+        self.shape = (n, int(bulk_info.nx), int(bulk_info.ny), max(1, int(bulk_info.neta)), 4)
+        self.dtype = np.dtype(np.float32)
+        self._k, self._frame = None, None
+
+    def __len__(self):
+        return self.shape[0]
+
+    def _get(self, k):
+        k = int(k)
+        if k < 0:
+            k += self.shape[0]
+        if not 0 <= k < self.shape[0]:
+            raise IndexError(f"tau frame {k} outside [0, {self.shape[0]})")
+        if k != self._k:
+            self._frame = None                 # free the old frame before the next
+            self._frame = np.asarray(self._b.frame_numpy(k * self._stride))
+            self._k = k
+        return self._frame
+
+    def __getitem__(self, idx):
+        if isinstance(idx, tuple):
+            return self._get(idx[0])[idx[1:]]
+        return self._get(idx)
+
+
+def framework_frames(hydro, tau_stride=1):
+    """``(FrameworkFrames, src_grid)`` for the framework copy, or None if this build's
+    ``EvolutionHistory`` has no ``frame_numpy`` (then use :func:`event_array`)."""
+    b = hydro.get_bulk_info()
+    if not hasattr(b, "frame_numpy"):
+        return None
+    if not b.get_data_size():
+        raise RuntimeError("framework copy is empty: run EvolveHydro() first")
+    arr = FrameworkFrames(b, tau_stride)
+    stride = max(1, int(tau_stride))
+    return arr, Grid.from_bulk_info(b, ntau=arr.shape[0], dtau=float(b.dtau) * stride)
+
+
 def framework_store_bytes(bulk_info):
     """Rough size of the framework AoS backing ``framework`` mode."""
     n = max(1, int(bulk_info.nx)) * max(1, int(bulk_info.ny)) * max(1, int(bulk_info.neta))

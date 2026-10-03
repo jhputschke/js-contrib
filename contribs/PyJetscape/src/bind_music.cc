@@ -128,6 +128,13 @@ void bind_music(py::module_ &m) {
            "Do not export this instance's freeze-out surface to the framework. "
            "Call it AFTER JetScape.Init(), like set_dump_hydro_only.",
            py::arg("skip"))
+      .def("get_slim_bulk_info", &MpiMusic::get_slim_bulk_info,
+           "Return whether <slim_bulk_info> is on: bulk_info gets a slim copy "
+           "(e, s, T, vx, vy, vz) instead of full FluidCellInfo cells.")
+      .def("set_slim_bulk_info", &MpiMusic::set_slim_bulk_info,
+           "Override <slim_bulk_info> for this instance. Call it AFTER "
+           "JetScape.Init() (which reads the XML flag).",
+           py::arg("slim"))
       .def("get_number_of_fluid_cells", &MpiMusic::get_number_of_fluid_cells,
            "Return the number of cells in MUSIC's native evolution store "
            "(0 before InitializeHydro() or after the store was released).")
