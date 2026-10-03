@@ -298,9 +298,10 @@ In the particlize file `events/ntau_jet` (frames on the output grid) becomes
 
 Measured (GB10, one job alone, seed 1, 3 events, `--write-particlize both`): 101.5 s against
 111.1 s with the pair file (-3.2 s per event: -1.3 s the pair-file write, -1.9 s the jet-leg
-read and resample), and ~300 MB less disk per event (no reuse). Peak memory: 13.0 GiB,
-against 14.2 GiB with the pair file (both with X-SCAPE/MUSIC4GPU `free_evolution_memory`;
-~20 GiB before, see docs/Plans/PLAN_slim_bulk_info.md).
+read and resample), and ~300 MB less disk per event (no reuse). Peak memory: 7.5 GiB,
+against 8.7 GiB with the pair file (X-SCAPE `slim_bulk_info`, MUSIC4GPU
+`free_evolution_memory`, `--bulk-info slim`; ~20 GiB before, see
+docs/Plans/PLAN_slim_bulk_info.md).
 
 ```bash
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both --particlize-only
@@ -934,6 +935,7 @@ processes keep up with a whole four-job GPU campaign.
 | `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |
 | `--no-showers` | Skip `shower/`. |
 | `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +5.4 s per event for `both` (+13.5 s before MUSIC4GPU `5058545`; measured, below). |
+| `--bulk-info {slim,full}` | The background's framework copy, which Matter, LBT and the liquefier look up. `slim` (default): e, s, T, vx, vy, vz per cell (24 instead of 112 bytes), ~7 GiB less memory at 0–10%, every output byte-identical to `full` (checked). `full`: the whole `FluidCellInfo` (also P; MUSIC's store has no viscous fields or μ's, so those are zero either way), for modules that read more. Sets `<Hydro><MUSIC><slim_bulk_info>`; needs X-SCAPE with it (branch `slim_bulk_info`). |
 | `--particlize-only` | Write only `<stem>_particlize.h5` (and the `.json`), no pair file: no evolution, `source/` or `shower/` is stored, and the jet leg's evolution is not even read (no `frames_identical` checks). ~3 s per event faster, same peak memory. Needs `--write-particlize`. See *Hadronization input only* in B. |
 | `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
 | `--hadronize-xml FILE` | Settings for `--validate-inline` (default `hadronize.xml`). |
