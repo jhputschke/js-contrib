@@ -930,8 +930,8 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
 
 Peak memory of a production job alone: 8.7 GiB with the pair file (B), 7.5 GiB with
 `--particlize-only`, 14.3 GiB with `--bulk-info full`; ~20 GiB before the memory fixes
-(docs/Plans/PLAN_slim_bulk_info.md). A `-j 4` campaign with the fixes is still to be
-measured.
+(docs/Plans/PLAN_slim_bulk_info.md). Four jobs at once (`-j 4 --mps`) used 29 GB on the
+GB10 at 197 events/h; `-j 6` gives 205 (docs/BENCHMARK_GB10.md).
 Surfaces add ~0.5 GB per production job; `hadronize.py` ~1.4 GB per surface
 up to ~1000 oversamples (1.6 GB for both legs), 1.7 GB at 2000 (it was 2.5 GB at 500 and
 3.9 GB at 1000 before the hadrons went to numpy as arrays). Three or four `hadronize.py`

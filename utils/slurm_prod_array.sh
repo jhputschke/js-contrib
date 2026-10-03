@@ -29,7 +29,7 @@
 #SBATCH --job-name=xscape_prod
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=20
-#SBATCH --mem=100G
+#SBATCH --mem=48G
 #SBATCH --time=24:00:00
 #SBATCH --array=0-9
 #SBATCH --output=xscape_prod_%A_%a.out
@@ -38,9 +38,9 @@
 SIF=${SIF:-$HOME/xscape_prod.sif}           # apptainer pull xscape_prod.sif docker://...
 WORK=${WORK:-${SCRATCH:-$HOME}/xscape_prod} # bound to /work; writable, shared by the tasks
 CAMPAIGN=${CAMPAIGN:-AuAu_0_10_jet}         # letters, digits, . _ -
-P=${P:-4}                                   # production jobs at once per GPU (~22 GB RAM each;
-                                            # ~9 GB alone since the 2026-10 memory fixes, keep
-                                            # 22 until a -j 4 campaign has been measured)
+P=${P:-4}                                   # production jobs at once per GPU (~12 GB RAM each:
+                                            # 4 used 29 GB on the GB10; --mem=64G for P=4 with
+                                            # --bulk-info full, ~22 GB each before 2026-10)
 NJOBS=${NJOBS:-40}                          # jobs (= .h5 files) per array task
 EVENTS=${EVENTS:-25}                        # events per job
 SEED_MODE=${SEED_MODE:-registry}            # registry | ranges

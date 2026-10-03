@@ -16,6 +16,11 @@ pay off, and is there an OpenMP or GPU bottleneck?
   best measured. See [Recommended settings](#recommended-settings-on-the-gb10).
 - **Absolute throughput at `-j 3`/`-j 4`** went from 140 / 154 to 155 / 159 events/h. The
   speed-ups mostly shorten each job rather than raise the machine's campaign ceiling.
+- **With the memory fixes** (2026-10-03, [below](#with-the-memory-fixes-2026-10-03)): a job
+  needs ~8 GB instead of ~20, so `-j 4` uses **29 GB instead of 66–69 GB**, at 197 events/h.
+  More jobs now fit but add little: `-j 5` 201, `-j 6` **205**, `-j 8` 202 events/h, because
+  the GPU saturates at ~86 % busy. The freed memory and the ~12 idle cores are better used
+  for `hadronize.py` next to the production.
 - **The startup hang** (jobs started at the same moment could hang forever at
   `Initialize MUSIC`) is fixed by per-job working directories (see
   [the startup race](#bug-concurrent-jobs-can-hang-at-start)).
@@ -40,7 +45,7 @@ export OMP_NUM_THREADS=5            # ~ cores / jobs at once
 
 | Setting | Value | Effect (4 jobs, MPS; events/h) |
 |---|---|---|
-| jobs at once | `-j 4` | best measured; `-j 3` 163, `-j 2` 136 (with MPS, default threads) |
+| jobs at once | `-j 4` | `-j 3` 163, `-j 2` 136 (with MPS, default threads); since the memory fixes `-j 6` with 3 threads gives 205 (+4 %, see [below](#with-the-memory-fixes-2026-10-03)) |
 | CUDA MPS | `--mps` | 159 → 173–179 |
 | OpenMP threads per job | `OMP_NUM_THREADS=5` | 173–179 → **193**, GPU 71–75 % → 81 % busy |
 | OpenBLAS threads per job | not needed | `OPENBLAS_NUM_THREADS=4` alone gave 186; combined with `OMP_NUM_THREADS=5` no better (189, 192) |
@@ -48,10 +53,8 @@ export OMP_NUM_THREADS=5            # ~ cores / jobs at once
 | `KMP_BLOCKTIME` | not applicable | Intel/LLVM `libomp` only; these builds use GNU `libgomp` |
 
 With these settings a campaign runs at **~190 events/h**: 1.6× one job alone (118), and
-2.8× the 68 events/h a single job did before the speed-ups. Memory stays at ~66–69 GB of the
-121 GB. (That was before the memory fixes of 2026-10-03: a job alone now peaks at ~9 GB
-instead of ~20, see docs/Plans/PLAN_slim_bulk_info.md. A `-j 4` campaign with the fixes is
-still to be measured.)
+2.8× the 68 events/h a single job did before the speed-ups. Memory: **29 GB** of the 121 GB
+with the memory fixes of 2026-10-03 (197 events/h); ~66–69 GB before them.
 
 **Measurement details:**
 - **Runs:** each is 4 jobs × 3 events, seeds 1–4, started at the same moment in their own
@@ -74,15 +77,15 @@ still to be measured.)
 - **No power throttling:** the GPU clock stays at ~2.4 GHz under every CPU load. The CPU and
   GPU share a power budget on the GB10, but CPU load does not slow the GPU here, so
   blocking instead of spinning CUDA syncs would not help.
-- **Not measured:** `-j 5` (~85 GB, the GPU still has ~20 % headroom at `-j 4`), `-j 3` with
-  6–7 threads per job, and other thread counts at `-j 4`.
+- **Not measured:** `-j 3` with 6–7 threads per job, and other thread counts at `-j 4`.
+  `-j 5` … `-j 8` were measured after the memory fixes ([below](#with-the-memory-fixes-2026-10-03)).
 
 ### Finding the settings on another machine
 
 1. **One job alone** gives the baseline events/h, and shows whether the GPU is mostly idle
    (`nvidia-smi dmon -s u`). If it is, parallel jobs will help.
-2. **Concurrent jobs:** try `-j 2 … 4` (memory permitting: ~17 GB per job here before the
-   memory fixes, ~9 GB for a job alone now), with and
+2. **Concurrent jobs:** try `-j 2 … 6` (memory permitting: ~8 GB per job here since the
+   memory fixes, 29 GB for `-j 4`; ~17 GB per job before them), with and
    without `--mps`. MPS pays off once the GPU is the shared bottleneck.
 3. **Thread limit:** with P jobs at once, try `OMP_NUM_THREADS ≈ cores / P`, and one step
    either side.
@@ -170,6 +173,41 @@ daemon.
   log), in Docker even with `--privileged`. Whether this happens on systems without unified
   memory (discrete GPUs) still has to be tested. See
   [`BuildContainerProd.md`](../utils/BuildContainerProd.md#several-gpus-on-one-machine).
+
+### With the memory fixes (2026-10-03)
+
+The memory fixes (X-SCAPE `contrib` `cbc72639`: JETSCAPE/X-SCAPE#160, #161 and the MUSIC4GPU
+pin `49439c0`, jhputschke/MUSIC4GPU#15; js-contrib `main` `89fb93c`; the slim `bulk_info`
+is the default, see [PLAN_slim_bulk_info.md](Plans/PLAN_slim_bulk_info.md)) cut a job's peak
+from ~20 GB to ~8 GB, so more jobs fit at once. Same method as above: P jobs × 3 events,
+seeds 1…P, started together by `run_jobs.sh -j P --mps` (a fresh MPS daemon per row),
+`OMP_NUM_THREADS ≈ 20 / P`, the defaults otherwise (no `--write-particlize`). Memory is
+`free`'s "used" for the whole machine (4 GB when idle); the peak per job is its
+`ru_maxrss`.
+
+| Jobs at once | threads | s/event per job | events/h | GPU busy (mean) | GPU idle samples (< 10 %) | cores busy (mean) | memory used (max) | peak per job |
+|---|---|---|---|---|---|---|---|---|
+| 4 | 5 | 73.2 | **197** | 81 % | 12 % | 7.3 | **28.8 GB** | 7.4–8.0 GiB |
+| 5 | 4 | 89.8 | 201 | 85 % | 10 % | 8.2 | 33.5 GB | 7.4–8.0 GiB |
+| 6 | 3 | 105.6 | **205** | 86 % | 9 % | 8.7 | 36.9 GB | 7.2–8.0 GiB |
+| 8 | 2 | 143.2 | 202 | 86 % | 10 % | 9.8 | 52.8 GB | 7.2–8.0 GiB |
+
+- **Memory:** `-j 4` needs 29 GB instead of 66–69 GB; even `-j 8` fits in 53 GB. With
+  `--write-particlize both` a job peaks at ~8.7 GiB (`--particlize-only` 7.5 GiB,
+  `--bulk-info full` 14.3 GiB; one job alone).
+- **Throughput: the GPU is the ceiling.** GPU busy stops rising at ~85–86 % from `-j 5` on;
+  more jobs only wait longer for it (s/event grows in proportion), so events/h stays at
+  ~200–205. Over `-j 4`: +2 % (`-j 5`), +4 % (`-j 6`), +3 % (`-j 8`), against a ±2 % spread of
+  identical runs and different seeds per row; only the `-j 6` gain is likely real.
+- **`-j 4` itself** is 197 events/h (193 before the fixes): the jobs got a little faster
+  (smaller copies, no whole-event read in the writer).
+- **What the freed memory is for:** a job keeps only ~7–10 of the 20 cores busy, and ~90 GB
+  stay free at `-j 4`. `hadronize.py` (CPU only, ~1.6 GB per process) can run next to the
+  production, which likely gains more than further GPU jobs. Campaigns with `--reuse` or
+  `--pthat-bins` (MUSIC_1 once per N events, less GPU per event) may scale to a higher `-j`;
+  not measured.
+- **Recommendation:** unchanged, `-j 4 --mps` with `OMP_NUM_THREADS=5`; `-j 6` with 3
+  threads for the last ~4 %.
 
 ### Before the speed-ups (first measurement)
 

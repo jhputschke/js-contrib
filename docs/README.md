@@ -22,7 +22,7 @@ the HDF5 study and the benchmarks stay here.
 | [`PLAN_particlize_h5.md`](Plans/PLAN_particlize_h5.md) | hadron level: stored surfaces and partons, `hadronize.py`, validation |
 | [`PLAN_iSS_optim.md`](Plans/PLAN_iSS_optim.md) | faster iSS (Part A, bit-identical) and correlated jet/background sampling (Part B) |
 | [`PLAN_analysis_decays.md`](Plans/PLAN_analysis_decays.md) | π⁰ and weak decays of the hadron files at the analysis level (`jetscape.decays`, `run_h5toROOT.py --decays`; not started) |
-| [`PLAN_slim_bulk_info.md`](Plans/PLAN_slim_bulk_info.md) | the jet job's memory: three fixes and a 6-field background copy (`bulk_info`, `--bulk-info slim`): ~20 → 8.7 GB peak per job, bit-identical (done; a `-j 4` campaign with the fixes is still to be measured) |
+| [`PLAN_slim_bulk_info.md`](Plans/PLAN_slim_bulk_info.md) | the jet job's memory: three fixes and a 6-field background copy (`bulk_info`, `--bulk-info slim`): ~20 → 8.7 GB peak per job, bit-identical; `-j 4` in 29 GB instead of 66–69 (done) |
 | [`README_h5_optim.md`](README_h5_optim.md) | HDF5 compression of `arr` / `arr_bg`: Blosc-zstd default, `keep_bits` |
 
 ## Benchmarks

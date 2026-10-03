@@ -61,7 +61,7 @@ themselves (variants, building, testing) in
 
 | per production job (stage 1) | |
 |---|---|
-| **host memory** | **~9 GB peak** per job alone: 8.7 GiB with the pair file, 7.5 GiB with `--particlize-only` (GB10, seed 1; X-SCAPE `contrib` from `cbc72639`, js-contrib `main` from `9356bf4`). It was ~20 GB before the memory fixes and is 14.3 GiB with `--bulk-info full` ([PLAN_slim_bulk_info.md](Plans/PLAN_slim_bulk_info.md)). Most of it is the background's hydro history, kept in memory for Matter/LBT, now as a slim 6-field copy. **Still to do: a `-j 4` campaign with the fixes.** Until it is measured, the sizing below keeps the old **22 GB per job** (4 jobs used 66–71 GB on the GB10 before the fixes). |
+| **host memory** | **~9 GB peak** per job alone: 8.7 GiB with the pair file, 7.5 GiB with `--particlize-only` (GB10, seed 1; X-SCAPE `contrib` from `cbc72639`, js-contrib `main` from `9356bf4`). It was ~20 GB before the memory fixes and is 14.3 GiB with `--bulk-info full` ([PLAN_slim_bulk_info.md](Plans/PLAN_slim_bulk_info.md)). Most of it is the background's hydro history, kept in memory for Matter/LBT, now as a slim 6-field copy. Several jobs: **4 at once used 29 GB** on the GB10 (66–71 GB before the fixes; [BENCHMARK_GB10.md](BENCHMARK_GB10.md#with-the-memory-fixes-2026-10-03)). **Plan for ~12 GB per job** (~16 GB with `--bulk-info full`). |
 | GPU memory | a few hundred MB: a 16 GB V100 is plenty |
 | CPU cores | ~5 per job (`OMP_NUM_THREADS=5`) |
 | time | ~30–50 s per event and job, depending on GPU and CPU |
@@ -175,11 +175,10 @@ SIF=$PWD/xscape_prod.sif CAMPAIGN=AuAu_a EXTRA_ARGS="--write-particlize both" \
 - **Why not one SLURM job per production job:** SLURM gives whole GPUs, and one job keeps
   a GPU only partly busy (most of an event is CPU work). Only jobs in one allocation can
   share a GPU.
-- **Size it:** the script asks for `--gres=gpu:1 --cpus-per-task=20 --mem=100G` for `P=4`.
-  Match `P`, cores and memory to one GPU's share of your nodes (~5 cores, **~22 GB per
-  job**: the size from before the memory fixes; one job alone now peaks at ~9 GB, but a
-  `-j 4` campaign with the fixes is still to be measured). It sets
-  `OMP_NUM_THREADS = cpus / P` and `OMP_WAIT_POLICY=passive` itself.
+- **Size it:** the script asks for `--gres=gpu:1 --cpus-per-task=20 --mem=48G` for `P=4`.
+  Match `P`, cores and memory to one GPU's share of your nodes (~5 cores, **~12 GB per
+  job**; 4 jobs used 29 GB on the GB10; ask for `--mem=64G` with `--bulk-info full`). It
+  sets `OMP_NUM_THREADS = cpus / P` and `OMP_WAIT_POLICY=passive` itself.
 - **Output:** `WORK/CAMPAIGN/t000/`, `t001/`, … with one shared seed registry. The script
   checks that the file system's locks work across nodes, or use `SEED_MODE=ranges`.
 - **Restarting:** submit the same command again.
@@ -370,9 +369,8 @@ numbers, scaled from c1:
 - **Time limit:** a task's jobs run 4 at a time, ~10–12 min per 15-event job on the GB10.
   Allow 2–3× on slower nodes (`--time` in the script is 24 h). A task that runs out of time
   resumes when submitted again.
-- **Size:** per task 4 jobs × ~22 GB host memory and ~20 cores, the script's defaults. A job
-  alone now peaks at ~9 GB; lower `--mem` once a `-j 4` campaign with the memory fixes has
-  been measured.
+- **Size:** per task 4 jobs × ~12 GB host memory and ~20 cores, the script's defaults
+  (`--mem=48G`).
 - **Smaller trial first:** `NJOBS=2 EVENTS=15 sbatch --array=0-1 --time=2:00:00 …`.
 
 ### Stage 2
@@ -559,6 +557,6 @@ wake.
 | `kernel launch … failed: no kernel image is available` | the image lacks this GPU's architecture (V100 with an image from before 2026-09-30): pull a current `cu126`/`cu124`; discard that output |
 | `No CUDA device found` / jobs much slower | no GPU visible: `--nv` / `--gpus`, `CUDA_VISIBLE_DEVICES`, or per-campaign MPS on several GPUs (§2) |
 | `--mps: could not start the MPS daemon` | MPS doesn't work in this container/site: drop `--mps` |
-| jobs killed (OOM) | ~9 GB host memory per job alone (~14 GB with `--bulk-info full`, ~22 GB with builds before the memory fixes): lower `-j` or ask for more `--mem` |
+| jobs killed (OOM) | plan ~12 GB host memory per job (~16 GB with `--bulk-info full`, ~22 GB with builds before the memory fixes): lower `-j` or ask for more `--mem` |
 | busy-spinning threads, the libgomp warning | `OMP_WAIT_POLICY=passive` before launching |
 | a failed job | its `OUTDIR/<stem>.log`; rerun the same command (finished jobs are skipped) |
