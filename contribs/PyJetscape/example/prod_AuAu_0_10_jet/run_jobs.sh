@@ -13,6 +13,8 @@
 #   ./run_jobs.sh -j 2 20 25 0 out_pgun --hard pgun --pgun-pt 40
 #   ./run_jobs.sh 10 30 0 out_reuse3 --reuse 3         # one background per 3 jet events
 #   ./run_jobs.sh -j 4 --mps 20 25 0                   # 4 at a time, GPU shared via CUDA MPS
+#   ./run_jobs.sh 20 25 0 out_had --write-particlize both --particlize-only
+#                                                      # only the _particlize.h5, no pair file
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROD_SCRIPT="$HERE/run_prod_jet.py"
 export TAG_PREFIX="AuAu_0_10_jet_seed"

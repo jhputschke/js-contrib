@@ -24,6 +24,8 @@ grid YAMLs, grid checks and environment checks this reuses.
     python run_prod_jet.py --events 10 --seed 1 --write-particlize both
                                      # + <stem>_particlize.h5: both surfaces and the final
                                      #   partons, for hadronize.py (PLAN_particlize_h5.md)
+    python run_prod_jet.py --events 10 --seed 1 --write-particlize both --particlize-only
+                                     # only <stem>_particlize.h5 (+ .json): no pair file
     python run_prod_jet.py --events 1 --seed 1 --dry-run         # check, print the plan
     python run_prod_jet.py --events 10 --seed 0 --campaign test  # unique seed from OS entropy,
                                                                  # -> out/AuAu_0_10_jet_test_0001.h5
@@ -142,6 +144,13 @@ def parse_args() -> argparse.Namespace:
                         "background) plus the final partons, everything hadronize.py needs "
                         "to hadronize the event exactly. Switches on the surface of those "
                         "legs (see --surface). Default none")
+    p.add_argument("--particlize-only", action="store_true", dest="particlize_only",
+                   help="write the particlize file only, no pair file: MUSIC still runs "
+                        "both legs, but only the background's evolution is read (to "
+                        "recognise a reused one), and no evolution, source/droplets or "
+                        "shower/ is stored. The particlize file's events/ then have "
+                        "ntau_jet_music (MUSIC steps) instead of ntau_jet, no "
+                        "frames_identical, and wall_s. Needs --write-particlize")
     p.add_argument("--validate-inline", action="store_true", dest="validate_inline",
                    help="validation only: also run iSS on the jet leg and Colorless jet "
                         "hadronization inside the job (settings from --hadronize-xml, "
@@ -384,7 +393,7 @@ def job_xml(a, out_h5: str):
 #: pair-writer diag/ values copied into the particlize file's events/ (energy bookkeeping
 #: for the hadron-level balance, and the flags that make an event suspect)
 PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_early",
-                   "tau0_music", "ntau_jet", "ntau_bg", "frames_identical",
+                   "tau0_music", "ntau_jet", "ntau_jet_music", "ntau_bg", "frames_identical",
                    "jet_hit_boundary", "bg_hit_boundary", "pthat_bin", "pthat",
                    "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
                    "parton_pt_sub")
@@ -531,6 +540,9 @@ def main() -> int:
     if a.validate_inline and a.write_particlize == "none":
         sys.exit("run_prod_jet.py: --validate-inline compares with the stored surfaces and "
                  "partons; add --write-particlize jet (or both)")
+    if a.particlize_only and a.write_particlize == "none":
+        sys.exit("run_prod_jet.py: --particlize-only keeps only the particlize file; add "
+                 "--write-particlize jet (or both)")
     a.hadronize_xml = os.path.abspath(a.hadronize_xml)
     unused = sorted(surface_legs(a) - set(particlize_legs(a)))
     if unused:
@@ -570,6 +582,7 @@ def main() -> int:
           f"{hard_desc}, reuse {a.reuse}, deposition {'OFF (null test)' if a.no_deposit else 'on'}, "
           f"freeze-out surface: {'+'.join(sorted(surface_legs(a))) or 'none'}"
           + (f", particlize input: {a.write_particlize}" if particlize_legs(a) else "")
+          + (" (no pair file)" if a.particlize_only else "")
           + (" + inline iSS/Colorless (validation)" if a.validate_inline else ""))
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
@@ -580,7 +593,8 @@ def main() -> int:
             + f"; max_ntau = {max_ntau or 'auto'}")
     else:
         print(rp.describe(grid, max_ntau))
-    print(f"  output   {out_h5}")
+    if not a.particlize_only:
+        print(f"  output   {out_h5}")
     stem = os.path.splitext(out_h5)[0]
     out_particlize = stem + "_particlize.h5" if particlize_legs(a) else None
     if out_particlize:
@@ -605,6 +619,8 @@ def main() -> int:
         "prod_reuse": a.reuse,
         "prod_surface": a.surface,
         "prod_write_particlize": a.write_particlize,
+        **({"prod_particlize_only": True, "prod_jet_leg_read": False}
+           if a.particlize_only else {}),
         **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
@@ -624,13 +640,14 @@ def main() -> int:
                     "transport_mode": "MUSIC viscous: eta/s(T) and zeta/s(T) "
                                       "parametrization 3, second-order terms"},
         keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True,
-        bg_layout=a.bg_layout, reuse=a.reuse)
+        bg_layout=a.bg_layout, reuse=a.reuse, store_evolution=not a.particlize_only,
+        read_jet=not a.particlize_only)
     pwriter = None
     if out_particlize:
         from jetscape.particlize_h5 import ParticlizeH5Writer
         pwriter = ParticlizeH5Writer(
             out_particlize, legs=particlize_legs(a), bg_id=BG_ID, jet_id=JET_ID,
-            T_fo=provenance["T_fo"], pair_file=out_h5,
+            T_fo=provenance["T_fo"], pair_file=None if a.particlize_only else out_h5,
             extra_attrs={k: v for k, v in provenance.items() if k != "T_fo"},
             verbose=True)
 
@@ -674,14 +691,20 @@ def main() -> int:
                 print(f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} SKIPPED (see warning)")
                 continue
             writer.write_diag(idx, wall_s=wall)
+            if a.particlize_only:                # the only per-event record of it
+                pwriter.write_events(idx, wall_s=wall)
             d = writer.last_event_diag
             droplets += d["n_droplets"]
             e_late += d["E_droplets_late"]
+            frames = (f"jet/bg frames {d['ntau_jet']}/{d['ntau_bg']}" if "ntau_jet" in d
+                      else f"jet {d['ntau_jet_music']} MUSIC steps, bg {d['ntau_bg']} frames")
             msg = (f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} done in {wall:.1f} s, "
-                   f"MUSIC tau0 = {d['tau0_music']:.3f} fm/c, jet/bg frames "
-                   f"{d['ntau_jet']}/{d['ntau_bg']}, {d['n_droplets']} droplets "
-                   f"({d['E_droplets']:.1f} GeV, {d['E_droplets_late']:.1f} after freeze-out), "
-                   f"{d['frames_identical']} leading frames identical, bg {d['bg_id']}")
+                   f"MUSIC tau0 = {d['tau0_music']:.3f} fm/c, {frames}, {d['n_droplets']} "
+                   f"droplets ({d['E_droplets']:.1f} GeV, {d['E_droplets_late']:.1f} after "
+                   f"freeze-out), "
+                   + (f"{d['frames_identical']} leading frames identical, "
+                      if "frames_identical" in d else "")
+                   + f"bg {d['bg_id']}")
             if not a.native and d["tau0_music"] > grid.tau_min + rp._TOL:
                 late += 1
                 msg += (f"  WARNING: tau0 after tau.min = {grid.tau_min:g}, so the first "
@@ -702,16 +725,21 @@ def main() -> int:
             inline.close()
 
     n = writer.GetNumberOfEventsWritten()
-    if n:
+    if n and not a.particlize_only:
         with h5py.File(out_h5, "a") as f:
             f.attrs["prod_wall_s_total"] = time.time() - t_job
             if windows is not None:
                 f.attrs.update(windows)
-        if windows is not None and out_particlize and pwriter.GetNumberOfEventsWritten():
+    if out_particlize and pwriter.GetNumberOfEventsWritten():
+        if windows is not None:
             with h5py.File(out_particlize, "a") as f:
                 f.attrs.update(windows)
-    summary = {"out": out_h5, "seed": a.seed, "seed_source": a.seed_source,
-               "campaign": a.campaign, "index": a.index, "grid": a.grid, "hard": hard_desc,
+        if a.particlize_only:
+            with h5py.File(out_particlize, "a") as f:
+                f.attrs["prod_wall_s_total"] = time.time() - t_job
+    summary = {"out": None if a.particlize_only else out_h5, "seed": a.seed,
+               "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
+               "grid": a.grid, "hard": hard_desc,
                "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,
                "events_requested": a.events, "events_written": n,
                "events_tau0_after_tau_min": late,
@@ -721,6 +749,8 @@ def main() -> int:
     if pwriter is not None:
         summary.update(particlize=out_particlize, particlize_legs=list(particlize_legs(a)),
                        particlize_events_written=pwriter.GetNumberOfEventsWritten())
+    if a.particlize_only:
+        summary["particlize_only"] = True
     if writer.bg_layout == "shared":
         summary["bg_layout"] = "shared"
     if windows is not None:
