@@ -569,6 +569,69 @@ def test_read_jet_off_takes_the_jet_leg_from_musics_metadata(tmp_path):
         PairH5Writer(tmp_path / "x.h5", read_jet=False)
 
 
+class _FramedBulk(_Bulk):
+    """A build with EvolutionHistory.frame_numpy: one (nx, ny, neta, 4) frame at a time."""
+
+    def __init__(self, evo, log):
+        super().__init__(evo)
+        self.log = log
+
+    def get_data_size(self):
+        return self.evo[..., 0].size
+
+    def frame_numpy(self, id_tau):
+        self.log.append(id_tau)
+        return self.evo[id_tau].copy()
+
+
+@pytest.mark.parametrize("grid_mode", ["native", "grid"])
+def test_background_read_frame_by_frame_writes_the_same_file(tmp_path, grid_mode):
+    """F3: the framework copy fetched per tau frame gives a byte-identical pair file."""
+    from jetscape.bulk_sources import Grid
+
+    out = Grid.from_bounds((-0.6, 0.6, 3), (-0.4, 0.4, 2), (-0.3, 0.3, 2),
+                           tau_min=0.4, dtau=0.15)
+
+    def run(name, framed):
+        log = []
+        bg_evo = _evo(5, 1.0)
+        w, bg, jet, liq = _pair_writer(tmp_path / name, bg_evo, bg_evo.copy(), tau_stride=2)
+        if grid_mode == "grid":                    # resampled onto a smaller grid
+            w._grid_mode, w._out_grid = "grid", out
+        if framed:
+            bg.get_bulk_info = lambda: _FramedBulk(bg.evo, log)
+        for k in range(3):
+            if k == 2:
+                bg.evo = _evo(6, 4.0)
+            jet.evo = bg.evo.copy()
+            jet.evo[1:, 0, 0, 0, 0] += k + 1
+            assert w.Exec() == k
+        w.Finish()
+        return tmp_path / name / "pair.h5", log
+
+    plain, _ = run("plain", False)
+    framed, log = run("framed", True)
+    assert log and set(log) <= {0, 2, 4}           # strided frames only, never all at once
+    with h5py.File(plain, "r") as a, h5py.File(framed, "r") as b:
+        names = []
+        a.visititems(lambda n, o: names.append(n) if isinstance(o, h5py.Dataset) else None)
+        for n in names:
+            np.testing.assert_array_equal(a[n][()], b[n][()], err_msg=n)
+
+
+def test_framework_frames_index_like_the_whole_array():
+    from jetscape.bulk_sources import FrameworkFrames
+
+    evo = _evo(5, 1.0)
+    f = FrameworkFrames(_FramedBulk(evo, []), tau_stride=2)
+    want = evo[::2]
+    assert f.shape == want.shape and len(f) == 3
+    np.testing.assert_array_equal(f[1], want[1])
+    np.testing.assert_array_equal(f[-1, 1:3, :, 0, :], want[-1, 1:3, :, 0, :])
+    with pytest.raises(IndexError):
+        f[3]
+
+
 def test_bg_layout_auto_follows_reuse(tmp_path):
     from jetscape.pair_h5 import PairH5Writer
 

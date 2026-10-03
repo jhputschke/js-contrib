@@ -87,8 +87,8 @@ from typing import Optional
 
 import numpy as np
 
-from .bulk_sources import (Grid, attrs_from_grids, event_array, music_extra_attrs,
-                           resample, resolve_out_grid)
+from .bulk_sources import (Grid, attrs_from_grids, event_array, framework_frames,
+                           music_extra_attrs, resample, resolve_out_grid)
 from .fno_h5_writer import FnoH5Writer, write_row_view
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 from .liquefier_io import (DROPLET_COLUMNS, droplet_fluxes, droplets, liquefier_params,
@@ -523,8 +523,15 @@ class PairH5Writer:
         write_row_view(self._w.f, "arr_bg", BG_STORE, BG_ROWS)
 
     def _read(self, hydro, framework):
-        """(ntau, nx, ny, neta, 4) on the leg's source grid, and that grid (strided)."""
+        """(ntau, nx, ny, neta, 4) on the leg's source grid, and that grid (strided).
+
+        The framework copy comes frame by frame where the build allows it
+        (:class:`jetscape.bulk_sources.FrameworkFrames`): the same values, ~2.4 GB less
+        held at once for a 0-10% Au+Au background."""
         if framework:
+            lazy = framework_frames(hydro, self._tau_stride)
+            if lazy is not None:
+                return lazy
             arr, src, _ = event_array(hydro, "framework")
             if self._tau_stride > 1:              # framework mode has no stride of its own
                 arr = arr[::self._tau_stride]
