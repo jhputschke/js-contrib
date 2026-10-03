@@ -38,7 +38,9 @@
 SIF=${SIF:-$HOME/xscape_prod.sif}           # apptainer pull xscape_prod.sif docker://...
 WORK=${WORK:-${SCRATCH:-$HOME}/xscape_prod} # bound to /work; writable, shared by the tasks
 CAMPAIGN=${CAMPAIGN:-AuAu_0_10_jet}         # letters, digits, . _ -
-P=${P:-4}                                   # production jobs at once per GPU (~22 GB RAM each)
+P=${P:-4}                                   # production jobs at once per GPU (~22 GB RAM each;
+                                            # ~9 GB alone since the 2026-10 memory fixes, keep
+                                            # 22 until a -j 4 campaign has been measured)
 NJOBS=${NJOBS:-40}                          # jobs (= .h5 files) per array task
 EVENTS=${EVENTS:-25}                        # events per job
 SEED_MODE=${SEED_MODE:-registry}            # registry | ranges
