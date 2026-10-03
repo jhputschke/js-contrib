@@ -46,8 +46,10 @@ ARG WITH_ROOT=0
 # external_packages/get_music4gpu.sh pins (iSS and 3dMCGlauber always use their scripts').
 ARG XSCAPE_REPO=https://github.com/JETSCAPE/X-SCAPE.git
 # A ROOT-free build (WITH_ROOT=0) needs an X-SCAPE with JETSCAPE/X-SCAPE#157 and #158 (the
-# ROOT writers only with ROOT), on contrib since d31946c0.
-ARG XSCAPE_REF=d31946c0cde63f1bca33b56653417ae057e43313
+# ROOT writers only with ROOT), on contrib since d31946c0.  js-contrib main since 9356bf4
+# needs X-SCAPE#161 (slim bulk_info: PyJetscape does not compile without it), on contrib
+# since 011a4679; cbc72639 also pins MUSIC4GPU PR #15 (the memory fixes).
+ARG XSCAPE_REF=cbc72639cafbc053a8a45613cc912bd72d99c91e
 ARG MUSIC4GPU_REF=""
 ARG JS_CONTRIB_REPO=https://github.com/jhputschke/js-contrib.git
 ARG JS_CONTRIB_REF=main

@@ -49,7 +49,9 @@ export OMP_NUM_THREADS=5            # ~ cores / jobs at once
 
 With these settings a campaign runs at **~190 events/h**: 1.6× one job alone (118), and
 2.8× the 68 events/h a single job did before the speed-ups. Memory stays at ~66–69 GB of the
-121 GB.
+121 GB. (That was before the memory fixes of 2026-10-03: a job alone now peaks at ~9 GB
+instead of ~20, see docs/Plans/PLAN_slim_bulk_info.md. A `-j 4` campaign with the fixes is
+still to be measured.)
 
 **Measurement details:**
 - **Runs:** each is 4 jobs × 3 events, seeds 1–4, started at the same moment in their own
@@ -79,7 +81,8 @@ With these settings a campaign runs at **~190 events/h**: 1.6× one job alone (1
 
 1. **One job alone** gives the baseline events/h, and shows whether the GPU is mostly idle
    (`nvidia-smi dmon -s u`). If it is, parallel jobs will help.
-2. **Concurrent jobs:** try `-j 2 … 4` (memory permitting, ~17 GB per job here), with and
+2. **Concurrent jobs:** try `-j 2 … 4` (memory permitting: ~17 GB per job here before the
+   memory fixes, ~9 GB for a job alone now), with and
    without `--mps`. MPS pays off once the GPU is the shared bottleneck.
 3. **Thread limit:** with P jobs at once, try `OMP_NUM_THREADS ≈ cores / P`, and one step
    either side.

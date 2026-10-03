@@ -928,7 +928,11 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
 | `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before [`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md) Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8`, and ~60% of that with `--eta-max 2` |
 
-Peak memory: +0.5 GB per production job with surfaces; `hadronize.py` ~1.4 GB per surface
+Peak memory of a production job alone: 8.7 GiB with the pair file (B), 7.5 GiB with
+`--particlize-only`, 14.3 GiB with `--bulk-info full`; ~20 GiB before the memory fixes
+(docs/Plans/PLAN_slim_bulk_info.md). A `-j 4` campaign with the fixes is still to be
+measured.
+Surfaces add ~0.5 GB per production job; `hadronize.py` ~1.4 GB per surface
 up to ~1000 oversamples (1.6 GB for both legs), 1.7 GB at 2000 (it was 2.5 GB at 500 and
 3.9 GB at 1000 before the hadrons went to numpy as arrays). Three or four `hadronize.py`
 processes keep up with a whole four-job GPU campaign.

@@ -127,8 +127,8 @@ Sources at **pinned commits** (build arguments, recorded in the image, see
 
 | repo | fetched by | pin today |
 |---|---|---|
-| X-SCAPE (`contrib`) | shallow fetch of `$XSCAPE_REF` (a full 40-character hash, a branch or a tag) | `d31946c0` (with #157/#158, see [ROOT](#root)) |
-| MUSIC4GPU (`XSCAPE`) | `external_packages/get_music4gpu.sh` (also downloads the hotQCD EoS) | `15ec5e3`, the head of `XSCAPE` and what `build_gpu` is built from; the script pins it since X-SCAPE `9509aea2` |
+| X-SCAPE (`contrib`) | shallow fetch of `$XSCAPE_REF` (a full 40-character hash, a branch or a tag) | `cbc72639`: with #157/#158 (see [ROOT](#root)), the slim `bulk_info` (#161) that js-contrib `main` needs since `9356bf4`, and the MUSIC4GPU pin below |
+| MUSIC4GPU (`XSCAPE`) | `external_packages/get_music4gpu.sh` (also downloads the hotQCD EoS) | `49439c0` (PR #15, the store releases its memory), the head of `XSCAPE` and what `build_gpu` is built from; the script pins it since X-SCAPE `9509aea2` |
 | iSS (`common_seeds`, fork) | `get_iSS.sh` (+ HRG and δf tables) | `3192982` |
 | 3dMCGlauber (`JETSCAPE`) | `get_3dglauber.sh` (+ LHAPDF data) | `71116fe` |
 | LBT tables | `get_lbtTab.sh` | (1.2 GB) |
@@ -304,6 +304,9 @@ commands for the new tags.
   pin, so they follow `xscape_ref`.
 - A ROOT-free image needs X-SCAPE `d31946c0` or later (#157/#158). An older `xscape_ref`
   stops right after fetching, with a message.
+- js-contrib `main` from `9356bf4` on needs X-SCAPE `011a4679` or later (JETSCAPE/X-SCAPE#161,
+  the slim `bulk_info`): against an older `xscape_ref`, `pyjetscape_core` does not compile.
+  Build an older X-SCAPE with an older `js_contrib_ref`.
 
 ### Tags
 
@@ -457,7 +460,10 @@ your environment to the job by default (`--export=ALL`); where a site turns that
 
 - **Resources per task:** `#SBATCH --gres=gpu:1 --cpus-per-task=20 --mem=100G --time=24:00:00`
   in the script, for `P=4`. Each production job takes ~5 cores and ~22 GB of host memory,
-  so match `P` to what one GPU comes with on the node. The script sets
+  so match `P` to what one GPU comes with on the node. (22 GB is the size from before the
+  memory fixes in X-SCAPE `cbc72639` / js-contrib `9356bf4`: a job alone now peaks at
+  ~9 GB, but a `-j 4` campaign with the fixes is still to be measured; see
+  docs/Plans/PLAN_slim_bulk_info.md.) The script sets
   `OMP_NUM_THREADS = cpus-per-task / P` and `OMP_WAIT_POLICY=passive` for the jobs.
 - **Time limit:** choose `NJOBS × EVENTS` so a task fits `--time`: ~30–50 s per event and
   job, `P` jobs at once. A task that runs out of time resumes when you submit the same
