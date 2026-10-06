@@ -217,6 +217,7 @@ class WebLogin:
         self.file = (Path(WEB_DIR).expanduser()
                      / f"{federation}{namespace.replace('/', '_')}.json")
         self._lock = threading.Lock()
+        self.last_error = None                       # why the last renewal failed
         try:
             self.state = json.loads(self.file.read_text())
         except (OSError, ValueError):
@@ -269,12 +270,20 @@ class WebLogin:
                      client_secret_expires_at=reg.get("client_secret_expires_at", 0))
         return {"client_id": s["client_id"], "client_secret": s["client_secret"]}
 
-    def _take(self, tok):
-        """Keep a token response."""
+    def _take(self, tok, renewal=False):
+        """Keep a token response.  On a renewal the refresh token we have is kept and the
+        issuer's new one only noted (refresh_token_rotated): the /fno4hic issuer (OA4MP at
+        the Wayne origin, 2026-10-05) answers a renewal with a refresh token that was itself
+        handed out by a renewal with HTTP 500 "Null pointer", while the login's refresh token
+        renews any number of times."""
         s, claims = self.state, _claims(tok["access_token"])
         s["access_token"] = tok["access_token"]
         if tok.get("refresh_token"):
-            s["refresh_token"] = tok["refresh_token"]
+            if renewal and s.get("refresh_token"):
+                s["refresh_token_rotated"] = tok["refresh_token"]
+            else:
+                s["refresh_token"] = tok["refresh_token"]
+                s.pop("refresh_token_rotated", None)
         s["expires_at"] = int(claims.get("exp") or time.time() + int(tok.get("expires_in", 600)))
         s["scope"] = claims.get("scope") or tok.get("scope", "")
         s["sub"] = claims.get("sub", s.get("sub", ""))
@@ -319,17 +328,43 @@ class WebLogin:
         raise RuntimeError("login timed out: the link was not used in time")
 
     def refresh(self):
-        """A new token from the refresh token; False if there is none or it is refused."""
+        """A new token from the refresh token (the kept one, else the issuer's latest, see
+        _take); False if there is none or it is refused (the reason in self.last_error)."""
         s = self.state
+        self.last_error = None
         if not s.get("refresh_token") or not s.get("token_endpoint"):
+            self.last_error = "no refresh token"
             return False
-        st, _, body = _http(s["token_endpoint"], form={
-            **self._client(), "grant_type": "refresh_token",
-            "refresh_token": s["refresh_token"]})
-        tok = _json(body)
-        if st != 200 or "access_token" not in tok:
+        errors = []
+        for key in ("refresh_token", "refresh_token_rotated"):
+            rt = s.get(key)
+            if not rt:
+                continue
+            st, _, body = _http(s["token_endpoint"], form={
+                **self._client(), "grant_type": "refresh_token", "refresh_token": rt})
+            tok = _json(body)
+            if st == 200 and "access_token" in tok:
+                if key == "refresh_token_rotated":     # the kept one is refused, this one not
+                    s["refresh_token"] = rt
+                self._take(tok, renewal=True)
+                return True
+            err = tok.get("error") or " ".join(
+                (body[:160].decode(errors="replace") if isinstance(body, bytes)
+                 else str(body)[:160]).split())
+            errors.append(f"{key}: HTTP {st} {err} {tok.get('error_description', '')}".strip())
+        self.last_error = "; ".join(errors)
+        return False
+
+    def reload(self):
+        """Read the login file again (another process may have logged in or renewed);
+        True if it changed."""
+        try:
+            state = json.loads(self.file.read_text())
+        except (OSError, ValueError):
             return False
-        self._take(tok)
+        if state == self.state:
+            return False
+        self.state = state
         return True
 
     def token(self, interactive=False):
@@ -341,6 +376,15 @@ class WebLogin:
                 return s["access_token"]
             if self.refresh():
                 return s["access_token"]
+            if self.reload():                          # e.g. a login in another terminal
+                s = self.state
+                if s.get("access_token") and s.get("expires_at", 0) > time.time() + MARGIN:
+                    return s["access_token"]
+                if self.refresh():
+                    return s["access_token"]
+            if self.last_error:
+                print(f"js_osdf: renewing the token for {self.ns} failed: {self.last_error}",
+                      file=sys.stderr, flush=True)
             if interactive:
                 return self.login()
             return None
@@ -378,8 +422,9 @@ class WebLogin:
         if not s.get("refresh_token"):
             refresh = "none: when the token expires, login again"
         elif rexp:
-            refresh = (f"valid until {when(rexp)} ({_left(rexp)}); each renewal brings a "
-                       "new one" if rexp > time.time() else
+            refresh = (f"valid until {when(rexp)} ({_left(rexp)}); renewals don't extend "
+                       "it: login again before then"
+                       if rexp > time.time() else
                        f"expired {when(rexp)}: ./js_osdf.py login")
         else:
             refresh = "kept (its expiry is the issuer's)"
