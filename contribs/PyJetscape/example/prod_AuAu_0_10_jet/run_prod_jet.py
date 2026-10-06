@@ -89,6 +89,13 @@ def parse_args() -> argparse.Namespace:
                    help="template user XML (default: the one in this folder)")
     p.add_argument("--native", action="store_true",
                    help="write MUSIC's own grid for both legs instead of the YAML's")
+    p.add_argument("--edge-e-threshold", type=float, default=None, dest="edge_e_threshold",
+                   metavar="E",
+                   help="flag a leg whose energy density on the x/y edge of the output grid "
+                        "exceeds E [GeV/fm^3] (diag/{bg,jet}_hit_edge). Default: MUSIC's "
+                        "freeze-out energy density from the job XML (eps_switch, or "
+                        "e(freezeout_temperature) from the build's EOS 9/91 table); 0: no "
+                        "flag. diag/{bg,jet}_edge_e_max are recorded either way")
     p.add_argument("--hard", choices=("pythia", "pgun"), default="pythia",
                    help="hard process: PythiaGun (default; vertex from the Glauber "
                         "collisions) or PGun (fixed pT, vertex at the origin)")
@@ -203,6 +210,39 @@ def music_delta_tau(build: str) -> float:
             if len(parts) >= 2 and parts[0] == "Delta_Tau":
                 return float(parts[1])
     sys.exit(f"run_prod_jet.py: no Delta_Tau in {build}/music_input")
+
+
+#: MUSIC's hotQCD tables per <EOS> (music/src/eos_hotQCD.cpp): rows (e, P, s, T), e in
+#: GeV/fm^3, T in GeV, float64
+EOS_TABLES = {"9": "hrg_hotqcd_eos_binary.dat", "91": "hrg_hotqcd_eos_SMASH_binary.dat"}
+
+
+def freezeout_e(root, main_xml: str, build: str):
+    """MUSIC's freeze-out energy density [GeV/fm^3] and where it came from, from the first
+    <Hydro><MUSIC> block (the main XML's defaults for tags it lacks).  (None, reason) if it
+    cannot be determined here (an EOS without a table lookup below)."""
+    main = ET.parse(main_xml).getroot()
+
+    def val(tag):
+        for r in (root, main):
+            v = _text(r, f"Hydro/MUSIC/{tag}")
+            if v:
+                return v
+        return None
+
+    if val("use_eps_for_freeze_out") == "1":
+        return float(val("eps_switch")), "eps_switch"
+    eos, T_fo = val("EOS"), float(val("freezeout_temperature"))
+    if eos not in EOS_TABLES:
+        return None, f"EOS {eos}: no table lookup for it here (pass --edge-e-threshold)"
+    import numpy as np
+    path = os.path.join(build, "EOS", "hotQCD", EOS_TABLES[eos])
+    if not os.path.exists(path):
+        return None, f"no EOS table {path} (pass --edge-e-threshold)"
+    tab = np.fromfile(path, dtype="<f8").reshape(-1, 4)
+    # MUSIC interpolates the table linearly in e, so e(T) is the inverse interpolation
+    return (float(np.interp(T_fo, tab[:, 3], tab[:, 0])),
+            f"e(T_fo = {T_fo:g} GeV), EOS {eos}")
 
 
 def parse_pthat_bins(text: str) -> list:
@@ -401,7 +441,9 @@ def job_xml(a, out_h5: str):
 #: for the hadron-level balance, and the flags that make an event suspect)
 PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_early",
                    "tau0_music", "ntau_jet", "ntau_jet_music", "ntau_bg", "frames_identical",
-                   "jet_hit_boundary", "bg_hit_boundary", "pthat_bin", "pthat",
+                   "jet_hit_boundary", "bg_hit_boundary", "jet_hit_edge", "bg_hit_edge",
+                   "jet_edge_e_max", "bg_edge_e_max", "jet_edge_e_max_eta",
+                   "bg_edge_e_max_eta", "pthat_bin", "pthat",
                    "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
                    "parton_pt_sub")
 
@@ -588,6 +630,13 @@ def main() -> int:
     grid_mode = "native" if a.native else "grid"
     if not a.native:
         rp.check_inside(grid, box)
+    if a.edge_e_threshold is None:
+        a.edge_e_threshold, edge_src = freezeout_e(root, a.main_xml, a.build)
+    else:
+        edge_src = "--edge-e-threshold"
+    if not a.edge_e_threshold:                      # 0 or not determined: no flag
+        edge_src = edge_src if a.edge_e_threshold is None else "off (--edge-e-threshold 0)"
+        a.edge_e_threshold = None
 
     if a.pthat_windows:
         hard_desc = ("PythiaGun pTHat windows "
@@ -618,6 +667,9 @@ def main() -> int:
             + f"; max_ntau = {max_ntau or 'auto'}")
     else:
         print(rp.describe(grid, max_ntau))
+    print("  edge     " + (f"flag e > {a.edge_e_threshold:.4f} GeV/fm^3 on the x/y edge of "
+                             f"the output grid ({edge_src})" if a.edge_e_threshold is not None
+                             else f"no flag: {edge_src}"))
     if not a.particlize_only:
         print(f"  output   {out_h5}")
     stem = os.path.splitext(out_h5)[0]
@@ -667,7 +719,7 @@ def main() -> int:
                                       "parametrization 3, second-order terms"},
         keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True,
         bg_layout=a.bg_layout, reuse=a.reuse, store_evolution=not a.particlize_only,
-        read_jet=not a.particlize_only)
+        read_jet=not a.particlize_only, edge_e_threshold=a.edge_e_threshold)
     pwriter = None
     if out_particlize:
         from jetscape.particlize_h5 import ParticlizeH5Writer
@@ -772,6 +824,8 @@ def main() -> int:
                "events_requested": a.events, "events_written": n,
                "events_tau0_after_tau_min": late,
                "legs_cut_at_max_ntau": writer.n_clipped,
+               "edge_e_threshold": a.edge_e_threshold,
+               "events_hit_edge": writer.n_hit_edge,
                "droplets_total": int(droplets), "E_droplets_late_total": round(e_late, 3),
                "wall_s": round(time.time() - t_job, 1)}
     if pwriter is not None:

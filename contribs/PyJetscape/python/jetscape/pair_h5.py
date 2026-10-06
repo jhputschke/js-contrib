@@ -45,7 +45,9 @@ Layout (on top of :class:`jetscape.fno_h5_writer.FnoH5Writer`)
 * ``diag/``: droplet counts and energies (and how much deposits after the jet leg froze out,
   which MUSIC never applies), shower counts, MUSIC tau0, per-leg frame counts, ``bg_id``
   (the first event that used this background -- repeats under ``setReuseHydro``),
-  ``frames_identical``.
+  ``frames_identical``, and per leg the largest energy density on the faces of the
+  output grid (``{bg,jet}_edge_e_max`` on the x and y faces, ``..._eta`` on the eta faces)
+  with, given ``edge_e_threshold``, the flag ``{bg,jet}_hit_edge``.
 * Provenance attributes as in FastHydro's ``PairedH5Writer`` (``pairing``, ``arr_is``,
   ``arr_bg_is``, ``source_model``, ``liquefier_*`` ...), so ``fasthydro.browse.PairBrowser``,
   the wake notebook and ``wake_pyvista.py`` read the file unchanged.
@@ -187,6 +189,15 @@ class PairH5Writer:
     read_jet : bool
         False (needs ``store_evolution=False``): do not read the jet leg's evolution; see
         the module docstring for what ``diag`` then holds instead.
+    edge_e_threshold : float, optional
+        Energy density [GeV/fm^3], normally MUSIC's freeze-out value e(T_fo).  Every event
+        records per leg the largest energy density on the transverse faces of the OUTPUT
+        grid (the first and last x and y planes, over all stored frames) as
+        ``diag/{bg,jet}_edge_e_max``, and on the eta faces as ``..._edge_e_max_eta``.  With
+        a threshold, ``diag/{bg,jet}_hit_edge`` is 1 when the transverse value exceeds it:
+        fluid above freeze-out reached the edge of the stored box, so the stored
+        evolution misses part of it (MUSIC's own, larger grid does not).  None: the
+        maxima only, no flag.
     """
 
     def __init__(self, out_file_name="pair_evo.h5", *, bg_id="MUSIC_1", jet_id="MUSIC_2",
@@ -194,7 +205,7 @@ class PairH5Writer:
                  compression=DEFAULT_COMPRESSION, keep_bits=None, store_droplets=True,
                  store_showers=True, keep_surface=(), provenance=None, extra_attrs=None,
                  force=True, verbose=False, bg_layout="auto", reuse=1,
-                 store_evolution=True, read_jet=True):
+                 store_evolution=True, read_jet=True, edge_e_threshold=None):
         if grid_mode not in ("grid", "native"):
             raise ValueError(f"grid_mode must be 'grid' or 'native', got {grid_mode!r}")
         self._out_file_name = str(out_file_name)
@@ -226,6 +237,9 @@ class PairH5Writer:
         self._read_jet = bool(read_jet)
         if self._store_evolution and not self._read_jet:
             raise ValueError("read_jet=False needs store_evolution=False: arr is the jet leg")
+        self._edge_e_threshold = (None if edge_e_threshold is None
+                                  else float(edge_e_threshold))
+        self._n_hit_edge = {"bg": 0, "jet": 0}
 
         self._bg = self._jet = self._liq = self._mgr = None
         self._deposition = None                 # True: MUSIC_2 has the liquefier
@@ -383,11 +397,13 @@ class PairH5Writer:
             w.ensure_capacity(nevents=i + 1, choose_ntau=n_bg)
         shared = self._bg_layout == "shared"
         bg_hashes = []
+        bg_edge = _EdgeMax()
         for t in range(n_bg):
             frame = np.ascontiguousarray(bg_frames[t].transpose(3, 0, 1, 2))
             if w is not None and not shared:
                 w.write_frame(i, t, frame, dataset="arr_bg")
             bg_hashes.append(hashlib.blake2b(frame.tobytes(), digest_size=16).digest())
+            bg_edge.add(frame[0])
         tau_fo_bg = bg_src.tau_min + bg_src.ntau * bg_src.dtau
 
         # A new background run?  Hash the whole leg: on MUSIC's native grid the first
@@ -409,10 +425,12 @@ class PairH5Writer:
             if w is not None:
                 w.ensure_capacity(nevents=i + 1, choose_ntau=n_jet)
             identical, same = 0, True
+            jet_edge = _EdgeMax()
             for t in range(n_jet):
                 frame = np.ascontiguousarray(jet_frames[t].transpose(3, 0, 1, 2))
                 if w is not None:
                     w.write_frame(i, t, frame)
+                jet_edge.add(frame[0])
                 if same and t < n_bg and hashlib.blake2b(
                         frame.tobytes(), digest_size=16).digest() == bg_hashes[t]:
                     identical += 1
@@ -422,6 +440,7 @@ class PairH5Writer:
             jet_diag = dict(ntau_jet=n_jet, frames_identical=identical)
         else:
             jet_diag = dict(ntau_jet_music=jet_src.ntau)
+            jet_edge = None
         tau_fo_jet = jet_src.tau_min + jet_src.ntau * jet_src.dtau
 
         d = self._liq_rows(tau_fo_jet, jet_src.tau_min)
@@ -439,6 +458,10 @@ class PairH5Writer:
             hit = _hit_grid_boundary(hydro)
             if hit is not None:
                 d[f"{leg}_hit_boundary"] = int(hit)
+        for leg, edge in (("bg", bg_edge), ("jet", jet_edge)):
+            if edge is not None:
+                d.update(edge.diag(leg, self._edge_e_threshold))
+                self._n_hit_edge[leg] += d.get(f"{leg}_hit_edge", 0)
         d.update(diag)
         if w is not None:
             w.write_diag(i, **d)
@@ -501,6 +524,13 @@ class PairH5Writer:
     def n_clipped(self):
         """Legs cut at a pinned ``choose_ntau`` so far."""
         return self._n_clipped
+
+    @property
+    def n_hit_edge(self):
+        """Events so far whose leg exceeded ``edge_e_threshold`` on the transverse faces
+        of the output grid, as ``{"bg": n, "jet": n}`` (a reused background counts once
+        per event)."""
+        return dict(self._n_hit_edge)
 
     @property
     def bg_layout(self):
@@ -610,6 +640,8 @@ class PairH5Writer:
         extra.update(xscape_grid_mode=self._grid_mode, xscape_tau_stride=self._tau_stride,
                      xscape_writer="jetscape.pair_h5.PairH5Writer")
         extra.update(self._provenance_attrs())
+        if self._edge_e_threshold is not None:
+            extra["edge_e_threshold"] = self._edge_e_threshold
         self._drop_flux = False
         if self._liq is not None:
             extra.update({f"liquefier_{k}": v for k, v in liquefier_params(self._liq).items()})
@@ -694,6 +726,14 @@ class PairH5Writer:
                     f"evolution is truncated (diag/{leg}_hit_boundary). Enlarge "
                     f"<IS><grid_max_x>/<grid_max_y>.",
                     RuntimeWarning, stacklevel=4)
+            if d.get(f"{leg}_hit_edge"):
+                warnings.warn(
+                    f"PairH5Writer: event {i}: the {leg} leg has e = "
+                    f"{d[f'{leg}_edge_e_max']:.3f} GeV/fm^3 > {self._edge_e_threshold:g} on "
+                    f"the transverse edge of the output grid: fluid above freeze-out "
+                    f"reached the edge, so the stored evolution misses part of it "
+                    f"(diag/{leg}_hit_edge). Enlarge the grid YAML's x/y range.",
+                    RuntimeWarning, stacklevel=4)
         if "frames_identical" not in d:         # read_jet=False: nothing to compare
             return
         n_jet = d["ntau_jet"]
@@ -711,6 +751,45 @@ class PairH5Writer:
                 "ignored the liquefier -- check that the MUSIC build has the jet source slot "
                 "(music4gpu needs the add_hydro_source_terms_from_jet port).",
                 RuntimeWarning, stacklevel=4)
+
+
+class _EdgeMax:
+    """The largest energy density on the faces of the output grid, over one leg's frames.
+
+    ``add`` takes one frame's energy density ``(nx, ny, neta)``.  The transverse faces are
+    the first and last x planes and the first and last y planes; the eta faces the first
+    and last eta planes.  An axis with a single point has no faces (a slice is not an
+    edge), so its value stays None and is not recorded.
+    """
+
+    def __init__(self):
+        self.xy = self.eta = None
+
+    @staticmethod
+    def _max(old, new):
+        return new if old is None else max(old, new)
+
+    def add(self, e):
+        nx, ny, neta = e.shape
+        faces = []
+        if nx > 1:
+            faces.append(e[[0, -1]].max())
+        if ny > 1:
+            faces.append(e[:, [0, -1]].max())
+        if faces:
+            self.xy = self._max(self.xy, float(max(faces)))
+        if neta > 1:
+            self.eta = self._max(self.eta, float(e[:, :, [0, -1]].max()))
+
+    def diag(self, leg, threshold):
+        d = {}
+        if self.xy is not None:
+            d[f"{leg}_edge_e_max"] = self.xy
+            if threshold is not None:
+                d[f"{leg}_hit_edge"] = int(self.xy > threshold)
+        if self.eta is not None:
+            d[f"{leg}_edge_e_max_eta"] = self.eta
+        return d
 
 
 def _hit_grid_boundary(hydro):
