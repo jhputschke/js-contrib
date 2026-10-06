@@ -1,4 +1,5 @@
-# Output grid for run_prod.py: the FNO grid cut to |eta_s| <= 2.5 (same 0.3125 spacing).
+# Output grid for run_prod.py: the earlier FNO grid (65 x 65, x, y -10 .. 10 fm, before
+# October 2026; see grid_fno.yaml) cut to |eta_s| <= 2.5, all steps 0.3125.
 # 17 instead of 33 eta cells: about half the storage (~100 MB per event).
 # See grid_fno.yaml for what every key means.
 
