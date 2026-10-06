@@ -1,7 +1,15 @@
 # Output grid for run_prod.py  (python run_prod.py --grid grid_fno.yaml)
 #
-# Default: the FNO4d Au+Au grid, identical to fast_data's fastdata_AuAu200_tune_0_10.h5, so
-# the MUSIC and fast_data files load together.
+# Default: the FNO4d Au+Au grid, 64 x 64 x 32 cells (powers of two for the FFTs) at
+# dx = dy = 0.3875 fm, deta = 0.3125.  x, y reach +-12.2 fm: the jet leg's fluid above
+# freeze-out reaches past +-10 fm in some 0-10% events (diag/jet_hit_edge).  With an even n
+# a symmetric axis has no centre at 0: the two middle cells are at +-step/2 (x, y +-0.194 fm,
+# eta +-0.156).
+#
+# NOT the grid of fast_data's fastdata_AuAu200_tune_0_10.h5 and of the MUSIC files made
+# before October 2026 (65 x 65 x 33, x, y -10 .. 10 fm, step 0.3125): files of the two grids
+# do not load into one training set.  That grid, if needed: x, y {min: -10.0, max: 10.0,
+# n: 65}, eta {min: -5.0, max: 5.0, n: 33}.
 #
 # Each spatial axis is n cell CENTRES from min to max inclusive: step = (max - min)/(n - 1).
 # n = 1 stores a single slice (then min must equal max).  The box must lie inside MUSIC's
@@ -12,10 +20,10 @@
 # Every file of one training set must share this whole grid, max_ntau included.
 
 grid:
-  x:   {min: -12.4, max: 12.4, n: 64}     # dx   = 0.3875 fm
-  y:   {min: -12.4, max: 12.4, n: 64}     # dy   = 0.3875 fm
-  eta: {min: -5.0,  max: 5.0,  n: 32}     # deta = 0.3125
-  
+  x:   {min: -12.20625, max: 12.20625, n: 64}     # dx   = 0.3875 fm  (= 24.4125 / 63)
+  y:   {min: -12.20625, max: 12.20625, n: 64}     # dy   = 0.3875 fm
+  eta: {min: -4.84375,  max: 4.84375,  n: 32}     # deta = 0.3125     (=  9.6875 / 31)
+
 tau:
   # First stored frame [fm/c].  With string initial conditions MUSIC starts each event at
   # its own tau0 (0.4 fm/c in tests, set by the earliest string), so keep min >= tau0 or the

@@ -9,7 +9,7 @@ and resamples it onto an output grid you choose in a YAML file (default: the FNO
 | file | purpose |
 |---|---|
 | `AuAu_MCGlauber_MUSIC_0_10_fast.xml` | user XML: calibrated 3D-Glauber + MUSIC, hydro-only output settings |
-| `grid_fno.yaml` | default output grid: the FNO4d Au+Au grid (65 × 65 × 33, τ from 0.5 in steps of 0.1) |
+| `grid_fno.yaml` | default output grid: the FNO4d Au+Au grid (64 × 64 × 32 at 0.3875 fm × 0.3875 fm × 0.3125, τ from 0.5 in steps of 0.1) |
 | `grid_x10_eta2p5.yaml` | example: the same grid cut to \|η_s\| ≤ 2.5 (17 η cells, about half the storage) |
 | `run_prod.py` | one job: one seed, N events, one `.h5` file |
 | `run_jobs.sh` | runs many jobs on one GPU (`-j P` at a time), one seed per job, and can resume |
@@ -155,9 +155,9 @@ running seeds; restart with the same command to resume.
 
 ```yaml
 grid:
-  x:   {min: -10.0, max: 10.0, n: 65}   # n cell centres, min..max inclusive
-  y:   {min: -10.0, max: 10.0, n: 65}   # step = (max - min)/(n - 1)
-  eta: {min: -5.0,  max: 5.0,  n: 33}   # n = 1 stores one slice (min = max)
+  x:   {min: -12.20625, max: 12.20625, n: 64}   # n cell centres, min..max inclusive
+  y:   {min: -12.20625, max: 12.20625, n: 64}   # step = (max - min)/(n - 1) = 0.3875
+  eta: {min: -4.84375,  max: 4.84375,  n: 32}   # n = 1 stores one slice (min = max)
 tau:
   min: 0.5        # first frame [fm/c], must be >= every event's MUSIC tau0 (~0.4)
   dtau: 0.1       # multiples of 0.1 land on stored MUSIC frames
@@ -218,14 +218,15 @@ together with it.
 
 ## What is written
 
-Shown for the default `grid_fno.yaml`, the FNO4d Au+Au grid, the same as
-`fastdata_AuAu200_tune_0_10.h5`:
+Shown for the default `grid_fno.yaml`, the FNO4d Au+Au grid. Files made before October 2026
+and `fastdata_AuAu200_tune_0_10.h5` are on the earlier 65 × 65 × 33 grid (x, y −10 … 10 fm,
+all steps 0.3125); the two grids do not mix in one training set:
 
 | | |
 |---|---|
-| `arr` | `(nevents, 4, 65, 65, 33, ntau)` float32, channels `energy_density, vx, vy, vz`; ntau = longest event (or `max_ntau`) |
-| x, y | −10 … 10 fm, dx = 0.3125 |
-| η_s | −5 … 5, dη = 0.3125 |
+| `arr` | `(nevents, 4, 64, 64, 32, ntau)` float32, channels `energy_density, vx, vy, vz`; ntau = longest event (or `max_ntau`) |
+| x, y | cell centres −12.206 … 12.206 fm, dx = 0.3875 (none at 0: the middle two at ±0.194) |
+| η_s | cell centres −4.844 … 4.844, dη = 0.3125 (the middle two at ±0.156) |
 | τ | 0.5 + k·0.1 fm/c |
 | `ntau_freezeout`, `tau_freezeout` | per event; frames from `ntau_freezeout` onward are 0 |
 | `diag/wall_s`, `diag/tau0_music` | per-event wall time and MUSIC start time |
