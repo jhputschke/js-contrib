@@ -124,7 +124,7 @@ bits, GB10, 2026-09-29), with the defaults (RNTuple, ROOT writer, positions kept
   300-frame limit (`events.ntau_bg` = 300, against ~100 elsewhere). Its surface has 3.5 M
   cells, and iSS samples ~88 000 hadrons per sample from it instead of ~7000. The
   converter copies what is there. `events.ntau_bg`, `ntau_jet` and the `*_hit_boundary`
-  flags let an analysis find and drop such events, as `wake_observables.ipynb` does.
+  and `*_hit_edge` flags let an analysis find and drop such events, as `wake_observables.ipynb` does.
 
 ## Converter usage
 

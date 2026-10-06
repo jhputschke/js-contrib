@@ -905,7 +905,7 @@ On top of the single-leg schema (`arr`, `ntau_freezeout`, `tau_freezeout`, grid 
 | `arr_bg`, `ntau_freezeout_bg`, `tau_freezeout_bg` | the background leg (MUSIC_1). Always the same shape as `arr`; the τ axis grows to the longer leg, and each leg is exactly 0 after its own freeze-out. |
 | `source/droplets` (M, 8), `source/offsets` | the droplets MUSIC_2 was given: `tau, x, y, eta, E, px, py, pz`. Event `i` is rows `offsets[i]:offsets[i+1]`. No `source/S` (`has_source = false`): MUSIC keeps no gridded source. |
 | `shower/` | partons, vertices and initiators per event (`jetscape.showers`, as in FastHydro) |
-| `diag/` | `n_droplets`, `E_droplets`, `n/E_droplets_late` (deposit after the jet leg froze out), `n/E_droplets_early`, `n_showers`, `n_partons`, `tau0_music`, `ntau_jet`, `ntau_bg`, `bg_id`, `frames_identical`, `bg_hit_boundary`, `jet_hit_boundary` |
+| `diag/` | `n_droplets`, `E_droplets`, `n/E_droplets_late` (deposit after the jet leg froze out), `n/E_droplets_early`, `n_showers`, `n_partons`, `tau0_music`, `ntau_jet`, `ntau_bg`, `bg_id`, `frames_identical`, `bg_hit_boundary`, `jet_hit_boundary`, `{bg,jet}_edge_e_max`, `{bg,jet}_edge_e_max_eta`, with `edge_e_threshold` also `{bg,jet}_hit_edge` |
 | attributes | `pairing = "bg_jet"`, `arr_is`, `arr_bg_is`, `deposition`, `source_model`, `hard_vertex`, `liquefier_*`, `freezeout_convention_id = "frames_written"` |
 
 The ragged tables (`source/`, `shower/`) and `diag/` are written as each event arrives, so a
@@ -948,6 +948,12 @@ The main XML default is 1; CPU MUSIC ignores the setting and always builds the s
   equals the background (MUSIC ignored the liquefier).
 * **`diag/{bg,jet}_hit_boundary`** flags a leg MUSIC stopped because its freeze-out surface
   reached the grid edge.
+* **`diag/{bg,jet}_edge_e_max`** is the largest energy density on the x and y faces of the
+  **output** grid (the YAML's box, or MUSIC's grid with `grid_mode="native"`) over all the
+  leg's frames; `..._eta` the same on the η faces. With `edge_e_threshold` (MUSIC's
+  freeze-out e) **`diag/{bg,jet}_hit_edge`** is 1 when the x/y value exceeds it: fluid above
+  freeze-out reached the edge of the stored box, so the stored evolution misses part of it,
+  although MUSIC's own larger grid holds it. The writer warns, and `n_hit_edge` counts them.
 * **`diag/bg_id`** is the first event that used this background; it repeats under
   `--reuse` (`setReuseHydro`).
 

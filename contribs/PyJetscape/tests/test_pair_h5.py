@@ -561,7 +561,8 @@ def test_read_jet_off_takes_the_jet_leg_from_musics_metadata(tmp_path):
         assert i == j
         assert "frames_identical" not in ds and "ntau_jet" not in ds
         assert ds["ntau_jet_music"] == dr["ntau_jet"]          # native grid, stride 2
-        same = {k: v for k, v in dr.items() if k not in ("frames_identical", "ntau_jet")}
+        same = {k: v for k, v in dr.items()
+                if k not in ("frames_identical", "ntau_jet") and not k.startswith("jet_edge")}
         assert {k: v for k, v in ds.items() if k != "ntau_jet_music"} == same
     assert [d["bg_id"] for _, d, _ in skip] == [0, 0, 2, 2]
     assert [d["n_droplets_late"] for _, d, _ in skip] == [1, 1, 1, 1]
@@ -726,6 +727,81 @@ def test_a_leg_stopped_at_the_grid_boundary_is_flagged(tmp_path):
     with h5py.File(tmp_path / "pair.h5", "r") as f:
         assert f["diag/jet_hit_boundary"][0] == 1 and f["diag/bg_hit_boundary"][0] == 0
 
+
+
+def _edge_evo(ntau=3, hot=True):
+    """e = 1 inside, 0.1 on every face, and (hot) in frame 1 a hot spot 0.5 on the last x
+    plane and 0.7 on the first eta plane (away from the x/y faces)."""
+    e = _evo(ntau, 0.0)
+    e[..., 0] = 0.1
+    e[:, 1:-1, 1:-1, 1:-1, 0] = 1.0
+    if hot:
+        e[1, -1, 2, 1, 0] = 0.5
+        e[1, 2, 2, 0, 0] = 0.7
+    return e
+
+
+def test_edge_e_max_is_recorded_per_leg_on_the_output_grid_faces(tmp_path):
+    w, bg, jet, liq = _pair_writer(tmp_path, _edge_evo(hot=False), _edge_evo())
+    w.Exec()
+    w.Finish()
+    assert w.n_hit_edge == {"bg": 0, "jet": 0}
+    with h5py.File(tmp_path / "pair.h5", "r") as f:
+        d = f["diag"]
+        assert d["jet_edge_e_max"][0] == pytest.approx(0.5)      # x/y faces only
+        assert d["jet_edge_e_max_eta"][0] == pytest.approx(0.7)
+        assert d["bg_edge_e_max"][0] == d["bg_edge_e_max_eta"][0] == pytest.approx(0.1)
+        assert "jet_hit_edge" not in d and "bg_hit_edge" not in d  # no threshold, no flag
+        assert "edge_e_threshold" not in f.attrs
+
+
+def test_a_leg_above_the_threshold_on_the_edge_is_flagged(tmp_path):
+    w, bg, jet, liq = _pair_writer(tmp_path, _edge_evo(hot=False), _edge_evo(),
+                                   edge_e_threshold=0.3)
+    with pytest.warns(RuntimeWarning, match="jet leg has e = 0.500 GeV/fm.3 > 0.3"):
+        w.Exec()
+    jet.evo = _edge_evo()
+    jet.evo[1, -1, 2, 1, 0] = 0.2                    # below: no flag, no warning
+    w.Exec()
+    w.Finish()
+    assert w.n_hit_edge == {"bg": 0, "jet": 1}
+    with h5py.File(tmp_path / "pair.h5", "r") as f:
+        assert list(f["diag/jet_hit_edge"][:]) == [1, 0]
+        assert list(f["diag/bg_hit_edge"][:]) == [0, 0]
+        assert f.attrs["edge_e_threshold"] == 0.3
+
+
+def test_edge_e_max_follows_the_output_grid_not_musics(tmp_path):
+    """grid mode: the faces are those of the resampled box, here the inner 3 x 2 cells."""
+    pytest.importorskip("scipy")
+    from jetscape.bulk_sources import Grid
+    from jetscape.pair_h5 import PairH5Writer
+
+    evo = _edge_evo()                     # NX x NY = 5 x 4, dx = dy = 0.5, x_min -1
+    out = Grid.from_bounds((-0.5, 0.5, 3), (-0.25, 0.25, 2), (-0.4, 0.4, 3),
+                           tau_min=0.4, dtau=0.1)
+    bg = _Music("MUSIC_1", evo)
+    jet = _Music("MUSIC_2", evo.copy(), liquefier=_Liq([]))
+    w = PairH5Writer(tmp_path / "grid.h5", grid_mode="grid", out_grid=out)
+    w.attach(_JS(bg, jet), manager=_Manager())
+    w.Exec()
+    w.Finish()
+    with h5py.File(tmp_path / "grid.h5", "r") as f:
+        # x = +-0.5 and y = +-0.25 lie inside MUSIC's grid, where e = 1 (the 0.1 faces
+        # and the hot spot on MUSIC's last x plane are outside the box)
+        assert f["diag/bg_edge_e_max"][0] == pytest.approx(1.0)
+        assert f["diag/jet_edge_e_max"][0] == pytest.approx(1.0)
+
+
+def test_a_single_slice_axis_has_no_faces(tmp_path):
+    from jetscape.pair_h5 import _EdgeMax
+
+    m = _EdgeMax()
+    m.add(np.arange(6.0).reshape(3, 2, 1))       # neta = 1: no eta faces
+    assert m.diag("bg", 2.0) == {"bg_edge_e_max": 5.0, "bg_hit_edge": 1}
+    m = _EdgeMax()
+    m.add(np.ones((1, 1, 4)))                    # a single x, y point: no x/y faces
+    assert m.diag("jet", 0.5) == {"jet_edge_e_max_eta": 1.0}
 
 # ───────────────────────────────────────────── compression and mantissa rounding
 @pytest.mark.parametrize("spec", ["lzf", "gzip", None, "blosc-zstd", "blosc-lz4"])
