@@ -198,8 +198,9 @@ to `/fno4hic` can be read by everyone.
 - **Kept:** in `~/.config/js_osdf/web/<federation>_<namespace>.json` (mode 600), with the
   refresh token. The token (20 min on `/fno4hic`) is renewed by itself before every
   request, also in the middle of a long upload. When the issuer no longer renews it,
-  `login` again: a command already running then reports its files FAILED (re-run it), a
-  new one says so and goes on without a token.
+  `login` again: a command already running picks the new login up from the file at its
+  next renewal; one that fails before reports its files FAILED (re-run it). A new command
+  says so, with the issuer's answer, and goes on without a token.
 - **`--web` is not for one command only.** It keeps the login as `login` does, and every
   later command uses it, with or without `--web` (for one command only, `logout` after
   it). `--web` differs from a command without it in two ways:
@@ -207,9 +208,17 @@ to `/fno4hic` can be read by everyone.
     and waits); without `--web` the command says so and goes on without credentials, so
     an upload then fails;
   - it uses the browser login even if there is a bearer token.
-- **How long:** until the refresh token expires, or `logout`. On `/fno4hic` a refresh token
-  lasts 15 days, and every renewal of the token brings a new one: a login used at least
-  once in 15 days doesn't need the browser again.
+- **How long:** until the login's refresh token expires (15 days on `/fno4hic`), or
+  `logout`. **Log in again before a long run would pass that date:** renewals don't extend
+  it, see the next point.
+- **Renewals keep the login's refresh token.** The `/fno4hic` issuer hands out a new
+  refresh token with every renewal, but crashes when that one is used (HTTP 500
+  `server_error`, "Null pointer"; OA4MP at the Wayne origin, found 2026-10-05), while the
+  login's own refresh token renews any number of times. Switching to the new one, as
+  js_osdf.py did before, ended every login after ~40 min (one renewal). So the login's is
+  kept, and the issuer's latest only noted (`refresh_token_rotated` in the login file): it
+  is used when the kept one is refused, e.g. once the issuer is fixed and invalidates old
+  refresh tokens, and then kept instead. A failed renewal prints the issuer's answer.
 - **`status`** shows the login without asking the issuer: the user, the issuer, the
   scopes, the time left of the token and of the refresh token, and a bearer token that
   would come first. It exits 1 when there is nothing to write with.
@@ -220,7 +229,7 @@ to `/fno4hic` can be read by everyone.
     issuer   https://wayne-origin.nationalresearchplatform.org:8455
     scopes   storage.modify:/ storage.create:/ storage.read:/
     token    valid until 2026-10-01 20:58 (20 min left)
-    refresh  valid until 2026-10-16 20:38 (15.0 days); each renewal brings a new one
+    refresh  valid until 2026-10-16 20:38 (15.0 days); renewals don't extend it: login again before then
     file     ~/.config/js_osdf/web/osg-htc.org_fno4hic.json
   ```
 - **Which credential:** without `--web` a bearer token found as below comes first, then the
@@ -268,7 +277,7 @@ upload needs one that lasts.
 
 ## Tested
 
-- **Offline:** `pytest utils/remote_transfer/test` (31 tests, in
+- **Offline:** `pytest utils/remote_transfer/test` (33 tests, in
   [`test/test_transfer.py`](test/test_transfer.py)). Every command runs against two
   stores: an in-memory GCS bucket, and `OsdfStore` on fsspec's in-memory file system in
   place of pelicanfs. The tests cover:
@@ -279,7 +288,10 @@ upload needs one that lasts.
   - the key and token lookup, remote names, and that the CRC32C matches GCS's;
   - the browser login against a fake Pelican issuer: the login (pending, consent_required,
     then the token), the login file, renewal before a request and in the middle of a run, a
-    refused renewal, `--web`, `logout`, and `status`;
+    refused renewal, `--web`, `logout`, and `status`; the `/fno4hic` issuer's renewal bug
+    (refresh tokens from renewals answered with HTTP 500: the login's is kept and renews
+    again and again; the latest used once the kept one is refused; both refused: the
+    issuer's answer reported), and a running process taking up a login made meanwhile;
   - `rm`: files, patterns, directories with their manifests and empty directories below,
     `--what`, `--dry-run`, the question (no terminal, no, yes), and targets that aren't
     there.
@@ -300,5 +312,13 @@ upload needs one that lasts.
     directory (with its manifests and an empty directory below), `--dry-run`, and the
     refusal without a terminal. (Its origin's TLS certificate, expired on 2026-09-21, was renewed
     by then, until 2026-12-30.)
+- **On `/fno4hic`, 2026-10-05 (host rhicML, 2 × RTX 3090):**
+  - the renewal bug above: after a login, renewal 1 worked and renewal 2 (with the refresh
+    token from renewal 1) failed with HTTP 500 "Null pointer", also with `scope` and when
+    repeated; with the login's refresh token three renewals in a row worked, and one from a
+    renewal failed again. With the fix: five forced renewals through the command line, the
+    refresh token unchanged, then an upload and an `rm`.
+  - uploads of production files (4 GB) at ~80 MB/s (4 or 8 files at once alike), a download
+    at ~69 MB/s, byte-identical; a second upload skipped every file.
 - **Not tested yet:** real uploads, downloads and `rm` on `gs://test_fno` (only dry runs),
-  and large uploads to `/fno4hic`.
+  and uploads to `/fno4hic` over hours (a login now lasts its 15 days, see above).

@@ -436,12 +436,16 @@ def _jwt(**claims):
 
 class FakeIssuer:
     """The OSDF's pelican-configuration, its director and a Pelican token issuer, in place
-    of js_osdf._http.  refuse_refresh: the refresh token is no longer accepted."""
+    of js_osdf._http.  refuse_refresh: the refresh token is no longer accepted.
+    rotated_broken: the /fno4hic issuer's bug (2026-10-05): a refresh token handed out by a
+    renewal fails with HTTP 500 "Null pointer" when it is used; the login's keeps working.
+    refuse: these refresh tokens are refused (invalid_grant)."""
 
     ISS = "https://origin.example.org:8455"
 
     def __init__(self):
         self.calls, self.pending, self.n, self.refuse_refresh = [], 2, 0, False
+        self.rotated_broken, self.from_renewal, self.refuse = False, set(), set()
 
     def token(self):
         self.n += 1
@@ -479,9 +483,13 @@ class FakeIssuer:
                         "authorization_pending" if self.pending else "consent_required")}).encode()
                 return 200, {}, json.dumps(self.token()).encode()
             assert form["grant_type"] == "refresh_token"
-            if self.refuse_refresh:
+            if self.refuse_refresh or form["refresh_token"] in self.refuse:
                 return 400, {}, b'{"error": "invalid_grant"}'
-            return 200, {}, json.dumps(self.token()).encode()
+            if self.rotated_broken and form["refresh_token"] in self.from_renewal:
+                return 500, {}, b'error="server_error"\nerror_description="Null+pointer"\n'
+            tok = self.token()
+            self.from_renewal.add(tok["refresh_token"])
+            return 200, {}, json.dumps(tok).encode()
         if url == f"{self.ISS}/revocation_endpoint":
             return 200, {}, b""
         raise AssertionError(url)
@@ -516,7 +524,8 @@ def test_web_login(tmp_path, monkeypatch, capsys):
     w.file.write_text(json.dumps(st))
     cred = js_osdf.credential(js_osdf.parse_args(["ls"]))
     s = js_osdf.OsdfStore("/fno4hic", token=cred, fs=fs)
-    assert json.loads(w.file.read_text())["refresh_token"] == "refresh-2"
+    kept = json.loads(w.file.read_text())         # the login's refresh token is kept
+    assert kept["refresh_token"] == "refresh-1" and kept["refresh_token_rotated"] == "refresh-2"
     first = s._headers["Authorization"]
     cred.login.state["expires_at"] = 0           # expires mid-run
     s.list("")
@@ -626,3 +635,54 @@ def test_status(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("BEARER_TOKEN", _jwt(sub="robot", scope="storage.create:/",
                                             exp=int(now) + 7200))
     assert status() == 0 and "a bearer token comes first" in capsys.readouterr().out
+
+
+def test_web_login_renewal_bug(tmp_path, monkeypatch, capsys):
+    """The /fno4hic issuer crashes (HTTP 500) on a refresh token handed out by a renewal:
+    renewals keep the login's refresh token, so a login lasts its 15 days."""
+    issuer = FakeIssuer()
+    issuer.rotated_broken = True
+    monkeypatch.setattr(js_osdf, "_http", issuer)
+    monkeypatch.setattr(js_osdf, "WEB_DIR", str(tmp_path / "web"))
+    monkeypatch.setattr(js_osdf.time, "sleep", lambda s: None)
+    w = js_osdf.WebLogin("/fno4hic")
+    w.login(out=sys.stdout)
+    assert w.state["refresh_token"] == "refresh-1"
+    tokens = set()
+    for _ in range(4):                             # each would have failed from the 2nd on
+        w.state["expires_at"] = 0
+        tokens.add(w.token())
+        assert w.state["refresh_token"] == "refresh-1"
+    assert None not in tokens and len(tokens) == 4
+    assert json.loads(w.file.read_text())["refresh_token"] == "refresh-1"
+    # the issuer's latest is used when the kept one is refused (a fixed issuer that
+    # invalidates old refresh tokens), and then kept itself
+    issuer.rotated_broken, latest = False, w.state["refresh_token_rotated"]
+    issuer.refuse.add("refresh-1")
+    w.state["expires_at"] = 0
+    assert w.token() and w.state["refresh_token"] == latest
+    # both refused: the issuer's answer is reported, not just "expired"
+    issuer.rotated_broken = True
+    issuer.refuse.add(latest)
+    issuer.from_renewal.add(w.state["refresh_token_rotated"])
+    w.state["expires_at"] = 0
+    w._save()                                      # (else the file's valid token is reloaded)
+    assert w.token() is None
+    err = capsys.readouterr().err
+    assert "invalid_grant" in err and "HTTP 500" in err and "Null" in err
+
+
+def test_web_login_reload(tmp_path, monkeypatch):
+    """A running process whose renewal fails picks up a login made meanwhile elsewhere."""
+    issuer = FakeIssuer()
+    issuer.pending = 0
+    monkeypatch.setattr(js_osdf, "_http", issuer)
+    monkeypatch.setattr(js_osdf, "WEB_DIR", str(tmp_path / "web"))
+    monkeypatch.setattr(js_osdf.time, "sleep", lambda s: None)
+    running = js_osdf.WebLogin("/fno4hic")
+    running.login(out=sys.stdout)                  # refresh-1
+    issuer.refuse.add("refresh-1")                 # e.g. revoked, or the login ran out
+    js_osdf.WebLogin("/fno4hic").login(out=sys.stdout)   # login again in another terminal
+    running.state["expires_at"] = 0
+    assert running.token() and running.state["refresh_token"] == "refresh-2"
+    assert running.reload() is False               # nothing new in the file now
