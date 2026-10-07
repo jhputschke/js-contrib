@@ -19,12 +19,14 @@ to its own documentation.
 | [`Dockerfile.dev`](Dockerfile.dev), [`Dockerfile.dev.blackwell`](Dockerfile.dev.blackwell) | development images: the build and runtime environment without sources (CUDA 12.6 / 13.2) | [`BuildContainerDev.md`](BuildContainerDev.md) |
 | [`Dockerfile.prod`](Dockerfile.prod) | production images: X-SCAPE, MUSIC4GPU, iSS, 3dMCGlauber and PyJetscape built in, ready for `prod_AuAu_0_10_jet` | [`BuildContainerProd.md`](BuildContainerProd.md); running them: [`docs/README_2stage.md`](../docs/README_2stage.md) |
 | [`slurm_prod_array.sh`](slurm_prod_array.sh) | a production campaign as a SLURM array in the production container, one GPU per task | [`BuildContainerProd.md`](BuildContainerProd.md), *SLURM* |
+| [`launch_2gpu.sh`](launch_2gpu.sh) | a campaign on both GPUs of one machine with Docker: one container per GPU, `run_jobs.sh -j 8 --mps` in each, a disk guard (`--min-free`), and optionally `upload_follow.py` uploading the finished jobs while it runs; tuned on a 2 × RTX 3090 workstation | [`README_launch.md`](README_launch.md) |
 
 ## Data
 
 | | what | docs |
 |---|---|---|
 | [`remote_transfer/`](remote_transfer/README.md) | `js_gcs.py` (Google Cloud Storage) and `js_osdf.py` (Pelican/OSDF, pelicanfs): upload and download production directories, single files or patterns, picked by kind (`--what pair\|h5\|root\|all`). They skip files already there, check every transfer, and each runs in an environment of its own | [`remote_transfer/README.md`](remote_transfer/README.md) |
+| [`upload_follow.py`](upload_follow.py) | uploads a production's finished jobs to the OSDF **while it runs** (`--follow`), and optionally deletes the uploaded HDF5 files locally once verified (size, manifest CRC32C, every Nth file downloaded and compared), so a campaign is not limited by the local disk. Works on any directory of `run_jobs.sh` output (Docker, SLURM); built on `remote_transfer/` | [`README_launch.md`](README_launch.md#uploading-to-the-osdf-fno4hic) |
 | [`h5_inspect.py`](h5_inspect.py) | every group and dataset of an HDF5 file, plus a summary of the js-contrib hydro formats (grid, axes, freeze-out, `shower/`, `source/`, `diag/`) with consistency checks | the script; [main README](../README.md#utilities) |
 | [`h5_compression_bench.py`](h5_compression_bench.py) | compression ratio, write and read speed of the HDF5 filters on a real evolution dataset | [`docs/README_h5_optim.md`](../docs/README_h5_optim.md) |
 

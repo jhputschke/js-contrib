@@ -254,11 +254,20 @@ apptainer exec --nv --env OMP_NUM_THREADS=5,OMP_WAIT_POLICY=passive \
 ```
 
 The `trap` passes Ctrl-C and `docker stop` on to both campaigns; `wait` keeps the container
-alive until both are done. Under SLURM, if `CUDA_VISIBLE_DEVICES` is already set (e.g. `2,3`),
+alive until both are done.
+
+**Ready-made for Docker on two GPUs:** [`utils/launch_2gpu.sh`](../utils/launch_2gpu.sh) does the
+Docker variant above, with `run_jobs.sh -j 8 --mps` per GPU, a disk guard that stops the
+campaign before the disk fills (`--min-free`), and optionally the upload of every finished job
+to the OSDF while it runs (`--upload`, below in §5). Measured on 2 × RTX 3090: ~810 events/h
+with the c1 settings of §4. Usage, tuning and the measurements:
+[`utils/README_launch.md`](../utils/README_launch.md). Under SLURM, if `CUDA_VISIBLE_DEVICES` is already set (e.g. `2,3`),
 use those numbers.
 
 **Tested** (2026-10-01): one campaign per GPU on a two-GPU machine with Docker, without MPS:
-both GPUs busy. With `--mps` in each campaign only one GPU was used (see *CUDA MPS* below).
+both GPUs busy. With `--mps` in each campaign only one GPU was used then (see *CUDA MPS*
+below); `launch_2gpu.sh` (2026-10-05) runs both GPUs with MPS, one Docker container and one
+daemon per GPU.
 A `run_jobs.sh --gpus 0,1` option that spreads one campaign over the GPUs is on js-contrib
 branch `run_jobs_gpus`, not merged yet; until then, use one campaign per GPU as above.
 
@@ -271,11 +280,13 @@ paid off only with several jobs per GPU and a busy GPU (GB10: +2 % at `-j 2`, +1
 
 - **Inside containers it is not assured:** on the GB10 the daemon does not start in a
   container. Test with `nvidia-cuda-mps-control -d; echo $?` inside the container.
-- **Not with one campaign per GPU and `--mps` in each:** in a two-GPU test only one GPU was
-  then busy. The likely cause (not yet confirmed): each daemon sees only its own GPU, so the
-  second GPU's jobs find none and fall back to the CPU (`No CUDA device found` in their
-  logs). For several GPUs, run without MPS, or start one daemon over all GPUs yourself and
-  run the campaigns without `--mps`.
+- **Several GPUs:** one Docker container per GPU (`--gpus device=N`), each with its own
+  campaign and `--mps`, works: `launch_2gpu.sh` runs both GPUs of a 2 × RTX 3090 machine that
+  way (2026-10-05). Two daemons in **one** container hang the second GPU's jobs, and an
+  earlier two-GPU test with `--mps` in each campaign had only one GPU busy (2026-10-01; its
+  jobs fell back to the CPU, `No CUDA device found`). So with Apptainer, or one container
+  for all GPUs, run without MPS, or start one daemon over all GPUs yourself and run the
+  campaigns without `--mps`.
 - If the site runs MPS itself (`--gres=mps`), don't add `--mps`.
 
 ### Checking a run
@@ -497,6 +508,21 @@ utils/remote_transfer/js_osdf.py download AuAu_a --what h5 --to /scratch    # on
   use the image's packages instead.
 - **Credentials:** a service-account key for GCS, a bearer token for writing to OSDF. See
   the tools' README.
+
+**While the campaign runs.** [`utils/upload_follow.py`](../utils/upload_follow.py) uploads each
+job to the OSDF once it is complete and, with `--delete pair` (or `all`), deletes the local
+copies after a verified upload (size, the manifest's CRC32C, every Nth file downloaded and
+compared), so a campaign is not limited by the local disk. It runs on the host, next to
+Docker or on a node that sees a SLURM campaign's directories, from a js-contrib checkout:
+
+```bash
+utils/upload_follow.py /data/AuAu_a AuAu_a --follow --delete pair
+touch /data/AuAu_a/.upload_final       # when the campaign is done: a last pass, then it exits
+```
+
+`launch_2gpu.sh --upload REMOTE` starts it with the campaign. Options, checks and the measured
+rates (~80 MB/s up, more than the ~57 MB/s a two-GPU campaign writes):
+[`utils/README_launch.md`](../utils/README_launch.md#uploading-to-the-osdf-fno4hic).
 
 **What to move where.** The particlize files are **self-contained** (format version 2, from
 2026-10-01): surfaces, partons and the shower initiators. So the CPU cluster for stage 2,
