@@ -1,6 +1,10 @@
 # js-contrib design notes and benchmarks
 
 Plans, measurements and findings behind the contribs, the productions and the containers.
+
+**Where things stand:** [`Production_readiness_summary.md`](Production_readiness_summary.md) summarizes the
+changes in MUSIC4GPU, X-SCAPE and js-contrib for the jet-wake analysis and the FNO training data:
+motivation, benchmarks, validation, physics tests, open points.
 The user documentation is in the contrib READMEs ([`contribs/`](../contribs/README.md),
 [PyJetscape](../contribs/PyJetscape/README.md), [FastHydro](../contribs/FastHydro/README.md))
 and the production READMEs
