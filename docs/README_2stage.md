@@ -40,6 +40,24 @@ themselves (variants, building, testing) in
 
 ### Images
 
+> **Rebuild pending (status 2026-10-06).** The images on Docker Hub predate several changes
+> this guide describes; a rebuild of all three variants from current X-SCAPE `contrib` and
+> js-contrib `main` (`gh workflow run docker-prod.yml -f variants=all`, see
+> [`utils/BuildContainerProd.md`](../utils/BuildContainerProd.md)) still needs to be done.
+> What the published tags contain:
+>
+> | tag | built | sm_70 (V100) | Pelican | memory fixes | 64×64×32 grid, edge flag |
+> |---|---|---|---|---|---|
+> | `cu126`, `cu130` (= `…-20260930-d31946c`) | 2026-09-30 | **no** | **no** | **no** (~20 GB per job) | no |
+> | `cu124-20260930-d31946c` | 2026-09-30 | yes | yes | **no** | no |
+> | `cu124` (= `cu124-20261003-cbc7263`) | 2026-10-03 | yes | yes | yes | no |
+>
+> Until the rebuild: on V100s or with tight memory, only `cu124-20261003-cbc7263` (amd64)
+> matches the requirements below. No image has the new default output grid or the edge flag
+> yet ([Output grid](#output-grid)); with an older image, a campaign writes the earlier
+> 65 × 65 × 33 grid unless it is given the new one with `--grid`. Update the dated tags in
+> this guide after the rebuild.
+
 | tag | CUDA | GPUs | CPU arch | host driver |
 |---|---|---|---|---|
 | `jhputschke/xscape-prod:cu126` | 12.6 | V100 (sm_70) … H100/GH200 (sm_90), newer through PTX | amd64, arm64 | R560+ |
@@ -49,23 +67,34 @@ themselves (variants, building, testing) in
 - **Which one:** `nvidia-smi` shows the highest CUDA version the driver supports. Use
   `cu126` where it is ≥ 12.6, `cu124` on R550 drivers, `cu130` for Blackwell. There is no
   performance difference to expect between `cu124` and `cu126`.
-- **For a campaign, use a dated tag**, e.g. `cu124-20260930-d31946c`, and the same one on
+- **For a campaign, use a dated tag**, e.g. `cu124-20261003-cbc7263`, and the same one on
   every machine: the moving tags (`cu126`) change with every build, and different builds
-  can differ in the last digits.
-- **`-gcs` tags** (`cu126-gcs`, …) also have Google Cloud Storage for Python. Every image has
+  can differ in the last digits. Run the whole campaign on GPUs: MUSIC's CPU path differs
+  systematically from the GPU path (~0.2% in multiplicity,
+  [`MUSIC_CPU_vs_GPU.md`](MUSIC_CPU_vs_GPU.md)), so don't mix the two.
+- **`-gcs` tags** (`cu126-gcs`, …) also have Google Cloud Storage for Python. Every image
+  built since Pelican was added (see below; not the published `cu126`/`cu130`) has
   Pelican/OSDF (`pelican` CLI, `pelicanfs`).
 - **What's in an image:** `/opt/X-SCAPE/BUILD_INFO.txt` (commits, CUDA, Pelican) and
-  `docker inspect` labels. sm_70 and Pelican are in images built from 2026-09-30 on.
+  `docker inspect` labels. Which commits bring what:
+
+  | feature | needs |
+  |---|---|
+  | sm_70 (V100), Pelican | an image built after 2026-09-30 19:57 EDT (js-contrib `818fdbf`); the `cu126`/`cu130` builds of 2026-09-30 have neither |
+  | memory fixes (~9 GB per job) | X-SCAPE `contrib` `cbc72639` or later |
+  | GPU fix for stalled evolutions (`VacReset_BUG.md`) | X-SCAPE `9509aea2` or later (in every published image) |
+  | edge flag (`diag/{bg,jet}_hit_edge`) | js-contrib `main` `20109af` or later |
+  | 64 × 64 × 32 output grid by default | js-contrib `main` `c8b682d` or later |
 
 ### Memory, cores, disk
 
 | per production job (stage 1) | |
 |---|---|
-| **host memory** | **~9 GB peak** per job alone: 8.7 GiB with the pair file, 7.5 GiB with `--particlize-only` (GB10, seed 1; X-SCAPE `contrib` from `cbc72639`, js-contrib `main` from `9356bf4`). It was ~20 GB before the memory fixes and is 14.3 GiB with `--bulk-info full` ([PLAN_slim_bulk_info.md](Plans/PLAN_slim_bulk_info.md)). Most of it is the background's hydro history, kept in memory for Matter/LBT, now as a slim 6-field copy. Several jobs: **4 at once used 29 GB** on the GB10 (66–71 GB before the fixes; [BENCHMARK_GB10.md](BENCHMARK_GB10.md#with-the-memory-fixes-2026-10-03)). **Plan for ~12 GB per job** (~16 GB with `--bulk-info full`). |
+| **host memory** | **~9 GB peak** per job alone (images with X-SCAPE `cbc72639` or later; older ones ~20 GB): 8.7 GiB with the pair file, 7.5 GiB with `--particlize-only` (GB10, seed 1; X-SCAPE `contrib` from `cbc72639`, js-contrib `main` from `9356bf4`). It was ~20 GB before the memory fixes and is 14.3 GiB with `--bulk-info full` ([PLAN_slim_bulk_info.md](Plans/PLAN_slim_bulk_info.md)). Most of it is the background's hydro history, kept in memory for Matter/LBT, now as a slim 6-field copy. Several jobs: **4 at once used 29 GB** on the GB10 (66–71 GB before the fixes; [BENCHMARK_GB10.md](BENCHMARK_GB10.md#with-the-memory-fixes-2026-10-03)). **Plan for ~12 GB per job** (~16 GB with `--bulk-info full`). |
 | GPU memory | a few hundred MB: a 16 GB V100 is plenty |
 | CPU cores | ~5 per job (`OMP_NUM_THREADS=5`) |
 | time | ~30–50 s per event and job, depending on GPU and CPU |
-| disk | ~285 MB per event (hydro pair) + ~154 MB (`--write-particlize both`) |
+| disk | ~285 MB per event (hydro pair) + ~154 MB (`--write-particlize both`), measured on the earlier 65 × 65 × 33 output grid; the 64 × 64 × 32 default has 6% fewer cells per frame |
 
 So **host RAM per GPU usually decides how many jobs share a GPU**: with `-j 4` per GPU, ask
 for ~100 GB and ~20 cores per GPU. Lower `-j` where a node gives less.
@@ -75,6 +104,23 @@ for ~100 GB and ~20 cores per GPU. Lower `-j` where a node gives less.
 | memory | ~1.4 GB per surface up to ~1000 oversamples |
 | time | ~10–14 s per event, both legs, 500 oversamples, 50 fragmentations |
 | disk | ~100 MB per leg and event at 500 oversamples (less with the options in §3) |
+
+### Output grid
+
+The hydro pair is stored on the output grid of `../prod_AuAu_0_10/grid_fno.yaml`
+(`run_prod_jet.py --grid` for another one). Since js-contrib `c8b682d` (2026-10-06) the default
+is **64 × 64 × 32 cells**: x, y −12.2 … 12.2 fm at 0.3875 fm, η_s −4.84 … 4.84 at 0.3125.
+Before, it was 65 × 65 × 33 (x, y −10 … 10 fm, all steps 0.3125), as in `fastdata_AuAu200_tune_0_10.h5`.
+
+- **Files of the two grids don't go into one training set.** Keep one grid per campaign, and
+  check `prod_grid_yaml` in a file's attributes when combining campaigns.
+- **Why the change:** the jet leg's fluid above freeze-out crossed ±10 fm in ~5% of 0–10%
+  events; ±12.2 fm holds it. How much of the wake each grid keeps:
+  [`Wake_grid_comparison.md`](Wake_grid_comparison.md).
+- **With an image that predates the change** (all published images, see above), bind the new
+  YAML from a js-contrib checkout (`contribs/PyJetscape/example/prod_AuAu_0_10/grid_fno.yaml`)
+  and pass it after OUTDIR: Docker `-v "$PWD/grid_fno.yaml:/grid/grid_fno.yaml:ro"`, Apptainer
+  `--bind "$PWD/grid_fno.yaml:/grid/grid_fno.yaml"`, then `… --grid /grid/grid_fno.yaml`.
 
 ---
 
@@ -241,12 +287,15 @@ In a job log, `OUTDIR/<stem>.log`:
 | `[MUSIC-GPU] CUDA device: <GPU name> (cc X.Y, …)` | the hydro runs on that GPU |
 | `[MUSIC-GPU] OMP wait policy: passive (max threads N)` | the thread settings arrived |
 | `… done in … s` per event | the speed: events/h = jobs × 3600 / s per event |
-| `No CUDA device found`, `falling back to CPU` | **no GPU**: the job runs on the CPU, ~10× slower. Check `--nv`/`--gpus`, `CUDA_VISIBLE_DEVICES`, MPS |
-| `kernel launch '…' failed: no kernel image is available` | the image has no code for this GPU (e.g. a V100 with an old image). **Discard the output** and pull a current `cu126`/`cu124` image |
+| `No CUDA device found`, `falling back to CPU` | **no GPU**: the job runs on the CPU, ~7–10× slower, and its results differ systematically from the GPU path's (~0.2%, [`MUSIC_CPU_vs_GPU.md`](MUSIC_CPU_vs_GPU.md)). **Don't add that output to a GPU campaign.** Check `--nv`/`--gpus`, `CUDA_VISIBLE_DEVICES`, MPS |
+| `edge     flag e > 0.2342 GeV/fm^3 on the x/y edge of the output grid` (at the start) | the edge flag is on, with MUSIC's freeze-out energy density as threshold (images with js-contrib `20109af` or later) |
+| `PairH5Writer: event i: the jet leg has e = … on the transverse edge of the output grid` | fluid above freeze-out reached the edge of the stored box: the stored evolution misses part of it (the surfaces and hadrons don't). Flagged in `diag/{bg,jet}_hit_edge`; counted in the `.json` (`events_hit_edge`). A few per campaign are expected on the earlier ±10 fm grid; frequent ones mean the grid is too small |
+| `… the freeze-out surface reached the transverse grid boundary, so MUSIC stopped it early` | MUSIC's own grid (`<IS><grid_max_x>`, ±15 fm) is too small: that event's evolution is truncated (`diag/{bg,jet}_hit_boundary`) |
+| `kernel launch '…' failed: no kernel image is available` | the image has no code for this GPU (e.g. a V100 with an image without sm_70, which includes the published `cu126` until the rebuild, §1). **Discard the output** and use an image with sm_70 (`cu124-20261003-cbc7263` for now) |
 | `WARNING: NOT in effect … export OMP_WAIT_POLICY=passive` | set `OMP_WAIT_POLICY=passive` before launching |
 
-Each job also writes `<stem>.json` (seed, events written, settings), and the campaign ends
-with `OUTDIR/run_jobs.finished`.
+Each job also writes `<stem>.json` (seed, events written, settings, `events_hit_edge`), and
+the campaign ends with `OUTDIR/run_jobs.finished`.
 
 ---
 
@@ -318,7 +367,7 @@ leg. This is what campaign `pth10-40_eta06_c1` did on the GB10 (2026-09-29):
 | rapidity cut | hardest parton \|y\| < 0.6: `--parton-ymax 0.6` (events outside are regenerated before any shower or hydro) |
 | jobs | 67 × 15 events = **1005 events on 67 backgrounds**, `-j 4 --mps`, seeds from OS entropy |
 | time | 179.7 min on one GB10: **336 events/h** (a new background every event: ~190, measured at 50–70 GeV) |
-| disk | 170 MB per event (pair, shared `arr_bg`) + 94 MB (particlize): **265 GB** |
+| disk | 170 MB per event (pair, shared `arr_bg`) + 94 MB (particlize): **265 GB** (on the earlier 65 × 65 × 33 grid) |
 | checks | energy balance closed, 0 double-counted partons, all legs froze out, no grid-boundary hits |
 
 **The rules.**
@@ -554,9 +603,12 @@ wake.
 | `--outdir: give OUTDIR as the argument after FIRST_SEED` | OUTDIR is the 4th argument, not an option |
 | `The seed registry … can't be written` / `Read-only file system: …/seeds_used.tsv` | OUTDIR's parent isn't writable: put OUTDIR one level inside a bound directory (`/work/out`, `~/prod/out`) |
 | only one job runs with `-j 2` | NJOBS is 1: `-j` only limits how many run at once |
-| `kernel launch … failed: no kernel image is available` | the image lacks this GPU's architecture (V100 with an image from before 2026-09-30): pull a current `cu126`/`cu124`; discard that output |
+| `kernel launch … failed: no kernel image is available` | the image lacks this GPU's architecture: on a V100, an image without sm_70 (built before 2026-09-30 19:57 EDT, including the published `cu126`); use `cu124-20261003-cbc7263` until the rebuild (§1); discard that output |
 | `No CUDA device found` / jobs much slower | no GPU visible: `--nv` / `--gpus`, `CUDA_VISIBLE_DEVICES`, or per-campaign MPS on several GPUs (§2) |
 | `--mps: could not start the MPS daemon` | MPS doesn't work in this container/site: drop `--mps` |
 | jobs killed (OOM) | plan ~12 GB host memory per job (~16 GB with `--bulk-info full`, ~22 GB with builds before the memory fixes): lower `-j` or ask for more `--mem` |
 | busy-spinning threads, the libgomp warning | `OMP_WAIT_POLICY=passive` before launching |
+| `pelican: command not found` | the published `cu126`/`cu130` predate Pelican: use `cu124`, or move the files from the host (§5) until the rebuild |
+| many `hit_edge` warnings | the output grid is too small for this system: a larger x/y range in the grid YAML (§1, *Output grid*) |
+| files with different `arr` shapes in one campaign | jobs ran with different grids (an older image's default vs. the new one): keep one grid per campaign |
 | a failed job | its `OUTDIR/<stem>.log`; rerun the same command (finished jobs are skipped) |
