@@ -87,6 +87,11 @@ utils/remote_transfer/js_osdf.py upload /data/out --what h5 --as AuAu_c1      # 
 utils/remote_transfer/js_gcs.py download AuAu_c1 --what root --to /scratch
 ```
 
+[`utils/upload_follow.py`](utils/upload_follow.py) uploads a production to the OSDF **while it
+runs** and can delete the verified uploads locally, so a campaign is no longer limited by the
+local disk; [`utils/launch_2gpu.sh`](utils/launch_2gpu.sh) runs a campaign on both GPUs of one
+machine with it ([`utils/README_launch.md`](utils/README_launch.md)).
+
 ### Design notes and benchmarks
 
 [`docs/`](docs/README.md) holds the plans behind the HDF5 writers and the productions, the

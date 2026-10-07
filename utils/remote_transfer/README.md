@@ -158,6 +158,26 @@ and other 4 files 35 MB.
   (pelicanfs `direct_reads`). An OSDF cache could still hold an older copy of a file that
   was uploaded again.
 
+## Uploading while a production runs: `upload_follow.py`
+
+[`../upload_follow.py`](../upload_follow.py) builds on `js_osdf.py`: it uploads each job of a
+production directory as soon as its `<stem>.json` says complete, every `--interval` seconds
+with `--follow` (until `OUTBASE/.upload_final` appears or the process `--follow-pid` ends), and
+can delete the uploaded pair and/or particlize files
+locally (`--delete pair|all`, optionally only below `--keep-free SIZE`). A file is deleted only
+after a re-check right before: the origin's size, the manifest's CRC32C against the local file,
+and every Nth file (`--verify-every`) downloaded and compared byte by byte. Its state survives
+restarts (`OUTBASE/upload_state.json`).
+
+```bash
+utils/upload_follow.py /data/c1 AuAu_c1                          # one pass, upload only
+utils/upload_follow.py /data/c1 AuAu_c1 --follow --delete pair   # while the campaign runs,
+touch /data/c1/.upload_final                                     # until this: a last pass, exit
+```
+
+`launch_2gpu.sh --upload` starts it next to a campaign. All options and the checks:
+[`../README_launch.md`](../README_launch.md#uploading-to-the-osdf-fno4hic).
+
 ## Credentials
 
 **GCS: a service-account JSON key,** looked for in this order:
