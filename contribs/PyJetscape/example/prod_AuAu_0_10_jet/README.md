@@ -712,11 +712,15 @@ python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90 --jet
   21.1–24.4 s. The job averaged 27.6 s per event, 0.73 of an all-new-background event
   (1.37× the throughput). In general the cost goes as (1 + 1/(K·M)) / 2 of a pair, since
   MUSIC_1 and MUSIC_2 cost about the same, down to half for many windows. Campaign
-  throughput with `-j 4 --mps` has not been measured. With `--write-particlize both`,
+  throughput with `-j 4 --mps`: 336 events/h for K·M = 15 with `--parton-ymax 0.6`
+  (campaign `pth10-40_eta06_c1`, against ~190 with a new background every event;
+  [`docs/README_2stage.md`](../../../../docs/README_2stage.md) §4). With `--write-particlize both`,
   the background surface is also stored (and `hadronize.py` samples it) once per K·M events.
 - **Memory (measured, GB10, seed 1: `--reuse 1` over 2 events against 3 windows over 6
   events, the same two backgrounds).** The same: peak RSS (`ru_maxrss`) 20.1 vs 20.5 GB,
-  ~12.3 vs ~12.7 GB between MUSIC runs, ~4 MB per extra Pythia instance.
+  ~12.3 vs ~12.7 GB between MUSIC runs, ~4 MB per extra Pythia instance. These are from
+  before the memory fixes; with them a job peaks at 8.7 GiB, and at 7.5 GiB with `--reuse 2`
+  ([`PLAN_slim_bulk_info.md`](../../../../docs/Plans/PLAN_slim_bulk_info.md)): reuse still doesn't raise it.
   - The background's framework copy stays in memory for its whole group of events
     (Matter/LBT query it for every jet). With `--reuse 1` it is held just as long within
     its event, so reuse keeps it longer, not larger.
@@ -956,7 +960,7 @@ processes keep up with a whole four-job GPU campaign.
 | `--no-showers` | Skip `shower/`. |
 | `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +5.4 s per event for `both` (+13.5 s before MUSIC4GPU `5058545`; measured, below). |
 | `--bulk-info {slim,full}` | The background's framework copy, which Matter, LBT and the liquefier look up. `slim` (default): e, s, T, vx, vy, vz per cell (24 instead of 112 bytes), ~7 GiB less memory at 0–10%, every output byte-identical to `full` (checked). `full`: the whole `FluidCellInfo` (also P; MUSIC's store has no viscous fields or μ's, so those are zero either way), for modules that read more. Sets `<Hydro><MUSIC><slim_bulk_info>`; needs X-SCAPE with it (branch `slim_bulk_info`). |
-| `--particlize-only` | Write only `<stem>_particlize.h5` (and the `.json`), no pair file: no evolution, `source/` or `shower/` is stored, and the jet leg's evolution is not even read (no `frames_identical` checks). ~3 s per event faster, same peak memory. Needs `--write-particlize`. See *Hadronization input only* in B. |
+| `--particlize-only` | Write only `<stem>_particlize.h5` (and the `.json`), no pair file: no evolution, `source/` or `shower/` is stored, and the jet leg's evolution is not even read (no `frames_identical` checks). ~3 s per event faster, peak 7.5 instead of 8.7 GiB. Needs `--write-particlize`. See *Hadronization input only* in B. |
 | `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
 | `--hadronize-xml FILE` | Settings for `--validate-inline` (default `hadronize.xml`). |
 | `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface (`<freeze_out_surface>` in the first `<Hydro><MUSIC>` block, i.e. the background and the default, and in MUSIC_2's own block). On its own it produces nothing: only `--write-particlize` hands a surface to the framework and stores it, and it builds its legs itself. So a leg built but not stored costs ~3 s per MUSIC run (~6 s before MUSIC4GPU `5058545`) for no output, and the job warns about it. `none` (default) gives a bit-identical evolution. |

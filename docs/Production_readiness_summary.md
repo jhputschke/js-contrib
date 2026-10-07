@@ -324,8 +324,8 @@ The GPU saturates at ~86% busy on the GB10, with a ceiling of ~225 events/h with
    - ~~`BuildContainerProd.md`~~: fixed on this branch (status table, Pelican only in images
      built since `03349ea`, no `-gcs` tags published, MUSIC4GPU doesn't stop yet on a GPU
      without code);
-   - `README_2stage.md`'s "~100 GB per GPU for `-j 4`" (now ~48 GB);
-   - the jet README's "same peak memory" for `--particlize-only` (7.5 vs 8.7 GiB) and its pre-fix memory numbers in section D.
+   - ~~`README_2stage.md`'s "~100 GB per GPU for `-j 4`"~~: now ~48 GB (fixed on this branch);
+   - ~~the jet README's "same peak memory" for `--particlize-only` and its pre-fix memory numbers in section D~~: fixed on this branch.
 
 ---
 

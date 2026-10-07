@@ -98,7 +98,9 @@ themselves (variants, building, testing) in
 | disk | ~285 MB per event (hydro pair) + ~154 MB (`--write-particlize both`), measured on the earlier 65 × 65 × 33 output grid; the 64 × 64 × 32 default has 6% fewer cells per frame |
 
 So **host RAM per GPU usually decides how many jobs share a GPU**: with `-j 4` per GPU, ask
-for ~100 GB and ~20 cores per GPU. Lower `-j` where a node gives less.
+for ~48 GB and ~20 cores per GPU (~12 GB per job; 4 jobs used 29 GB on the GB10), ~64 GB with
+`--bulk-info full`, and ~100 GB with images that predate the memory fixes (§1). Lower `-j`
+where a node gives less.
 
 | per hadronization process (stage 2) | |
 |---|---|
