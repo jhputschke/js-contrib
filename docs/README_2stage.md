@@ -72,7 +72,8 @@ themselves (variants, building, testing) in
   can differ in the last digits. Run the whole campaign on GPUs: MUSIC's CPU path differs
   systematically from the GPU path (~0.2% in multiplicity,
   [`MUSIC_CPU_vs_GPU.md`](MUSIC_CPU_vs_GPU.md)), so don't mix the two.
-- **`-gcs` tags** (`cu126-gcs`, …) also have Google Cloud Storage for Python. Every image
+- **`-gcs` tags** (`cu126-gcs`, …; none published yet, the workflow input `with_gcs=true`
+  builds them) also have Google Cloud Storage for Python. Every image
   built since Pelican was added (see below; not the published `cu126`/`cu130`) has
   Pelican/OSDF (`pelican` CLI, `pelicanfs`).
 - **What's in an image:** `/opt/X-SCAPE/BUILD_INFO.txt` (commits, CUDA, Pelican) and
