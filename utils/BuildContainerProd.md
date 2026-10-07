@@ -1,14 +1,22 @@
 # Building and Publishing the Production Container Images
 
-> **Status (2026-10-01).** [`Dockerfile.prod`](Dockerfile.prod) exists, one Dockerfile for
-> all CUDA variants (see [Images](#images)).
-> - **Published:** the [GitHub workflow](#option-a--github-actions-recommended) has built and
->   pushed `jhputschke/xscape-prod:cu126` and `:cu130` (amd64 + arm64, 2026-09-30, from
->   js-contrib `f0a1a08`) and `:cu124` (amd64, 2026-10-01, from `818fdbf`), all with X-SCAPE
->   `d31946c`.
-> - **`cu126` and `cu130` predate two Dockerfile changes:** Pelican/OSDF (`03349ea`) and, in
->   `cu126`, V100 code (sm_70, `818fdbf`). Until the workflow runs again, the published
->   `cu126` and `cu130` have no Pelican and `cu126` doesn't run on a V100; `cu124` has both.
+> **Status (2026-10-07).** [`Dockerfile.prod`](Dockerfile.prod) exists, one Dockerfile for
+> all CUDA variants (see [Images](#images)). **A rebuild of all variants is pending**
+> (`gh workflow run docker-prod.yml -f variants=all`): the published images predate several
+> changes, so what this file says about "every image" holds for images built from the current
+> Dockerfile, not for all published tags. Published by the
+> [GitHub workflow](#option-a--github-actions-recommended):
+>
+> | tag | built | sm_70 (V100) | Pelican/OSDF | memory fixes (X-SCAPE `cbc72639`) | 64×64×32 grid, edge flag |
+> |---|---|---|---|---|---|
+> | `cu126`, `cu130` (amd64 + arm64; = `…-20260930-d31946c`) | 2026-09-30 | **no** | **no** | no | no |
+> | `cu124-20260930-d31946c` (amd64) | 2026-10-01 | yes | yes | no | no |
+> | `cu124` = `cu124-20261003-cbc7263` (amd64) | 2026-10-03 | yes | yes | yes | no |
+>
+> - `cu126` and `cu130` were built before two Dockerfile changes: Pelican/OSDF (`03349ea`)
+>   and, in `cu126`, V100 code (sm_70, `818fdbf`). So the published `cu126` and `cu130` have
+>   no Pelican, and `cu126` doesn't run on a V100.
+> - **No `-gcs` tags are published yet:** the workflow has not run with `with_gcs=true`.
 > - **Tested:** a local arm64 `cu130` build on the GB10 (see [Tested](#tested)): production
 >   runs and agrees with the native build. The published images, and every amd64 image, are
 >   not tested on a machine yet.
@@ -53,11 +61,13 @@ architecture list, so copies could only drift apart.
 Each tag is one multi-arch manifest: `docker pull` and `apptainer pull` pick the image of
 the machine's CPU architecture. `cu124` holds only the amd64 image.
 
-**Remote storage.** Every image has Pelican/OSDF: `pelicanfs` for Python (`osdf://`,
-`pelican://`) and the `pelican` command-line tool. Google Cloud Storage for Python (`gcsfs`,
-`google-cloud-storage`) is optional: `--build-arg WITH_GCS=1`, published as `cu126-gcs`,
-`cu130-gcs`, `cu124-gcs`. The `gcloud` CLI is in neither (about 1 GB). See
-[Getting the outputs home](#getting-the-outputs-home).
+**Remote storage.** Every image built from the current Dockerfile (since `03349ea`,
+2026-09-30) has Pelican/OSDF: `pelicanfs` for Python (`osdf://`, `pelican://`) and the
+`pelican` command-line tool. The published `cu126` and `cu130` are older and have neither (see
+the status above); `cu124` has both. Google Cloud Storage for Python (`gcsfs`,
+`google-cloud-storage`) is optional: `--build-arg WITH_GCS=1`, or the workflow input
+`with_gcs=true`, which tags `cu126-gcs`, `cu130-gcs`, `cu124-gcs` (none published yet). The
+`gcloud` CLI is in neither (about 1 GB). See [Getting the outputs home](#getting-the-outputs-home).
 
 **Why `cu124`.** On a host whose driver supports CUDA 12.4 but not 12.6 (the R550 series),
 Docker's NVIDIA runtime refuses to start the `cu126` image (the `nvidia/cuda` images require
@@ -71,8 +81,10 @@ their CUDA version, `NVIDIA_REQUIRE_CUDA`). `cu124` is the same build on CUDA 12
 **V100 (sm_70) needs `cu126` or `cu124`.** CUDA 13 dropped Volta, so `cu130` has no code
 for it. The embedded PTX only runs on GPUs as new as its architecture or newer (compute_90
 in `cu126`), never older ones. A build without the GPU's architecture fails on it with "no
-kernel image is available for execution on the device". Before MUSIC4GPU stopped on that
-error, such a run went on and wrote files with meaningless hydro; discard them.
+kernel image is available for execution on the device". The pinned MUSIC4GPU does **not**
+stop on that error yet (the fail-fast is MUSIC4GPU PR #14, not merged): such a run goes on
+and writes files with meaningless hydro. Check the job logs for the message and discard those
+files.
 
 **Two independent architectures.** The CPU architecture (amd64 / arm64) decides which image
 of the manifest is used. The GPU architectures (`sm_*`) are compiled into each image. The
@@ -692,7 +704,8 @@ Copy `OUTDIR` to Google Cloud Storage or a Pelican/OSDF namespace.
 - **From inside the container,** where the host has no tools, e.g. an OSPool job. On the
   OSPool, HTCondor can also do the transfer itself, with `osdf://` URLs in the submit file.
 
-**Pelican/OSDF**, in every image:
+**Pelican/OSDF**, in every image built since `03349ea` (`cu124`; not the published `cu126`
+and `cu130` until the rebuild):
 
 ```bash
 pelican object put -r /work/out osdf:///NAMESPACE/campaign     # the whole OUTDIR
