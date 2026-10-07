@@ -25,6 +25,7 @@ the HDF5 study and the benchmarks stay here.
 | [`PLAN_slim_bulk_info.md`](Plans/PLAN_slim_bulk_info.md) | the jet job's memory: three fixes and a 6-field background copy (`bulk_info`, `--bulk-info slim`): ~20 → 8.7 GB peak per job, bit-identical; `-j 4` in 29 GB instead of 66–69 (done) |
 | [`README_h5_optim.md`](README_h5_optim.md) | HDF5 compression of `arr` / `arr_bg`: Blosc-zstd default, `keep_bits` |
 | [`Wake_grid_comparison.md`](Wake_grid_comparison.md) | the jet's wake on the 0.3875 fm output grid vs. the old 0.3125 fm and MUSIC's 0.3 fm: integrated wake within 1–4%, shape at ≥ 0.5 fm within ~10% on every grid; the coarser grid lowers the peaks |
+| [`MUSIC_CPU_vs_GPU.md`](MUSIC_CPU_vs_GPU.md) | MUSIC's CPU path (double) vs. MUSIC4GPU (float, vacuum at rest) on the same events: fields within 0.2%, identical freeze-out; the GPU gives a systematic 0.19% smaller freeze-out volume and 0.2% fewer hadrons, flow and wake unchanged |
 
 ## Benchmarks
 
