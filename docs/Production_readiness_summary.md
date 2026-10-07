@@ -321,7 +321,9 @@ The GPU saturates at ~86% busy on the GB10, with a ceiling of ~225 events/h with
    - a recompress tool for old lzf files;
    - container validation gaps (amd64 images on hardware, Apptainer, MPS in containers on discrete GPUs, `WITH_ROOT=1`).
 8. **Stale statements to fix:**
-   - the status block of `BuildContainerProd.md` ("every image has Pelican");
+   - ~~`BuildContainerProd.md`~~: fixed on this branch (status table, Pelican only in images
+     built since `03349ea`, no `-gcs` tags published, MUSIC4GPU doesn't stop yet on a GPU
+     without code);
    - `README_2stage.md`'s "~100 GB per GPU for `-j 4`" (now ~48 GB);
    - the jet README's "same peak memory" for `--particlize-only` (7.5 vs 8.7 GiB) and its pre-fix memory numbers in section D.
 
