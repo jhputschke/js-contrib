@@ -87,7 +87,7 @@ On the GB10 the host side dominates the wall time.
 
 ### 3.3 Robustness
 
-- **Stalled GPU evolutions fixed (M#13, pinned by X `9509aea2`; `VacReset_BUG.md`).**
+- **Stalled GPU evolutions fixed (M#13, pinned by X `9509aea2`; [`VacReset_BUG.md`](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/docs/VacReset_BUG.md)).**
   - **Failure:** in about 1 of 40 background runs the GPU grid silently stopped evolving and ran to the maximum time (0 of 600 jet legs). The downstream wake energies came out as −5e4 to −8e4 GeV.
   - **Cause:** fp32 vacuum cells reached u⁰ = 2048 and carried T^ττ of about 1 GeV/fm³. W^μν/Π overflowed, the regulator turned ∞·0 into NaN, and the reverts froze the whole grid.
   - **Fix:**
@@ -341,7 +341,7 @@ The GPU saturates at ~86% busy on the GB10, with a ceiling of ~225 events/h with
 | throughput, MPS, `-j` | [`BENCHMARK_GB10.md`](BENCHMARK_GB10.md), [`BENCHMARK_M3MAX.md`](BENCHMARK_M3MAX.md), [`utils/README_launch.md`](../utils/README_launch.md) |
 | HDF5 compression | [`README_h5_optim.md`](README_h5_optim.md) |
 | output grid and wake | [`Wake_grid_comparison.md`](Wake_grid_comparison.md) |
-| GPU vs CPU | [`MUSIC_CPU_vs_GPU.md`](MUSIC_CPU_vs_GPU.md); MUSIC4GPU `VacReset_BUG.md`, `PORT_GPU.md`, `README_CUDA.md` |
+| GPU vs CPU | [`MUSIC_CPU_vs_GPU.md`](MUSIC_CPU_vs_GPU.md); MUSIC4GPU [`docs/VacReset_BUG.md`](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/docs/VacReset_BUG.md), [`docs/PORT_GPU.md`](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/docs/PORT_GPU.md), [`README_CUDA.md`](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_CUDA.md), [`docs/MUSIC_CPU_vs_GPU.md`](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/docs/MUSIC_CPU_vs_GPU.md) |
 | history vs surface hadrons | [`hydro_hist_vs_surface/README.md`](../contribs/PyJetscape/example/hydro_hist_vs_surface/README.md) |
 | FastHydro | [`contribs/FastHydro/README.md`](../contribs/FastHydro/README.md) |
 | the FNO writer consolidation (not done) | [`PLAN_consolidate_h5_writer.md`](Plans/PLAN_consolidate_h5_writer.md) |

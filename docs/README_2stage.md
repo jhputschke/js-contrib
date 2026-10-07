@@ -83,7 +83,7 @@ themselves (variants, building, testing) in
   |---|---|
   | sm_70 (V100), Pelican | an image built after 2026-09-30 19:57 EDT (js-contrib `818fdbf`); the `cu126`/`cu130` builds of 2026-09-30 have neither |
   | memory fixes (~9 GB per job) | X-SCAPE `contrib` `cbc72639` or later |
-  | GPU fix for stalled evolutions (`VacReset_BUG.md`) | X-SCAPE `9509aea2` or later (in every published image) |
+  | GPU fix for stalled evolutions ([`VacReset_BUG.md`](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/docs/VacReset_BUG.md)) | X-SCAPE `9509aea2` or later (in every published image) |
   | edge flag (`diag/{bg,jet}_hit_edge`) | js-contrib `main` `20109af` or later |
   | 64 × 64 × 32 output grid by default | js-contrib `main` `c8b682d` or later |
 

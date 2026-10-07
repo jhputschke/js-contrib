@@ -347,7 +347,7 @@ docker buildx build --platform linux/amd64,linux/arm64 \
    runtime with `-v /local/models:/opt/models`. The XML config must reference
    `/opt/models/<file>.pt` as the model path.
 
-6. **Runtime GPU override env vars** (from `music4gpu/PORT_GPU_CUDA.md`):
+6. **Runtime GPU override env vars** (from MUSIC4GPU [`docs/PORT_GPU_CUDA.md`](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/docs/PORT_GPU_CUDA.md)):
    - `MUSIC_FORCE_CPU=1` — disable GPU dispatch without rebuild
    - `MUSIC_CUDA_FORCE_COHERENT=1` — force unified-memory path (GH200 emulation on discrete hardware)
    - `MUSIC_CUDA_FORCE_DISCRETE=1` — force PCIe staging path (default on all discrete GPUs)
