@@ -102,6 +102,46 @@ for ~48 GB and ~20 cores per GPU (~12 GB per job; 4 jobs used 29 GB on the GB10)
 `--bulk-info full`, and ~100 GB with images that predate the memory fixes (§1). Lower `-j`
 where a node gives less.
 
+#### Per-GPU sizing on a cluster
+
+What to ask for per GPU (one SLURM array task) on common data-centre GPUs, for stage 1 with
+the memory fixes. **None of these GPUs has been benchmarked.** The table extrapolates from
+the GB10 ([BENCHMARK_GB10.md](BENCHMARK_GB10.md)) and 2 × RTX 3090
+([BENCHMARK_2x3090.md](BENCHMARK_2x3090.md)) measurements:
+
+- A job needs ~5 cores (at least 4; fewer threads per job cost 7–15%) and ~12 GB of host
+  memory (measured peak 7.5–8.7 GiB per job).
+- A job uses ~0.8 GB of GPU memory (6.5 GB at 8 jobs per RTX 3090).
+- MUSIC4GPU computes in FP32, so the GPUs' FP64 rate does not matter. A GPU spends ~9 s per
+  event on an RTX 3090 and ~16 s on the GB10.
+- On the 3090s the GPU was at most ~70% busy even at 8 jobs per GPU: on these GPUs the cores
+  and host memory per GPU, not the GPU, limit the jobs per GPU.
+
+| GPU | jobs per GPU (`P`) | cores per GPU (`--cpus-per-task`) | host memory per GPU (`--mem`) | notes |
+|---|---|---|---|---|
+| **V100** (16 / 32 GB) | 4 | 16–20 | 48G | needs an image with sm_70: `cu124-20261003-cbc7263` until the rebuild (§1). FP32 rate about half an RTX 3090's: the GPU part may be up to ~1.5–2× slower, still not the limit at 4 jobs |
+| **A40** (48 GB) | 4; 6–8 with the cores | 20; 24–32 | 48G; 64–96G | same chip family as the RTX 3090: the 3090 numbers are the best guide |
+| **A100** (40 / 80 GB) | 4–8 | 20–32 | 48–96G | FP32 rate about an RTX 3090's |
+| **L40S** (48 GB) | 4–8 | 20–32 | 48–96G | the fastest of these in FP32; more jobs pay off only with more cores |
+
+- **Rule of thumb:** per job ~5 cores and ~12 GB, plus ~4–8 GB per node. Where a node gives a
+  GPU less, lower `P`, not the threads per job. `slurm_prod_array.sh` sets
+  `OMP_NUM_THREADS = cpus-per-task / P`.
+- **`--write-particlize both`** is included: ~5.8 GB per job on the 3090s, 8.7 GiB peak alone.
+  `--bulk-info full` needs ~16 GB per job (`--mem=64G` at `P = 4`).
+- **The campaign default of §4** (`--pthat-bins`, `--reuse 15`) needs less GPU time per event
+  and the same memory, so it shifts the limit further to the cores.
+- **CUDA MPS:** +5–7% from 3 jobs per GPU on the 3090s, but not tried on a cluster; leave
+  `USE_MPS=0` until it works on the site ([CUDA MPS](#cuda-mps-optional)).
+- **Time:** ~30–50 s per event for a job alone. A 15-event file takes ~16–20 min with 4–8 jobs
+  per GPU. A 40-file task at `P = 4` takes ~3–4 h on 3090-class GPUs; allow 2–3× on V100s.
+  The script's 24 h is generous.
+- **SLURM memory:** the limit counts the page cache of the HDF5 files being written. If tasks
+  are killed near it, raise `--mem` by ~10–15% rather than lowering `P`.
+- **Before a large campaign**, on the first node: a short sweep of `-j 2 … 8`, watching
+  `nvidia-smi dmon -s u`, as in
+  [BENCHMARK_GB10.md](BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
+
 | per hadronization process (stage 2) | |
 |---|---|
 | memory | ~1.4 GB per surface up to ~1000 oversamples |
