@@ -33,6 +33,12 @@ from test_run_h5toROOT import SIGMA, _writers, campaign  # noqa: E402,F401
 
 HEADER = HERE.parent / "example" / "analysis_root" / "HadronFileReader.h"
 
+#: ROOT on macOS (Apple Silicon; Homebrew and conda-forge 6.36) cannot unwind a C++
+#: exception thrown from cling-JIT code, not even into a try/catch in an un-compiled macro:
+#: std::terminate, which PyROOT reports as "abort from C++".  The reader's error paths are
+#: therefore not tested on macOS; ACLiC-compiled code (macro.C+) catches them fine there.
+JIT_EXCEPTIONS = sys.platform != "darwin"
+
 
 @pytest.fixture(scope="module")
 def cxx():
@@ -129,10 +135,11 @@ def test_reader_matches_h5(campaign, tmp_path, cxx, fmt, writer, opt):  # noqa: 
             _same(_arrays(r.frag(e, j), pos), {c: v[keep] for c, v in frag.items()}, rtol)
         if not pos:
             assert all(h.t == 0 and h.x == 0 for h in r.bkg_dep(e, 0))
-    with pytest.raises(Exception, match="out of range"):
-        r.info(4)
-    with pytest.raises(Exception, match="no bulk_jet sample 9"):
-        r.bkg_dep(0, 9)
+    if JIT_EXCEPTIONS:
+        with pytest.raises(Exception, match="out of range"):
+            r.info(4)
+        with pytest.raises(Exception, match="no bulk_jet sample 9"):
+            r.bkg_dep(0, 9)
 
 
 def test_filter_and_kinematics(campaign, tmp_path, cxx):  # noqa: F811
@@ -197,5 +204,6 @@ def test_cross_sections_without_campaign_file(campaign, tmp_path, cxx):  # noqa:
     with uproot.recreate(tmp_path / "other_campaign.root") as f:
         f["windows"] = {"pthat_lo": np.array([1.0, 2.0]), "pthat_hi": np.array([2.0, 3.0]),
                         "sigma_mb": np.array([1.0, 1.0]), "weight_mb": np.array([1.0, 1.0])}
-    with pytest.raises(Exception, match="other pTHat windows"):
-        cxx.HadronFileReader(str(out), False, str(tmp_path / "other_campaign.root"))
+    if JIT_EXCEPTIONS:
+        with pytest.raises(Exception, match="other pTHat windows"):
+            cxx.HadronFileReader(str(out), False, str(tmp_path / "other_campaign.root"))

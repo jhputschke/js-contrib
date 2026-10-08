@@ -124,8 +124,12 @@ if [[ ! -x "${ENV_PY}" ]]; then
 fi
 
 echo "==> Installing ROOT (conda-forge)"
+# 6.36.14, not the 6.32.2 of the PRC 113 014904 environment: conda-forge has no 6.32.2 for
+# macOS arm64, and ROOT >= 6.34 reads the RNTuple files of run_h5toROOT.py (< 6.38: see
+# install_js_fno_minimal.sh).  Solves with this script's pins on Linux x86_64/aarch64 and
+# macOS arm64 (conda dry runs).
 ${SOLVER} install -n "${ENV_NAME}" \
-    root=6.32.2 \
+    root=6.36.14 \
     -c conda-forge -y
 
 if [[ "${CUDA_VERSION}" == "none" ]]; then
@@ -164,6 +168,14 @@ ${SOLVER} install -n "${ENV_NAME}" \
     networkx=3.3 \
     fastjet=3.5.0.1 \
     -c conda-forge -y
+
+# Apple Silicon: numpy's BLAS from Accelerate, not OpenBLAS.  conda-forge's OpenBLAS is
+# built with OpenMP and loads this env's libomp, while the PyTorch wheels (2.14 on) load
+# their own copy: two OpenMP runtimes in one process abort `import torch` (OMP: Error #15).
+if [[ "$(uname -s)-$(uname -m)" == "Darwin-arm64" ]]; then
+    echo "==> BLAS from Accelerate (Apple Silicon: one OpenMP runtime next to PyTorch)"
+    ${SOLVER} install -n "${ENV_NAME}" "libblas=*=*accelerate" -c conda-forge -y
+fi
 
 echo "==> Installing pinned pip packages"
 "${ENV_PY}" -m pip install \

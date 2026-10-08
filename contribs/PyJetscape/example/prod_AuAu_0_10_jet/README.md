@@ -293,8 +293,11 @@ the per-event jet-leg checks (`frames_identical`: same initial condition, drople
 so run the validation and null-test jobs of "Checks before a campaign" without the flag.
 In the particlize file `events/ntau_jet` (frames on the output grid) becomes
 `events/ntau_jet_music` (MUSIC's own steps), `events/frames_identical` is missing,
-`events/wall_s` is added, and no `pair_file` is named; every other dataset is unchanged
-(checked). `run_jobs.sh` restarts work as usual: the skip test reads the `.json`.
+`events/wall_s` is added, and no `pair_file` is named; the jet leg's edge check is not
+made either, so `events/jet_edge_e_max`, `jet_edge_e_max_eta` and `jet_hit_edge` are
+missing (the `bg_*` ones stay) and the `.json` has `"events_hit_edge": {"bg": n, "jet":
+null}`. Every other dataset is unchanged (checked). `run_jobs.sh` restarts work as usual:
+the skip test reads the `.json`.
 
 Measured (GB10, one job alone, seed 1, 3 events, `--write-particlize both`): 101.5 s against
 111.1 s with the pair file (-3.2 s per event: -1.3 s the pair-file write, -1.9 s the jet-leg
