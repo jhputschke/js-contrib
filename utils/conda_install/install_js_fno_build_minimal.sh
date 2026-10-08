@@ -182,6 +182,14 @@ ${SOLVER} install -n "${ENV_NAME}" \
     pybind11 pytest networkx vector \
     -c conda-forge -y
 
+# Apple Silicon: numpy's BLAS from Accelerate, not OpenBLAS.  conda-forge's OpenBLAS is
+# built with OpenMP and loads this env's libomp, while the PyTorch wheels (2.14 on) load
+# their own copy: two OpenMP runtimes in one process abort `import torch` (OMP: Error #15).
+if [[ "$(uname -s)-$(uname -m)" == "Darwin-arm64" ]]; then
+    echo "==> BLAS from Accelerate (Apple Silicon: one OpenMP runtime next to PyTorch)"
+    ${SOLVER} install -n "${ENV_NAME}" "libblas=*=*accelerate" -c conda-forge -y
+fi
+
 # ---------------------------------------------------------------------------
 # pip-only packages
 # ---------------------------------------------------------------------------

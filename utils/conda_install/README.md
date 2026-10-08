@@ -40,7 +40,7 @@ machines where conda-forge has native builds of every C++ dependency.
 
 The minimal scripts list top-level packages only, with floors where it matters, and take
 the newest releases. The pinned ones fix every main package (Python 3.11.9, torch 2.4.1,
-ROOT 6.32.2, …) for reproducibility.
+ROOT 6.36.14, …) for reproducibility.
 
 ## Quick start
 
@@ -83,7 +83,7 @@ In this order (conda packages from conda-forge; `mamba` is used when available):
 |---|---|---|
 | Env | Python 3.11 | all |
 | C++ build | cmake, make, compilers, boost-cpp, zlib, hdf5, pythia8, hepmc3, fastjet, gsl, openmpi | `*_build_*` |
-| ROOT | `root>=6.34,<6.38` (pinned: 6.32.2). 6.38 writes truncated-float TTree leaves uproot can't read yet. | all |
+| ROOT | `root>=6.34,<6.38` (pinned: 6.36.14; the PRC 113 014904 environment had 6.32.2, which conda-forge does not build for macOS arm64). 6.38 writes truncated-float TTree leaves uproot can't read yet. | all |
 | PyTorch (pip) | torch, torchvision: CUDA wheels, or CPU/MPS with `none` | all |
 | Analysis (conda) | numpy, scipy, matplotlib, h5py, hdf5plugin, pandas, seaborn, tqdm, pyyaml, jupyterlab, notebook, ipykernel, metakernel (for ROOT's C++ kernel), ipywidgets, networkx, vector, pybind11, pytest; fastjet in the minimal Python-only script | all |
 | pip | neuraloperator ≥ 2.0, uproot ≥ 5, awkward ≥ 2, pyvista, imageio, imageio-ffmpeg | all |

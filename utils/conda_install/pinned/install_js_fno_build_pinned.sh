@@ -149,9 +149,13 @@ ${SOLVER} install -n "${ENV_NAME}" \
 
 # ---------------------------------------------------------------------------
 # ROOT — install before PyTorch so the solver sees all constraints at once
+# 6.36.14, not the 6.32.2 of the PRC 113 014904 environment: conda-forge has no 6.32.2 for
+# macOS arm64, and ROOT >= 6.34 reads the RNTuple files of run_h5toROOT.py (< 6.38: see
+# install_js_fno_build_minimal.sh).  Solves with this script's pins on Linux x86_64/aarch64
+# and macOS arm64 (conda dry runs).
 # ---------------------------------------------------------------------------
 echo "==> Installing ROOT (conda-forge)"
-${SOLVER} install -n "${ENV_NAME}" root=6.32.2 -c conda-forge -y
+${SOLVER} install -n "${ENV_NAME}" root=6.36.14 -c conda-forge -y
 
 # ---------------------------------------------------------------------------
 # PyTorch (pip — conda channel no longer officially supported)
@@ -193,6 +197,14 @@ ${SOLVER} install -n "${ENV_NAME}" \
     pytest=8.3.3 \
     networkx=3.3 \
     -c conda-forge -y
+
+# Apple Silicon: numpy's BLAS from Accelerate, not OpenBLAS.  conda-forge's OpenBLAS is
+# built with OpenMP and loads this env's libomp, while the PyTorch wheels (2.14 on) load
+# their own copy: two OpenMP runtimes in one process abort `import torch` (OMP: Error #15).
+if [[ "$(uname -s)-$(uname -m)" == "Darwin-arm64" ]]; then
+    echo "==> BLAS from Accelerate (Apple Silicon: one OpenMP runtime next to PyTorch)"
+    ${SOLVER} install -n "${ENV_NAME}" "libblas=*=*accelerate" -c conda-forge -y
+fi
 
 # ---------------------------------------------------------------------------
 # pip-only packages

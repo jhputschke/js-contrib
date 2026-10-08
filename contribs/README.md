@@ -81,7 +81,7 @@ All four install scripts:
 | Hadronization `hadronize.py` / `run_hadronize.py` | the build with `-DUSE_ISS=ON` | every script |
 | `run_h5toROOT.py` (ROOT export) | uproot, awkward; with PyROOT the smaller files | every script |
 | Python analyses (`example/analysis`, notebooks) | numpy, scipy, matplotlib, pandas, Jupyter, fastjet + vector (FastJet notebooks) | every script |
-| ROOT analyses (`example/analysis_root`) | ROOT ≥ 6.34 for the default RNTuple files | the unpinned scripts (ROOT 6.34–6.37); the pinned ROOT 6.32 reads only `run_h5toROOT.py --format ttree` files |
+| ROOT analyses (`example/analysis_root`) | ROOT ≥ 6.34 for the default RNTuple files | every script (unpinned: ROOT 6.34–6.37; pinned: 6.36.14) |
 | FastHydro | numpy, scipy, h5py; PyTorch for the solver | every script |
 | `PyFNOHydro`, FnoHydro | PyTorch, neuraloperator | every script (FnoHydro's C++ build also needs libtorch: its README) |
 | FNO4d training / evaluation | PyTorch, FNO4d's 4D neuraloperator fork, `loc_libs`; on Mac `neuralop_mlx` + MLX | every script, then FNO4d's `install.sh --conda` ([below](#fno4d-in-the-js_fno-environment)) |
@@ -307,9 +307,9 @@ environment used for the results in
 added since (pybind11, pytest, networkx, notebook, vector, pyvista, imageio; fastjet moved from 3.4.2,
 no longer on conda-forge, to 3.5.0.1; gsl 2.7.1 to 2.7) are pinned to versions that resolve
 with that environment's Python 3.11 and numpy 1.26 (checked by dry runs of conda and pip
-on Linux aarch64/x86_64 and macOS arm64, not by a full install). Its ROOT 6.32
-predates the RNTuple format, so read `run_h5toROOT.py` files there in the TTree variant
-(`--format ttree`).
+on Linux aarch64/x86_64 and macOS arm64, not by a full install). ROOT is the exception:
+the scripts pin 6.36.14 instead of that environment's 6.32.2, which conda-forge does not
+build for macOS arm64 and which predates the RNTuple files of `run_h5toROOT.py`.
 
 ---
 
