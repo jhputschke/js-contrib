@@ -104,7 +104,7 @@ On the GB10 the host side dominates the wall time.
 
 ### 3.4 GPU vs CPU at the level of observables (J#47, `MUSIC_CPU_vs_GPU.md`)
 
-The MUSIC4GPU README called the backends EXPERIMENTAL until a comparison of final-state observables existed. J#47 is that comparison on a small scale: 6 jet events, 3 backgrounds, same seeds, MUSIC's grid, iSS with matched seeds and correlated sampling. Since M#16 (2026-10-07) the MUSIC4GPU README calls the backends **validated against the CPU build** and carries this comparison as `docs/MUSIC_CPU_vs_GPU.md`. CUDA is validated up to hadrons; Metal only at the field level. **Still missing there:** a real large-scale campaign compared with the CPU build (thousands of events, several centralities and systems).
+The MUSIC4GPU README called the backends EXPERIMENTAL until a comparison of final-state observables existed. J#47 is that comparison on a small scale: 6 jet events, 3 backgrounds, same seeds, MUSIC's grid, iSS with matched seeds and correlated sampling. Since M#16 (2026-10-07) the MUSIC4GPU README calls the backends **validated against the CPU build** and carries this comparison as `docs/MUSIC_CPU_vs_GPU.md`. CUDA (GB10) and Metal (M3 Max, repeated 2026-10-08 with the same options) are both validated up to hadrons, with the same systematic offsets. **Still missing there:** a real large-scale campaign compared with the CPU build (thousands of events, several centralities and systems).
 
 **Equal within errors:**
 - freeze-out times, identical in all 9 MUSIC runs;
