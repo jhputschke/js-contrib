@@ -550,10 +550,15 @@ def test_read_jet_off_takes_the_jet_leg_from_musics_metadata(tmp_path):
             jet.evo[1:, 0, 0, 0, 0] += k + 1
             out.append((w.Exec(), w.last_event_diag, w.last_bg_key))
         w.Finish()
+        run.n_hit_edge = w.n_hit_edge
         return out, jet
 
-    read, jet_read = run("read")
-    skip, jet = run("skip", read_jet=False)
+    with pytest.warns(RuntimeWarning, match="on the transverse edge"):  # e >= 1 up to the edge
+        read, jet_read = run("read", edge_e_threshold=0.3)
+    assert run.n_hit_edge == {"bg": 4, "jet": 4}
+    with pytest.warns(RuntimeWarning, match="the bg leg has e"):
+        skip, jet = run("skip", read_jet=False, edge_e_threshold=0.3)
+    assert run.n_hit_edge == {"bg": 4, "jet": None}           # the jet leg: not measured
     assert jet_read.reads == 4 and jet.reads == 0
     assert jet.cleared == 4                        # the native store is still released
     assert [k for _, _, k in skip] == [k for _, _, k in read]
@@ -562,7 +567,8 @@ def test_read_jet_off_takes_the_jet_leg_from_musics_metadata(tmp_path):
         assert "frames_identical" not in ds and "ntau_jet" not in ds
         assert ds["ntau_jet_music"] == dr["ntau_jet"]          # native grid, stride 2
         same = {k: v for k, v in dr.items()
-                if k not in ("frames_identical", "ntau_jet") and not k.startswith("jet_edge")}
+                if k not in ("frames_identical", "ntau_jet", "jet_hit_edge")
+                and not k.startswith("jet_edge")}
         assert {k: v for k, v in ds.items() if k != "ntau_jet_music"} == same
     assert [d["bg_id"] for _, d, _ in skip] == [0, 0, 2, 2]
     assert [d["n_droplets_late"] for _, d, _ in skip] == [1, 1, 1, 1]

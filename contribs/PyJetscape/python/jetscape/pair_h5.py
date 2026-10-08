@@ -61,7 +61,9 @@ event count are what a full run gives, for a
 a particlize file uses it): its frame count and times then come from MUSIC's grid metadata
 (``ntau_jet_music``, MUSIC's own steps, instead of ``ntau_jet`` on the output grid), and
 ``frames_identical`` with the two checks built on it (same initial condition, droplets
-applied) is gone.  The background is still read: its hash recognises a reused one.
+applied) is gone, as are the jet leg's ``jet_edge_e_max``, ``jet_edge_e_max_eta`` and
+``jet_hit_edge`` (``n_hit_edge["jet"]`` is None).  The background is still read: its hash
+recognises a reused one.
 
 Usage (see example/prod_AuAu_0_10_jet/run_prod_jet.py)
 -----------------------------------------------------
@@ -529,8 +531,11 @@ class PairH5Writer:
     def n_hit_edge(self):
         """Events so far whose leg exceeded ``edge_e_threshold`` on the transverse faces
         of the output grid, as ``{"bg": n, "jet": n}`` (a reused background counts once
-        per event)."""
-        return dict(self._n_hit_edge)
+        per event).  ``"jet"`` is None with ``read_jet=False``: not measured."""
+        n = dict(self._n_hit_edge)
+        if not self._read_jet:
+            n["jet"] = None
+        return n
 
     @property
     def bg_layout(self):
