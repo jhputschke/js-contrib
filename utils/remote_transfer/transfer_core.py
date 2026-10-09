@@ -2,10 +2,10 @@
 utils/remote_transfer/transfer_core.py
 
 What js_gcs.py (Google Cloud Storage) and js_osdf.py (Pelican/OSDF) share: the kinds of
-production files (--what), the upload / download / ls commands with their skip and check
-rules, the parallel transfers, and the environment each script makes for itself.  Only the
-standard library at import: the scripts import this module before they are in their
-environment.
+production files (--what), the upload / download / ls / du / rm commands with their skip
+and check rules, the parallel transfers, and the environment each script makes for itself.
+Only the standard library at import: the scripts import this module before they are in
+their environment.
 
 A store (GcsStore, OsdfStore) gives the commands:
 
@@ -651,6 +651,49 @@ def cmd_ls(a, store):
     return 0
 
 
+def cmd_du(a, store):
+    """Space used: a total per directory down to --depth below the prefix (each counts
+    everything below it, as du), the files directly in the prefix, and the whole."""
+    prefix = store.relative(a.prefix) if a.prefix else ""
+    if any(c in prefix for c in WILDCARDS):
+        remote, kinds = match(prefix, store)
+        base = prefix[:min(prefix.find(c) for c in WILDCARDS if c in prefix)]
+        base = base.rsplit("/", 1)[0] if "/" in base else ""
+    else:
+        base, remote = prefix, store.list(prefix)
+        if not remote and (v := store.stat(prefix)) is not None:
+            remote, base = {prefix: v}, os.path.dirname(prefix)
+        kinds = classify(list(remote))
+    # every file of the --what kinds; with all of them, also the manifests (space used)
+    sel = {n: s for n, (s, _) in remote.items()
+           if kinds.get(n) in a.what or (a.what == set(KINDS) and n not in kinds)}
+    if not sel:
+        say(f"nothing under {store.label}/{prefix}")
+        return 0
+    dirs, here, by_kind = {}, [0, 0], {}               # name -> [size, files]
+    for n, s in sel.items():
+        parts = (os.path.relpath(n, base) if base else n).split("/")[:-1]
+        for i in range(1, min(a.depth, len(parts)) + 1):
+            d = dirs.setdefault("/".join(parts[:i]), [0, 0])
+            d[0] += s
+            d[1] += 1
+        if not parts:
+            here[0] += s
+            here[1] += 1
+        k = kinds.get(n, "manifest")
+        by_kind[k] = [x + y for x, y in zip(by_kind.get(k, (0, 0)), (s, 1))]
+    root = f"{store.label}/{base}/" if base else f"{store.label}/"
+    rows = sorted(dirs.items(), key=(lambda x: -x[1][0]) if a.sort == "size" else None)
+    for d, (s, n) in rows:
+        print(f"  {fmt_size(s):>9}  {n:7d}  {root}{d}/")
+    if here[1] and a.depth > 0:
+        print(f"  {fmt_size(here[0]):>9}  {here[1]:7d}  {root}  (files directly here)")
+    total = sum(sel.values())
+    print(f"  {fmt_size(total):>9}  {len(sel):7d}  {root}  total")
+    say(", ".join(f"{k} {n} file(s) {fmt_size(s)}" for k, (s, n) in sorted(by_kind.items())))
+    return 0
+
+
 # ── command line ──────────────────────────────────────────────────────────────────
 def build_parser(doc, add_store_args, root_help, add_commands=None):
     """The common command line; add_store_args(parser) adds the store's own options,
@@ -697,6 +740,16 @@ def build_parser(doc, add_store_args, root_help, add_commands=None):
     ls.add_argument("--what", type=parse_what, default=set(KINDS),
                     help="pair, h5, root or all (lists recursively, with the kinds)")
     ls.add_argument("-r", "--recursive", action="store_true", help="every file below")
+    du = sub.add_parser("du", help="space used: a total per directory, and the whole")
+    du.add_argument("prefix", nargs="?", default="",
+                    help="a directory (default: everything), a file, or a pattern")
+    du.add_argument("-d", "--depth", type=int, default=1,
+                    help="directories down to this depth below PREFIX (default 1; 0: only "
+                         "the total)")
+    du.add_argument("--what", type=parse_what, default=set(KINDS),
+                    help="pair, h5, root or all (default all, the manifests too)")
+    du.add_argument("--sort", choices=("name", "size"), default="name",
+                    help="order of the directories (default name)")
     rm = sub.add_parser("rm", help="remove files, patterns or (-r) directories; asks first")
     rm.add_argument("targets", nargs="+", metavar="TARGET",
                     help=f"a file, a pattern with * ? [..] (quote it), or with -r a "
@@ -733,6 +786,8 @@ def main(prog, parser, env, make_store, required_modules, argv=None, commands=No
     a = parser.parse_args(sys.argv[1:] if argv is None else argv)
     if getattr(a, "jobs", 1) < 1:
         parser.error("-j must be >= 1")
+    if getattr(a, "depth", 0) < 0:
+        parser.error("--depth must be >= 0")
     if a.cmd == "setup":
         print(f"{prog}: environment {env.dir} ({sys.executable}): "
               + ", ".join(env.requirements))
@@ -747,7 +802,7 @@ def main(prog, parser, env, make_store, required_modules, argv=None, commands=No
     store = make_store(a)
     try:
         return {"upload": cmd_upload, "download": cmd_download, "ls": cmd_ls,
-                "rm": cmd_rm}[a.cmd](a, store)
+                "du": cmd_du, "rm": cmd_rm}[a.cmd](a, store)
     except (OSError, ConnectionError, TimeoutError, RuntimeError) as e:
         die(f"{store.label}: {describe(e)}")
     except Exception as e:                             # noqa: BLE001  the client's own errors

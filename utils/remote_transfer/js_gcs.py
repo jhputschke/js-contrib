@@ -18,6 +18,8 @@ to it.  js_osdf.py is the same for Pelican/OSDF.
                                                        # files -> here/<file>
     ./js_gcs.py ls                                     # the bucket's top level
     ./js_gcs.py ls AuAu_c1 --what h5                   # files, sizes, kinds
+    ./js_gcs.py du                                     # space used per folder, and in all
+    ./js_gcs.py du AuAu_c1 -d 2 --sort size            # ... below a folder, 2 levels deep
     ./js_gcs.py rm -r AuAu_c1 --dry-run                # what would be removed; then without
     ./js_gcs.py rm AuAu_c1/AuAu_c1_0003_hadrons.root 'AuAu_c1/*_0004_*'   # files, patterns
     ./js_gcs.py setup --reinstall | --remove           # remake / delete the environment

@@ -549,6 +549,50 @@ def test_web_login(tmp_path, monkeypatch, capsys):
     assert "logged out" in capsys.readouterr().out
 
 
+def _du(store, argv, capsys):
+    capsys.readouterr()
+    assert core.cmd_du(_args(store, ["du", *argv]), store) == 0
+    return capsys.readouterr().out
+
+
+def test_du(tmp_path, store, capsys):
+    d = _prod(tmp_path)
+    assert _up(store, [str(d)]) == 0
+    _up(store, [str(d / f"{STEM}.xml"), "--as", "AuAu_a/sub/deeper"])
+    _up(store, [str(d / f"{STEM}.log"), "--flat"])                  # a file at the top
+    files = {n: s for n, (s, _) in store.list("").items()}
+    data = {n: s for n, s in files.items() if os.path.basename(n) != core.MANIFEST}
+
+    def row(out, end):                                 # the file count of a line
+        return int(next(x for x in out.splitlines() if x.endswith(end)).split()[2])
+
+    out = _du(store, [], capsys)
+    lab = f"{store.label}/"
+    assert row(out, f"{lab}AuAu_a/") == sum(1 for n in files if n.startswith("AuAu_a/"))
+    assert f"{lab}AuAu_a/sub/" not in out                           # depth 1
+    assert row(out, "total") == len(files)                         # manifests count too
+    assert f"{core.fmt_size(sum(files.values()))}" in out.splitlines()[-2]
+    assert "(files directly here)" in out
+    out = _du(store, ["AuAu_a"], capsys)                            # depth below it
+    assert f"{lab}AuAu_a/sub/" in out and f"{lab}AuAu_a/sub/deeper/" not in out
+    assert f"{lab}AuAu_a/sub/deeper/" in _du(store, ["AuAu_a", "-d", "2", "--sort", "size"],
+                                             capsys)
+    assert row(out, "total") == sum(1 for n in files if n.startswith("AuAu_a/"))
+    out = _du(store, ["AuAu_a", "-d", "0"], capsys)
+    assert len([x for x in out.splitlines() if x.startswith("  ")]) == 1
+    # --what: only that kind, no manifests
+    out = _du(store, ["--what", "root"], capsys)
+    assert row(out, "total") == sum(1 for n in data if n.endswith(".root"))
+    assert "manifest" not in out.splitlines()[-1]
+    # a pattern, relative to its directory; one file
+    out = _du(store, ["AuAu_a/*_hadrons_*"], capsys)
+    assert row(out, "total") == sum(1 for n in data if "_hadrons_" in n)
+    assert f"{lab}AuAu_a/sub/" not in out and "(files directly here)" in out
+    out = _du(store, [f"AuAu_a/{STEM}.xml"], capsys)
+    assert row(out, "total") == 1
+    assert "nothing under" in _du(store, ["AuAu_b"], capsys)
+
+
 def _rm(store, argv):
     return core.cmd_rm(_args(store, ["rm", *argv]), store)
 

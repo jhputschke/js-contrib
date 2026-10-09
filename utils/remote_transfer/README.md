@@ -33,6 +33,7 @@ cd utils/remote_transfer
 ./js_osdf.py upload /data/AuAu_0_10_pth10-40_eta06_c1 --what root    # -> osdf:///fno4hic/AuAu_0_10_pth10-40_eta06_c1/
 ./js_osdf.py download AuAu_0_10_pth10-40_eta06_c1 --what root --to /scratch
 ./js_osdf.py ls                                                  # the namespace (osdf:///fno4hic)
+./js_osdf.py du                                                  # space used per folder, and in all (§ Space used)
 ./js_osdf.py rm -r AuAu_0_10_pth10-40_eta06_c1 --dry-run          # what would be removed (§ Removing)
 ./js_osdf.py rm AuAu_c1/AuAu_c1_0003_hadrons.root 'AuAu_c1/*_0004_*'   # files and patterns; asks first
 ```
@@ -98,6 +99,33 @@ and other 4 files 35 MB.
 - **Overlaps:** a file asked for twice, e.g. through its directory and a pattern, goes to
   both places. Two remote files that would land on the same local file are refused;
   download them with different `--to`.
+
+## Space used: `du`
+
+```bash
+./js_osdf.py du                                    # per top-level folder, and the total
+./js_osdf.py du AuAu_c1 -d 2 --sort size           # below a folder, two levels, largest first
+./js_osdf.py du -d 0 --what root                   # only the total of the ROOT files
+./js_osdf.py du 'AuAu_*'                           # a pattern (quoted)
+```
+
+On `/fno4hic` (2026-10-09):
+
+```
+     2.1 GB       70  osdf:///fno4hic/test/
+     2.1 GB       70  osdf:///fno4hic/  total
+js_osdf: manifest 1 file(s) 10.3 kB, other 1 file(s) 76 B, root 68 file(s) 2.1 GB
+```
+
+- **A line per directory** down to `-d`/`--depth` below the prefix (default 1; `0`: only
+  the total), with its size and number of files. Each counts everything below it, as `du`
+  does. Files directly in the prefix get a line of their own, then comes the total, then
+  the sizes per kind.
+- **Everything stored counts**, the manifests too (`ls` doesn't show them). `--what` counts
+  only those kinds, without the manifests.
+- **The prefix** can be a directory, a file or a pattern (directories then count from the
+  pattern's directory). Empty directories hold nothing and don't show.
+- **One listing:** like `ls -r`, `du` lists the files once (about a second for `/fno4hic`).
 
 ## Removing: `rm`
 
@@ -297,7 +325,7 @@ upload needs one that lasts.
 
 ## Tested
 
-- **Offline:** `pytest utils/remote_transfer/test` (33 tests, in
+- **Offline:** `pytest utils/remote_transfer/test` (35 tests, in
   [`test/test_transfer.py`](test/test_transfer.py)). Every command runs against two
   stores: an in-memory GCS bucket, and `OsdfStore` on fsspec's in-memory file system in
   place of pelicanfs. The tests cover:
@@ -312,6 +340,8 @@ upload needs one that lasts.
     (refresh tokens from renewals answered with HTTP 500: the login's is kept and renews
     again and again; the latest used once the kept one is refused; both refused: the
     issuer's answer reported), and a running process taking up a login made meanwhile;
+  - `du`: totals per directory at each depth, the files directly in the prefix, the
+    manifests counted, `--what`, `--sort`, patterns and a single file;
   - `rm`: files, patterns, directories with their manifests and empty directories below,
     `--what`, `--dry-run`, the question (no terminal, no, yes), and targets that aren't
     there.

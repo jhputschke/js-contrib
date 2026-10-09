@@ -16,6 +16,8 @@ transfer_core.py next to it.
     ./js_osdf.py download 'AuAu_c1/*_0004_*' --to here        # files -> here/<file>
     ./js_osdf.py ls                                    # the namespace's top level
     ./js_osdf.py ls AuAu_c1 --what h5                  # files, sizes, kinds
+    ./js_osdf.py du                                    # space used per folder, and in all
+    ./js_osdf.py du AuAu_c1 -d 2 --sort size           # ... below a folder, 2 levels deep
     ./js_osdf.py rm -r AuAu_c1 --dry-run               # what would be removed; then without
     ./js_osdf.py rm AuAu_c1/AuAu_c1_0003_hadrons.root 'AuAu_c1/*_0004_*'   # files, patterns
     ./js_osdf.py setup --reinstall | --remove          # remake / delete the environment
