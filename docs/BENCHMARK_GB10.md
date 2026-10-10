@@ -29,6 +29,12 @@ pay off, and is there an OpenMP or GPU bottleneck?
   branch, the string deposition does less work per string–cell pair, with bit-identical
   output: the source fill is 41 % faster, and a job alone uses 23 % less CPU. Both matter
   on machines short of cores, not on the GB10, whose campaign rate the GPU sets.
+- **Host memory per job** (2026-10-10, [below](#host-memory-per-job-2026-10-10)): the jet
+  leg is now read one frame at a time, and with `LBT_TABLE_CACHE` the LBT tables are shared
+  read-only between jobs. A job's peak falls from 7.8 to 6.5 GB (campaign settings: 8.0 to
+  6.4 GB), with bit-identical output. Its CPU per event falls by 12 %, because the
+  drivers now default to one OpenBLAS thread. The point is more jobs per machine where
+  memory is the limit (the RTX 3090 box, cluster nodes).
 - **The startup hang** (jobs started at the same moment could hang forever at
   `Initialize MUSIC`) is fixed by per-job working directories (see
   [the startup race](#bug-concurrent-jobs-can-hang-at-start)).
@@ -343,6 +349,130 @@ On a machine short of cores, compare events/h at the `-j` that saturated the cor
 (8 jobs per GPU on the 3090 box, 536 events/h with the published image), and the jobs'
 user + sys time. `auto` against the published image measures the string change; `block`
 against `auto` measures the sync.
+
+### Host memory per job (2026-10-10)
+
+On the 2 × RTX 3090 box, host memory limits the jobs per GPU: 10 per GPU peaked at 116 GB of
+125 ([BENCHMARK_2x3090.md](BENCHMARK_2x3090.md)). Three changes cut a job's footprint, and
+a fourth spreads the jobs' peaks. Each was measured here one job at a time, because a
+single job's peak and CPU don't depend on the GPU. Throughput has to be measured on the
+3090 box: the GB10 is GPU-bound.
+
+**Setup:**
+- One job, seed 1, 3 events, `run_jobs.sh -j 1`, `OMP_NUM_THREADS=4`,
+  `OMP_WAIT_POLICY=passive`, `MUSIC_CUDA_SYNC=block`.
+- `/proc/<pid>/status` and `smaps_rollup` sampled every 0.5 s: RSS split into anon, file and
+  shmem, plus Pss and the job's CPU.
+- The four-job runs also record the machine's MemAvailable every 2 s.
+- X-SCAPE `57e32ce3` + branch `cuda_blocking_sync`, MUSIC4GPU `c7b75ba`, js-contrib
+  `cuda_blocking_sync`.
+- Output compared dataset by dataset, attributes included. Only `source/flux` may differ:
+  the ~1-ulp jitter of an OpenMP reduction, seen between any two runs.
+
+**Reference** (before the changes; two runs each, to show the spread):
+
+| | peak RSS | writer-window max, events 1/2/3 | core-s/event | wall |
+|---|---|---|---|---|
+| plain (r1, r2) | 7.84, 7.83 GB | 6.82 / 7.84 / 6.93 GB | 54.6, 54.2 | 115 s |
+| `--write-particlize both` (r1, r2) | 8.53, 8.67 GB | 7.34 / 8.53 / 7.55 GB | 71.7, 72.8 | 138, 140 s |
+
+As on the 3090, the peak always falls in event 2's writer window, the event with the most
+jet frames (133).
+
+**A. glibc malloc settings (environment only): not adopted.**
+
+| (particlize) | peak RSS | core-s/event |
+|---|---|---|
+| `MALLOC_ARENA_MAX=2` | 8.73 GB | 79.9 |
+| `MALLOC_MMAP_THRESHOLD_=4194304 MALLOC_TRIM_THRESHOLD_=67108864` | 8.43 GB | 78.4 |
+| both | 8.40 GB | 87.8 |
+
+At most 0.2 GB less, inside the run-to-run spread, for 8–21 % more CPU.
+
+**B. The jet leg frame by frame** (js-contrib):
+- **The change:**
+  - `PairH5Writer._read` used to build the whole jet leg as one
+    (ntau, 100, 100, 60, 4) float32 array next to MUSIC_2's native store. It now reads it
+    through `NativeFrames`, one frame at a time, with new bindings
+    `MpiMusic.get_native_frame_numpy(it)` and `get_native_ntau()`.
+  - These are the same per-cell loop and values as `get_native_evolution_numpy`. The
+    background was already read this way (`FrameworkFrames`).
+- **Memory:** every writer window drops by ~0.8 GB (event 2: 7.84 → 7.06 GB). Peak plain
+  7.84 → 7.06 GB, particlize 8.53/8.67 → 7.76 GB.
+- **Output:** identical. Two new tests in `tests/test_pair_h5.py`: the indexing, and a
+  byte-identical pair file read both ways, in native and grid mode.
+- **A side effect, and its fix:** the job's CPU rose by ~4 core-s per event (+8 %), at
+  the same wall time and main-thread time (py-spy).
+  - The cause is OpenBLAS. `resample`'s matrix products now alternate with ~25 ms of
+    single-threaded frame conversion, and OpenBLAS's idle worker threads spin through
+    those gaps.
+  - Interleaved runs, user CPU per 3-event job: new reader 163/166 s, old 151/153 s; with
+    `OPENBLAS_NUM_THREADS=1`, new 142 s, old 144 s. Wall time rises by 2–3 s per job.
+    Output stays identical.
+  - So `run_prod.py` (and through it `run_prod_jet.py`) now sets
+    `OPENBLAS_NUM_THREADS=1` unless it is already set. Both readers get cheaper than
+    before.
+
+**C. Staggered start, `run_jobs.sh --stagger S`:** the first P jobs start S seconds apart,
+so their per-event peaks don't coincide; later jobs start as slots free up anyway.
+- **Function:** checked. Four jobs started 15 s apart.
+- **Memory:** at 4 jobs it saves only 0.1 GB (26.9 against 27.1 GB). The effect needs many
+  jobs at once, and so has to be measured on the 3090 box. On the 3090 the first event's
+  end was the highest point of a 16-job run.
+- **Per-event times look shorter with a stagger** (62.9 against 71.9 s), because the jobs
+  overlap less at the start and end. The makespan is unchanged (244 s), so events/h from
+  per-event times overstates a staggered run.
+
+**D. Shared LBT tables, `LBT_TABLE_CACHE=<file>`** (X-SCAPE `src/jet/LBT.h`, `LBT.cc`):
+- **The change:** every job used to parse the same ~0.66 GB of LBT tables from text files
+  into static arrays. The 12 arrays are now pointers into one block.
+  - With `LBT_TABLE_CACHE` set, a job maps that file read-only (`MAP_SHARED`): one copy for
+    every process on the machine, and no parsing.
+  - If the file is missing, the job parses as before, writes the file atomically
+    (temporary file + `rename`) and switches to the mapping.
+  - The file is 656,581,952 bytes.
+  - Its header records the array dimensions, `KINT0` and the total size of the table files
+    read, so a cache from other tables is not used. Files of the same size but other content
+    are not detected: use one cache file per LBT-tables version.
+  - Without the variable, behaviour is as before (a private copy).
+- **Writes:** only `read_tables()` writes the arrays, once per process, inside the two
+  blocks a mapped cache skips (checked). The mapping is `PROT_READ`, so a missed write
+  would segfault rather than corrupt the tables.
+
+| (plain) | peak RSS | RssFile | core-s/event |
+|---|---|---|---|
+| B, no cache (private tables) | 7.06 GB | 0.76 GB | 59.4 |
+| B + cache, first job (writes it) | 6.46 GB | 0.77 GB | 59.8 |
+| B + cache, next job (maps it) | 6.46 GB | 0.77 GB | 56.1 |
+
+- **Per job:** ~0.6 GB less resident. The mapped tables hardly show up as RssFile either:
+  a job touches only a small part of them, and pages never touched are never loaded.
+- **Four jobs:** at once (`-j 4 --mps`, machine-wide used memory above idle), private
+  tables +24.3 GB, shared +21.1 GB.
+- **Startup:** LBT's initialisation takes 6.5–6.9 s per job when parsing the text files
+  and ~0 s when mapping the cache. That is ~6.5 core-s less per job, or ~2 core-s per
+  event at 3 events per job.
+- **Output:** identical in all three cases.
+
+**All together** (B + OpenBLAS default + C + D):
+
+| | peak RSS | core-s/event | wall | output |
+|---|---|---|---|---|
+| plain, before | 7.84 GB | 54.6 | 115 s | — |
+| **plain, after** | **6.45 GB (−18 %)** | **48.1 (−12 %)** | 111 s | identical |
+| campaign settings, before | 8.00 GB | 37.3 | 346 s | — |
+| **campaign settings, after** | **6.42 GB (−20 %)** | **32.9 (−12 %)** | 345 s | identical (pair + particlize) |
+| 4 jobs, before (old reader, private tables, OpenBLAS default) | +24.2 GB | | 247 s makespan | — |
+| **4 jobs, after** (`--stagger 15`, cache) | **+20.7 GB** | | 244 s makespan | identical (all 4 seeds) |
+
+- **Campaign settings:** one job of one background with 15 jet events, `--pthat-bins
+  10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both`. All 15
+  events were written, with one background, and the background history survives as
+  before.
+- **For the 3090 box:** at ~1.5 GB less per job, 20 jobs need ~30 GB less. The 116 GB peak
+  of 10 jobs per GPU should then fall to ~85–90 GB. That is to be measured there, with
+  `--stagger` and the cache on a bind-mounted host path. Not the container's `/dev/shm`:
+  it is private to the container and 64 MB by default.
 
 ### Before the speed-ups (first measurement)
 
