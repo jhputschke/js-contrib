@@ -46,6 +46,13 @@ PYJETSCAPE = os.path.dirname(os.path.dirname(HERE))          # contribs/PyJetsca
 XSCAPE = os.path.abspath(os.path.join(PYJETSCAPE, "..", "..", "..", ".."))
 sys.path.insert(0, os.path.join(PYJETSCAPE, "python"))
 
+# One OpenBLAS thread per job unless set otherwise.  The resampling's small matrix
+# products gain nothing from more threads, and the idle workers spin between them: with
+# the jet leg read frame by frame that was +8 % CPU per event for the same output and
+# wall time (docs/BENCHMARK_GB10.md).  It has to be set before numpy is first imported
+# (just below; run_prod_jet.py loads this module first too).
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+
 from jetscape.bulk_sources import Grid, ntau_to_end         # noqa: E402  (pure Python)
 
 USER_XML = os.path.join(HERE, "AuAu_MCGlauber_MUSIC_0_10_fast.xml")

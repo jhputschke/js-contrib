@@ -420,6 +420,62 @@ def framework_frames(hydro, tau_stride=1):
     return arr, Grid.from_bulk_info(b, ntau=arr.shape[0], dtau=float(b.dtau) * stride)
 
 
+class NativeFrames:
+    """MUSIC's native store as a read-only ``(ntau, nx, ny, neta, 4)`` array of
+    ``(energy_density, vx, vy, vz)`` that fetches one tau frame at a time.
+
+    The values are those of ``get_native_evolution_numpy(tau_stride)`` (the same floats,
+    through ``get_native_frame_numpy``), but only the last frame read is held: whole, the
+    jet leg of a 0-10% Au+Au event is 1.0-1.3 GB.  Same interface as
+    :class:`FrameworkFrames`: ``shape``, ``len()``, ``a[k]`` and ``a[k, ...slices]``.
+    """
+
+    def __init__(self, hydro, tau_stride=1):
+        self._h = hydro
+        self._stride = max(1, int(tau_stride))
+        g = hydro.get_bulk_info()
+        n = -(-int(hydro.get_native_ntau()) // self._stride)
+        self.shape = (n, int(g.nx), int(g.ny), int(g.neta), 4)
+        self.dtype = np.dtype(np.float32)
+        self._k, self._frame = None, None
+
+    def __len__(self):
+        return self.shape[0]
+
+    def _get(self, k):
+        k = int(k)
+        if k < 0:
+            k += self.shape[0]
+        if not 0 <= k < self.shape[0]:
+            raise IndexError(f"tau frame {k} outside [0, {self.shape[0]})")
+        if k != self._k:
+            self._frame = None                 # free the old frame before the next
+            self._frame = np.asarray(self._h.get_native_frame_numpy(k * self._stride))
+            self._k = k
+        return self._frame
+
+    def __getitem__(self, idx):
+        if isinstance(idx, tuple):
+            return self._get(idx[0])[idx[1:]]
+        return self._get(idx)
+
+
+def native_frames(hydro, tau_stride=1):
+    """``(NativeFrames, src_grid)`` for MUSIC's native store, or None if this build has no
+    ``get_native_frame_numpy`` (then use :func:`event_array`)."""
+    if not hasattr(hydro, "get_native_frame_numpy"):
+        return None
+    if hasattr(hydro, "get_dump_hydro_only") and not hydro.get_dump_hydro_only():
+        raise RuntimeError("native frames need <Hydro><MUSIC><dump_hydro_only>1 so MUSIC "
+                           "keeps its native evolution store")
+    arr = NativeFrames(hydro, tau_stride)
+    if arr.shape[0] == 0:
+        raise RuntimeError("MUSIC native store is empty")
+    b = hydro.get_bulk_info()
+    stride = max(1, int(tau_stride))
+    return arr, Grid.from_bulk_info(b, ntau=arr.shape[0], dtau=float(b.dtau) * stride)
+
+
 def framework_store_bytes(bulk_info):
     """Rough size of the framework AoS backing ``framework`` mode."""
     n = max(1, int(bulk_info.nx)) * max(1, int(bulk_info.ny)) * max(1, int(bulk_info.neta))

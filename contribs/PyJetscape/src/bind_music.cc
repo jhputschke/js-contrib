@@ -161,6 +161,44 @@ void bind_music(py::module_ &m) {
              ``get_bulk_info()``.
            )pbdoc",
            py::arg("idx"))
+      .def("get_native_ntau",
+           [](MpiMusic &h) -> int {
+             const auto &g = h.get_bulk_info();
+             const long n_per_step = (long)g.nx * g.ny * g.neta;
+             const int num_cells = h.get_number_of_fluid_cells();
+             return (num_cells > 0 && n_per_step > 0) ? (int)(num_cells / n_per_step) : 0;
+           },
+           "Number of tau steps in MUSIC's native store (0 when empty).")
+      .def("get_native_frame_numpy",
+           [](MpiMusic &h, int it) -> py::array_t<float> {
+             // One tau step of the native store, (nx, ny, neta, 4) float32
+             // [energy_density, vx, vy, vz]: the same values, in the same order, as
+             // get_native_evolution_numpy()[it], without building the whole leg.
+             const auto &g = h.get_bulk_info();
+             const long n_per_step = (long)g.nx * g.ny * g.neta;
+             const int num_cells = h.get_number_of_fluid_cells();
+             const int ntau = (n_per_step > 0) ? (int)(num_cells / n_per_step) : 0;
+             if (it < 0 || it >= ntau)
+               throw std::out_of_range("get_native_frame_numpy: step " + std::to_string(it) +
+                                       " outside [0, " + std::to_string(ntau) + ")");
+             py::array_t<float> arr(std::vector<py::ssize_t>{g.nx, g.ny, g.neta, 4});
+             float *out = arr.mutable_data();
+             {
+               py::gil_scoped_release release;
+               FluidCellInfo cell;
+               const long base = (long)it * n_per_step;
+               for (long ic = 0; ic < n_per_step; ic++) {
+                 h.get_native_fluid_cell((int)(base + ic), cell);
+                 *out++ = (float)cell.energy_density;
+                 *out++ = (float)cell.vx;
+                 *out++ = (float)cell.vy;
+                 *out++ = (float)cell.vz;
+               }
+             }
+             return arr;
+           },
+           py::arg("it"),
+           "One tau step of MUSIC's native store, (nx, ny, neta, 4) float32.")
       .def("get_native_evolution_numpy",
            [](MpiMusic &h, int tau_stride) -> py::array_t<float> {
              if (tau_stride < 1)

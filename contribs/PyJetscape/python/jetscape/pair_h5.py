@@ -92,7 +92,7 @@ from typing import Optional
 import numpy as np
 
 from .bulk_sources import (Grid, attrs_from_grids, event_array, framework_frames,
-                           music_extra_attrs, resample, resolve_out_grid)
+                           music_extra_attrs, native_frames, resample, resolve_out_grid)
 from .fno_h5_writer import FnoH5Writer, write_row_view
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 from .liquefier_io import (DROPLET_COLUMNS, droplet_fluxes, droplets, liquefier_params,
@@ -572,6 +572,12 @@ class PairH5Writer:
                 arr = arr[::self._tau_stride]
                 src = replace(src, ntau=arr.shape[0], dtau=src.dtau * self._tau_stride)
         else:
+            # The jet leg, one frame at a time as well (NativeFrames): the same values,
+            # without the whole leg as one array (~0.8 GB less at the peak of a 0-10%
+            # Au+Au event on the GB10).
+            lazy = native_frames(hydro, self._tau_stride)
+            if lazy is not None:
+                return lazy
             arr, src, _ = event_array(hydro, "native", tau_stride=self._tau_stride)
         return arr, src
 
