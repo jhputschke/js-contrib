@@ -44,12 +44,17 @@ Findings:
 - **Update 2026-10-10:** with MUSIC4GPU `c7b75ba` and `MUSIC_CUDA_SYNC=block`, 8/GPU gives
   553 events/h at −30 % CPU per event, and 10/GPU now pays off (588) but only fits in memory
   without particlize. See [below](#cuda-blocking-sync).
+- **Update 2026-10-10 (host memory per job):** with the jet leg read frame by frame,
+  `LBT_TABLE_CACHE` and `run_jobs.sh --stagger 12`, **10/GPU with particlize fits** (104.5 GB
+  peak in the campaign setting) and gives **+8.4 % events/h** over 8/GPU. See
+  [below](#memory-10-per-gpu).
 
 **Recommended launch: [`launch_2gpu.sh`](launch_2gpu.sh)** (usage in [README_launch.md](README_launch.md)).
 It starts one container per GPU, each with `run_jobs.sh -j 8 --mps` and `OMP_NUM_THREADS=4`,
 splits NJOBS between the GPUs and writes to `OUTBASE/gpu0` and `OUTBASE/gpu1`. OUTBASE can be
 under `~/prod_test` (`/work/...`) or on another disk, e.g. `/data/...` (1.6 TB free; tested).
-The campaign default for this machine is the `--pthat-bins` setup [below](#suggested-campaign-default).
+The campaign default for this machine is the `--pthat-bins` setup [below](#suggested-campaign-default);
+with the 2026-10-10 image at 10 jobs/GPU, see [below](#memory-10-per-gpu).
 
 ## launch_2gpu.sh with `--write-particlize both` (2026-10-04)
 
@@ -83,7 +88,8 @@ particlize events each.
 - **Speed:** the background (MUSIC_1) runs once per 15 events instead of every event, so a jet
   event costs ~60 s instead of ~128 s at 16 jobs: **~1.8× the events per hour**.
 - **Memory: unchanged.** Reusing the background does not raise the peak (97 GB with 16 jobs, 28 GB
-  headroom). 10 jobs/GPU would not fit with particlize (~6 GB/job → ~120 GB).
+  headroom). 10 jobs/GPU would not fit with particlize (~6 GB/job → ~120 GB). *2026-10-10: it
+  does now, with the host-memory changes; see [below](#memory-10-per-gpu).*
 - **`--parton-ymax 0.6`** costs nothing visible: rejected events are regenerated in Pythia
   before the shower and hydro (acceptance 0.56 / 0.71 / 1.0 for the three windows, seed 1).
 - **Disk:** 61 GB for these 240 events; plan ~0.25 GB per event.
@@ -262,18 +268,22 @@ the earlier runs measured ~15 %.
   +3.5 % events/h, nothing worse in any run, and it is what lets more jobs per GPU pay.
 - **Keep 8 jobs/GPU for particlize campaigns.** 10/GPU gives +10 % without particlize, but
   peaks at 116 GB of 125; with particlize (+0.5–0.7 GB per job at the peak) it would most
-  likely not fit.
+  likely not fit. *Superseded 2026-10-10: with items 1, 3 and 4 below, 10/GPU with particlize
+  fits; see [below](#memory-10-per-gpu).*
 - **Re-check the campaign default's memory** with the new image (particlize at 8/GPU: 97 GB
-  with the baseline; the first-event spike could push it toward ~110 GB).
+  with the baseline; the first-event spike could push it toward ~110 GB). *Done 2026-10-10:
+  111.2 GB at 8/GPU with this image (R1 [below](#memory-10-per-gpu)).*
 - **The throughput lever on this machine is now host memory per job**, then GPU work per
   event; the CPU comes last. In order of value for effort:
   1. **Read the jet leg frame by frame** (a per-frame accessor in `bind_music.cc`, a
      `NativeFrames` reader like `FrameworkFrames`): −1.0–1.3 GB per job at the peak
-     (13–17 %), particlize peak ~8.1 → ~6.9 GB.
+     (13–17 %), particlize peak ~8.1 → ~6.9 GB. *Done 2026-10-10.*
   2. **Memory left between events:** test `MALLOC_ARENA_MAX=2` / `MALLOC_TRIM_THRESHOLD_`
      (no code change); maybe another ~1 GB per job.
   3. **Share the LBT tables between jobs** (read-only `mmap`): ~0.6 GB per job.
-  4. **A staggered start** in `run_jobs.sh`: removes the first-event spike.
+     *Done 2026-10-10 (`LBT_TABLE_CACHE`).*
+  4. **A staggered start** in `run_jobs.sh`: removes the first-event spike. *Done 2026-10-10
+     (`--stagger S`).*
   5. **More RAM** (the 3960X takes 256 GB): the same effect without code.
   6. **GPU side:** CUDA graphs and fewer host syncs for the ~1500-step loop; start MUSIC_2
      from MUSIC_1's state before the first droplet (its first 6 frames equal the
@@ -289,3 +299,114 @@ the earlier runs measured ~15 %.
 Raw data on this machine: `~/prod_test/bench/synctest_20261009/` (`REPORT.md`, per-run
 monitor logs and job logs, `compare_*.txt`, `memtrace/`), launcher copy
 `~/prod_test/launch_2gpu_synctest.sh`.
+
+<a id="memory-10-per-gpu"></a>
+## Host memory per job: 10 jobs/GPU with `--write-particlize both` (2026-10-10)
+
+The question: do the host-memory changes from [BENCHMARK_GB10.md](BENCHMARK_GB10.md) ("Host memory per job (2026-10-10)") make 10 jobs/GPU with particlize feasible and worthwhile here? The changes:
+- the jet leg read one frame at a time (automatic);
+- `LBT_TABLE_CACHE=<file>` (opt-in);
+- `run_jobs.sh --stagger S`;
+- `OPENBLAS_NUM_THREADS=1` as the drivers' default.
+
+**Images:**
+
+| | image | X-SCAPE | MUSIC4GPU | js-contrib |
+|---|---|---|---|---|
+| reference | `xscape-prod:cu124-cuda-sync-test`, `7d15622f5656` (as above) | `57e32ce` | `c7b75ba` | `4e22dc6` |
+| new | `xscape-prod:cu124-cuda-sync-mem-test`, `aa7568b46742` (CI run 38066958166) | `01584cc` | `c7b75ba` | **`593fcc4`** |
+
+**Setup**
+- `launch_2gpu.sh` copy with `--image`, `--stagger S` (passed to `run_jobs.sh` after `--mps`), and `-e MUSIC_CUDA_SYNC -e LBT_TABLE_CACHE`.
+- Every run: `--write-particlize both`, `MUSIC_CUDA_SYNC=block`, MPS, seeds from 1, 30 s idle between runs.
+- **LBT cache:** host `~/prod_test/lbt_cache/lbt_tables_v1.bin` = `/work/lbt_cache/…` in both containers.
+  - Created once before the runs by one job of one event (log: `LBT: wrote the table cache …`; 656,581,952 bytes).
+  - Every job of R2–R6 logged `LBT: tables mapped read-only from /work/lbt_cache/lbt_tables_v1.bin`. None wrote it, none warned.
+- **Host memory:** used = MemTotal − MemAvailable, from `/proc/meminfo` every 2 s, plus each job's VmRSS/VmHWM.
+- **events/h:**
+  - per-event convention, as above;
+  - **makespan rate** = events × 3600 / makespan. Use this one for staggered runs, whose per-event times look shorter than they are.
+- **CPU:** cgroup `cpu.stat` as above.
+- **Watchdog:** `docker stop` of the run's containers if MemAvailable < 6 GB. It never fired.
+- **OOM:** `docker events` and the kernel's `oom_kill` counter. None in any run.
+- **Idle baseline:** 5.7–6.0 GB used before every run.
+
+| run | image | jobs/GPU (total) | OMP | stagger | events/job | **host peak** (min free) | swap | events/h per-event | **events/h makespan** | core-s/event | GPU0 / GPU1 busy | VRAM/GPU | per-job VmHWM, mean [max] |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| R1 | reference | 8 (16) | 4 | – | 3 | **111.2 GB** (14.5) | +0 | 456 | 404 | 243.4 | 59 / 58 % | 6.5 GB | 7.52 [8.17] GB |
+| R2 | new | 8 (16) | 4 | – | 3 | **91.7 GB** (34.0) | +0 | 478 | 432 | 203.0 | 63 / 62 % | 6.5 GB | 5.98 [6.57] GB |
+| R3 | new | 10 (20) | 3 | 12 s | 3 | **97.3 GB** (28.3) | +0 | (598) | **458** | 188.1 | 68 / 65 % | 8.1 GB | 5.99 [6.57] GB |
+| R4 | new | 10 (20) | 3 | – | 3 | **108.8 GB** (16.9) | +0 | 511 | 468 | 207.9 | 69 / 69 % | 8.0 GB | 6.00 [6.56] GB |
+| R5 | new | 10 (20) | 3 | 12 s | 15, campaign¹ | **104.5 GB** (21.1) | +254 MB² | (951) | **805** | 114.8 | 67 / 68 % | 8.1 GB | 6.10 [6.71] GB |
+| R6 | new | 8 (16) | 4 | 12 s | 15, campaign¹ | **91.7 GB** (33.9) | +525 MB² | (878) | **743** | 111.6 | 63 / 62 % | 6.5 GB | 6.10 [6.46] GB |
+
+¹ `--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6`: one background per job.
+
+² Not the jobs; see "Swap" below.
+
+All jobs completed: `events_written` and `particlize_events_written` equal the events requested, and every log says `host sync: block`. Per-event rates in parentheses are staggered runs: R3 and R4 have the same makespan rate (458 vs 468) but per-event rates of 598 vs 511.
+
+**When the peaks happen.** The job logs are block-buffered, so event end times were reconstructed backwards from each log's last write and the `done in` times. This agrees with the pair `.h5` being created 6–12 s before event 1's reconstructed end, in the writer window.
+
+| run | jobs on event … at the host peak | peak until all jobs finished event 1 | highest peak after |
+|---|---|---|---|
+| R1 | 16 × event 1 | 111.2 GB | 104.1 GB |
+| R2 | 14 × event 1, 2 × event 2 | 91.7 GB | 86.0 GB |
+| R3 (stagger) | 8 × event 1, 12 × event 2 | 97.3 GB | 96.8 GB |
+| R4 | 17 × event 1, 3 × event 2 | 108.8 GB | 102.5 GB |
+| R5 (stagger, 15 ev) | events 4–7 | 97.9 GB | **104.5 GB** |
+| R6 (stagger, 15 ev) | events 9–14 | 81.7 GB | **91.7 GB** |
+
+**Memory saved per job, R1 → R2 (same 16 jobs and seeds):** −19.5 GB at the host peak, **−1.22 GB per job**.
+- Per job VmHWM: 7.52 → 5.98 GB; the largest job 8.17 → 6.57 GB.
+- 16 jobs with particlize now leave 34 GB free instead of 14.5 GB.
+- Also **+5.0 % events/h (+6.8 % makespan) at −16.6 % CPU per event**: one OpenBLAS thread, and no LBT parse.
+
+**The reference image at 8/GPU already peaks at 111.2 GB with particlize** (R1), not the 97.6 GB [above](#suggested-campaign-default). That number is from the 2026-10-03 baseline image; it is the first-event spike [above](#host-memory).
+
+**The stagger, R3 vs R4:** −11.5 GB at the peak (108.8 → 97.3 GB). It removes the first-event spike.
+- Makespan rate: 458 vs 468 (−2 %, within noise). With 3-event jobs the 9 × 12 s ramp is a large share; in a campaign it is paid once.
+- CPU per event −10 % (188 vs 208 core-s).
+
+**Steady state:** with the stagger the highest peak comes later, when jobs drift into step by chance: R5 104.5 GB (~4.9 GB per job above idle), R6 91.7 GB.
+
+**Swap:** system swap grew in R5 (+254 MB) and R6 (+525 MB). The jobs didn't cause it:
+- R6 had at least 33.9 GB available throughout.
+- The jobs' own VmSwap, sampled every 5 s in R6, stayed at 0.
+- The swapped-out pages belong to idle processes (VS Code servers, gnome-shell, upowerd).
+- The kernel (`vm.swappiness` 60) moves them out while ~30–40 GB of freshly written `.h5` data sits in page cache.
+
+**Correctness**
+- **R1 vs R2, seed 1:**
+  - pair file: 35 datasets identical; only `source/flux` differs (max |Δ| 4.4e-16, 13 of 69 values, ≤ 4 ulp);
+  - particlize file: all 33 datasets identical;
+  - attributes: only `prod_host` differs.
+  - The files record no js-contrib commit (only `format_version`, `prod_build`).
+- **R5:** all 20 jobs wrote 15 pair + 15 particlize events, one background each (`diag/bg_id`, `events/bg_id` and `surface/bg/bg_id` all 0; all 300 `done in` lines say `bg 0`).
+
+**Verdict**
+- **Feasible:** all jobs complete, no OOM, peak ≤ 110 GB (≥ 15 GB headroom).
+  - R3 left 28.3 GB free; the campaign run R5 21.1 GB.
+  - Without the stagger it is marginal: R4 left 16.9 GB.
+  - R5 covered 22 minutes. A campaign of hours samples more chance alignments, so its peak may creep somewhat higher.
+- **Worthwhile:**
+  - campaign setting, R5 vs R6: **+8.4 % events/h** (805 vs 743 makespan, 951 vs 878 per event), with +2.9 % CPU per event and GPUs 67–68 % busy instead of 62–63 %;
+  - 3-event runs: +6.2 % (R3) and +8.4 % (R4) over R2 by makespan;
+  - all well outside the ±3 % noise. For comparison, the 2026-10-04 campaign default measured 810 / 722 events/h.
+- **Campaign default for this machine (proposed):**
+  - **10 jobs/GPU, `OMP_THREADS=3`, `LBT_TABLE_CACHE` on a bind-mounted host path, `--stagger 12`;**
+  - create the cache once per LBT-tables version before the campaign;
+  - watch host memory during the first long campaign, and use 9/GPU (not measured) if it peaks above ~112 GB.
+  - `utils/launch_2gpu.sh` has both as options since 2026-10-10 (`--lbt-cache FILE` makes the file if it is missing; `--stagger S`), and passes `MUSIC_CUDA_SYNC` if set:
+
+    ```bash
+    IMAGE=jhputschke/xscape-prod:cu124-cuda-sync-mem-test JOBS_PER_GPU=10 OMP_THREADS=3 \
+    MUSIC_CUDA_SYNC=block nohup ./launch_2gpu.sh --lbt-cache /work/lbt_cache/lbt_tables_v1.bin \
+        --stagger 12 60 45 0 /data/camp_pth3 --campaign pth3 \
+        --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
+        --write-particlize both > /data/camp_pth3.log 2>&1 &
+    ```
+
+    60 jobs × 45 events = 2,700 events in 3 rounds of 20 jobs: ~3 h, ~0.6 TB ([README_launch.md](../utils/README_launch.md#10-jobs-per-gpu)).
+
+Raw data on this machine: `~/prod_test/bench/memtest_20261010/` (`REPORT.md`, `summary.jsonl`, per-run monitor and job logs, `correctness.txt`); launcher copy `~/prod_test/launch_2gpu_memtest.sh`.

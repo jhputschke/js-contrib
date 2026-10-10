@@ -4,8 +4,8 @@
 `jhputschke/xscape-prod:cu124`) on both GPUs of one machine with Docker, and can upload the
 finished jobs to the OSDF while it runs ([`upload_follow.py`](#uploading-to-the-osdf-fno4hic)).
 It was written for, and all numbers below were measured on, a workstation with **2 × RTX 3090
-(24 GB), 24 cores, 125 GB RAM** and a second disk at `/data` (2026-10-05; the benchmark notes
-themselves are not in the repo). On other machines adjust `JOBS_PER_GPU`, `OMP_THREADS`,
+(24 GB), 24 cores, 125 GB RAM** and a second disk at `/data` (2026-10-05; the measurements are in
+[docs/BENCHMARK_2x3090.md](../docs/BENCHMARK_2x3090.md)). On other machines adjust `JOBS_PER_GPU`, `OMP_THREADS`,
 `WORKDIR` and OUTBASE. The best measured setup there:
 
 - **one container per GPU** (two MPS daemons in one container hang the second GPU's jobs);
@@ -48,14 +48,53 @@ Choices behind it:
   the machine above.
 - **`nohup … &`**: the script waits for both GPUs, so detach it from the terminal for long runs.
 
+<a id="10-jobs-per-gpu"></a>
+### 10 jobs per GPU: shared LBT tables, staggered start (2026-10-10)
+
+With an image that has the host-memory changes (`LBT_TABLE_CACHE`, `run_jobs.sh --stagger`;
+js-contrib `593fcc4` or later, e.g. `cu124-cuda-sync-mem-test`), the same campaign runs
+**10 jobs per GPU** and gives ~8 % more events per hour:
+
+```bash
+cd js-contrib/utils
+IMAGE=jhputschke/xscape-prod:cu124-cuda-sync-mem-test JOBS_PER_GPU=10 OMP_THREADS=3 \
+MUSIC_CUDA_SYNC=block nohup ./launch_2gpu.sh --lbt-cache /work/lbt_cache/lbt_tables_v1.bin \
+    --stagger 12 60 45 0 /data/camp_pth3 --campaign pth3 \
+    --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
+    --write-particlize both > /data/camp_pth3.log 2>&1 &
+```
+
+| | 8 jobs/GPU (above, same image) | **10 jobs/GPU** |
+|---|---|---|
+| Throughput, makespan (per-event) | 743 (878) events/h | **805 (951) events/h, +8.4 %** |
+| Host memory peak | 91.7 GB | **104.5 GB** of 125 (21 GB free) |
+| CPU per event | 112 core-s | 115 core-s |
+| GPU busy / memory | 63 % / 6.5 GB | 68 % / 8.1 GB |
+| This example | | 60 jobs × 45 events = 2,700 events, 3 rounds of 20 jobs: **~3 h, ~0.6 TB** |
+
+Measured with 15-event jobs, 2026-10-10 ([docs/BENCHMARK_2x3090.md](../docs/BENCHMARK_2x3090.md#memory-10-per-gpu)). All four
+settings matter:
+- **`--lbt-cache FILE`** shares LBT's 0.66 GB of tables between all jobs (see
+  [Memory options](#memory-options---lbt-cache---stagger)); the first use makes the file (~1 min).
+- **`--stagger 12`** starts each GPU's first 10 jobs 12 s apart. Without it the jobs' first
+  memory peaks coincide: 10/GPU then peaked at 108.8 GB (17 GB free) instead of 97.3 GB.
+- **`OMP_THREADS=3`**: 20 jobs × 3 threads, about the 48 hardware threads.
+- **`MUSIC_CUDA_SYNC=block`**: the jobs wait for the GPU without spinning a core, ~30 % less
+  CPU per event. The image's default is still `auto`.
+- **NJOBS a multiple of 20** keeps all 20 slots busy in the last round.
+- Before these changes (image `cu124-cuda-sync-test`), 8 jobs/GPU with particlize peaked at
+  ~111 GB (the jobs' first-event peaks coincide); with them, 92 GB. In a first long campaign
+  at 10/GPU watch `free -g`; if the peak goes above ~112 GB, use `JOBS_PER_GPU=9`.
+
 ## Usage
 
 ```
-./launch_2gpu.sh [upload options] NJOBS EVENTS_PER_JOB [FIRST_SEED] [OUTBASE] [run_prod_jet.py / run_jobs.sh args...]
+./launch_2gpu.sh [options] NJOBS EVENTS_PER_JOB [FIRST_SEED] [OUTBASE] [run_prod_jet.py / run_jobs.sh args...]
 ```
 
-The options come before NJOBS: `--min-free SIZE` (the [disk guard](#disk-guard-min-free)) and the
-upload options (`--upload`, `--delete`, `--keep-free`, `--verify-every`; see
+The options come before NJOBS: `--min-free SIZE` (the [disk guard](#disk-guard-min-free)),
+`--lbt-cache FILE` and `--stagger S` (the [memory options](#memory-options---lbt-cache---stagger)),
+and the upload options (`--upload`, `--delete`, `--keep-free`, `--verify-every`; see
 [Uploading to the OSDF](#uploading-to-the-osdf-fno4hic)).
 
 | Argument | Meaning |
@@ -73,10 +112,11 @@ Environment overrides:
 
 | Variable | Default | |
 |---|---|---|
-| `JOBS_PER_GPU` | 8 | jobs at once per GPU (6: ~5–8 % slower, ~70 GB without particlize; 10: no faster, too much memory with particlize) |
+| `JOBS_PER_GPU` | 8 | jobs at once per GPU (6: ~5–8 % slower, ~70 GB without particlize; 10: +8 % with `--lbt-cache`, `--stagger 12` and `OMP_THREADS=3`, see [10 jobs per GPU](#10-jobs-per-gpu)) |
 | `OMP_THREADS` | 4 | OpenMP threads per job (3–6 equally good; 2–3 at 6–8 jobs/GPU is slower) |
 | `IMAGE` | `jhputschke/xscape-prod:cu124` | |
 | `WORKDIR` | `$HOME/prod_test` | mounted as `/work` |
+| `MUSIC_CUDA_SYNC` | unset (the image's `auto`) | passed to the jobs if set; `block`: ~30 % less CPU per event, same output |
 
 ## More examples
 
@@ -88,7 +128,8 @@ JOBS_PER_GPU=6 ./launch_2gpu.sh 48 30 0 /data/campC      # fewer jobs at once, l
 ```
 
 Measured rates (16 jobs at once): plain ~520–535 events/h, with `--write-particlize both` ~450,
-campaign default above ~810.
+campaign default above ~810 (2026-10-04 image); at 10 jobs/GPU with the 2026-10-10 image
+~805 by makespan, 951 per event ([10 jobs per GPU](#10-jobs-per-gpu)).
 
 ## Running a campaign
 
@@ -106,7 +147,33 @@ campaign default above ~810.
   Keep the two directories, or rename when merging.
 - **One campaign per OUTBASE**; a different grid YAML or settings needs a new OUTBASE (the
   skip test only looks at seed and event count).
-- **Memory:** 16 jobs with particlize peak at ~97 GB; don't run other large jobs at the same time.
+- **Memory:** 16 jobs with particlize peak at ~97 GB (2026-10-04 image; ~111 GB with
+  `cu124-cuda-sync-test`), 20 jobs with the memory options at
+  ~105 GB; don't run other large jobs at the same time.
+
+## Memory options (`--lbt-cache`, `--stagger`)
+
+Host memory is what limits the jobs per GPU on this machine (the GPUs are ~65 % busy, VRAM
+≤ 8 GB of 24). Both options need an image with the 2026-10-10 host-memory changes (js-contrib
+`593fcc4` or later); the jet leg is then also read one frame at a time, which needs nothing.
+
+- **`--lbt-cache FILE`**: the jobs map LBT's 0.66 GB of tables read-only from FILE
+  (`LBT_TABLE_CACHE`) instead of each parsing its own copy (6.5 s per job).
+  - FILE is a host path or `/work/...` (= `WORKDIR/...`); a host directory outside `WORKDIR` is
+    mounted into the containers at the same path. Not `/tmp` or the container's `/dev/shm`.
+  - **If FILE doesn't exist, the launcher makes it first** with one 1-event job on GPU0
+    (~1 min, log `FILE.init.log`), and stops if the image didn't write it.
+  - One file per LBT-tables version (e.g. `lbt_tables_v1.bin`). A file that doesn't match the
+    tables is ignored by the jobs with a warning: they parse the tables as before.
+  - Check: every job log says `LBT: tables mapped read-only from …`.
+- **`--stagger S`**: each GPU's `run_jobs.sh` starts its first `JOBS_PER_GPU` jobs S seconds
+  apart, so their memory peaks at the end of the first event don't coincide. Choose S ≈ s/event
+  at full load ÷ jobs per GPU (~12 s here). It costs (P − 1) × S once per campaign.
+  Per-event times then look shorter than they are; use the makespan for events/h.
+  The launcher refuses `--stagger` if the image's `run_jobs.sh` doesn't have it.
+- Tested (2026-10-10): making the cache, using an existing one (`/work/...` and host path),
+  the stagger (jobs started 5 s apart per GPU), `MUSIC_CUDA_SYNC` passed only when set, and
+  refusing `--stagger` with an older image.
 
 ## Disk guard (`--min-free`)
 
