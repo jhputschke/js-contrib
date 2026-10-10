@@ -27,7 +27,7 @@ pay off, and is there an OpenMP or GPU bottleneck?
   `MUSIC_CUDA_SYNC=block` (MUSIC4GPU branch `cuda_blocking_sync`, opt-in) removes the
   spin: **102 instead of 144 core-s per event, at the same 200 events/h**. On the same
   branch, the string deposition does less work per string–cell pair, with bit-identical
-  output: the source fill is 26 % faster, and a job alone uses 15 % less CPU. Both matter
+  output: the source fill is 41 % faster, and a job alone uses 23 % less CPU. Both matter
   on machines short of cores, not on the GB10, whose campaign rate the GPU sets.
 - **The startup hang** (jobs started at the same moment could hang forever at
   `Initialize MUSIC`) is fixed by per-job working directories (see
@@ -280,8 +280,9 @@ before the first use of the device: `block` (`cudaDeviceScheduleBlockingSync`), 
   campaign rate. **Where the cores run out** (the RTX 3090 box, a cluster node with few
   cores per GPU), it should raise throughput directly. Not yet measured there, so the
   switch stays opt-in for now.
-**String deposition with less work per pair** (MUSIC4GPU `cuda_blocking_sync` `9535640`).
-`get_hydro_energy_source` did two kinds of avoidable work for every string–cell pair:
+**String deposition with less work per pair** (MUSIC4GPU `cuda_blocking_sync` `9535640`,
+`c7b75ba`). `get_hydro_energy_source` did three kinds of avoidable work for every
+string–cell pair:
 - **It recomputed values that depend only on the string, or on the string and τ.** These
   are the transverse normalisation `prefactor_prep` (an `exp` and an `erf`, evaluated
   before the η test could reject the string) and the two `acosh` segment shifts. Now they
@@ -290,6 +291,11 @@ before the first use of the device: `block` (`cudaDeviceScheduleBlockingSync`), 
   within reach or `erf` saturates. It still computed `exp`, `cosh`, `sinh`, `atan2`, `cos`
   and `sin`, only to add ±0 to J^μ. The loop now stops there, as the remnant loop already
   did.
+- **It evaluated the transverse-flow terms with the preflow switched off.** Production
+  runs with `stringPreEqFlowFactor` 0, so `cosh_perp` = cosh(+0) = 1 and `sinh_perp` = +0
+  exactly. The `cosh`, `sinh`, `atan2`, `cos` and `sin` per depositing pair (string and
+  remnant loops) only added ±0 to J^x and J^y. With the factor 0 they are now skipped; with
+  a non-zero factor the code is as before (not rerun).
 
 Output is bit-identical (`prod_AuAu_0_10_jet`, 2 events, `--reuse 2`,
 `--write-particlize both`: every dataset of the pair and particlize files, except the
@@ -299,17 +305,20 @@ Output is bit-identical (`prod_AuAu_0_10_jet`, 2 events, `--reuse 2`,
 |---|---|---|---|
 | before, `OMP_NUM_THREADS=5` | 10.8 s | 90.9 core-s | 42.6 s |
 | constants hoisted only | 9.8 s | 86.1 core-s | 41.9 s |
-| **+ zero envelopes skipped** | **8.0 s (−26 %)** | **77.3 core-s (−15 %)** | 40.1 s |
+| + zero envelopes skipped | 8.0 s | 77.3 core-s | 40.1 s |
+| **+ no flow terms without preflow** | **6.4 s (−41 %)** | **70.0 core-s (−23 %)** | 38.7 s |
 | before, 20 threads | 4.2 s | 139.2 core-s | 36.5 s |
-| **after, 20 threads** | **3.2 s (−23 %)** | **119.9 core-s (−14 %)** | 35.5 s |
+| zero envelopes skipped, 20 threads | 3.2 s | 119.9 core-s | 35.5 s |
+| **+ no flow terms, 20 threads** | **2.7 s (−36 %)** | **109.8 core-s (−21 %)** | 34.8 s |
 
-- **Most of the gain is the skip.** Hoisting alone gave ~10 % of the fill.
-- **What is left of the fill** is the real per-pair work, wherever a string deposits: up to
-  four `erf` and the transverse `exp`, `cosh`, `sinh`, `atan2`. Faster versions of those
-  (`cos(atan2(y, x))` = x/r, `cosh` and `sinh` from one `exp`) would change the last bits,
-  and so would need a physics check. Running the deposition on the GPU would remove the
-  fill from the CPU entirely.
-- **At 20 threads a job costs 120 core-s, against 77 at 5 threads,** for a similar wall
+- **The skips gave most of the gain.** Hoisting alone gave ~10 % of the fill: it removed
+  2–4 of the ~13 transcendental calls of a depositing pair.
+- **What is left of the fill** is the real per-pair work wherever a string deposits: up to
+  four `erf`, the transverse `exp` and the longitudinal `cosh` and `sinh`. On top of that
+  come the droplets (jet leg), the buffer memset and the OpenMP overhead. Running the
+  deposition on the GPU would take the string part off the CPU entirely, but not
+  bit-identically (CUDA's double-precision math differs from glibc's in the last ulp).
+- **At 20 threads a job costs 110 core-s, against 70 at 5 threads,** for a similar wall
   time. The OpenMP regions don't scale to 20 threads; not analysed further. A likely part
   is idle libgomp threads spinning: MUSIC's `OMP_WAIT_POLICY=passive` default comes too late
   for libgomp (see `advance.cpp`), so only an exported `OMP_WAIT_POLICY` would take effect.
@@ -319,9 +328,9 @@ Output is bit-identical (`prod_AuAu_0_10_jet`, 2 events, `--reuse 2`,
 
 **Testing on another CUDA machine.** The branch `cuda_blocking_sync` carries both changes:
 the `MUSIC_CUDA_SYNC` switch and the faster string deposition. The production image builds
-it with
-`--build-arg MUSIC4GPU_REF=cuda_blocking_sync` (`utils/Dockerfile.prod`; X-SCAPE stays at its
-pin, so the job log shows the MUSIC4GPU commit). Then:
+it with `--build-arg MUSIC4GPU_REF=cuda_blocking_sync` (`utils/Dockerfile.prod`), or in CI
+with the `docker-prod.yml` input `music4gpu_ref=cuda_blocking_sync`. X-SCAPE stays at its
+pin; only MUSIC4GPU documents changed after the pinned commit. Then:
 
 ```bash
 for m in auto block; do
