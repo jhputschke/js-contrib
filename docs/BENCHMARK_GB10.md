@@ -21,6 +21,12 @@ pay off, and is there an OpenMP or GPU bottleneck?
   More jobs now fit but add little: `-j 5` 201, `-j 6` **205**, `-j 8` 202 events/h, because
   the GPU saturates at ~86 % busy. The freed memory and the ~12 idle cores are better used
   for `hadronize.py` next to the production.
+- **CPU per event** (2026-10-09, [below](#cpu-per-event-and-the-cuda-sync-2026-10-09)): a
+  job uses ~145 core-seconds per event at `-j 4`. About half is string deposition, and
+  about a quarter is the main thread spinning while it waits for the GPU.
+  `MUSIC_CUDA_SYNC=block` (MUSIC4GPU branch `cuda_blocking_sync`, opt-in) removes the
+  spin: **102 instead of 144 core-s per event, at the same 200 events/h**. That matters
+  on machines short of cores, not on the GB10, whose campaign rate the GPU sets.
 - **The startup hang** (jobs started at the same moment could hang forever at
   `Initialize MUSIC`) is fixed by per-job working directories (see
   [the startup race](#bug-concurrent-jobs-can-hang-at-start)).
@@ -208,6 +214,87 @@ seeds 1…P, started together by `run_jobs.sh -j P --mps` (a fresh MPS daemon pe
   not measured.
 - **Recommendation:** unchanged, `-j 4 --mps` with `OMP_NUM_THREADS=5`; `-j 6` with 3
   threads for the last ~4 %.
+
+### CPU per event and the CUDA sync (2026-10-09)
+
+The tables above count wall time. On a machine short of cores (the 2 × RTX 3090 box flattens
+once its 24 physical cores are busy, [BENCHMARK_2x3090.md](BENCHMARK_2x3090.md)), or on a
+cluster that bills core-hours, what counts is the **CPU time per event**: a stage that is
+short in wall time because it runs on many threads can still cost many core-seconds.
+
+**Setup:** 4 jobs × 3 events, seeds 1–4, CUDA MPS, `OMP_NUM_THREADS=5`, no
+`--write-particlize`, started together. X-SCAPE `57e32ce3`, MUSIC4GPU `XSCAPE` `76c4b96`
+plus `cuda_blocking_sync` `5916287`, js-contrib `main` `d04e895`.
+- **Per job:** `/usr/bin/time` gives user + sys CPU time (startup included).
+- **Per thread:** `/proc/<pid>/task/*/stat`, sampled once per second.
+- **Main thread:** `py-spy record --native --threads` (20 Hz) on one job. py-spy sees only
+  Python threads, so not the OpenMP workers. `perf` is not usable here
+  (`perf_event_paranoid` = 4), and `ptrace_scope` = 1 rules out attaching to a running job,
+  so py-spy has to launch the job itself.
+
+**Where the CPU goes** (default CUDA sync, per event per job, ~145 core-s in total):
+
+| | core-s/event | share | source |
+|---|---|---|---|
+| String deposition (`HydroSourceStrings::get_hydro_energy_source`) | ~75–80 | ~50 % | main thread 17 (py-spy) plus the 4 OpenMP workers ~60 (see below) |
+| Main thread spinning in `cudaStreamSynchronize` (`try_gpu_advance → CUDAPipelines::wait`) | ~35 | ~24 % | py-spy: 102 of 239 main-thread core-s |
+| Native frames without symbols (framework, bindings) | ~8 | 5 % | py-spy |
+| Other MUSIC, energy loss, frame dump | ~4, 3, 3 | 7 % | py-spy |
+| Resampling, h5 writing, GPU↔host syncs, droplets | ~2, 1.5, 1, 1 | 4 % | py-spy |
+| OpenBLAS and other threads, startup | rest | | `/proc` |
+
+- **The OpenMP workers** use ~48 core-s each per job, almost all of it in six bursts: one
+  at the first steps of each leg (3 events × 2 legs), when the strings deposit. Between the
+  bursts they sit at 1–2 % of a core, so there is no OpenMP spinning to speak of. Their
+  share of the string time is therefore inferred from the timing, not profiled.
+- **The main thread** was in state R in 99 % of the samples: whenever it was not
+  computing, it was spinning on the GPU. CUDA's default schedule (`auto`) spins whenever a
+  process has fewer CUDA contexts than there are cores.
+
+**`MUSIC_CUDA_SYNC`** (MUSIC4GPU branch `cuda_blocking_sync`) sets `cudaSetDeviceFlags`
+before the first use of the device: `block` (`cudaDeviceScheduleBlockingSync`), `yield`,
+`spin`, or `auto`. Unset keeps CUDA's default. The job log states the mode in effect
+(`[MUSIC-GPU] host sync: …`). Same setup, no py-spy:
+
+| `MUSIC_CUDA_SYNC` | events/h | s/event per job | core-s/event (incl. startup) | GPU busy (mean) |
+|---|---|---|---|---|
+| `auto` (default: spin) | 200 | 67.9–76.2 | 144 | 86 % |
+| **`block`** | **199** | 67.9–76.9 | **102 (−29 %)** | 85 % |
+| `yield` | 199 | 68.4–76.4 | 146 | 88 % |
+
+- **`block`:**
+  - The main thread runs for 40 % of the wall time instead of 99 %.
+  - Throughput and per-job times don't change; 200 against 199 events/h is within the
+    ±2 % spread of identical runs.
+  - Output is bit-identical (one event, `block` against `spin`; only `source/flux`
+    differs, by 1 ulp in 4 of 25 droplets, because X-SCAPE's droplet-flux diagnostic sums
+    in an OpenMP `reduction` with a dynamic schedule, in any mode).
+- **`yield`** saves nothing: the thread still runs whenever no other thread wants the
+  core, so it is still counted as busy.
+- **One job alone:** 39.2 s for one event with `block` against 36.4 s with `spin` (one run
+  each, so possibly noise). If the difference is real, it is the wake-up latency of the
+  ~4,400 syncs per event, which concurrent jobs hide.
+- **On the GB10** this frees ~1 core per job but no throughput, because the GPU sets the
+  campaign rate. **Where the cores run out** (the RTX 3090 box, a cluster node with few
+  cores per GPU), it should raise throughput directly. Not yet measured there, so the
+  switch stays opt-in for now.
+- **What else would cut CPU per event:** string deposition is the remaining half. The
+  first step is to compute the per-string constants once per step instead of once per
+  string–cell pair: `prefactor_prep` (an `exp` and an `erf`) is evaluated before the η
+  test rejects a string, and the `acosh` η shifts depend only on τ and the string. The
+  next step would be to run the string deposition on the GPU.
+
+**Testing on another CUDA machine** (from a build of `cuda_blocking_sync`):
+
+```bash
+for m in auto block; do
+  MUSIC_CUDA_SYNC=$m OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 4 3 1 out_sync_$m
+  grep -h "host sync" out_sync_$m/*.log | sort | uniq -c   # confirms the mode
+done
+```
+
+On a machine short of cores, compare events/h at the `-j` that saturated the cores before
+(8 jobs per GPU on the 3090 box), and the jobs' user + sys time.
 
 ### Before the speed-ups (first measurement)
 
