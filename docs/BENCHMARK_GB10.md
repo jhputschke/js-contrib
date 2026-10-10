@@ -25,7 +25,9 @@ pay off, and is there an OpenMP or GPU bottleneck?
   job uses ~145 core-seconds per event at `-j 4`. About half is string deposition, and
   about a quarter is the main thread spinning while it waits for the GPU.
   `MUSIC_CUDA_SYNC=block` (MUSIC4GPU branch `cuda_blocking_sync`, opt-in) removes the
-  spin: **102 instead of 144 core-s per event, at the same 200 events/h**. That matters
+  spin: **102 instead of 144 core-s per event, at the same 200 events/h**. On the same
+  branch, the string deposition does less work per string–cell pair, with bit-identical
+  output: the source fill is 26 % faster, and a job alone uses 15 % less CPU. Both matter
   on machines short of cores, not on the GB10, whose campaign rate the GPU sets.
 - **The startup hang** (jobs started at the same moment could hang forever at
   `Initialize MUSIC`) is fixed by per-job working directories (see
@@ -278,13 +280,48 @@ before the first use of the device: `block` (`cudaDeviceScheduleBlockingSync`), 
   campaign rate. **Where the cores run out** (the RTX 3090 box, a cluster node with few
   cores per GPU), it should raise throughput directly. Not yet measured there, so the
   switch stays opt-in for now.
-- **What else would cut CPU per event:** string deposition is the remaining half. The
-  first step is to compute the per-string constants once per step instead of once per
-  string–cell pair: `prefactor_prep` (an `exp` and an `erf`) is evaluated before the η
-  test rejects a string, and the `acosh` η shifts depend only on τ and the string. The
-  next step would be to run the string deposition on the GPU.
+**String deposition with less work per pair** (MUSIC4GPU `cuda_blocking_sync` `9535640`).
+`get_hydro_energy_source` did two kinds of avoidable work for every string–cell pair:
+- **It recomputed values that depend only on the string, or on the string and τ.** These
+  are the transverse normalisation `prefactor_prep` (an `exp` and an `erf`, evaluated
+  before the η test could reject the string) and the two `acosh` segment shifts. Now they
+  are computed once per step and once per query τ (`prepare_for_query_tau`).
+- **It went on when the η envelope was exactly 0.** That happens when no swept segment is
+  within reach or `erf` saturates. It still computed `exp`, `cosh`, `sinh`, `atan2`, `cos`
+  and `sin`, only to add ±0 to J^μ. The loop now stops there, as the remnant loop already
+  did.
 
-**Testing on another CUDA machine** (from a build of `cuda_blocking_sync`):
+Output is bit-identical (`prod_AuAu_0_10_jet`, 2 events, `--reuse 2`,
+`--write-particlize both`: every dataset of the pair and particlize files, except the
+`source/flux` diagnostic above). One job alone, seed 1, one event, default CUDA sync:
+
+| | source fill, both legs (`advance.prefill_hydro_source`) | job CPU (user + sys) | job wall |
+|---|---|---|---|
+| before, `OMP_NUM_THREADS=5` | 10.8 s | 90.9 core-s | 42.6 s |
+| constants hoisted only | 9.8 s | 86.1 core-s | 41.9 s |
+| **+ zero envelopes skipped** | **8.0 s (−26 %)** | **77.3 core-s (−15 %)** | 40.1 s |
+| before, 20 threads | 4.2 s | 139.2 core-s | 36.5 s |
+| **after, 20 threads** | **3.2 s (−23 %)** | **119.9 core-s (−14 %)** | 35.5 s |
+
+- **Most of the gain is the skip.** Hoisting alone gave ~10 % of the fill.
+- **What is left of the fill** is the real per-pair work, wherever a string deposits: up to
+  four `erf` and the transverse `exp`, `cosh`, `sinh`, `atan2`. Faster versions of those
+  (`cos(atan2(y, x))` = x/r, `cosh` and `sinh` from one `exp`) would change the last bits,
+  and so would need a physics check. Running the deposition on the GPU would remove the
+  fill from the CPU entirely.
+- **At 20 threads a job costs 120 core-s, against 77 at 5 threads,** for a similar wall
+  time. The OpenMP regions don't scale to 20 threads; not analysed further. A likely part
+  is idle libgomp threads spinning: MUSIC's `OMP_WAIT_POLICY=passive` default comes too late
+  for libgomp (see `advance.cpp`), so only an exported `OMP_WAIT_POLICY` would take effect.
+  So on a shared machine, limit the threads even for a single job.
+- **Not rerun:** the CPU path (`MUSIC_FORCE_CPU=1`), and the campaign (4 jobs) with this
+  change.
+
+**Testing on another CUDA machine.** The branch `cuda_blocking_sync` carries both changes:
+the `MUSIC_CUDA_SYNC` switch and the faster string deposition. The production image builds
+it with
+`--build-arg MUSIC4GPU_REF=cuda_blocking_sync` (`utils/Dockerfile.prod`; X-SCAPE stays at its
+pin, so the job log shows the MUSIC4GPU commit). Then:
 
 ```bash
 for m in auto block; do
@@ -294,7 +331,9 @@ done
 ```
 
 On a machine short of cores, compare events/h at the `-j` that saturated the cores before
-(8 jobs per GPU on the 3090 box), and the jobs' user + sys time.
+(8 jobs per GPU on the 3090 box, 536 events/h with the published image), and the jobs'
+user + sys time. `auto` against the published image measures the string change; `block`
+against `auto` measures the sync.
 
 ### Before the speed-ups (first measurement)
 
