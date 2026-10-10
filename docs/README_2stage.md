@@ -128,6 +128,8 @@ the GB10 ([BENCHMARK_GB10.md](BENCHMARK_GB10.md)) and 2 × RTX 3090
   GPU less, lower `P`, not the threads per job. `slurm_prod_array.sh` sets
   `OMP_NUM_THREADS = cpus-per-task / P`.
 - **`--write-particlize both`** is included: ~5.8 GB per job on the 3090s, 8.7 GiB peak alone.
+  With the 2026-10-10 images (the jet leg read frame by frame) and a shared `LBT_TABLE_CACHE`,
+  ~1.2 GB less per job (20 jobs on the 3090s: ~4.9 GB per job above idle).
   `--bulk-info full` needs ~16 GB per job (`--mem=64G` at `P = 4`).
 - **The campaign default of §4** (`--pthat-bins`, `--reuse 15`) needs less GPU time per event
   and the same memory, so it shifts the limit further to the cores.
@@ -307,6 +309,34 @@ with the c1 settings of §4. Usage, tuning and the measurements:
 [`utils/README_launch.md`](../utils/README_launch.md). Under SLURM, if `CUDA_VISIBLE_DEVICES` is already set (e.g. `2,3`),
 use those numbers.
 
+```bash
+cd js-contrib/utils
+# 8 jobs per GPU (the default): c1 settings of §4, 64 jobs x 45 events, ~3.5 h
+nohup ./launch_2gpu.sh 64 45 0 /data/camp_pth3 --campaign pth3 \
+    --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
+    --write-particlize both > /data/camp_pth3.log 2>&1 &
+
+# 10 jobs per GPU (2026-10-10 images): shared LBT tables, staggered start, blocking CUDA sync;
+# 60 jobs x 45 events (a multiple of 20 jobs), ~3 h
+IMAGE=jhputschke/xscape-prod:cu124-cuda-sync-mem-test JOBS_PER_GPU=10 OMP_THREADS=3 \
+MUSIC_CUDA_SYNC=block nohup ./launch_2gpu.sh --lbt-cache /work/lbt_cache/lbt_tables_v1.bin \
+    --stagger 12 60 45 0 /data/camp_pth3 --campaign pth3 \
+    --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
+    --write-particlize both > /data/camp_pth3.log 2>&1 &
+```
+
+**10 jobs per GPU** needs an image with the host-memory changes of 2026-10-10 (js-contrib
+`593fcc4` or later). Measured in a same-day comparison:
+- **Throughput:** +8.4 % over 8 jobs/GPU, 805 against 743 events/h by makespan.
+- **Host memory:** peak 104.5 GB of 125, against 91.7 GB at 8 jobs/GPU.
+
+The launcher options:
+- `--lbt-cache FILE` lets all jobs share one read-only copy of LBT's 0.66 GB of tables. If FILE is missing, the launcher makes it first (~1 min).
+- `--stagger 12` starts each GPU's first jobs 12 s apart, so their memory peaks don't coincide.
+
+Details: [README_launch.md](../utils/README_launch.md#10-jobs-per-gpu) and
+[BENCHMARK_2x3090.md](BENCHMARK_2x3090.md#memory-10-per-gpu).
+
 **Tested** (2026-10-01): one campaign per GPU on a two-GPU machine with Docker, without MPS:
 both GPUs busy. With `--mps` in each campaign only one GPU was used then (see *CUDA MPS*
 below); `launch_2gpu.sh` (2026-10-05) runs both GPUs with MPS, one Docker container and one
@@ -451,6 +481,9 @@ docker run -d --name c1 --gpus all --user "$(id -u):$(id -g)" \
   ./run_jobs.sh -j 4 --campaign pth10-40_eta06_c1 67 15 0 /work/AuAu_0_10_pth10-40_eta06_c1 \
     --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both
 ```
+
+**On a two-GPU workstation** (2 × RTX 3090): `utils/launch_2gpu.sh` with 8 or 10 jobs per
+GPU, the commands in §2 ([Several GPUs](#several-gpus-in-one-machine-or-allocation)).
 
 **On an HPC cluster** (SLURM array, one GPU per task, `P = 4` jobs per GPU):
 

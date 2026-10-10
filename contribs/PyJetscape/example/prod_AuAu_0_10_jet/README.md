@@ -178,7 +178,7 @@ particlize file. For many jobs at once, see the next section.
 `run_jobs.sh` runs many `run_prod_jet.py` jobs, one seed and one output file per job:
 
 ```bash
-./run_jobs.sh [-j P] [--mps] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod_jet.py options ...]
+./run_jobs.sh [-j P] [--mps] [--stagger S] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod_jet.py options ...]
 ```
 
 - **`FIRST_SEED 0`: a campaign, the usual choice.** Every job draws its own seed from OS
@@ -934,6 +934,38 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
 | A with `--reuse N` or `--pthat-bins` (shared `arr_bg`) | as A, MUSIC_1 once per N events | ~160 MB + 148/N MB (measured at N = 3: 210 MB) |
 | B with `--reuse N` | the background surface once per N events | + 78 MB + 78/N MB |
 | `hadronize.py`, both legs, 500 oversamples, 50 fragmentations | ~14 s on one core, ~10 s with `OMP_NUM_THREADS=5` (per surface ~5 s fixed + ~7 ms per oversample); ~58 s before [`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md) Part A | ~100 MB per leg (~0.2 MB per oversample); 58% with `--keep-bits-p 12 --keep-bits-x 8`, and ~60% of that with `--eta-max 2` |
+
+**Memory per job, for more jobs per machine** (2026-10-10, docs/BENCHMARK_GB10.md, *Host
+memory per job*). The jet leg is now read one frame at a time, which needs nothing from you.
+Two more settings matter in a campaign:
+
+- **`LBT_TABLE_CACHE=<file>`** shares LBT's ~0.66 GB of tables read-only between all jobs on
+  a machine, and skips their 6.5 s of parsing per job. Make the file once, with one job,
+  before the campaign starts:
+  ```bash
+  export LBT_TABLE_CACHE=/work/lbt_cache/lbt_tables_v1.bin   # one file per LBT-tables version
+  python run_prod_jet.py --events 1 --seed 1 --outdir /tmp/lbt_cache_init --seed-registry none
+  ```
+  The log then says `LBT: wrote the table cache …` (later jobs: `… mapped read-only …`).
+  - The header records the table dimensions, `KINT0` and the total size of the table
+    files. A cache that doesn't match is ignored with a warning, and the job reads the text
+    files as before. Use one cache file per LBT-tables version.
+  - Jobs starting without the file all parse the tables and write the cache, safely. Each
+    then keeps its own copy until it restarts.
+  - **Docker:** pass the variable and use a bind-mounted host path, so all containers map
+    the same file. Not the container's `/dev/shm`, which is private and 64 MB.
+  - Without the variable, nothing changes.
+- **`run_jobs.sh --stagger S`** starts the first P jobs S seconds apart, so their memory
+  peaks at the end of each event don't coincide. Pick S ≈ s/event at full load ÷ jobs per
+  GPU (3090 box: ~100 s ÷ 8 ≈ 12 s). Per-event times then look shorter than they are; use
+  the makespan for events/h.
+
+The drivers also set `OPENBLAS_NUM_THREADS=1` unless it is already set: more OpenBLAS threads
+don't speed up the resampling, and their spinning cost 8 % CPU per event.
+
+Measured on the GB10 with the jet leg frame by frame and the cache: a job alone peaks at
+6.45 GB instead of 7.84 (campaign settings: 6.42 instead of 8.00), at 12 % less CPU per
+event, with bit-identical output. The numbers below predate this.
 
 Peak memory of a production job alone: 8.7 GiB with the pair file (B), 7.5 GiB with
 `--particlize-only`, 14.3 GiB with `--bulk-info full`; ~20 GiB before the memory fixes

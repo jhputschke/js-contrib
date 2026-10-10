@@ -21,6 +21,20 @@ pay off, and is there an OpenMP or GPU bottleneck?
   More jobs now fit but add little: `-j 5` 201, `-j 6` **205**, `-j 8` 202 events/h, because
   the GPU saturates at ~86 % busy. The freed memory and the ~12 idle cores are better used
   for `hadronize.py` next to the production.
+- **CPU per event** (2026-10-09, [below](#cpu-per-event-and-the-cuda-sync-2026-10-09)): a
+  job uses ~145 core-seconds per event at `-j 4`. About half is string deposition, and
+  about a quarter is the main thread spinning while it waits for the GPU.
+  `MUSIC_CUDA_SYNC=block` (MUSIC4GPU branch `cuda_blocking_sync`, opt-in) removes the
+  spin: **102 instead of 144 core-s per event, at the same 200 events/h**. On the same
+  branch, the string deposition does less work per string–cell pair, with bit-identical
+  output: the source fill is 41 % faster, and a job alone uses 23 % less CPU. Both matter
+  on machines short of cores, not on the GB10, whose campaign rate the GPU sets.
+- **Host memory per job** (2026-10-10, [below](#host-memory-per-job-2026-10-10)): the jet
+  leg is now read one frame at a time, and with `LBT_TABLE_CACHE` the LBT tables are shared
+  read-only between jobs. A job's peak falls from 7.8 to 6.5 GB (campaign settings: 8.0 to
+  6.4 GB), with bit-identical output. Its CPU per event falls by 12 %, because the
+  drivers now default to one OpenBLAS thread. The point is more jobs per machine where
+  memory is the limit (the RTX 3090 box, cluster nodes).
 - **The startup hang** (jobs started at the same moment could hang forever at
   `Initialize MUSIC`) is fixed by per-job working directories (see
   [the startup race](#bug-concurrent-jobs-can-hang-at-start)).
@@ -208,6 +222,257 @@ seeds 1…P, started together by `run_jobs.sh -j P --mps` (a fresh MPS daemon pe
   not measured.
 - **Recommendation:** unchanged, `-j 4 --mps` with `OMP_NUM_THREADS=5`; `-j 6` with 3
   threads for the last ~4 %.
+
+### CPU per event and the CUDA sync (2026-10-09)
+
+The tables above count wall time. On a machine short of cores (the 2 × RTX 3090 box flattens
+once its 24 physical cores are busy, [BENCHMARK_2x3090.md](BENCHMARK_2x3090.md)), or on a
+cluster that bills core-hours, what counts is the **CPU time per event**: a stage that is
+short in wall time because it runs on many threads can still cost many core-seconds.
+
+**Setup:** 4 jobs × 3 events, seeds 1–4, CUDA MPS, `OMP_NUM_THREADS=5`, no
+`--write-particlize`, started together. X-SCAPE `57e32ce3`, MUSIC4GPU `XSCAPE` `76c4b96`
+plus `cuda_blocking_sync` `5916287`, js-contrib `main` `d04e895`.
+- **Per job:** `/usr/bin/time` gives user + sys CPU time (startup included).
+- **Per thread:** `/proc/<pid>/task/*/stat`, sampled once per second.
+- **Main thread:** `py-spy record --native --threads` (20 Hz) on one job. py-spy sees only
+  Python threads, so not the OpenMP workers. `perf` is not usable here
+  (`perf_event_paranoid` = 4), and `ptrace_scope` = 1 rules out attaching to a running job,
+  so py-spy has to launch the job itself.
+
+**Where the CPU goes** (default CUDA sync, per event per job, ~145 core-s in total):
+
+| | core-s/event | share | source |
+|---|---|---|---|
+| String deposition (`HydroSourceStrings::get_hydro_energy_source`) | ~75–80 | ~50 % | main thread 17 (py-spy) plus the 4 OpenMP workers ~60 (see below) |
+| Main thread spinning in `cudaStreamSynchronize` (`try_gpu_advance → CUDAPipelines::wait`) | ~35 | ~24 % | py-spy: 102 of 239 main-thread core-s |
+| Native frames without symbols (framework, bindings) | ~8 | 5 % | py-spy |
+| Other MUSIC, energy loss, frame dump | ~4, 3, 3 | 7 % | py-spy |
+| Resampling, h5 writing, GPU↔host syncs, droplets | ~2, 1.5, 1, 1 | 4 % | py-spy |
+| OpenBLAS and other threads, startup | rest | | `/proc` |
+
+- **The OpenMP workers** use ~48 core-s each per job, almost all of it in six bursts: one
+  at the first steps of each leg (3 events × 2 legs), when the strings deposit. Between the
+  bursts they sit at 1–2 % of a core, so there is no OpenMP spinning to speak of. Their
+  share of the string time is therefore inferred from the timing, not profiled.
+- **The main thread** was in state R in 99 % of the samples: whenever it was not
+  computing, it was spinning on the GPU. CUDA's default schedule (`auto`) spins whenever a
+  process has fewer CUDA contexts than there are cores.
+
+**`MUSIC_CUDA_SYNC`** (MUSIC4GPU branch `cuda_blocking_sync`) sets `cudaSetDeviceFlags`
+before the first use of the device: `block` (`cudaDeviceScheduleBlockingSync`), `yield`,
+`spin`, or `auto`. Unset keeps CUDA's default. The job log states the mode in effect
+(`[MUSIC-GPU] host sync: …`). Same setup, no py-spy:
+
+| `MUSIC_CUDA_SYNC` | events/h | s/event per job | core-s/event (incl. startup) | GPU busy (mean) |
+|---|---|---|---|---|
+| `auto` (default: spin) | 200 | 67.9–76.2 | 144 | 86 % |
+| **`block`** | **199** | 67.9–76.9 | **102 (−29 %)** | 85 % |
+| `yield` | 199 | 68.4–76.4 | 146 | 88 % |
+
+- **`block`:**
+  - The main thread runs for 40 % of the wall time instead of 99 %.
+  - Throughput and per-job times don't change; 200 against 199 events/h is within the
+    ±2 % spread of identical runs.
+  - Output is bit-identical (one event, `block` against `spin`; only `source/flux`
+    differs, by 1 ulp in 4 of 25 droplets, because X-SCAPE's droplet-flux diagnostic sums
+    in an OpenMP `reduction` with a dynamic schedule, in any mode).
+- **`yield`** saves nothing: the thread still runs whenever no other thread wants the
+  core, so it is still counted as busy.
+- **One job alone:** 39.2 s for one event with `block` against 36.4 s with `spin` (one run
+  each, so possibly noise). If the difference is real, it is the wake-up latency of the
+  ~4,400 syncs per event, which concurrent jobs hide.
+- **On the GB10** this frees ~1 core per job but no throughput, because the GPU sets the
+  campaign rate. **Where the cores run out** (the RTX 3090 box, a cluster node with few
+  cores per GPU), it should raise throughput directly. Not yet measured there, so the
+  switch stays opt-in for now.
+**String deposition with less work per pair** (MUSIC4GPU `cuda_blocking_sync` `9535640`,
+`c7b75ba`). `get_hydro_energy_source` did three kinds of avoidable work for every
+string–cell pair:
+- **It recomputed values that depend only on the string, or on the string and τ.** These
+  are the transverse normalisation `prefactor_prep` (an `exp` and an `erf`, evaluated
+  before the η test could reject the string) and the two `acosh` segment shifts. Now they
+  are computed once per step and once per query τ (`prepare_for_query_tau`).
+- **It went on when the η envelope was exactly 0.** That happens when no swept segment is
+  within reach or `erf` saturates. It still computed `exp`, `cosh`, `sinh`, `atan2`, `cos`
+  and `sin`, only to add ±0 to J^μ. The loop now stops there, as the remnant loop already
+  did.
+- **It evaluated the transverse-flow terms with the preflow switched off.** Production
+  runs with `stringPreEqFlowFactor` 0, so `cosh_perp` = cosh(+0) = 1 and `sinh_perp` = +0
+  exactly. The `cosh`, `sinh`, `atan2`, `cos` and `sin` per depositing pair (string and
+  remnant loops) only added ±0 to J^x and J^y. With the factor 0 they are now skipped; with
+  a non-zero factor the code is as before (not rerun).
+
+Output is bit-identical (`prod_AuAu_0_10_jet`, 2 events, `--reuse 2`,
+`--write-particlize both`: every dataset of the pair and particlize files, except the
+`source/flux` diagnostic above). One job alone, seed 1, one event, default CUDA sync:
+
+| | source fill, both legs (`advance.prefill_hydro_source`) | job CPU (user + sys) | job wall |
+|---|---|---|---|
+| before, `OMP_NUM_THREADS=5` | 10.8 s | 90.9 core-s | 42.6 s |
+| constants hoisted only | 9.8 s | 86.1 core-s | 41.9 s |
+| + zero envelopes skipped | 8.0 s | 77.3 core-s | 40.1 s |
+| **+ no flow terms without preflow** | **6.4 s (−41 %)** | **70.0 core-s (−23 %)** | 38.7 s |
+| before, 20 threads | 4.2 s | 139.2 core-s | 36.5 s |
+| zero envelopes skipped, 20 threads | 3.2 s | 119.9 core-s | 35.5 s |
+| **+ no flow terms, 20 threads** | **2.7 s (−36 %)** | **109.8 core-s (−21 %)** | 34.8 s |
+
+- **The skips gave most of the gain.** Hoisting alone gave ~10 % of the fill: it removed
+  2–4 of the ~13 transcendental calls of a depositing pair.
+- **What is left of the fill** is the real per-pair work wherever a string deposits: up to
+  four `erf`, the transverse `exp` and the longitudinal `cosh` and `sinh`. On top of that
+  come the droplets (jet leg), the buffer memset and the OpenMP overhead. Running the
+  deposition on the GPU would take the string part off the CPU entirely, but not
+  bit-identically (CUDA's double-precision math differs from glibc's in the last ulp).
+- **At 20 threads a job costs 110 core-s, against 70 at 5 threads,** for a similar wall
+  time. The OpenMP regions don't scale to 20 threads; not analysed further. A likely part
+  is idle libgomp threads spinning: MUSIC's `OMP_WAIT_POLICY=passive` default comes too late
+  for libgomp (see `advance.cpp`), so only an exported `OMP_WAIT_POLICY` would take effect.
+  So on a shared machine, limit the threads even for a single job.
+- **Not rerun:** the CPU path (`MUSIC_FORCE_CPU=1`), and the campaign (4 jobs) with this
+  change.
+
+**Testing on another CUDA machine.** The branch `cuda_blocking_sync` carries both changes:
+the `MUSIC_CUDA_SYNC` switch and the faster string deposition. The production image builds
+it with `--build-arg MUSIC4GPU_REF=cuda_blocking_sync` (`utils/Dockerfile.prod`), or in CI
+with the `docker-prod.yml` input `music4gpu_ref=cuda_blocking_sync`. X-SCAPE stays at its
+pin; only MUSIC4GPU documents changed after the pinned commit. Then:
+
+```bash
+for m in auto block; do
+  MUSIC_CUDA_SYNC=$m OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 4 3 1 out_sync_$m
+  grep -h "host sync" out_sync_$m/*.log | sort | uniq -c   # confirms the mode
+done
+```
+
+On a machine short of cores, compare events/h at the `-j` that saturated the cores before
+(8 jobs per GPU on the 3090 box, 536 events/h with the published image), and the jobs'
+user + sys time. `auto` against the published image measures the string change; `block`
+against `auto` measures the sync.
+
+### Host memory per job (2026-10-10)
+
+On the 2 × RTX 3090 box, host memory limits the jobs per GPU: 10 per GPU peaked at 116 GB of
+125 ([BENCHMARK_2x3090.md](BENCHMARK_2x3090.md)). Three changes cut a job's footprint, and
+a fourth spreads the jobs' peaks. Each was measured here one job at a time, because a
+single job's peak and CPU don't depend on the GPU. Throughput has to be measured on the
+3090 box: the GB10 is GPU-bound.
+
+**Setup:**
+- One job, seed 1, 3 events, `run_jobs.sh -j 1`, `OMP_NUM_THREADS=4`,
+  `OMP_WAIT_POLICY=passive`, `MUSIC_CUDA_SYNC=block`.
+- `/proc/<pid>/status` and `smaps_rollup` sampled every 0.5 s: RSS split into anon, file and
+  shmem, plus Pss and the job's CPU.
+- The four-job runs also record the machine's MemAvailable every 2 s.
+- X-SCAPE `57e32ce3` + branch `cuda_blocking_sync`, MUSIC4GPU `c7b75ba`, js-contrib
+  `cuda_blocking_sync`.
+- Output compared dataset by dataset, attributes included. Only `source/flux` may differ:
+  the ~1-ulp jitter of an OpenMP reduction, seen between any two runs.
+
+**Reference** (before the changes; two runs each, to show the spread):
+
+| | peak RSS | writer-window max, events 1/2/3 | core-s/event | wall |
+|---|---|---|---|---|
+| plain (r1, r2) | 7.84, 7.83 GB | 6.82 / 7.84 / 6.93 GB | 54.6, 54.2 | 115 s |
+| `--write-particlize both` (r1, r2) | 8.53, 8.67 GB | 7.34 / 8.53 / 7.55 GB | 71.7, 72.8 | 138, 140 s |
+
+As on the 3090, the peak always falls in event 2's writer window, the event with the most
+jet frames (133).
+
+**A. glibc malloc settings (environment only): not adopted.**
+
+| (particlize) | peak RSS | core-s/event |
+|---|---|---|
+| `MALLOC_ARENA_MAX=2` | 8.73 GB | 79.9 |
+| `MALLOC_MMAP_THRESHOLD_=4194304 MALLOC_TRIM_THRESHOLD_=67108864` | 8.43 GB | 78.4 |
+| both | 8.40 GB | 87.8 |
+
+At most 0.2 GB less, inside the run-to-run spread, for 8–21 % more CPU.
+
+**B. The jet leg frame by frame** (js-contrib):
+- **The change:**
+  - `PairH5Writer._read` used to build the whole jet leg as one
+    (ntau, 100, 100, 60, 4) float32 array next to MUSIC_2's native store. It now reads it
+    through `NativeFrames`, one frame at a time, with new bindings
+    `MpiMusic.get_native_frame_numpy(it)` and `get_native_ntau()`.
+  - These are the same per-cell loop and values as `get_native_evolution_numpy`. The
+    background was already read this way (`FrameworkFrames`).
+- **Memory:** every writer window drops by ~0.8 GB (event 2: 7.84 → 7.06 GB). Peak plain
+  7.84 → 7.06 GB, particlize 8.53/8.67 → 7.76 GB.
+- **Output:** identical. Two new tests in `tests/test_pair_h5.py`: the indexing, and a
+  byte-identical pair file read both ways, in native and grid mode.
+- **A side effect, and its fix:** the job's CPU rose by ~4 core-s per event (+8 %), at
+  the same wall time and main-thread time (py-spy).
+  - The cause is OpenBLAS. `resample`'s matrix products now alternate with ~25 ms of
+    single-threaded frame conversion, and OpenBLAS's idle worker threads spin through
+    those gaps.
+  - Interleaved runs, user CPU per 3-event job: new reader 163/166 s, old 151/153 s; with
+    `OPENBLAS_NUM_THREADS=1`, new 142 s, old 144 s. Wall time rises by 2–3 s per job.
+    Output stays identical.
+  - So `run_prod.py` (and through it `run_prod_jet.py`) now sets
+    `OPENBLAS_NUM_THREADS=1` unless it is already set. Both readers get cheaper than
+    before.
+
+**C. Staggered start, `run_jobs.sh --stagger S`:** the first P jobs start S seconds apart,
+so their per-event peaks don't coincide; later jobs start as slots free up anyway.
+- **Function:** checked. Four jobs started 15 s apart.
+- **Memory:** at 4 jobs it saves only 0.1 GB (26.9 against 27.1 GB). The effect needs many
+  jobs at once, and so has to be measured on the 3090 box. On the 3090 the first event's
+  end was the highest point of a 16-job run.
+- **Per-event times look shorter with a stagger** (62.9 against 71.9 s), because the jobs
+  overlap less at the start and end. The makespan is unchanged (244 s), so events/h from
+  per-event times overstates a staggered run.
+
+**D. Shared LBT tables, `LBT_TABLE_CACHE=<file>`** (X-SCAPE `src/jet/LBT.h`, `LBT.cc`):
+- **The change:** every job used to parse the same ~0.66 GB of LBT tables from text files
+  into static arrays. The 12 arrays are now pointers into one block.
+  - With `LBT_TABLE_CACHE` set, a job maps that file read-only (`MAP_SHARED`): one copy for
+    every process on the machine, and no parsing.
+  - If the file is missing, the job parses as before, writes the file atomically
+    (temporary file + `rename`) and switches to the mapping.
+  - The file is 656,581,952 bytes.
+  - Its header records the array dimensions, `KINT0` and the total size of the table files
+    read, so a cache from other tables is not used. Files of the same size but other content
+    are not detected: use one cache file per LBT-tables version.
+  - Without the variable, behaviour is as before (a private copy).
+- **Writes:** only `read_tables()` writes the arrays, once per process, inside the two
+  blocks a mapped cache skips (checked). The mapping is `PROT_READ`, so a missed write
+  would segfault rather than corrupt the tables.
+
+| (plain) | peak RSS | RssFile | core-s/event |
+|---|---|---|---|
+| B, no cache (private tables) | 7.06 GB | 0.76 GB | 59.4 |
+| B + cache, first job (writes it) | 6.46 GB | 0.77 GB | 59.8 |
+| B + cache, next job (maps it) | 6.46 GB | 0.77 GB | 56.1 |
+
+- **Per job:** ~0.6 GB less resident. The mapped tables hardly show up as RssFile either:
+  a job touches only a small part of them, and pages never touched are never loaded.
+- **Four jobs:** at once (`-j 4 --mps`, machine-wide used memory above idle), private
+  tables +24.3 GB, shared +21.1 GB.
+- **Startup:** LBT's initialisation takes 6.5–6.9 s per job when parsing the text files
+  and ~0 s when mapping the cache. That is ~6.5 core-s less per job, or ~2 core-s per
+  event at 3 events per job.
+- **Output:** identical in all three cases.
+
+**All together** (B + OpenBLAS default + C + D):
+
+| | peak RSS | core-s/event | wall | output |
+|---|---|---|---|---|
+| plain, before | 7.84 GB | 54.6 | 115 s | — |
+| **plain, after** | **6.45 GB (−18 %)** | **48.1 (−12 %)** | 111 s | identical |
+| campaign settings, before | 8.00 GB | 37.3 | 346 s | — |
+| **campaign settings, after** | **6.42 GB (−20 %)** | **32.9 (−12 %)** | 345 s | identical (pair + particlize) |
+| 4 jobs, before (old reader, private tables, OpenBLAS default) | +24.2 GB | | 247 s makespan | — |
+| **4 jobs, after** (`--stagger 15`, cache) | **+20.7 GB** | | 244 s makespan | identical (all 4 seeds) |
+
+- **Campaign settings:** one job of one background with 15 jet events, `--pthat-bins
+  10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both`. All 15
+  events were written, with one background, and the background history survives as
+  before.
+- **For the 3090 box:** at ~1.5 GB less per job, 20 jobs need ~30 GB less. The 116 GB peak
+  of 10 jobs per GPU should then fall to ~85–90 GB. That is to be measured there, with
+  `--stagger` and the cache on a bind-mounted host path. Not the container's `/dev/shm`:
+  it is private to the container and 64 MB by default.
 
 ### Before the speed-ups (first measurement)
 
