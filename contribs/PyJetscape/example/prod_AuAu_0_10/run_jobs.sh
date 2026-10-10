@@ -3,7 +3,7 @@
 #
 # Run N production jobs on one GPU, one seed (and one .h5 file) per job, P at a time.
 #
-#   ./run_jobs.sh [-j P] [--mps] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod.py args...]
+#   ./run_jobs.sh [-j P] [--mps] [--stagger S] [--campaign NAME] NJOBS EVENTS_PER_JOB FIRST_SEED [OUTDIR] [run_prod.py args...]
 #   ./run_jobs.sh 20 25 0                         # unique seeds -> ./out/AuAu_0_10_<start time>_00NN.h5
 #   ./run_jobs.sh 20 25 0 --campaign mb_a         # the same, named ./out/AuAu_0_10_mb_a_00NN.h5
 #   ./run_jobs.sh 20 25 1                         # seeds 1..20 -> ./out/AuAu_0_10_seed00NN.h5
@@ -54,18 +54,21 @@ usage() { sed -n '6,12p' "$0"; exit 2; }
 
 PAR=1
 MPS=0
+STAGGER=0
 CAMPAIGN=
 while [ $# -gt 0 ]; do
   case $1 in
     -j)    [ $# -ge 2 ] || usage; PAR=$2; shift 2 ;;
     -j*)   PAR=${1#-j}; shift ;;
     --mps) MPS=1; shift ;;
+    --stagger) [ $# -ge 2 ] || usage; STAGGER=$2; shift 2 ;;
     --campaign)   [ $# -ge 2 ] || usage; CAMPAIGN=$2; [ -n "$CAMPAIGN" ] || usage; shift 2 ;;
     --campaign=*) CAMPAIGN=${1#*=}; [ -n "$CAMPAIGN" ] || usage; shift ;;
     *)     break ;;
   esac
 done
 case $PAR in ''|*[!0-9]*|0) echo "-j needs a positive integer, got '$PAR'" >&2; exit 2 ;; esac
+case $STAGGER in ''|*[!0-9]*) echo "--stagger needs whole seconds, got '$STAGGER'" >&2; exit 2 ;; esac
 
 [ $# -ge 3 ] || usage
 NJOBS=$1; EVENTS=$2; SEED0=$3
@@ -247,6 +250,12 @@ for (( k = 0; k < NJOBS; k++ )); do
     echo "[$(date +%F\ %T)] $label: already complete, skipping"; continue
   fi
   while [ ${#pids[@]} -ge "$PAR" ]; do reap; done
+  # --stagger S: the first PAR jobs start S seconds apart, so their memory peaks (at
+  # the end of each event) do not coincide; later jobs start as slots free up anyway.
+  if [ "$STAGGER" -gt 0 ] && [ "${nstarted:-0}" -gt 0 ] && [ "${nstarted:-0}" -lt "$PAR" ]; then
+    sleep "$STAGGER"
+  fi
+  nstarted=$(( ${nstarted:-0} + 1 ))
   echo "[$(date +%F\ %T)] $label: job $((k + 1))/$NJOBS, $EVENTS events -> $OUTDIR/$tag.h5"
   python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" ${naming[@]+"${naming[@]}"} \
     --outdir "$OUTDIR" ${1+"$@"} > "$OUTDIR/$tag.log" 2>&1 &
