@@ -142,7 +142,7 @@ Sources at **pinned commits** (build arguments, recorded in the image, see
 | X-SCAPE (`contrib`) | shallow fetch of `$XSCAPE_REF` (a full 40-character hash, a branch or a tag) | `cbc72639`: with #157/#158 (see [ROOT](#root)), the slim `bulk_info` (#161) that js-contrib `main` needs since `9356bf4`, and the MUSIC4GPU pin below |
 | MUSIC4GPU (`XSCAPE`) | `external_packages/get_music4gpu.sh` (also downloads the hotQCD EoS) | `49439c0` (PR #15, the store releases its memory), the head of `XSCAPE` and what `build_gpu` is built from; the script pins it since X-SCAPE `9509aea2` |
 | iSS (`common_seeds`, fork) | `get_iSS.sh` (+ HRG and δf tables) | `3192982` |
-| 3dMCGlauber (`JETSCAPE`) | `get_3dglauber.sh` (+ LHAPDF data) | `71116fe` |
+| 3dMCGlauber (`cap_hard_quark_draws`, fork) | `get_3dglauber.sh` (+ LHAPDF data) | `b99d680`: upstream `JETSCAPE` `71116fe` plus a cap on the hard-quark position draws (no endless loop with ISR; upstream PR chunshen1987/3dMCGlauber#7), since X-SCAPE `21a06787` |
 | LBT tables | `get_lbtTab.sh` | (1.2 GB) |
 | js-contrib (`main`) | shallow fetch of `$JS_CONTRIB_REF` | `main` |
 
