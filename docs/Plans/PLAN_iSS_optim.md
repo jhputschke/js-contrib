@@ -415,24 +415,34 @@ step, although (m̃, μ̃) is the same for 99 % of the cells of a species.
   ~320-entry table for every mass, width and stability query, and builds daughters on the
   stack; `perform_resonance_feed_down` and `decay_one_primary` reuse their vectors; the δf
   coefficients reach the momentum sampler by pointer (no `assign` per hadron).
+- **C5, no libtorch in hadronization processes** (PyJetscape). `jetscape/__init__.py`
+  imported `fno_hydro`, which imported torch at module level, so every process that
+  imports `jetscape` -- `hadronize.py`, every reader -- loaded libtorch: ~0.8 s and
+  460 MB of RSS. torch is now imported when `PyFNOHydro` is constructed (`fno_hydro.py`;
+  `_TORCH_AVAILABLE` only looks the package up). On macOS it is still imported before the
+  ROOT-linked extension (two libomp copies abort the process when torch comes second;
+  the note in `__init__.py`). `import jetscape` 0.72 → 0.25 s; the `hadronize.py` process
+  at 1 oversample 3.6 → 2.9 s wall, peak RSS 1.36 → 0.90 GB (both legs at 500
+  oversamples 1.52 → 1.06 GB).
 
 Not done, and why: a guide table for the cell pick (zero-yield cells give ties in the CDF,
 so the bisection's result depends on its path and no other search is bit-identical); the
 inverse-CDF build itself (0.5 s: a dependent chain of 3.2 × 10⁸ additions; any faster sum
 reassociates); a tighter acceptance bound than (1 + δf)/2 in `sample_momemtum_from_a_fluid_cell`
 (up to ~2× fewer trials, not bit-identical); OpenMP over blocks in the correlated sampler
-(reproducible, but latency only); the torch import.
+(reproducible, but latency only).
 
-**Results** (GB10, seed 1, `hadronize.py` whole process, one thread unless noted; the
-"before" column is the same pinned iSS `3192982` measured the same day):
+**Results** (GB10, seed 1, `hadronize.py`'s own "done in" time, which starts after the
+Python imports; one thread unless noted; the "before" column is the same pinned iSS
+`3192982` measured the same day; peak RSS of the process with C5):
 
 | per surface (`--tags bulk_jet`) | before | Part C | peak memory |
 |---|---|---|---|
-| 1 oversample | – | 2.5 s | 1.36 GB |
-| 10 | 4.2 s | 2.6 s | 1.36 GB |
-| 100 | – | 3.1 s | 1.36 GB |
-| 500 | 7.5 s | 5.4 s | 1.36 GB |
-| 1000 | – | 8.0 s | 1.42 GB |
+| 1 oversample | – | 2.6 s | 0.90 GB |
+| 10 | 4.2 s | 2.6 s | 0.90 GB |
+| 100 | – | 3.1 s | 0.90 GB |
+| 500 | 7.5 s | 5.4 s | 0.90 GB |
+| 1000 | – | 8.2 s | 0.96 GB |
 
 | both legs, 500 oversamples | before | Part C |
 |---|---|---|
@@ -441,9 +451,9 @@ reassociates); a tighter acceptance bound than (1 + δf)/2 in `sample_momemtum_f
 | correlated, 1 thread | 13.8 s | 8.8 s |
 | correlated, 5 threads | – | 7.9 s |
 
-Per oversample ~5.5 ms (was ~6.7). Profile of one surface at 500 oversamples now (5.4 s):
-yield loop 0.75 s, inverse-CDF builds 0.5 s, momentum sampling ~1.5 s, cell pick 0.3 s,
-decays 0.15 s, Python/torch import 1.3 s, HDF5 0.4 s.
+Per oversample ~5.5 ms (was ~6.7). Profile of one surface at 500 oversamples now (5.4 s
+plus ~0.3 s of imports): yield loop 0.75 s, inverse-CDF builds 0.5 s, momentum sampling
+~1.5 s, cell pick 0.3 s, decays 0.15 s, HDF5 0.4 s, surface import 0.3 s.
 
 **Validation.**
 1. Bit-identical to the build before Part C (iSS `3192982`, same seeds): seed 1, 500
