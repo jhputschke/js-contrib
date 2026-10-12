@@ -28,6 +28,11 @@
 # the output grid reaches +-9.84 fm): ~7,300 events/h (+82 %), half the CPU and memory per job, the same
 # hydro and freeze-out surface to float32 rounding (1,020 events compared, no grid-edge hit).  Still
 # host-bound (GPUs ~65 % busy).  Default outputs at that rate are ~220 GB/h: upload or hadrons only.
+# Measured (2026-10-12, image cu124-freezeoutcopies = MUSIC4GPU 2ea5a34 with A10/A11, the freeze-out
+# without host copies; docs/BENCHMARK_2x3090.md, "A10 and A11 measured"): the +-10.5 fm grid at the
+# defaults gives ~10,600 events/h (+46 %; 6.4 instead of 10.3 core-s per event), hydro and surface
+# bit-identical.  The GPUs are now ~82 % busy, ~91 % of their limit.  Default outputs at that rate are
+# ~320 GB/h (~89 MB/s), more than the ~80 MB/s upload measured: hadrons only, or fewer jobs.
 #
 # Everything else is launch_2gpu.sh with PROD=oo: the same launcher options (--upload, --delete,
 # --keep-free, --verify-every, --stagger, --min-free; not --lbt-cache: no LBT here), OUTBASE,

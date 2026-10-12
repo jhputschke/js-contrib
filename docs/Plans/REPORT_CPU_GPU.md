@@ -34,7 +34,7 @@ which side, CPU or GPU, would raise the event rate on which machine.
 
   So CPU work sets the rate here, and on any machine with few or slow cores per GPU. GPU work sets it
   on the GB10 and the M3 Max, and here too once the CPU work has dropped by about a third.
-- **What would raise throughput** (§5, none implemented yet; *update 2026-10-12: A1–A9 are implemented and measured, C1 is tested, and A10/A11 are implemented; see §8*):
+- **What would raise throughput** (§5, none implemented yet; *update 2026-10-12: A1–A9 are implemented and measured, C1 is tested, and A10/A11 are implemented and measured (O+O +46 %); see §8*):
   - **(A) Cheap fixes with bit-identical output** cut the CPU per event by 19 % (two-stage campaign)
     to 30 % (hydro only):
     - in the writer, recognise a reused background instead of resampling it again, and do the resampling
@@ -410,9 +410,9 @@ is ~1,090 events/h (5.9 GPU-s per event at 90 %), 19 % above the 917 measured.
 (~24 MB/s at 917 events/h, against ~52 MB/s for the full output). On GPU-limited machines (GB10,
 M3 Max) the GPU work is the same, so mainly the disk, upload and memory savings remain.
 
-## 8. Update 2026-10-12: A1–A9 and C1 measured, and what is left
+## 8. Update 2026-10-12: A1–A9, C1, A10 and A11 measured, and what is left
 
-Measured on this machine with `jhputschke/xscape-prod:cu124-music2restart` (`d4acf127186f`, js-contrib `02bed42`, branch `music2_restart`). The details are in [BENCHMARK_2x3090.md](BENCHMARK_2x3090.md), sections "The CPU fixes A1–A9 and the MUSIC_2 restart" and "O+O campaign".
+Measured on this machine with `jhputschke/xscape-prod:cu124-music2restart` (`d4acf127186f`, js-contrib `02bed42`, branch `music2_restart`). The details are in [BENCHMARK_2x3090.md](../BENCHMARK_2x3090.md), sections "The CPU fixes A1–A9 and the MUSIC_2 restart" and "O+O campaign".
 
 **Throughput** (events/h by makespan, the launcher settings of each production):
 
@@ -424,6 +424,7 @@ Measured on this machine with `jhputschke/xscape-prod:cu124-music2restart` (`d4a
 | O+O, ±15 fm, 8/GPU, hadrons only | 3,505 (3,534 on 2026-10-12) | **3,798** | +7 % |
 | O+O, ±15 fm, 8/GPU, default outputs, 60 events per job | (R5 at 12/GPU: 3,657) | **4,006** | |
 | O+O, **±10.5 fm** (C1, `--user-xml`), default outputs, 60 events per job | – | **7,282** | +82 % over ±15 fm |
+| the same with A10 + A11 (`cu124-freezeoutcopies`, below) | – | **10,629** | +46 % over 7,282 |
 
 - **Outputs are bit-identical** to the old image and between restart and no restart, except `source/flux` (≤ 7 ulp; it differs between two runs of the same image too).
 - **C1 passed the physics check:**
@@ -447,8 +448,9 @@ Measured on this machine with `jhputschke/xscape-prod:cu124-music2restart` (`d4a
 | hydro only | ~1,310 | ~1,640 | 1,601 | 98 % |
 | O+O ±15 fm | ~5,200 | ~5,900 | 4,006 | 68 % |
 | O+O ±10.5 fm | ~2× ±15 fm | ~10,000 | 7,282 | 73 % |
+| O+O ±10.5 fm with A10 + A11 | – | ~11,700 | 10,629 | 91 % |
 
-The Au+Au productions are now GPU-bound or nearly so; only C3/C4 (less GPU work) raise them further. O+O is still host-bound: the GPUs are ~65 % busy, and its events/h follow its core-s per event.
+The Au+Au productions are now GPU-bound or nearly so; only C3/C4 (less GPU work) raise them further. O+O is still host-bound: the GPUs are ~65 % busy, and its events/h follow its core-s per event. (With A10 + A11, below, O+O ±10.5 fm reaches 82 % GPU busy and ~91 % of its limit.)
 
 **Correction to B2: the O+O freeze-out is mostly copying.**
 - Profiled inside a running campaign (one job of 16; `bench/oo_grid_20261012/C10_spy`, `C15_spy`), the freeze-out step is 54 % of a job's CPU on ±10.5 fm (5.3 of 9.7 core-s per event) and 67 % on ±15 fm (12.0 of 17.9).
@@ -474,7 +476,7 @@ The Au+Au productions are now GPU-bound or nearly so; only C3/C4 (less GPU work)
 - **Au+Au** runs the same code, so A10/A11 apply there too, but it is within 2–9 % of its GPU limits.
 
 **Revised order:**
-- **O+O:** C1 (XML) → A10 → A11; B2 only for core-poor machines.
+- **O+O:** C1 (XML) → A10 → A11 (A10 + A11 measured below: ~10,600 events/h, ~91 % of the GPU limit); then only GPU savings. B2 only for core-poor machines.
 - **Au+Au:** C3/C4 for more events/h on this machine.
 - **GB10 / M3 Max:** C1 and C3/C4; A8's GPU part is in.
 
@@ -500,10 +502,23 @@ The Au+Au productions are now GPU-bound or nearly so; only C3/C4 (less GPU work)
 
   - Per O+O job (4 events), CPU drops from 19.5 to 15.6 core-s (±15 fm) and from 15.2 to 13.2 (±10.5 fm).
   - On the GB10, A10 gives most of the saving: with coherent memory the full copy only converts float to double.
-  - A11 removes the PCIe transfer and the host memory traffic, which matter on the 3090 under load (§8 above: the copies cost twice as much in a campaign). Its gain there is still to be measured.
+  - A11 removes the PCIe transfer and the host memory traffic, which matter on the 3090 under load (§8 above: the copies cost twice as much in a campaign). Its gain there: +5.6 % events/h on top of A10 (below).
 - **What remains per check** (O+O ±15 fm): Cornelius' geometry and EOS calls for the ~760 surface elements, ~5.8 ms; the ε scan 1.5 ms; the gather 1.2 ms; the ε copy 0.7 ms.
   - The geometry is now the largest freeze-out item. It was not looked into: per-cube allocations in `Cornelius::find_surface_4d`, five EOS calls per element.
-- **To do on the 3090:** an O+O ±10.5 fm campaign (`launch_2gpu_oo.sh`, L10_j8 setting) with an image of `contrib` and `music4gpu_ref=freezeout_copies`, against L10_j8's 7,282 events/h.
+
+**A10 and A11 measured on the 3090** (2026-10-12, later the same day; `jhputschke/xscape-prod:cu124-freezeoutcopies`, `7785630caf6a`, MUSIC4GPU `2ea5a34`; details in [BENCHMARK_2x3090.md](../BENCHMARK_2x3090.md#oo-a10a11)). O+O ±10.5 fm, 8/GPU, OMP 3, default outputs, 60 events per job, three runs back to back:
+
+| run | events/h | CPU core-s/event | GPU busy | GPU-s/event | GPU limit (90 %) |
+|---|---|---|---|---|---|
+| old image (control rerun of the 7,282 run) | 7,243 | 10.3 | 66 % | 0.651 | ~9,950 |
+| A10 only (`MUSIC_FREEZEOUT_GATHER=0`) | 10,070 (+38 %) | 7.1 | 80 % | 0.572 | ~11,300 |
+| **A10 + A11** | **10,629 (+46 %)** | **6.4** | **82 %** | **0.553** | **~11,700** |
+
+- **Better than estimated:** CPU per event fell 38 % (estimate ~30 %), and events/h rose 46 % (estimate +25–35 %), past the old ~10,000 limit. A10 gives most of it; A11 adds +5.6 %.
+- **GPU time per event fell 15 % as well.** This is not understood (one guess: the host copies delayed kernel launches). It raises O+O's GPU limit to ~11,700, so the run is at ~91 % of it, like Au+Au.
+- **Bit-identical:** the hydro grids (0 of 1.3 × 10¹⁰ values differ) and the freeze-out surfaces in all 540 compared events, for both A10 and A10 + A11. The partons and jet hadrons vary run to run as before, with the same means.
+- **Not measured:** ±15 fm, where A10 should save more (~4 core-s per event), and Au+Au, which might gain from the lower GPU time.
+- **Consequence for B2:** with O+O now at ~91 % of its GPU limit, B2 has nothing left to gain on this machine.
 
 ## Method and files
 

@@ -407,14 +407,14 @@ All jobs completed: `events_written` and `particlize_events_written` equal the e
         --write-particlize both > /data/camp_pth3.log 2>&1 &
     ```
 
-    60 jobs × 45 events = 2,700 events in 3 rounds of 20 jobs: ~3 h, ~0.6 TB ([README_launch.md](README_launch.md#10-jobs-per-gpu)).
+    60 jobs × 45 events = 2,700 events in 3 rounds of 20 jobs: ~3 h, ~0.6 TB ([README_launch.md](../utils/README_launch.md#10-jobs-per-gpu)).
 
 Raw data on this machine: `~/prod_test/bench/memtest_20261010/` (`REPORT.md`, `summary.jsonl`, per-run monitor and job logs, `correctness.txt`); launcher copy `~/prod_test/launch_2gpu_memtest.sh`.
 
 <a id="music2restart"></a>
 ## The CPU fixes A1–A9 and the MUSIC_2 restart: `cu124-music2restart` (2026-10-12)
 
-The question: how many more events/h do the bit-identical CPU fixes give on this machine at the campaign setting? They are A1–A9 of [REPORT_CPU_GPU.md](REPORT_CPU_GPU.md) §5. A8 is MUSIC_2 starting from MUSIC_1's state at the last freeze-out step before the liquefier's τ_delay. The comparison is with the 10-jobs-per-GPU numbers of 2026-10-11: 796 events/h, and 917 with `--particlize-only`.
+The question: how many more events/h do the bit-identical CPU fixes give on this machine at the campaign setting? They are A1–A9 of [REPORT_CPU_GPU.md](Plans/REPORT_CPU_GPU.md) §5. A8 is MUSIC_2 starting from MUSIC_1's state at the last freeze-out step before the liquefier's τ_delay. The comparison is with the 10-jobs-per-GPU numbers of 2026-10-11: 796 events/h, and 917 with `--particlize-only`.
 
 **Images:**
 
@@ -514,7 +514,7 @@ Raw data on this machine: `~/prod_test/bench/music2restart_20261012/`: `REPORT.m
 <a id="oo-grid"></a>
 ## O+O campaign: the standard ±15 fm MUSIC grid vs ±10.5 fm (2026-10-12)
 
-The question: what does an O+O campaign (`prod_OO_isr`) give on this machine with the new image, and with the smaller MUSIC grid that [REPORT_CPU_GPU.md](REPORT_CPU_GPU.md) §5–6 suggests (C1)?
+The question: what does an O+O campaign (`prod_OO_isr`) give on this machine with the new image, and with the smaller MUSIC grid that [REPORT_CPU_GPU.md](Plans/REPORT_CPU_GPU.md) §5–6 suggests (C1)?
 - **C1** is ±10.5 fm instead of ±15 fm in x and y: 70 × 70 instead of 100 × 100 transverse cells, the same 0.3 fm cells and the same η grid.
 - The O+O fireball stays within |x|, |y| ≲ 7 fm, and the 64 × 64 × 32 output grid reaches ±9.84 fm.
 - The report asked for a physics check before switching: a few hundred events with no grid-edge hits, and unchanged observables.
@@ -651,4 +651,39 @@ The question: what does an O+O campaign (`prod_OO_isr`) give on this machine wit
 - **Au+Au** uses the same freeze-out code, but its productions are within 2–9 % of their GPU limits (section above): at most the two-stage campaign's ~9 %.
 - Profiles and scripts: `C10_spy/`, `C15_spy/` (`run_oo_spy.sh`), `prof_*_g15`, `prof_*_g10p5` (`chain3.sh`), `stage_cores.py`, `fo_split2.py`, `make_table_oo.py`.
 
-Raw data on this machine: `~/prod_test/bench/oo_grid_20261012/`: `REPORT.md`, `summary.jsonl`, run directories, the two XMLs, `pe_*.txt`, `odd_*.txt`, `bulk_hadrons.txt`, `cmp_*.txt`, `chain.sh` and `chain2.sh`.
+<a id="oo-a10a11"></a>
+**A10 and A11 measured: `cu124-freezeoutcopies`** (2026-10-12, later the same day).
+- **Image:** `jhputschke/xscape-prod:cu124-freezeoutcopies`, digest `sha256:73fbbc812ae22217c03b6eea1ed5f3c47540c312146f53aa2a6b5634bb9df3de` (ID `7785630caf6a`).
+  - X-SCAPE `1098070`; MUSIC4GPU `2ea5a34` (branch `freezeout_copies`).
+  - A10: the freeze-out steps alternate between two buffer slots, so nothing is copied into "previous step" buffers.
+  - A11: only ε comes to the host. The full fields are gathered on the GPU for the corner cells of the cubes the surface crosses, from the current state and from a copy of the previous checked step kept on the GPU.
+  - `MUSIC_FREEZEOUT_GATHER=0` switches A11 off and keeps A10.
+- **Runs:** the L10_j8 setup (±10.5 fm grid, 8 jobs per GPU, OMP 3, 60 events per job, default outputs, seeds 1–16), run back to back. The old image was rerun as a control for machine drift and as the physics reference.
+
+| run (±10.5 fm, 8/GPU, OMP 3, 60 events/job) | events/h (makespan) | vs 7,282 | s/event in the job | CPU core-s/event | busy threads of 48 | GPU busy (SM, mean of 2) | GPU-s/event | GPU limit at 90 % busy |
+|---|---|---|---|---|---|---|---|---|
+| L10_j8, `cu124-music2restart` (earlier) | 7,282 | — | 7.59 | 10.2 | 21.5 | 65 % | 0.646 | ~10,000 |
+| L10_j8_rep, `cu124-music2restart` (control) | 7,243 | −0.5 % | 7.70 | 10.3 | 21.7 | 66 % | 0.651 | ~9,950 |
+| F10_j8_nogather, `cu124-freezeoutcopies`, A10 only | 10,070 | **+38 %** | 5.51 | 7.1 | 20.2 | 80 % | 0.572 | ~11,300 |
+| **F10_j8, `cu124-freezeoutcopies`, A10 + A11** | **10,629** | **+46 %** | **5.14** | **6.4** | 19.2 | **82 %** | **0.553** | **~11,700** |
+
+- **Larger gains than estimated.**
+  - CPU per event fell 38 % (10.2 → 6.4 core-s); the estimate was ~−30 %.
+  - Events/h rose 46 %, past the old ~10,000 GPU limit; the estimate was +25–35 %.
+  - A10 gives most of it: +38 %, −3.1 core-s per event.
+  - A11 adds +5.6 % on top of A10, −0.7 core-s per event.
+- **GPU time per event also fell, by 15 %** (0.65 → 0.55 GPU-s). That raised the GPU limit to ~11,700 events/h.
+  - A10 alone accounts for 12 points of the 15 (0.65 → 0.57). A11 lowers it a little more (→ 0.55), so its gather kernel and on-GPU copy add no net GPU time.
+  - Not understood. One possibility: the host copies competed with the other jobs' host-side work, so kernels were launched later. The measured SM % is all this rests on.
+- **Now close to the GPU limit:** the GPUs are 82 % busy and the rate is ~91 % of the 90 % limit (Au+Au: 91–98 %). Freeing more CPU now gives only ~10 % at most on this machine.
+- **Correctness** (`per_event.py` / `arr_diff.py` against the control run, the 9 seeds with no skipped event in either run, 540 events each):
+  - Hydro output grids (`arr`): 0 of 1.3 × 10¹⁰ values differ, both for A10 + A11 and for A10 only.
+  - Freeze-out surfaces: bit-identical in all 540 events, both runs. τ_fo, surface cells and the first frame's ε have the same means.
+  - Initial states: identical.
+  - Partons and jet hadrons: they differ in 96 % (A10 + A11) and 94 % (A10 only) of the events, after a divergence in event 1–4 of each job. This is O+O's known run-to-run irreproducibility, which leaves hydro and surface untouched: the D15 control showed 74 % at 15 events per job, and once a job diverges every later event differs, so at 60 events per job the share is higher. The parton and jet-hadron means agree within errors.
+  - The job logs show only the usual Matter "minus log of sudakov negative" skips (2, 2 and 6 events) and PYTHIA remnant warnings.
+- **Not tested:** the ±15 fm grid with the new image. There, A10 should save more (~4 core-s per event by the profile above), so the gain should be larger. Au+Au isn't tested either: it was within 2–9 % of its GPU limits, but the 15 % GPU-time drop seen here may also apply.
+- **Campaign command:** as above, with `IMAGE=jhputschke/xscape-prod:cu124-freezeoutcopies`, or `cu124`, which now points to the same image. ~10,600 events/h with default outputs is ~320 GB/h (~89 MB/s), more than the ~80 MB/s upload measured on 2026-10-05. For that rate, write hadrons only, or run fewer jobs.
+- Data: `F10_j8/`, `F10_j8_nogather/`, `L10_j8_rep/` (`chain4.sh`; `run_oo.sh` now passes `EXTRA_ENV` to `docker run`), `pe_F10*_vs_L10rep.txt`, `arr_F10*_vs_L10rep.txt`. The runs' `.h5` outputs (144 files, ~81 GiB) were deleted on 2026-10-12 after the comparison; logs, `.json` files, monitor logs and comparison outputs are kept.
+
+Raw data on this machine: `~/prod_test/bench/oo_grid_20261012/`: `REPORT.md`, `summary.jsonl`, run directories, the two XMLs, `pe_*.txt`, `odd_*.txt`, `bulk_hadrons.txt`, `cmp_*.txt`, `chain.sh`, `chain2.sh`, `chain3.sh` (profiles) and `chain4.sh` (A10/A11).
