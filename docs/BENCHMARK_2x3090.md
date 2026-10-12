@@ -607,7 +607,7 @@ The question: what does an O+O campaign (`prod_OO_isr`) give on this machine wit
   ```
 
   ~7,300 events/h with default outputs, so 6,400 events in under an hour. The upload then has to keep up with ~220 GB/h (~61 MB/s), against the ~80 MB/s measured on 2026-10-05: just enough, with little margin. `--min-free` stops the campaign if it falls behind. Without the upload, 6,400 events are ~190 GB on `/data`; hadrons only stays at ~0.15 MB per event.
-- **To make it the default,** the production XML in js-contrib (`prod_OO_isr/OO_MCGlauber_MUSIC_isr.xml`) would need `grid_max_x/y` 10.5. That isn't done here.
+- **Made the default on 2026-10-12, after these runs:** `prod_OO_isr/OO_MCGlauber_MUSIC_isr.xml` now has `grid_max_x/y` 10.5; the ±15 fm grid needs `--user-xml` with a copy.
 
 **Where O+O's CPU goes now** (follow-up, same day). The O+O runs are host-bound, so the question is which CPU work sets their rate.
 - **Profile of one job inside a running campaign:** 8/GPU, OMP 3, default outputs, 30 events per job.

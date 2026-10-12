@@ -127,8 +127,14 @@
       <tau_form_fluct_gamma_beta>1.0</tau_form_fluct_gamma_beta> <!--Fluctuation parameter for the gamma distribution-->
     </MCGlauber>
 
-    <grid_max_x> 15 </grid_max_x>
-    <grid_max_y> 15 </grid_max_y>
+    <!-- MUSIC's grid: +-10.5 fm x +-6 (70 x 70 x 60 cells) since 2026-10-12.  The O+O fireball
+         stays within |x|, |y| < 7 fm and the output grid (grid_oo.yaml) within +-9.84 fm; on
+         +-10.5 fm the hydro and the freeze-out surface are the same as on +-15 fm to float32
+         rounding, with no grid-edge hit in 2,994 events, at +82 % events/h and half the CPU and
+         memory per job (docs/BENCHMARK_2x3090.md, "O+O campaign").  For larger b or another
+         system check diag/hit_grid_boundary and widen it; the output grid must stay inside. -->
+    <grid_max_x> 10.5 </grid_max_x>
+    <grid_max_y> 10.5 </grid_max_y>
     <grid_max_z> 6  </grid_max_z>
     <grid_step_x> 0.3 </grid_step_x>
     <grid_step_y> 0.3 </grid_step_y>

@@ -23,9 +23,10 @@
 # (~2.5 GB per job).  The default outputs run as fast (~3,650 events/h at 12/GPU).
 # NJOBS a multiple of 16 keeps both GPUs busy to the end.
 # Measured (2026-10-12, image cu124-music2restart, 60 events/job, default outputs; docs/BENCHMARK_2x3090.md,
-# "O+O campaign"): ~4,000 events/h at the defaults.  With MUSIC's grid at +-10.5 fm instead of +-15 fm
-# (--user-xml a copy of OO_MCGlauber_MUSIC_isr.xml with <grid_max_x>/<grid_max_y> 10.5; 70 x 70 cells,
-# the output grid reaches +-9.84 fm): ~7,300 events/h (+82 %), half the CPU and memory per job, the same
+# "O+O campaign"): ~4,000 events/h on the +-15 fm MUSIC grid of that time.  With MUSIC's grid at +-10.5 fm
+# (<grid_max_x>/<grid_max_y> 10.5 in OO_MCGlauber_MUSIC_isr.xml, the default since 2026-10-12; 70 x 70 cells,
+# the output grid reaches +-9.84 fm; +-15 fm now needs --user-xml with a copy): ~7,300 events/h (+82 %),
+# half the CPU and memory per job, the same
 # hydro and freeze-out surface to float32 rounding (1,020 events compared, no grid-edge hit).  Still
 # host-bound (GPUs ~65 % busy).  Default outputs at that rate are ~220 GB/h: upload or hadrons only.
 # Measured (2026-10-12, image cu124-freezeoutcopies = MUSIC4GPU 2ea5a34 with A10/A11, the freeze-out

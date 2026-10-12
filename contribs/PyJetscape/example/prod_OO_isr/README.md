@@ -296,6 +296,13 @@ events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 
   [`BENCHMARK_GB10.md`](../../../../docs/BENCHMARK_GB10.md)).
 - With the hydro file and the particlize file the jobs write more (~27 MB per event) but do
   the same GPU work; not measured as a campaign.
+- **MUSIC's grid is ±10.5 fm × ±6 (70 × 70 × 60 cells) since 2026-10-12** (`<IS><grid_max_x/y>` in
+  the XML; it was ±15 fm when the table above was measured). On the 2 × RTX 3090 machine the
+  smaller grid gave +82 % events/h and half the CPU and memory per job, with the hydro and the
+  freeze-out surface the same to float32 rounding and no grid-edge hit in 2,994 events
+  ([`BENCHMARK_2x3090.md`](../../../../docs/BENCHMARK_2x3090.md), "O+O campaign"); the GB10
+  campaign is not re-measured. For larger b or another system check `diag/hit_grid_boundary`
+  and widen the grid; the output grid (±9.84 fm) must stay inside it.
 
 ## Physics notes and limits
 
