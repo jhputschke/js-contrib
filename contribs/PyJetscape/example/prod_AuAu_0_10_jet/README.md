@@ -1189,8 +1189,9 @@ unit with no samples.
   The surfaces are bit-identical either way, apart from the pressure column (see
   [`PLAN_particlize_h5.md`](../../../../docs/Plans/PLAN_particlize_h5.md), *Surface finder*). Peak memory
   +0.5 GB.
-- `hadronize.py`: ~6 s per surface for 100 iSS oversamples and ~8 s for 500 on one core
-  (~20 s and ~30 s before [`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md) Part A); Colorless is negligible.
+- `hadronize.py`: ~3 s per surface for 100 iSS oversamples and ~5.5 s for 500 on one core
+  (~20 s and ~30 s before [`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md) Part A,
+  ~6 s and ~8 s before its Part C); Colorless is negligible.
 - **Exact.** A `--validate-inline` job (2 events, 100 oversamples) and
   `hadronize.py --use-stored-seeds` on its particlize file give bit-identical hadrons:
   1,710,050 iSS hadrons and all Colorless fragments.
