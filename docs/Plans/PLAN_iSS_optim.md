@@ -1,7 +1,9 @@
 <!-- Plan, written 2026-09-26. Status: Part A done 2026-09-26 -- A1-A3 on iSS branch
      `yield_cache` (fork jhputschke/iSS, 01f7cf9; pinned in X-SCAPE, #149), A4 in X-SCAPE
      and PyJetscape (#150, #17). Part B done 2026-09-26: iSS correlated_sampling (fork
-     jhputschke/iSS, branch common_seeds), X-SCAPE and js-contrib branches common_seeds. -->
+     jhputschke/iSS, branch common_seeds), X-SCAPE and js-contrib branches common_seeds.
+     Part C done 2026-10-12: iSS branch iSS_optim (fork), X-SCAPE and js-contrib branches
+     iSS_optim. -->
 
 # Plan: faster iSS, and correlated jet/background sampling
 
@@ -362,6 +364,106 @@ Not done: `--validate-inline` for correlated sampling (the in-job iSS reads
 `hadronize.xml`, which keeps the conventional sampler; X-SCAPE's `<correlated_sampling>`
 would switch it on in a job), `--oversample-bg` with `--correlated` (the pairing needs equal
 sample counts), local charge conservation.
+
+## Part C: what was left after A and B (done 2026-10-12, bit-identical)
+
+Branches `iSS_optim` in iSS (fork `jhputschke/iSS`, off `common_seeds` `3192982`), X-SCAPE
+(off `contrib`) and js-contrib (off `main`).
+
+**Where the time went** (GB10, seed 1 jet surface, 1.0 M cells, `hadronize.py --tags bulk_jet`,
+one thread, `py-spy --native`, iSS `3192982`):
+
+| | 10 oversamples (4.2 s) | 500 oversamples (7.5 s) |
+|---|---|---|
+| yield loop `calculate_dN_dxtdy_for_one_particle_species` | 3.1 s | 2.9 s |
+| Python/torch import (`pyjetscape_core` links libtorch; not iSS) | 1.3 s | 1.3 s |
+| surface import (wrapper → `FO_surf` → `FO_surf_LRF`, `computeFOSurfTmunu`) | 0.4 s | 0.4 s |
+| per-species inverse CDF (8 MB `new`/`delete` and page faults per species) | 0.2 s | 0.2 s |
+| momentum rejection sampling | – | 1.9 s (`inverse_CDF` alone 1.0 s) |
+| cell pick (`binarySearch` over 1 M cells) | – | 0.45 s |
+| decays | – | 0.3 s |
+| HDF5/zstd write | 0.2 s | 0.5 s |
+
+The yield loop was bound by memory traffic, not arithmetic: per species it streamed every
+168-byte `FO_surf_LRF` plus 64 bytes of δf coefficients and wrote 8 bytes, 321 × 1 M times,
+~77 GB per surface at ~26 GB/s. It uses 24 bytes of the cell. `inverse_CDF` recomputed
+`CDF_2 + 2μ̃ CDF_1 + (μ̃² − m̃²/2) CDF_0 − m_term` from three tables at every bisection
+step, although (m̃, μ̃) is the same for 99 % of the cells of a species.
+
+**Changes** (iSS `src/`, all with the same arithmetic in the same order as before):
+- **C1, yield loop.** `prepare_cell_yield_inputs()` packs dσ·u, T, μ_B, μ_S, μ_Q and Π of
+  every cell into arrays of their own (24 MB per 1 M cells; the diffusion inputs too when
+  diffusion δf is on). `calculate_dN_dxtdy_for_species_block()` computes the yields of
+  8 species (`kSpeciesBlock_`) in one pass over the cells into `dN_block_[s*FO_length + l]`,
+  with the (μ, T) cache of A2 per species; the driver then samples the block's species one
+  after the other, so the random draws come in the same order as with one species at a
+  time (`sample_one_species_conventional` / `_correlated` take the species' yields by
+  pointer; `calculate_dN_dxtdy_for_one_particle_species` is the one-species case). The
+  output pointer is `__restrict__`: without it the stores to `dN_out` serialized the
+  species of a cell (1.4 s instead of 0.75 s).
+- **C2, momentum sampler.** `MomentumSamplerBase::update_combined_CDF()` tabulates the
+  expression above once per (m̃, μ̃, cached m̃ − μ̃) — the same doubles the bisection used to
+  compute — and `inverse_CDF` bisects that 8 KB table, with selects instead of branches
+  (the branch is unpredictable).
+- **C3, surface import.** `reserve` in `iSpectraSamplerWrapper::getSurfCellVector`
+  (X-SCAPE; it also copied every `SurfaceCellInfo` by value) and in
+  `iSS::transform_to_local_rest_frame`; `computeFOSurfTmunu` only at echoLevel > 0 or
+  `perform_checks` (nothing else reads it).
+- **C4, small.** One inverse-CDF buffer reused across species (`invCDF_storage_`;
+  `RandomVariable1DArray` no longer `weak_ptr::lock`s per draw); `binarySearch` with
+  selects; `particle_decay` looks a pid up in an `unordered_map` instead of scanning the
+  ~320-entry table for every mass, width and stability query, and builds daughters on the
+  stack; `perform_resonance_feed_down` and `decay_one_primary` reuse their vectors; the δf
+  coefficients reach the momentum sampler by pointer (no `assign` per hadron).
+- **C5, no libtorch in hadronization processes** (PyJetscape). `jetscape/__init__.py`
+  imported `fno_hydro`, which imported torch at module level, so every process that
+  imports `jetscape` -- `hadronize.py`, every reader -- loaded libtorch: ~0.8 s and
+  460 MB of RSS. torch is now imported when `PyFNOHydro` is constructed (`fno_hydro.py`;
+  `_TORCH_AVAILABLE` only looks the package up). On macOS it is still imported before the
+  ROOT-linked extension (two libomp copies abort the process when torch comes second;
+  the note in `__init__.py`). `import jetscape` 0.72 → 0.25 s; the `hadronize.py` process
+  at 1 oversample 3.6 → 2.9 s wall, peak RSS 1.36 → 0.90 GB (both legs at 500
+  oversamples 1.52 → 1.06 GB).
+
+Not done, and why: a guide table for the cell pick (zero-yield cells give ties in the CDF,
+so the bisection's result depends on its path and no other search is bit-identical); the
+inverse-CDF build itself (0.5 s: a dependent chain of 3.2 × 10⁸ additions; any faster sum
+reassociates); a tighter acceptance bound than (1 + δf)/2 in `sample_momemtum_from_a_fluid_cell`
+(up to ~2× fewer trials, not bit-identical); OpenMP over blocks in the correlated sampler
+(reproducible, but latency only).
+
+**Results** (GB10, seed 1, `hadronize.py`'s own "done in" time, which starts after the
+Python imports; one thread unless noted; the "before" column is the same pinned iSS
+`3192982` measured the same day; peak RSS of the process with C5):
+
+| per surface (`--tags bulk_jet`) | before | Part C | peak memory |
+|---|---|---|---|
+| 1 oversample | – | 2.6 s | 0.90 GB |
+| 10 | 4.2 s | 2.6 s | 0.90 GB |
+| 100 | – | 3.1 s | 0.90 GB |
+| 500 | 7.5 s | 5.4 s | 0.90 GB |
+| 1000 | – | 8.2 s | 0.96 GB |
+
+| both legs, 500 oversamples | before | Part C |
+|---|---|---|
+| conventional, 1 thread | 14.2 s | 10.6 s |
+| conventional, 5 threads | 10.3 s | 9.4 s |
+| correlated, 1 thread | 13.8 s | 8.8 s |
+| correlated, 5 threads | – | 7.9 s |
+
+Per oversample ~5.5 ms (was ~6.7). Profile of one surface at 500 oversamples now (5.4 s
+plus ~0.3 s of imports): yield loop 0.75 s, inverse-CDF builds 0.5 s, momentum sampling
+~1.5 s, cell pick 0.3 s, decays 0.15 s, HDF5 0.4 s, surface import 0.3 s.
+
+**Validation.**
+1. Bit-identical to the build before Part C (iSS `3192982`, same seeds): seed 1, 500
+   oversamples, both legs, every dataset of the hadron files — conventional sampling at 1, 5
+   and 20 threads, correlated sampling at 1 and 5 threads (71 M values each).
+2. In-job vs offline (`run_prod_jet.py --validate-inline`, seed 900, 2 events, 100
+   oversamples, then `hadronize.py --use-stored-seeds`): bit-identical hadrons (1,544,661 iSS hadrons
+   over 100 samples × 2 events, and the Colorless fragments; every dataset).
+3. PyJetscape tests 205 passed, 1 skipped (apart from the pre-existing `test_surface_finder`
+   lattice-spacing failure); FastHydro tests 316 passed, 8 skipped.
 
 ## Related items (from the same discussion): done 2026-09-26
 

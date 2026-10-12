@@ -11,12 +11,21 @@ instead of:
     from python.jetscape import pyjetscape_core as pyjetscape
 """
 
-# NOTE: do not reorder these three imports.  `fno_hydro` must be imported before the bulk
-# `pyjetscape_core` import or the process aborts with "OMP: Error #15: Initializing
-# libomp.dylib, but found libomp.dylib already initialized" -- ROOT (loaded by the
-# extension) and the scientific stack each ship a libomp.  Verified: moving `.utils` or
-# `.fno_hydro` after the core import fails deterministically.
+import sys as _sys
+
+# NOTE: do not reorder these imports.  On macOS the scientific stack (numpy, torch) and
+# ROOT (loaded by the extension) each ship a libomp, and the process aborts with "OMP:
+# Error #15: Initializing libomp.dylib, but found libomp.dylib already initialized" when
+# one of them comes after the core.  Verified: moving `.utils` or `.fno_hydro` after the
+# core import fails deterministically.  So they come first, and on macOS torch too.
+# Elsewhere torch is not imported until PyFNOHydro needs it (fno_hydro.py): it loads
+# libtorch, ~1 s of every process, which hadronize.py and every reader would pay.
 try:
+    if _sys.platform == "darwin":
+        try:
+            import torch  # noqa: F401
+        except ImportError:
+            pass
     from .fno_hydro import fno_config_from_xml  # noqa: F401
     from .utils import shower_to_networkx  # noqa: F401
 

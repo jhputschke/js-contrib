@@ -41,15 +41,14 @@ config=None (reads from JetScapeXML via C++ binding):
 
 from __future__ import annotations
 
+import importlib.util as _importlib_util
 import xml.etree.ElementTree as _ET
 import numpy as np
 
-try:
-    import torch
-    import torch.nn as nn
-    _TORCH_AVAILABLE = True
-except ImportError:
-    _TORCH_AVAILABLE = False
+# torch is needed by PyFNOHydro only, and importing it loads libtorch (~1 s of every
+# process): `import jetscape` -- every hadronize.py, every reader -- must not pay that.
+# It is imported where PyFNOHydro first uses it; this only looks the package up.
+_TORCH_AVAILABLE = _importlib_util.find_spec("torch") is not None
 
 from .pyjetscape_core import FluidDynamics
 from .utils import rebin_preeq_to_fno_grid
@@ -177,6 +176,8 @@ class PyFNOHydro(FluidDynamics):
                 "Install it with: pip install torch"
             )
         super().__init__()
+        import torch
+        import torch.nn as nn
 
         # ── Load model ────────────────────────────────────────────────────────
         if isinstance(model, str):
@@ -192,7 +193,7 @@ class PyFNOHydro(FluidDynamics):
             net.load_state_dict(state)
             net.eval()
             self._model = net
-        elif _TORCH_AVAILABLE and isinstance(model, nn.Module):
+        elif isinstance(model, nn.Module):
             # Approach 3: live Python model
             self._model = model
             self._model.eval()
@@ -307,6 +308,7 @@ class PyFNOHydro(FluidDynamics):
             # same normalised input it was trained on:  ed * tau_0 → channel 0.
             input_np[0, :, :, :] *= tau0
 
+        import torch
         input_tensor = torch.from_numpy(input_np).to(self._device)
         # Add batch dim → (1, n_features, nx, ny, ntau)
         input_tensor = input_tensor.unsqueeze(0)
