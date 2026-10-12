@@ -34,7 +34,7 @@ which side, CPU or GPU, would raise the event rate on which machine.
 
   So CPU work sets the rate here, and on any machine with few or slow cores per GPU. GPU work sets it
   on the GB10 and the M3 Max, and here too once the CPU work has dropped by about a third.
-- **What would raise throughput** (§5, none implemented yet; *update 2026-10-12: A1–A9 are implemented and measured, and C1 is tested; see §8*):
+- **What would raise throughput** (§5, none implemented yet; *update 2026-10-12: A1–A9 are implemented and measured, C1 is tested, and A10/A11 are implemented; see §8*):
   - **(A) Cheap fixes with bit-identical output** cut the CPU per event by 19 % (two-stage campaign)
     to 30 % (hydro only):
     - in the writer, recognise a reused background instead of resampling it again, and do the resampling
@@ -477,6 +477,33 @@ The Au+Au productions are now GPU-bound or nearly so; only C3/C4 (less GPU work)
 - **O+O:** C1 (XML) → A10 → A11; B2 only for core-poor machines.
 - **Au+Au:** C3/C4 for more events/h on this machine.
 - **GB10 / M3 Max:** C1 and C3/C4; A8's GPU part is in.
+
+**Update 2026-10-12: A10 and A11 are implemented** (MUSIC4GPU branch `freezeout_copies`, `2ea5a34`; no X-SCAPE or js-contrib code change).
+- **A10:** the checked steps go into two buffers in turn (`FreezeoutSteps`). Nothing is copied from one into the other, and the host arenas are no longer synced for the search.
+- **A11:** while the GPU holds the state, only ε comes to the host.
+  - The cubes the search visits are found from ε, with Cornelius' own test.
+  - The other fields are gathered for their corner cells only: from the GPU state, and from a copy of the previous checked step kept on the GPU.
+  - CUDA: kernel `gpu_gather_cells`. Metal: a host gather from the shared buffers (not compiled yet).
+- **Not covered:** the boost-invariant search and `output_vorticity` read more than the cube corners. They take full copies into the same two buffers.
+- **Switch:** `MUSIC_FREEZEOUT_GATHER=0` gives A10 alone.
+- **Checked on the GB10** (one job, OMP 4): O+O seed 101 (4 events, ±15 and ±10.5 fm) and Au+Au two-stage (2 events, `--reuse 2`, particlize both).
+  - Hydro, particlize and hadron files are bit-identical to the code before (except `source/flux`, which differs run to run anyway).
+  - The same holds with `MUSIC_CUDA_FORCE_DISCRETE=1` (the 3090's memory path), with `MUSIC_FREEZEOUT_GATHER=0`, and with a forced gather failure every third check (the fallback).
+  - `MUSIC_RESTART_VERIFY=1` reports the checkpoint identical.
+- **Freeze-out host time per check on the GB10** (search + copies, one job alone):
+
+  | | before | A10 | A10 + A11 |
+  |---|---|---|---|
+  | O+O ±15 fm | 22.2 ms | 10.3 ms | 9.2 ms |
+  | O+O ±10.5 fm | 14.3 ms | 8.4 ms | 8.6 ms |
+  | Au+Au two-stage | 30.8 ms | 21.0 ms | 20.1 ms |
+
+  - Per O+O job (4 events), CPU drops from 19.5 to 15.6 core-s (±15 fm) and from 15.2 to 13.2 (±10.5 fm).
+  - On the GB10, A10 gives most of the saving: with coherent memory the full copy only converts float to double.
+  - A11 removes the PCIe transfer and the host memory traffic, which matter on the 3090 under load (§8 above: the copies cost twice as much in a campaign). Its gain there is still to be measured.
+- **What remains per check** (O+O ±15 fm): Cornelius' geometry and EOS calls for the ~760 surface elements, ~5.8 ms; the ε scan 1.5 ms; the gather 1.2 ms; the ε copy 0.7 ms.
+  - The geometry is now the largest freeze-out item. It was not looked into: per-cube allocations in `Cornelius::find_surface_4d`, five EOS calls per element.
+- **To do on the 3090:** an O+O ±10.5 fm campaign (`launch_2gpu_oo.sh`, L10_j8 setting) with an image of `contrib` and `music4gpu_ref=freezeout_copies`, against L10_j8's 7,282 events/h.
 
 ## Method and files
 
