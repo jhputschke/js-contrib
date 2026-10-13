@@ -30,6 +30,7 @@ the HDF5 study and the benchmarks stay here.
 | [`PLAN_particlize_h5.md`](Plans/PLAN_particlize_h5.md) | hadron level: stored surfaces and partons, `hadronize.py`, validation |
 | [`PLAN_iSS_optim.md`](Plans/PLAN_iSS_optim.md) | faster iSS (Parts A and C, bit-identical) and correlated jet/background sampling (Part B) |
 | [`Final_Optims.md`](Plans/Final_Optims.md) | what is left to speed up the O+O and Au+Au jet productions (2026-10-12): the first kernel profile at the production grid (`delta_qi` 52 %), less GPU work per event (late Δτ, active region, `delta_qi` restructure), host → GPU moves, and which side limits the rate on WSU Grid / ACCESS GPU nodes |
+| [`PLAN_OO_root_reader.md`](Plans/PLAN_OO_root_reader.md) | O+O hadrons in `HadronFileReader` and `run_h5toROOT.py` (a `single_leg` layout, streaming, weights), a flat ROOT ntuple with the event record and weights per sample (not started) |
 | [`PLAN_analysis_decays.md`](Plans/PLAN_analysis_decays.md) | π⁰ and weak decays of the hadron files at the analysis level (`jetscape.decays`, `run_h5toROOT.py --decays`; not started) |
 | [`PLAN_slim_bulk_info.md`](Plans/PLAN_slim_bulk_info.md) | the jet job's memory: three fixes and a 6-field background copy (`bulk_info`, `--bulk-info slim`): ~20 → 8.7 GB peak per job, bit-identical; `-j 4` in 29 GB instead of 66–69 (done) |
 | [`README_h5_optim.md`](README_h5_optim.md) | HDF5 compression of `arr` / `arr_bg`: Blosc-zstd default, `keep_bits` |
