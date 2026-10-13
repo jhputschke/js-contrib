@@ -37,6 +37,14 @@ same initial condition, and before the first droplet deposits they are bit-ident
 > **Several pT̂ windows per background (2026-09-27, branches `N_ptHat_per_hydro` in X-SCAPE
 > and js-contrib).** `--pthat-bins 20-40,50-70,70-90` runs every background with one jet per
 > window. See [D. Several pTHat windows per background](#d-several-pthat-windows-per-background---pthat-bins).
+>
+> **Final optimizations (2026-10-12/13, branches `final_optim` in X-SCAPE, MUSIC4GPU and
+> js-contrib; image `cu124-final_optim`).** MUSIC's solvers stop at float resolution (C4),
+> MUSIC steps 0.05 fm/c from τ = 3 fm/c (the late time step, D1, on by default; `--late-dtau
+> 0` turns it off), and Cornelius allocates no memory per element (A12). The campaign runs
+> at 2,160 instead of 1,271 events/h on 2 × RTX 3090; the medium changes at 1e-3, so keep one
+> late-step setting per campaign. See [MUSIC's late time step](#musics-late-time-step-default)
+> and [`docs/REPORT_FINAL_OPTIM.md`](../../../../docs/REPORT_FINAL_OPTIM.md).
 
 | file | purpose |
 |---|---|
@@ -78,6 +86,7 @@ python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background pe
 python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90
                                              # the same, one jet per background in each window
 python run_prod_jet.py --events 1 --seed 1 --dry-run         # check the XML/grid only
+python run_prod_jet.py --events 10 --seed 1 --late-dtau 0    # MUSIC at a constant 0.02 fm/c step
 
 # + the input for hadronization: both freeze-out surfaces and the final partons
 python run_prod_jet.py --events 10 --seed 1 --write-particlize both
@@ -97,6 +106,13 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both   # + hadronization input
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both --particlize-only
                                                              # hadronization input only, no pair file
+
+# a discrete GPU with ~12 cores of its own (RTX 3090 class): 10 jobs, 3 threads each, blocking
+# CUDA sync, LBT's tables shared, staggered start (docs/README_2stage.md, Launch settings)
+mkdir -p /scratch/lbt_cache
+OMP_NUM_THREADS=3 MUSIC_CUDA_SYNC=block LBT_TABLE_CACHE=/scratch/lbt_cache/lbt_tables_v1.bin \
+  ./run_jobs.sh -j 10 --mps --stagger 12 60 45 0 out_c --pthat-bins 10-20,20-30,30-40 \
+  --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both
 
 # GB10 (CUDA): 4 jobs sharing the GPU through MPS, the cores split between them (../../../../docs/BENCHMARK_GB10.md)
 OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0
@@ -140,14 +156,23 @@ OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 
   campaign; give each campaign its own `OUTDIR` (a second name in the same one is refused).
   See [Campaigns with `run_jobs.sh`](#campaigns-with-run_jobssh) for the details.
 
-**Recommended campaign settings** (measured, hydro pairs only; machine-specific, so they are
-not built into the scripts):
+**Recommended campaign settings** (measured; machine-specific, so they are not built into
+the scripts). The campaign setting is `--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5
+--parton-ymax 0.6 --write-particlize both` (one background per 15 events):
 
-| machine | campaign | events/h | memory | one job alone | details |
+| machine | code | launch | events/h | memory | details |
 |---|---|---|---|---|---|
-| GB10 (CUDA, 20 cores, 121 GB) | `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps ...` | ~190 | ~66 GB | defaults (all threads), 118 events/h | [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md) |
-| Apple M3 Max (Metal, 16 cores, 64 GB) | `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 ...` | 213 | ~40 GB | defaults, 132 events/h | [BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md) |
+| **2 × RTX 3090** (24 cores, 125 GB) | **`cu124-final_optim`** (C4, late Δτ, A12) | per GPU: `OMP_NUM_THREADS=3 MUSIC_CUDA_SYNC=block LBT_TABLE_CACHE=… ./run_jobs.sh -j 10 --mps --stagger 12 …` (`utils/launch_2gpu.sh`); campaign setting | **2,160** (1,080 per GPU; ~2,400–2,500 expected in 45-event jobs) | 105 GB peak, ~6 GB per job | [REPORT_FINAL_OPTIM.md](../../../../docs/REPORT_FINAL_OPTIM.md) |
+| 2 × RTX 3090 | `cu124-freezeoutcopies` (A1–A11) | the same | 1,271 | 108 GB | [BENCHMARK_2x3090.md](../../../../docs/BENCHMARK_2x3090.md) |
+| GB10 (CUDA, 20 cores, 121 GB unified) | A1–A8 + restart (2026-10-11) | `OMP_NUM_THREADS=5 MUSIC_CUDA_SYNC=block ./run_jobs.sh -j 4 --mps …`; campaign setting | 381 (~750–800 expected with `final_optim`, not measured) | 31.5 GB | [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md) |
+| GB10 | 2026-10-03 | `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps …`; a new background every event, no particlize | ~190 | ~29 GB | [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md) |
+| Apple M3 Max (Metal, 16 cores, 64 GB) | before A1 | `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 …`; a new background every event, no particlize | 213 | ~40 GB | [BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md) |
 
+Cluster GPUs (V100, A40, A100, L40S), extrapolated: [`docs/README_2stage.md`](../../../../docs/README_2stage.md) §1.
+
+- **With `final_optim` the host is the limit** on the 3090 box (GPUs 63 % busy, ~35 core-s per
+  event): a job keeps ~1 core busy on average and wants 2–3 OpenMP threads. Size the number
+  of jobs by the cores (and ~7 GB per job), not by the GPU.
 - **Several jobs at once:** set `OMP_NUM_THREADS` to about cores / jobs, otherwise the jobs'
   OpenMP threads oversubscribe the cores.
 - **One job alone:** leave `OMP_NUM_THREADS` unset. On the GB10, fewer threads made a single
@@ -155,8 +180,11 @@ not built into the scripts):
 - **`--mps` is CUDA only.** On the GB10 it takes four jobs from 159 to 173–179 events/h, and
   the thread split brings that to ~190.
 - **With `--write-particlize`,** each job is slower (~35 s instead of 29.5 s per event alone
-  on the GB10; 43.0 s before MUSIC4GPU `5058545` parallelized the surface finder) and needs
-  +0.5 GB. The campaign throughput with it has not been measured.
+  on the GB10 in September; 43.0 s before MUSIC4GPU `5058545` parallelized the surface finder)
+  and needs +0.5 GB. The campaign numbers above include it.
+- **`MUSIC_CUDA_SYNC=block`** (the host sleeps while it waits for the GPU) saves ~30 % CPU per
+  event at the same throughput; `LBT_TABLE_CACHE` and `--stagger` are under *Planning
+  numbers* below.
 - **On another machine,** re-measure as described in
   [Finding the settings on another machine](../../../../docs/BENCHMARK_GB10.md#finding-the-settings-on-another-machine).
 
@@ -918,7 +946,21 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
   the driver checks that PythiaGun reports the requested cut. Without `--parton-ymax`
   nothing is cut and the files are as before.
 
-### Planning numbers (GB10, one 0–10% event, measured)
+### Planning numbers
+
+**With the current image** (`cu124-final_optim`, 2 × RTX 3090, the campaign setting with
+`--write-particlize both`, 10 jobs per GPU; [`REPORT_FINAL_OPTIM.md`](../../../../docs/REPORT_FINAL_OPTIM.md)):
+
+| per event | |
+|---|---|
+| wall time in a loaded job | 25 s (a job alone: ~8–15 s per jet event) |
+| host CPU | 35 core-s (Zen 2, under load) |
+| GPU | 2.1 GPU-s on an RTX 3090 (5.1 with A1–A11, 3.6 with `--late-dtau 0`) |
+| host memory per job | 5.97 GB VmHWM mean, 6.66 max (with `LBT_TABLE_CACHE`) |
+| disk | 0.243 GB (pair + particlize); 0.097 GB with `--particlize-only` (measured on the image before) |
+| `hadronize.py`, both legs, 500 oversamples, one core | 10.6 s; 8.8 s with `--correlated` (iSS Part C) |
+
+**Earlier, GB10, one 0–10% event (September):**
 
 | | per event | disk per event |
 |---|---|---|
@@ -1011,7 +1053,7 @@ processes keep up with a whole four-job GPU campaign.
 | `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +5.4 s per event for `both` (+13.5 s before MUSIC4GPU `5058545`; measured, below). |
 | `--bulk-info {slim,full}` | The background's framework copy, which Matter, LBT and the liquefier look up. `slim` (default): e, s, T, vx, vy, vz per cell (24 instead of 112 bytes), ~7 GiB less memory at 0–10%, every output byte-identical to `full` (checked). `full`: the whole `FluidCellInfo` (also P; MUSIC's store has no viscous fields or μ's, so those are zero either way), for modules that read more. Sets `<Hydro><MUSIC><slim_bulk_info>`; needs X-SCAPE with it (branch `slim_bulk_info`). |
 | `--particlize-only` | Write only `<stem>_particlize.h5` (and the `.json`), no pair file: no evolution, `source/` or `shower/` is stored, and the jet leg's evolution is not even read (no `frames_identical` checks). ~3 s per event faster, peak 7.5 instead of 8.7 GiB. Needs `--write-particlize`. See *Hadronization input only* in B. |
-| `--late-dtau DT`, `--late-tau TAU` | MUSIC's time step from TAU on (the XML's `<late_delta_tau>` / `<late_tau_switch>`, 0.05 fm/c from 3 fm/c in the production XML; `--late-dtau 0`: a constant step). About half the MUSIC steps per leg; the freeze-out checks and the stored frames keep their 0.1 fm/c; the fields change at the level of the time discretization (docs/Plans/Final_Optims.md, D1). |
+| `--late-dtau DT`, `--late-tau TAU` | MUSIC's time step from TAU on (the XML's `<late_delta_tau>` / `<late_tau_switch>`, 0.05 fm/c from 3 fm/c in the production XML; `--late-dtau 0`: a constant step, bit-identical to the same build's constant-step output). About half the MUSIC steps per leg; the freeze-out checks and the stored frames keep their 0.1 fm/c. Not bit-identical: the medium changes at 1e-3, the cell-level wake by ~5 % at sub-fm scales, so use **one setting per campaign**. DT must divide 0.1 fm/c into whole steps (0.05, 0.025). Needs MUSIC4GPU and X-SCAPE `final_optim`; older builds ignore the XML tags. See [MUSIC's late time step](#musics-late-time-step-default). |
 | `--music2-restart` (default) / `--no-music2-restart` | MUSIC_2 starts from MUSIC_1's saved state just before the first droplet can deposit, instead of recomputing the identical leading steps: −25 core-s per jet event, the same output. Off by itself with `--write-particlize jet` / `--surface jet` and on builds without it. See [MUSIC_2 from MUSIC_1's state](#music_2-from-music_1s-state-default). |
 | `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
 | `--hadronize-xml FILE` | Settings for `--validate-inline` (default `hadronize.xml`). |
@@ -1293,11 +1335,81 @@ The output is that of a run without the restart.
 **Cost:** ~100 MB of GPU memory and ~110 MB of host memory per job, held from one background
 to the next.
 
+## MUSIC's late time step (default)
+
+From τ = 3 fm/c MUSIC takes steps of 0.05 fm/c instead of 0.02 (D1 of
+[`Final_Optims.md`](../../../../docs/Plans/Final_Optims.md); MUSIC4GPU `547da26`, X-SCAPE
+`d425575e`, on the `final_optim` branches). The production XML sets it:
+
+```xml
+<late_delta_tau>0.05</late_delta_tau>      <!-- 0: a constant step -->
+<late_tau_switch>3.0</late_tau_switch>
+```
+
+`--late-dtau DT` and `--late-tau TAU` override them for both legs; `--late-dtau 0` gives the
+constant 0.02 fm/c step.
+
+**What MUSIC does at the switch.** At the first step at or after `late_tau_switch` that
+is a frame step both before and after, it sets Δτ to `late_delta_tau`, `facTau` from 5 to 2
+and the frame cadence from every 5th to every 2nd step. The freeze-out checks and the stored
+frames therefore stay every 0.1 fm/c, and the pair and particlize files keep their format.
+A leg takes about half the steps: on the GB10, background 479 → 272, jet leg 501 → 282.
+
+**What the jet source does.** The CausalLiquefier deposits a droplet in the step whose
+window contains τ_drop + `tau_delay`, and divides the kernel by Δτ. Both follow the step
+change (X-SCAPE `d425575e`): MUSIC tells `HydroSourceJETSCAPE` and the liquefier the new
+step, the deposition windows tile the τ axis across the switch
+([τ − Δτ_before/2, τ + Δτ_after/2) at the switch), and both Runge–Kutta stages there see the
+same droplets. Nothing to set. Without it, droplets after 3 fm/c would deposit 2.5× too much
+or be missed. With a constant step everything is bit-identical to before.
+
+**What it changes.** Checked on the 3090 box against `--late-dtau 0` with the same seeds,
+300 Au+Au campaign events on 20 backgrounds and 720 O+O events
+([`REPORT_FINAL_OPTIM.md`](../../../../docs/REPORT_FINAL_OPTIM.md) §2, §3, §5):
+
+| | Au+Au | O+O |
+|---|---|---|
+| fields before 3 fm/c | bit-identical | bit-identical |
+| fields after, energy-weighted \|Δe\|/e above e_fo | 1.1e-3 (GPU vs CPU: 2e-3) | 1.2e-4 |
+| deposited energy (same showers) | to 1e-4 | |
+| wake energy / deposited energy | +0.3 % ± 0.2 % | |
+| wake δe cell by cell (L2, median) | ~5 %; 2.3 % at 0.5 fm smoothing, 0.8 % at 2 fm | |
+| wake: positive and negative parts, centroid, width | within 0.1–0.2 %, centroid within 0.03 fm | |
+| hadron-level wake (charged, \|η\| < 1) | no change within ±2 % (yield, energy, Δφ) | |
+| freeze-out surface | ~0.1 % more cells | +0.20 % ± 0.002 %; τ_fo one frame later in 11 % of events |
+| bulk hadrons | multiplicity +7.5e-5 | +0.05 % ± 0.03 % (all), +0.4 % ± 0.2 % (\|η\| < 1) |
+| showers the same | 157 of 300 (the medium differs at 1e-3; the mean deposit is unchanged) | |
+
+- **Accepted for production**, by the plan's criterion: the medium differs below the GPU-vs-CPU
+  level, the deposition is normalised correctly, and the wake's integrated properties agree.
+- **One setting per campaign.** The cell-level wake (an FNO's target) and the O+O surface do
+  change, systematically. Don't combine late-step and constant-step files; a file records the
+  setting in its job XML (`prod_user_xml`, `<stem>.xml`).
+- **Speed:** −42 % GPU time per Au+Au event on top of C4; the 3090 box goes from 1,628 to
+  2,160 events/h, the O+O hadrons-only campaign from 12,722 to 13,728.
+- **With the restart:** the switch (step 130) comes after the checkpoint (step 28), whose key
+  records the switch parameters; `MUSIC_RESTART_VERIFY=1` gives `identical to the checkpoint`
+  with the late step (M3 Max, Metal).
+- **The log** of every MUSIC run: `late step: delta_tau 0.02 -> 0.05 fm/c at step 130
+  (tau = 3 fm/c), facTau 5 -> 2, a frame every 2 steps`. A DT that doesn't divide 0.1 fm/c
+  into whole steps also logs `late step: the freeze-out check spacing changes …`.
+
+**The other two `final_optim` changes have no switch:**
+- **C4, the solver stall break** (MUSIC4GPU `48e8776`): the Newton–Brent solvers of the
+  reconstruction stop once the iterate no longer changes in float32. Lanes below float
+  resolution used to run all 60 iterations and hold their warps. −29 % GPU time per step;
+  float-rounding-level differences (fields ~1e-6, surfaces ±2 cells per leg, the hadron-level
+  wake yield +0.8 % ± 0.2 %). Accepted.
+- **A12, Cornelius without per-element allocations** (MUSIC4GPU `b972b04`): the freeze-out
+  search −30 %, bit-identical.
+
 ## Choices worth knowing
 
-- **`<CausalLiquefier><dtau>` must equal MUSIC's `Delta_Tau`** (0.02 in `music_input`). The
-  kernel is divided by `dtau` and applied in one hydro step (`CausalLiquefier.cc:117-129`).
-  `run_prod_jet.py` refuses a mismatch. `dx/dy/deta` are only printed by the C++.
+- **`<CausalLiquefier><dtau>` must equal MUSIC's `Delta_Tau`** (0.02 in `music_input`), the
+  starting step. The kernel is divided by `dtau` and applied in one hydro step
+  (`CausalLiquefier.cc`). `run_prod_jet.py` refuses a mismatch. From `late_tau_switch` on, MUSIC
+  passes its new step to the liquefier itself ([MUSIC's late time step](#musics-late-time-step-default)):
+  `dtau` stays 0.02. `dx/dy/deta` are only printed by the C++.
 - **Liquefier and energy-loss parameters** are those of FastHydro's
   `AuAu_FastHydro_tune_0_10_wake.xml` (`tau_delay` 1 fm, Matter + LBT with α_s 0.25, Q0 2
   GeV), so MUSIC pairs and FastHydro wake files can be compared directly.
@@ -1378,6 +1490,14 @@ in-job hadrons it compares against are full precision.
 4. The restart (default): one job with `MUSIC_RESTART_VERIFY=1`. Every event must log
    `restart verify at step N: identical to the checkpoint`, and a job without it
    (`--no-music2-restart`) must write the same files.
+5. The late time step: every MUSIC run logs `late step: delta_tau 0.02 -> 0.05 …` (or none
+   with `--late-dtau 0`), and every file of the campaign has the same `<late_delta_tau>` in
+   its job XML.
+6. After the campaign, the per-job deposition check: a job whose `droplets_total /
+   events_written` (in its `.json`) is below half the campaign median lost its jets' energy
+   for an unknown reason (seen once in ~250 jobs, not reproducible). Redo it.
+   [`utils/check_deposition.py`](../../../../utils/check_deposition.py) `OUTDIR` finds such
+   jobs ([`docs/README_2stage.md`](../../../../docs/README_2stage.md#checking-a-run)).
 
 ## Potential next steps
 

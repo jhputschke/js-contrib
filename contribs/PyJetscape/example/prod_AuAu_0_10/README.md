@@ -272,6 +272,23 @@ From PyJetscape, `jetscape.fast_h5_bulk.read_fast_h5_bulk(path)` returns each ev
 - **Native grid.** `--native` ignores the YAML's grid and writes MUSIC's own 100 × 100 × 60
   grid (`max_ntau` still applies). That is about 10 MB per frame, roughly 1 GB per event
   before compression.
+- **MUSIC's time step stays constant here (0.02 fm/c).** The jet productions
+  (`prod_AuAu_0_10_jet`, `prod_OO_isr`) switch to 0.05 fm/c from τ = 3 fm/c by default (the
+  late time step, D1, branches `final_optim`), which changes the medium at the 1e-3 level
+  ([`../prod_AuAu_0_10_jet/README.md`](../prod_AuAu_0_10_jet/README.md#musics-late-time-step-default)).
+  This XML doesn't set it, so hydro-only files stay comparable with the earlier ones.
+  `run_prod.py` has no option for it; adding `<late_delta_tau>0.05</late_delta_tau>` and
+  `<late_tau_switch>3.0</late_tau_switch>` to the `<Hydro><MUSIC>` block of a user XML turns it
+  on (a build from the `final_optim` branches; ~40 % fewer MUSIC steps). Keep one setting per
+  training set.
+- **The other `final_optim` changes apply here without a setting:** MUSIC4GPU's solver stall
+  break (C4: −29 % GPU time per step, float-rounding-level differences) and Cornelius without
+  per-element allocations (A12, bit-identical). On the M3 Max a hydro-only job went from 29.9
+  to 24.3 s (−19 %; [`Final_Optims.md`](../../../../docs/Plans/Final_Optims.md) §8). On the
+  2 × RTX 3090 box this production ran at 1,601 events/h at 12 jobs per GPU before them.
+  Use the launch settings of the jet production
+  ([`docs/README_2stage.md`](../../../../docs/README_2stage.md#launch-settings-for-several-jobs-per-gpu)):
+  `MUSIC_CUDA_SYNC=block`, 2–3 threads per job, `--stagger` (no LBT here).
 
 ## Relation to `FastHydro/config/AuAu_MCGlauber_MUSIC_0_10.xml`
 

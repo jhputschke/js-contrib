@@ -14,6 +14,10 @@ and the production READMEs
 **Running a production with the containers** (Docker, Apptainer, SLURM; hadronization on
 CPUs; analysis and ROOT export): [`README_2stage.md`](README_2stage.md).
 
+**Analysing the files** (environments, reading hydro, particlize and hadron files, FastJet in
+Python and in ROOT, the ROOT export, the notebooks): [`README_analysis.md`](README_analysis.md);
+for the O+O production, [`README_OO.md`](README_OO.md).
+
 The plans (`PLAN_*.md`, `PlanContainer*.md`) are in [`Plans/`](Plans/); the user guide,
 the HDF5 study and the benchmarks stay here.
 
@@ -40,12 +44,17 @@ the HDF5 study and the benchmarks stay here.
 |---|---|
 | [`BENCHMARK_GB10.md`](BENCHMARK_GB10.md) | GB10 (CUDA): per-event profile, speed-ups, concurrent jobs, MPS, thread settings |
 | [`BENCHMARK_M3MAX.md`](BENCHMARK_M3MAX.md) | Apple M3 Max (Metal): the same measurements, `run_jobs.sh` on macOS |
+| [`BENCHMARK_2x3090.md`](BENCHMARK_2x3090.md) | 2 × RTX 3090 (Docker): jobs per GPU, threads, MPS, memory, the campaign default, `final_optim` |
+| [`REPORT_FINAL_OPTIM.md`](REPORT_FINAL_OPTIM.md) | `cu124-final_optim` on 2 × RTX 3090: throughput, and the physics check of C4 and the late time step (D1) |
+| [`REPORT_SUMMARY_CLUSTER.md`](REPORT_SUMMARY_CLUSTER.md) | throughput per machine, and the per-GPU settings extrapolated to cluster GPUs (V100, A40, A100, L40S) |
 
 ## Containers
 
 | file | contents |
 |---|---|
-| [`README_2stage.md`](README_2stage.md) | **user guide**: the two-stage production with the production images, from GPU jobs to hadrons and ROOT files |
+| [`README_2stage.md`](README_2stage.md) | **user guide**: the two-stage production with the production images, from GPU jobs to hadrons and ROOT files; image status, launch settings, per-GPU sizing, the late time step |
+| [`README_analysis.md`](README_analysis.md) | **user guide**: the analysis of the production files: environments, threads, HDF5 readers for hydro and hadrons, FastJet (Python and C++), ROOT conversion and macros, notebooks |
+| [`README_OO.md`](README_OO.md) | **user guide**: the analysis of the O+O ISR production: the event, the per-event record, cross-section and Ncoll weights, checks, multiplicity, centrality, flow from the oversamples, jets, ROOT |
 | [`PlanContainer.md`](Plans/PlanContainer.md) | one Docker image with X-SCAPE, music4gpu, js-contrib and FNO4d built in |
 | [`PlanContainerDev.md`](Plans/PlanContainerDev.md) | source-free dev containers (`utils/Dockerfile.dev`, `utils/Dockerfile.dev.blackwell`) |
 
