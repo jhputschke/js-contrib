@@ -4,6 +4,18 @@ Community contributions for the [JETSCAPE](https://github.com/JETSCAPE/JETSCAPE)
 [X-SCAPE](https://github.com/JETSCAPE/X-SCAPE) and C-SCAPE (in development) heavy-ion simulation framework,
 analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJet.
 
+## User guides: running the productions and analysing them
+
+| guide | for | covers |
+|---|---|---|
+| [`docs/README_2stage.md`](docs/README_2stage.md) | running a production | the two-stage Au+Au jet production with the production containers (Docker, Apptainer, SLURM): the images, per-GPU sizing and launch settings, hydro + jets on GPUs, hadronization on CPUs, moving the files, the O+O ISR production, and another collision system (Pb+Pb at the LHC) from your own XML |
+| [`docs/README_analysis.md`](docs/README_analysis.md) | analysing the files | the environments (a venv without X-SCAPE, ROOT, FastJet), getting the files from the OSDF or reading them in place, reading the hydro, particlize and hadron files, jets with FastJet in Python and C++, the ROOT export and macros, the notebooks |
+| [`docs/README_OO.md`](docs/README_OO.md) | analysing O+O | the O+O ISR event and its per-event record, cross-section and Ncoll weights, checks, multiplicity, centrality, flow from the oversamples, jets, ROOT |
+
+The scripts behind the guides' tested code are in
+[`docs/analysis_snippets/`](docs/analysis_snippets/README.md); every design note and benchmark
+is listed in [`docs/README.md`](docs/README.md).
+
 ## Available contribs
 
 | Contrib | Description | Extra deps |
@@ -24,7 +36,7 @@ and [contribs/Visualization/README.md](contribs/Visualization/README.md).
 ### Utilities
 
 [`utils/README.md`](utils/README.md) lists everything in `utils/`: environments, container
-images, the SLURM script and the data tools below.
+images, the SLURM scripts and the data tools below.
 
 [`utils/h5_inspect.py`](utils/h5_inspect.py) lists every group and dataset of an HDF5 file
 with its shape, dtype, storage and attributes. For the js-contrib hydro files
@@ -65,6 +77,10 @@ source ~/.venvs/js_analysis/bin/activate
 python utils/analysis_env/check_env.py /path/to/out  # opens every file of a production
 ```
 
+How to read the files in it, FastJet, ROOT and the notebooks:
+[`docs/README_analysis.md`](docs/README_analysis.md); for O+O,
+[`docs/README_OO.md`](docs/README_OO.md).
+
 ### Moving productions: Google Cloud Storage and Pelican/OSDF
 
 [`utils/remote_transfer/`](utils/remote_transfer/README.md) has two command-line tools with
@@ -87,6 +103,10 @@ utils/remote_transfer/js_osdf.py upload /data/out --what h5 --as AuAu_c1      # 
 utils/remote_transfer/js_gcs.py download AuAu_c1 --what root --to /scratch
 ```
 
+Reading `osdf:///fno4hic` is public (no login or token). Downloading for an analysis, and
+reading HDF5 and ROOT files in place over `osdf://`:
+[`docs/README_analysis.md`](docs/README_analysis.md#getting-the-files-the-osdf-and-gcs).
+
 [`utils/upload_follow.py`](utils/upload_follow.py) uploads a production to the OSDF **while it
 runs** and can delete the verified uploads locally, so a campaign is no longer limited by the
 local disk; [`utils/launch_2gpu.sh`](utils/launch_2gpu.sh) runs a campaign on both GPUs of one
@@ -94,8 +114,9 @@ machine with it ([`utils/README_launch.md`](utils/README_launch.md)).
 
 ### Design notes and benchmarks
 
-[`docs/`](docs/README.md) holds the plans behind the HDF5 writers and the productions, the
-GB10 and Apple M3 Max benchmarks, the HDF5 compression study and the container plans.
+[`docs/`](docs/README.md) holds the user guides above, the plans behind the HDF5 writers and
+the productions, the benchmarks (GB10, Apple M3 Max, 2 × RTX 3090) and the reports on the
+optimizations, the HDF5 compression study and the container plans.
 
 ## Source provenance
 
