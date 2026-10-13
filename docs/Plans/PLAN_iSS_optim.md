@@ -3,7 +3,8 @@
      and PyJetscape (#150, #17). Part B done 2026-09-26: iSS correlated_sampling (fork
      jhputschke/iSS, branch common_seeds), X-SCAPE and js-contrib branches common_seeds.
      Part C done 2026-10-12: iSS branch iSS_optim (fork), X-SCAPE and js-contrib branches
-     iSS_optim. -->
+     iSS_optim; C6 (found on the M3 Max) 2026-10-12: iSS iSS_optim b15dd05, pinned on X-SCAPE
+     final_optim. -->
 
 # Plan: faster iSS, and correlated jet/background sampling
 
@@ -424,11 +425,19 @@ step, although (m̃, μ̃) is the same for 99 % of the cells of a species.
   the note in `__init__.py`). `import jetscape` 0.72 → 0.25 s; the `hadronize.py` process
   at 1 oversample 3.6 → 2.9 s wall, peak RSS 1.36 → 0.90 GB (both legs at 500
   oversamples 1.52 → 1.06 GB).
+- **C6, the inverse-CDF sum in a register** (iSS `b15dd05`, found on the M3 Max, see
+  [Part C on the M3 Max](#part-c-on-the-m3-max)). C4 moved the inverse-CDF loop into
+  `RandomVariable1DArray::build()`, which writes into storage the caller owns. The compiler
+  can no longer rule out that those stores alias the member `data_sum`, so the running sum
+  went through memory in every iteration (load, add, store; the next load waits on the
+  store). Apple Clang 17 and GCC 15 at `-O3` both compile it this way. Before C4 the array
+  came from a `new` in the same function and the sum stayed in a register. The sum now runs
+  in a local and is stored once: the same additions in the same order, bit-identical.
 
 Not done, and why: a guide table for the cell pick (zero-yield cells give ties in the CDF,
 so the bisection's result depends on its path and no other search is bit-identical); the
-inverse-CDF build itself (0.5 s: a dependent chain of 3.2 × 10⁸ additions; any faster sum
-reassociates); a tighter acceptance bound than (1 + δf)/2 in `sample_momemtum_from_a_fluid_cell`
+inverse-CDF build itself beyond C6 (a dependent chain of 3.2 × 10⁸ additions; any faster sum
+reassociates; the 0.5 s below was measured before C6, with a store and a load in the chain); a tighter acceptance bound than (1 + δf)/2 in `sample_momemtum_from_a_fluid_cell`
 (up to ~2× fewer trials, not bit-identical); OpenMP over blocks in the correlated sampler
 (reproducible, but latency only).
 
@@ -464,6 +473,34 @@ plus ~0.3 s of imports): yield loop 0.75 s, inverse-CDF builds 0.5 s, momentum s
    over 100 samples × 2 events, and the Colorless fragments; every dataset).
 3. PyJetscape tests 205 passed, 1 skipped (apart from the pre-existing `test_surface_finder`
    lattice-spacing failure); FastHydro tests 316 passed, 8 skipped.
+4. C6 (M3 Max): hadrons bit-identical to `3192982` and `896e198` at 1 and 5 threads, 200 and
+   500 oversamples (seed 1, both legs, every dataset).
+
+### Part C on the M3 Max
+
+M3 Max (Metal build, Apple Clang 17), 2026-10-12: the seed 1 events of a 4-event
+`run_prod_jet.py --reuse 2 --write-particlize both` job, `hadronize.py --tags
+bulk_jet,bulk_bg`, i.e. 6 surfaces of 1.09–1.24 M cells (4 jet legs, 2 backgrounds). The
+times are iSS alone, summed over the six calls (timestamped log lines, "running iSS" to "iSS
+finished"):
+
+| 6 surfaces | iSS `3192982` | Part C (`896e198`) | Part C + C6 (`b15dd05`) |
+|---|---|---|---|
+| 1 oversample, 1 thread (the 4 jet surfaces) | 9.6 s | 11.3 s | 8.4 s |
+| 200 oversamples, 1 thread | 24.2 s | 25.0–25.8 s | 18.6–20.1 s |
+| 500 oversamples, 1 thread | 40.9 s | 36.4–38.1 s | 32.7 s |
+| 200 oversamples, 5 threads | 22.3 s | 19.4 s | 14.2 s |
+
+- **Without C6, Part C was slower on the Mac at low oversample counts.** The fixed cost per
+  surface rose from ~2.1 to ~2.7 s while the cost per oversample fell from 8.2 to 6.3 ms. A
+  macOS `sample` profile at 1 oversample shows why: the yield loop gained only 16 % (3,702 →
+  3,104 samples; on the GB10 ~75 %, since the M3 Max's memory bandwidth already made the old
+  loop cheap), and the inverse-CDF build became 2.3× slower (841 → 1,966 samples). With C6:
+  736.
+- C6 should help on Linux too (the CUDA images build iSS with conda's GCC 14 at `-O3`; GCC 15
+  emits the same memory round trip). How much depends on the core's store-to-load forwarding
+  latency: to be measured on the GB10 (`hadronize.py --tags bulk_jet --oversample 500`, one
+  thread, `896e198` against `b15dd05`).
 
 ## Related items (from the same discussion): done 2026-09-26
 

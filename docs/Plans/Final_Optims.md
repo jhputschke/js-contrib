@@ -153,7 +153,9 @@ windows that tile the axis across the switch, the production XMLs at 0.05 fm/c f
 stay). Frames stay on the 0.1 fm/c grid; the background's fields differ from the constant step
 by 2e-4 (τ = 3.5) to 1.2e-3 (τ ≥ 6 fm/c) energy-weighted above e_fo, single cells ≤ 5e-3, total
 energy within 3e-4; with `--late-dtau 0` the output is bit-identical to the stall-break build.
-The design below is as planned; the validation is still to do, together with C4's.
+The design below is as planned; the validation is still to do, together with C4's. The
+Metal build was run on the M3 Max on 2026-10-12, with the same differences
+([§8](#8-m3-max-metal-check-of-a10a11-c4-d1-a12-2026-10-12)).
 
 **Facts.**
 - The productions run `beastMode 1` (float, constant Δτ = 0.02 fm/c). MUSIC's `beastMode 2`
@@ -273,8 +275,11 @@ e_fo ~1e-6, the largest single-cell |Δe|/e above e_fo 8e-4 at τ ≈ 3–5 fm/c
 cells beyond 1e-4, none late), total energy within 2e-6, surfaces ±2 elements per leg, the
 in-job jet hadrons identical. ~1000× below the GPU-vs-CPU difference. **Before production:**
 the C1-style check (a few hundred events on the 3090 box with the new image: hydro and
-surfaces at this level, hadron observables and the wake within errors), and the Metal build
-run on the M3 Max.
+surfaces at this level, hadron observables and the wake within errors). The Metal build was
+run on the M3 Max on 2026-10-12 ([§8](#8-m3-max-metal-check-of-a10a11-c4-d1-a12-2026-10-12)):
+the same field differences, but the jet leg of some events differs by ~1 % locally in the wake,
+through the liquefier rather than the hydro. So the C1-style check has to compare wake
+observables over many events, not fields event by event.
 
 **Dropped from the list:** the precomputed q and the face-based reconstruction — the first
 measured, the second would not be bit-identical either (each cell's reconstruction uses its
@@ -405,7 +410,7 @@ on the machine with `sinfo -o "%P %G %c %m"` before planning; cores are physical
 1. **D1 (late Δτ)** — the cheapest change with the largest gain: ×1.5–1.8 on every GPU-bound
    machine; validation with the existing scripts.
 2. **C4 (`delta_qi`) — done on MUSIC4GPU `final_optim`:** −29 % GPU time per step, measured;
-   needs the C1-style validation (float-rounding-level differences) and the Metal run.
+   needs the C1-style validation (float-rounding-level differences); the Metal run is done (§8).
 3. **C3 (active region)** — the largest and the most work; for O+O it removes the GPU as a limit
    altogether.
 4. After 1–3 the host is the limit everywhere (the 3090 box: ~1,400 events/h with the pair file,
@@ -417,6 +422,58 @@ on the machine with `sinfo -o "%P %G %c %m"` before planning; cores are physical
   the vacuum cells go only through C3.
 - **Hydro-only** (`prod_AuAu_0_10`) profits from D1, C4, C3 the same way; its host side is the
   string deposition (B1).
+
+## 8. M3 Max (Metal): check of A10/A11, C4, D1, A12 (2026-10-12)
+
+Four builds of `build_gpu` (Metal, Release) on the M3 Max, each against the one before, with
+the same jobs (one job alone; a repeat agreed within 0.5 %): hydro-only `--events 3 --seed 1`,
+O+O `--events 4 --seed 101`, two-stage Au+Au `--events 4 --seed 1 --reuse 2
+--write-particlize both`, and the same with `--particlize-only`.
+
+| build | X-SCAPE | MUSIC4GPU | js-contrib | iSS / 3dMCGlauber | against the previous build |
+|---|---|---|---|---|---|
+| B0 | `1098070c` (#168) | `46296c7` | `eb55c9e` | `3192982` / `71116fe` | – |
+| B1 | `cdb7e437` (#170) | `81f38d9` (A10, A11) | `8e4fba5` | `896e198` / `b99d680` | bit-identical, hadrons too |
+| B2 | `cdb7e437` | `48e8776` (C4) | `8e4fba5` | the same | float-level (below) |
+| B3 | `9f4b419d` | `b972b04` (D1, A12) | `6b8ae36` | the same | `--late-dtau 0`: bit-identical |
+
+- **Builds:** clean, no new warnings; the Metal kernels with C4's stop condition compile. The
+  PyJetscape tests pass (192, 5 skipped); `MUSIC_RESTART_VERIFY` 4/4 identical with the late
+  step; the late step switches at step 130 (τ = 3 fm/c), as on the GB10.
+- **C4 on Metal:** the background and hydro-only fields differ as on the GB10 (energy-weighted
+  |Δe|/e above e_fo 7e-7, total energy ≤ 2e-6; surfaces −8 to +32 elements per leg, one leg
+  −94, of 1.1–1.2 M).
+- **The jet leg is more sensitive than the hydro.** In 2 of the 4 jet events the jet leg's
+  difference jumps from ~1e-6 to ~1e-2 in 3–5 cells, at the step where one droplet deposits.
+  It then spreads like a sound wave (wake |Δw|/|w| ~1 %, total deposited energy within 1e-5).
+  The cause: the shower reads a medium that differs at 1e-7, so the droplets move by ~1e-6;
+  the liquefier's smooth kernel (`CausalLiquefier::rho_smooth`) has a hard edge at
+  r = c_diff·t, so a cell near the edge can switch in or out. This is not Metal-specific;
+  every change that is not bit-identical (C4, D1, C3, another GPU) will show it. The
+  validation therefore has to compare wake observables over many events.
+- **D1 on Metal:** the background differs from the constant step by 2e-4 (τ = 3.5) to 1.6e-3
+  (τ ≥ 9.5) energy-weighted, single cells ≤ 4e-3, total energy ≤ 3e-4, as on the GB10. Not in
+  the GB10 numbers: every freeze-out surface has ~0.1 % more elements (Au+Au +1,200 to +1,500
+  per leg, O+O +0.2 %). The jet's droplet energies agree to 1e-5.
+- **O+O ±10.5 vs ±15 fm** (with D1): fields within 2e-7 energy-weighted (single cells ≤ 2e-6), surfaces with the same cell counts,
+  as on the 3090.
+
+Wall time of one job alone (s):
+
+| job | B0 | B1 | B2 (C4) | B3, `--late-dtau 0` | B3 (production default) | B0 → B3 |
+|---|---|---|---|---|---|---|
+| hydro-only (no D1 in its XML) | 29.9 | 29.2 | 23.9 | 24.3 | 24.3 | −19 % |
+| O+O | 17.8 | 12.5 | 11.9 | 12.0 | 11.4 (±15 fm), 9.2 (±10.5 fm) | −48 % |
+| two-stage jet | 96.8 | 78.2 | 69.4 | 66.1 | 54.7 | −43 % |
+| `--particlize-only` | 87.2 | 83.9 | 60.2 | 57.2 | 45.0 | −48 % |
+
+- A jet event on a reused background: 16.1 / 13.8 s → 7.2 / 6.5 s. Core-s per two-stage job
+  146 → 104; peak RSS 9.0 → 8.9 GB (O+O 3.4 → 2.4 GB).
+- iSS Part C turned out slower on the Mac at low oversample counts; the fix (C6, bit-identical,
+  iSS `b15dd05`, pinned on X-SCAPE `final_optim` `7834d62d`) and its numbers are in
+  [PLAN_iSS_optim.md](PLAN_iSS_optim.md#part-c-on-the-m3-max). With it, `hadronize.py` on these
+  6 surfaces at 200 oversamples (1 thread) takes 18.6–20.1 s instead of 24.2 s (B0).
+- Not measured: concurrent jobs (`run_jobs.sh -j 3`) on the new code.
 
 ## Method and files
 

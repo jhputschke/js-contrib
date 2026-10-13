@@ -28,6 +28,10 @@ Measured 2026-09-25. Questions:
   output. With `LBT_TABLE_CACHE`, 11.5 s less startup. `-j 3`: 235 → **284 events/h**.
   `-j 4` did not beat `-j 3` on the branch. Short `-j 4` runs vary by ~±15 %, so it is
   open whether the branch changes `-j 4` and whether `--stagger` helps it.
+- **`final_optim`** (2026-10-12, [below](#final_optim-on-the-m3-max-2026-10-12)): A10/A11,
+  iSS Part C, C4, D1 and A12 build and run on Metal. One two-stage job 96.8 → **54.7 s**
+  (−43 %), `--particlize-only` −48 %, O+O −48 %, hydro-only −19 %. The changes meant to be
+  bit-identical are. iSS Part C needed a Mac-found fix (C6) to be faster here.
 - **`run_jobs.sh` did not run on macOS.** It used bash ≥ 5.1 features, and macOS ships
   bash 3.2; every seed was reported as FAILED without running. Fixed in the same commit as
   this file (see [below](#run_jobssh-on-macos)). `--mps` is CUDA-only; on the Mac it stops
@@ -306,6 +310,35 @@ SSD):
 **Verdict: negative effect on the M3: no.** The branch is faster per job (−10.5 % per
 event, −57 % CPU, −12 s startup with the cache) and per campaign (+21 % at `-j 3`), with
 bit-identical output.
+
+## final_optim on the M3 Max (2026-10-12)
+
+Question: do the GB10 changes since `music2_restart` work on Metal, and do they speed the
+productions up here? Checked: MUSIC4GPU #21 (A10/A11, the freeze-out search without full grid
+copies), iSS Part C (X-SCAPE #170), the 3dMCGlauber fork, and the `final_optim` branches (C4:
+the reconstruction solvers stop at float resolution; D1: Δτ 0.05 fm/c from 3 fm/c; A12:
+Cornelius without per-element allocations). The four builds, the comparisons and the field
+differences are in [Plans/Final_Optims.md §8](Plans/Final_Optims.md#8-m3-max-metal-check-of-a10a11-c4-d1-a12-2026-10-12).
+
+One job alone, wall s (the production defaults; a repeat agreed within 0.5 %):
+
+| job | before (X-SCAPE `1098070c`) | `final_optim` | |
+|---|---|---|---|
+| hydro-only, 3 events | 29.9 | 24.3 | −19 % |
+| O+O, 4 events | 17.8 | 9.2 | −48 % (D1 and the ±10.5 fm grid) |
+| two-stage Au+Au, 4 events, `--reuse 2 --write-particlize both` | 96.8 | 54.7 | −43 % |
+| … `--particlize-only` | 87.2 | 45.0 | −48 % |
+
+- A jet event on a reused background: 16.1 / 13.8 s → 7.2 / 6.5 s; core-s per two-stage
+  job 146 → 104.
+- Bit-identical where intended: A10/A11, iSS Part C and the 3dMCGlauber fork; A12, and D1 off
+  (`--late-dtau 0`), against C4 alone. C4 and D1 differ at the levels measured on the GB10.
+- **iSS Part C was slower on the Mac at low oversample counts** (6 surfaces, 200 oversamples,
+  1 thread: 24.2 → 25.8 s). The inverse-CDF loop kept its running sum in memory (Apple Clang
+  and GCC alike). With the fix (C6, iSS `b15dd05`, bit-identical): 18.6–20.1 s; 500
+  oversamples 40.9 → 32.7 s; 5 threads 22.3 → 14.2 s
+  ([PLAN_iSS_optim.md](Plans/PLAN_iSS_optim.md#part-c-on-the-m3-max)).
+- Not measured: concurrent jobs (`-j 3`) on the new code.
 
 ## run_jobs.sh on macOS
 
