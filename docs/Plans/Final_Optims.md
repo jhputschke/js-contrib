@@ -23,7 +23,7 @@ grid, the fraction of MUSIC's grid that holds matter, and a check of the compile
   FP64 instructions. Where `delta_qi`'s time went was found by trying (§3 C4): not in its
   arithmetic, but in solver lanes that never converge — the Newton–Brent tolerance of 1e-7 is
   below the float32 ulp of u⁰ > 1.7, so such lanes ran all 60 iterations and held their warps.
-  **Stopping at float resolution (MUSIC4GPU branch `reconst_stall`) takes `delta_qi` from 3.65 to
+  **Stopping at float resolution (MUSIC4GPU branch `final_optim`) takes `delta_qi` from 3.65 to
   1.71 ms and the kernels per step from 14.05 to 10.1 ms (−29 %), at float-rounding-level
   differences.** One job alone keeps the GPU busy 50–60 % of a MUSIC run (kernels 14 of 23–29 ms
   per step); the rest of a step is the freeze-out search (4.3 ms per step on average), the
@@ -41,7 +41,7 @@ grid, the fraction of MUSIC's grid that holds matter, and a check of the compile
     in O+O 3–5 % of the ±15 fm grid, ~10 % of ±10.5 fm. Kernels over a compacted cell list or
     per-η-slice boxes: Au+Au ×0.35–0.45 of the GPU time per step, O+O ×0.15–0.25. Large
     (CUDA and Metal), not bit-identical at the vacuum level only.
-  - **C4, `gpu_make_delta_qi` — done (branch `reconst_stall`, measured):** the kernel's time
+  - **C4, `gpu_make_delta_qi` — done (branch `final_optim`, measured):** the kernel's time
     was not its redundant arithmetic (precomputing τT^{τμ} per cell, one table index per solver
     iteration, a warm start: all measured, none gained more than 4 %, and the first two are
     not bit-identical because the compiler fuses the stored products differently) but solver
@@ -144,7 +144,7 @@ two-stage job, 2 events, `--reuse 2`, `--write-particlize both`, `MUSIC_PROFILE=
 
 ### D1. A larger time step after the early phase (not bit-identical; physics check)
 
-**Implemented 2026-10-12 on the `reconst_stall` branches** (MUSIC4GPU `late_delta_tau` /
+**Implemented 2026-10-12 on the `final_optim` branches** (MUSIC4GPU `late_delta_tau` /
 `late_tau_switch`, X-SCAPE's jet source and `CausalLiquefier` following the step with deposition
 windows that tile the axis across the switch, the production XMLs at 0.05 fm/c from 3 fm/c,
 `--late-dtau` / `--late-tau` in the drivers). Measured on the GB10 (2-event job of §2): background
@@ -310,7 +310,7 @@ with A1–A8, ~31 with A10/A11; under load ×1.8). Approximate split from §2 an
 
 | item | core-s per jet event (3090, alone) | change | bit-identical | effort |
 |---|---|---|---|---|
-| freeze-out search, both legs (~200 checks × 22 ms, OpenMP over η) | 8–12 | **A12:** Cornelius allocates per cube, line and polygon (`cornelius.cpp`: `new double[DIM]` at lines 67, 175–180, 284, 377, 493, 522–531, 578–581, inside the search); per-thread scratch instead. The geometry is 75 % of a check (16.4 of 21.7 ms). | yes | small |
+| freeze-out search, both legs (~200 checks × 22 ms, OpenMP over η) | 8–12 | **A12 — done on `final_optim`, measured:** the per-element temporaries (centroids, normals, cube/hypercube splits, polygon assembly) were heap arrays, and every η slice of every check constructed a new `Cornelius`; stack arrays and one `Cornelius` per thread: the search 13.1 → 9.2 ms per check (−30 %), the freeze-out step 17.5 → 12.9 ms on the GB10, surfaces bit-identical. | yes | small |
 | | | **B2:** the search on the GPU (one thread per crossing cube; the host keeps the element order deterministic). Removes 8–12 core-s and the ε copy. | no (the GPU's cube geometry in float, element order) | large |
 | pair-file compression (zstd 3 + shuffle) | ~6 | `--particlize-only` when the history is not needed (already the case for wake analyses); else `blosc-lz4` (README_h5_optim: ~−60 % compression time, +30 % size) | yes | none |
 | droplet deposition (jet leg, ~160 fills × 6.6 ms wall on 4 threads) | 4–5 | **B1′:** a kernel over the active droplets (tens per step), binned by reach as on the CPU; the string fills (B1) the same way, but they are amortised over 15 jets in the campaign (~1 core-s per jet event; 14 per hydro-only event) | no (erf/exp on the GPU) | moderate |
@@ -404,7 +404,7 @@ on the machine with `sinfo -o "%P %G %c %m"` before planning; cores are physical
 
 1. **D1 (late Δτ)** — the cheapest change with the largest gain: ×1.5–1.8 on every GPU-bound
    machine; validation with the existing scripts.
-2. **C4 (`delta_qi`) — done on MUSIC4GPU `reconst_stall`:** −29 % GPU time per step, measured;
+2. **C4 (`delta_qi`) — done on MUSIC4GPU `final_optim`:** −29 % GPU time per step, measured;
    needs the C1-style validation (float-rounding-level differences) and the Metal run.
 3. **C3 (active region)** — the largest and the most work; for O+O it removes the GPU as a limit
    altogether.
