@@ -303,6 +303,9 @@ events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 
   ([`BENCHMARK_2x3090.md`](../../../../docs/BENCHMARK_2x3090.md), "O+O campaign"); the GB10
   campaign is not re-measured. For larger b or another system check `diag/hit_grid_boundary`
   and widen the grid; the output grid (±9.84 fm) must stay inside it.
+- **MUSIC's time step is 0.05 fm/c from 3 fm/c on** (`<late_delta_tau>`, `<late_tau_switch>` in the
+  XML; `--late-dtau 0` for a constant 0.02): about half the steps of an event after that time,
+  the stored frames and the freeze-out checks kept at 0.1 fm/c (docs/Plans/Final_Optims.md, D1).
 
 ## Physics notes and limits
 

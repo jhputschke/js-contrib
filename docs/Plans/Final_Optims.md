@@ -144,6 +144,17 @@ two-stage job, 2 events, `--reuse 2`, `--write-particlize both`, `MUSIC_PROFILE=
 
 ### D1. A larger time step after the early phase (not bit-identical; physics check)
 
+**Implemented 2026-10-12 on the `reconst_stall` branches** (MUSIC4GPU `late_delta_tau` /
+`late_tau_switch`, X-SCAPE's jet source and `CausalLiquefier` following the step with deposition
+windows that tile the axis across the switch, the production XMLs at 0.05 fm/c from 3 fm/c,
+`--late-dtau` / `--late-tau` in the drivers). Measured on the GB10 (2-event job of §2): background
+479 → 272 steps, jet leg 501 → 282 (−43 %); kernels per step unchanged, so the GPU time per leg
+−43 % on top of C4; a jet event 11.2 → 8.3 s in a job alone (the host's checks and fills per fm/c
+stay). Frames stay on the 0.1 fm/c grid; the background's fields differ from the constant step
+by 2e-4 (τ = 3.5) to 1.2e-3 (τ ≥ 6 fm/c) energy-weighted above e_fo, single cells ≤ 5e-3, total
+energy within 3e-4; with `--late-dtau 0` the output is bit-identical to the stall-break build.
+The design below is as planned; the validation is still to do, together with C4's.
+
 **Facts.**
 - The productions run `beastMode 1` (float, constant Δτ = 0.02 fm/c). MUSIC's `beastMode 2`
   doubles Δτ to 0.04 at step 200 (τ = 4.4 fm/c) and halves `facTau` and the frame cadence

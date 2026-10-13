@@ -140,6 +140,11 @@ def parse_args() -> argparse.Namespace:
                    help="3dMCGlauber maximum impact parameter [fm] (default: the XML's, 3, "
                         "about 0-20%% of O+O). Inside X-SCAPE b selects the centrality; "
                         "the hard scattering sits at one of the binary collisions")
+    p.add_argument("--late-dtau", type=float, default=None, dest="late_dtau", metavar="DT",
+                   help="MUSIC's time step from --late-tau on [fm/c] (the XML's "
+                        "<late_delta_tau>, 0.05 in the production XML; 0: constant step)")
+    p.add_argument("--late-tau", type=float, default=None, dest="late_tau", metavar="TAU",
+                   help="when the larger step starts [fm/c] (the XML's <late_tau_switch>)")
     p.add_argument("--bulk-info", choices=("slim", "full"), default="slim", dest="bulk_info",
                    help="MUSIC's framework copy, which Matter reads and the hydro file is "
                         "written from: 'slim' (default) e, s, T, vx, vy, vz per cell; 'full' "
@@ -274,6 +279,10 @@ def job_xml(a, out_h5: str):
             problems.append("MUSIC needs <output_evolution_to_memory>1 and <dump_hydro_only>0: "
                             "Matter reads the framework medium")
         _set(m, "slim_bulk_info", 1 if a.bulk_info == "slim" else 0)
+        if a.late_dtau is not None:
+            _set(m, "late_delta_tau", a.late_dtau)
+        if a.late_tau is not None:
+            _set(m, "late_tau_switch", a.late_tau)
         surf = not a.no_particlize or a.bulk_hadrons > 0
         _set(m, "freeze_out_surface", int(surf))
         _set(m, "skip_surface", int(not surf))
