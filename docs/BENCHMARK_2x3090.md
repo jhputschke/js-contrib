@@ -48,6 +48,10 @@ Findings:
   `LBT_TABLE_CACHE` and `run_jobs.sh --stagger 12`, **10/GPU with particlize fits** (104.5 GB
   peak in the campaign setting) and gives **+8.4 % events/h** over 8/GPU. See
   [below](#memory-10-per-gpu).
+- **Update 2026-10-13 (`cu124-final_optim`: C4 stall break, D1 late Δτ, A12):** the Au+Au
+  campaign at 10/GPU runs at **2,160 events/h (+70 % over `cu124-freezeoutcopies`)**. O+O with
+  hadron files only runs at **13,728 events/h (+33 %)**. Both are now host-bound. Physics check of
+  C4 and D1: [below](#final-optim).
 
 **Recommended launch: [`launch_2gpu.sh`](launch_2gpu.sh)** (usage in [README_launch.md](README_launch.md)).
 It starts one container per GPU, each with `run_jobs.sh -j 8 --mps` and `OMP_NUM_THREADS=4`,
@@ -407,14 +411,14 @@ All jobs completed: `events_written` and `particlize_events_written` equal the e
         --write-particlize both > /data/camp_pth3.log 2>&1 &
     ```
 
-    60 jobs × 45 events = 2,700 events in 3 rounds of 20 jobs: ~3 h, ~0.6 TB ([README_launch.md](../utils/README_launch.md#10-jobs-per-gpu)).
+    60 jobs × 45 events = 2,700 events in 3 rounds of 20 jobs: ~3 h, ~0.6 TB ([README_launch.md](README_launch.md#10-jobs-per-gpu)).
 
 Raw data on this machine: `~/prod_test/bench/memtest_20261010/` (`REPORT.md`, `summary.jsonl`, per-run monitor and job logs, `correctness.txt`); launcher copy `~/prod_test/launch_2gpu_memtest.sh`.
 
 <a id="music2restart"></a>
 ## The CPU fixes A1–A9 and the MUSIC_2 restart: `cu124-music2restart` (2026-10-12)
 
-The question: how many more events/h do the bit-identical CPU fixes give on this machine at the campaign setting? They are A1–A9 of [REPORT_CPU_GPU.md](Plans/REPORT_CPU_GPU.md) §5. A8 is MUSIC_2 starting from MUSIC_1's state at the last freeze-out step before the liquefier's τ_delay. The comparison is with the 10-jobs-per-GPU numbers of 2026-10-11: 796 events/h, and 917 with `--particlize-only`.
+The question: how many more events/h do the bit-identical CPU fixes give on this machine at the campaign setting? They are A1–A9 of [REPORT_CPU_GPU.md](REPORT_CPU_GPU.md) §5. A8 is MUSIC_2 starting from MUSIC_1's state at the last freeze-out step before the liquefier's τ_delay. The comparison is with the 10-jobs-per-GPU numbers of 2026-10-11: 796 events/h, and 917 with `--particlize-only`.
 
 **Images:**
 
@@ -514,7 +518,7 @@ Raw data on this machine: `~/prod_test/bench/music2restart_20261012/`: `REPORT.m
 <a id="oo-grid"></a>
 ## O+O campaign: the standard ±15 fm MUSIC grid vs ±10.5 fm (2026-10-12)
 
-The question: what does an O+O campaign (`prod_OO_isr`) give on this machine with the new image, and with the smaller MUSIC grid that [REPORT_CPU_GPU.md](Plans/REPORT_CPU_GPU.md) §5–6 suggests (C1)?
+The question: what does an O+O campaign (`prod_OO_isr`) give on this machine with the new image, and with the smaller MUSIC grid that [REPORT_CPU_GPU.md](REPORT_CPU_GPU.md) §5–6 suggests (C1)?
 - **C1** is ±10.5 fm instead of ±15 fm in x and y: 70 × 70 instead of 100 × 100 transverse cells, the same 0.3 fm cells and the same η grid.
 - The O+O fireball stays within |x|, |y| ≲ 7 fm, and the 64 × 64 × 32 output grid reaches ±9.84 fm.
 - The report asked for a physics check before switching: a few hundred events with no grid-edge hits, and unchanged observables.
@@ -687,3 +691,135 @@ The question: what does an O+O campaign (`prod_OO_isr`) give on this machine wit
 - Data: `F10_j8/`, `F10_j8_nogather/`, `L10_j8_rep/` (`chain4.sh`; `run_oo.sh` now passes `EXTRA_ENV` to `docker run`), `pe_F10*_vs_L10rep.txt`, `arr_F10*_vs_L10rep.txt`. The runs' `.h5` outputs (144 files, ~81 GiB) were deleted on 2026-10-12 after the comparison; logs, `.json` files, monitor logs and comparison outputs are kept.
 
 Raw data on this machine: `~/prod_test/bench/oo_grid_20261012/`: `REPORT.md`, `summary.jsonl`, run directories, the two XMLs, `pe_*.txt`, `odd_*.txt`, `bulk_hadrons.txt`, `cmp_*.txt`, `chain.sh`, `chain2.sh`, `chain3.sh` (profiles) and `chain4.sh` (A10/A11).
+
+<a id="final-optim"></a>
+## `cu124-final_optim`: C4 (solver stall break) and D1 (late Δτ) (2026-10-12/13)
+
+The question: what do the GPU-side changes of `Final_Optims.md` give on this machine, and do C4 and
+D1 change the physics? Neither is bit-identical. C4 is MUSIC4GPU's stop at float resolution in the
+`delta_qi` solvers. D1 is Δτ 0.02 → 0.05 fm/c from τ = 3 fm/c, with the freeze-out checks and frames
+kept at 0.1 fm/c and the liquefier following the step.
+
+**Images:**
+
+| | image | X-SCAPE | MUSIC4GPU | js-contrib |
+|---|---|---|---|---|
+| old | `xscape-prod:cu124-freezeoutcopies`, `7785630caf6a` (A1–A11) | `1098070` | `2ea5a34` | `d234b1d` |
+| new | `xscape-prod:cu124-final_optim` = `cu124`, digest `sha256:91c04102fe465849ba76b8b48730345798e3c878c500044d6e092d593ff48eb5` (built 2026-10-13 01:49 UTC) | `9f4b419` | `b972b04` (C4, D1, A12) | `6b8ae36` |
+
+The new image also has iSS `896e198` (Part C, bit-identical) and 3dMCGlauber `b99d680` (the cap on
+hard-quark draws). Its XMLs differ from the old only in `late_delta_tau` 0.05 / `late_tau_switch` 3.0,
+and for O+O the ±10.5 fm grid (given to the old image with `--user-xml`).
+
+**Setup**
+- **Runs:**
+  - **O** = old image;
+  - **N0** = new, `--late-dtau 0` (C4 + A12; bit-identical to the stall-break build);
+  - **N1** = new, defaults (C4 + D1 + A12).
+- **Au+Au:** `run_auau.sh jetc`, the campaign setting with `--write-particlize both`, 10 jobs/GPU,
+  OMP 3, `--stagger 12`, LBT cache, 20 jobs × 15 events, seeds 1–20.
+- **O+O:** `run_oo.sh`, 8 jobs/GPU, OMP 3, 16 jobs × 60 events, ±10.5 fm. Once with full outputs,
+  once with hadron files only (`--bulk-hadrons 10 --no-particlize --no-hydro-file`).
+- **Common:** one container per GPU, MPS, `MUSIC_CUDA_SYNC=block`, `OMP_WAIT_POLICY=passive`; the
+  monitors and events/h conventions as in the sections above.
+- **Quiet machine:** no other user's process went above 20 % CPU (`otherusers.log`, sampled every 10 s).
+- **The switch is logged:** every N1 leg says `late step: delta_tau 0.02 -> 0.05 fm/c at step 130
+  (tau = 3 fm/c), facTau 5 -> 2, a frame every 2 steps`.
+
+**Throughput, 2 GPUs:**
+
+| run | events/h makespan (per event) | change | s/event in job | core-s/event | threads busy (of 48) | GPU0 / GPU1 busy | GPU-s/event | host peak | per-job VmHWM, mean [max] | VRAM/GPU |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Au+Au O | 1,271 (1,487) | | 48.5 | 37.6 | 13.8 | 89 / 89 % | 5.06 | 108.1 GB | 5.95 [6.65] GB | 9.7 GB |
+| Au+Au N0 | 1,628 (2,025) | +28 % | 35.6 | 34.4 | 16.2 | 81 / 80 % | 3.58 | 106.8 GB | 5.94 [6.45] GB | 9.6 GB |
+| **Au+Au N1** | **2,160** (2,846) | **+70 %** | 25.4 | 35.4 | 22.0 | 62 / 63 % | 2.09 | 105.0 GB | 5.97 [6.66] GB | 9.6 GB |
+| O+O O, full outputs | 10,435 (10,965) | | 5.3 | 6.5 | 19.3 | 83 / 79 % | 0.558 | 24.2 GB | 1.39 [1.44] GB | 3.6 GB |
+| O+O N0, full outputs | 11,949 (12,505) | +15 % | 4.6 | 6.0 | 20.2 | 72 / 70 % | 0.426 | 24.5 GB | 1.40 [1.44] GB | 3.6 GB |
+| O+O N1, full outputs | 12,700 (13,384) | +22 % | 4.3 | 5.9 | 21.3 | 61 / 60 % | 0.342 | 24.6 GB | 1.40 [1.44] GB | 3.6 GB |
+| O+O O, hadron files only (FH10_j8, 2026-10-12 15:00) | 10,313 (10,924) | | 5.3 | 7.3 | 21.2 | 80 / 77 % | 0.55 | 26.0 GB | 1.43 [1.49] GB | 3.6 GB |
+| O+O N0, hadron files only | 12,722 (13,190) | +23 % | 4.4 | 6.1 | 21.8 | 76 / 73 % | 0.421 | 25.3 GB | 1.42 [1.47] GB | 3.6 GB |
+| **O+O N1, hadron files only** | **13,728** (14,260) | **+33 %** | 4.0 | 6.1 | 23.5 | 66 / 65 % | 0.344 | 24.9 GB | 1.43 [1.48] GB | 3.6 GB |
+
+All jobs completed: 300 Au+Au events per run, none skipped. The only skips are 2–5 O+O events per
+run (Matter's "minus log of sudakov negative"). Every log says `host sync: block`. No OOM, and the
+watchdog never fired.
+
+- **GPU time per Au+Au event:** C4 −29 %, D1 another −42 %. These are the GB10 estimates of
+  Final_Optims.md (−29 %, −43 %).
+- **O+O gains less from D1** (−20 %): its fluid freezes out at τ ≈ 4.4 fm/c, soon after the switch.
+- **Host-bound again:**
+  - Au+Au N1: 35 core-s/event × 2,160 events/h ≈ 21 of the 24 physical cores, GPUs 63 % busy.
+  - O+O hadrons only: ~24 busy threads, ~570 events/h per physical core; the GPU limit is ~18,800.
+  - Final_Optims.md predicted the host limit at ~1,400 Au+Au events/h with the pair file. The runs
+    beat that because the old image's CPU per event (37.6 core-s) was already far below the 62 of
+    `music2restart` (A10/A11).
+- **The stagger ramp** (9 × 12 s) is a fifth of the Au+Au N1 makespan (500 s) with 15-event jobs.
+  45-event jobs should give ~2,400–2,500 events/h (not measured).
+- **A10/A11 for Au+Au** (old image vs `music2restart`, not measured before): 1,121 → 1,271 (+13 %).
+- **Host memory unchanged:** 105–108 GB at 20 Au+Au jobs (17–21 GB left). VRAM unchanged.
+- **Hadrons only vs full outputs, new image:** hadrons-only is now 8 % faster for O+O (13,728 vs
+  12,700) at about the same CPU. With the old image the two were level (10,313 vs 10,435–10,629).
+- **Disk:** Au+Au 0.243 GB/event, so ~525 GB/h at 2,160 events/h, more than the ~290 GB/h OSDF upload
+  (2026-10-05). Use `--particlize-only` (not re-measured with this image) or local disk. O+O 28 MB/event
+  full, 0.13 MB hadrons only.
+
+**Physics check** (details, methods and every number: [REPORT_FINAL_OPTIM.md](REPORT_FINAL_OPTIM.md))
+
+- **C4: float-rounding level.**
+  - Au+Au backgrounds and O+O fields: energy-weighted |Δe|/e above e_fo ~1e-6.
+  - O+O surfaces +6e-6, τ_fo identical; deposition (same showers) to 1e-6.
+  - Wake fields agree to ~1e-3 (L2), with a 2 % tail in a few events.
+  - At hadron level the Au+Au wake yield shifts +0.8 % ± 0.2 %: 6e-5 of the jet leg's hadrons, visible
+    only because correlated sampling cancels the noise.
+- **D1: the medium changes at 1.1e-3** (Au+Au, τ ≥ 3; O+O 1.2e-4), below the GPU-vs-CPU 2e-3. It is
+  bit-identical before 3 fm/c.
+  - **The liquefier follows the step:** the deposited energy agrees to 1e-4 where the showers agree,
+    and the wake carries it (wake / deposit +0.3 % ± 0.2 %).
+  - **The wake field changes by ~5 % cell by cell** (L2, same-shower events), almost all of it short-range:
+    2.3 % after 0.5 fm smoothing, 0.8 % after 2 fm. Its positive and negative parts, centroid
+    (0.03 fm) and width agree at 0.1–0.2 %.
+  - **Hadron level** (`hadronize.py --correlated`, seed-matched, errors clustered by background): no
+    change within ±2 % in the wake's yield, energy and Δφ shape. Bulk hadrons: multiplicity +7.5e-5,
+    ⟨pT⟩ +1e-4.
+  - **O+O:** the surface is **+0.20 % larger in every event** and τ_fo one frame later in 11 % of
+    events; bulk hadrons +0.05 % ± 0.03 % (all), +0.4 % ± 0.2 % (midrapidity).
+  - **Showers diverge** in half the Au+Au events (157/300 the same; GPU vs CPU: 3 of 6), with the
+    same average deposit (40.5 vs 40.4 GeV).
+- **Verdict:**
+  - C4: accept.
+  - D1: meets the plan's acceptance criterion. Use one D1 setting per campaign: the cell-level wake
+    and the O+O surface shift at the 5 % and 0.2 % levels.
+  - The hadron-level wake precision of this check is ±2 % (20 backgrounds). A 100-background
+    comparison would be the follow-up.
+
+**A failed job in the old-image run (A_O seed 4).**
+- **The symptom:** all 15 events had 1–5 droplets (81 in the job, ~330 otherwise) and 9–18 partons,
+  against 55–129. The background hydro and the shower initiators were correct.
+- **Not reproducible:** seed 4 run alone with the same old image gives the normal result, identical to N0.
+- **Rare:** the only such job among ~250 campaign jobs on this box since 2026-10-04 (a
+  `droplets_total` scan of every job's `.json`). Cause unknown; no warning in the log.
+- **Recommendation:** campaigns should flag and redo jobs whose `droplets_total / events_written` is
+  below half the campaign median. The C4 comparisons above exclude it.
+
+**Campaign defaults for this machine** (the same launcher settings, the new image pinned by digest):
+
+```bash
+IMG=jhputschke/xscape-prod@sha256:91c04102fe465849ba76b8b48730345798e3c878c500044d6e092d593ff48eb5
+# Au+Au: ~2,160 events/h in 15-event jobs, ~2,400-2,500 expected in 45-event jobs; ~525 GB/h with the pair file
+IMAGE=$IMG JOBS_PER_GPU=10 OMP_THREADS=3 MUSIC_CUDA_SYNC=block nohup ./launch_2gpu.sh \
+    --lbt-cache /work/lbt_cache/lbt_tables_v1.bin --stagger 12 60 45 0 /data/camp_pth3 --campaign pth3 \
+    --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
+    --write-particlize both > /data/camp_pth3.log 2>&1 &
+# O+O, hadron files only: ~13,700 events/h (the +-10.5 fm grid is the XML default now: no --user-xml)
+IMAGE=$IMG nohup ./launch_2gpu_oo.sh 64 100 0 /data/OO_c1 --campaign c1 \
+    --bulk-hadrons 10 --no-particlize --no-hydro-file > /data/OO_c1.log 2>&1 &
+```
+
+60 × 45 = 2,700 Au+Au events take ~1.1–1.3 h (was ~2.4 h) and ~0.65 TB.
+
+Raw data on this machine: `~/prod_test/bench/final_optim_20261012/`:
+- `chain.sh`, `summary.jsonl`, the run directories `A_*`, `F_*`, `FH_*` (`FH_O` → `../oo_grid_20261012/FH10_j8`);
+- `rerun4/`: seed 4 alone with each image;
+- `cmp/`: `summary_auau.txt`, `pe_*`, `arr_*`, `scale_*`, `had_*`, `leg_*`;
+- the scripts `wake_cmp.py`, `cmp_summary.py`, `wake_scale.py`, `had_wake.py`, `had_cmp.py`,
+  `leg_spec.py`, `oo_field.py`, `run_cmp.sh`, `run_had.sh`.
