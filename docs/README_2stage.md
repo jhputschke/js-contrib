@@ -105,7 +105,7 @@ themselves (variants, building, testing) in
   | less host CPU per event, bit-identical (A1–A7, A9 of [`REPORT_CPU_GPU.md`](Plans/REPORT_CPU_GPU.md)): MUSIC's anisotropy diagnostic off, no jet-leg store with `--particlize-only` | X-SCAPE `contrib` `6480dbeb` (MUSIC4GPU `943b089`) and js-contrib `main` `a9dd328` or later |
   | MUSIC_2 from MUSIC_1's state, on by default ([§2](#music_2-from-music_1s-state-on-by-default)) | X-SCAPE `contrib` `1098070c` (#168), js-contrib `main` `eb55c9e` (#57) |
   | the freeze-out without host copies (A10, A11), iSS Part C | X-SCAPE `contrib` `cdb7e437` (#170; MUSIC4GPU `81f38d9`), js-contrib `main` `8e4fba5` |
-  | C4 (the solver stall break), the late time step (D1), A12 (Cornelius) ([§2](#what-the-current-image-does-differently-final_optim)) | X-SCAPE, MUSIC4GPU and js-contrib `final_optim` (`9f4b419` / `b972b04` / `6b8ae36`; not merged yet) |
+  | C4 (the solver stall break), the late time step (D1), A12 (Cornelius) ([§2](#what-the-current-image-does-differently-final_optim)) | X-SCAPE `contrib` `9e84450` (PR #171, merged 2026-10-13), MUSIC4GPU `XSCAPE` `46dad43` (PR #22, merged 2026-10-13), js-contrib `final_optim` (PR #60); the image was built from `9f4b419` / `b972b04` / `6b8ae36` |
 
 ### Memory, cores, disk
 
