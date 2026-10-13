@@ -40,7 +40,8 @@ production (one hydro per event, hadrons made in the job) has its own guide,
 
 The code blocks marked *(tested)* were run on the seed-1 files in `prod_AuAu_0_10_jet/out`
 on 2026-10-13, in `js_fno` (h5py 3, uproot 5.7, scikit-hep fastjet 3.5.1, FastJet 3.5.1,
-ROOT 6.36).
+ROOT 6.36). The scripts behind them, and `run_doc_blocks.py` to re-run them, are in
+[`analysis_snippets/`](analysis_snippets/README.md).
 
 ---
 
@@ -640,7 +641,9 @@ jet = f["bulk_jet"].arrays(["event", "sample", "pid", "px", "py", "pz"], entry_s
 pt = np.hypot(jet.px, jet.py)                     # jagged: samples * hadrons
 ev = f["events"].arrays()                         # awkward: the ini_* columns are jagged
 ini_pt = np.hypot(ev.ini_px, ev.ini_py)
-w = uproot.open("pth10-40_c1_campaign.root")["windows"].arrays(["sigma_mb", "weight_mb"])
+c = uproot.open("pth10-40_c1_campaign.root")
+if "windows" in c:                                # pT-hat-window campaigns only
+    w = c["windows"].arrays(["sigma_mb", "weight_mb"])
 ```
 
 Read `events` as awkward (the default): `library="np"` fails on the jagged initiator columns.

@@ -23,7 +23,8 @@ are in [`README_analysis.md`](README_analysis.md) §2.
 
 The code blocks marked *(tested)* ran on 2026-10-13 in `js_fno` on the campaign
 `prod_OO_isr/hard_sub_compare/sub/`: 40 jobs × 75 events = 2,991 events in three pT̂ windows,
-b < 5.6 fm, hadron files only, 10 bulk oversamples, no positions.
+b < 5.6 fm, hadron files only, 10 bulk oversamples, no positions. The scripts behind them,
+and `run_doc_blocks.py` to re-run them, are in [`analysis_snippets/`](analysis_snippets/README.md).
 
 ---
 
