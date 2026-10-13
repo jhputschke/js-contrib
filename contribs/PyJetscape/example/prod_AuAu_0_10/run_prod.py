@@ -385,6 +385,37 @@ def music_box(user_root, main_xml: str) -> dict:
     return box
 
 
+def collision_system(user_root, main_xml: str) -> str:
+    """'Au+Au 200 GeV, b in [0.0, 4.7] fm' from the job XML's <IS><MCGlauber> (the main
+    XML's defaults for tags it lacks): the `system` attribute of the output files, so a copy
+    of the template for another system is labelled by what it runs."""
+    main_root = ET.parse(main_xml).getroot()
+
+    def val(tag):
+        for root in (user_root, main_root):
+            node = root.find(f"IS/MCGlauber/{tag}")
+            if node is not None and node.text and node.text.strip():
+                return node.text.strip()
+        return "?"
+
+    try:
+        sqrts = f"{float(val('sqrts')):g}"
+    except ValueError:
+        sqrts = val("sqrts")
+    return (f"{val('projectile')}+{val('target')} {sqrts} GeV, "
+            f"b in [{val('b_min')}, {val('b_max')}] fm")
+
+
+def music_freezeout_temperature(user_root, main_xml: str) -> float:
+    """<freezeout_temperature> of the first <Hydro><MUSIC> block [GeV] (the main XML's
+    default if it has none)."""
+    for root in (user_root, ET.parse(main_xml).getroot()):
+        node = root.find("Hydro/MUSIC/freezeout_temperature")
+        if node is not None and node.text and node.text.strip():
+            return float(node.text)
+    return 0.15
+
+
 def check_inside(grid: Grid, box: dict) -> None:
     bad = []
     for ax in ("x", "y", "eta"):
@@ -536,10 +567,10 @@ def main() -> int:
         "prod_build": a.build,
         "prod_user_xml": open(xml).read(),
         "prod_grid_yaml": grid_text,
-        "system": "AuAu 200 GeV 0-10% (b in [0, 4.7] fm)",
+        "system": collision_system(root, a.main_xml),
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
-        "T_fo": 0.15,
+        "T_fo": music_freezeout_temperature(root, a.main_xml),
     }
     writer = H5BulkWriter(out_file_name=out_h5, grid_mode=grid_mode, tau_stride=1,
                           choose_ntau=max_ntau, out_grid=None if a.native else grid,

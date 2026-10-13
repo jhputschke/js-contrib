@@ -437,48 +437,74 @@ apptainer exec --nv --pwd "$PROD" --bind "$SCRATCH/prod:/work" xscape_prod.sif \
 
 ### SLURM: one GPU per array task
 
-[`slurm_prod_array.sh`](slurm_prod_array.sh) runs a campaign as a SLURM job array: each
-array task gets one GPU and fills it with `P` production jobs at once (`run_jobs.sh -j P`).
+[`slurm_prod_array.sh`](slurm_prod_array.sh) runs a stage-1 campaign as a SLURM job array:
+each array task gets one GPU and fills it with `P` production jobs at once
+(`run_jobs.sh -j P`). [`slurm_hadronize.sh`](slurm_hadronize.sh) runs stage 2 on a CPU
+partition, one task per stage-1 task directory. Both run `prod_AuAu_0_10_jet` by default and
+`prod_OO_isr` with `PROD=oo`.
 
-**Why not one SLURM job per production job:** SLURM gives each job whole GPUs. One
-production job keeps a GPU only partly busy, because the CPU stages dominate an event
-(~40 % on the GB10, less on faster GPUs). Only jobs inside one allocation can share its
-GPU. If the site offers GPU sharing (`--gres=shard` or `--gres=mps`), many small SLURM
-jobs are an option too.
+**Why not one SLURM job per production job:** SLURM gives each job whole GPUs. With the
+current image (`cu124-final_optim`) one production job keeps a GPU only a little busy and
+~1 core busy on average, so a GPU needs ~10 jobs, and only jobs inside one allocation can
+share its GPU. If the site offers GPU sharing (`--gres=shard` or `--gres=mps`), many small
+SLURM jobs are an option too.
 
 ```bash
-apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu126-<YYYYMMDD>-<xscape7>
-SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb sbatch slurm_prod_array.sh     # 10 tasks = 10 GPUs
-SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb sbatch --array=0-19 slurm_prod_array.sh
+apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-final_optim
+SIF=$PWD/xscape_prod.sif CAMPAIGN=c2 sbatch utils/slurm_prod_array.sh        # 10 tasks = 10 GPUs
+SIF=$PWD/xscape_prod.sif CAMPAIGN=c2 P=8 sbatch --array=0-19 --cpus-per-task=16 --mem=64G \
+  utils/slurm_prod_array.sh                                                  # 20 V100s
+SIF=$PWD/xscape_prod.sif CAMPAIGN=c2 \
+  EXTRA_ARGS="--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both" \
+  sbatch --array=0-19 utils/slurm_prod_array.sh                              # the campaign setting
 SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb BINDS="$HOME/xml:/xml" \
-  EXTRA_ARGS="--user-xml /xml/PbPb_0_10.xml" sbatch slurm_prod_array.sh
+  EXTRA_ARGS="--user-xml /xml/PbPb_0_10_jet.xml --write-particlize both" sbatch utils/slurm_prod_array.sh
+SIF=$PWD/xscape_prod.sif PROD=oo CAMPAIGN=OO_c1 \
+  EXTRA_ARGS="--bulk-hadrons 10 --no-particlize --no-hydro-file" sbatch --mem=40G utils/slurm_prod_array.sh
+
+# stage 2 on a CPU partition: task t hadronizes WORK/CAMPAIGN/t<ttt>
+SIF=$PWD/xscape_prod.sif CAMPAIGN=c2 sbatch --array=0-19 utils/slurm_hadronize.sh
 ```
 
-Settings, as environment variables at `sbatch` (defaults in the script). `sbatch` passes
-your environment to the job by default (`--export=ALL`); where a site turns that off, use
-`sbatch --export=ALL,CAMPAIGN=PbPb,…` or edit the defaults in the script.
+Settings of `slurm_prod_array.sh`, as environment variables at `sbatch` (defaults in the
+script). `sbatch` passes your environment to the job by default (`--export=ALL`); where a
+site turns that off, use `sbatch --export=ALL,CAMPAIGN=c2,…` or edit the defaults in the
+script.
 
 | variable | default | meaning |
 |---|---|---|
 | `SIF` | `$HOME/xscape_prod.sif` | the image |
 | `WORK` | `$SCRATCH/xscape_prod` (`$HOME/…` without `$SCRATCH`) | bound to `/work`: writable, the same for all tasks |
-| `CAMPAIGN` | `AuAu_0_10_jet` | the campaign; task `t` writes `WORK/CAMPAIGN/t<ttt>/`, named `CAMPAIGN_t<ttt>` |
-| `P` | 4 | production jobs at once per GPU |
-| `NJOBS`, `EVENTS` | 40, 25 | jobs (files) per task, events per job |
+| `PROD` | `auau` | `auau`: `prod_AuAu_0_10_jet`; `oo`: `prod_OO_isr` |
+| `CAMPAIGN` | `AuAu_0_10_jet` / `OO_isr` | the campaign; task `t` writes `WORK/CAMPAIGN/t<ttt>/`, named `CAMPAIGN_t<ttt>` |
+| `P` | 10 | production jobs at once per GPU; the script sets `OMP_NUM_THREADS = cpus-per-task / P` and warns below 2 |
+| `NJOBS`, `EVENTS` | 40; 45 (Au+Au, a multiple of 15 for the pT̂-window setting) or 60 (O+O) | jobs (files) per task, events per job |
 | `SEED_MODE` | `registry` | `registry` or `ranges`, see below |
 | `SEED_BASE` | 1 | `ranges`: the first seed of task 0 |
-| `USE_MPS` | 0 | 1: `run_jobs.sh --mps` (test it on the site first) |
-| `BINDS`, `EXTRA_ARGS` | empty | more binds; arguments for `run_prod_jet.py` |
+| `MUSIC_CUDA_SYNC` | `block` | the host sleeps while it waits for the GPU: ~30 % less CPU per event (`auto`: CUDA's default) |
+| `LBT_CACHE` | `/work/lbt_cache/lbt_tables_v1.bin` (Au+Au) | LBT's tables, shared read-only by the jobs of a node: −0.6 GB and 6–11 s per job. A path inside the container; under `/work` its directory is created. `none`: off. Node-local: `BINDS=/tmp:/nodetmp LBT_CACHE=/nodetmp/lbt_tables_v1.bin` |
+| `STAGGER` | 12 (Au+Au), 0 (O+O) | seconds between the first `P` jobs' starts, so their memory peaks don't coincide (`run_jobs.sh --stagger`) |
+| `USE_MPS` | 0 | 1: `run_jobs.sh --mps` (+5–12 % where it works; test it on the site first) |
+| `CHECK_DEPOSITION` | 1 (Au+Au) | after the jobs, flag those whose droplets per event are below half the task's median (report only) |
+| `BINDS`, `EXTRA_ARGS` | empty | more binds; arguments for `run_prod_jet.py` / `run_prod_oo_isr.py` |
 
-- **Resources per task:** `#SBATCH --gres=gpu:1 --cpus-per-task=20 --mem=48G --time=24:00:00`
-  in the script, for `P=4`. Each production job takes ~5 cores and ~12 GB of host memory
-  (4 jobs used 29 GB on the GB10; `--mem=64G` with `--bulk-info full`; ~22 GB per job
-  before the memory fixes in X-SCAPE `cbc72639` / js-contrib `9356bf4`), so match `P` to
-  what one GPU comes with on the node. The script sets
-  `OMP_NUM_THREADS = cpus-per-task / P` and `OMP_WAIT_POLICY=passive` for the jobs.
-- **Time limit:** choose `NJOBS × EVENTS` so a task fits `--time`: ~30–50 s per event and
-  job, `P` jobs at once. A task that runs out of time resumes when you submit the same
-  command again: it skips its finished jobs.
+- **Resources per task:** `#SBATCH --gres=gpu:1 --cpus-per-task=20 --mem=96G --time=24:00:00`
+  in the script, for `P=10` (an A100 or A40 share of a node). A job takes ~2–3 cores and
+  ~7 GB of host memory (Au+Au; 5 GB with `--particlize-only`, ~1.5 GB for O+O), plus ~8 GB
+  per node and 10–15 % for the page cache SLURM counts. Per GPU type
+  ([`docs/README_2stage.md`](../docs/README_2stage.md) §1; extrapolated, none of these GPUs
+  measured):
+
+  | GPU | `P` | `--cpus-per-task` | `--mem` Au+Au | `--mem` O+O |
+  |---|---|---|---|---|
+  | V100 | 8 | 12–16 | 64G | 24G |
+  | A40, A100 | 10–12 | 16–24 | 90–100G | 32G |
+  | L40S | 18–22 | 24–32 | 135–165G | 48G |
+
+- **Time limit:** choose `NJOBS × EVENTS` so a task fits `--time`: ~25 s per Au+Au event in a
+  job sharing its GPU with 9 others (3090 class; ~2× on a V100), ~4 s per O+O event. A task
+  that runs out of time resumes when you submit the same command again: it skips its
+  finished jobs.
 - **Seeds, `SEED_MODE=registry` (default):** every job draws a new seed (`FIRST_SEED 0`),
   checked against `WORK/CAMPAIGN/seeds_used.tsv`, which all tasks share under a file lock.
   Tasks on different nodes need that lock to hold across nodes. The script reads the mount
@@ -493,12 +519,33 @@ your environment to the job by default (`--export=ALL`); where a site turns that
   jobs take turns on the GPU. If the site runs MPS itself (`--gres=mps`), leave
   `USE_MPS=0`.
 
-Tested on the GB10 without SLURM: the script ran with the SLURM variables set by hand and a
-stand-in for `apptainer` that ran the same container through Docker. Two array tasks of
-2 × 1-event real jobs (`P=2`) completed and shared one registry (4 different seeds); a
-resubmission skipped the finished jobs. The seed ranges, the lock checks (Lustre
-`localflock`, NFS `local_lock=flock`, a failing lock) and the setting checks were tested
-with stand-ins for `findmnt` and `flock`. **Not tested on a real SLURM cluster.**
+**Stage 2, `slurm_hadronize.sh`:** task `t` runs `run_hadronize.py` on
+`WORK/CAMPAIGN/t<ttt>/` (a task without its directory does nothing), `P` processes at once
+(default: `--cpus-per-task`, one thread each), in the same image without a GPU.
+
+| variable | default | meaning |
+|---|---|---|
+| `SIF`, `WORK`, `CAMPAIGN`, `PROD` | as stage 1 | |
+| `P`, `THREADS` | cpus-per-task / `THREADS`, 1 | processes at once, `OMP_NUM_THREADS` per process |
+| `HAD_ARGS` | Au+Au `--oversample 400 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8`; O+O `--tags bulk_bg --oversample 100` | the options of `hadronize.py`. **The same for the whole campaign:** complete files are skipped whatever settings made them. Add `--oversample-bg per-pthat-bin` (per-window analyses) or `--correlated` (jet − background with fewer oversamples) |
+| `INPUTS` | the task's directory | directories, particlize files or quoted globs, as `/work/…` paths |
+| `BINDS` | empty | e.g. for `--hadronize-xml` of another collision energy |
+
+`#SBATCH --cpus-per-task=16 --mem=32G --time=12:00:00`: ~1.6 GB per process (1.7 GB with
+2000-sample backgrounds), ~340 Au+Au events per hour and process at 500 oversamples.
+
+**After a campaign:** [`check_deposition.py`](check_deposition.py) runs the deposition check
+over the whole campaign (`utils/check_deposition.py $WORK/c2`; standard library only).
+
+Tested 2026-10-13 on the GB10 without SLURM: both scripts ran with the SLURM variables set by
+hand and a stand-in for `apptainer` that ran the commands natively in the X-SCAPE build,
+mapping `/work` and `/opt/X-SCAPE` to the host. Au+Au: 3 jobs × 1 event with
+`--write-particlize both` (the logs show `host sync: block`, the late step, the LBT cache
+written by one job and mapped by the others, the stagger), the deposition check, then
+`slurm_hadronize.sh` on them, a task without a directory, and a glob in `INPUTS`. O+O
+(`PROD=oo`): 2 jobs × 3 events, then the bulk (`--tags bulk_bg` added by the script). The
+seed ranges and the lock checks were tested earlier with stand-ins for `findmnt` and `flock`.
+**Not tested on a real SLURM cluster.**
 
 ### Cloud VMs: Docker
 
@@ -613,7 +660,7 @@ one inside the container. Example for a `PbPb_0_10.xml` in `./xml`:
 ```bash
 # Docker
 docker run --rm --gpus all --user "$(id -u):$(id -g)" \
-  -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu126 \
+  -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu124-final_optim \
   python run_prod_jet.py --user-xml /xml/PbPb_0_10.xml \
     --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
 
@@ -624,7 +671,7 @@ apptainer exec --nv --pwd "$PROD" --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xsc
     --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
 
 # a campaign: run_jobs.sh passes the arguments after OUTDIR on to run_prod_jet.py
-... jhputschke/xscape-prod:cu126 \
+... jhputschke/xscape-prod:cu124-final_optim \
   ./run_jobs.sh -j 4 --campaign PbPb 20 25 0 /work/out --user-xml /xml/PbPb_0_10.xml
 ```
 
@@ -635,23 +682,16 @@ apptainer exec --nv --pwd "$PROD" --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xsc
   running an event.
 - **A grid of your own** (`--grid /xml/grid_PbPb.yaml`) is mounted the same way.
 
-**What to change for Pb+Pb** in a copy of `AuAu_MCGlauber_MUSIC_0_10_jet.xml`:
-
-| where | Au+Au 200 GeV | Pb+Pb 5.02 TeV |
-|---|---|---|
-| `<MCGlauber>` `<projectile>`, `<target>` | `Au` | `Pb` |
-| `<MCGlauber>` `<sqrts>` (what `MCGlauberWrapper` reads, not `mcglauber.input`) | `200` | `5020` |
-| `<MCGlauber>` `<b_max>` for 0–10% | `4.7` fm | ~4.9–5.0 fm (geometric estimate) |
-| Pythia's `<eCM>` | `200` | `5020` |
-| the grid (`--grid` YAML; MUSIC's grid in the XML) | `grid_fno.yaml` | likely larger and longer: the fireball is bigger and lives longer |
-
-`<cenMin>`/`<cenMax>` are ignored inside X-SCAPE (see the XML's comment); the impact
+**What to change for Pb+Pb**, with a tested recipe, the choices left (tune, Pythia's MPI, the
+output grid) and one measured 5.02 TeV event: [`docs/README_2stage.md`](../docs/README_2stage.md)
+§9. In short: `Pb` nuclei, `<sqrts>5020`, `<b_max>4.95` for 0–10 %, MUSIC's `<IS>` grid
+±20 fm × ±8, Pythia's `<eCM>5020`, and `<eCMforHadronization>5020` in a copy of `hadronize.xml`
+for stage 2 (`--hadronize-xml`). `<cenMin>`/`<cenMax>` are ignored inside X-SCAPE; the impact
 parameter range selects the centrality.
 
 Tested 2026-09-30 in the `cu130` test image: the mount, the templating and the naming (a copy
-of the Au+Au XML with `Pb` nuclei, `--dry-run`; the job XML has `Pb` as projectile and target,
-and the output is named `PbPb_0_10_jet_seed0001.h5`). The Pb+Pb physics settings above are
-not validated: a first real event will show whether the grid is large enough.
+of the Au+Au XML with `Pb` nuclei, `--dry-run`). One full Pb+Pb event and its hadronization:
+2026-10-13 on the GB10, native build (README_2stage §9).
 
 ### Machines without an NVIDIA GPU (no CUDA)
 

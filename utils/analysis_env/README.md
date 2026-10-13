@@ -1,7 +1,8 @@
 # analysis_env — analyse `prod_AuAu_0_10_jet` files without X-SCAPE
 
 A Python venv for people who get the files of a production and want to analyse or look at
-them, but don't run X-SCAPE. It needs this js-contrib checkout and a Python ≥ 3.10. It
+them, but don't run X-SCAPE. How to read the files in it, FastJet, ROOT and the notebooks:
+[`docs/README_analysis.md`](../../docs/README_analysis.md). It needs this js-contrib checkout and a Python ≥ 3.10. It
 doesn't need X-SCAPE, MUSIC, ROOT, conda or the compiled `pyjetscape_core`.
 
 ```bash

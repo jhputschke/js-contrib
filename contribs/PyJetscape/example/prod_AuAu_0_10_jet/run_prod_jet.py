@@ -171,6 +171,11 @@ def parse_args() -> argparse.Namespace:
                         "and on a build without the restart. --no-music2-restart: every "
                         "jet leg from tau0. MUSIC_RESTART_VERIFY=1 runs every jet leg from "
                         "tau0 and compares its state with the checkpoint instead")
+    p.add_argument("--late-dtau", type=float, default=None, dest="late_dtau", metavar="DT",
+                   help="MUSIC's time step from --late-tau on [fm/c] (the XML's "
+                        "<late_delta_tau>, 0.05 in the production XML; 0: constant step)")
+    p.add_argument("--late-tau", type=float, default=None, dest="late_tau", metavar="TAU",
+                   help="when the larger step starts [fm/c] (the XML's <late_tau_switch>)")
     p.add_argument("--bulk-info", choices=("slim", "full"), default="slim", dest="bulk_info",
                    help="the background's framework copy, which Matter, LBT and the liquefier "
                         "read: 'slim' (default) keeps e, s, T, vx, vy, vz per cell, ~7 GiB "
@@ -415,6 +420,10 @@ def job_xml(a, out_h5: str):
             problems.append(f"{BG_ID} needs <dump_hydro_only>0: Matter/LBT read its "
                             "framework medium (MUSIC_2 is switched to 1 in Python)")
         _set(music, "slim_bulk_info", 1 if a.bulk_info == "slim" else 0)
+        if a.late_dtau is not None:
+            _set(music, "late_delta_tau", a.late_dtau)
+        if a.late_tau is not None:
+            _set(music, "late_tau_switch", a.late_tau)
         _set(hydros[1], "AddLiquefier", "false" if a.no_deposit else "true")
         # First block: the background leg and the default for every instance; MUSIC_2's
         # own block always gets an explicit value, which overrides it for the jet leg.
@@ -762,11 +771,11 @@ def main() -> int:
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
            if a.parton_ymax is not None else {}),
-        "system": "AuAu 200 GeV 0-10% (b in [0, 4.7] fm)",
+        "system": rp.collision_system(root, a.main_xml),
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
         "jet": "Matter + LBT, CausalLiquefier droplets into MUSIC_2",
-        "T_fo": 0.15,
+        "T_fo": rp.music_freezeout_temperature(root, a.main_xml),
     }
     writer = PairH5Writer(
         out_h5, bg_id=BG_ID, jet_id=JET_ID, grid_mode=grid_mode,

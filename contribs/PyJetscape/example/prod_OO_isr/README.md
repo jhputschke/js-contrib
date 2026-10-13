@@ -18,6 +18,9 @@ IS: 3dMCGlauber (O16, positions only)
  -> SoftParticlization: iSS             bulk hadrons, only with --bulk-hadrons
 ```
 
+> **Analysing the output:** [`docs/README_OO.md`](../../../../docs/README_OO.md) (the per-event
+> record, cross-section and Ncoll weights, multiplicity, centrality, flow, jets, ROOT).
+
 The chain is what X-SCAPE's `examples/custom_examples/PythiaIsrMUSIC.cc` builds by hand.
 Here X-SCAPE builds it from the XML: a `<Hard><ISR>` block (next to `<PythiaGun>`) switches
 the automatic task list to it.
@@ -78,14 +81,17 @@ OO_STEM=out/OO_isr_seed0001 jupyter nbconvert --to notebook --execute --inplace 
 
 **Events that fail are skipped, not the job.** A module that throws inside an event (seen:
 Matter's "minus log of sudakov negative", 1 event in ~400 in the benchmark below, with
-`-j 12` under MPS; the same seed alone did not fail again, so it depends on the medium's
-last bits) costs that event only: nothing of it is written, the job goes on, and the `.json`
+`-j 12` under MPS; the same seed alone did not fail again) costs that event only: nothing of
+it is written, the job goes on, and the `.json`
 lists it (`events_skipped`, `skipped` with the event and the error; `events_skipped` also as
 a file attribute). Rows stay consistent in every file; `events/job_event` (particlize) and
 `units/event` (hadron files) give the event's number in the job, as `diag/event` does.
 `run_jobs.sh` counts written + skipped events as complete, so a campaign does not rerun
 the job. More than `--max-skipped` (default 3) skipped events stop the job: then something
-else is wrong.
+else is wrong. The cause of those skips was found on 2026-10-12: Matter read a garbage qhat
+for the ISR partons before t = 0, fixed in X-SCAPE `8c975d37` ([Physics
+notes](#physics-notes-and-limits)); with the fix, two runs of 100 events had no skip and were
+bit-identical. Images up to `cu124-final_optim` still have the skips.
 
 **No hydro reuse, also with pT̂ windows.** With ISR the strings, and so the medium, are made
 from what each event's hard scattering left (its partons' momentum is subtracted from the
@@ -127,32 +133,40 @@ the scripts by their full path: they find their XML, grid and helpers next to th
 /opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_OO_isr
 ```
 
-> **Needs a new image.** The published `xscape-prod` images (X-SCAPE `d31946c`, js-contrib
-> `main`) have neither this folder nor X-SCAPE's `<Hard><ISR>` task list. Build one from the
-> `oo_isr_test` branches (pushed to GitHub: the Dockerfile fetches the refs), or from
-> `contrib` / `main` once they are merged:
+> **Image (2026-10-13).** `jhputschke/xscape-prod:cu124-final_optim` (= `cu124`, digest
+> `sha256:91c04102…`) has this folder, the ±10.5 fm grid and the late time step; the O+O
+> numbers below were measured with it. The images of 2026-09-30 and 2026-10-03 have neither
+> the folder nor X-SCAPE's `<Hard><ISR>` task list. Two O+O fixes came after
+> `cu124-final_optim` (X-SCAPE `final_optim`): Matter's guard against a qhat lookup before
+> t = 0 (`8c975d37`, see [Physics notes](#physics-notes-and-limits)) and iSS's leak fix
+> (`50226a7c`). For an O+O campaign build from those branches:
 >
 > ```bash
-> docker build -t xscape-prod:oo-test -f utils/Dockerfile.prod \
->   --build-arg XSCAPE_REF=oo_isr_test --build-arg JS_CONTRIB_REF=oo_isr_test .
+> docker build -t xscape-prod:oo -f utils/Dockerfile.prod \
+>   --build-arg XSCAPE_REF=final_optim --build-arg JS_CONTRIB_REF=final_optim .
 > ```
 
 **Docker:** `-w` sets the working directory.
 
 ```bash
 OO=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_OO_isr
-docker run --rm --gpus all --user "$(id -u):$(id -g)" -e OMP_NUM_THREADS=4 \
+docker run --rm --gpus all --user "$(id -u):$(id -g)" \
+  -e OMP_NUM_THREADS=3 -e OMP_WAIT_POLICY=passive -e MUSIC_CUDA_SYNC=block \
   -v "$HOME/prod:/work" -w "$OO" $IMG \
-  ./run_jobs.sh -j 2 20 25 0 /work/OO_a --bulk-hadrons 100 --no-particlize
+  ./run_jobs.sh -j 8 --mps 32 60 0 /work/OO_a --bulk-hadrons 100 --no-particlize
 ```
+
+On a two-GPU machine, [`utils/launch_2gpu_oo.sh`](../../../../utils/launch_2gpu_oo.sh) starts
+one container per GPU with these settings (8 jobs per GPU, 3 threads,
+`MUSIC_CUDA_SYNC=block`, MPS).
 
 **Apptainer:** `--pwd` sets it (Apptainer ignores the image's working directory anyway).
 
 ```bash
 OO=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_OO_isr
-apptainer exec --nv --env OMP_NUM_THREADS=4 \
+apptainer exec --nv --env OMP_NUM_THREADS=3,OMP_WAIT_POLICY=passive,MUSIC_CUDA_SYNC=block \
   --pwd "$OO" --bind "$SCRATCH/prod:/work" xscape_prod.sif \
-  ./run_jobs.sh -j 2 20 25 0 /work/OO_a --bulk-hadrons 100 --no-particlize
+  ./run_jobs.sh -j 8 --mps 32 60 0 /work/OO_a --bulk-hadrons 100 --no-particlize
 ```
 
 - **Without changing the directory:** `"$OO"/run_jobs.sh ...` or `python "$OO"/run_prod_oo_isr.py ...`
@@ -277,7 +291,30 @@ Measured on the GB10 (2026-10-10, one job, default settings): ~5 s per event, 2.
 memory; per event ~17 MB hydro file, ~10 MB particlize file. `--bulk-hadrons 50` adds ~0.3 s
 per event (~5,600 hadrons per event over the 50 oversamples).
 
-### Throughput on the GB10 (campaigns)
+### Throughput on 2 × RTX 3090 (campaigns, current image)
+
+Hadron files only (`--bulk-hadrons 10 --no-particlize --no-hydro-file`), 8 jobs per GPU with
+3 threads, MPS, `MUSIC_CUDA_SYNC=block`, 60 events per job, ±10.5 fm MUSIC grid
+(`launch_2gpu_oo.sh`; [`REPORT_FINAL_OPTIM.md`](../../../../docs/REPORT_FINAL_OPTIM.md),
+[`BENCHMARK_2x3090.md`](../../../../docs/BENCHMARK_2x3090.md)):
+
+| image | output | events/h (machine) | GPU busy | core-s per event | GPU-s per event | per job (VmHWM) | disk per event |
+|---|---|---|---|---|---|---|---|
+| **`cu124-final_optim`** (C4, late Δτ, A12) | hadron files only | **13,728** | 65 % | 6.1 | 0.344 | 1.43 GB | 0.13 MB |
+| `cu124-final_optim`, `--late-dtau 0` | hadron files only | 12,722 | 74 % | 6.1 | 0.421 | 1.42 GB | 0.13 MB |
+| `cu124-final_optim` | full outputs (hydro, particlize, jet hadrons) | 12,700 | 60 % | 5.9 | 0.342 | 1.40 GB | 28 MB |
+| `cu124-freezeoutcopies` (A1–A11) | hadron files only | 10,313 | 79 % | 7.3 | 0.55 | 1.43 GB | 0.12 MB |
+
+- **The cores set the rate:** ~24 busy threads, the box's physical cores; ~570 events/h per
+  core. The GPU limit is ~18,800 events/h.
+- **Full outputs write ~360 GB/h,** more than the ~290 GB/h an OSDF upload takes: hadron
+  files only, or a large local disk.
+- **The late step** saves 20 % of the GPU time per O+O event (the events end at τ ≈ 4.4 fm/c,
+  so less of each is after the switch). It makes the freeze-out surface 0.20 % larger and
+  freezes out one frame later in 11 % of events; the bulk hadrons change by +0.05 % ± 0.03 %
+  (+0.4 % ± 0.2 % at \|η\| < 1). Keep one setting per campaign.
+
+### Throughput on the GB10 (campaigns, 2026-10-10)
 
 Hadrons only (`--bulk-hadrons 10 --no-particlize --no-hydro-file`), one wave of j jobs x 10
 events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 121 GB):
@@ -303,6 +340,14 @@ events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 
   ([`BENCHMARK_2x3090.md`](../../../../docs/BENCHMARK_2x3090.md), "O+O campaign"); the GB10
   campaign is not re-measured. For larger b or another system check `diag/hit_grid_boundary`
   and widen the grid; the output grid (±9.84 fm) must stay inside it.
+- **MUSIC's time step is 0.05 fm/c from 3 fm/c on** (`<late_delta_tau>`, `<late_tau_switch>` in the
+  XML; `--late-dtau 0` for a constant 0.02, `--late-tau TAU` for another switch time): about
+  half the steps of an event after that time, the stored frames and the freeze-out checks kept
+  at 0.1 fm/c (docs/Plans/Final_Optims.md, D1). Not bit-identical (above); details in
+  [`../prod_AuAu_0_10_jet/README.md`](../prod_AuAu_0_10_jet/README.md#musics-late-time-step-default).
+- **The GB10 is not re-measured** with the ±10.5 fm grid or `final_optim`. It is GPU-bound
+  (92 %), so both should help it most: ~3,500–4,500 events/h expected
+  ([`REPORT_SUMMARY_CLUSTER.md`](../../../../docs/REPORT_SUMMARY_CLUSTER.md)).
 
 ## Physics notes and limits
 
@@ -360,6 +405,15 @@ python run_prod_oo_isr.py --events 20 --seed 1 --outdir out_nosub --bulk-hadrons
 - **The hard nucleon pair makes strings only if it is not yet connected**
   (`Glauber::decide_produce_string_num`). Peripheral events can end up with no string at all
   (`hydro_row` -1); in p+p this is most events (9 of 12 in a test).
+- **Matter and ISR partons before t = 0.** The final-state partons that iMATTER hands over
+  start at negative times, and Matter's qhat table lookups bounded the index only from above:
+  a negative index read memory before the table (~3,800 lookups per event), a garbage qhat.
+  That made runs irreproducible: Matter's "minus log of sudakov negative" skips changed from
+  run to run with the same seed, and a far negative index crashed. X-SCAPE `8c975d37` (branch
+  `final_optim`) takes qhat = 0 before t = 0, where there is no medium (a window that starts
+  there averages with 0); two runs of 100 events are then bit-identical, with no skip or
+  crash. `cu124-final_optim` doesn't have it yet (see
+  *Containers*). The Au+Au production has no ISR and is unchanged.
 - **Jet energy loss is Matter alone.** LBT gives its partons no colour, which iColored
   hadronization cannot take: Matter + LBT stops with "Unpaired colors sent to Pythia"
   (tested). `run_prod_oo_isr.py` refuses `<Eloss><Lbt>` unless `--no-jet-hadrons`. Colorless

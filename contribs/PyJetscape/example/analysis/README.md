@@ -25,9 +25,8 @@ The balance was first checked in §11 of
 the bug was found. The notebook works one event at a time, and the scripts do the same checks
 for a whole production.
 
-> **Status (2026-09-28).** The fix is on X-SCAPE branch `fix_lbt_liquifer_double_counting`
-> (commit `780f5036`), not yet merged into `contrib`. Every production made before it has the
-> bug. `FNO_Hydro_Data/AuAu_0_10_pth10-40_eta06` has been repaired with
+> **Status.** The fix (X-SCAPE commit `780f5036`, PR #154) is on `contrib` since
+> 2026-09-28. Every production made before it has the bug. `FNO_Hydro_Data/AuAu_0_10_pth10-40_eta06` has been repaired with
 > `fix_lbt_double_counting.py` (766 partons in 266 of 300 events).
 
 ## 1. The balance

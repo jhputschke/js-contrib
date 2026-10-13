@@ -186,6 +186,12 @@
       <!--beastMode = 1: float precision, constant time step-->
       <!--beastMode = 2: float precision, increased time step after 4 fm/ (can be used for soft sector only runs, otherwise the change in stepsize will lead to errors)-->
       <beastMode>1</beastMode>
+      <!--A larger time step from late_tau_switch on (D1, docs/Plans/Final_Optims.md): 0.02 -> 0.05
+          fm/c from 3 fm/c, with the freeze-out checks and the stored frames kept at 0.1 fm/c. About
+          half the MUSIC steps; the fields change at the level of the time discretization.
+          0: a constant step.-->
+      <late_delta_tau>0.05</late_delta_tau>
+      <late_tau_switch>3.0</late_tau_switch>
       <!--starting time of the hydrodynamic evolution after the pre-equilibrium phase-->
       <Initial_time_tau_0>0.424</Initial_time_tau_0>
 

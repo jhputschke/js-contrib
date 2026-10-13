@@ -23,7 +23,7 @@ grid, the fraction of MUSIC's grid that holds matter, and a check of the compile
   FP64 instructions. Where `delta_qi`'s time went was found by trying (§3 C4): not in its
   arithmetic, but in solver lanes that never converge — the Newton–Brent tolerance of 1e-7 is
   below the float32 ulp of u⁰ > 1.7, so such lanes ran all 60 iterations and held their warps.
-  **Stopping at float resolution (MUSIC4GPU branch `reconst_stall`) takes `delta_qi` from 3.65 to
+  **Stopping at float resolution (MUSIC4GPU branch `final_optim`) takes `delta_qi` from 3.65 to
   1.71 ms and the kernels per step from 14.05 to 10.1 ms (−29 %), at float-rounding-level
   differences.** One job alone keeps the GPU busy 50–60 % of a MUSIC run (kernels 14 of 23–29 ms
   per step); the rest of a step is the freeze-out search (4.3 ms per step on average), the
@@ -41,7 +41,7 @@ grid, the fraction of MUSIC's grid that holds matter, and a check of the compile
     in O+O 3–5 % of the ±15 fm grid, ~10 % of ±10.5 fm. Kernels over a compacted cell list or
     per-η-slice boxes: Au+Au ×0.35–0.45 of the GPU time per step, O+O ×0.15–0.25. Large
     (CUDA and Metal), not bit-identical at the vacuum level only.
-  - **C4, `gpu_make_delta_qi` — done (branch `reconst_stall`, measured):** the kernel's time
+  - **C4, `gpu_make_delta_qi` — done (branch `final_optim`, measured):** the kernel's time
     was not its redundant arithmetic (precomputing τT^{τμ} per cell, one table index per solver
     iteration, a warm start: all measured, none gained more than 4 %, and the first two are
     not bit-identical because the compiler fuses the stored products differently) but solver
@@ -143,6 +143,19 @@ two-stage job, 2 events, `--reuse 2`, `--write-particlize both`, `MUSIC_PROFILE=
 ## 3. GPU side: less GPU work per event
 
 ### D1. A larger time step after the early phase (not bit-identical; physics check)
+
+**Implemented 2026-10-12 on the `final_optim` branches** (MUSIC4GPU `late_delta_tau` /
+`late_tau_switch`, X-SCAPE's jet source and `CausalLiquefier` following the step with deposition
+windows that tile the axis across the switch, the production XMLs at 0.05 fm/c from 3 fm/c,
+`--late-dtau` / `--late-tau` in the drivers). Measured on the GB10 (2-event job of §2): background
+479 → 272 steps, jet leg 501 → 282 (−43 %); kernels per step unchanged, so the GPU time per leg
+−43 % on top of C4; a jet event 11.2 → 8.3 s in a job alone (the host's checks and fills per fm/c
+stay). Frames stay on the 0.1 fm/c grid; the background's fields differ from the constant step
+by 2e-4 (τ = 3.5) to 1.2e-3 (τ ≥ 6 fm/c) energy-weighted above e_fo, single cells ≤ 5e-3, total
+energy within 3e-4; with `--late-dtau 0` the output is bit-identical to the stall-break build.
+The design below is as planned; the validation is still to do, together with C4's. The
+Metal build was run on the M3 Max on 2026-10-12, with the same differences
+([§8](#8-m3-max-metal-check-of-a10a11-c4-d1-a12-2026-10-12)).
 
 **Facts.**
 - The productions run `beastMode 1` (float, constant Δτ = 0.02 fm/c). MUSIC's `beastMode 2`
@@ -262,8 +275,11 @@ e_fo ~1e-6, the largest single-cell |Δe|/e above e_fo 8e-4 at τ ≈ 3–5 fm/c
 cells beyond 1e-4, none late), total energy within 2e-6, surfaces ±2 elements per leg, the
 in-job jet hadrons identical. ~1000× below the GPU-vs-CPU difference. **Before production:**
 the C1-style check (a few hundred events on the 3090 box with the new image: hydro and
-surfaces at this level, hadron observables and the wake within errors), and the Metal build
-run on the M3 Max.
+surfaces at this level, hadron observables and the wake within errors). The Metal build was
+run on the M3 Max on 2026-10-12 ([§8](#8-m3-max-metal-check-of-a10a11-c4-d1-a12-2026-10-12)):
+the same field differences, but the jet leg of some events differs by ~1 % locally in the wake,
+through the liquefier rather than the hydro. So the C1-style check has to compare wake
+observables over many events, not fields event by event.
 
 **Dropped from the list:** the precomputed q and the face-based reconstruction — the first
 measured, the second would not be bit-identical either (each cell's reconstruction uses its
@@ -299,7 +315,7 @@ with A1–A8, ~31 with A10/A11; under load ×1.8). Approximate split from §2 an
 
 | item | core-s per jet event (3090, alone) | change | bit-identical | effort |
 |---|---|---|---|---|
-| freeze-out search, both legs (~200 checks × 22 ms, OpenMP over η) | 8–12 | **A12:** Cornelius allocates per cube, line and polygon (`cornelius.cpp`: `new double[DIM]` at lines 67, 175–180, 284, 377, 493, 522–531, 578–581, inside the search); per-thread scratch instead. The geometry is 75 % of a check (16.4 of 21.7 ms). | yes | small |
+| freeze-out search, both legs (~200 checks × 22 ms, OpenMP over η) | 8–12 | **A12 — done on `final_optim`, measured:** the per-element temporaries (centroids, normals, cube/hypercube splits, polygon assembly) were heap arrays, and every η slice of every check constructed a new `Cornelius`; stack arrays and one `Cornelius` per thread: the search 13.1 → 9.2 ms per check (−30 %), the freeze-out step 17.5 → 12.9 ms on the GB10, surfaces bit-identical. | yes | small |
 | | | **B2:** the search on the GPU (one thread per crossing cube; the host keeps the element order deterministic). Removes 8–12 core-s and the ε copy. | no (the GPU's cube geometry in float, element order) | large |
 | pair-file compression (zstd 3 + shuffle) | ~6 | `--particlize-only` when the history is not needed (already the case for wake analyses); else `blosc-lz4` (README_h5_optim: ~−60 % compression time, +30 % size) | yes | none |
 | droplet deposition (jet leg, ~160 fills × 6.6 ms wall on 4 threads) | 4–5 | **B1′:** a kernel over the active droplets (tens per step), binned by reach as on the CPU; the string fills (B1) the same way, but they are amortised over 15 jets in the campaign (~1 core-s per jet event; 14 per hydro-only event) | no (erf/exp on the GPU) | moderate |
@@ -393,8 +409,8 @@ on the machine with `sinfo -o "%P %G %c %m"` before planning; cores are physical
 
 1. **D1 (late Δτ)** — the cheapest change with the largest gain: ×1.5–1.8 on every GPU-bound
    machine; validation with the existing scripts.
-2. **C4 (`delta_qi`) — done on MUSIC4GPU `reconst_stall`:** −29 % GPU time per step, measured;
-   needs the C1-style validation (float-rounding-level differences) and the Metal run.
+2. **C4 (`delta_qi`) — done on MUSIC4GPU `final_optim`:** −29 % GPU time per step, measured;
+   needs the C1-style validation (float-rounding-level differences); the Metal run is done (§8).
 3. **C3 (active region)** — the largest and the most work; for O+O it removes the GPU as a limit
    altogether.
 4. After 1–3 the host is the limit everywhere (the 3090 box: ~1,400 events/h with the pair file,
@@ -406,6 +422,58 @@ on the machine with `sinfo -o "%P %G %c %m"` before planning; cores are physical
   the vacuum cells go only through C3.
 - **Hydro-only** (`prod_AuAu_0_10`) profits from D1, C4, C3 the same way; its host side is the
   string deposition (B1).
+
+## 8. M3 Max (Metal): check of A10/A11, C4, D1, A12 (2026-10-12)
+
+Four builds of `build_gpu` (Metal, Release) on the M3 Max, each against the one before, with
+the same jobs (one job alone; a repeat agreed within 0.5 %): hydro-only `--events 3 --seed 1`,
+O+O `--events 4 --seed 101`, two-stage Au+Au `--events 4 --seed 1 --reuse 2
+--write-particlize both`, and the same with `--particlize-only`.
+
+| build | X-SCAPE | MUSIC4GPU | js-contrib | iSS / 3dMCGlauber | against the previous build |
+|---|---|---|---|---|---|
+| B0 | `1098070c` (#168) | `46296c7` | `eb55c9e` | `3192982` / `71116fe` | – |
+| B1 | `cdb7e437` (#170) | `81f38d9` (A10, A11) | `8e4fba5` | `896e198` / `b99d680` | bit-identical, hadrons too |
+| B2 | `cdb7e437` | `48e8776` (C4) | `8e4fba5` | the same | float-level (below) |
+| B3 | `9f4b419d` | `b972b04` (D1, A12) | `6b8ae36` | the same | `--late-dtau 0`: bit-identical |
+
+- **Builds:** clean, no new warnings; the Metal kernels with C4's stop condition compile. The
+  PyJetscape tests pass (192, 5 skipped); `MUSIC_RESTART_VERIFY` 4/4 identical with the late
+  step; the late step switches at step 130 (τ = 3 fm/c), as on the GB10.
+- **C4 on Metal:** the background and hydro-only fields differ as on the GB10 (energy-weighted
+  |Δe|/e above e_fo 7e-7, total energy ≤ 2e-6; surfaces −8 to +32 elements per leg, one leg
+  −94, of 1.1–1.2 M).
+- **The jet leg is more sensitive than the hydro.** In 2 of the 4 jet events the jet leg's
+  difference jumps from ~1e-6 to ~1e-2 in 3–5 cells, at the step where one droplet deposits.
+  It then spreads like a sound wave (wake |Δw|/|w| ~1 %, total deposited energy within 1e-5).
+  The cause: the shower reads a medium that differs at 1e-7, so the droplets move by ~1e-6;
+  the liquefier's smooth kernel (`CausalLiquefier::rho_smooth`) has a hard edge at
+  r = c_diff·t, so a cell near the edge can switch in or out. This is not Metal-specific;
+  every change that is not bit-identical (C4, D1, C3, another GPU) will show it. The
+  validation therefore has to compare wake observables over many events.
+- **D1 on Metal:** the background differs from the constant step by 2e-4 (τ = 3.5) to 1.6e-3
+  (τ ≥ 9.5) energy-weighted, single cells ≤ 4e-3, total energy ≤ 3e-4, as on the GB10. Not in
+  the GB10 numbers: every freeze-out surface has ~0.1 % more elements (Au+Au +1,200 to +1,500
+  per leg, O+O +0.2 %). The jet's droplet energies agree to 1e-5.
+- **O+O ±10.5 vs ±15 fm** (with D1): fields within 2e-7 energy-weighted (single cells ≤ 2e-6), surfaces with the same cell counts,
+  as on the 3090.
+
+Wall time of one job alone (s):
+
+| job | B0 | B1 | B2 (C4) | B3, `--late-dtau 0` | B3 (production default) | B0 → B3 |
+|---|---|---|---|---|---|---|
+| hydro-only (no D1 in its XML) | 29.9 | 29.2 | 23.9 | 24.3 | 24.3 | −19 % |
+| O+O | 17.8 | 12.5 | 11.9 | 12.0 | 11.4 (±15 fm), 9.2 (±10.5 fm) | −48 % |
+| two-stage jet | 96.8 | 78.2 | 69.4 | 66.1 | 54.7 | −43 % |
+| `--particlize-only` | 87.2 | 83.9 | 60.2 | 57.2 | 45.0 | −48 % |
+
+- A jet event on a reused background: 16.1 / 13.8 s → 7.2 / 6.5 s. Core-s per two-stage job
+  146 → 104; peak RSS 9.0 → 8.9 GB (O+O 3.4 → 2.4 GB).
+- iSS Part C turned out slower on the Mac at low oversample counts; the fix (C6, bit-identical,
+  iSS `b15dd05`, pinned on X-SCAPE `final_optim` `7834d62d`) and its numbers are in
+  [PLAN_iSS_optim.md](PLAN_iSS_optim.md#part-c-on-the-m3-max). With it, `hadronize.py` on these
+  6 surfaces at 200 oversamples (1 thread) takes 18.6–20.1 s instead of 24.2 s (B0).
+- Not measured: concurrent jobs (`run_jobs.sh -j 3`) on the new code.
 
 ## Method and files
 

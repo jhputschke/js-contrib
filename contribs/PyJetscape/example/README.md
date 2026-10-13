@@ -13,6 +13,9 @@ the top each show one feature of the bindings.
   [`utils/analysis_env`](../../../utils/analysis_env/README.md). No X-SCAPE build is needed.
 - **ROOT:** `analysis_root` needs ROOT itself.
 
+The guide to all of the analysis side (environments, readers, FastJet in Python and C++, the
+ROOT export, the notebooks) is [`docs/README_analysis.md`](../../../docs/README_analysis.md).
+
 ```
  prod_AuAu_0_10            hydro only        → FNO4d HDF5 (MUSIC evolutions)
  prod_AuAu_0_10_jet        hydro + jet       → pair files (background + jet leg)
