@@ -20,12 +20,15 @@ grid, the fraction of MUSIC's grid that holds matter, and a check of the compile
   7.0 ms per RK sub-step. One kernel, `gpu_make_delta_qi` (the KT fluxes of the ideal part with
   12 reconstructions per cell), is **52 %** of it; the viscous `gpu_first_rk_step_w_full` 21 %,
   the source stencil 10 %; packing, gathering and reductions < 1 %. The kernels carry no
-  FP64 instructions. `delta_qi` runs at 95 registers with local-memory spills and 381
-  transcendental instructions per cell, most of them `logf` in EOS lookups that neighbouring
-  cells repeat. One job alone keeps the GPU busy 50–60 % of a MUSIC run (kernels 14 of 23–29 ms
+  FP64 instructions. Where `delta_qi`'s time went was found by trying (§3 C4): not in its
+  arithmetic, but in solver lanes that never converge — the Newton–Brent tolerance of 1e-7 is
+  below the float32 ulp of u⁰ > 1.7, so such lanes ran all 60 iterations and held their warps.
+  **Stopping at float resolution (MUSIC4GPU branch `reconst_stall`) takes `delta_qi` from 3.65 to
+  1.71 ms and the kernels per step from 14.05 to 10.1 ms (−29 %), at float-rounding-level
+  differences.** One job alone keeps the GPU busy 50–60 % of a MUSIC run (kernels 14 of 23–29 ms
   per step); the rest of a step is the freeze-out search (4.3 ms per step on average), the
   source fills and ~2–3 ms of launches, syncs and bookkeeping.
-- **Three GPU-side changes, together ~5× less GPU time per event (estimates):**
+- **Three GPU-side changes, together ~5× less GPU time per event (C4 measured, D1 and C3 estimates):**
   - **D1, a larger Δτ after the early phase** (0.02 → 0.05 fm/c from τ ≈ 3 fm/c, frames still every
     0.1 fm/c): −40 to −50 % of the steps. MUSIC has this as `beastMode 2`; it is unusable with a
     jet source only because the liquefier keeps the step width it was given at the start. The
@@ -38,11 +41,13 @@ grid, the fraction of MUSIC's grid that holds matter, and a check of the compile
     in O+O 3–5 % of the ±15 fm grid, ~10 % of ±10.5 fm. Kernels over a compacted cell list or
     per-η-slice boxes: Au+Au ×0.35–0.45 of the GPU time per step, O+O ×0.15–0.25. Large
     (CUDA and Metal), not bit-identical at the vacuum level only.
-  - **C4, `gpu_make_delta_qi` computes 2–3× more than it needs:** 75 evaluations of τT^{τμ}
-    per cell and sub-step, 60 of them repeated by the neighbours, and 12 reconstructions, 6 of
-    them repeated by the neighbour across the face. Precomputing q per cell and reconstructing
-    each face once: `delta_qi` −50–65 %, the step −25–35 %. **Bit-identical to the current GPU
-    output if the expressions are kept**, so no physics check. 3–5 days.
+  - **C4, `gpu_make_delta_qi` — done (branch `reconst_stall`, measured):** the kernel's time
+    was not its redundant arithmetic (precomputing τT^{τμ} per cell, one table index per solver
+    iteration, a warm start: all measured, none gained more than 4 %, and the first two are
+    not bit-identical because the compiler fuses the stored products differently) but solver
+    lanes stalling at float resolution. One extra stop condition per solver: `delta_qi` −53 %,
+    **the step −29 %**. Not bit-identical: float-rounding-level differences (energy-weighted
+    |Δe|/e ~1e-6, surfaces ±2 elements), to be validated like C1 before production.
 - **Host → GPU (B)** matters on core-poor nodes now, and everywhere after D1/C3. What the host
   still does per jet event: the freeze-out search of both legs (~22 ms per check, 75 % of it
   Cornelius' geometry, which allocates per cube: **A12**, bit-identical, small), the droplet
@@ -221,39 +226,49 @@ observables and the wake unchanged within errors.
 
 **Effort.** 1–2 weeks (both back-ends), plus the validation.
 
-### C4. `gpu_make_delta_qi`: compute each quantity once (bit-identical to today's GPU output)
+### C4. `gpu_make_delta_qi`: done — the solvers stalled at float resolution (measured)
 
-**Facts** (`music_kernels.cu` lines 812–930). Per cell and sub-step the kernel
-1. evaluates q = τ T^{τμ}(e, u) for the cell and for the 4 neighbours in each of 3 directions:
-   **75 evaluations, 5 EOS lookups each (`logf` + table), 60 of them identical to what the
-   neighbouring cells compute for themselves**;
-2. reconstructs (e, u) by Newton–Brent from 4 face states per direction, **12 reconstructions**,
-   each with EOS lookups per iteration, plus 12 max-speed evaluations. The left state of a
-   cell's +face is the right state of the neighbour's −face: **every face is reconstructed by
-   both of its cells**;
-3. keeps the face states and the 12 `ReconstResult`s in α-indexed arrays → local memory.
+**What was assumed** (and written in the first version of this note): per cell and sub-step
+the kernel evaluates τT^{τμ} 75 times (60 of them the neighbours' values), reconstructs every
+face twice and looks P(e) up five times per state, so computing each once should give
+−25–35 % per step, bit-identically. **What was measured** (GB10, the 2-event two-stage job of
+§2, `nsys`; MUSIC4GPU `README_CUDA.md` Phase 7):
 
-**Changes.**
-- (a) q per cell into a 5-field buffer (12 MB), written by `gpu_finalize_ideal` of the previous
-  sub-step (it already has e and u) or by a tiny kernel; `delta_qi` reads its neighbours' q.
-  Removes ~60 of 75 T^{τμ} evaluations and their 300 EOS lookups per cell.
-- (b) Reconstruct each face once: per cell the two states of its +x, +y, +η faces into a
-  face buffer (6 reconstructions per cell), then the flux pass reads both faces. Or, cheaper in
-  memory, keep the per-cell structure but fetch the neighbour's reconstruction from a buffer
-  written in a first pass.
-- (c) Fully unrolled α loops, one direction at a time, `__launch_bounds__` to bring the
-  registers down; the same for the 14-component loops of `gpu_first_rk_step_w_full` (21 %).
-- The arithmetic of each face state, reconstruction and flux is unchanged (only who computes
-  it), so (a) and (b) are **bit-identical to the current GPU output**; (c) is bit-identical if
-  no expression is reassociated. The existing `tests/cuda_vs_cpu_bench_3d.sh` and the production
-  regression recipe check it.
+| change | `delta_qi` per launch | bit-identical |
+|---|---:|---|
+| baseline | 3.65 ms | — |
+| q = τT^{τμ} precomputed per cell (75 → 0 evaluations) | 3.51 + 0.16 ms for the new kernel | no: the compiler fuses the stored product differently (FMA contraction), ulp-level |
+| P and dP/de from one table index per solver iteration | ~3.5 ms | no, the same way |
+| P(e) once per reconstructed state | 3.56 ms | yes |
+| Newton started at the previous velocity instead of 0.5 | 3.51 ms | no |
+| the CPU's narrow bracket [v₀ ± 0.05] | 5.48 ms (+50 %) | no; the Brent safeguard bisects a narrow bracket |
+| **stop when the iterate no longer changes in float** | **1.71 ms (−53 %)** | no, float-rounding level |
 
-**Gain** (estimate): `delta_qi` −50–65 %, i.e. **−25–35 % of the step**; with (c) on the viscous
-kernel perhaps −35–40 %. Events/h +35–60 % where the GPU is the limit, on every GPU.
+The arithmetic was never the cost. Both Newton–Brent solvers break on an absolute step below
+1e-7, which is below the float32 ulp of u⁰ above ~1.7 and of v near 1; such lanes ran all 60
+iterations and their warps waited. One extra stop condition per solver (`v_root == v_old`,
+`u0_root == u0_old`: the root to float resolution) is the whole change, on CUDA and Metal.
 
-**Effort.** 3–5 days. An `ncu` profile would make the estimate a measurement: on the GB10 that
-needs the kernel-module option `NVreg_RestrictProfilingToAdminUsers=0` (`/etc/modprobe.d`, reboot);
-`nsys` already gives the per-kernel times (this note).
+**Gain:** kernels per step 14.05 → 10.1 ms on the GB10 (−29 %; `finalize_ideal` profits too), a
+MUSIC step 28.9 → 24.3 ms (background) and 23.4 → 19.7 ms (jet leg) in a job alone, a jet
+event 13.4 → 11.2 s. The same fraction should apply on every GPU. Events/h where the GPU is
+the limit: +40 % (3090 box: the campaign's GPU limit ~1,225 → ~1,700, above its host limit of
+~1,400, so there +25 % and then host-bound; GB10 381 → ~500).
+
+**Not bit-identical,** by construction: a stalled lane returns the iterate at which it
+stalled, a few ulp from where 60 iterations left it. Over a run (2 Au+Au events, both legs;
+2 O+O events) the fields differ at the float-rounding level: energy-weighted |Δe|/e above
+e_fo ~1e-6, the largest single-cell |Δe|/e above e_fo 8e-4 at τ ≈ 3–5 fm/c (~50 of 23,000
+cells beyond 1e-4, none late), total energy within 2e-6, surfaces ±2 elements per leg, the
+in-job jet hadrons identical. ~1000× below the GPU-vs-CPU difference. **Before production:**
+the C1-style check (a few hundred events on the 3090 box with the new image: hydro and
+surfaces at this level, hadron observables and the wake within errors), and the Metal build
+run on the M3 Max.
+
+**Dropped from the list:** the precomputed q and the face-based reconstruction — the first
+measured, the second would not be bit-identical either (each cell's reconstruction uses its
+own (e, u) as fallback) and the solver is now cheap. `ncu` on the GB10 would still need
+`NVreg_RestrictProfilingToAdminUsers=0`.
 
 ### The Au+Au MUSIC grid cannot shrink (unlike O+O's)
 
@@ -378,9 +393,8 @@ on the machine with `sinfo -o "%P %G %c %m"` before planning; cores are physical
 
 1. **D1 (late Δτ)** — the cheapest change with the largest gain: ×1.5–1.8 on every GPU-bound
    machine; validation with the existing scripts.
-2. **C4 (`delta_qi`)** — bit-identical to today's GPU output, +35–60 % where the GPU is the limit,
-   no physics check; the first `ncu` profile on the GB10 (after the kernel-module option) would
-   sharpen the estimate.
+2. **C4 (`delta_qi`) — done on MUSIC4GPU `reconst_stall`:** −29 % GPU time per step, measured;
+   needs the C1-style validation (float-rounding-level differences) and the Metal run.
 3. **C3 (active region)** — the largest and the most work; for O+O it removes the GPU as a limit
    altogether.
 4. After 1–3 the host is the limit everywhere (the 3090 box: ~1,400 events/h with the pair file,
