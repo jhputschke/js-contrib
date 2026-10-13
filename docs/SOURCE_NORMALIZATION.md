@@ -2,7 +2,7 @@
 
 Status 2026-10-13. The fix is on X-SCAPE `contrib` since 2026-09-29 (PR #155) and in every
 production image since `cu126`/`cu130` of 2026-09-30. Its extension to MUSIC's late time step is on
-the `final_optim` branches (not merged yet).
+`contrib` since 2026-10-13 (PR #171).
 
 ## 1. Summary
 

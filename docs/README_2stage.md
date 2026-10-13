@@ -67,9 +67,10 @@ themselves (variants, building, testing) in
 >   matter for O+O (ISR, and long jobs with iSS in the job;
 >   [§8](#8-oo-with-initial-state-radiation-prod_oo_isr)); Au+Au output is bit-identical with
 >   them.
-> - Not merged yet: the `final_optim` branches of X-SCAPE, MUSIC4GPU and js-contrib. Images
->   built from `contrib` / `main` have the CPU fixes and the restart, not C4, the late step or
->   A12.
+> - Merged 2026-10-13: MUSIC4GPU `final_optim` into `XSCAPE` (PR #22, `46dad43`) and X-SCAPE
+>   `final_optim` into `contrib` (PR #171, `9e84450`); js-contrib's is PR #60. Images built
+>   from `contrib` before 2026-10-13 have the CPU fixes and the restart, not C4, the late step
+>   or A12.
 
 | tag | CUDA | GPUs | CPU arch | host driver |
 |---|---|---|---|---|
