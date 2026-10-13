@@ -771,11 +771,11 @@ def main() -> int:
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
            if a.parton_ymax is not None else {}),
-        "system": "AuAu 200 GeV 0-10% (b in [0, 4.7] fm)",
+        "system": rp.collision_system(root, a.main_xml),
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
         "jet": "Matter + LBT, CausalLiquefier droplets into MUSIC_2",
-        "T_fo": 0.15,
+        "T_fo": rp.music_freezeout_temperature(root, a.main_xml),
     }
     writer = PairH5Writer(
         out_h5, bg_id=BG_ID, jet_id=JET_ID, grid_mode=grid_mode,
