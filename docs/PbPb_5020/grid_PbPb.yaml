@@ -1,0 +1,10 @@
+# Output grid for Pb+Pb 5.02 TeV: the production's cells (0.3875 fm, 0.3125 in eta_s) on a
+# larger box, inside MUSIC's grid of PbPb_0_10_jet.xml (x, y +-20 fm, eta_s +-8)
+grid:
+  x:   {min: -15.30625, max: 15.30625, n: 80}
+  y:   {min: -15.30625, max: 15.30625, n: 80}
+  eta: {min: -6.09375,  max: 6.09375,  n: 40}
+tau:
+  min: 0.5
+  dtau: 0.1
+  max_ntau: 0

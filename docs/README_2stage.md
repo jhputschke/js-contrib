@@ -1088,6 +1088,11 @@ sed 's#<eCMforHadronization>200</eCMforHadronization>#<eCMforHadronization>5020<
 diff $T/AuAu_MCGlauber_MUSIC_0_10_jet.xml xml/PbPb_0_10_jet.xml     # 8 lines must differ
 ```
 
+**The files as tested** are in [`docs/PbPb_5020/`](PbPb_5020/): `PbPb_0_10_jet.xml` (the
+output of this recipe, with a header comment that says so), `hadronize_5020.xml` and the
+larger output grid `grid_PbPb.yaml` (below). Bind that directory (`-v "$PWD/docs/PbPb_5020:/xml:ro"`)
+and use them as they are, or copy them as a start for another system.
+
 **Choices to make, not made here:**
 
 - **The tune.** The 3dMCGlauber string and rapidity-loss parameters, MUSIC's η/s(T) and ζ/s(T),
@@ -1110,7 +1115,7 @@ diff $T/AuAu_MCGlauber_MUSIC_0_10_jet.xml xml/PbPb_0_10_jet.xml     # 8 lines mu
   instead of 2.0 MB per frame; files of the two grids don't go into one training set):
 
   ```yaml
-  # xml/grid_PbPb.yaml
+  # xml/grid_PbPb.yaml (docs/PbPb_5020/grid_PbPb.yaml)
   grid:
     x:   {min: -15.30625, max: 15.30625, n: 80}    # 0.3875 fm, as grid_fno.yaml
     y:   {min: -15.30625, max: 15.30625, n: 80}
