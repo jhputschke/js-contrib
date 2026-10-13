@@ -82,6 +82,10 @@ The usual production setting is **hadron files only** (`--bulk-hadrons 10 --no-p
 resampled later; keep the particlize files (setup B or C of the folder's README) when more
 oversamples or other iSS settings may be needed.
 
+**Downloading:** `utils/remote_transfer/js_osdf.py download <campaign> --what h5 --to DIR`
+(public, no login; [`README_analysis.md`](README_analysis.md#getting-the-files-the-osdf-and-gcs)).
+`--what h5` brings the hadron files, and the particlize files where there are any.
+
 **Unit i of the jet file and unit i of the bulk file are the same event.** The hadron files
 made in the job have no `source_uuid`, so `HadronFileReader` and `run_h5toROOT.py` (made for
 the Au+Au pairs) do not read them; §5 and §10 have the O+O readers.

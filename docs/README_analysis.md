@@ -27,7 +27,7 @@ production (one hydro per event, hadrons made in the job) has its own guide,
 [`README_OO.md`](README_OO.md).
 
 **Contents**
-1. [What a campaign gives you](#1-what-a-campaign-gives-you)
+1. [What a campaign gives you](#1-what-a-campaign-gives-you), and [getting the files from the OSDF](#getting-the-files-the-osdf-and-gcs)
 2. [Environments](#2-environments), with [threads and memory](#threads-and-memory)
 3. [Reading the hydro](#3-reading-the-hydro)
 4. [Reading the particlize files](#4-reading-the-particlize-files)
@@ -75,9 +75,94 @@ with `--particlize-only` ([`REPORT_SUMMARY_CLUSTER.md`](REPORT_SUMMARY_CLUSTER.m
 | more oversamples, other iSS settings | the particlize files, and `hadronize.py` in the container on a CPU node ([`README_2stage.md`](README_2stage.md) §3) |
 
 The particlize files are self-contained (format version 2, from 2026-10-01): a hadron
-analysis never needs the large pair files. With the transfer tools
-([`utils/remote_transfer`](../utils/remote_transfer/README.md)) that is `--what h5` for the
-particlize and hadron files, `--what pair` for the hydro and `--what root` for the ROOT files.
+analysis never needs the large pair files. To fetch only what an analysis needs, see the
+next section.
+
+### Getting the files: the OSDF (and GCS)
+
+Productions are shared on the OSDF in the Pelican namespace **`osdf:///fno4hic`**. **Reading
+it is public:** listing and downloading need no account, no login and no token (writing
+does). [`utils/remote_transfer/js_osdf.py`](../utils/remote_transfer/README.md) downloads
+whole campaigns, single files or patterns, picked by kind. It runs from a js-contrib checkout
+and makes its own Python environment on the first run (a `python3` ≥ 3.9 with `venv` and
+access to PyPI; a few seconds):
+
+```bash
+cd js-contrib/utils/remote_transfer
+./js_osdf.py ls                                        # the namespace: one folder per campaign
+./js_osdf.py ls AuAu_c1 --what h5                      # a campaign's files, sizes and kinds
+./js_osdf.py du -d 1                                   # space per folder
+./js_osdf.py download AuAu_c1 --what h5 --to /scratch  # particlize + hadron files -> /scratch/AuAu_c1/
+./js_osdf.py download AuAu_c1 --what root --to /scratch          # only the ROOT files
+./js_osdf.py download 'AuAu_c1/*_000[1-5]_*' --to /scratch/few   # a pattern (quoted): a few jobs
+./js_osdf.py download AuAu_c1 --what h5 --to /scratch --dry-run  # what would come, and how much
+```
+
+| `--what` | files | for |
+|---|---|---|
+| `h5` | `<stem>_particlize.h5`, `<stem>_hadrons_*.h5`, the hadronization logs | `HadronFileReader`, the notebooks, `run_h5toROOT.py` (it brings the particlize files the reader needs) |
+| `root` | `<stem>_hadrons.root`, `<campaign>_campaign.root` | ROOT analyses alone: `HadronFileReader.h`, the macros |
+| `pair` | `<stem>.h5` (the hydro, ~0.17–0.29 GB per event) with its `.json`, `.xml`, `.log` | the hydro, `wake_observables.py`, FNO training |
+| `all` (default) | everything in the folder | |
+
+- **Resumable and checked:** files already there with the same size and CRC32C are skipped,
+  so an interrupted download finishes when the command runs again; every file is checked
+  after the download, and a failed one leaves nothing behind. `-j N` downloads N files at once.
+- **Names:** `AuAu_c1` above stands for a campaign folder; `ls` shows what is there.
+  Downloads of a folder go to `--to/<folder>/`, files and patterns to `--to/<file>`.
+- **Measured:** ~69 MB/s down from a workstation (2026-10-05). On 2026-10-13 the namespace
+  held `test/AuAu_0_10_jet_pth10-40_eta06_c1/` (68 ROOT files, 2.1 GB); `ls` and a download
+  of its campaign file ran without a login.
+- **Reading in place,** without downloading, in the analysis venv made with `--with-pelican`
+  (§2). pelicanfs finds an OSDF cache (or the origin) for the path and hands back fsspec's
+  HTTP file, which reads by byte ranges: only the parts asked for travel. uproot takes the URL;
+  h5py takes the file object, for every file kind here (pair, particlize, hadron files, Blosc
+  included, with `hdf5plugin` imported):
+
+  ```python
+  import uproot
+  c = uproot.open("osdf:///fno4hic/test/AuAu_0_10_jet_pth10-40_eta06_c1/pth10-40_eta06_c1_campaign.root")
+  sigma = c["windows"].arrays(["sigma_mb"], library="np")["sigma_mb"]   # 1.7 s, public
+
+  import fsspec, h5py, hdf5plugin
+  fs = fsspec.filesystem("osdf")
+  with fs.open("/fno4hic/test/h5_read_test/AuAu_0_10_jet_st1_t000_0001_hadrons_bulk_jet.h5", "rb",
+               cache_type="blockcache", block_size=2**20) as fo, h5py.File(fo, "r") as f:
+      so = f["hadrons/sample_offsets"][:]
+      p = f["hadrons/p"][so[3]:so[4]]                    # one oversample: 9,765 hadrons
+  ```
+
+  Both read public test files, so the two examples run as they are.
+
+  - **Pass `cache_type="blockcache", block_size=2**20`.** fsspec's default (read-ahead, 5 MB)
+    re-fetches overlapping ranges when HDF5 jumps back to its metadata. Measured with the
+    seed-1 files served over HTTP ranges (2026-10-13):
+
+    | read | default cache | blockcache 1 MB | blockcache 256 kB |
+    |---|---|---|---|
+    | one oversample of a 100 MB hadron file | 7 requests, 31.5 MB | 6, 6.3 MB | 11, 2.9 MB |
+    | one τ frame of a 245 MB pair file | 7 requests, 32.6 MB | 6, 6.3 MB | 9, 2.4 MB |
+
+    Each request costs the round trip to the cache (tens of ms), so 1 MB blocks are the usual
+    balance.
+  - **Tested (2026-10-13):**
+    - **On the OSDF:** a 2.8 MB Au+Au hadron file uploaded to `/fno4hic/test/h5_read_test/`
+      and read back with h5py over pelicanfs, without credentials. Every dataset and attribute
+      was identical to the local file, with both cache settings.
+    - **Time:** the first open in a process takes ~1.1–1.5 s (pelicanfs finds a cache), after
+      that one oversample ~0.1–0.2 s. A file that small fits in the default 5 MB read-ahead, so
+      there the cache setting changes nothing; it matters for the data moved from large files
+      (the table above, measured on the pair and hadron files over a local range server).
+    - uproot on the OSDF; pelicanfs random reads (1,000 bytes from the middle of a 30 MB file:
+      0.7 s).
+  - **When to download instead:** for whole campaigns, and for anything read more than once.
+    In place, every pass goes over the network again. `HadronFileReader`, `ParticlizeFile`,
+    `HadronFile`, `run_h5toROOT.py` and the `analysis/` scripts also take local paths only.
+- **Google Cloud Storage** (`gs://test_fno`) works the same way with `js_gcs.py`, but the
+  bucket is not public: it needs a service-account key
+  ([credentials](../utils/remote_transfer/README.md#credentials)).
+- **Inside the production container** the `pelican` command line does the same for single
+  files (`pelican object get osdf:///fno4hic/… /work/…`).
 
 ### Production settings an analysis must know
 
