@@ -175,10 +175,13 @@ one-container-per-GPU rule of the 3090 box):
 
 ```bash
 # Slurm, per GPU:  --gpus=1  --cpus-per-task=72  --mem=100G
-apptainer exec --nv <arm64 image> \
+W=<your directory on /work/hdd>          # bound to /work in the container
+PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+mkdir -p $W/lbt_cache
+apptainer exec --nv --pwd "$PROD" --bind "$W:/work" <arm64 image> \
   env OMP_NUM_THREADS=4 OMP_WAIT_POLICY=passive MUSIC_CUDA_SYNC=block \
-      LBT_TABLE_CACHE=<shared cache file> \
-  ./run_jobs.sh -j 12 --mps --stagger 12 --campaign <name> NJOBS 45 0 OUTDIR \
+      LBT_TABLE_CACHE=/work/lbt_cache/lbt_tables_v1_arm64.bin \
+  ./run_jobs.sh -j 12 --mps --stagger 12 --campaign <name> NJOBS 45 0 /work/<name> \
       --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
       --write-particlize both --particlize-only
 ```
@@ -186,6 +189,13 @@ apptainer exec --nv <arm64 image> \
 - **Jobs per GPU:** `-j 12–16` with `--particlize-only` (5 GB per job); `-j 10–12` with the pair
   file. Memory, not cores, sets this.
 - **Long jobs:** 45 events per job. The stagger ramp costs ~10 % in 15-event jobs.
+- **`--pwd` and `--bind`:** Apptainer starts in your home, not in the production folder, and
+  only bound directories are writable; OUTDIR and the LBT cache are paths inside the container.
+- **The LBT cache:** `LBT_TABLE_CACHE` lets all jobs of a node share one read-only copy of
+  LBT's 0.66 GB of tables (−0.6 GB per job, already in the 5–7 GB per job). The first job
+  writes the file; make it once with a 1-event job before the first array, so the tasks don't
+  all write it at once. Setup, check and versions: [README_2stage.md](README_2stage.md) §2,
+  [*The LBT table cache with Apptainer and SLURM*](README_2stage.md#the-lbt-table-cache-with-apptainer-and-slurm).
 
 **The image:**
 - **Use the published arm64 images of 2026-10-14:** `cu130` = `cu130-20261013-9e84450`
@@ -209,7 +219,8 @@ apptainer exec --nv <arm64 image> \
   and 48 GB, slightly lower clock and memory bandwidth (696 vs 936 GB/s). The x86 `cu124` image of
   the 3090 box runs unchanged. Of all candidates, its estimate needs the least extrapolation.
 - **Same site as DeltaAI:** one NCSA allocation can exchange credits on both; Delta and DeltaAI
-  share `/work/hdd`, so output, LBT cache and the upload setup are common (§8).
+  share `/work/hdd`, so output and the upload setup are common (§8). Keep one LBT cache file
+  per architecture (§8).
 - **Large pool:** 100 nodes × 4 A40 (and 100 × 4 A100, which give the same rate for this job at
   the full A100 charge).
 - **Possibly the cheapest per event:** Delta charges A40s less than its A100 base rate (66.7
@@ -237,10 +248,13 @@ apptainer exec --nv <arm64 image> \
 ```bash
 # Slurm, per GPU:  --partition=gpuA40x4  --account=<project>-delta-gpu
 #                  --gpus-per-node=1  --cpus-per-task=16  --mem=58G   (58 GiB = 62.3 GB: one GPU's share)
-apptainer exec --nv xscape-prod_cu124-20261013-9e84450.sif \
+W=<your directory on /work/hdd>          # bound to /work in the container
+PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+mkdir -p $W/lbt_cache
+apptainer exec --nv --pwd "$PROD" --bind "$W:/work" xscape-prod_cu124-20261013-9e84450.sif \
   env OMP_NUM_THREADS=2 OMP_WAIT_POLICY=passive MUSIC_CUDA_SYNC=block \
-      LBT_TABLE_CACHE=<shared cache file> \
-  ./run_jobs.sh -j 10 --mps --stagger 12 --campaign <name> NJOBS 45 0 OUTDIR \
+      LBT_TABLE_CACHE=/work/lbt_cache/lbt_tables_v1_amd64.bin \
+  ./run_jobs.sh -j 10 --mps --stagger 12 --campaign <name> NJOBS 45 0 /work/<name> \
       --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
       --write-particlize both --particlize-only
 ```
@@ -253,6 +267,7 @@ apptainer exec --nv xscape-prod_cu124-20261013-9e84450.sif \
 - **MPS** needs the GPU in the `Default` compute mode (`nvidia-smi -q | grep "Compute Mode"`).
   If it is `Exclusive_Process`, drop `--mps` and lose the 5–7 % it gives.
 - **Long jobs:** 45 events per job, as on DeltaAI.
+- **`--pwd`, `--bind` and the LBT cache:** as on DeltaAI (§5), with an `amd64` cache file.
 
 **The image:**
 - **`cu124` = `cu124-20261013-9e84450`**, `sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58`
@@ -326,6 +341,15 @@ of scratch, often purged after 30–90 days.
   upload has to run on a login or data-transfer node (the usual case), with `upload_follow.py`
   following the output directory on the shared `/work/hdd`. Measure the rate in the first
   benchmark.
+- **The LBT table cache** goes on `/work/hdd` next to the output (`$W/lbt_cache/`), one
+  0.66 GB file for all nodes of a campaign; each node reads it once into its page cache.
+  **One file per architecture:** `lbt_tables_v1_arm64.bin` for DeltaAI, `…_amd64.bin` for
+  Delta. Both are made from the same tables and are probably identical, but that has not
+  been checked, and the file's header checks only the layout and the table files' sizes: a
+  file from the other image would be used without a warning. Make each once before the first array, and check the job logs for
+  `LBT: tables mapped read-only` ([README_2stage.md](README_2stage.md#the-lbt-table-cache-with-apptainer-and-slurm)).
+  DeltaAI's node-local `/tmp` works too (`LBT_TABLE_CACHE` under a bound `/tmp`), at 6–11 s
+  more for the first job of every Slurm job, since `/tmp` is wiped at the end.
 - **Node-local `/tmp`** (3.9 TB, fast) is wiped when the job ends. Use it only if the job waits
   for its uploads to finish before it exits.
 

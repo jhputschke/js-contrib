@@ -342,7 +342,7 @@ earlier code). None of them changes the output:
 | threads per job | `OMP_NUM_THREADS` ≈ cores per GPU / P, at least 2 | more threads than cores oversubscribe them; keep 2 or more, since the string deposition and the freeze-out search run in OpenMP bursts |
 | `OMP_WAIT_POLICY=passive` | `-e` / `--env` | idle OpenMP threads sleep instead of spinning |
 | **`MUSIC_CUDA_SYNC=block`** | `-e` / `--env` | the host sleeps while it waits for the GPU: ~30 % less CPU per event at the same throughput. The log says `[MUSIC-GPU] host sync: block` |
-| **`LBT_TABLE_CACHE=FILE`** | `-e` / `--env`, a file under a bound directory that exists | all jobs share one read-only copy of LBT's 0.66 GB of tables: −0.6 GB and 6–11 s of start-up per job. The first job writes it (`LBT: wrote the table cache …`); one file per LBT-tables version; not the container's `/dev/shm` |
+| **`LBT_TABLE_CACHE=FILE`** | `-e` / `--env`, a file under a bound directory that exists | all jobs share one read-only copy of LBT's 0.66 GB of tables: −0.6 GB and 6–11 s of start-up per job. The first job writes it (`LBT: wrote the table cache …`); one file per LBT-tables version; not the container's `/dev/shm`. Apptainer/SLURM: [the LBT table cache](#the-lbt-table-cache-with-apptainer-and-slurm) |
 | `--stagger S` | `run_jobs.sh` option, before NJOBS | the first P jobs start S s apart, so their memory peaks don't coincide: −11 GB at 20 jobs. S = 12 is the measured setting for 8–10 jobs per GPU, chosen as seconds per event under load / P with the earlier image (~100 s / 8). At today's ~25 s per event a smaller S probably does as well and shortens the ramp (not measured) |
 | `--mps` | `run_jobs.sh` option | +5–7 % from 3 jobs per GPU on the 3090s, +12 % on the GB10 ([CUDA MPS](#cuda-mps-optional)) |
 | `OPENBLAS_NUM_THREADS=1` | set by the drivers | more threads don't speed up the resampling and cost 8 % CPU spinning |
@@ -406,6 +406,67 @@ Three things differ from Docker:
 Environment variables can also come from your shell (`export OMP_NUM_THREADS=4` before
 `apptainer exec`), unless `--cleanenv` is used; `--env` always works.
 
+### The LBT table cache with Apptainer and SLURM
+
+`LBT_TABLE_CACHE=FILE` names a file **inside the container**. The first Au+Au job that finds
+no usable FILE parses LBT's text tables as usual, then writes FILE and maps it. Every later
+job maps FILE read-only, so a node keeps one copy of the 0.66 GB of tables in its page
+cache, shared by all its jobs, instead of one copy per job. The results are the same with or
+without it. Nothing has to be built, but on a cluster:
+
+- **FILE must be in a bound, writable directory that exists.** The image is read-only, and a
+  host path such as `$SCRATCH/...` is not visible inside the container unless bound. With
+  `--bind "$SCRATCH/xscape_prod:/work"`, run `mkdir -p $SCRATCH/xscape_prod/lbt_cache` on the
+  host and pass `--env LBT_TABLE_CACHE=/work/lbt_cache/lbt_tables_v1.bin`.
+  `slurm_prod_array.sh` does both by default (its `WORK` is `$SCRATCH/xscape_prod`).
+  If FILE can't be written, the job logs `LBT: could not write the table cache … keeping a
+  private copy` and runs as it would without the cache (+0.6 GB).
+- **Shared or node-local:**
+  - *On the shared file system* (the script's default, `$WORK/lbt_cache/`): one file for
+    the whole campaign, written once. Each node reads it once into its page cache. It needs
+    only a read-only `mmap` and a `rename`, which Lustre, GPFS and NFS all support. **It has
+    not been tried on a cluster yet.**
+  - *Node-local* (`BINDS=/tmp:/nodetmp LBT_CACHE=/nodetmp/lbt_tables_v1.bin`): no reads
+    from the shared file system. The first job on each node writes the file (6–11 s, 0.66 GB
+    of local disk). Where SLURM gives each job its own `/tmp`, every task writes its own
+    copy. Use this if the shared file system is slow or short of quota.
+- **Make the file once before a large array.** Jobs that start together each find no file.
+  Each one parses the tables, writes its own temporary copy (`FILE.tmp.<pid>`) and renames it
+  into place. That is safe: no job reads a half-written file, and the copies are identical.
+  But 20 tasks starting at once write up to 20 × 0.66 GB to the shared file system. One
+  1-event job on a GPU node makes the file first (add your site's `-p`/`-A`):
+
+  ```bash
+  WORK=$SCRATCH/xscape_prod; mkdir -p $WORK/lbt_cache
+  srun --gres=gpu:1 --cpus-per-task=4 --mem=16G --time=0:20:00 \
+    apptainer exec --nv --env LBT_TABLE_CACHE=/work/lbt_cache/lbt_tables_v1.bin \
+    --pwd "$PROD" --bind "$WORK:/work" xscape_prod.sif \
+    python run_prod_jet.py --events 1 --seed 1 --outdir /work/lbt_cache/init \
+      --seed-registry none 2>&1 | grep "LBT:"
+  ls -l $WORK/lbt_cache/lbt_tables_v1.bin    # 656,581,952 bytes
+  rm -r $WORK/lbt_cache/init                 # the test event, not needed
+  ```
+
+  The `grep` shows `LBT: wrote the table cache /work/lbt_cache/lbt_tables_v1.bin`. The
+  trial run of the next section (`NJOBS=2 … P=2 sbatch --array=0-1`) makes the file as
+  well. Within a task, `--stagger 12` usually lets the first job write the file before
+  the second job starts.
+- **Check a campaign:** every Au+Au job log has `LBT: tables mapped read-only from
+  /work/lbt_cache/lbt_tables_v1.bin`, including the job that wrote the file.
+  `grep -L "mapped read-only" OUTDIR/*.log` lists the jobs without the cache.
+- **One file per LBT-tables version.** The file's header records the table dimensions and
+  the sizes of the table files. A file that doesn't match is ignored (`… does not match
+  these tables; reading the text files`) and replaced. Images with the same tables share
+  `lbt_tables_v1.bin`. If an image ever comes with other LBT tables, give its file a new name
+  (`lbt_tables_v2.bin`). Tables of the same size but other content are not detected, and two
+  images using one file would keep rewriting it. Where arm64 and amd64 nodes share a file
+  system (NCSA DeltaAI and Delta), keep one file per architecture as well
+  (`lbt_tables_v1_arm64.bin`, `…_amd64.bin`): the header would not tell them apart.
+- **Memory:** the shared copy is page cache. SLURM counts it once per node, against the task
+  whose job read it first. The ~7 GB per job of §1 already assumes the cache.
+- **Not used** by O+O (no LBT; the script sets `LBT_CACHE=none`) or by stage 2. Pb+Pb (§9)
+  uses the same tables and the same file.
+
 ### SLURM: one GPU per array task
 
 [`utils/slurm_prod_array.sh`](../utils/slurm_prod_array.sh) runs a campaign as a job
@@ -429,6 +490,7 @@ SIF=$PWD/xscape_prod.sif CAMPAIGN=AuAu_a EXTRA_ARGS="--write-particlize both" \
   `OMP_NUM_THREADS = cpus / P` itself.
 - **Launch settings:** `MUSIC_CUDA_SYNC=block`, the LBT cache under `WORK/lbt_cache/` and
   `STAGGER=12` by default; each is a variable (`LBT_CACHE=none`, `STAGGER=0`, `USE_MPS=1`).
+  The cache file: [The LBT table cache with Apptainer and SLURM](#the-lbt-table-cache-with-apptainer-and-slurm).
 - **After the jobs** each task runs the deposition check of [Checking a run](#checking-a-run)
   on its directory and prints the jobs to redo (`CHECK_DEPOSITION=0` turns it off).
 - **Output:** `WORK/CAMPAIGN/t000/`, `t001/`, … with one shared seed registry. The script
