@@ -1,25 +1,27 @@
 # Building and Publishing the Production Container Images
 
-> **Status (2026-10-07).** [`Dockerfile.prod`](Dockerfile.prod) exists, one Dockerfile for
-> all CUDA variants (see [Images](#images)). **A rebuild of all variants is pending**
-> (`gh workflow run docker-prod.yml -f variants=all`): the published images predate several
-> changes, so what this file says about "every image" holds for images built from the current
-> Dockerfile, not for all published tags. Published by the
+> **Status (2026-10-14).** [`Dockerfile.prod`](Dockerfile.prod) exists, one Dockerfile for
+> all CUDA variants (see [Images](#images)). **All variants were rebuilt on 2026-10-14**
+> (`gh workflow run docker-prod.yml -f variants=all`, run 38487241588) from the merged
+> branches: X-SCAPE `contrib` `9e844508`, MUSIC4GPU `XSCAPE` `46dad43`, js-contrib `main`
+> `e8997c7`, iSS `98deaff`, 3dMCGlauber `b99d680`. Published by the
 > [GitHub workflow](#option-a--github-actions-recommended):
 >
-> | tag | built | sm_70 (V100) | Pelican/OSDF | memory fixes (X-SCAPE `cbc72639`) | 64×64×32 grid, edge flag |
-> |---|---|---|---|---|---|
-> | `cu126`, `cu130` (amd64 + arm64; = `…-20260930-d31946c`) | 2026-09-30 | **no** | **no** | no | no |
-> | `cu124-20260930-d31946c` (amd64) | 2026-10-01 | yes | yes | no | no |
-> | `cu124` = `cu124-20261003-cbc7263` (amd64) | 2026-10-03 | yes | yes | yes | no |
+> | tag | digest | built | sm_70 (V100) | Pelican/OSDF | memory fixes (X-SCAPE `cbc72639`) | 64×64×32 grid, edge flag | C4, late Δτ, A12; Matter t < 0 guard; iSS leak fix |
+> |---|---|---|---|---|---|---|---|
+> | **`cu124` = `cu124-20261013-9e84450`** (amd64) | `sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58` | 2026-10-14 | yes | yes | yes | yes | yes |
+> | **`cu126` = `cu126-20261013-9e84450`** (amd64 + arm64) | `sha256:2e870cacbddef12d2f675f206bc54cfb49b7c1f3822e19c487936be93da8fe0f` | 2026-10-14 | yes | yes | yes | yes | yes |
+> | **`cu130` = `cu130-20261013-9e84450`** (amd64 + arm64) | `sha256:76c02874c775dbc00b1d05cd4148bfa239a1e639b115f28208e20cc8970a828a` | 2026-10-14 | no (CUDA 13) | yes | yes | yes | yes |
+> | `cu124-final_optim` = `cu124-20261013-9f4b419` (amd64) | `sha256:91c04102…` | 2026-10-13 | yes | yes | yes | yes | C4, late Δτ, A12 only |
+> | `cu124-20261003-cbc7263` (amd64) | | 2026-10-03 | yes | yes | yes | no | no |
+> | `cu126-20260930-d31946c`, `cu130-20260930-d31946c` | | 2026-09-30 | **no** | **no** | no | no | no |
 >
-> - `cu126` and `cu130` were built before two Dockerfile changes: Pelican/OSDF (`03349ea`)
->   and, in `cu126`, V100 code (sm_70, `818fdbf`). So the published `cu126` and `cu130` have
->   no Pelican, and `cu126` doesn't run on a V100.
 > - **No `-gcs` tags are published yet:** the workflow has not run with `with_gcs=true`.
-> - **Tested:** a local arm64 `cu130` build on the GB10 (see [Tested](#tested)): production
->   runs and agrees with the native build. The published images, and every amd64 image, are
->   not tested on a machine yet.
+> - **Tested:** `cu124-final_optim` (amd64) ran the Au+Au and O+O campaigns on the 2 × RTX 3090
+>   box ([`docs/README_2stage.md`](../docs/README_2stage.md) §1,
+>   [`docs/REPORT_FINAL_OPTIM.md`](../docs/REPORT_FINAL_OPTIM.md)); a local arm64 `cu130` build
+>   on the GB10 (see [Tested](#tested)) agrees with the native build. The 2026-10-14 images
+>   have not been run on a machine yet; their hydro code is that of `cu124-final_optim`.
 >
 > The dev images are in [`BuildContainerDev.md`](BuildContainerDev.md): published for amd64
 > and arm64, not tested on aarch64.
@@ -139,12 +141,12 @@ Sources at **pinned commits** (build arguments, recorded in the image, see
 
 | repo | fetched by | pin today |
 |---|---|---|
-| X-SCAPE (`contrib`) | shallow fetch of `$XSCAPE_REF` (a full 40-character hash, a branch or a tag) | `cbc72639`: with #157/#158 (see [ROOT](#root)), the slim `bulk_info` (#161) that js-contrib `main` needs since `9356bf4`, and the MUSIC4GPU pin below |
-| MUSIC4GPU (`XSCAPE`) | `external_packages/get_music4gpu.sh` (also downloads the hotQCD EoS) | `49439c0` (PR #15, the store releases its memory), the head of `XSCAPE` and what `build_gpu` is built from; the script pins it since X-SCAPE `9509aea2` |
-| iSS (`common_seeds`, fork) | `get_iSS.sh` (+ HRG and δf tables) | `3192982` |
+| X-SCAPE (`contrib`) | shallow fetch of `$XSCAPE_REF` (a full 40-character hash, a branch or a tag) | `9e844508` (the 2026-10-14 images): #157/#158 (see [ROOT](#root)), the slim `bulk_info` (#161), the CPU fixes and the restart, #171 (the late time step on the X-SCAPE side, the Matter t < 0 guard), and the pins below |
+| MUSIC4GPU (`XSCAPE`) | `external_packages/get_music4gpu.sh` (also downloads the hotQCD EoS) | `46dad43` (PR #22: the solver stall break, the late time step, Cornelius without per-element allocations), the head of `XSCAPE` and what `build_gpu` is built from; pinned since X-SCAPE `8986ae26` |
+| iSS (`iSS_optim`, fork) | `get_iSS.sh` (+ HRG and δf tables) | `98deaff`: Part C speed-ups, the inverse-CDF sum in a register, decay channels and hadron vectors freed (`docs/Plans/PLAN_iSS_optim.md`) |
 | 3dMCGlauber (`cap_hard_quark_draws`, fork) | `get_3dglauber.sh` (+ LHAPDF data) | `b99d680`: upstream `JETSCAPE` `71116fe` plus a cap on the hard-quark position draws (no endless loop with ISR; upstream PR chunshen1987/3dMCGlauber#7), since X-SCAPE `21a06787` |
 | LBT tables | `get_lbtTab.sh` | (1.2 GB) |
-| js-contrib (`main`) | shallow fetch of `$JS_CONTRIB_REF` | `main` |
+| js-contrib (`main`) | shallow fetch of `$JS_CONTRIB_REF` | `e8997c7` (#60) |
 
 Configure and build, into a tree called `build_gpu` so the production scripts' default
 `--build` works unchanged:
@@ -444,13 +446,13 @@ partition, one task per stage-1 task directory. Both run `prod_AuAu_0_10_jet` by
 `prod_OO_isr` with `PROD=oo`.
 
 **Why not one SLURM job per production job:** SLURM gives each job whole GPUs. With the
-current image (`cu124-final_optim`) one production job keeps a GPU only a little busy and
+current images (`cu124-20261013-9e84450` and the other two of 2026-10-14) one production job keeps a GPU only a little busy and
 ~1 core busy on average, so a GPU needs ~10 jobs, and only jobs inside one allocation can
 share its GPU. If the site offers GPU sharing (`--gres=shard` or `--gres=mps`), many small
 SLURM jobs are an option too.
 
 ```bash
-apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-final_optim
+apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-20261013-9e84450
 SIF=$PWD/xscape_prod.sif CAMPAIGN=c2 sbatch utils/slurm_prod_array.sh        # 10 tasks = 10 GPUs
 SIF=$PWD/xscape_prod.sif CAMPAIGN=c2 P=8 sbatch --array=0-19 --cpus-per-task=16 --mem=64G \
   utils/slurm_prod_array.sh                                                  # 20 V100s
@@ -660,7 +662,7 @@ one inside the container. Example for a `PbPb_0_10.xml` in `./xml`:
 ```bash
 # Docker
 docker run --rm --gpus all --user "$(id -u):$(id -g)" \
-  -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu124-final_optim \
+  -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu124-20261013-9e84450 \
   python run_prod_jet.py --user-xml /xml/PbPb_0_10.xml \
     --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
 
@@ -671,7 +673,7 @@ apptainer exec --nv --pwd "$PROD" --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xsc
     --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
 
 # a campaign: run_jobs.sh passes the arguments after OUTDIR on to run_prod_jet.py
-... jhputschke/xscape-prod:cu124-final_optim \
+... jhputschke/xscape-prod:cu124-20261013-9e84450 \
   ./run_jobs.sh -j 4 --campaign PbPb 20 25 0 /work/out --user-xml /xml/PbPb_0_10.xml
 ```
 
@@ -744,8 +746,8 @@ Copy `OUTDIR` to Google Cloud Storage or a Pelican/OSDF namespace.
 - **From inside the container,** where the host has no tools, e.g. an OSPool job. On the
   OSPool, HTCondor can also do the transfer itself, with `osdf://` URLs in the submit file.
 
-**Pelican/OSDF**, in every image built since `03349ea` (`cu124`; not the published `cu126`
-and `cu130` until the rebuild):
+**Pelican/OSDF**, in every image built since `03349ea` (all images of 2026-10-14; not the
+`cu126` and `cu130` of 2026-09-30):
 
 ```bash
 pelican object put -r /work/out osdf:///NAMESPACE/campaign     # the whole OUTDIR
@@ -868,8 +870,8 @@ used a build from X-SCAPE `8c306762`, which has the same tree as `d31946c0`.)
 - **`OMP_WAIT_POLICY=passive`** could be set in the image (`ENV`) instead of per run: MUSIC
   asks for it on the CPU path (the M3 Max campaign settings in the production README set it
   too; the GB10's only set `OMP_NUM_THREADS`).
-- **Versions:** the `get_*.sh` scripts pin what production uses (MUSIC4GPU `15ec5e3` since
-  X-SCAPE `9509aea2`), so `MUSIC4GPU_REF` is only needed to build something else. Keep the
+- **Versions:** the `get_*.sh` scripts pin what production uses (MUSIC4GPU `46dad43` since
+  X-SCAPE `8986ae26`), so `MUSIC4GPU_REF` is only needed to build something else. Keep the
   pins and `build_gpu` in step; decide whether X-SCAPE is taken from `contrib` or a release
   tag.
 - **Size:** measure the image. If the 1.2 GB of LBT tables matter, they could be fetched once

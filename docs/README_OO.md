@@ -121,7 +121,7 @@ Npart √s_NN / 2` (with the subtraction; checked in §7).
 | the b range, √s | the `system` attribute, e.g. `O+O 200 GeV, b in [0.0, 3.0] fm` | attribute; job XML |
 | MUSIC's late time step | on by default since `cu124-final_optim`: the freeze-out surface is 0.20 % larger and the bulk +0.05 % (+0.4 % ± 0.2 % at \|η\| < 1) against a constant step; one setting per campaign | `<late_delta_tau>` in the job XML (`prod_user_xml` of the hydro or particlize file, `<stem>.xml`) |
 | MUSIC's grid | ±10.5 fm since 2026-10-12 (±15 fm before): the same physics within float rounding, no boundary hits | `<IS><grid_max_x>` in the job XML |
-| Matter's lookup before t = 0 | X-SCAPE `8c975d37` (not in `cu124-final_optim`): without it Matter read a garbage qhat for the ISR partons, which skipped events differently from run to run | the image or build; `events_skipped` in the attributes and `.json` |
+| Matter's lookup before t = 0 | X-SCAPE `8c975d37` (in the images of 2026-10-14, `cu1xx-20261013-9e84450`; not in `cu124-final_optim`): without it Matter read a garbage qhat for the ISR partons, which skipped events differently from run to run | the image or build; `events_skipped` in the attributes and `.json` |
 | pT̂ windows, parton rapidity cut | the cross section per window; `--parton-ymax` keeps events with both hard partons at \|y\| < Y (before the ISR) | `pthat_bins`, `pthat_bin_sigma_gen`, `pthat_bin_acceptance`, `parton_ymax` attributes |
 | bulk oversamples, hadron selection | `n_samples`; `--eta-max`, `--charged`, `--no-x`, `--keep-bits-*` | `n_samples`, `eta_max`, `charged_only`, `positions` attributes |
 

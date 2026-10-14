@@ -14,6 +14,11 @@ Part 1 is measured. Part 2 is an extrapolation: none of the cluster GPUs has bee
 - **D1:** Δτ 0.02 → 0.05 fm/c from τ = 3 fm/c, −42 % more for Au+Au;
 - **A12:** Cornelius, bit-identical.
 
+**Update 2026-10-14:** rebuilt from the merged branches as `cu124` / `cu126` / `cu130` =
+`cu1xx-20261013-9e84450` (X-SCAPE `9e84450`, MUSIC4GPU `46dad43`, js-contrib `e8997c7`, iSS
+`98deaff`), with Matter's guard against a qhat lookup before t = 0 and the iSS leak fix on top;
+Au+Au output is bit-identical to `cu124-final_optim`, so the numbers below hold.
+
 On the 3090 box it gives **Au+Au +70 % (1,271 → 2,160 events/h)** and **O+O hadrons only +33 %
 (10,313 → 13,728)**. The physics checks are summarised in §3; details in
 [REPORT_FINAL_OPTIM.md](REPORT_FINAL_OPTIM.md). The GB10 and M3 Max rows are not re-measured with it.
@@ -166,9 +171,12 @@ Then, per GPU:
 
 ### Settings common to all GPUs
 
-- **Image:** `jhputschke/xscape-prod@sha256:91c04102fe465849ba76b8b48730345798e3c878c500044d6e092d593ff48eb5`
-  (`cu124-final_optim`, = `cu124`). It has sm_70/75/80/86/89/90 + PTX, so it runs on V100, A40, A100
-  and L40S. Pin the digest for a campaign. `cu130` has no V100 support.
+- **Image:** `jhputschke/xscape-prod@sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58`
+  (`cu124-20261013-9e84450`, = `cu124` of 2026-10-14; `cu126-20261013-9e84450` for R560+ drivers and
+  arm64 hosts). sm_70/75/80/86/89/90 + PTX: V100, A40, A100 and L40S. Pin the digest for a
+  campaign. `cu130` has no V100 support. The numbers above were measured with `cu124-final_optim`
+  (`sha256:91c04102…`), whose Au+Au output is bit-identical; it lacks the Matter t < 0 guard and
+  the iSS leak fix, which matter for O+O.
 - **One D1 setting per campaign:** the default late Δτ (0.05 from 3 fm/c) or `--late-dtau 0`, not a mix
   of the two in one data set (§3).
 - `MUSIC_CUDA_SYNC=block` (−30 % CPU), `OMP_WAIT_POLICY=passive`, and `OPENBLAS_NUM_THREADS=1`

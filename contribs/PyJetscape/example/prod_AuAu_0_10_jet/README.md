@@ -948,7 +948,7 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
 
 ### Planning numbers
 
-**With the current image** (`cu124-final_optim`, 2 × RTX 3090, the campaign setting with
+**With the current image** (`cu124-final_optim`; the 2026-10-14 `cu124-20261013-9e84450` is bit-identical for Au+Au; 2 × RTX 3090, the campaign setting with
 `--write-particlize both`, 10 jobs per GPU; [`REPORT_FINAL_OPTIM.md`](../../../../docs/REPORT_FINAL_OPTIM.md)):
 
 | per event | |

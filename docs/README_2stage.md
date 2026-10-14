@@ -42,49 +42,52 @@ themselves (variants, building, testing) in
 
 ### Images
 
-> **Image status (2026-10-13).** The image for campaigns is **`cu124` = `cu124-final_optim`**,
-> digest `sha256:91c04102fe465849ba76b8b48730345798e3c878c500044d6e092d593ff48eb5`, built
-> 2026-10-13 from the `final_optim` branches (X-SCAPE `9f4b419`, MUSIC4GPU `b972b04`,
-> js-contrib `6b8ae36`; iSS `896e198`, 3dMCGlauber `b99d680`; CUDA 12.4.1,
-> `sm_70;75;80;86;89;90`, amd64 only). It has everything this guide describes, including the
-> speed-ups of 2026-10-11/12 ([§2](#what-the-current-image-does-differently-final_optim)):
-> Au+Au **2,160 events/h** on 2 × RTX 3090, against 1,271 with the image before.
+> **Image status (2026-10-14).** All three variants were rebuilt on 2026-10-14 from the merged
+> branches (X-SCAPE `contrib` `9e84450`, MUSIC4GPU `XSCAPE` `46dad43`, js-contrib `main`
+> `e8997c7`; iSS `98deaff`, 3dMCGlauber `b99d680`; `docker-prod.yml` run 38487241588). They
+> have everything this guide describes: the speed-ups of 2026-10-11/12
+> ([§2](#what-the-current-image-does-differently-final_optim)), and, new against the image
+> before (`cu124-final_optim`), Matter's guard against a qhat lookup before t = 0
+> (`8c975d37`) and the iSS leak fix (iSS `98deaff`). Au+Au output is bit-identical to
+> `cu124-final_optim`, so its numbers hold: **2,160 events/h** on 2 × RTX 3090. The two fixes
+> matter for O+O (ISR, and long jobs with iSS in the job;
+> [§8](#8-oo-with-initial-state-radiation-prod_oo_isr)).
 >
-> | tag | built | sm_70 (V100) | Pelican | memory fixes | 64×64×32 grid, edge flag | CPU fixes, restart | C4, late Δτ, A12 |
-> |---|---|---|---|---|---|---|---|
-> | **`cu124` = `cu124-final_optim`** | 2026-10-13 | yes | yes | yes | yes | yes | **yes** |
-> | `cu124-20261003-cbc7263` | 2026-10-03 | yes | yes | yes | no | no | no |
-> | `cu126`, `cu130` (= `…-20260930-d31946c`) | 2026-09-30 | **no** | **no** | **no** (~20 GB per job) | no | no | no |
+> | tag (the moving tag = the dated one) | digest | CPU arch | built | sm_70 (V100) | Pelican | memory fixes | 64×64×32 grid, edge flag | CPU fixes, restart | C4, late Δτ, A12 | Matter t < 0 guard, iSS leak fix |
+> |---|---|---|---|---|---|---|---|---|---|---|
+> | **`cu124` = `cu124-20261013-9e84450`** | `sha256:2cf57f75…` | amd64 | 2026-10-14 | yes | yes | yes | yes | yes | yes | **yes** |
+> | **`cu126` = `cu126-20261013-9e84450`** | `sha256:2e870cac…` | amd64, arm64 | 2026-10-14 | yes | yes | yes | yes | yes | yes | **yes** |
+> | **`cu130` = `cu130-20261013-9e84450`** | `sha256:76c02874…` | amd64, arm64 | 2026-10-14 | no (CUDA 13) | yes | yes | yes | yes | yes | **yes** |
+> | `cu124-final_optim` = `cu124-20261013-9f4b419` | `sha256:91c04102…` | amd64 | 2026-10-13 | yes | yes | yes | yes | yes | yes | no |
+> | `cu124-20261003-cbc7263` | | amd64 | 2026-10-03 | yes | yes | yes | no | no | no | no |
+> | `cu126-20260930-d31946c`, `cu130-20260930-d31946c` | | amd64, arm64 | 2026-09-30 | **no** | **no** | **no** (~20 GB per job) | no | no | no | no |
 >
-> - **Pin the digest** for a campaign (`jhputschke/xscape-prod@sha256:91c04102…`), and record it:
+> Full digests: `cu124` `sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58`,
+> `cu126` `sha256:2e870cacbddef12d2f675f206bc54cfb49b7c1f3822e19c487936be93da8fe0f`,
+> `cu130` `sha256:76c02874c775dbc00b1d05cd4148bfa239a1e639b115f28208e20cc8970a828a`.
+>
+> - **Pin the digest** for a campaign (`jhputschke/xscape-prod@sha256:2cf57f75…`), and record it:
 >   the files don't say which image made them.
-> - **`cu126` and `cu130` have not been rebuilt.** For arm64 (GH200, GB10) or hosts that need
->   CUDA 13, build an image from the same branches:
->   `gh workflow run docker-prod.yml -f variants=cu130 -f xscape_ref=final_optim -f js_contrib_ref=final_optim`
->   ([`utils/BuildContainerProd.md`](../utils/BuildContainerProd.md)).
-> - **Not in the image yet** (X-SCAPE `final_optim` after `9f4b419`): Matter's guard against a
->   qhat lookup before t = 0 (`8c975d37`) and the iSS leak fix (`50226a7c`, iSS `98deaff`). They
->   matter for O+O (ISR, and long jobs with iSS in the job;
->   [§8](#8-oo-with-initial-state-radiation-prod_oo_isr)); Au+Au output is bit-identical with
->   them.
-> - Merged 2026-10-13: MUSIC4GPU `final_optim` into `XSCAPE` (PR #22, `46dad43`) and X-SCAPE
->   `final_optim` into `contrib` (PR #171, `9e84450`); js-contrib's is PR #60. Images built
->   from `contrib` before 2026-10-13 have the CPU fixes and the restart, not C4, the late step
->   or A12.
+> - **Not run on a machine yet:** the 2026-10-14 images. Their hydro code is that of
+>   `cu124-final_optim`, which the 3090 numbers were measured with; the one short run per
+>   cluster GPU type ([`REPORT_SUMMARY_CLUSTER.md`](REPORT_SUMMARY_CLUSTER.md)) is still to do.
+> - Everything is merged: MUSIC4GPU `final_optim` into `XSCAPE` (PR #22, `46dad43`), X-SCAPE
+>   `final_optim` into `contrib` (PR #171, `9e84450`), js-contrib into `main` (PR #60,
+>   `e8997c7`). Images built from `contrib` before 2026-10-13 have the CPU fixes and the
+>   restart, not C4, the late step or A12.
 
 | tag | CUDA | GPUs | CPU arch | host driver |
 |---|---|---|---|---|
 | `jhputschke/xscape-prod:cu124` | 12.4 | V100 (sm_70) … H100/GH200 (sm_90), newer through PTX | amd64 | R550+ |
-| `jhputschke/xscape-prod:cu126` | 12.6 | as `cu124` (the published build of 2026-09-30 has no sm_70) | amd64, arm64 | R560+ |
+| `jhputschke/xscape-prod:cu126` | 12.6 | as `cu124` | amd64, arm64 | R560+ |
 | `jhputschke/xscape-prod:cu130` | 13.2 | GH200 (sm_90) … B200/GB200, RTX 50xx, GB10 (sm_121); **no V100** | amd64, arm64 | R580+ |
 
-- **Which one:** `nvidia-smi` shows the highest CUDA version the driver supports. Today
-  `cu124` is the only current image (box above), and it runs on every driver from R550 on.
-  Once `cu126` and `cu130` are rebuilt: `cu126` where the driver supports ≥ 12.6, `cu130`
-  for Blackwell and arm64. There is no performance difference to expect between `cu124` and
-  `cu126`.
-- **For a campaign, use a dated tag or the digest**, e.g. `cu124-final_optim` /
-  `@sha256:91c04102…`, and the same one on every machine: the moving tags (`cu124`) change
+- **Which one:** `nvidia-smi` shows the highest CUDA version the driver supports. All three
+  are current (box above): `cu124` runs on every driver from R550 on, `cu126` where the driver
+  supports ≥ 12.6, `cu130` (R580+) for Blackwell and arm64. There is no performance difference
+  to expect between `cu124` and `cu126`.
+- **For a campaign, use a dated tag or the digest**, e.g. `cu124-20261013-9e84450` /
+  `@sha256:2cf57f75…`, and the same one on every machine: the moving tags (`cu124`) change
   with every build, and different builds can differ in the last digits, or more (the late
   time step changes the medium at 1e-3, [§2](#musics-late-time-step-on-by-default)). Run the
   whole campaign on GPUs: MUSIC's CPU path differs systematically from the GPU path (~0.2% in
@@ -106,7 +109,7 @@ themselves (variants, building, testing) in
   | less host CPU per event, bit-identical (A1–A7, A9 of [`REPORT_CPU_GPU.md`](Plans/REPORT_CPU_GPU.md)): MUSIC's anisotropy diagnostic off, no jet-leg store with `--particlize-only` | X-SCAPE `contrib` `6480dbeb` (MUSIC4GPU `943b089`) and js-contrib `main` `a9dd328` or later |
   | MUSIC_2 from MUSIC_1's state, on by default ([§2](#music_2-from-music_1s-state-on-by-default)) | X-SCAPE `contrib` `1098070c` (#168), js-contrib `main` `eb55c9e` (#57) |
   | the freeze-out without host copies (A10, A11), iSS Part C | X-SCAPE `contrib` `cdb7e437` (#170; MUSIC4GPU `81f38d9`), js-contrib `main` `8e4fba5` |
-  | C4 (the solver stall break), the late time step (D1), A12 (Cornelius) ([§2](#what-the-current-image-does-differently-final_optim)) | X-SCAPE `contrib` `9e84450` (PR #171, merged 2026-10-13), MUSIC4GPU `XSCAPE` `46dad43` (PR #22, merged 2026-10-13), js-contrib `final_optim` (PR #60); the image was built from `9f4b419` / `b972b04` / `6b8ae36` |
+  | C4 (the solver stall break), the late time step (D1), A12 (Cornelius) ([§2](#what-the-current-image-does-differently-final_optim)) | X-SCAPE `contrib` `9e84450` (PR #171, merged 2026-10-13), MUSIC4GPU `XSCAPE` `46dad43` (PR #22, merged 2026-10-13), js-contrib `main` `e8997c7` (PR #60, merged 2026-10-13); `cu124-final_optim` was built from `9f4b419` / `b972b04` / `6b8ae36`, the 2026-10-14 images from the merge commits |
 
 ### Memory, cores, disk
 
@@ -348,8 +351,8 @@ earlier code). None of them changes the output:
 
 ```bash
 mkdir -p ~/prod/lbt_cache
-docker pull jhputschke/xscape-prod:cu124-final_optim
-IMG=jhputschke/xscape-prod@sha256:91c04102fe465849ba76b8b48730345798e3c878c500044d6e092d593ff48eb5   # = cu124-final_optim
+docker pull jhputschke/xscape-prod:cu124-20261013-9e84450
+IMG=jhputschke/xscape-prod@sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58   # = cu124-20261013-9e84450
 
 # a test: 2 jobs x 1 event, both at once, seeds 1 and 2
 docker run --rm --gpus all --user "$(id -u):$(id -g)" \
@@ -380,7 +383,7 @@ docker logs -f xscape          # progress;  docker stop xscape  stops it cleanly
 ### Apptainer (HPC)
 
 ```bash
-apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-final_optim
+apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-20261013-9e84450
 PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 mkdir -p $SCRATCH/prod
 
@@ -481,7 +484,7 @@ nohup ./launch_2gpu.sh 64 45 0 /data/camp_pth3 --campaign pth3 \
 
 # 10 jobs per GPU with the current image (the setting of the 2,160 events/h): shared LBT
 # tables, staggered start, blocking CUDA sync; 60 jobs x 45 events (a multiple of 20 jobs), ~1.2 h
-IMAGE=jhputschke/xscape-prod:cu124-final_optim JOBS_PER_GPU=10 OMP_THREADS=3 \
+IMAGE=jhputschke/xscape-prod:cu124-20261013-9e84450 JOBS_PER_GPU=10 OMP_THREADS=3 \
 MUSIC_CUDA_SYNC=block nohup ./launch_2gpu.sh --lbt-cache /work/lbt_cache/lbt_tables_v1.bin \
     --stagger 12 60 45 0 /data/camp_pth3 --campaign pth3 \
     --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
@@ -542,7 +545,7 @@ In a job log, `OUTDIR/<stem>.log`:
 | `edge     flag e > 0.2342 GeV/fm^3 on the x/y edge of the output grid` (at the start) | the edge flag is on, with MUSIC's freeze-out energy density as threshold (images with js-contrib `20109af` or later) |
 | `PairH5Writer: event i: the jet leg has e = … on the transverse edge of the output grid` | fluid above freeze-out reached the edge of the stored box: the stored evolution misses part of it (the surfaces and hadrons don't). Flagged in `diag/{bg,jet}_hit_edge`; counted in the `.json` (`events_hit_edge`). A few per campaign are expected on the earlier ±10 fm grid; frequent ones mean the grid is too small |
 | `… the freeze-out surface reached the transverse grid boundary, so MUSIC stopped it early` | MUSIC's own grid (`<IS><grid_max_x>`, ±15 fm) is too small: that event's evolution is truncated (`diag/{bg,jet}_hit_boundary`) |
-| `kernel launch '…' failed: no kernel image is available` | the image has no code for this GPU (e.g. a V100 with an image without sm_70, which includes the published `cu126` until the rebuild, §1). **Discard the output** and use an image with sm_70 (`cu124-final_optim`) |
+| `kernel launch '…' failed: no kernel image is available` | the image has no code for this GPU (e.g. a V100 with an image without sm_70, which included the `cu126` of 2026-09-30, §1). **Discard the output** and use an image with sm_70 (`cu124` or `cu126` of 2026-10-14) |
 | `WARNING: NOT in effect … export OMP_WAIT_POLICY=passive` | set `OMP_WAIT_POLICY=passive` before launching |
 | `restart  MUSIC_2 starts from MUSIC_1's state at tau <= 1 fm/c` (at the start); per event `…, MUSIC_2 started from the checkpoint at step 28 (tau = 0.96 fm/c)` | the restart is on and used ([§2](#music_2-from-music_1s-state-on-by-default)) |
 | `restart  OFF: …` (at the start) | the restart is off, for the reason given: `--no-music2-restart`, `--write-particlize jet`, or a build without it |
@@ -922,12 +925,12 @@ wake.
 | `--outdir: give OUTDIR as the argument after FIRST_SEED` | OUTDIR is the 4th argument, not an option |
 | `The seed registry … can't be written` / `Read-only file system: …/seeds_used.tsv` | OUTDIR's parent isn't writable: put OUTDIR one level inside a bound directory (`/work/out`, `~/prod/out`) |
 | only one job runs with `-j 2` | NJOBS is 1: `-j` only limits how many run at once |
-| `kernel launch … failed: no kernel image is available` | the image lacks this GPU's architecture: on a V100, an image without sm_70 (built before 2026-09-30 19:57 EDT, including the published `cu126`); use `cu124-20261003-cbc7263` until the rebuild (§1); discard that output |
+| `kernel launch … failed: no kernel image is available` | the image lacks this GPU's architecture: on a V100, an image without sm_70 (built before 2026-09-30 19:57 EDT, including the published `cu126`); use an image of 2026-10-14 or later (`cu124`, `cu126`; §1); discard that output |
 | `No CUDA device found` / jobs much slower | no GPU visible: `--nv` / `--gpus`, `CUDA_VISIBLE_DEVICES`, or per-campaign MPS on several GPUs (§2) |
 | `--mps: could not start the MPS daemon` | MPS doesn't work in this container/site: drop `--mps` |
 | jobs killed (OOM) | plan ~7 GB host memory per job (images from 2026-10-10 on, with `LBT_TABLE_CACHE`; ~12 GB with `--bulk-info full` or older images, ~22 GB before the memory fixes), plus ~8 GB per node: lower `-j`, use `LBT_TABLE_CACHE` and `--stagger`, or ask for more `--mem` |
 | busy-spinning threads, the libgomp warning | `OMP_WAIT_POLICY=passive` before launching |
-| `pelican: command not found` | the published `cu126`/`cu130` predate Pelican: use `cu124`, or move the files from the host (§5) until the rebuild |
+| `pelican: command not found` | the `cu126`/`cu130` of 2026-09-30 predate Pelican: use the images of 2026-10-14 (§1), or move the files from the host (§5) |
 | many `hit_edge` warnings | the output grid is too small for this system: a larger x/y range in the grid YAML (§1, *Output grid*) |
 | files with different `arr` shapes in one campaign | jobs ran with different grids (an older image's default vs. the new one): keep one grid per campaign |
 | `MUSIC_2 run from tau0: the runs differ in <field>` in every event | the two legs' MUSIC settings differ in that field (e.g. a setting changed for one leg only), so MUSIC_2 can't start from MUSIC_1's state. The output is still right, only slower; make them agree, or `--no-music2-restart` |
