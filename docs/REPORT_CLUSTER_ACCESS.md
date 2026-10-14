@@ -25,7 +25,8 @@ and the GB10 ([BENCHMARK_GB10.md](BENCHMARK_GB10.md)), with the method of
   AI (H100, x86, 24 cores per GPU).
 - **GPU credits are small, storage is not:** 1 million Au+Au events need about 50,000–55,000
   credits of GPU time, well within an Explore allocation (400,000 credits). The files take
-  100–240 TB.
+  100–240 TB. They go to our OSDF space, so on site only a scratch buffer is needed: ask for
+  20–50 TB of DeltaAI `/work/hdd` (the default is 1 TB; up to 100 TB on request), §7.
 
 ---
 
@@ -204,15 +205,13 @@ apptainer exec --nv <arm64 image> \
 |---|---|
 | DeltaAI GPU time | ~350–400 GH200-hours ≈ **45,000–55,000 credits** |
 | Delta A40 / A100 time (A100 rate) | ~700–1,000 GPU-hours ≈ 47,000–67,000 credits |
-| storage, `--particlize-only` | ~100 TB (OSN: ~300,000 credits; Granite tape: ~100,000) |
-| storage, pair + particlize | ~240 TB |
+| permanent storage, `--particlize-only` | ~100 TB, on our OSDF space (no ACCESS credits; OSN would cost ~300,000 credits, Granite tape ~100,000) |
+| permanent storage, pair + particlize | ~240 TB, on OSDF |
+| scratch buffer on site | 20–50 TB of `/work/hdd` (DeltaAI/Delta), free on request (§7) |
 | stage 2 (hadronization) | CPU core-hours at 1 credit each, Delta CPU or Anvil CPU (same filesystem as the GPU partitions); or the spare Grace cores (§5) |
 
 - **Explore** (400,000 credits) covers the benchmark and a first campaign of several million
-  events of GPU time. The storage is what may need Discover (1.5 M) or more.
-- **Plan file transport:** OSDF (`--upload`, [utils/remote_transfer](../utils/remote_transfer/README.md))
-  or Globus. The OSDF upload ran at about 290 GB/h from the 3090 box, slower than one GH200
-  node writes with the pair file.
+  events of GPU time. With the files on OSDF, no ACCESS storage credits are needed.
 
 **Before the main request:** use part of an Explore allocation for one benchmark per candidate:
 one GH200 (and one Delta A40), `-j 12` vs `-j 16`, 15 events per job, `--particlize-only`. That
@@ -220,7 +219,49 @@ replaces these estimates with measurements, and fixes the jobs per GPU.
 
 ---
 
-## 7. For comparison: commercial cloud
+## 7. Scratch space and the upload to OSDF
+
+The files are kept on our OSDF space (`osdf:///fno4hic/...`), so the cluster's disk only has
+to hold them until they are uploaded. Purge rules then don't matter.
+
+**Default storage on the candidate sites:**
+
+| site | scratch / work area | project space | purged | node-local disk |
+|---|---|---|---|---|
+| **NCSA DeltaAI** | `/work/hdd` **1 TB** default, up to **100 TB** by support request; `/work/nvme` 1 TB, up to 100 TB | `/projects` 500 GB, up to 25 TB (large requests may carry a fee) | no | `/tmp` ~3.9 TB, wiped after each job |
+| **NCSA Delta** | `/work/hdd` 1 TB, up to 100 TB (the same filesystem as DeltaAI) | 500 GB, up to 25 TB | no | – |
+| **Purdue Anvil** (CPU, GPU, AI) | `/anvil/scratch` **100 TB per user**, 1 M files | 5 TB per allocation | scratch: files older than 30 days | – |
+
+Elsewhere the pattern is similar: tens of GB of home, 0.5–5 TB of project space, and 10–100+ TB
+of scratch, often purged after 30–90 days.
+
+**How fast production fills it** (DeltaAI rates of §4):
+
+| output | per GH200 | one node (4 GH200) | default 1 TB full after (one node) |
+|---|---|---|---|
+| `--particlize-only` (0.097 GB/event) | 0.25–0.3 TB/h | ~1.1 TB/h | **~1 h** |
+| pair + particlize (0.243 GB/event) | 0.5–0.6 TB/h | ~2.2 TB/h | ~30 min |
+
+**What to do:**
+- **Ask for 20–50 TB of `/work/hdd`** with the DeltaAI allocation (support request; free up to
+  100 TB according to the NCSA docs). On Anvil the 100 TB per user is enough as it is.
+- **Upload while producing:** `upload_follow.py --delete pair|all` with `--keep-free`, and the
+  disk guard `--min-free` on, as on the 3090 box ([README_2stage.md](README_2stage.md) §5,
+  [utils/remote_transfer](../utils/remote_transfer/README.md)).
+- **The upload rate decides the buffer:** the 3090 box reached ~290 GB/h to OSDF; one DeltaAI
+  node writes ~1.1 TB/h with `--particlize-only`. If the upload is slower than production, the
+  buffer has to absorb the difference for the whole campaign: e.g. (1.1 − 0.3) TB/h × 10 h ≈
+  8 TB per node. Then either more scratch, more parallel upload streams, or fewer nodes at once.
+- **Check how DeltaAI reaches OSDF:** whether compute nodes have outbound network access, or the
+  upload has to run on a login or data-transfer node (the usual case), with `upload_follow.py`
+  following the output directory on the shared `/work/hdd`. Measure the rate in the first
+  benchmark.
+- **Node-local `/tmp`** (3.9 TB, fast) is wiped when the job ends. Use it only if the job waits
+  for its uploads to finish before it exits.
+
+---
+
+## 8. For comparison: commercial cloud
 
 Same method; useful for pricing against ACCESS or for a quick campaign outside an allocation.
 
@@ -252,6 +293,10 @@ Same method; useful for pricing against ACCESS or for a quick campaign outside a
 - [Delta hardware](https://delta.ncsa.illinois.edu/hardware_and_network/),
   [Delta job accounting](https://docs.ncsa.illinois.edu/systems/delta/en/latest/user_guide/job_accounting.html),
   [Delta allocations](https://delta.ncsa.illinois.edu/delta-allocations/)
+- [DeltaAI data management](https://docs.ncsa.illinois.edu/systems/deltaai/en/latest/user-guide/data-mgmt.html),
+  [Delta data management](https://docs.ncsa.illinois.edu/systems/delta/en/rh9/user_guide/data_mgmt.html)
+- [Anvil file systems](https://www.rcac.purdue.edu/knowledge/anvil/storage/filesystems),
+  [Anvil policies](https://docs.rcac.purdue.edu/userguides/anvil/policies/)
 - [Purdue Anvil AI (ACCESS)](https://operations.access-ci.org/node/872),
   [Anvil AI announcement](https://rcac.purdue.edu/news/7054)
 - [Derecho GPU (ACCESS)](https://support.access-ci.org/documentation/resources/derecho-gpu),

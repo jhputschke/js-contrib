@@ -50,7 +50,7 @@ the HDF5 study and the benchmarks stay here.
 | [`BENCHMARK_2x3090.md`](BENCHMARK_2x3090.md) | 2 × RTX 3090 (Docker): jobs per GPU, threads, MPS, memory, the campaign default, `final_optim` |
 | [`REPORT_FINAL_OPTIM.md`](REPORT_FINAL_OPTIM.md) | `cu124-final_optim` on 2 × RTX 3090: throughput, and the physics check of C4 and the late time step (D1) |
 | [`REPORT_SUMMARY_CLUSTER.md`](REPORT_SUMMARY_CLUSTER.md) | throughput per machine, and the per-GPU settings extrapolated to cluster GPUs (V100, A40, A100, L40S) |
-| [`REPORT_CLUSTER_ACCESS.md`](REPORT_CLUSTER_ACCESS.md) | which NSF ACCESS GPU resource to request: ACCESS exchange rates, estimated events/h and events per credit per resource (DeltaAI first), DeltaAI settings, request sizing; Lambda 8 × A100 and A10 for comparison (2026-10-13) |
+| [`REPORT_CLUSTER_ACCESS.md`](REPORT_CLUSTER_ACCESS.md) | which NSF ACCESS GPU resource to request: ACCESS exchange rates, estimated events/h and events per credit per resource (DeltaAI first), DeltaAI settings, request sizing, scratch space and the upload to OSDF; Lambda 8 × A100 and A10 for comparison (2026-10-13) |
 
 ## Containers
 
