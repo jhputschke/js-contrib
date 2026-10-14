@@ -21,12 +21,15 @@ and the GB10 ([BENCHMARK_GB10.md](BENCHMARK_GB10.md)), with the method of
 - **First choice: NCSA DeltaAI (GH200).** It has 72 Grace cores per H100, the largest H100 pool
   (608 GPUs) and the best events per credit (about 19–22). The arm64 image and the GB10
   settings carry over.
-- **Fallback:** NCSA Delta A40s if their (unstated) discount is large. Otherwise Purdue Anvil
-  AI (H100, x86, 24 cores per GPU).
+- **Second choice: NCSA Delta A40.** Same site, same `/work/hdd` filesystem, the x86 image of the
+  3090 box, and the A40 is the 3090's chip (GA102), so the measured numbers transfer most
+  directly. About 1,000–1,400 events/h per A40, limited by 16 cores and 62.5 GB per GPU; 15–21
+  events per credit at the A100 rate, ~30–40 if the (unstated) A40 discount halves it (§6).
+  Purdue Anvil AI (H100, x86, 24 cores per GPU) is the alternative to both.
 - **GPU credits are small, storage is not:** 1 million Au+Au events need about 50,000–55,000
   credits of GPU time, well within an Explore allocation (400,000 credits). The files take
   100–240 TB. They go to our OSDF space, so on site only a scratch buffer is needed: ask for
-  20–50 TB of DeltaAI `/work/hdd` (the default is 1 TB; up to 100 TB on request), §7.
+  20–50 TB of DeltaAI `/work/hdd` (the default is 1 TB; up to 100 TB on request), §8.
 
 ---
 
@@ -131,12 +134,12 @@ GPUs.
 
 | resource | share per GPU | limit | events/h per GPU | **events per credit** | notes |
 |---|---|---|---|---|---|
-| **NCSA DeltaAI** (GH200, 96 GB) | 72 Grace cores, 120 GB (~105 usable) | GPU (memory sets the jobs) | 2,500–3,000 (`--particlize-only`), 2,000–2,500 (pair) | **19–22** | arm64 image (§5). 608 GPUs. |
+| **NCSA DeltaAI** (GH200, 96 GB) | 72 Grace cores, 120 GB (~105 usable) | GPU (memory sets the jobs) | 2,500–3,000 (`--particlize-only`), 2,000–2,500 (pair) | **19–22** | arm64 image. 608 GPUs. First option (§5). |
 | Purdue Anvil AI (H100 80 GB SXM) | 24 Xeon 8468 cores, 256 GB | cores | 2,200–2,700 | 16–20 | x86, `cu124` unchanged. 84 GPUs; cores and memory from a third-party listing. |
 | NCAR Derecho-GPU (A100 40 GB) | 16 Milan cores, 128 GB | GPU / cores | 1,100–1,600 | 16–24 | Check whether NCAR's ACCESS share is open to nuclear physics. |
 | Purdue Anvil GPU (A100) | 32 Milan cores (unverified) | GPU | 1,100–1,700 | 16–25 | 64 GPUs; ACCESS steers new requests to Anvil AI. |
 | Jetstream2 `g3.xl` (A100 40 GB) | 32 vCPU, 120 GB | GPU | 1,100–1,500 | 17–23 | Cloud VM with Docker: `run_jobs.sh` and MPS as on a workstation. |
-| NCSA Delta (A40 / A100 40 GB) | 16 Milan cores, 62.5 GB | memory, then cores | 1,000–1,400 (`--particlize-only`), 800–1,100 (pair) | 15–21 at the A100 rate; **~30–40 if A40s cost half** | 400 A40 + 400 A100. |
+| NCSA Delta (A40 / A100 40 GB) | 16 Milan cores, 62.5 GB | memory, then cores | 1,000–1,400 (`--particlize-only`), 800–1,100 (pair) | 15–21 at the A100 rate; **~30–40 if A40s cost half** | x86, `cu124`. 400 A40 + 400 A100. Second option (§6). |
 | Texas Tech REPACSS (H100 NVL) | 16 Xeon 6448Y cores, 128 GB | cores | 1,500–1,800 | 15–18 | Too few cores for an H100. |
 | SDSC Expanse (V100 32 GB) | 10 Xeon 6248 cores, 96 GB | GPU / cores | 700–850 | 13–16 | |
 | PSC Bridges-2 (8 × V100) | 5 cores | cores | ~400 | ~7 | |
@@ -154,7 +157,7 @@ GPUs.
 
 ---
 
-## 5. Recommended: NCSA DeltaAI
+## 5. First option: NCSA DeltaAI
 
 **Why:**
 - **Most cores per GPU:** each GH200 superchip has an H100 (96 GB HBM3) and a 72-core Grace
@@ -199,27 +202,93 @@ apptainer exec --nv <arm64 image> \
 
 ---
 
-## 6. Sizing the request
+## 6. Second option: NCSA Delta A40
+
+**Why:**
+- **Closest to the measured machine:** the A40 is the RTX 3090's chip (GA102, sm_86) with 84 SMs
+  and 48 GB, slightly lower clock and memory bandwidth (696 vs 936 GB/s). The x86 `cu124` image of
+  the 3090 box runs unchanged. Of all candidates, its estimate needs the least extrapolation.
+- **Same site as DeltaAI:** one NCSA allocation can exchange credits on both; Delta and DeltaAI
+  share `/work/hdd`, so output, LBT cache and the upload setup are common (§8).
+- **Large pool:** 100 nodes × 4 A40 (and 100 × 4 A100, which give the same rate for this job at
+  the full A100 charge).
+- **Possibly the cheapest per event:** Delta charges A40s less than its A100 base rate (66.7
+  credits per GPU-hour), by a factor neither the accounting page nor the calculator gives. At half
+  the rate an A40 gives ~30–40 events per credit, against 19–22 on DeltaAI. **Ask Delta support
+  for the factor before choosing between the two.**
+
+**The node and its limits:**
+- **Node:** 4 × A40 (48 GB GDDR6), one 64-core AMD EPYC 7763 (Milan, Zen 3, 2.55 GHz), 256 GB
+  DDR4. A GPU's share, and one GPU's charge: **16 cores and 62.5 GB** (decimal GB).
+- **Charging:** cores or memory fraction, whichever is larger. More than 62.5 GB per GPU is
+  charged as more GPUs, so the jobs have to fit in one share.
+- **GPU limit:** 1,300–1,550 events/h (§2).
+- **CPU limit:** 16 Milan cores × ~85 × 1.15–1.5 ≈ 1,560–2,040 events/h.
+- **Memory limit (the one that binds):** ~60 GB fits 10–11 jobs with `--particlize-only` (~5 GB
+  each) or 8 with the pair file (~7 GB). By Little's law (25–35 s per event in a loaded job):
+  **~1,000–1,400 events/h** with `--particlize-only`, ~800–1,100 with the pair file. GPU ~65–90 %
+  busy.
+- **Per node:** 4,000–5,600 events/h with `--particlize-only`.
+- **No spare cores:** unlike DeltaAI, stage 1 uses all 16. Stage 2 goes to Delta CPU (1 credit
+  per core-hour, same filesystem).
+
+**Settings per A40** (one Slurm task per GPU, each with its own MPS daemon):
+
+```bash
+# Slurm, per GPU:  --partition=gpuA40x4  --account=<project>-delta-gpu
+#                  --gpus-per-node=1  --cpus-per-task=16  --mem=58G   (58 GiB = 62.3 GB: one GPU's share)
+apptainer exec --nv xscape-prod_cu124-20261013-9e84450.sif \
+  env OMP_NUM_THREADS=2 OMP_WAIT_POLICY=passive MUSIC_CUDA_SYNC=block \
+      LBT_TABLE_CACHE=<shared cache file> \
+  ./run_jobs.sh -j 10 --mps --stagger 12 --campaign <name> NJOBS 45 0 OUTDIR \
+      --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
+      --write-particlize both --particlize-only
+```
+
+- **Jobs per GPU:** `-j 10` with `--particlize-only`, `-j 8` with the pair file. Memory, not
+  cores, sets this; watch the job's peak with `sacct -o MaxRSS` in the benchmark and lower `-j`
+  before Slurm's OOM killer does it.
+- **Threads:** 2 per job, 20 threads on 16 cores (the 3090 box ran 10 jobs × 3 threads per GPU on
+  12 cores, 24 hardware threads).
+- **MPS** needs the GPU in the `Default` compute mode (`nvidia-smi -q | grep "Compute Mode"`).
+  If it is `Exclusive_Process`, drop `--mps` and lose the 5–7 % it gives.
+- **Long jobs:** 45 events per job, as on DeltaAI.
+
+**The image:**
+- **`cu124` = `cu124-20261013-9e84450`**, `sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58`
+  (amd64, sm_70–90 + PTX, R550+ driver), from the merged branches with Matter's qhat guard and
+  the iSS leak fix. Pull once into a `.sif`:
+  ```bash
+  apptainer pull xscape-prod_cu124-20261013-9e84450.sif \
+      docker://jhputschke/xscape-prod@sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58
+  ```
+- **Not run yet** on an A40; Au+Au output is bit-identical to `cu124-final_optim`, the image the
+  3090 numbers come from.
+
+---
+
+## 7. Sizing the request
 
 | item | 1 million Au+Au events |
 |---|---|
 | DeltaAI GPU time | ~350–400 GH200-hours ≈ **45,000–55,000 credits** |
-| Delta A40 / A100 time (A100 rate) | ~700–1,000 GPU-hours ≈ 47,000–67,000 credits |
+| Delta A40 time | ~700–1,000 A40-hours ≈ 47,000–67,000 credits at the A100 rate; less by the A40 discount |
 | permanent storage, `--particlize-only` | ~100 TB, on our OSDF space (no ACCESS credits; OSN would cost ~300,000 credits, Granite tape ~100,000) |
 | permanent storage, pair + particlize | ~240 TB, on OSDF |
-| scratch buffer on site | 20–50 TB of `/work/hdd` (DeltaAI/Delta), free on request (§7) |
+| scratch buffer on site | 20–50 TB of `/work/hdd` (shared by DeltaAI and Delta), free on request (§8) |
 | stage 2 (hadronization) | CPU core-hours at 1 credit each, Delta CPU or Anvil CPU (same filesystem as the GPU partitions); or the spare Grace cores (§5) |
 
 - **Explore** (400,000 credits) covers the benchmark and a first campaign of several million
   events of GPU time. With the files on OSDF, no ACCESS storage credits are needed.
 
 **Before the main request:** use part of an Explore allocation for one benchmark per candidate:
-one GH200 (and one Delta A40), `-j 12` vs `-j 16`, 15 events per job, `--particlize-only`. That
-replaces these estimates with measurements, and fixes the jobs per GPU.
+one GH200 (`-j 12` vs `-j 16`) and one Delta A40 (`-j 8` vs `-j 10`), 15 events per job,
+`--particlize-only`. That replaces these estimates with measurements, fixes the jobs per GPU,
+and, with Delta's A40 factor, decides between the two.
 
 ---
 
-## 7. Scratch space and the upload to OSDF
+## 8. Scratch space and the upload to OSDF
 
 The files are kept on our OSDF space (`osdf:///fno4hic/...`), so the cluster's disk only has
 to hold them until they are uploaded. Purge rules then don't matter.
@@ -235,16 +304,17 @@ to hold them until they are uploaded. Purge rules then don't matter.
 Elsewhere the pattern is similar: tens of GB of home, 0.5–5 TB of project space, and 10–100+ TB
 of scratch, often purged after 30–90 days.
 
-**How fast production fills it** (DeltaAI rates of §4):
+**How fast production fills it** (rates of §5 and §6):
 
-| output | per GH200 | one node (4 GH200) | default 1 TB full after (one node) |
-|---|---|---|---|
-| `--particlize-only` (0.097 GB/event) | 0.25–0.3 TB/h | ~1.1 TB/h | **~1 h** |
-| pair + particlize (0.243 GB/event) | 0.5–0.6 TB/h | ~2.2 TB/h | ~30 min |
+| output | per GH200 | one DeltaAI node (4 GH200) | per A40 | one Delta A40 node (4 A40) | default 1 TB full after (one node: DeltaAI / Delta) |
+|---|---|---|---|---|---|
+| `--particlize-only` (0.097 GB/event) | 0.25–0.3 TB/h | ~1.1 TB/h | 0.1–0.14 TB/h | ~0.5 TB/h | **~1 h / ~2 h** |
+| pair + particlize (0.243 GB/event) | 0.5–0.6 TB/h | ~2.2 TB/h | 0.2–0.27 TB/h | ~0.9 TB/h | ~30 min / ~1 h |
 
 **What to do:**
 - **Ask for 20–50 TB of `/work/hdd`** with the DeltaAI allocation (support request; free up to
-  100 TB according to the NCSA docs). On Anvil the 100 TB per user is enough as it is.
+  100 TB according to the NCSA docs). Delta sees the same filesystem, so one request covers
+  both. On Anvil the 100 TB per user is enough as it is.
 - **Upload while producing:** `upload_follow.py --delete pair|all` with `--keep-free`, and the
   disk guard `--min-free` on, as on the 3090 box ([README_2stage.md](README_2stage.md) §5,
   [utils/remote_transfer](../utils/remote_transfer/README.md)).
@@ -252,7 +322,7 @@ of scratch, often purged after 30–90 days.
   node writes ~1.1 TB/h with `--particlize-only`. If the upload is slower than production, the
   buffer has to absorb the difference for the whole campaign: e.g. (1.1 − 0.3) TB/h × 10 h ≈
   8 TB per node. Then either more scratch, more parallel upload streams, or fewer nodes at once.
-- **Check how DeltaAI reaches OSDF:** whether compute nodes have outbound network access, or the
+- **Check how DeltaAI and Delta reach OSDF:** whether compute nodes have outbound network access, or the
   upload has to run on a login or data-transfer node (the usual case), with `upload_follow.py`
   following the output directory on the shared `/work/hdd`. Measure the rate in the first
   benchmark.
@@ -261,7 +331,7 @@ of scratch, often purged after 30–90 days.
 
 ---
 
-## 8. For comparison: commercial cloud
+## 9. For comparison: commercial cloud
 
 Same method; useful for pricing against ACCESS or for a quick campaign outside an allocation.
 
