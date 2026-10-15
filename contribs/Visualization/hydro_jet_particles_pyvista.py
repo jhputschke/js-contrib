@@ -314,7 +314,8 @@ def _draw_points(plotter, name, pos, **kw):
                      show_scalar_bar=False, **kw)
 
 
-def make_overlay(seg, bulk, frag, args, max_pT, t_partons_off, t_anchor, note, box):
+def make_overlay(seg, bulk, frag, args, max_pT, t_partons_off, t_anchor, note, box,
+                 z=None):
     """overlay(plotter, t): the shower until `t_partons_off`, the jet hadrons from their
     appearance time on (`frag.t_on`), the bulk hadrons
     from their emission on.  `note` is the static part of the lower-left read-out, `box`
@@ -323,6 +324,7 @@ def make_overlay(seg, bulk, frag, args, max_pT, t_partons_off, t_anchor, note, b
 
     partons = (hjp.make_jet_overlay(seg, args, max_pT, t_anchor, colorbar=False)
                if seg is not None else None)
+    zover = wp.make_z_overlay(z, args)          # a Z's leptons: straight tracks, Z arrow
     state = {"bar": False}
     n_bulk = len(bulk) if bulk is not None else 0
 
@@ -358,6 +360,8 @@ def make_overlay(seg, bulk, frag, args, max_pT, t_partons_off, t_anchor, note, b
             else:
                 plotter.remove_actor("jet_hadrons", reset_camera=False)
 
+        if zover is not None:
+            zover(plotter, t)
         text = (f"{note}\nbulk hadrons shown {shown_b} / {n_bulk}"
                 + (f",  jet hadrons {shown_f} / {len(frag)}" if frag is not None else ""))
         plotter.add_text(text, name="hadron_note", position="lower_left", font_size=10,
@@ -432,6 +436,7 @@ def build_parser():
                    help="do not draw the bulk hadrons")
     g.add_argument("--no-frag", action="store_true", dest="no_frag",
                    help="do not draw the jet hadrons")
+    wp.add_z_args(g)
     p.set_defaults(movie="jet_particles.mp4", t_min=0.0)
     return p
 
@@ -492,8 +497,14 @@ def main(argv=None):
               f"along the beam (t = tau cosh eta_s)")
     elif had["n_k"] == 0 and not args.no_bulk:
         print("  [!] no bulk_jet samples for this event (empty surface?)")
+    z = None if args.no_z else wp.load_z(args.file, args.event)
+    if z is not None:
+        print(f"  Z: pT {z['pT']:.1f} GeV, y {z['y']:+.2f}; its two leptons are drawn as "
+              "straight tracks, not among the jet hadrons")
     if had["frag"] is not None and not args.no_frag:
         keep = select(had["frag"], args.hadron_eta_max, args.hadron_pt_min)
+        if z is not None:          # the Z's leptons pass through Colorless into jet_frag
+            keep &= ~wp.z_lepton_mask(had["frag"]["pid"], had["frag"]["p"], z)
         frag = frag_tracks(had["frag"], keep, had["vertex"], had["t_vertex"], t_frag,
                            args.formation_tau0)
         neg = int((np.asarray(had["frag"]["pstat"]) < 0).sum())
@@ -526,6 +537,8 @@ def main(argv=None):
         note += f",  fragmentation {had['j']}/{had['n_j']}"
     if lead:
         note = f"leading parton pT = {lead[0]:.1f} GeV\n" + note
+    if z is not None:
+        note = f"Z pT = {z['pT']:.1f} GeV, y = {z['y']:+.2f} (green: its leptons)\n" + note
     mode = args.parton_off
     if mode == "auto":
         mode = "formed" if args.formation_tau0 is not None else "frag"
@@ -541,7 +554,7 @@ def main(argv=None):
     # The camera frames the jets where the shower ends, whatever the mode: framing them at
     # t_off (up to ~100 fm/c with formation times) would shrink the medium to a dot.
     t_anchor = min(t_shower if t_shower is not None else tau_max, args.t_max)
-    overlay = make_overlay(seg, bulk, frag, args, max_pT, t_off, t_anchor, note, box)
+    overlay = make_overlay(seg, bulk, frag, args, max_pT, t_off, t_anchor, note, box, z)
 
     hp.render_event(args.event, arr, meta, args, overlay=overlay)
     print(f"Done. Outputs in {os.path.abspath(args.outdir)}/")

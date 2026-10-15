@@ -110,6 +110,23 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
   **remove them before a track or jet analysis** (match `lep{1,2}_*`).
 - `pthat_bin_sigma_gen` is Pythia's σ × kept/tried of both cuts (`--parton-ymax` and the trigger).
 
+## Analysis and movies
+
+- `contribs/PyJetscape/example/analysis/zjet_wake.ipynb` (helpers in `zjet_wake.py`): the
+  Z–hadron wake in the Z frame (Δη = η_h − y_Z, Δφ = φ_h − φ_Z) as CMS 2507.09307 measures it:
+  (Δη, Δφ) maps, Δφ and Z-side Δη distributions per track p_T class, Pb+Pb − pp with the vacuum
+  reference, the p_T^Z dependence, one event's hydro wake. Events are weighted by window
+  cross section × N_coll; the Z's leptons are removed from the tracks.
+- Movies of single events need a pair file, so a few events run without `--hadrons-only`
+  (`--write-particlize both`): `contribs/Visualization/wake_pyvista.py` and
+  `hydro_jet_particles_pyvista.py` draw the Z's leptons as straight tracks and an arrow along
+  the Z (Visualization README, "Z+jet events").
+- **Correlated sampling needs equal sample counts on both legs.** With
+  `--oversample-bg per-pthat-bin` (160 background samples for 40 per event) iSS samples the
+  background *uncorrelated* with the jets (measured 2026-10-15: sd(J_k − B_k) equals that of
+  mismatched pairs), and paired errors refuse such files; with 40 and 40 the legs are strongly
+  correlated (sd(J_k − B_k) ≈ 19 against ≈ 50 mismatched).
+
 ## pp reference
 
 `contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_prod_vacuum.py` (plan 5a step 8): the same

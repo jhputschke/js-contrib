@@ -186,6 +186,26 @@ Options: `--panels bg,jet,diff` (any subset, in display order), `--event`,
 `hydro_jet_pyvista.py` accepts. Resampling runs once per panel, so three panels cost
 three times one — keep `--nt` small while iterating.
 
+### Z+jet events
+
+A Z+jet pair file (`run_prod_jet.py` with `example/config/PbPb_0_30_ZJet.xml` and
+`--write-particlize both`; `--hadrons-only` and `--particlize-only` keep no pair file) holds
+the Z's two decay leptons among the shower initiators. They pass the medium untouched, so
+both movie scripts keep them out of the partons, the "leading parton" read-out and the jet
+hadrons, and draw them instead as straight green tracks from the hard vertex, with a white
+arrow along the Z (`load_z`, `make_z_overlay`, `z_lepton_mask` in `wake_pyvista.py`). The
+label gives the Z's p_T and rapidity.
+
+```bash
+python wake_pyvista.py --file <pair>.h5 --event 1 --movie zjet_wake.mp4
+python hydro_jet_particles_pyvista.py --file <pair>.h5 --event 1   # after hadronize.py
+```
+
+Options: `--no-z` (no Z overlay), `--z-color` (default lime), `--z-arrow` (arrow length in fm,
+default 6; 0: none). Files without a Z are drawn exactly as before. The hadron-level Z–hadron
+wake (angles to the Z, as CMS and ATLAS measure it) is in
+`PyJetscape/example/analysis/zjet_wake.ipynb`.
+
 ## Hadrons after freeze-out
 
 [`hydro_jet_particles_pyvista.py`](hydro_jet_particles_pyvista.py) draws one event of a

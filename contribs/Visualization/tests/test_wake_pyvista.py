@@ -409,3 +409,42 @@ def test_an_ideal_eos_group_uses_its_own_dof(tmp_path):
     a_sb = np.pi ** 2 / 30.0 * 47.5 / 0.1973269804 ** 3
     assert np.allclose(pa["jet"][..., 1], (e / a_sb) ** 0.25, rtol=1e-5)
     assert "47.5" in meta["eos"]
+
+
+def _initiator_file(path, rows):
+    import h5py
+    rows = np.asarray(rows, float)
+    with h5py.File(path, "w") as f:
+        f["shower/initiators"] = rows
+        f["shower/initiator_offsets"] = np.array([0, len(rows)])
+
+
+def test_z_leptons_are_found_and_kept_out_of_the_partons(tmp_path):
+    """A Z+jet event: the e+e- pair is the Z, it is not the leading parton, and the jet
+    hadrons that are the Z's leptons are recognised."""
+    import wake_pyvista as wp
+
+    # shower, pid, pstat, px, py, pz, E, x, y, z, t -- the leptons are the hardest entries
+    rows = [[0, 11, 22, 45.0, 10.0, 5.0, np.hypot(np.hypot(45.0, 10.0), 5.0), 1.0, -2.0, 0, 0],
+            [1, -11, 22, -40.0, 30.0, -3.0, np.hypot(np.hypot(40.0, 30.0), 3.0), 1.0, -2.0, 0, 0],
+            [2, 21, 0, 20.0, -35.0, 1.0, np.hypot(np.hypot(20.0, 35.0), 1.0), 1.0, -2.0, 0, 0],
+            [3, 13, 22, 3.0, 0.0, 0.0, 3.0, 1.0, -2.0, 0, 0]]          # no partner: not the Z
+    path = tmp_path / "z.h5"
+    _initiator_file(path, rows)
+
+    z = wp.load_z(path, 0)
+    assert sorted(l[0] for l in z["leptons"]) == [-11, 11]
+    assert z["pT"] == pytest.approx(np.hypot(5.0, 40.0))
+    assert np.allclose(z["vertex"], [1.0, -2.0, 0.0])
+    pT, E, pid = wp.leading_parton(path, 0)
+    assert pid == 21 and pT == pytest.approx(np.hypot(20.0, 35.0))
+
+    # jet_frag entries: the two leptons (float32-rounded) and a pion
+    p = np.array([[rows[0][6], 45.0, 10.0, 5.0], [rows[1][6], -40.0, 30.0, -3.0],
+                  [10.0, 6.0, 5.0, 1.0]], np.float32)
+    mask = wp.z_lepton_mask(np.array([11, -11, 211]), p, z)
+    assert mask.tolist() == [True, True, False]
+    assert not wp.z_lepton_mask(np.array([11]), p[:1], None).any()
+
+    _initiator_file(tmp_path / "dijet.h5", [rows[2]])
+    assert wp.load_z(tmp_path / "dijet.h5", 0) is None

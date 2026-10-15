@@ -53,6 +53,12 @@ arr_bg = MUSIC_1 -- but no eos/ group: it names the EoS in `eos_kind` and the bu
 `prod_build`, and `resolve_temperature` loads MUSIC's own hotQCD table from there (or from
 --eos-table).  Such a file can hold a dijet, and every shower in it is drawn.
 
+A Z+jet pair (run_prod_jet.py with the Z+jet XML, PythiaGun <trigger>Z, and without
+--hadrons-only / --particlize-only, which keep no pair file) also holds the Z's two decay
+leptons among its initiators: they pass the medium untouched, so they are not drawn as
+partons but as straight tracks from the hard vertex, with an arrow along the Z
+(`load_z`, `make_z_overlay`; --no-z turns it off).
+
 Either way, only frames where BOTH legs are still live are shown (`live_frames`): the
 jet leg outlives its background, and past the background's freeze-out the difference
 would be the jet leg's whole medium rather than a wake.
@@ -136,6 +142,8 @@ PANELS = {
 
 #: panels whose field is SIGNED: diverging colour map, symmetric limits, their own bar
 SIGNED = ("diff", "reldiff")
+#: |pid| of a Z's decay leptons (PythiaGun <trigger>Z): straight tracks, never partons
+LEPTON_PIDS = (11, 13)
 
 #: printed under every figure, because the panel titles alone invite the wrong reading
 SHOWER_NOTE = ("same quenched shower in all panels -- it traversed arr_bg "
@@ -395,6 +403,8 @@ def load_shower(path, event=0, min_energy=0.0):
     # |E|, not E: a negative ("hole") parton carries negative energy by construction, so a
     # plain `E >= min_energy` silently drops every one of them even at the default 0.
     keep = np.abs(par[:, 8]) >= float(min_energy)
+    # a Z's decay leptons (pid col 3) are not partons: make_z_overlay draws them
+    keep &= ~np.isin(np.abs(par[:, 3]).astype(int), LEPTON_PIDS)
     if not keep.any():
         return None
     par, start, end, splits = par[keep], start[keep], end[keep], splits[keep]
@@ -432,11 +442,122 @@ def leading_parton(path, event=0):
             return None
         o = f["shower/initiator_offsets"][:]
         ini = f["shower/initiators"][o[event]:o[event + 1]]
+    ini = ini[~np.isin(np.abs(ini[:, 1]).astype(int), LEPTON_PIDS)]   # a Z's leptons
     if not len(ini):
         return None
     pT = np.hypot(ini[:, 3], ini[:, 4])            # px, py
     i = int(np.argmax(pT))
     return float(pT[i]), float(ini[i, 6]), int(ini[i, 1])
+
+
+def load_z(path, event=0):
+    """-> the Z of a Z+jet event, from `shower/initiators`, or None (no lepton pair).
+
+    dict: `vertex` (x, y, z) [fm] and `t0` [fm/c] of the hard vertex; `leptons`, a list of
+    (pid, p (px, py, pz), E) [GeV]; the pair's `p`, `E`, `pT`, `y`, `phi`, `m`.  The pair
+    is the opposite-charge, same-flavour one with the largest invariant mass, as PythiaGun
+    picks it.  Initiator columns: shower, pid, pstat, px, py, pz, E, x, y, z, t.
+    """
+    import h5py
+
+    with h5py.File(str(path), "r") as f:
+        if "shower/initiators" not in f:
+            return None
+        o = f["shower/initiator_offsets"][:]
+        ini = f["shower/initiators"][o[event]:o[event + 1]]
+    lep = ini[np.isin(np.abs(ini[:, 1]).astype(int), LEPTON_PIDS)]
+    best = None
+    for i in range(len(lep)):
+        for j in range(i + 1, len(lep)):
+            if int(lep[j, 1]) != -int(lep[i, 1]):
+                continue
+            q = lep[i, 3:7] + lep[j, 3:7]                 # px, py, pz, E
+            m2 = q[3] ** 2 - q[0] ** 2 - q[1] ** 2 - q[2] ** 2
+            if best is None or m2 > best[0]:
+                best = (m2, i, j)
+    if best is None:
+        return None
+    pair = lep[[best[1], best[2]]]
+    px, py, pz, E = pair[:, 3:7].sum(axis=0)
+    return dict(vertex=pair[0, 7:10].astype(float), t0=float(pair[0, 10]),
+                leptons=[(int(r[1]), r[3:6].astype(float), float(r[6])) for r in pair],
+                p=np.array([px, py, pz]), E=float(E), pT=float(np.hypot(px, py)),
+                y=float(0.5 * np.log((E + pz) / (E - pz))), phi=float(np.arctan2(py, px)),
+                m=float(np.sqrt(max(best[0], 0.0))))
+
+
+def z_lepton_mask(pid, p, z, rtol=1e-3):
+    """Boolean mask of the Z's two leptons among hadron-file entries (pid, p [E, px, py,
+    pz], float32): |pid| 11/13 with the same pid and momentum as a lepton of `z`."""
+    pid = np.asarray(pid)
+    p3 = np.asarray(p, float)[:, 1:4]
+    out = np.zeros(len(pid), bool)
+    if z is None:
+        return out
+    for lpid, lp, _ in z["leptons"]:
+        tol = rtol * max(np.linalg.norm(lp), 1.0)
+        out |= (pid == lpid) & (np.linalg.norm(p3 - lp, axis=1) < tol)
+    return out
+
+
+def add_z_args(group):
+    """--no-z, --z-color, --z-arrow (shared with hydro_jet_particles_pyvista)."""
+    group.add_argument("--no-z", action="store_true", dest="no_z",
+                       help="Z+jet files: do not draw the Z's leptons and direction")
+    group.add_argument("--z-color", default="lime", dest="z_color",
+                       help="colour of the Z's lepton tracks (default lime; the partons "
+                            "are coloured by pT)")
+    group.add_argument("--z-arrow", type=float, default=6.0, dest="z_arrow",
+                       help="length in fm of the arrow along the Z's momentum (default 6; "
+                            "0: none)")
+
+
+def make_z_overlay(z, args, suffix=""):
+    """overlay(plotter, t): the Z's two leptons as straight tracks from the hard vertex at
+    their velocity p/E (they leave the medium untouched), and a fixed arrow along the Z's
+    momentum.  None without a Z."""
+    if z is None:
+        return None
+    import pyvista as pv
+
+    v0, t0 = np.asarray(z["vertex"], float), z["t0"]
+    vel = np.array([lp / E for _, lp, E in z["leptons"]])
+    zdir = z["p"] / max(np.linalg.norm(z["p"]), 1e-9)
+    radius = 2.5 * float(getattr(args, "jet_radius", 0.08))   # stand out among the partons
+    color = getattr(args, "z_color", "lime")
+    arrow_len = float(getattr(args, "z_arrow", 6.0))
+
+    def overlay(plotter, t):
+        for name in ("z_leptons", "z_arrow"):
+            plotter.remove_actor(name + suffix, reset_camera=False)
+        if t <= t0:
+            return
+        tips = v0 + vel * (t - t0)
+        pts = np.vstack([np.repeat(v0[None], len(tips), 0), tips])
+        lines = np.array([[2, k, k + len(tips)] for k in range(len(tips))]).ravel()
+        plotter.add_mesh(pv.PolyData(pts, lines=lines).tube(radius=radius, n_sides=8),
+                         color=color, name="z_leptons" + suffix, reset_camera=False,
+                         show_scalar_bar=False)
+        if arrow_len > 0:
+            arrow = pv.Arrow(start=v0, direction=zdir, scale=arrow_len, tip_length=0.2,
+                             tip_radius=0.1, shaft_radius=0.04)
+            plotter.add_mesh(arrow, color="white", opacity=0.85, name="z_arrow" + suffix,
+                             reset_camera=False, show_scalar_bar=False)
+
+    return overlay
+
+
+def chain_overlays(*overlays):
+    """One overlay(plotter, t) calling each non-None one in turn, or None."""
+    live = [o for o in overlays if o is not None]
+    if not live:
+        return None
+
+    def overlay(plotter, t):
+        for o in live:
+            o(plotter, t)
+
+    return overlay
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -486,7 +607,7 @@ def _panel_args(args, name):
     return a
 
 
-def render(panel_arrays, meta, args, seg=None, event_id=0, lead=None):
+def render(panel_arrays, meta, args, seg=None, event_id=0, lead=None, z=None):
     """Resample every panel and emit the movie / VTK series / interactive window."""
     import pyvista as pv
 
@@ -533,7 +654,8 @@ def render(panel_arrays, meta, args, seg=None, event_id=0, lead=None):
     # drawn on the rightmost of them.
     bar_on = {"panels": {n for n in names if n in SIGNED} | ({legs[-1]} if legs else set()),
               "max_pT": max_pT,
-              "lead": lead}
+              "lead": lead,
+              "z": z}
     for n in names:
         extra = ""
         if n in SIGNED:
@@ -548,9 +670,10 @@ def render(panel_arrays, meta, args, seg=None, event_id=0, lead=None):
 
     # A per-panel actor-name suffix; the pT bar is added once by _add_pt_bar instead
     # (hjp's own bar geometry is tuned for a full-window single panel).
-    overlays = {n: (hjp.make_jet_overlay(seg, args, max_pT, t_max, suffix="_" + n,
-                                         colorbar=False)
-                    if seg is not None else None) for n in names}
+    overlays = {n: chain_overlays(
+                    hjp.make_jet_overlay(seg, args, max_pT, t_max, suffix="_" + n,
+                                         colorbar=False) if seg is not None else None,
+                    make_z_overlay(z, args, suffix="_" + n)) for n in names}
 
     os.makedirs(args.outdir, exist_ok=True)
     if args.interactive:
@@ -641,6 +764,11 @@ def _draw(plotter, names, frames, axes, args, clims, overlays, ti, t, event_id, 
             if bar_on.get("lead"):
                 pT, E, _pid = bar_on["lead"]
                 label += f"\nleading parton  pT = {pT:.1f} GeV,  E = {E:.1f} GeV"
+            if bar_on.get("z"):
+                zz = bar_on["z"]
+                flav = "ee" if abs(zz["leptons"][0][0]) == 11 else "mumu"
+                label += (f"\nZ -> {flav}  pT = {zz['pT']:.1f} GeV,  y = {zz['y']:+.2f}"
+                          "\n(green: its leptons, white arrow: the Z)")
         else:
             label += f"t = {t:6.2f} fm/c"
         plotter.add_text(label, name="label_" + n, position="upper_left",
@@ -772,6 +900,7 @@ def build_parser():
                         "(default 0); the effective floor is the larger of the two")
     g.add_argument("--no-jet", action="store_true", dest="no_jet",
                    help="do not overlay the parton shower")
+    add_z_args(g)
     p.set_defaults(movie="wake.mp4", t_min=0.0)
     return p
 
@@ -815,8 +944,12 @@ def main(argv=None):
                   f"{int((~seg['is_leaf']).sum())} ending in a splitting or the medium, "
                   f"max pT {seg['pT'].max():.1f} GeV")
 
+    z = None if args.no_z else load_z(args.file, args.event)
+    if z is not None:
+        print(f"  Z: pT {z['pT']:.1f} GeV, y {z['y']:+.2f}, m {z['m']:.1f} GeV; its leptons "
+              f"(pid {', '.join(str(l[0]) for l in z['leptons'])}) drawn as straight tracks")
     render(panel_arrays, meta, args, seg=seg, event_id=args.event,
-           lead=leading_parton(args.file, args.event))
+           lead=leading_parton(args.file, args.event), z=z)
     return 0
 
 
