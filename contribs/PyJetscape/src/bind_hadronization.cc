@@ -24,9 +24,14 @@
  *   hadronize_input(module, input, seed=None)
  *                                       hadronize such a stored list again
  *                                       (iColoredHadronization)
+ *   soft_sample_cells(task, cells, seed, n_samples)
+ *                                       iSS on given surface cells (SURFACE_CELL_COLUMNS)
+ *                                       outside the event loop -> soft_hadrons_numpy's
+ *                                       dict; the primaries then via soft_primaries_numpy
  *
- * Capabilities: ISS_DECAYS_SMASH_LIST, SOFT_HAS_PRIMARIES, ICOLORED_HAS_INPUT_RECORD
- * (False when this X-SCAPE predates them), PYTHIA_VERSION (e.g. 8312).
+ * Capabilities: ISS_DECAYS_SMASH_LIST, SOFT_HAS_PRIMARIES, ICOLORED_HAS_INPUT_RECORD,
+ * SOFT_HAS_SAMPLE_CELLS (False when this X-SCAPE predates them), PYTHIA_VERSION (e.g.
+ * 8312).
  *
  * All are free functions taking a task: create_module() and GetTaskList() hand out
  * JetScapeTask / JetScapeModuleBase pointers whose dynamic types (iSpectraSamplerWrapper,
@@ -50,6 +55,7 @@
 #include "JetScapeTask.h"
 #include "JetScapeParticles.h"
 #include "SoftParticlization.h"
+#include "surface_rows.h"
 #include "Hadronization.h"
 #include "HadronizationManager.h"
 #include "ColorlessHadronization.h"
@@ -169,6 +175,11 @@ void bind_hadronization(py::module_ &m) {
 #else
   m.attr("SOFT_HAS_PRIMARIES") = false;
 #endif
+#ifdef SOFTPARTICLIZATION_HAS_SAMPLE_CELLS
+  m.attr("SOFT_HAS_SAMPLE_CELLS") = true;
+#else
+  m.attr("SOFT_HAS_SAMPLE_CELLS") = false;
+#endif
 #ifdef ICOLORED_HAS_INPUT_RECORD
   m.attr("ICOLORED_HAS_INPUT_RECORD") = true;
 #else
@@ -230,6 +241,47 @@ void bind_hadronization(py::module_ &m) {
       "Takes them over without copying: call it once per event, after "
       "soft_hadrons_numpy.",
       py::arg("task"));
+
+  m.def(
+      "soft_sample_cells",
+      [](std::shared_ptr<JetScapeTask> task,
+         py::array_t<float, py::array::c_style | py::array::forcecast> cells, long seed,
+         int n_samples) {
+#ifdef SOFTPARTICLIZATION_HAS_SAMPLE_CELLS
+        auto soft = as_soft(task);
+        if (cells.ndim() != 2 || cells.shape(1) != kSurfaceNCols)
+          throw std::invalid_argument(
+              "soft_sample_cells: need an (N, 32) array, columns SURFACE_CELL_COLUMNS");
+        auto a = cells.unchecked<2>();
+        std::vector<SurfaceCellInfo> v(static_cast<size_t>(a.shape(0)));
+        for (py::ssize_t i = 0; i < a.shape(0); ++i)
+          surface_cell_from_row(&a(i, 0), v[i]);    // fields iSS ignores stay zero
+        bool ok;
+        {
+          py::gil_scoped_release release;
+          ok = soft->SampleCells(v, seed, n_samples);
+        }
+        if (!ok)
+          throw std::invalid_argument(
+              "soft_sample_cells: this module cannot sample given cells (or n_samples < 1, "
+              "or it is not initialised yet)");
+        SoftParticlization::HadronArrays h;
+        soft->TakeCompactHadrons(h);
+        return hadron_arrays_to_dict(h);
+#else
+        throw std::runtime_error("soft_sample_cells: this X-SCAPE has no SampleCells "
+                                 "(SOFT_HAS_SAMPLE_CELLS is False)");
+        return py::dict();
+#endif
+      },
+      "Sample the given surface cells now, outside the framework's event loop: an (N, 32) "
+      "float32 array (SURFACE_CELL_COLUMNS, e.g. a particlize file's surface unit), this "
+      "seed and n_samples oversamples. Returns soft_hadrons_numpy's dict (one entry of "
+      "sample_counts per oversample; none for no cells); with iSS <keep_primaries> the "
+      "undecayed hadrons follow from soft_primaries_numpy. Equal to replaying the cells "
+      "through the event loop with soft_set_next_random_seed. The module must be "
+      "initialised (Init); it need not be in a task list.",
+      py::arg("task"), py::arg("cells"), py::arg("seed"), py::arg("n_samples"));
 
   m.def(
       "soft_set_next_random_seed",

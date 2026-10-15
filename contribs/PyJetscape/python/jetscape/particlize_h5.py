@@ -59,6 +59,13 @@ never a missing one; ``events/n_cells_jet`` says so.
 Like :class:`jetscape.pair_h5.PairH5Writer` this is not a framework task: attach it after
 ``JetScape.Init()`` and call :meth:`ParticlizeH5Writer.Exec` between ``ExecPerEvent()`` and
 ``ClearPerEvent()``.  It needs no compiled extension itself (stubs work in tests).
+
+Memory sink (``sink=callable``, no file): the same collection and checks, but each event goes
+to ``sink(record)`` instead of the file, as a dict -- ``event``, ``row`` (what ``events/``
+would get; :meth:`write_events` adds to it), ``jet`` (the jet leg's cells), ``bg`` (a new
+background's cells, else None), ``bg_unit``, ``partons``, ``initiators``.  The root
+attributes the file would get (``file_uuid``, ``music_input`` ...) are in :attr:`attrs`.
+``run_prod_jet.py --hadrons-only`` hadronizes from it (docs/Plans/PLAN_AuAu_hadrons_only.md).
 There is no resume: a production job restarts from its first event anyway
 (``run_jobs.sh`` reruns incomplete seeds), so the file is rewritten.
 """
@@ -139,13 +146,16 @@ class ParticlizeH5Writer:
         More root attributes (run provenance), written verbatim.
     force : bool
         Overwrite an existing file.
+    sink : callable, optional
+        No file: each event's record goes to ``sink(record)`` (see the module docstring).
     """
 
     def __init__(self, out_file_name="particlize.h5", *, legs=("jet", "bg"),
                  store_partons=True, bg_id="MUSIC_1", jet_id="MUSIC_2",
                  compression=DEFAULT_COMPRESSION, music_input=None, T_fo=None,
-                 pair_file=None, extra_attrs=None, force=True, verbose=False):
-        self._path = str(out_file_name)
+                 pair_file=None, extra_attrs=None, force=True, verbose=False, sink=None):
+        self._sink = sink
+        self._path = None if sink is not None else str(out_file_name)
         self._legs = tuple(leg for leg in ("jet", "bg") if leg in set(legs))
         unknown = set(legs) - {"jet", "bg"}
         if unknown:
@@ -172,6 +182,8 @@ class ParticlizeH5Writer:
         self._bg_unit = -1
         self._n_cells_bg = 0
         self._n_empty = 0
+        self.attrs = {}
+        self._record = None
 
     # ── wiring ──────────────────────────────────────────────────────────────────
     def attach(self, jetscape=None, *, bg=None, jet=None, manager=None):
@@ -209,18 +221,16 @@ class ParticlizeH5Writer:
         if self._music_input is None and os.path.exists("music_input"):
             with open("music_input") as fh:
                 self._music_input = fh.read()
-        self._open()
+        self.attrs = self._root_attrs()
+        if self._sink is None:
+            self._open()
         print(f"ParticlizeH5Writer: surfaces of {', '.join(self._legs) or 'no leg'}"
-              f"{' + final partons' if self._store_partons else ''} -> {self._path}")
+              f"{' + final partons' if self._store_partons else ''} -> "
+              f"{self._path or 'memory (sink)'}")
 
-    def _open(self):
-        import h5py
-
-        if os.path.exists(self._path) and not self._force:
-            raise FileExistsError(f"{self._path} exists (pass force=True)")
-        os.makedirs(os.path.dirname(os.path.abspath(self._path)) or ".", exist_ok=True)
-        self.f = h5py.File(self._path, "w")
-        a = self.f.attrs
+    def _root_attrs(self):
+        """The root attributes (the file's, or :attr:`attrs` with a sink)."""
+        a = {}
         a["format"], a["format_version"] = FORMAT, FORMAT_VERSION
         a["producer"] = "js-contrib/contribs/PyJetscape (jetscape.particlize_h5)"
         a["file_uuid"] = str(uuid.uuid4())
@@ -240,6 +250,17 @@ class ParticlizeH5Writer:
         a["complete"] = False
         for k, v in self._extra.items():
             a[k] = v
+        return a
+
+    def _open(self):
+        import h5py
+
+        if os.path.exists(self._path) and not self._force:
+            raise FileExistsError(f"{self._path} exists (pass force=True)")
+        os.makedirs(os.path.dirname(os.path.abspath(self._path)) or ".", exist_ok=True)
+        self.f = h5py.File(self._path, "w")
+        for k, v in self.attrs.items():
+            self.f.attrs[k] = v
 
         ncol = len(SURFACE_COLUMNS)
         for leg in self._legs:
@@ -282,8 +303,11 @@ class ParticlizeH5Writer:
         event reusing its background) only records the reference.  Without a pair writer
         pass ``bg_id=i``.  Extra keywords go to ``events/``.
         """
-        if self.f is None:
+        if self.f is None and not self.attrs:
             raise RuntimeError("ParticlizeH5Writer: call attach() after JetScape.Init()")
+        sink = self._sink is not None
+        rec = {"event": self._i, "jet": None, "bg": None, "bg_unit": None, "partons": None,
+               "initiators": None}
         k = self._i
         if i is not None and int(i) != k:
             raise ValueError(f"ParticlizeH5Writer: event index {i} but {k} events written; "
@@ -293,7 +317,10 @@ class ParticlizeH5Writer:
 
         if "jet" in self._legs:
             cells = _surface(self._jet)
-            self._surf["jet"].append({"cells": cells})
+            if sink:
+                rec["jet"] = cells
+            else:
+                self._surf["jet"].append({"cells": cells})
             row["n_cells_jet"] = len(cells)
             if not len(cells):
                 self._n_empty += 1
@@ -303,22 +330,29 @@ class ParticlizeH5Writer:
         if "bg" in self._legs:
             if bg_id != self._last_bg_id:
                 cells = _surface(self._bg)
-                self._surf["bg"].append({"cells": cells})
-                n = self._bg_ids.shape[0]
-                self._bg_ids.resize((n + 1,))
-                self._bg_ids[n] = bg_id
+                n = self._bg_unit + 1
+                if sink:
+                    rec["bg"] = cells
+                else:
+                    self._surf["bg"].append({"cells": cells})
+                    self._bg_ids.resize((n + 1,))
+                    self._bg_ids[n] = bg_id
                 self._bg_unit, self._last_bg_id = n, bg_id
                 self._n_cells_bg = len(cells)
                 if not len(cells):
                     warnings.warn(f"ParticlizeH5Writer: event {k}: {self._bg_id} handed "
                                   "over an empty surface for a new background",
                                   RuntimeWarning, stacklevel=2)
-            row["bg_unit"] = self._bg_unit
+            row["bg_unit"] = rec["bg_unit"] = self._bg_unit
             row["n_cells_bg"] = self._n_cells_bg
         if self._store_partons:
             rows = (np.zeros((0, len(FINAL_PARTON_COLUMNS))) if self._mgr is None
                     else np.asarray(self._mgr.final_partons_numpy(), dtype=np.float64))
-            self._partons.append({"data": rows})
+            rows = rows.reshape(-1, len(FINAL_PARTON_COLUMNS))
+            if sink:
+                rec["partons"] = rows
+            else:
+                self._partons.append({"data": rows})
             row["n_partons"] = len(rows)
             row["n_showers"] = int(len(np.unique(rows[:, 0]))) if len(rows) else 0
             ini = np.zeros((0, len(INITIATOR_COLUMNS)))
@@ -329,15 +363,24 @@ class ParticlizeH5Writer:
                     warnings.warn(f"ParticlizeH5Writer: event {k}: shower initiators not "
                                   f"captured ({exc}); stored as an empty unit",
                                   RuntimeWarning, stacklevel=2)
-            self._initiators.append({"data": ini})
+            if sink:
+                rec["initiators"] = np.asarray(ini, dtype=np.float64).reshape(
+                    -1, len(INITIATOR_COLUMNS))
+            else:
+                self._initiators.append({"data": ini})
         if bg_key is not None:
             row["bg_key"] = str(bg_key)
         row.update(diag)
-        self._events.append(k, row)
-
         self._i += 1
-        self.f.attrs["nevents"] = self.f.attrs["nevents_written"] = self._i
-        self.f.flush()
+        if sink:
+            rec["row"] = row
+            self._record = rec
+            self.attrs["nevents"] = self.attrs["nevents_written"] = self._i
+            self._sink(rec)
+        else:
+            self._events.append(k, row)
+            self.f.attrs["nevents"] = self.f.attrs["nevents_written"] = self._i
+            self.f.flush()
         if self._verbose:
             parts = [f"{leg} {row.get('n_cells_' + leg, 0)} cells" for leg in self._legs]
             if self._store_partons:
@@ -350,9 +393,14 @@ class ParticlizeH5Writer:
         """Add per-event scalars after :meth:`Exec` (e.g. seeds, wall time)."""
         if self.f is not None:
             self._events.set(i, scalars)
+        elif self._record is not None and self._record["event"] == int(i):
+            self._record["row"].update(scalars)
 
     def Finish(self, complete=None):
         """Close the file.  Idempotent."""
+        if self._sink is not None:
+            self.attrs["complete"] = bool(True if complete is None else complete)
+            return
         if self.f is None:
             return
         self.f.attrs["complete"] = bool(True if complete is None else complete)

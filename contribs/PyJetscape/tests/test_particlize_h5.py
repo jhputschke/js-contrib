@@ -118,6 +118,40 @@ def test_surfaces_partons_and_background_reuse(tmp_path):
         assert pf.f["surface/jet/cells"].dtype == np.float32
 
 
+def test_memory_sink_hands_over_what_the_file_stores(tmp_path):
+    # the same three events into a file and into a sink
+    plan = [(0, 5, 4, 3), (0, 6, 99, 0), (2, 2, 3, 2)]
+    recs = []
+    jet, bg, mgr = _Leg("MUSIC_2"), _Leg("MUSIC_1"), _Mgr()
+    ws = ParticlizeH5Writer(None, legs=("jet", "bg"), music_input="EOS_to_use 91\n",
+                            T_fo=0.15, sink=recs.append)
+    ws.attach(_JS(bg, jet), manager=mgr)
+    w, jet_f, bg_f, mgr_f = _writer(tmp_path)
+    for k, (bg_id, nj, nb, npart) in enumerate(plan):
+        for j, b, m in ((jet, bg, mgr), (jet_f, bg_f, mgr_f)):
+            j.cells, b.cells, m.rows = _cells(nj, k), _cells(nb, 10 + k), _partons(npart)
+        assert ws.Exec(k, bg_id=bg_id, E_droplets=1.5 * k) == w.Exec(k, bg_id=bg_id,
+                                                                     E_droplets=1.5 * k)
+    ws.write_events(2, wall_s=4.0)
+    ws.Finish()
+    w.Finish()
+    assert not (tmp_path / "None").exists() and ws.path is None
+    assert ws.attrs["music_input"] == "EOS_to_use 91\n" and ws.attrs["complete"]
+    assert len(ws.attrs["file_uuid"]) == 36 and ws.attrs["nevents_written"] == 3
+    assert [r["event"] for r in recs] == [0, 1, 2]
+    with ParticlizeFile(tmp_path / "p.h5") as pf:
+        for k, r in enumerate(recs):
+            np.testing.assert_array_equal(r["jet"], pf.surface("jet", k))
+            np.testing.assert_array_equal(r["partons"], pf.partons(k))
+            assert r["bg_unit"] == pf.events("bg_unit")[k] == r["row"]["bg_unit"]
+            assert r["row"]["n_partons"] == pf.events("n_partons")[k]
+        # a new background's cells only when it is new (event 1 reuses background 0)
+        np.testing.assert_array_equal(recs[0]["bg"], pf.surface_unit("bg", 0))
+        assert recs[1]["bg"] is None
+        np.testing.assert_array_equal(recs[2]["bg"], pf.surface_unit("bg", 1))
+    assert recs[2]["row"]["wall_s"] == 4.0 and recs[1]["row"]["E_droplets"] == 1.5
+
+
 def test_empty_surface_is_an_empty_unit(tmp_path):
     w, jet, bg, mgr = _writer(tmp_path, legs=("jet",))
     jet.cells = _cells(3, 1)

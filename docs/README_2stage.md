@@ -696,6 +696,45 @@ with `--correlated`; iSS Part C), so ~6–7 processes keep up with a stage 1 of 
 Stage 2 can also run next to stage 1 with `--follow`, but on a host-bound GPU machine its
 cores then come out of stage 1's rate.
 
+### Hadrons only: one job, no stage 2 (`--hadrons-only`)
+
+For campaigns with **little or no oversampling** (1–10 samples per jet event) the hadrons
+can be made in the GPU job itself, as O+O does: `run_prod_jet.py --hadrons-only` runs iSS on
+both legs and the Colorless jet hadronization in the job and writes **only hadron files**,
+no pair file, no particlize file, no stage 2
+([`PLAN_AuAu_hadrons_only.md`](Plans/PLAN_AuAu_hadrons_only.md)):
+
+```bash
+# Docker, inside the image as in §2: 4 jets per background, one sample per jet event
+./run_jobs.sh -j 8 --mps 60 45 0 /work/AuAu_ho --reuse 4 --hadrons-only
+# SLURM
+CAMPAIGN=AuAu_ho EXTRA_ARGS="--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 \
+  --parton-ymax 0.6 --hadrons-only" sbatch --array=0-19 utils/slurm_prod_array.sh
+```
+
+Per job: `<stem>_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5`, the undecayed bulk hadrons
+`<stem>_hadrons_{bulk_jet,bulk_bg}_primary.h5` (for SMASH later; `--keep-primaries 0`
+switches them off) and `<stem>.json`. The jet file also keeps the final partons
+(`partons/`), so the jets can be hadronized again later with `hadronize.py` on the jet file
+(`--check` replays it). Options are `hadronize.py`'s: `--oversample` (default 1),
+`--oversample-bg` (default `auto`, `per-pthat-bin` with `--pthat-bins`), `--n-frag`
+(default 1), `--keep-primaries N|all` (default all), `--correlated`, `--eta-max`,
+`--charged`, `--no-x`, `--hadron-keep-bits-p/-x`, `--hadronize-seed`.
+
+- **The same hadrons as two stages:** the hadron files equal `hadronize.py`'s on a
+  particlize run of the same seed, with the same options (`--seed-uuid` set to the job's
+  `source_uuid`), bit for bit, primaries included; the jet sample of a seed does not change.
+- **What is lost:** no surfaces are kept, so no new samples or other iSS settings later; the
+  bulk can only be re-decayed or sent through SMASH from its primaries. No hydro history
+  (no FNO training data). Jet-hadron positions for SMASH need hadronization points the
+  files do not have yet (PLAN_smash_ready_hadrons.md 2.2).
+- **Cost** (GB10, 4 events, `--reuse 2`, 3 samples): +2 s per job against `--particlize-only`
+  (iSS ~1–2 s per surface, the particlize file not written), +0.3 GB peak memory. Disk at
+  full precision: ~0.24 MB per sample and leg, the primaries ~0.16 MB; 3.8 MB per event in
+  all at 3 samples, against 132 MB per event for the particlize file.
+- **Reading:** `HadronFileReader` and `run_h5toROOT.py` take the hadron files alone (the
+  event record is in the jet files' `units/`).
+
 ---
 
 ## 4. A realistic campaign: pT̂ windows, several jets per background

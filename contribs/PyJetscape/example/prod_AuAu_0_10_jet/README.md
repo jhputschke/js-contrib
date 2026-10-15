@@ -429,6 +429,7 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--no-x` | store no positions `t, x, y, z`: ~60% of the bytes; readers give `x` as empty `(N, 0)` arrays (below) |
 | `--add-initiators` | only add `initiators/` (each event's shower-initiating partons, from the particlize file, or for an older one the pair file) to existing `bulk_jet` / `jet_frag` outputs, without hadronizing again: for files made before hadronize.py copied them. `--force` replaces an existing group |
 | `--no-initiators` | don't copy the initiators (by default they are copied from the particlize file, or for an older one from the pair file next to it) |
+| `--seed-uuid UUID` | derive the seeds from this uuid instead of the particlize file's: reproduces a `run_prod_jet.py --hadrons-only` job (its hadron files' `source_uuid`) from a particlize run of the same seed |
 | `--check [JET_FRAG]` | replay an existing `jet_frag` file (default: `<out-dir>/<stem>_hadrons_jet_frag.h5`) with the settings and seeds it records, and compare pid, pstat, p and x of every fragmentation; exit 1 on a difference. Writes nothing. See [Re-hadronizing the jets](#re-hadronizing-the-jets) |
 | `--keep-primaries N` | also write iSS's undecayed hadrons of the first N oversamples per unit, for SMASH later: `<stem>_hadrons_bulk_jet_primary.h5` and `<stem>_hadrons_bulk_bg_primary.h5` (tags `bulk_*_primary`, sample k = the undecayed form of sample k of the decayed file). Always full precision, with positions and without `--eta-max`/`--charged`/`--no-x`, which SMASH needs. The decayed hadrons are bit-identical with and without it. `--skip-complete` counts a tag complete only with its primary file (below) |
 
@@ -948,6 +949,73 @@ OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps --campaign pth10-40-y06 20 15 0 out_p
   the driver checks that PythiaGun reports the requested cut. Without `--parton-ymax`
   nothing is cut and the files are as before.
 
+### F. Hadrons only, one job (`--hadrons-only`)
+
+For campaigns with little or no oversampling: iSS on both legs and the jet hadronization run
+**in the production job**, which writes only hadron files -- no pair file, no particlize
+file, no stage 2 ([`PLAN_AuAu_hadrons_only.md`](../../../../docs/Plans/PLAN_AuAu_hadrons_only.md)).
+
+```bash
+python run_prod_jet.py --events 30 --seed 1 --reuse 3 --hadrons-only
+python run_prod_jet.py --events 30 --seed 1 --pthat-bins 10-20,20-30,30-40 --hadrons-only \
+       --oversample 5 --n-frag 5 --correlated
+./run_jobs.sh -j 8 --mps 60 45 0 out_ho --reuse 4 --hadrons-only
+```
+
+**Output per job:** `<stem>_hadrons_bulk_jet.h5`, `<stem>_hadrons_bulk_bg.h5`,
+`<stem>_hadrons_jet_frag.h5`, the undecayed bulk hadrons `<stem>_hadrons_bulk_jet_primary.h5`
+and `<stem>_hadrons_bulk_bg_primary.h5` (own files, for SMASH later), and `<stem>.json`.
+They are the files `hadronize.py` writes (`jetscape.hadrons_h5`), plus:
+- the **event record** in `units/` of the jet files (`bg_unit`, `bg_key`, the droplet
+  energies, the edge flags, `pthat_bin`/`pthat`/`event_weight` ...: the particlize file's
+  `events/`), and the run's settings as attributes (`hadrons_only`, `source_uuid` = the job's
+  file uuid, `music_input`, `hadronize_xml`, the `prod_*` provenance, the pT̂ windows' cross
+  sections);
+- **`partons/`** in the jet file: the final partons (float64), so the jets can be
+  hadronized again from the jet file alone: `hadronize.py <stem>_hadrons_jet_frag.h5 --check`
+  replays them, `--out-dir D --n-frag K --seed S` makes others. Only the production points:
+  `x_had = "none"` until the partons' hadronization points exist
+  ([`PLAN_smash_ready_hadrons.md`](../../../../docs/Plans/PLAN_smash_ready_hadrons.md) 2.2).
+
+| option | |
+|---|---|
+| `--hadrons-only` | the mode; refuses `--write-particlize`, `--particlize-only`, `--validate-inline` |
+| `--oversample N` | iSS samples per jet event (default 1) |
+| `--oversample-bg {N,auto,per-pthat-bin}` | per background (default `per-pthat-bin` with `--pthat-bins`, else `auto`: N × the jets per background), at most `--oversample-bg-max` (2000) |
+| `--n-frag K` | Colorless fragmentations per event (default 1) |
+| `--keep-primaries {N,all}` | the undecayed bulk hadrons of the first N samples (default `all`; `0`: no primary files) |
+| `--correlated` (`--correlated-block`) | correlated jet/background sampling, as `hadronize.py` |
+| `--eta-max`, `--charged`, `--no-x`, `--hadron-keep-bits-p/-x` | store less, as `hadronize.py`'s `--eta-max`, `--charged`, `--no-x`, `--keep-bits-p/-x` |
+| `--hadronize-seed S` | base seed of the hadronization (`hadronize.py --seed`, default 1) |
+| `--hadronize-xml FILE` | iSS and jet-hadronization settings (default `hadronize.xml`) |
+
+**The same as two stages, bit for bit.** The job runs `hadronize.py`'s per-unit code
+(`jetscape.hadronizer`), on the cells and partons the particlize writer would have stored
+(its memory sink), with `hadronize.py`'s seeds. iSS samples them directly
+(`core.soft_sample_cells`, X-SCAPE `SoftParticlization::SampleCells`), outside the event
+loop. Checked (4 events, `--reuse 2`, 3 samples, 2 fragmentations, GB10): every dataset of
+all five hadron files equals `hadronize.py --seed-uuid <the job's source_uuid> --oversample 3
+--oversample-bg auto --n-frag 2 --keep-primaries 1000` on a `--particlize-only` run of the
+same seed; `HadronFileReader` gives the same events, histograms and jet − background, and
+`run_h5toROOT.py` the same ROOT files (`wall_s` aside).
+
+**The jet sample of a seed is unchanged** (unlike `--validate-inline`): a task's ID fixes
+its random seed, and every task made shifts the IDs of all later ones, the per-event
+jet-loss clones among them. The iSS and Colorless modules are therefore made after
+`JetScape.Init`, outside the task list (their XML blocks added afterwards,
+`core.xml_add_user_blocks`), and the task counter is set back
+(`core.set_next_task_number`, X-SCAPE `JetScapeTaskSupport::SetNextTaskNumber`).
+
+**What it costs.** No surfaces are kept: no new samples or other iSS settings later; the
+bulk can only be re-decayed or sent through SMASH from its primaries. No hydro history. In
+the 4-event check: +1.9 s per job against `--particlize-only` (hadronization 6.2 s, the
+1 GB particlize file not written), peak memory 7.09 against 6.78 GB. Disk at full
+precision: ~0.24 MB per sample and leg, primaries ~0.16 MB; 15 MB for the 4 events against
+530 MB for the particlize file.
+
+**Reading.** `HadronFileReader` and `run_h5toROOT.py` take a directory of hadrons-only jobs
+as they take hadronized campaigns; there is no particlize file to pass.
+
 ### Planning numbers
 
 **With the current image** (`cu124-final_optim`; the 2026-10-14 `cu124-20261013-9e84450` is bit-identical for Au+Au; 2 × RTX 3090, the campaign setting with
@@ -1059,7 +1127,8 @@ processes keep up with a whole four-job GPU campaign.
 | `--late-dtau DT`, `--late-tau TAU` | MUSIC's time step from TAU on (the XML's `<late_delta_tau>` / `<late_tau_switch>`, 0.05 fm/c from 3 fm/c in the production XML; `--late-dtau 0`: a constant step, bit-identical to the same build's constant-step output). About half the MUSIC steps per leg; the freeze-out checks and the stored frames keep their 0.1 fm/c. Not bit-identical: the medium changes at 1e-3, the cell-level wake by ~5 % at sub-fm scales, so use **one setting per campaign**. DT must divide 0.1 fm/c into whole steps (0.05, 0.025). Needs MUSIC4GPU and X-SCAPE `final_optim`; older builds ignore the XML tags. See [MUSIC's late time step](#musics-late-time-step-default). |
 | `--music2-restart` (default) / `--no-music2-restart` | MUSIC_2 starts from MUSIC_1's saved state just before the first droplet can deposit, instead of recomputing the identical leading steps: −25 core-s per jet event, the same output. Off by itself with `--write-particlize jet` / `--surface jet` and on builds without it. See [MUSIC_2 from MUSIC_1's state](#music_2-from-music_1s-state-default). |
 | `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
-| `--hadronize-xml FILE` | Settings for `--validate-inline` (default `hadronize.xml`). |
+| `--hadronize-xml FILE` | Settings for `--validate-inline` and `--hadrons-only` (default `hadronize.xml`). |
+| `--hadrons-only` (+ `--oversample`, `--n-frag`, `--keep-primaries` ...) | Only hadron files, made in the job: no pair or particlize file, no stage 2. See [F](#f-hadrons-only-one-job---hadrons-only). |
 | `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface (`<freeze_out_surface>` in the first `<Hydro><MUSIC>` block, i.e. the background and the default, and in MUSIC_2's own block). On its own it produces nothing: only `--write-particlize` hands a surface to the framework and stores it, and it builds its legs itself. So a leg built but not stored costs ~3 s per MUSIC run (~6 s before MUSIC4GPU `5058545`) for no output, and the job warns about it. `none` (default) gives a bit-identical evolution. |
 
 The job XML always contains **one** hard process. The automatic task list would run every
@@ -1248,7 +1317,9 @@ The jets are hadronized here, from the particlize file's `partons/` (float64), n
 job, so a `jet_frag` file can be made again at any time: Au+Au needs no counterpart of
 O+O's `--store-hadronization-input` and `rehadronize_jets.py` (O+O's iColored
 hadronization takes the beam remnants, which exist only in the job). With `--tags jet_frag`
-and an `--out-dir` of its own:
+and an `--out-dir` of its own. A `--hadrons-only` job (F) keeps the partons in its jet file
+(`partons/`), so there the jet file itself is the input:
+`hadronize.py <stem>_hadrons_jet_frag.h5 --check`, or `--out-dir D` for other settings.
 
 | wanted | how |
 |---|---|

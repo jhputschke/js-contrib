@@ -13,6 +13,8 @@ run_hadronize.py counterpart for the ROOT export (root_export/README.md).
     ./run_h5toROOT.py out_had --dry-run                  # the plan only
 
 INPUTS are directories (their ``*_particlize.h5``), particlize or hadron files, or globs.
+run_prod_jet.py --hadrons-only jobs have no particlize file: their event record comes from
+the jet files' ``units/`` and attributes (``event_file``).
 
 Per production file ``<stem>``: ``<stem>_hadrons.root`` with
 
@@ -123,13 +125,30 @@ def parse_args(argv=None):
 
 
 # ── finding the inputs ─────────────────────────────────────────────────────────────
+def event_file(stem):
+    """The file with ``stem``'s event record: its particlize file, or for a run_prod_jet.py
+    --hadrons-only job its jet file (jet_frag, else bulk_jet); None if neither exists."""
+    from jetscape.hadrons_h5 import EVENT_RECORD_TAGS, _is_hadrons_only
+
+    if os.path.exists(f"{stem}_particlize.h5"):
+        return f"{stem}_particlize.h5"
+    for t in EVENT_RECORD_TAGS:
+        if _is_hadrons_only(f"{stem}_hadrons_{t}.h5"):
+            return f"{stem}_hadrons_{t}.h5"
+    return None
+
+
 def find_stems(inputs):
     """-> sorted production-file stems (paths without ``_particlize.h5``)."""
+    from jetscape.hadrons_h5 import EVENT_RECORD_TAGS
+
     suffixes = ("_particlize.h5",) + tuple(f"_hadrons_{t}.h5" for t in TAGS)
     paths = set()
     for item in inputs:
         if os.path.isdir(item):
             paths.update(glob.glob(os.path.join(item, "*_particlize.h5")))
+            for t in EVENT_RECORD_TAGS:                  # --hadrons-only jobs
+                paths.update(glob.glob(os.path.join(item, f"*_hadrons_{t}.h5")))
         elif any(c in item for c in "*?["):
             paths.update(glob.glob(item))
         elif os.path.exists(item):
@@ -140,7 +159,7 @@ def find_stems(inputs):
             if p.endswith(suf):
                 stems.add(os.path.abspath(p[:-len(suf)]))
                 break
-    return sorted(s for s in stems if os.path.exists(f"{s}_particlize.h5"))
+    return sorted(s for s in stems if event_file(s) is not None)
 
 
 def _complete(path):
@@ -156,8 +175,9 @@ def _complete(path):
 
 def input_state(stem, tags):
     """'ready', or why not."""
-    if not _complete(f"{stem}_particlize.h5"):
-        return "particlize incomplete"
+    if not _complete(event_file(stem)):
+        return "particlize incomplete" if event_file(stem).endswith("_particlize.h5") \
+            else "hadrons-only jet file incomplete"
     missing = [t for t in tags if not _complete(f"{stem}_hadrons_{t}.h5")]
     if missing:
         return "hadrons missing or incomplete: " + ", ".join(missing)
@@ -208,9 +228,18 @@ def event_table(stem, tags):
     from jetscape import h5_compression  # noqa: F401
     from jetscape.hadrons_h5 import INITIATOR_COLUMNS
 
-    with h5py.File(f"{stem}_particlize.h5", "r") as f:
-        ev = f["events"]
-        n = int(f.attrs.get("nevents_written", f.attrs.get("nevents")))
+    src = event_file(stem)
+    hadrons_only = not src.endswith("_particlize.h5")
+    with h5py.File(src, "r") as f:
+        if hadrons_only:
+            # the event record in the jet file's units/ (unit = event), without the
+            # per-unit columns of that file (its seed, samples, cells)
+            ev = {k: f["units"][k] for k in f["units"]
+                  if k not in ("unit", "seed", "n_samples", "n_cells")}
+            n = int(f.attrs.get("nunits_written", 0))
+        else:
+            ev = f["events"]
+            n = int(f.attrs.get("nevents_written", f.attrs.get("nevents")))
         cols = {}
         for k in ev:
             v = ev[k][:n]
@@ -254,7 +283,7 @@ def event_table(stem, tags):
         seed = dict(zip(units["unit"].tolist(), units["seed"].tolist()))
         cols[f"n_samples_{name}"] = np.array([n_s.get(int(u), 0) for u in key], np.int32)
         cols[f"seed_{name}"] = np.array([seed.get(int(u), -1) for u in key], np.int64)
-    if ini is None:
+    if ini is None and not hadrons_only:
         ini = _stored_initiators(stem, n, INITIATOR_COLUMNS)
     return cols, ini
 
@@ -344,11 +373,13 @@ def convert_stem(stem, out, settings):
     tmp = out + ".part"
     s = settings
     fmt, writer = s["format"], s["writer"]
-    part_attrs = _attrs(f"{stem}_particlize.h5")
+    src = event_file(stem)
+    part_attrs = _attrs(src)
+    part = src if src.endswith("_particlize.h5") else None   # --hadrons-only: none
     prov = {"producer": "js-contrib/contribs/PyJetscape example/prod_AuAu_0_10_jet/"
                         "run_h5toROOT.py",
             "created": time.strftime("%Y-%m-%d %H:%M:%S"), "stem": os.path.basename(stem),
-            "settings": s, "particlize": part_attrs,
+            "settings": s, "particlize": part_attrs, "event_record": os.path.basename(src),
             "hadrons": {t: _attrs(f"{stem}_hadrons_{t}.h5") for t in s["tags"]},
             "layout": "one entry per sample in bulk_jet, bulk_bg, jet_frag; jet_frag sample "
                       "k % n_samples_frag goes with bulk_jet sample k (JetEvents.jet_event); "
@@ -367,15 +398,13 @@ def convert_stem(stem, out, settings):
         fo["provenance"] = json.dumps(prov, default=str)
         if writer == "uproot":
             for t in s["tags"]:
-                cols = h2r.load_columns(f"{stem}_hadrons_{t}.h5", **loads,
-                                        particlize=f"{stem}_particlize.h5")
+                cols = h2r.load_columns(f"{stem}_hadrons_{t}.h5", **loads, particlize=part)
                 h2r.write_uproot_into(fo, cols, fmt=fmt)
                 stats["tags"][t] = {"samples": len(cols["soff"]) - 1, "hadrons": len(cols["pid"])}
                 del cols
     if writer == "root":
         for t in s["tags"]:
-            cols = h2r.load_columns(f"{stem}_hadrons_{t}.h5", **loads,
-                                        particlize=f"{stem}_particlize.h5")
+            cols = h2r.load_columns(f"{stem}_hadrons_{t}.h5", **loads, particlize=part)
             h2r.write_root(tmp, cols, fmt=fmt, bits_p=s["bits_p"], bits_x=s["bits_x"],
                            compression=s["compression"], update=True)
             stats["tags"][t] = {"samples": len(cols["soff"]) - 1, "hadrons": len(cols["pid"])}
@@ -444,7 +473,7 @@ def write_campaign(path, stems, outs, settings):
                            "window k with weight_mb[k] (mb per event); within one window "
                            "every event weighs the same. Oversamples are samples of their "
                            "event, not events."}
-    prov["campaigns"] = sorted({_attrs(f"{st}_particlize.h5").get("prod_campaign", "")
+    prov["campaigns"] = sorted({_attrs(event_file(st)).get("prod_campaign", "")
                                 for st in stems})
     fmt = settings["format"]
     tmp = path + ".part"
@@ -462,7 +491,7 @@ def campaign_path(a, stems):
         return None
     if a.campaign_file:
         return os.path.abspath(a.campaign_file)
-    names = sorted({str(_attrs(f"{s}_particlize.h5").get("prod_campaign", "")) for s in stems})
+    names = sorted({str(_attrs(event_file(s)).get("prod_campaign", "")) for s in stems})
     name = names[0] if len(names) == 1 and names[0] else "campaign"
     return os.path.join(a.out_dir or os.path.dirname(stems[0]), f"{name}_campaign.root")
 
@@ -487,7 +516,8 @@ def main(argv=None):
 
     stems = find_stems(a.inputs)
     if not stems:
-        sys.exit(f"run_h5toROOT.py: no particlize files in {a.inputs}")
+        sys.exit(f"run_h5toROOT.py: no particlize files (or --hadrons-only jet files) in "
+                 f"{a.inputs}")
     plan, done, skipped = [], [], {}
     for st in stems:
         out = out_path(st, a.out_dir)

@@ -10,7 +10,8 @@ REMOTE/SUB in the namespace; OUTBASE/seeds_used.tsv to REMOTE/seeds_used.tsv.
 
 A job is uploaded once its <stem>.json says it is complete (the test run_jobs.sh uses to skip
 it) and its files have not changed for --settle seconds: <stem>.h5 (pair), <stem>_particlize.h5,
-<stem>_hadrons_bulk_bg.h5 / _hadrons_jet_frag.h5 (when a job writes them, e.g. prod_OO_isr),
+<stem>_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5 and their *_primary.h5 (when a job writes them:
+prod_OO_isr, run_prod_jet.py --hadrons-only),
 <stem>.json, .log, .xml.  Events a driver skipped on purpose (events_skipped) count as done.  The upload is the tool's own (remote_transfer/js_osdf.py: the size the
 origin stores is checked, the CRC32C goes into the remote manifest).
 
@@ -64,7 +65,10 @@ STATE = "upload_state.json"
 FINAL = ".upload_final"
 VERIFY_DIR = ".upload_verify"
 SMALL = (".json", ".log", ".xml")
-HADRONS = ("_hadrons_bulk_bg.h5", "_hadrons_jet_frag.h5")       # written in the job (prod_OO_isr)
+# written in the job (prod_OO_isr, run_prod_jet.py --hadrons-only); the primaries with
+# --keep-primaries
+HADRONS = ("_hadrons_bulk_jet.h5", "_hadrons_bulk_bg.h5", "_hadrons_jet_frag.h5",
+           "_hadrons_bulk_jet_primary.h5", "_hadrons_bulk_bg_primary.h5")
 DELETE_KINDS = {"none": (), "pair": ("pair",), "all": ("pair", "particlize")}
 DIR_EXTRAS = ("run_jobs.campaign", "run_jobs.finished")
 

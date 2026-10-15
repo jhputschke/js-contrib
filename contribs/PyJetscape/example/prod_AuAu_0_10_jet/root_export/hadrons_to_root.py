@@ -55,8 +55,8 @@ def load_columns(path, *, with_x=True, eta_max=None, charged=False, particlize=N
     """A hadron file as flat columns: per sample (``soff``, ``event``, ``unit``, ``sample``,
     ``bg_unit``) and per hadron (``pid``, ``pstat``, ``E`` ... ``pz``, ``t`` ... ``z``).
     ``eta_max`` / ``charged`` drop hadrons; every sample keeps its entry.  ``bg_unit`` comes
-    from ``particlize`` (default: the file the hadron file names as its ``source``, next to
-    it)."""
+    from the file's own ``units/bg_unit`` (run_prod_jet.py --hadrons-only), else from
+    ``particlize`` (default: the file the hadron file names as its ``source``, next to it)."""
     import h5py
 
     from jetscape import h5_compression  # noqa: F401  (Blosc filter)
@@ -79,6 +79,8 @@ def load_columns(path, *, with_x=True, eta_max=None, charged=False, particlize=N
             "sample": (np.arange(len(so) - 1) - uo[sample_unit]).astype(np.int32)}
     if tag == "bulk_bg":
         cols["bg_unit"] = cols["unit"].copy()
+    elif "bg_unit" in units:            # run_prod_jet.py --hadrons-only: the event record
+        cols["bg_unit"] = units["bg_unit"].astype(np.int32)[sample_unit]
     else:
         cols["bg_unit"] = np.full(len(so) - 1, -1, np.int32)
         part = particlize or os.path.join(os.path.dirname(os.path.abspath(path)), source)
