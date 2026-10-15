@@ -342,6 +342,31 @@ Needs an offline driver that feeds the stored list to Pythia the way iColored do
   positions against the freeze-out surface (inside / on / outside), per p_T bin; with 2.4, the
   formation times against E/κ, and how often `maxTau` makes Pythia retry.
 
+### 2.7 What a later jet hadronization can and cannot change (no code; ½ h in the docs)
+
+With the final partons kept (Au+Au: the particlize file's `partons/`, or `partons/x_had` in a
+hadrons-only jet file, `PLAN_AuAu_hadrons_only.md`; O+O: `hadronization_input/`, 2.5), the jet
+hadronization can be redone at any time with:
+- another Pythia version or tune (e.g. ≥ 8.315 for 2.4), decays off, primaries for SMASH;
+- positions (2.2–2.3), the Lund formation time (2.4), other numbers of fragmentations or seeds.
+
+It **cannot** change:
+- **anything before the final partons:** Matter/LBT, the liquefier's absorption (`pstat` −11,
+  −17), recoils; the partons are fixed;
+- **the colour flow of Au+Au jets:** LBT assigns no colour tags (`PLAN_particlize_h5.md:179`),
+  so the stored `col`/`acol` are incomplete for Matter+LBT showers, which is why Au+Au uses
+  Colorless (`hadronize.xml:21`). A colour-based hadronization would have to start in LBT;
+- **medium-dependent hadronization without the surfaces:** Hybrid Hadronization samples thermal
+  partons from the hydro's hypersurface (`ThermalPartonSampler`, `HybridHadronization.cc:727–830`)
+  and moves partons to T_c with the hydro's temperatures. Offline it needs the stored surfaces
+  (a SurfaceReplay-like path, and the surface-based variant of 2.2), and our surface is at
+  T_fo = 0.15 GeV, not necessarily at HH's `hydro_Tc`. Not possible from hadrons-only Au+Au
+  files or O+O runs with `--no-particlize`.
+
+**Reproducing the original** needs the same seed (recorded, `units/seed`) and the **same Pythia
+version**: 2.1's writer records Pythia's version (`PYTHIA_VERSION_INTEGER` of the build, e.g. 8312) in every
+jet hadron file, next to the seeds.
+
 ## Part 3: SMASH as afterburner (a separate CPU step, later)
 
 The production keeps running as before (decayed hadrons from Parts 1 and 2, plus the

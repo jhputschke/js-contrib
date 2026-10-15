@@ -43,6 +43,9 @@ What it costs: no surfaces are kept, so **no new samples or other iSS settings l
 can only be re-decayed or sent through SMASH from its stored primaries. Fewer samples per event
 also means more events for the same statistics, which stage 1 pays for in GPU time; that is the
 trade-off of choosing this mode.
+The jet hadronization can still be redone from the stored partons, but not with models that
+need the medium (Hybrid Hadronization's thermal partons): see
+[`PLAN_smash_ready_hadrons.md`](PLAN_smash_ready_hadrons.md) 2.7.
 
 ## What exists
 
