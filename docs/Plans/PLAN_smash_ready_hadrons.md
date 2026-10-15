@@ -118,9 +118,8 @@ partons' `x_in` become Pythia's production vertices (`vProd`) and the hadrons ta
 2. **Fix the EOS 9 loss too?** The Breit–Wigner daughter masses (1.2) also open the UrQMD
    list's closed channels. That changes EOS 9 output (not bit-identical) and needs a version
    attribute, so files from before and after are told apart. Measure the loss first (1.0).
-3. **The jet-hadron position model** (2.3): the string's mean position (simple), or Hybrid
-   Hadronization's colour tracing (more exact, larger). And whether a hadron formation time is
-   added (2.4).
+3. **The jet-hadron formation time** (2.4): Pythia's Lund space-time picture of the string
+   breakups (`Fragmentation:setVertices`) on top of the positions of 2.3, or no formation time.
 
 ## Part 1: the bulk (iSS)
 
@@ -229,25 +228,60 @@ the parton's straight path**, plus at least `part_prop`. The same for the negati
 - Stored per parton next to its production point (O+O: in `hadronization_input/`, 2.5; Au+Au:
   computed in stage 2, no new stage-1 data).
 
-### 2.3 Hadron positions from the strings (1 day simple; 3–5 days with colour tracing)
+### 2.3 Hadron positions from the strings: Pythia's own (½–1 day)
 
-- **Simple:** each string hadron gets the momentum-weighted mean position of its string's
-  partons (after 2.2), its time likewise. Strings are known: the colorless module builds them
-  itself, iColored hands Pythia a colour-connected system.
-- **As Hybrid Hadronization:** `StringFragmentation:TraceColours = on`, each hadron traced to one
-  gluon, a segment (positions spread along it) or a junction; ported from
-  `set_spacetime_for_pythia_hadrons`. A hadron that can't be traced gets the string mean and is
-  counted, never (0, 0, 0, 0) silently.
-- Primaries and final hadrons both get positions; a decay product takes its mother's position
-  (Pythia's decay vertices are tiny at tau0Max = 10 mm/c, or use Pythia's `vProd` offsets).
-- The files record the model (`jet_positions`: `none` | `string_mean` | `colour_trace`).
+**Pythia already does it.** With `PartonVertex:setVertex = on`, `HadronLevel::next` calls
+`PartonVertex::vertexHadrons` after each string fragmentation (Pythia 8.316 source,
+`HadronLevel.cc:261`, `PartonVertex.cc:196–330`; the image has 8.312, which has the same
+settings):
+- **qq̄ strings and closed gluon loops:** the primary hadrons are taken in their order along
+  the string; each one's energy midpoint is located between the two partons whose energies span
+  it (a gluon counts half to each side), and the hadron gets the **energy-weighted interpolation
+  of those two partons' vertices** (`vProdAdd`);
+- **junction systems:** the same along each leg, the legs identified by their status (85, 86);
+- **a string that collapses to one hadron:** the midpoint of its end partons;
+- no random numbers are drawn, so the hadrons' momenta should stay exactly the same (to check).
 
-### 2.4 Formation time (decision only)
+That is Hybrid Hadronization's "spread along the string segments", done by Pythia from its own
+string record: no colour tracing of our own (`set_spacetime_for_pythia_hadrons`, ~600 lines),
+and nothing different for colorless and iColored.
 
-Placing a hadron where its partons are lets SMASH interact with it at once; a fast hadron
-forms much later in the string picture. Either a formation time per hadron in the file
-(e.g. from the string's breakup, or E/m² scaled), or left to SMASH's settings. Ask Hendrik Roch
-what JETSCAPE's rescattering study does.
+What the two modules need:
+- each input parton's `vProd` = its hadronization point of 2.2 (fm → mm, `Pythia8::FM2MM`);
+  today `ColorlessHadronization` sets only the beam remnants' `vProd(0,0,0,0)` (`:180`) and
+  iColored none. The remnants: at their partner's hadronization point, or the event's hard
+  vertex (a choice to record);
+- `PartonVertex:setVertex = on`: iColored can take it through `<LinesToRead>` (`:91–96`);
+  Colorless has no such hook, so a switch (`<JetHadronization><hadron_vertices>`, default off) in
+  both;
+- the hadron's `vProd()` (mm → fm) into the output's `x` instead of the zeros (Colorless `:324`, `:513`,
+  iColored `:273`), for the primaries and the final hadrons.
+
+Decay products get Pythia's decay vertices (`vDec` of the mother). In fm these are far away for
+anything not strongly decaying: π⁰ cτ ≈ 25 nm ≈ 2.5·10⁷ fm, D mesons ~0.1 mm ≈ 10¹¹ fm. That is
+most likely the e+A branch's "hadron formed at infinity" with decays on (not verified for its
+configuration). For SMASH only the primaries' positions matter (they decay in SMASH); the final
+hadrons' positions are bookkeeping and can store the decay vertex or the primary's position (a
+recorded choice). The files record the model (`jet_positions`: `none` | `pythia_parton_vertex`
+| `+lund_breakup`, 2.4).
+
+### 2.4 Formation time: Pythia's string breakup points (decision; ½ day)
+
+`Fragmentation:setVertices = on` adds the Lund-model space-time of the string breakups
+(`StringFragmentation::setHadronVertices`, `StringFragmentation.cc:1109–1590`): from the string's
+momenta and tension (`HadronVertex:kappa` = 1 GeV/fm) each breakup point gets a space-time
+position relative to the string's origin, the hadron is produced at the middle of its two
+breakups (`HadronVertex:mode` 0), with a Gaussian transverse smearing (`xySmear` 0.5 fm). A fast
+hadron then forms far out and late, roughly in proportion to its energy: a formation time from
+the model itself, added on top of the parton vertices of 2.3 (both add to `vProd`).
+
+Caveats:
+- the smearing draws random numbers, and a hadron with |τ| > `HadronVertex:maxTau` (40 fm) makes
+  Pythia redo the fragmentation: the hadrons themselves then differ from a run without it, not
+  only their positions;
+- the breakups are measured from the string's origin, here the hadronization point of 2.2: the
+  string is taken to form there;
+- whether JETSCAPE's rescattering study uses a formation time, and which: ask Hendrik Roch.
 
 ### 2.5 O+O: what is needed to redo the jet hadronization later (1 day)
 
@@ -264,9 +298,10 @@ Needs an offline driver that feeds the stored list to Pythia the way iColored do
 - `keep_primaries` on/off: the final jet hadrons bit-identical.
 - Redoing the O+O jet hadronization from `hadronization_input/` with the stored seed
   reproduces the in-job jet hadrons exactly.
-- Positions: every hadron has one; the distributions of hadronization points and hadron
-  positions against the freeze-out surface (inside / on / outside), per p_T bin; no hadron at
-  "infinity" (the e+A branch's problem).
+- Positions: every primary has one; `PartonVertex:setVertex` on/off gives the same momenta
+  (no random numbers in `vertexHadrons`); the distributions of hadronization points and hadron
+  positions against the freeze-out surface (inside / on / outside), per p_T bin; with 2.4, the
+  formation times against E/κ, and how often `maxTau` makes Pythia retry.
 
 ## Part 3: SMASH as afterburner (a separate CPU step, later)
 
@@ -408,10 +443,11 @@ need a rebuild (CI for amd64, see `utils/BuildContainerProd.md`).
 | **Part 1** | **6–8** |
 | 2.1 jet primaries | ½–1 |
 | 2.2 hadronization points | 1–2 |
-| 2.3 positions (simple / colour tracing) | 1 / 3–5 |
+| 2.3 positions (Pythia's parton vertices) | ½–1 |
+| 2.4 formation time (Pythia's breakups, if chosen) | ½ |
 | 2.5 O+O `hadronization_input/` + offline driver | 1–2 |
 | 2.6 validation | 1–2 |
-| **Part 2** | **4½–12** |
+| **Part 2** | **4½–8½** |
 | 3.0 SMASH timing | ½–1 |
 | 3.1 SMASH environment and image | 1 |
 | 3.2 converter | 1 |
@@ -442,9 +478,10 @@ production-scale validation runs.
 
 - Decisions 1–3 above.
 - Hybrid Hadronization's `hydro_Tc` default against our T_fo = 0.15 GeV.
-- How `ColoredHadronizationSinglet` (`cparker/eA-update`) gets hadron vertices out of Pythia
-  without `Fragmentation:setVertices`, and why some come out at infinity (Cameron Parker,
-  erickolbusz).
+- `ColoredHadronizationSinglet` (`cparker/eA-update`) sets the partons' `vProd` but neither
+  `PartonVertex:setVertex` nor `Fragmentation:setVertices` (none found on the branch), so its
+  primary hadrons should come out at (0,0,0,0) and the "infinity" ones from decay vertices: ask
+  Cameron Parker / erickolbusz whether that is what they see.
 - Whether conda-forge has Pythia 8.315 (for 3.1), or it is built from source in the image.
 - Whether X-SCAPE upstream wants 1.1–1.2 and 2.1–2.3 (they change shared modules): keep them
   behind switches that default to today's behaviour.
