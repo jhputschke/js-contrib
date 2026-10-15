@@ -454,6 +454,14 @@ def main() -> int:
     if a.bulk_hadrons < 0:
         sys.exit("run_prod_oo_isr.py: --bulk-hadrons must be >= 0")
     a.hadronize_xml = os.path.abspath(a.hadronize_xml)
+    if out_bulk and (_text(root, "Hydro/MUSIC/EOS") or "").strip() == "91":
+        # iSS (readindata.cpp) takes the SMASH hadron list for EOS 91 and leaves the
+        # decays to SMASH, which this does not run (as hadronize.py warns)
+        print("run_prod_oo_isr.py: WARNING -- MUSIC runs EOS 91 (SMASH hadron list): iSS "
+              "samples that list and does NOT decay the resonances (rho, omega, K*, Delta ... "
+              "stay in the bulk hadrons). Use EOS 9 for decayed hadrons"
+              + ("; with --no-particlize the surfaces are not kept to redo it."
+                 if a.no_particlize else "."), file=sys.stderr)
 
     mcg = root.find("IS/MCGlauber")
     system = (f"{_text(mcg, 'projectile')}+{_text(mcg, 'target')} "
