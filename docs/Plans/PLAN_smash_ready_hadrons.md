@@ -1,6 +1,6 @@
 <!-- Plan, written 2026-10-14. Status: not started. Branches to use: smash_ready in the iSS fork (from iSS_optim 98deaff), X-SCAPE (from contrib) and js-contrib (from main). -->
 
-# Plan: EOS 91 hadrons, and undecayed primaries for a later SMASH afterburner (Au+Au and O+O)
+# Plan: EOS 91 hadrons, undecayed primaries, and SMASH as a later afterburner (Au+Au and O+O)
 
 ## Goal
 
@@ -10,13 +10,16 @@
    them later, without a new hydro or particlization.
 3. **Jet primaries with positions.** The jet hadronization keeps its undecayed hadrons as well,
    and gives every jet hadron a space-time position, so the jet hadrons can go into SMASH too.
+4. **The infrastructure to run SMASH** on the stored primaries, as a separate step on CPU nodes
+   after the production, never inside the GPU jobs (too much CPU for them). Lower priority than
+   Parts 1 and 2, and done after them.
 
 For **Au+Au and O+O**, in every place where the hadronization runs (table in
 [Where it applies](#where-it-applies)). Part 1 is the bulk (goals 1 and 2), Part 2 the jet hadrons
-(goal 3).
+(goal 3), Part 3 the SMASH step (goal 4); Part 3 adds to Part 1, it does not replace it.
 
-Not in this plan: running SMASH (the converter, the runs, the analysis), and a hadrons-only
-mode for Au+Au ([Follow-ups](#follow-ups)).
+Not in this plan: SMASH campaigns and their analysis, and a hadrons-only mode for Au+Au
+([Follow-ups](#follow-ups)).
 
 ## What the code does today
 
@@ -265,6 +268,108 @@ Needs an offline driver that feeds the stored list to Pythia the way iColored do
   positions against the freeze-out surface (inside / on / outside), per p_T bin; no hadron at
   "infinity" (the e+A branch's problem).
 
+## Part 3: SMASH as afterburner (a separate CPU step, later)
+
+The production keeps running as before (decayed hadrons from Parts 1 and 2, plus the
+primaries). SMASH runs afterwards, on CPU nodes, on the stored primaries; its hadrons go into
+files of their own. Lower priority than Parts 1 and 2.
+
+### Two ways to run SMASH, and which one
+
+| | standalone SMASH (List modus) | X-SCAPE's `SmashWrapper` (`-DUSE_SMASH=ON`) |
+|---|---|---|
+| input | the stored primaries, converted to SMASH's OSCAR2013 list input | iSS's hadrons in the same JETSCAPE job (stage 2 on kept particlize files), or a new "hadron replay" module for stored primaries |
+| Pythia | SMASH 3.2.2 needs **exactly Pythia 8.315** (`find_package(Pythia 8.315 EXACT)`); standalone it brings its own, in its own environment | all of X-SCAPE has to link the same 8.315: PythiaGun, PythiaIsrGun and both jet hadronizations change (the images have **8.312**), so the jet production is no longer bit-identical to the existing campaigns |
+| production images | unchanged | SMASH in the build and runtime stages, both architectures |
+| code to write | converter there and back, driver | the compact iSS output leaves `Hadron_list_` empty, which `SmashWrapper` reads (`GatherAfterburnerHadrons`): read the compact arrays (or switch them off, ~8× the memory); a binding for the afterburner's hadrons (status 27, `SmashWrapper.cc:263–275`); the job XML |
+| jet hadrons | in the same list as the bulk sample | only with one bulk oversample (`Afterburner.cc`, `include_fragmentation_hadrons`) |
+
+**Standalone is the way for this plan:** it is a separate step anyway, it leaves the production
+images and their Pythia alone, and it works the same for files from both systems. The
+`SmashWrapper` route stays possible for a one-job stage 2 later, if the Pythia change is
+accepted for other reasons.
+
+### 3.0 Measure first (½–1 day)
+
+SMASH 3.2.2 standalone on a few converted samples: one central Au+Au background, one jet leg,
+one O+O event. Time and memory per SMASH event, at the planned `end_time`. This decides how many
+oversamples get a SMASH run (all 100–200, or 10–20) and how many CPU-hours a campaign needs.
+Also on the same samples, one thread each:
+- `smash-fast` (default settings), for its cell-list partner re-search (bit-identical) and
+  with `Lazy_Propagation` (not bit-identical); see 3.4;
+- `Delta_Time` 0.05 against 0.5 fm/c, and `End_Time` 1000 against ~200 fm/c.
+
+### 3.1 The SMASH environment (1 day)
+
+SMASH 3.2.2 with Pythia 8.315, Eigen3 and GSL, as a CPU-only image (`xscape-smash`, both
+architectures, built by CI like the production images) and as a conda environment for the
+workstations. The SMASH and Pythia versions go into every output file.
+
+### 3.2 Converter: hadron files → SMASH input (1 day)
+
+- One SMASH event per bulk oversample: `bulk_bg_primary` (O+O, and the Au+Au background) or
+  `bulk_jet_primary` (the Au+Au jet leg), OSCAR2013 (`t x y z mass E px py pz pdg id charge`).
+- Every pid checked against SMASH's `particles.txt` (`pdg-SMASH.dat` must belong to the same SMASH
+  version), the mass taken from the full-precision momenta (1.6) or set to the pole mass.
+- After Part 2: jet sample k added to bulk sample k, each particle's origin kept in the id
+  range, so the output can be split again.
+
+### 3.3 Driver and SLURM script (2 days)
+
+- `run_afterburner.py FILE|DIR [--samples N] [--end-time T] [--only-decays] [-j J]`: converts,
+  runs SMASH per sample (CPU parallel over samples), reads SMASH's output back and writes
+  `<stem>_hadrons_smash.h5` with groups `bulk_bg_smash`, `bulk_jet_smash` (and later the jet
+  hadrons) in the `hadrons_h5` layout, attributes: SMASH and Pythia version, the config, the
+  seed per sample (derived from the file's seed and the sample index, so a rerun is identical).
+- `utils/slurm_afterburner.sh`: one CPU task per stage-1 task directory, like
+  `slurm_hadronize.sh`; resumable (skips finished files).
+- `HadronFileReader` reads the new groups (½ day of it).
+
+### 3.4 SMASH settings (½ day)
+
+**What JETSCAPE and X-SCAPE run.** `external_packages/smash/smash_config.yaml` (the same in
+JETSCAPE `main`): List modus, `Time_Step_Mode: Fixed`; `SmashWrapper` sets `End_Time` and
+`Delta_Time` from the XML, which defaults to **`end_time` 1000 fm/c and `Delta_Time` 0.05 fm/c**
+(`jetscape_main.xml`), i.e. 20,000 time steps per event. Everything else is SMASH's default:
+one ensemble, no potentials, **`Strings: true`** (the default for every modus but Box). In
+JETSCAPE's [Default-tunes](https://github.com/JETSCAPE/Default-tunes), SMASH is in two
+configurations only, both with these defaults: arXiv:2011.01430 (`<SMASH>` with just its name)
+and arXiv:2510.06996 (`end_time` 1000, `only_decays` 0); the Pb+Pb and p+Pb tunes have no
+afterburner.
+
+Ours: the same physics settings (strings on, no potentials), `end_time` and `Delta_Time`
+chosen from 3.0's timing, the List-modus options for hadrons emitted at different times (as
+far as known, SMASH propagates them back and gives them a formation time; check for 3.2.2), the
+output (final particles only), `only_decays` as a switch.
+
+**What `smash-fast` (`jhputschke/smash-fast`) can do for these settings:**
+
+| its speed-up | applies to the afterburner? |
+|---|---|
+| ensembles in parallel (5.5–6.5× at 8 threads), strings in parallel | **no**: List modus refuses more than one ensemble (`listmodus.cc:92`) |
+| cell-parallel finding with one ensemble (3.9× at 8 threads) | **no with `Strings: true`**, which switches it off (`experiment.h:2729`). `Strings: false` would be a physics change here (high-√s hadron pairs, jet hadrons), unlike in its low-energy use; and performing stays serial |
+| mean field, GPU kernels | **no**: no potentials in the afterburner |
+| cell-list partner re-search (default, bit-identical, single thread) | **yes**: every non-stochastic collision run; it removes the O(N²) term of performing, 1.25–1.83× on its box tests (100–400 test particles); for thousands of hadrons in a central Au+Au event probably more, not measured |
+| `Lazy_Propagation` (opt-in, not bit-identical) | **yes**: 1.34–1.66× more on its box tests |
+
+With one ensemble and strings on, more OpenMP threads make `smash-fast` *slower* (a Pythia
+instance per thread, nothing to split). So: **one thread per SMASH process, and the samples in
+parallel as separate processes**, which is what 3.3 does. `smash-fast` is SMASH 3.3 with
+Pythia 8.316 (standalone, so no conflict), and its verification suite has no List-modus case
+yet: add one before using it.
+
+### 3.5 Validation (2 days)
+
+- **`only_decays` against iSS's decays (Part 1):** the same primaries decayed by SMASH and by
+  iSS; identified yields and spectra agree within SMASH's mass-dependent widths. A cross-check of
+  Part 1.2.
+- Energy, momentum and charge per event before and after SMASH; the same seed gives the same
+  output.
+- Full SMASH against none: the expected changes (baryon–antibaryon annihilation, resonance
+  regeneration, p_T broadening of protons), O+O and Au+Au.
+- For Au+Au: how much of the jet − background noise cancellation survives (see
+  [Follow-ups](#follow-ups)), on one campaign's worth of samples.
+
 ## Where it applies
 
 | | Au+Au | O+O |
@@ -273,6 +378,7 @@ Needs an offline driver that feeds the stored list to Pythia the way iColored do
 | **Part 1, bulk** | stage 2 (`hadronize.py`), on kept particlize files | in the job (`--bulk-hadrons`) or stage 2 on kept particlize files |
 | **Part 2, jet primaries** | stage 2 (`hadronize.py`, colorless) | **in the job only** (iColored), or offline from `hadronization_input/` once 2.5 exists |
 | **Part 2, positions** | stage 2, against the stored jet-leg surface | in the job, against the hydro |
+| **Part 3, SMASH** | separate CPU step after stage 2, on the primaries | separate CPU step after the job (in-job primaries) or after stage 2 |
 | redo later | everything, as long as the particlize files are kept | the bulk only with particlize files or with the bulk primaries; the jet hadrons only with 2.5 |
 
 **O+O with hadron files only** (`--no-particlize --no-hydro-file`) keeps nothing to redo the
@@ -286,6 +392,7 @@ write the bulk primaries in the job (1.6). And the jet hadrons need 2.5 to be re
 | iSS fork `jhputschke/iSS` | `smash_ready` (from `iSS_optim` 98deaff) | 1.1–1.4 |
 | X-SCAPE | `smash_ready` (from `contrib`) | the wrapper (1.5), `get_iSS.sh` pin, both jet modules (2.1–2.3, 2.5) |
 | js-contrib | `smash_ready` (from `main`) | binding, `hadronize.py`, `run_prod_*.py`, `hadrons_h5`, tests, docs |
+| js-contrib | later branch (Part 3) | converter, `run_afterburner.py`, `slurm_afterburner.sh`, the `xscape-smash` image and its CI |
 
 The iSS branch must be pushed before the X-SCAPE pin works for a fresh clone. Production images
 need a rebuild (CI for amd64, see `utils/BuildContainerProd.md`).
@@ -305,15 +412,23 @@ need a rebuild (CI for amd64, see `utils/BuildContainerProd.md`).
 | 2.5 O+O `hadronization_input/` + offline driver | 1–2 |
 | 2.6 validation | 1–2 |
 | **Part 2** | **4½–12** |
+| 3.0 SMASH timing | ½–1 |
+| 3.1 SMASH environment and image | 1 |
+| 3.2 converter | 1 |
+| 3.3 driver, SLURM script, reader | 2 |
+| 3.4 SMASH settings | ½ |
+| 3.5 validation | 2 |
+| **Part 3** | **7–7½** |
+
+The numbers are estimates of focused working days (writing, building, a small test run,
+fixing), about ±50 %. Not included: waiting on decisions, PR review, CI image builds,
+production-scale validation runs.
 
 ## Follow-ups
 
-- **SMASH on the stored primaries** (its own plan): a converter to SMASH's OSCAR2013 List
-  input (one SMASH event per oversample, jet sample k with bulk sample k), SMASH 3.2.2 as pinned
-  by `get_smash.sh`, and the way back to the hadron format. Check that every pid in the files
-  exists in SMASH's `particles.txt` with the same mass (`pdg-SMASH.dat` must match the version),
-  and how its List mode treats hadrons emitted at different times (back-propagation with
-  formation times). Time SMASH per central Au+Au event before planning a campaign.
+- **SMASH campaigns and their analysis**, with the infrastructure of Part 3.
+- **A faster SMASH for the afterburner:** of `smash-fast`'s speed-ups only the single-thread
+  ones apply (3.4). A List-modus verification case, then its time against SMASH 3.2.2 in 3.0.
 - **Au+Au's correlated sampling after SMASH** (expected, not measured): SMASH's rescattering
   diverges between the jet leg and the background as soon as they differ, so most of the
   noise cancellation of the jet − background subtraction is probably lost. O+O has one leg and
@@ -330,5 +445,6 @@ need a rebuild (CI for amd64, see `utils/BuildContainerProd.md`).
 - How `ColoredHadronizationSinglet` (`cparker/eA-update`) gets hadron vertices out of Pythia
   without `Fragmentation:setVertices`, and why some come out at infinity (Cameron Parker,
   erickolbusz).
+- Whether conda-forge has Pythia 8.315 (for 3.1), or it is built from source in the image.
 - Whether X-SCAPE upstream wants 1.1–1.2 and 2.1–2.3 (they change shared modules): keep them
   behind switches that default to today's behaviour.
