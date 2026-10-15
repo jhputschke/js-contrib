@@ -461,6 +461,44 @@ def add_inline_hadronization(root, hadronize_xml):
     root.append(soft)
 
 
+def configure_pythia_gun(a, pg) -> list:
+    """This job's settings in a <PythiaGun> block, in place: the pTHat range or windows, the
+    parton rapidity cut, the trigger and its cuts (a template's windows and cuts only with
+    the options).  Sets ``a.trigger_kind`` and ``a.min_partons`` (the block's <trigger>,
+    <minPartons>) -> the problems found.  Also run_prod_vacuum.py's."""
+    problems = []
+    if a.pthat_min is not None:
+        _set(pg, "pTHatMin", a.pthat_min)
+    if a.pthat_max is not None:
+        _set(pg, "pTHatMax", a.pthat_max)
+    if a.pthat_windows:
+        _set(pg, "pTHatBins", pthat_bins_text(a.pthat_windows))
+    elif pg.find("pTHatBins") is not None:
+        pg.remove(pg.find("pTHatBins"))          # a template's windows: only with --pthat-bins
+    if a.parton_ymax is not None:
+        _set(pg, "partonYMax", f"{a.parton_ymax:g}")
+        _set(pg, "partonYMode", a.parton_y_mode)
+    else:                                        # a template's cut: only with --parton-ymax
+        for tag in ("partonYMax", "partonYMode"):
+            if pg.find(tag) is not None:
+                pg.remove(pg.find(tag))
+    if a.trigger is not None:
+        _set_text(pg, "trigger", a.trigger)
+    for k, tag in TRIGGER_CUTS.items():
+        if getattr(a, k) is not None:
+            _set(pg, tag, f"{getattr(a, k):g}")
+        elif pg.find(tag) is not None:           # a template's cut: only with the option
+            pg.remove(pg.find(tag))
+    a.trigger_kind = _text(pg, "trigger") or "none"
+    a.min_partons = _text(pg, "minPartons")
+    if a.trigger_kind not in ("none", "Z"):
+        problems.append(f"<PythiaGun><trigger> is none or Z, not {a.trigger_kind!r}")
+    elif a.trigger_kind != "Z" and any(getattr(a, k) is not None for k in TRIGGER_CUTS):
+        problems.append("--trigger-ymax / --lepton-ptmin / --lepton-etamax need trigger Z "
+                        "(<trigger>Z</trigger> in <PythiaGun>, or --trigger Z)")
+    return problems
+
+
 def job_xml(a, out_h5: str):
     """Check the template, apply this job's settings, write it next to the output."""
     tree = ET.parse(a.user_xml)
@@ -485,35 +523,7 @@ def job_xml(a, out_h5: str):
         if pg is None:
             sys.exit(f"run_prod_jet.py: {a.user_xml} has no <Hard><PythiaGun>")
         hard.append(pg)
-        if a.pthat_min is not None:
-            _set(pg, "pTHatMin", a.pthat_min)
-        if a.pthat_max is not None:
-            _set(pg, "pTHatMax", a.pthat_max)
-        if a.pthat_windows:
-            _set(pg, "pTHatBins", pthat_bins_text(a.pthat_windows))
-        elif pg.find("pTHatBins") is not None:
-            pg.remove(pg.find("pTHatBins"))      # a template's windows: only with --pthat-bins
-        if a.parton_ymax is not None:
-            _set(pg, "partonYMax", f"{a.parton_ymax:g}")
-            _set(pg, "partonYMode", a.parton_y_mode)
-        else:                                    # a template's cut: only with --parton-ymax
-            for tag in ("partonYMax", "partonYMode"):
-                if pg.find(tag) is not None:
-                    pg.remove(pg.find(tag))
-        if a.trigger is not None:
-            _set_text(pg, "trigger", a.trigger)
-        for k, tag in TRIGGER_CUTS.items():
-            if getattr(a, k) is not None:
-                _set(pg, tag, f"{getattr(a, k):g}")
-            elif pg.find(tag) is not None:       # a template's cut: only with the option
-                pg.remove(pg.find(tag))
-        a.trigger_kind = _text(pg, "trigger") or "none"
-        a.min_partons = _text(pg, "minPartons")
-        if a.trigger_kind not in ("none", "Z"):
-            problems.append(f"<PythiaGun><trigger> is none or Z, not {a.trigger_kind!r}")
-        elif a.trigger_kind != "Z" and any(getattr(a, k) is not None for k in TRIGGER_CUTS):
-            problems.append("--trigger-ymax / --lepton-ptmin / --lepton-etamax need trigger Z "
-                            "(<trigger>Z</trigger> in <PythiaGun>, or --trigger Z)")
+        problems += configure_pythia_gun(a, pg)
     else:
         pgun = ET.SubElement(hard, "PGun")
         _set(pgun, "name", "PGun")

@@ -40,6 +40,12 @@ the plan below, found while implementing:
   6–7 (box) / 6 (A40) unless the benchmark says otherwise.
 - The templates are now `utils/zjet/` (launchers read the image's own `docs/PbPb_5020/` files;
   the 3090 smoke test is `./zjet_3090_campaign.sh 0 10`).
+- **Step 8 done:** `prod_AuAu_0_10_jet/run_prod_vacuum.py` takes the user XML's PythiaGun (through
+  `run_prod_jet.configure_pythia_gun`, so the windows, cuts and trigger are the medium job's) and
+  Matter with `<in_vac> 1`; Colorless as `--hadrons-only` (the same `jetscape.hadronizer` and seed
+  scheme), eCMforHadronization from the PythiaGun's eCM. ~0.02 s per Z+jet event with 4
+  fragmentations (GB10): 10k events in minutes. Per shower Matter conserves the energy exactly;
+  the 3-momentum moves by a median 1.2 % (its virtuality kinematics, the same code as in Pb+Pb).
 
 ## 1. The measurements to reproduce
 

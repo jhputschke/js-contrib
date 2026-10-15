@@ -51,6 +51,7 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `AuAu_MCGlauber_MUSIC_0_10_jet.xml` | user XML: the prod physics plus `Hard`, `Liquefier`, `Eloss` and a second `Hydro` (MUSIC_2) |
 | `run_prod_jet.py` | one job: one seed, N events, one `.h5` file |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
+| `run_prod_vacuum.py` | the pp (vacuum) reference: the user XML's PythiaGun (windows, cuts, trigger) and Matter in vacuum, no medium; Colorless `--n-frag` times per event → a `--hadrons-only`-style `jet_frag` file (eCMforHadronization from the PythiaGun's eCM) |
 | `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
 | `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
 | `add_initiators.py` | makes older particlize files (before 2026-10-01) self-contained: copies the shower initiators in from their pair files |

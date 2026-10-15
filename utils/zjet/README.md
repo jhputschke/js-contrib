@@ -62,5 +62,17 @@ SMASH list for EOS 91) and `grid_PbPb.yaml` (the Pb+Pb output grid, for the edge
 
 ## pp reference
 
-`run_prod_vacuum.py` (plan 5a step 8, not written yet), 10,000 events with the same XML and
-windows, no hydro: minutes on any machine; one file set `zjet_pp`.
+`contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_prod_vacuum.py` (plan 5a step 8): the same
+XML's PythiaGun and Matter in vacuum (`<in_vac> 1`, recoils off), no initial state, hydro, LBT or
+liquefier, Colorless with eCMforHadronization = the PythiaGun's eCM; ~0.02 s per event with
+4 fragmentations on the GB10, so 10,000 events take minutes on any machine (CPU only). With
+`D=/opt/X-SCAPE/external_packages/js-contrib/docs/PbPb_5020` inside the image:
+
+    python run_prod_vacuum.py --events 10000 --seed 900001 --campaign zjet_pp \
+      --user-xml $D/PbPb_0_10_ZJet.xml --pthat-bins 40-60,60-80,80-120,120-200 \
+      --parton-ymax 1.9 --trigger-ymax 2.4 --lepton-ptmin 20 --lepton-etamax 2.4 \
+      --n-frag 40 --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --outdir /data/zjet_pp
+
+One `<stem>_hadrons_jet_frag.h5` (attribute `vacuum`), read like the Pb+Pb jet files
+(`HadronFileReader`, `EventInfo.z`). Seeds of its own: the Pb+Pb campaigns' seeds would give the
+same Pythia events (fine for a paired comparison, not for statistics).
