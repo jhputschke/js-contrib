@@ -728,10 +728,14 @@ switches them off) and `<stem>.json`. The jet file also keeps the final partons
   bulk can only be re-decayed or sent through SMASH from its primaries. No hydro history
   (no FNO training data). Jet-hadron positions for SMASH need hadronization points the
   files do not have yet (PLAN_smash_ready_hadrons.md 2.2).
-- **Cost** (GB10, 4 events, `--reuse 2`, 3 samples): +2 s per job against `--particlize-only`
-  (iSS ~1–2 s per surface, the particlize file not written), +0.3 GB peak memory. Disk at
-  full precision: ~0.24 MB per sample and leg, the primaries ~0.16 MB; 3.8 MB per event in
-  all at 3 samples, against 132 MB per event for the particlize file.
+- **Cost** (GB10, 4 jobs through MPS, 4 × 30 events of the §4 layout): **~4 % fewer
+  events/h** than `--particlize-only` (937 against 977; hadronization ~2 s per event, the
+  particlize file not written), **+0.4 GB per job** (6.98 against 6.60 GB), **no stage 2**
+  (6.4 core-s per event at 400 samples). The same with 10 samples as with 1. **Disk**:
+  0.64 MB per event at the defaults (1 sample, primaries included), 5.4 MB at 10 samples,
+  against 92 MB (particlize) + 69 MB (stage-2 hadrons, 400 samples, rounded) = 160 MB per
+  event in two stages ([`PLAN_AuAu_hadrons_only.md`](Plans/PLAN_AuAu_hadrons_only.md),
+  *Production scale*).
 - **Reading:** `HadronFileReader` and `run_h5toROOT.py` take the hadron files alone (the
   event record is in the jet files' `units/`).
 

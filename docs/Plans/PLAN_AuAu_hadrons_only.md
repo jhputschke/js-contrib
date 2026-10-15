@@ -89,7 +89,24 @@ events); the jets' parton record ~0.9 kB per event.
   with the job's `--n-frag` into another directory: identical.
 - **Cost** (4 events): +1.9 s per job against `--particlize-only` (hadronization 6.2 s, the
   particlize file not written), peak memory 7.09 against 6.78 GB; files 15 MB against 530 MB.
-  Production-scale events/h and memory with 10 jobs per GPU not measured yet.
+- **Production scale** (GB10, 4 jobs sharing the GPU through MPS, `OMP_NUM_THREADS=5`, 4 ×
+  30 events of the c-campaign layout `--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5
+  --parton-ymax 0.6`, seeds 1-4 in every mode, 2026-10-15):
+
+  | | A: `--particlize-only` + stage 2 | B: `--hadrons-only` (defaults) | C: `--hadrons-only --oversample 10 --n-frag 10` |
+  |---|---|---|---|
+  | job wall (30 events) | 426 s | 444 s (+4.2 %) | 442 s (+3.8 %) |
+  | campaign (120 events) | 442 s: 977 events/h | 461 s: 937 events/h | 460 s: 939 events/h |
+  | hadronization in the job | — | 59 s per job (2.0 s per event) | 63 s per job |
+  | stage 2 | 763 core-s (6.4 per event; 400 samples, 50 fragmentations, `--keep-bits-p 12 --keep-bits-x 8`), 2.2 GB per process | none | none |
+  | peak memory per job | 6.60 GB | 6.98 GB (+0.38) | 6.95 GB |
+  | host memory, 4 jobs | +22.4 GB | +25.3 GB | +24.3 GB |
+  | disk per event | particlize 91.8 MB + hadrons 68.7 MB = 160 MB | 0.64 MB (0.39 without primaries) | 5.4 MB (3.2 without primaries) |
+
+  The hadronization costs ~2 s per event in the job, but the particlize file is no longer
+  written, so the job is only ~4 % slower; 10 samples cost the same as 1 (iSS's cost is per
+  surface). Disk scales with the samples: ~0.24 MB per sample and leg at full precision
+  (bulk_jet 0.258 MB per event at 1 sample, 2.41 MB at 10), primaries ~0.7 of that.
 - Tests: `tests/test_hadrons_only.py` (stub core), the sink test in `test_particlize_h5.py`;
   221 passed.
 

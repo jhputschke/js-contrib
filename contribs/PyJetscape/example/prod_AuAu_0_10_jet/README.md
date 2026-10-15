@@ -1007,11 +1007,14 @@ jet-loss clones among them. The iSS and Colorless modules are therefore made aft
 (`core.set_next_task_number`, X-SCAPE `JetScapeTaskSupport::SetNextTaskNumber`).
 
 **What it costs.** No surfaces are kept: no new samples or other iSS settings later; the
-bulk can only be re-decayed or sent through SMASH from its primaries. No hydro history. In
-the 4-event check: +1.9 s per job against `--particlize-only` (hadronization 6.2 s, the
-1 GB particlize file not written), peak memory 7.09 against 6.78 GB. Disk at full
-precision: ~0.24 MB per sample and leg, primaries ~0.16 MB; 15 MB for the 4 events against
-530 MB for the particlize file.
+bulk can only be re-decayed or sent through SMASH from its primaries. No hydro history.
+Measured on the GB10 (4 jobs through MPS, 4 × 30 events, `--pthat-bins 10-20,20-30,30-40
+--jets-per-bin 5 --parton-ymax 0.6`): 937 events/h against 977 with `--particlize-only`
+(−4 %; hadronization ~2 s per event, the particlize file not written), the same with 10
+samples; peak 6.98 against 6.60 GB per job; no stage 2 (6.4 core-s per event at 400
+samples). Disk: 0.64 MB per event at the defaults, 5.4 MB at 10 samples, against 160 MB
+(particlize + stage-2 hadrons) in two stages; ~0.24 MB per sample and leg at full precision,
+primaries ~0.7 of that.
 
 **Reading.** `HadronFileReader` and `run_h5toROOT.py` take a directory of hadrons-only jobs
 as they take hadronized campaigns; there is no particlize file to pass.
