@@ -241,7 +241,9 @@ def parse_args() -> argparse.Namespace:
     h.add_argument("--oversample-bg", default=None, dest="oversample_bg",
                    help="iSS samples per background: N, 'auto' (--oversample x the events "
                         "using it) or 'per-pthat-bin' (--oversample x --jets-per-bin). "
-                        "Default: per-pthat-bin with --pthat-bins, else auto")
+                        "Default: per-pthat-bin with --pthat-bins, else auto; with "
+                        "--correlated always --oversample (correlated sampling pairs the "
+                        "legs only for equal counts)")
     h.add_argument("--oversample-bg-max", type=int, default=None, dest="oversample_bg_max",
                    help="cap for --oversample-bg auto / per-pthat-bin (default 2000)")
     h.add_argument("--n-frag", type=int, default=None, dest="n_frag",
@@ -845,7 +847,16 @@ def check_hadrons_only(a) -> None:
     a.oversample = 1 if a.oversample is None else a.oversample
     a.n_frag = 1 if a.n_frag is None else a.n_frag
     a.oversample_bg_max = 2000 if a.oversample_bg_max is None else a.oversample_bg_max
-    if a.oversample_bg is None:
+    if a.correlated:
+        # iSS's correlated sampling pairs sample k of a jet leg with sample k of its
+        # background only when both draw the same number of samples: with more background
+        # samples the legs come out uncorrelated (hadronize.py refuses it too)
+        if a.oversample_bg is not None and str(a.oversample_bg) != str(a.oversample):
+            sys.exit(f"run_prod_jet.py: --correlated needs as many background samples as jet "
+                     f"samples (--oversample {a.oversample}): drop --oversample-bg "
+                     f"{a.oversample_bg}")
+        a.oversample_bg = str(a.oversample)
+    elif a.oversample_bg is None:
         a.oversample_bg = "per-pthat-bin" if a.pthat_windows else "auto"
     if str(a.oversample_bg).lower() == "per-pthat-bin" and not a.pthat_windows:
         sys.exit("run_prod_jet.py: --oversample-bg per-pthat-bin needs --pthat-bins")

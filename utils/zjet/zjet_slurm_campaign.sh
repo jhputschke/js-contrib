@@ -50,7 +50,7 @@ export EXTRA_ARGS=${EXTRA_ARGS:-"--user-xml $XML_DIR/PbPb_0_30_ZJet.xml \
   --grid $XML_DIR/grid_PbPb.yaml \
   --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4 --parton-ymax 1.9 \
   --lepton-ptmin 20 --lepton-etamax 2.5 \
-  --hadrons-only --oversample 40 --n-frag 40 --oversample-bg per-pthat-bin --correlated \
+  --hadrons-only --oversample 40 --n-frag 40 --correlated \
   --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0"}
 
 SCRIPT=${SCRIPT:-$HOME/js-contrib/utils/slurm_prod_array.sh}

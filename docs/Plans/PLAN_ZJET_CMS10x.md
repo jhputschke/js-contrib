@@ -54,6 +54,12 @@ the plan below, found while implementing:
   (standalone Pythia with the final selection; per-window table in `utils/zjet/README.md`); ATLAS's 15–30 GeV p_T^Z bin stays out (the Z + parton matrix element is
   not reliable at p̂T ≲ 20); **4 jets per window**: 24 events per background, 96-event jobs, 100
   jobs, 9,600 events per campaign, 96k in ten (16k per window, 400 backgrounds per campaign).
+- **Correlated sampling needs equal counts** (measured 2026-10-15): with `--oversample-bg
+  per-pthat-bin` (160 background samples against 40 per event) iSS sampled the background
+  uncorrelated with the jets, so the launchers no longer pass it; with `--correlated`,
+  `run_prod_jet.py --hadrons-only` now gives the background `--oversample` samples and
+  refuses any other `--oversample-bg` (as `hadronize.py` does). Paired wake errors are ~1.8×
+  smaller and the background's iSS time 4× lower.
 - **All the productions' XMLs and grid YAMLs** are in `contribs/PyJetscape/example/config/` since
   2026-10-15 (`docs/PbPb_5020/` is gone): one user XML per setup, the shared `hadronize.xml`.
 - **Memory:** a 4-event Pb+Pb Z+jet `--particlize-only` job peaked at **13.5 GB** on the GB10
@@ -131,7 +137,7 @@ which only events average; oversampling contributes the UE realizations for the 
 - **Layout:** `--pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4` (24 events
   per background), `--parton-ymax 1.9`, 96 events per job (4 backgrounds) → 1,000 jobs (2026-10-15;
   first planned: 4 windows from 40 GeV × 5 jets, 100-event jobs).
-- **Output:** `--hadrons-only --oversample 40 --n-frag 40 --oversample-bg per-pthat-bin --correlated
+- **Output:** `--hadrons-only --oversample 40 --n-frag 40 --correlated
   --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0`.
   Central Pb+Pb has ~2× the Au+Au multiplicity: ~7 MB/event → **~0.7 TB** for 4 M sampled full events.
   A 5k-event subset with `--write-particlize both` if hydro-level Z-jet wakes are wanted (~2 TB).
@@ -219,7 +225,7 @@ Both launchers pass the same `run_prod_jet.py` arguments (`$D` = the image's
 `contribs/PyJetscape/example/config`): `--user-xml $D/PbPb_0_30_ZJet.xml
 --grid $D/grid_PbPb.yaml --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4
 --parton-ymax 1.9 --lepton-ptmin 20 --lepton-etamax 2.5 --hadrons-only
---oversample 40 --n-frag 40 --oversample-bg per-pthat-bin --correlated --charged --eta-max 2.6 --no-x
+--oversample 40 --n-frag 40 --correlated --charged --eta-max 2.6 --no-x
 --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0`.
 **The container decides which mode runs.** With the step-9 image, `--hadrons-only` as above. With any
 current image (no `--hadrons-only`, but the Z+jet steps 1–6 would also be missing, so this is only the
