@@ -8,7 +8,7 @@
 #   ./run_jobs.sh 20 25 0 --campaign mb_a         # the same, named ./out/AuAu_0_10_mb_a_00NN.h5
 #   ./run_jobs.sh 20 25 1                         # seeds 1..20 -> ./out/AuAu_0_10_seed00NN.h5
 #   ./run_jobs.sh -j 4 --mps 20 25 0              # four at a time, sharing the GPU via CUDA MPS
-#   ./run_jobs.sh 20 25 0 out_eta2p5 --grid grid_x10_eta2p5.yaml
+#   ./run_jobs.sh 20 25 0 out_eta2p5 --grid ../config/grid_x10_eta2p5.yaml
 #
 # FIRST_SEED 0 (a campaign): every job draws its own seed from OS entropy (run_prod.py
 # --seed 0: 1..900000000, not in the seed registry OUTDIR/../seeds_used.tsv, recorded there,

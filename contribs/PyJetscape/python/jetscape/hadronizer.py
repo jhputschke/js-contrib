@@ -37,7 +37,7 @@ import numpy as np
 __all__ = ["TAGS", "TAG_INDEX", "SEED_SCHEMES", "PER_UNIT_OVERSAMPLE_BG", "HADRON_LIST",
            "KEEP_ALL_PRIMARIES", "unit_seed", "uuid_key", "samples_per_background",
            "iss_commit", "iss_decay_attrs", "tag_attrs", "configure_hadronize_xml",
-           "Hadronizer"]
+           "collision_ecm", "set_hadronization_ecm", "Hadronizer"]
 
 TAGS = ("bulk_jet", "bulk_bg", "jet_frag")
 TAG_INDEX = {t: k for k, t in enumerate(TAGS)}
@@ -131,6 +131,39 @@ def _set_text(parent, tag, value):
     if n is None:
         n = ET.SubElement(parent, tag)
     n.text = str(value)
+
+
+def collision_ecm(job_xml):
+    """The collision energy sqrt(s_NN) [GeV] of a production job's XML (its text, as the
+    files' ``prod_user_xml``, or a parsed root): <Hard><PythiaGun><eCM>, else <IS><MCGlauber>
+    <sqrts>; None without either (or without the XML)."""
+    import xml.etree.ElementTree as ET
+
+    if job_xml is None or isinstance(job_xml, (str, bytes)):
+        if not job_xml or not job_xml.strip():
+            return None
+        root = ET.fromstring(job_xml)
+    else:
+        root = job_xml
+    for path in ("Hard/PythiaGun/eCM", "IS/MCGlauber/sqrts"):
+        node = root.find(path)
+        if node is not None and node.text and node.text.strip():
+            return float(node.text)
+    return None
+
+
+def set_hadronization_ecm(root, ecm):
+    """Colorless's <JetHadronization><eCMforHadronization> in a parsed hadronize.xml
+    (``root``) set to ``ecm``, the collision's energy, in place: a beam remnant that closes a
+    string carries 1/6 of it, so one hadronize.xml serves every collision system.  -> the
+    value the file had (None if it had none).  ValueError without <JetHadronization>."""
+    had = root.find("JetHadronization")
+    if had is None:
+        raise ValueError("the hadronize XML has no <JetHadronization>")
+    node = had.find("eCMforHadronization")
+    was = None if node is None or node.text is None else node.text.strip()
+    _set_text(had, "eCMforHadronization", f"{float(ecm):g}")
+    return was
 
 
 def configure_hadronize_xml(root, *, xscape, seed, n_events, oversample, keep_primaries,

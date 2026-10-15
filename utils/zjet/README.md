@@ -11,10 +11,11 @@ so campaigns from Delta and from the 3090 box combine and never overlap.
 | `zjet_slurm_campaign.sh` | Delta: `C=<n> sbatch zjet_slurm_campaign.sh` (10 A40s, ~2.5 h) |
 | `zjet_3090_campaign.sh` | 3090 box: `IMAGE=… ./zjet_3090_campaign.sh <n>` (~9 h) |
 
-The inputs are the image's own `docs/PbPb_5020/` files, so they always match its code:
-`PbPb_0_10_ZJet.xml` (the Z+jet `<PythiaGun>`: Z + parton processes, Z → ee/μμ, `<trigger>Z`,
-`<minPartons>1`), `hadronize_5020.xml` (Colorless with `eCMforHadronization` 5020, iSS decaying the
-SMASH list for EOS 91) and `grid_PbPb.yaml` (the Pb+Pb output grid, for the edge flags).
+The inputs are the image's own `contribs/PyJetscape/example/config/` files, so they always match
+its code: `PbPb_0_10_ZJet.xml` (the Z+jet `<PythiaGun>`: Z + parton processes, Z → ee/μμ,
+`<trigger>Z`, `<minPartons>1`) and `grid_PbPb.yaml` (the Pb+Pb output grid, for the edge flags).
+The hadronization is the shared `config/hadronize.xml` (iSS decaying the SMASH list for EOS 91),
+with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no second XML.
 `XML_DIR=…` points the scripts at copies instead.
 
 ## Before campaign 0 (once)
@@ -25,11 +26,10 @@ SMASH list for EOS 91) and `grid_PbPb.yaml` (the Pb+Pb output grid, for the edge
    `apptainer pull xscape_prod_zjet.sif docker://jhputschke/xscape-prod@sha256:…` (Delta), `IMAGE=…`
    (box). Check: `BUILD_INFO.txt` lists the commits, `run_prod_jet.py --help` shows `--trigger`.
 2. `--dry-run` inside the image (no GPU work):
-   `python run_prod_jet.py --events 20 --seed 1 --user-xml $D/PbPb_0_10_ZJet.xml --hadronize-xml
-   $D/hadronize_5020.xml --grid $D/grid_PbPb.yaml --pthat-bins 40-60,60-80,80-120,120-200
-   --jets-per-bin 5 --trigger-ymax 2.4 --hadrons-only --dry-run` with
-   `D=/opt/X-SCAPE/external_packages/js-contrib/docs/PbPb_5020`: the plan line must say
-   `trigger Z (…)` and `EOS 91`.
+   `python run_prod_jet.py --events 20 --seed 1 --user-xml $D/PbPb_0_10_ZJet.xml
+   --grid $D/grid_PbPb.yaml --pthat-bins 40-60,60-80,80-120,120-200 --jets-per-bin 5
+   --trigger-ymax 2.4 --hadrons-only --dry-run` with
+   `D=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config`: the plan must say `trigger Z (…)`, `EOS 91` and `eCMforHadronization 5020`.
 3. LBT cache: one 1-event job writes `lbt_tables_v1_amd64.bin` (Delta `/work/hdd`) /
    `lbt_tables_v1.bin` (box).
 4. Benchmark (plan 5a step 10): 15 events/job at several jobs per GPU; set `P` / `JOBS_PER_GPU`
@@ -66,7 +66,7 @@ SMASH list for EOS 91) and `grid_PbPb.yaml` (the Pb+Pb output grid, for the edge
 XML's PythiaGun and Matter in vacuum (`<in_vac> 1`, recoils off), no initial state, hydro, LBT or
 liquefier, Colorless with eCMforHadronization = the PythiaGun's eCM; ~0.02 s per event with
 4 fragmentations on the GB10, so 10,000 events take minutes on any machine (CPU only). With
-`D=/opt/X-SCAPE/external_packages/js-contrib/docs/PbPb_5020` inside the image:
+`D=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config` inside the image:
 
     python run_prod_vacuum.py --events 10000 --seed 900001 --campaign zjet_pp \
       --user-xml $D/PbPb_0_10_ZJet.xml --pthat-bins 40-60,60-80,80-120,120-200 \

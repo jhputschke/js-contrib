@@ -9,7 +9,7 @@
 # The box must lie inside MUSIC's grid, which comes from <IS> in the XML: x, y in
 # [-15, 14.7] fm and eta_s in [-6, 5.8]; run_prod_oo_isr.py checks this before starting.
 #
-# See ../prod_AuAu_0_10/grid_fno.yaml for the tau settings.
+# See grid_fno.yaml for the tau settings.
 
 grid:
   x:   {min: -9.84375, max: 9.84375, n: 64}      # dx   = 0.3125 fm  (= 19.6875 / 63)

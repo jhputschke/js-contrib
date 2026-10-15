@@ -8,9 +8,9 @@ and resamples it onto an output grid you choose in a YAML file (default: the FNO
 
 | file | purpose |
 |---|---|
-| `AuAu_MCGlauber_MUSIC_0_10_fast.xml` | user XML: calibrated 3D-Glauber + MUSIC, hydro-only output settings |
-| `grid_fno.yaml` | default output grid: the FNO4d Au+Au grid (64 × 64 × 32 at 0.3875 fm × 0.3875 fm × 0.3125, τ from 0.5 in steps of 0.1) |
-| `grid_x10_eta2p5.yaml` | example: the same grid cut to \|η_s\| ≤ 2.5 (17 η cells, about half the storage) |
+| `../config/AuAu_MCGlauber_MUSIC_0_10_fast.xml` | user XML: calibrated 3D-Glauber + MUSIC, hydro-only output settings |
+| `../config/grid_fno.yaml` | default output grid: the FNO4d Au+Au grid (64 × 64 × 32 at 0.3875 fm × 0.3875 fm × 0.3125, τ from 0.5 in steps of 0.1) |
+| `../config/grid_x10_eta2p5.yaml` | example: the same grid cut to \|η_s\| ≤ 2.5 (17 η cells, about half the storage) |
 | `run_prod.py` | one job: one seed, N events, one `.h5` file |
 | `run_jobs.sh` | runs many jobs on one GPU (`-j P` at a time), one seed per job, and can resume |
 | `check_output.ipynb` | checks the `.h5` output: sanity scan, ε and flow vs τ, freeze-out times, x–y viewer |
@@ -31,7 +31,7 @@ python run_prod.py --events 1 --seed 1 --grid my_grid.yaml --dry-run   # check a
 ./run_jobs.sh -j 2 20 25 0                      # two jobs at a time (~1.7x throughput)
 ./run_jobs.sh -j 4 --mps 20 25 0                # four at a time, GPU shared via CUDA MPS
 ./run_jobs.sh 20 25 0 /data/AuAu_0_10           # into another directory
-./run_jobs.sh 20 25 0 out_eta2p5 --grid grid_x10_eta2p5.yaml
+./run_jobs.sh 20 25 0 out_eta2p5 --grid ../config/grid_x10_eta2p5.yaml
 ```
 
 You can launch it from any directory.

@@ -2,8 +2,9 @@
 <!-- Pb+Pb 5.02 TeV, 0-10 %, Z+jet: PbPb_0_10_jet.xml with the Z+jet <Hard><PythiaGun> block
      (PLAN_ZJET_CMS10x.md section 5a step 7; X-SCAPE PythiaGun with <trigger>, branch zjet).
      Everything else is PbPb_0_10_jet.xml's.
-     Use: run_prod_jet.py ... user-xml /xml/PbPb_0_10_ZJet.xml hadronize-xml
-     /xml/hadronize_5020.xml trigger-ymax 2.4 lepton-ptmin 20 lepton-etamax 2.4 -->
+     Use: run_prod_jet.py ... user-xml ../config/PbPb_0_10_ZJet.xml grid
+     ../config/grid_PbPb.yaml trigger-ymax 2.4 lepton-ptmin 20 lepton-etamax 2.4
+     (hadronization: ../config/hadronize.xml, eCMforHadronization from <eCM> below) -->
 
 <!-- Copyright (c) The JETSCAPE Collaboration, 2018 -->
 <!-- Modular, task-based framework for simulating all aspects of heavy-ion collisions -->
@@ -22,7 +23,7 @@
        -> Liquefier + Eloss (Matter + LBT)              droplets from the jet's energy loss
        -> MUSIC_2 (same strings + the droplets)         the jet leg
 
-  Derived from ../prod_AuAu_0_10/AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
+  Derived from AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
   grid, <Preequilibrium> and MUSIC physics settings are unchanged (b_max = 4.7 fm for 0-10%,
   T_fo = 0.15 GeV), except EOS 91 (the tunes' EOS; was 9 before 2026-10).  Changes:
 

@@ -30,15 +30,20 @@ the plan below, found while implementing:
 - **Acceptances** (standalone Pythia, 4,000 events per window): Z (|y_Z| < 2.4, leptons
   p_T > 20, |η| < 2.4) 0.56 / 0.59 / 0.62 / 0.66 for the four windows; with the leading parton
   |y| < 1.9 as well 0.45 / 0.50 / 0.53 / 0.61.
-- **Pb+Pb inputs were stale** (step 7): `docs/PbPb_5020/PbPb_0_10_jet.xml` still had EOS 9 and
-  `hadronize_5020.xml` predated smash_ready (no `decay_smash_list`, `keep_primaries`). Both remade
-  with README_2stage §9's recipe from today's Au+Au files (EOS 91); `PbPb_0_10_ZJet.xml` is the
-  jet XML with the Z+jet block. The launchers must also pass `--hadronize-xml hadronize_5020.xml`
-  (Colorless's beam remnant) and `--grid grid_PbPb.yaml` (edge flags); the templates did not.
+- **Pb+Pb inputs were stale** (step 7): `PbPb_0_10_jet.xml` still had EOS 9 and
+  `hadronize_5020.xml` predated smash_ready (no `decay_smash_list`, `keep_primaries`). The jet XML
+  is remade with README_2stage §9's recipe from today's Au+Au files (EOS 91);
+  `PbPb_0_10_ZJet.xml` is it with the Z+jet block. `hadronize_5020.xml` is gone: Colorless's
+  `eCMforHadronization` (the beam remnant) is now the job's `<PythiaGun><eCM>` everywhere
+  (`--hadrons-only`, `--validate-inline`, `hadronize.py` from the files' `prod_user_xml`, the
+  vacuum driver), so one `hadronize.xml` serves every system. The launchers must pass
+  `--grid grid_PbPb.yaml` (edge flags); the templates did not.
+- **All the productions' XMLs and grid YAMLs** are in `contribs/PyJetscape/example/config/` since
+  2026-10-15 (`docs/PbPb_5020/` is gone): one user XML per setup, the shared `hadronize.xml`.
 - **Memory:** a 4-event Pb+Pb Z+jet `--particlize-only` job peaked at **13.5 GB** on the GB10
   (§6 assumed 8–9 GB), and the jet leg's surface has 2.8 M cells. Fewer jobs per GPU than §6's
   6–7 (box) / 6 (A40) unless the benchmark says otherwise.
-- The templates are now `utils/zjet/` (launchers read the image's own `docs/PbPb_5020/` files;
+- The templates are now `utils/zjet/` (launchers read the image's own `example/config/` files;
   the 3090 smoke test is `./zjet_3090_campaign.sh 0 10`).
 - **Step 8 done:** `prod_AuAu_0_10_jet/run_prod_vacuum.py` takes the user XML's PythiaGun (through
   `run_prod_jet.configure_pythia_gun`, so the windows, cuts and trigger are the medium job's) and
@@ -89,7 +94,7 @@ which only events average; oversampling contributes the UE realizations for the 
 
 ## 3. Production setting
 
-- **System:** Pb+Pb 5.02 TeV, `docs/PbPb_5020/` inputs, 0–10 % (CMS: 0–30 %; ATLAS has 0–10 %). A 0–30 %
+- **System:** Pb+Pb 5.02 TeV, `example/config/PbPb_*` inputs, 0–10 % (CMS: 0–30 %; ATLAS has 0–10 %). A 0–30 %
   sample needs the Glauber b-range extended (not an option today).
 - **Hard process (Pythia inside PythiaGun; no X-SCAPE ISR module):** `HardQCD:all = off`,
   `WeakBosonAndParton:qqbar2gmZg = on`, `WeakBosonAndParton:qg2gmZq = on`, `WeakZ0:gmZmode = 2` (pure Z;
@@ -159,7 +164,7 @@ What exists and is reused: `<LinesToRead>` in the user XML (the Pythia process l
 configuration); PythiaGun's photon path (id 22 is accepted, Matter rejects it and passes it to the
 final list, `Matter.cc:300–313`); the `initiators/` record of every PythiaGun parton per event in the
 hadron and particlize files (`INITIATOR_COLUMNS`); `--user-xml`, `--pthat-bins`, `--jets-per-bin`,
-`--parton-ymax`, `--hadrons-only`; `docs/PbPb_5020/PbPb_0_10_jet.xml` (README_2stage §9).
+`--parton-ymax`, `--hadrons-only`; `example/config/PbPb_0_10_jet.xml` (README_2stage §9).
 
 | step | file | change | check |
 |---|---|---|---|
@@ -169,7 +174,7 @@ hadron and particlize files (`INITIATOR_COLUMNS`); `--user-xml`, `--pthat-bins`,
 | **4. Leptons are not partons downstream** | js-contrib `run_prod_jet.py`: the `--parton-ymax` / `--parton-y-mode leading` selection (`check_parton_ycut`, the leading-parton choice); the liquefier's parton list; `hadronizer` (`fragments`) | skip `\|id\| ∈ {11, 13, 22}` when choosing the leading parton, when building the droplet sources and when fragmenting (Colorless must not see leptons) | `droplets_total` and `E_dep` unchanged against a run where the leptons are removed by hand |
 | **5. The Z in the event record** | js-contrib `run_prod_jet.py` (the per-event record → `units/` and `events/`), `hadrons_h5.py` | add `z_pt, z_y, z_phi, z_m` and `lep_*` columns computed from the two lepton initiators (pdg ±11/±13 pair with the largest invariant mass if several); attribute `trigger = "Z"` | `HadronFileReader` returns the Z per event; `z_pt` ≈ p_T of the recoil system |
 | **6. Z acceptance pre-selection** | js-contrib `run_prod_jet.py`, next to `--parton-ymax` (events outside are regenerated before any shower or hydro) | `--trigger-ymax Y` (\|y_Z\| < Y), `--lepton-ptmin`, `--lepton-etamax`; CMS: 2.4 / 20 / 2.4 (ee 2.5) | the regeneration counter in the `.json`; the efficiency ≈ 0.65 for p̂T 60–80 |
-| **7. Pb+Pb Z+jet user XML** | `docs/PbPb_5020/PbPb_0_10_ZJet.xml` from `docs/PbPb_5020/PbPb_0_10_jet.xml` | the Z+jet `<PythiaGun>` block (+ `<trigger>Z`); `eCM 5020`; grid and η range covering \|η\| < 2.6 (hadrons) and \|η_jet\| < 1.9 | `--dry-run`; the edge flags of a 15-event test job |
+| **7. Pb+Pb Z+jet user XML** | `example/config/PbPb_0_10_ZJet.xml` from `example/config/PbPb_0_10_jet.xml` | the Z+jet `<PythiaGun>` block (+ `<trigger>Z`); `eCM 5020`; grid and η range covering \|η\| < 2.6 (hadrons) and \|η_jet\| < 1.9 | `--dry-run`; the edge flags of a 15-event test job |
 | **8. Vacuum (pp) driver** | js-contrib `prod_AuAu_0_10_jet/run_prod_vacuum.py` (new, ~150 lines) | PythiaGun → Matter in vacuum (`<Matter><in_vac>1`) → Colorless, no hydro, same hadron files (`jet_frag` + `initiators/` + Z columns) | R_jZ, ⟨x_jZ⟩ of 10k events against CMS pp |
 | **9. Image (mandatory)** | a new `xscape-prod` build (CI `workflow_dispatch`, as the test images were built from branch heads) from **X-SCAPE `auau_hadrons_only`** (+ steps 1–3), **js-contrib `auau_hadrons_only`** (+ steps 4–6), **iSS `smash_ready`**, MUSIC4GPU main | **`--hadrons-only` exists only in that image.** The current production images (`cu124-20261013-9e84450` and earlier) do not have it, and it cannot be added from outside: it needs X-SCAPE C++ (`SoftParticlization::SampleCells`, `SetNextTaskNumber`), rebuilt PyJetscape bindings (`soft_sample_cells`, `set_next_task_number`, `xml_add_user_blocks`) and the `smash_ready` iSS, not just Python. One image, digest pinned, for all ten campaigns and the Au+Au phases 2–3 | `BUILD_INFO.txt` lists the four commits; `run_prod_jet.py --help` shows `--hadrons-only`; the 4-event identity check of `PLAN_AuAu_hadrons_only.md` (hadrons-only ≡ particlize-only + `hadronize.py --seed-uuid`) passes in the image |
 | **10. Benchmark** | 3090 box, the XML of 7, QCD dijets or Z+jet at the four windows, 15 events/job, 6–7 jobs/GPU, `--hadrons-only` | events/h, VmHWM, droplets per event, edge flags | fixes `JOBS_PER_GPU` / `P` and the time estimate of §6 |
@@ -186,7 +191,7 @@ is ~10× CMS's Z count in every p_T^Z bin (≈ 1,600 Z's in acceptance per windo
 60–80), i.e. ~3× its precision; the ten together are the 100× / 10× of §2. A single CMS-equivalent
 (~1,000 events) is one campaign with `NJOBS=1` per task: the smoke test. Campaigns differ only in
 their seed range (`SEED_BASE = 1 + 1000 × c`), so any subset combines, and a bad campaign is redone
-alone. Launchers in `utils/zjet/` (the step-7 XML is `docs/PbPb_5020/PbPb_0_10_ZJet.xml`):
+alone. Launchers in `utils/zjet/` (the step-7 XML is `example/config/PbPb_0_10_ZJet.xml`):
 
 | file | what |
 |---|---|
@@ -195,7 +200,7 @@ alone. Launchers in `utils/zjet/` (the step-7 XML is `docs/PbPb_5020/PbPb_0_10_Z
 | `README.md` | the per-campaign checklist (dry run, `check_deposition.py`, upload) |
 
 Both launchers pass the same `run_prod_jet.py` arguments (`$D` = the image's
-`docs/PbPb_5020`): `--user-xml $D/PbPb_0_10_ZJet.xml --hadronize-xml $D/hadronize_5020.xml
+`contribs/PyJetscape/example/config`): `--user-xml $D/PbPb_0_10_ZJet.xml
 --grid $D/grid_PbPb.yaml --pthat-bins 40-60,60-80,80-120,120-200 --jets-per-bin 5
 --parton-ymax 1.9 --trigger-ymax 2.4 --lepton-ptmin 20 --lepton-etamax 2.4 --hadrons-only
 --oversample 40 --n-frag 40 --oversample-bg per-pthat-bin --correlated --charged --eta-max 2.6 --no-x

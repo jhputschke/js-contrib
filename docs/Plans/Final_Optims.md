@@ -289,7 +289,7 @@ own (e, u) as fallback) and the solver is now cheap. `ncu` on the GB10 would sti
 ### The Au+Au MUSIC grid cannot shrink (unlike O+O's)
 
 MUSIC's own grid is set in the XML (`<IS><grid_max_x/y> 15`, `<grid_step> 0.3`: 100 × 100 × 60
-cells, as the profiled job logged). The FNO output grid (`prod_AuAu_0_10/grid_fno.yaml`, the
+cells, as the profiled job logged). The FNO output grid (`example/config/grid_fno.yaml`, the
 default of `run_prod_jet.py --grid`) does not change it: it is the resampling grid of the stored
 frames, and the driver only checks that it lies inside MUSIC's grid. Its cell centres are at
 ±12.21 fm (64 × 0.3875 fm, cell edges at ±12.4 fm), only 2.5 fm inside MUSIC's ±15 fm boundary,

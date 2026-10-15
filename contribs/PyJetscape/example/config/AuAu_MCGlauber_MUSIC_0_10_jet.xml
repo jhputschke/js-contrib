@@ -1,11 +1,4 @@
 <?xml version="1.0"?>
-<!-- Pb+Pb 5.02 TeV, 0-10 % (b < 4.95 fm): the reference copy of prod_AuAu_0_10_jet's
-     AuAu_MCGlauber_MUSIC_0_10_jet.xml made with the sed recipe of docs/README_2stage.md
-     section 9 (8 lines: Pb nuclei, sqrts 5020, b_max 4.95, MUSIC's grid +-20 fm x +-8, Pythia
-     eCM 5020).  One event run with it on 2026-10-13 (README_2stage.md section 9); remade on
-     2026-10-15 from the EOS 91 template (smash_ready).  Everything else, including the
-     comments below, is the Au+Au 200 GeV template's: not tuned at the LHC.
-     Use: run_prod_jet.py ... user-xml /xml/PbPb_0_10_jet.xml -->
 
 <!-- Copyright (c) The JETSCAPE Collaboration, 2018 -->
 <!-- Modular, task-based framework for simulating all aspects of heavy-ion collisions -->
@@ -24,7 +17,7 @@
        -> Liquefier + Eloss (Matter + LBT)              droplets from the jet's energy loss
        -> MUSIC_2 (same strings + the droplets)         the jet leg
 
-  Derived from ../prod_AuAu_0_10/AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
+  Derived from AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
   grid, <Preequilibrium> and MUSIC physics settings are unchanged (b_max = 4.7 fm for 0-10%,
   T_fo = 0.15 GeV), except EOS 91 (the tunes' EOS; was 9 before 2026-10).  Changes:
 
@@ -110,9 +103,9 @@
       <!--1: PythiaISR setup (needs 2 step MCGlauber initialization)-->
       <generateOnlyPositions>0</generateOnlyPositions>
       <!--Collision system definitions-->
-      <projectile>Pb</projectile> <!--Projectile name-->
-      <target>Pb</target> <!--Target name-->
-      <sqrts>5020</sqrts> <!--Center of mass energy in GeV-->
+      <projectile>Au</projectile> <!--Projectile name-->
+      <target>Au</target> <!--Target name-->
+      <sqrts>200</sqrts> <!--Center of mass energy in GeV-->
       <!--0-10% IS SELECTED HERE, ON b.  Inside X-SCAPE the centrality cut below does nothing:
           MCGlauberWrapper::ExecuteTask calls EventGenerator::generate_pre_events(), which samples
           b on [b_min, b_max] (P(b) ~ b) and requires only Npart > 1.  The cut on cenMin/cenMax
@@ -121,7 +114,7 @@
           4.7 fm is the geometric 0-10% (pi b^2 = 0.1 sigma_AuAu, ~690 fm^2), the same range
           make_bulk_comparison_data.py gives FastHydro.-->
       <b_min>0.0</b_min> <!--Minimum impact parameter in fm-->
-      <b_max>4.95</b_max> <!--Maximum impact parameter in fm-->
+      <b_max>4.7</b_max> <!--Maximum impact parameter in fm-->
       <cenMin>0.0</cenMin> <!--Minimum centrality in %  (ignored inside X-SCAPE, see above)-->
       <cenMax>10.0</cenMax> <!--Maximum centrality in % (ignored inside X-SCAPE, see above)-->
       <nucleon_configuration_from_file>0</nucleon_configuration_from_file> <!--0: generate nucleon configuration, 1: read from file-->
@@ -158,9 +151,9 @@
       <tau_form_fluct_gamma_beta>1.0</tau_form_fluct_gamma_beta> <!--Fluctuation parameter for the gamma distribution-->
     </MCGlauber>
 
-    <grid_max_x> 20 </grid_max_x>
-    <grid_max_y> 20 </grid_max_y>
-    <grid_max_z> 8  </grid_max_z>
+    <grid_max_x> 15 </grid_max_x>
+    <grid_max_y> 15 </grid_max_y>
+    <grid_max_z> 6  </grid_max_z>
     <grid_step_x> 0.3 </grid_step_x>
     <grid_step_y> 0.3 </grid_step_y>
     <grid_step_z> 0.2 </grid_step_z>
@@ -175,7 +168,7 @@
       <FSR_on>0</FSR_on>
       <pTHatMin>50</pTHatMin>
       <pTHatMax>70</pTHatMax>
-      <eCM>5020</eCM>
+      <eCM>200</eCM>
       <softMomentumCutoff>2.0</softMomentumCutoff>
       <LinesToRead>
         HardQCD:all = on

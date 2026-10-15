@@ -48,7 +48,7 @@ same initial condition, and before the first droplet deposits they are bit-ident
 
 | file | purpose |
 |---|---|
-| `AuAu_MCGlauber_MUSIC_0_10_jet.xml` | user XML: the prod physics plus `Hard`, `Liquefier`, `Eloss` and a second `Hydro` (MUSIC_2) |
+| `../config/AuAu_MCGlauber_MUSIC_0_10_jet.xml` | user XML: the prod physics plus `Hard`, `Liquefier`, `Eloss` and a second `Hydro` (MUSIC_2) |
 | `run_prod_jet.py` | one job: one seed, N events, one `.h5` file |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `run_prod_vacuum.py` | the pp (vacuum) reference: the user XML's PythiaGun (windows, cuts, trigger) and Matter in vacuum, no medium; Colorless `--n-frag` times per event → a `--hadrons-only`-style `jet_frag` file (eCMforHadronization from the PythiaGun's eCM) |
@@ -56,7 +56,7 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
 | `add_initiators.py` | makes older particlize files (before 2026-10-01) self-contained: copies the shower initiators in from their pair files |
 | `paired_noise.py` | noise of jet − background per oversample, independent vs correlated legs (`--correlated`), and each leg's physics in both modes ([`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md), Part B) |
-| `hadronize.xml` | the iSS and jet-hadronization settings (used by `hadronize.py` and `--validate-inline`) |
+| `../config/hadronize.xml` | the iSS and jet-hadronization settings of every system (used by `hadronize.py`, `--hadrons-only`, `--validate-inline` and `run_prod_vacuum.py`; `eCMforHadronization` is always set to the job's collision energy) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
 
 Design notes and measurements are in [js-contrib `docs/`](../../../../docs/README.md): the hadron-level path
@@ -65,7 +65,7 @@ jet/background sampling ([`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_o
 settings ([`BENCHMARK_GB10.md`](../../../../docs/BENCHMARK_GB10.md),
 [`BENCHMARK_M3MAX.md`](../../../../docs/BENCHMARK_M3MAX.md)).
 
-The grid YAMLs (`../prod_AuAu_0_10/grid_fno.yaml` by default) and all grid and environment
+The grid YAMLs (`../config/grid_fno.yaml` by default) and all grid and environment
 checks are shared with the single-leg production. Pair files and single-leg files made with
 the same YAML have the same spatial grid.
 

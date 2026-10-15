@@ -97,7 +97,7 @@ def test_helpers_are_hadronize_py_s():
 
 
 def test_configure_hadronize_xml():
-    root = ET.parse(EXAMPLE / "hadronize.xml").getroot()
+    root = ET.parse(EXAMPLE.parent / "config" / "hadronize.xml").getroot()
     hz.configure_hadronize_xml(root, xscape="/xs", seed=7, n_events=0, oversample=3,
                                keep_primaries=hz.KEEP_ALL_PRIMARIES, correlated=True,
                                correlated_block="0.25,0.5,0.75")

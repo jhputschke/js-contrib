@@ -20,13 +20,13 @@ grid YAMLs, grid checks and environment checks this reuses.
                                      # one background per 3 jets, one in each pTHat window
     python run_prod_jet.py --events 30 --seed 1 --pthat-bins 10-20,20-30,30-40 --parton-ymax 0.6
                                      # only events whose hardest parton has |y| < 0.6
-    python run_prod_jet.py --events 20 --seed 1 --user-xml $D/PbPb_0_10_ZJet.xml \
-        --hadronize-xml $D/hadronize_5020.xml --grid $D/grid_PbPb.yaml \
-        --pthat-bins 40-60,60-80,80-120,120-200 --jets-per-bin 5 --parton-ymax 1.9 \
-        --trigger-ymax 2.4 --lepton-ptmin 20 --lepton-etamax 2.4 --hadrons-only
-                                     # Pb+Pb Z+jet (D = js-contrib's docs/PbPb_5020; the
-                                     #   XML's PythiaGun has <trigger>Z): the Z's leptons
-                                     #   pass through like photons, the Z per event
+    python run_prod_jet.py --events 20 --seed 1 --user-xml ../config/PbPb_0_10_ZJet.xml \
+        --grid ../config/grid_PbPb.yaml --pthat-bins 40-60,60-80,80-120,120-200 \
+        --jets-per-bin 5 --parton-ymax 1.9 --trigger-ymax 2.4 --lepton-ptmin 20 \
+        --lepton-etamax 2.4 --hadrons-only
+                                     # Pb+Pb Z+jet (the XML's PythiaGun has <trigger>Z): the
+                                     #   Z's leptons pass through like photons, the Z per
+                                     #   event
     python run_prod_jet.py --events 10 --seed 1 --surface jet    # surface for the jet leg only
     python run_prod_jet.py --events 10 --seed 1 --write-particlize both
                                      # + <stem>_particlize.h5: both surfaces and the final
@@ -69,8 +69,9 @@ _spec = importlib.util.spec_from_file_location("_run_prod", os.path.join(PROD, "
 rp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rp)
 
-USER_XML = os.path.join(HERE, "AuAu_MCGlauber_MUSIC_0_10_jet.xml")
-GRID_YAML = os.path.join(PROD, "grid_fno.yaml")
+USER_XML = os.path.join(rp.CONFIG, "AuAu_MCGlauber_MUSIC_0_10_jet.xml")
+GRID_YAML = os.path.join(rp.CONFIG, "grid_fno.yaml")
+HADRONIZE_XML = os.path.join(rp.CONFIG, "hadronize.xml")
 BG_ID, JET_ID = "MUSIC_1", "MUSIC_2"
 
 HARD_VERTEX = {
@@ -85,7 +86,7 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", type=int, default=10, help="events in this job (default 10)")
     p.add_argument("--grid", default=GRID_YAML,
-                   help="output grid YAML (default: ../prod_AuAu_0_10/grid_fno.yaml)")
+                   help="output grid YAML (default: ../config/grid_fno.yaml)")
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
                    help="output directory (default: ./out next to this script)")
     p.add_argument("--out", default=None,
@@ -96,7 +97,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
-                   help="template user XML (default: the one in this folder)")
+                   help="template user XML (default: ../config/"
+                        "AuAu_MCGlauber_MUSIC_0_10_jet.xml)")
     p.add_argument("--native", action="store_true",
                    help="write MUSIC's own grid for both legs instead of the YAML's")
     p.add_argument("--edge-e-threshold", type=float, default=None, dest="edge_e_threshold",
@@ -219,10 +221,11 @@ def parse_args() -> argparse.Namespace:
                         "Pythia reseeded per event) and store their hadrons and seeds in "
                         "<stem>_inline_{bulk_jet,jet_frag}.h5, to compare with hadronize.py "
                         "--use-stored-seeds. Needs --write-particlize")
-    p.add_argument("--hadronize-xml", default=os.path.join(HERE, "hadronize.xml"),
+    p.add_argument("--hadronize-xml", default=HADRONIZE_XML,
                    dest="hadronize_xml",
-                   help="iSS / JetHadronization settings for --validate-inline (default: "
-                        "hadronize.xml next to this script)")
+                   help="iSS / JetHadronization settings for --validate-inline and "
+                        "--hadrons-only (default: ../config/hadronize.xml; "
+                        "eCMforHadronization is always the job's collision energy)")
     h = p.add_argument_group(
         "hadrons only", "--hadrons-only: iSS on both legs and Colorless on the final partons "
         "in this job, exactly as hadronize.py would from this job's particlize file (the same "
@@ -447,12 +450,19 @@ def add_inline_hadronization(root, hadronize_xml):
     same settings.  iSS samples the jet leg (hydro_id MUSIC_2) and reads the job's own
     music_input (iSS_working_path "."); Pythia is reseeded every event so each event's jet
     fragments can be reproduced alone.  '../' paths are made absolute with the main XML's.
+    eCMforHadronization is the job's collision energy (jetscape.hadronizer.collision_ecm), as
+    hadronize.py sets it from the stored job XML.
     """
+    from jetscape import hadronizer as hz
+
     src = ET.parse(hadronize_xml).getroot()
     soft, had = src.find("SoftParticlization"), src.find("JetHadronization")
     if soft is None or had is None:
         sys.exit(f"run_prod_jet.py: {hadronize_xml} needs <SoftParticlization> and "
                  "<JetHadronization>")
+    ecm = hz.collision_ecm(root)
+    if ecm:
+        hz.set_hadronization_ecm(src, ecm)
     soft, had = copy.deepcopy(soft), copy.deepcopy(had)
     _set_text(soft, "hydro_id", JET_ID)          # compared verbatim with the module id
     _set_text(soft.find("iSS"), "iSS_working_path", ".")
@@ -837,9 +847,10 @@ def check_hadrons_only(a) -> None:
 
 
 def hadronize_xml_for_job(a):
-    """--hadrons-only: hadronize.xml with this job's settings -> (its text, recorded as the
-    hadron files' hadronize_xml, and the <SoftParticlization> + <JetHadronization> blocks
-    the modules read, as a <jetscape> document)."""
+    """--hadrons-only: hadronize.xml with this job's settings, eCMforHadronization the job's
+    collision energy (``a.ecm``) -> (its text, recorded as the hadron files' hadronize_xml,
+    and the <SoftParticlization> + <JetHadronization> blocks the modules read, as a
+    <jetscape> document)."""
     from jetscape import hadronizer as hz
 
     root = ET.parse(a.hadronize_xml).getroot()
@@ -854,6 +865,8 @@ def hadronize_xml_for_job(a):
                                    correlated_block=a.correlated_block)
     except ValueError as err:
         sys.exit(f"run_prod_jet.py: {err}")
+    if a.ecm:
+        hz.set_hadronization_ecm(root, a.ecm)
     blocks = ("<jetscape>" + ET.tostring(soft, encoding="unicode")
               + ET.tostring(had, encoding="unicode") + "</jetscape>")
     return ET.tostring(root, encoding="unicode"), blocks
@@ -1054,7 +1067,6 @@ def main() -> int:
         sys.exit("run_prod_jet.py: --particlize-only keeps only the particlize file; add "
                  "--write-particlize jet (or both)")
     a.hadronize_xml = os.path.abspath(a.hadronize_xml)
-    hxml = hadronize_xml_for_job(a) if a.hadrons_only else None
     unused = sorted(surface_legs(a) - set(particlize_legs(a)))
     if unused:
         print(f"run_prod_jet.py: WARNING -- --surface {a.surface} builds the freeze-out surface "
@@ -1070,6 +1082,9 @@ def main() -> int:
     out_h5 = os.path.join(a.outdir, rp.output_name(a, "AuAu_0_10_jet"))
     rp.resolve_seed(a, out_h5, record=not a.dry_run)
     xml, root = job_xml(a, out_h5)
+    from jetscape import hadronizer as hz
+    a.ecm = hz.collision_ecm(root)     # Colorless's eCMforHadronization: this collision's
+    hxml = hadronize_xml_for_job(a) if a.hadrons_only else None
     box = rp.music_box(root, a.main_xml)
     grid_mode = "native" if a.native else "grid"
     if not a.native:
@@ -1127,6 +1142,9 @@ def main() -> int:
     if a.hadrons_only:
         print(f"  output   {stem}_hadrons_{{bulk_jet,bulk_bg,jet_frag}}.h5"
               + (" + *_primary.h5" if a.keep_primaries_n > 0 else ""))
+    if a.hadrons_only or a.validate_inline:
+        print(f"  hadrons  {a.hadronize_xml}"
+              + (f", eCMforHadronization {a.ecm:g} (the collision's)" if a.ecm else ""))
     if a.dry_run:
         return 0
 

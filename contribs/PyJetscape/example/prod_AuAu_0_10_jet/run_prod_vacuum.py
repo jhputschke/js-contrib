@@ -7,9 +7,9 @@ the job's user XML with run_prod_jet.py's pTHat windows, parton rapidity cut and
 options -- and Matter's shower in vacuum (<in_vac> 1, recoils off; the user XML's other
 <Eloss> and <Matter> settings), with no initial state, hydro, LBT or liquefier.  Colorless
 hadronizes the final partons --n-frag times per event with run_prod_jet.py --hadrons-only's
-code and seed scheme (jetscape.hadronizer) and the <JetHadronization> block of
---hadronize-xml, whose eCMforHadronization is set to the PythiaGun's eCM (the beam remnant
-that closes a string carries 1/6 of it).  The hard vertex is the origin (no Glauber).
+code and seed scheme (jetscape.hadronizer) and the <JetHadronization> block of the shared
+../config/hadronize.xml, its eCMforHadronization set to the PythiaGun's eCM as in every
+production (jetscape.hadronizer.set_hadronization_ecm).  The hard vertex is the origin.
 
 One call = one job = one seed:
 
@@ -22,8 +22,7 @@ One call = one job = one seed:
     <stem>.json, <stem>.xml      the summary and the job XML that ran
 
     conda activate js_fno
-    D=../../../../docs/PbPb_5020
-    python run_prod_vacuum.py --events 1000 --seed 1 --user-xml $D/PbPb_0_10_ZJet.xml \\
+    python run_prod_vacuum.py --events 1000 --seed 1 --user-xml ../config/PbPb_0_10_ZJet.xml \\
         --pthat-bins 40-60,60-80,80-120,120-200 --parton-ymax 1.9 \\
         --trigger-ymax 2.4 --lepton-ptmin 20 --lepton-etamax 2.4 --n-frag 10
                                      # the pp reference of the Pb+Pb Z+jet production
@@ -105,10 +104,10 @@ def parse_args() -> argparse.Namespace:
                    metavar="ETA", help="trigger Z: both leptons with |eta| < ETA")
     h = p.add_argument_group("hadrons", "Colorless on the final partons, as run_prod_jet.py "
                              "--hadrons-only does for the jet")
-    h.add_argument("--hadronize-xml", default=os.path.join(HERE, "hadronize.xml"),
+    h.add_argument("--hadronize-xml", default=rj.HADRONIZE_XML,
                    dest="hadronize_xml",
-                   help="its <JetHadronization> block (eCMforHadronization is replaced by the "
-                        "PythiaGun's eCM); default: hadronize.xml next to this script")
+                   help="its <JetHadronization> block (eCMforHadronization becomes the "
+                        "PythiaGun's eCM); default: ../config/hadronize.xml")
     h.add_argument("--hadronize-seed", type=int, default=1, dest="hadronize_seed",
                    help="base seed of the fragmentation (default 1); every event's seeds "
                         "derive from it and this job's file uuid")
@@ -210,6 +209,8 @@ def job_xml(a, stem: str):
 def hadronize_blocks(a, ecm: float):
     """--hadronize-xml's <JetHadronization> with eCMforHadronization = ``ecm`` -> (the block
     as recorded, the <jetscape> document the module reads, the file's own value)."""
+    from jetscape import hadronizer as hz
+
     root = ET.parse(a.hadronize_xml).getroot()
     had = root.find("JetHadronization")
     if had is None:
@@ -217,8 +218,7 @@ def hadronize_blocks(a, ecm: float):
     if (rj._text(had, "name") or "").lower() != "colorless":
         sys.exit(f"run_prod_vacuum.py: {a.hadronize_xml}: <JetHadronization><name> must be "
                  "colorless")
-    was = rj._text(had, "eCMforHadronization")
-    rj._set(had, "eCMforHadronization", f"{ecm:g}")
+    was = hz.set_hadronization_ecm(root, ecm)
     text = ET.tostring(had, encoding="unicode")
     return text, "<jetscape>" + text + "</jetscape>", was
 

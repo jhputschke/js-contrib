@@ -14,7 +14,8 @@
 #
 # Before campaign 0: the Z+jet image pulled into $SIF (pinned by digest), the LBT cache made
 # once by a 1-event job, and the 15-event benchmark (plan 5a step 10).  The inputs are the
-# image's own docs/PbPb_5020 files; XML_DIR=/xml (with BINDS) takes your copies instead.
+# image's own example/config files (hadronization: its config/hadronize.xml, with the
+# collision's eCMforHadronization); XML_DIR=/xml (with BINDS) takes your copies instead.
 #
 #SBATCH --job-name=zjet
 #SBATCH --partition=gpuA40x4
@@ -31,7 +32,7 @@ case $C in [0-9]) ;; *) echo "C must be 0..9, got '$C'" >&2; exit 2 ;; esac
 
 export SIF=${SIF:-$HOME/xscape_prod_zjet.sif}          # the Z+jet image (plan 5a, step 9)
 export WORK=${WORK:-/work/hdd/$USER/xscape_prod}       # shared by all tasks and campaigns
-XML_DIR=${XML_DIR:-/opt/X-SCAPE/external_packages/js-contrib/docs/PbPb_5020}
+XML_DIR=${XML_DIR:-/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config}
 export PROD=auau
 export CAMPAIGN=$(printf "zjet_c%02d" "$C")
 export P=${P:-6}                                       # jobs at once per A40 (from the benchmark)
@@ -46,7 +47,7 @@ export USE_MPS=${USE_MPS:-1}                           # 0 if the GPU is in Excl
 export CHECK_DEPOSITION=1
 
 export EXTRA_ARGS=${EXTRA_ARGS:-"--user-xml $XML_DIR/PbPb_0_10_ZJet.xml \
-  --hadronize-xml $XML_DIR/hadronize_5020.xml --grid $XML_DIR/grid_PbPb.yaml \
+  --grid $XML_DIR/grid_PbPb.yaml \
   --pthat-bins 40-60,60-80,80-120,120-200 --jets-per-bin 5 --parton-ymax 1.9 \
   --trigger-ymax 2.4 --lepton-ptmin 20 --lepton-etamax 2.4 \
   --hadrons-only --oversample 40 --n-frag 40 --oversample-bg per-pthat-bin --correlated \
