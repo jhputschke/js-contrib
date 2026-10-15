@@ -10,8 +10,9 @@ process and writes **only hadron files**. No pair file, no particlize file, no i
 of any kind, no stage 2.
 
 **Little or no oversampling:** one sample per jet event (or a few), the background oversampled
-by its number of jets at most, a few fragmentations. The hadron files then are small and the
-extra CPU in the GPU job is small.
+by its number of jets at most, a few fragmentations. The hadron files then are small. The
+extra CPU in the GPU job is ~8 % of stage 1 and hardly depends on the oversampling (iSS's cost
+is mostly fixed per surface, see below), so the oversampling is limited by disk, not CPU.
 
 The files hold everything for analysis now and for later work without the hydro:
 - the decayed hadrons (`bulk_jet`, `bulk_bg`, `jet_frag`), as stage 2 writes them;
@@ -28,8 +29,15 @@ Assumed done: `PLAN_smash_ready_hadrons.md` Parts 1 and 2 (iSS decays the SMASH 
 | per jet event | stage 1 + stage 2 today (c2) | hadrons only, 1 sample (estimate) |
 |---|---|---|
 | files kept | pair 0.146 GB + particlize 0.097 GB, then hadrons ~0.077 GB | hadrons + primaries + partons: **~0.5–1 MB** (~0.2 MB per final sample and leg at full precision: 100 MB per leg at 500 samples, README_2stage §1; primaries about as much again) |
-| extra CPU in the GPU job | none | iSS ~0.02 core-s per sample of both legs (10.6 s for 500 samples), a few Pythia fragmentations: **~1 core-s or less**, against ~35 core-s of stage 1 |
+| extra CPU in the GPU job | none | iSS ~2.6 s per jet-leg surface + ~2.6 s per background (~0.2 s per event at 15 jets per background), fragmentations ~4 ms each: **~2.8 core-s per event, ~8 %** of stage 1's ~35 core-s (GB10, one thread; ~3.2 s per surface with EOS 91's ~400 species, scaled, not measured) |
 | stage 2 | ~9–11 core-s per event on CPU nodes | none |
+
+**iSS's cost per surface is mostly fixed** (PLAN_iSS_optim.md Part C, GB10, one thread, current
+iSS): 2.6 s at 1 and at 10 samples, 3.1 s at 100, 5.4 s at 500, 8.2 s at 1000; that is ~2.5 s for
+the yields of 321 species in ~1 M cells and the surface import, plus ~5.6 ms per sample. So 100
+samples per event cost ~0.5 s more than one, but ~20 MB per leg and event on disk: **the
+oversampling is set by disk**. On host-bound nodes (the 3090 box, Delta A40) the ~8 % comes
+off events/h; on DeltaAI it fits into the spare cores.
 
 What it costs: no surfaces are kept, so **no new samples or other iSS settings later**; the bulk
 can only be re-decayed or sent through SMASH from its stored primaries. Fewer samples per event
@@ -179,8 +187,9 @@ is lost; the c-campaign recipes unchanged.
 - **Readers:** a hadrons-only campaign and the same campaign in two stages give the same
   samples through `HadronFileReader` and `run_h5toROOT.py`.
 - **Cost:** events/h, CPU and peak host memory per job against the same campaign without
-  hadronization, on the 3090 box (10 jobs per GPU) and the GB10. Expected: a few percent at
-  most; iSS's tables in every job add memory (to measure).
+  hadronization, on the 3090 box (10 jobs per GPU) and the GB10. Expected: ~8 % more CPU per
+  event (~2.8 core-s), so ~8 % fewer events/h where the cores are the limit; iSS's tables and
+  per-cell arrays in every job add memory (a few hundred MB, to measure).
 
 ## Effort
 
@@ -200,9 +209,10 @@ production-scale runs.
 
 ## Open points
 
-- **The default oversampling:** 1 per jet event, the background `per-pthat-bin` (M samples for M
-  jets per window), 1–5 fragmentations? With few samples the jet − background pairing
-  (`--correlated`) matters more, not less.
+- **The default oversampling:** chosen by disk, since the CPU barely changes up to ~100 samples:
+  1–10 per jet event, the background `per-pthat-bin` (M samples for M jets per window), 1–5
+  fragmentations? With few samples the jet − background pairing (`--correlated`) matters more,
+  not less.
 - **Primaries for all samples** (cheap at this oversampling) or only K.
 - **Memory per job** with iSS's tables loaded in every production job, against the ~7 GB per job
   of the sizing tables.
