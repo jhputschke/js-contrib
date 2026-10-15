@@ -1,7 +1,9 @@
 <?xml version="1.0"?>
 <!-- For Pb+Pb 5.02 TeV: prod_AuAu_0_10_jet/hadronize.xml with eCMforHadronization 5020
      (docs/README_2stage.md section 9); the comments below are the 200 GeV original's.
-     Use: run_hadronize.py ... hadronize-xml /xml/hadronize_5020.xml -->
+     Remade on 2026-10-15 from the smash_ready hadronize.xml (decay_smash_list, keep_primaries).
+     Use: run_hadronize.py ... hadronize-xml /xml/hadronize_5020.xml, or run_prod_jet.py
+     hadrons-only ... hadronize-xml /xml/hadronize_5020.xml -->
 <!--
   Hadronization settings for the stored surfaces and final partons of prod_AuAu_0_10_jet
   (PLAN_particlize_h5.md).  One file, used twice:
@@ -15,11 +17,16 @@
                             <JetHadronization> (reseed_per_event 1) into the production job,
                             so the in-job hadrons can be compared with the offline ones.
 
-  iSS: MUSIC runs EOS 9 (hotQCD, UrQMD hadron list), and without SMASH iSS must decay the
-  resonances itself (Perform_resonance_decays 1).  The list follows EOS_to_use in the job's
-  music_input, which the particlize file stores verbatim (it also carries MUSIC's
-  Include_Bulk_Visc flag, which is what switches iSS's bulk delta-f on).  delta-f as in the
-  JETSCAPE defaults: shear and bulk, Grad 22-moment (deltaf_type 20).
+  iSS: the hadron list follows EOS_to_use in the job's music_input, which the particlize
+  file stores verbatim (it also carries MUSIC's Include_Bulk_Visc flag, which is what
+  switches iSS's bulk delta-f on): EOS 91 (the production EOS, hotQCD + the SMASH hadron
+  list) or EOS 9 (the UrQMD list, older campaigns); afterburner_type is overridden by it.
+  Without SMASH iSS must decay the resonances itself (Perform_resonance_decays 1); for the
+  SMASH list that needs decay_smash_list 1 (iSS from smash_ready on: Breit-Wigner masses for
+  the unstable daughters of channels the pole masses close, PLAN_smash_ready_hadrons.md 1.1
+  and 1.2; eta and Sigma0 stay stable, as in SMASH).  keep_primaries N (hadronize.py option
+  keep-primaries) also keeps the undecayed hadrons of the first N samples, for SMASH later.
+  delta-f as in the JETSCAPE defaults: shear and bulk, Grad 22-moment (deltaf_type 20).
 
   Jet hadronization: colorless (the JETSCAPE choice for AA with Matter+LBT; colored is not
   supported here, see PLAN_particlize_h5.md).  eCMforHadronization is sqrt(s_NN) = 200: a beam
@@ -73,6 +80,8 @@
       <deltaf_type>20</deltaf_type>
       <number_of_repeated_sampling>100</number_of_repeated_sampling>
       <Perform_resonance_decays>1</Perform_resonance_decays>
+      <decay_smash_list>1</decay_smash_list>
+      <keep_primaries>0</keep_primaries>
     </iSS>
   </SoftParticlization>
 

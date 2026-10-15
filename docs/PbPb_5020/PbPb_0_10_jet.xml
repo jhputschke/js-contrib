@@ -2,8 +2,9 @@
 <!-- Pb+Pb 5.02 TeV, 0-10 % (b < 4.95 fm): the reference copy of prod_AuAu_0_10_jet's
      AuAu_MCGlauber_MUSIC_0_10_jet.xml made with the sed recipe of docs/README_2stage.md
      section 9 (8 lines: Pb nuclei, sqrts 5020, b_max 4.95, MUSIC's grid +-20 fm x +-8, Pythia
-     eCM 5020).  One event run with it on 2026-10-13 (README_2stage.md section 9).  Everything
-     else, including the comments below, is the Au+Au 200 GeV template's: not tuned at the LHC.
+     eCM 5020).  One event run with it on 2026-10-13 (README_2stage.md section 9); remade on
+     2026-10-15 from the EOS 91 template (smash_ready).  Everything else, including the
+     comments below, is the Au+Au 200 GeV template's: not tuned at the LHC.
      Use: run_prod_jet.py ... user-xml /xml/PbPb_0_10_jet.xml -->
 
 <!-- Copyright (c) The JETSCAPE Collaboration, 2018 -->
@@ -25,7 +26,7 @@
 
   Derived from ../prod_AuAu_0_10/AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
   grid, <Preequilibrium> and MUSIC physics settings are unchanged (b_max = 4.7 fm for 0-10%,
-  EOS 9, T_fo = 0.15 GeV).  Changes:
+  T_fo = 0.15 GeV), except EOS 91 (the tunes' EOS; was 9 before 2026-10).  Changes:
 
     <name> MUSIC_1           the background leg.  Every MUSIC instance reads the FIRST
                              <Hydro><MUSIC> block, so all MUSIC settings live here and apply
@@ -209,8 +210,10 @@
       <name>MUSIC_1</name>
       <MUSIC_input_file>music_input</MUSIC_input_file>
       <!--EOS used for the hydro evolution: 91 hotQCD EOS (SMASH list), 9 hotQCD EOS (UrQMD list), 20 NEOS-4D-->
-      <!--9, not 91: iSS decays resonances only for the UrQMD list, and there is no SMASH (see the header)-->
-      <EOS>9</EOS>
+      <!--91, the EOS of the tunes (hotQCD + the SMASH hadron list); iSS decays that list itself
+          (hadronize.xml decay_smash_list 1, iSS smash_ready).  9 (UrQMD list) for reruns of
+          older campaigns: run_prod_jet.py with eos 9-->
+      <EOS>91</EOS>
       <!--InitialProfile = 42 for Trento + Pre-equilibrium or IPGlasma, 13 for the 3D Glauber initial condition-->
       <InitialProfile>131</InitialProfile>
       <!--beastMode = 0: double precision, constant time step-->

@@ -1198,8 +1198,10 @@ diff $T/AuAu_MCGlauber_MUSIC_0_10_jet.xml xml/PbPb_0_10_jet.xml     # 8 lines mu
 ```
 
 **The files as tested** are in [`docs/PbPb_5020/`](PbPb_5020/): `PbPb_0_10_jet.xml` (the
-output of this recipe, with a header comment that says so), `hadronize_5020.xml` and the
-larger output grid `grid_PbPb.yaml` (below). Bind that directory (`-v "$PWD/docs/PbPb_5020:/xml:ro"`)
+output of this recipe, with a header comment that says so; EOS 91 since 2026-10-15),
+`hadronize_5020.xml`, the larger output grid `grid_PbPb.yaml` (below) and
+`PbPb_0_10_ZJet.xml`, the jet XML with a Z+jet `<PythiaGun>` (Z → ee/μμ, `<trigger>Z`;
+[`Plans/PLAN_ZJET_CMS10x.md`](Plans/PLAN_ZJET_CMS10x.md), launchers in `utils/zjet/`). Bind that directory (`-v "$PWD/docs/PbPb_5020:/xml:ro"`)
 and use them as they are, or copy them as a start for another system.
 
 **Choices to make, not made here:**

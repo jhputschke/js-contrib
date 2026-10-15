@@ -119,7 +119,7 @@ __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "
            "HADRONIZATION_INPUT_COLUMNS", "PARTON_COLUMNS", "HadronH5Writer", "Hadrons",
            "HadronFile",
            "JetEvents", "HadronFileReader",
-           "EventHadrons", "EventInfo"]
+           "EventHadrons", "EventInfo", "Z_COLUMNS", "z_record"]
 
 #: per-hadron arrays of one event (a sample), as sample_event() returns them
 FIELDS = ("pid", "pstat", "p", "x")
@@ -147,6 +147,33 @@ PARTON_COLUMNS = ("shower", "pid", "pstat", "E", "px", "py", "pz",
 
 #: |pid| of the charged hadrons that survive iSS's decays (plus leptons from them)
 CHARGED = (211, 321, 2212, 3222, 3112, 3312, 3334, 11, 13)
+
+#: PythiaGun's trigger Z (run_prod_jet.py): the per-event Z record in the jet files'
+#: ``units/`` and the particlize file's ``events/``: the Z (the lepton pair) and its two
+#: decay leptons, hardest first.  The leptons themselves pass through the energy loss like
+#: photons and are in ``jet_frag`` (pid +-11 / +-13, counted as CHARGED) and in
+#: ``initiators/``: a track or jet analysis removes them (lep{1,2}_* identify them).
+Z_COLUMNS = ("z_pt", "z_y", "z_phi", "z_m",
+             "lep1_pid", "lep1_pt", "lep1_eta", "lep1_phi",
+             "lep2_pid", "lep2_pt", "lep2_eta", "lep2_phi")
+
+
+def z_record(leptons) -> dict:
+    """The :data:`Z_COLUMNS` of one event from its trigger leptons, a (2, 5) array pid, px,
+    py, pz, E (``pyjetscape_core.pythia_gun_trigger``); NaN (pids 0) without a pair."""
+    lep = np.asarray(leptons, dtype=np.float64).reshape(-1, 5)
+    if len(lep) != 2:
+        return {k: (0 if k.endswith("_pid") else np.nan) for k in Z_COLUMNS}
+    px, py, pz, e = lep[:, 1:].sum(axis=0)
+    out = {"z_pt": float(np.hypot(px, py)), "z_y": float(0.5 * np.log((e + pz) / (e - pz))),
+           "z_phi": float(np.arctan2(py, px)),
+           "z_m": float(np.sqrt(max(e * e - px * px - py * py - pz * pz, 0.0)))}
+    for i, (pid, lx, ly, lz, _) in enumerate(lep, 1):
+        pt = float(np.hypot(lx, ly))
+        out.update({f"lep{i}_pid": int(pid), f"lep{i}_pt": pt,
+                    f"lep{i}_eta": float(np.arcsinh(lz / pt)),
+                    f"lep{i}_phi": float(np.arctan2(ly, lx))})
+    return out
 
 #: identified species, by signed pid
 SPECIES = {
@@ -960,6 +987,9 @@ class EventInfo:
         self.pthat_bin = (int(f["pthat_bin"][local]) if f["pthat_bin"] is not None
                           else None)
         self.pthat = float(f["pthat"][local]) if f["pthat"] is not None else None
+        # PythiaGun's trigger Z: the Z and its leptons (Z_COLUMNS -> value), else None
+        z = f.get("z")
+        self.z = {k: v[local].item() for k, v in z.items()} if z else None
 
     def initiators(self):
         """This event's shower-initiating partons, as a (K, 11) array, columns ``shower,
@@ -971,6 +1001,7 @@ class EventInfo:
         return (f"EventInfo(event={self.event}, stem={self.stem!r}, "
                 f"local_event={self.local_event}, bg_unit={self.bg_unit}"
                 + (f", pthat_bin={self.pthat_bin}" if self.pthat_bin is not None else "")
+                + (f", z_pt={self.z['z_pt']:.1f}" if self.z else "")
                 + ")")
 
 
@@ -1104,7 +1135,8 @@ class HadronFileReader:
                                    else None),
                     "pthat_bin": (pf.events("pthat_bin") if pf.has_events("pthat_bin")
                                   else None),
-                    "pthat": pf.events("pthat") if pf.has_events("pthat") else None}
+                    "pthat": pf.events("pthat") if pf.has_events("pthat") else None,
+                    "z": {k: pf.events(k) for k in Z_COLUMNS if pf.has_events(k)} or None}
             for key, attr in (("pthat_bins", "pthat_bins"),
                               ("sigma_gen", "pthat_bin_sigma_gen"),
                               ("sigma_err", "pthat_bin_sigma_err"),
@@ -1689,7 +1721,8 @@ def _hadrons_only_info(stem):
                     "source": path, "seed": f.attrs.get("prod_seed"), "pair_file": None,
                     "bg_unit": get("bg_unit"), "bg_key": get("bg_key"),
                     "n_cells_bg": get("n_cells_bg"), "pthat_bin": get("pthat_bin"),
-                    "pthat": get("pthat")}
+                    "pthat": get("pthat"),
+                    "z": {k: get(k) for k in Z_COLUMNS if k in units} or None}
             for key, attr in (("pthat_bins", "pthat_bins"),
                               ("sigma_gen", "pthat_bin_sigma_gen"),
                               ("sigma_err", "pthat_bin_sigma_err"),

@@ -41,7 +41,7 @@ re-stamps partons as it filters them (`src/framework/LiquefierBase.cc:24-26`, `:
     -11  drop   dropped into the medium below the threshold -- THIS is what became a droplet
     -17  neg    negative ("hole") parton, the recoil's partner
     -13  miss   missed
-     22         photon, passed through untouched
+     22         photon or lepton (a Z's decay), passed through untouched
     101         Matter's hand-off point to LBT
 
 `fates()` maps them to names.  Colouring segments by fate is what turns the animation from a
