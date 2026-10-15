@@ -214,5 +214,22 @@ production-scale runs.
   fragmentations? With few samples the jet − background pairing (`--correlated`) matters more,
   not less.
 - **Primaries for all samples** (cheap at this oversampling) or only K.
-- **Memory per job** with iSS's tables loaded in every production job, against the ~7 GB per job
-  of the sizing tables.
+- **Memory per job**, against the ~7 GB per job of the sizing tables. Expected below it:
+  - **No shared-table trick as for LBT** (`LBT_TABLE_CACHE`): with EOS 9/91 iSS's static tables
+    are a few MB (the hadron list 95 KB / 290 KB, `chosen_particles_*`, `HRGEOS_PST-*` 138 KB,
+    the δf coefficients); the one large table, `EOS_tables/HRG4D` (72 MB), is read only for
+    EOS 20 (`readindata.cpp:144`).
+  - **The cost is the surface being sampled:** `FO_surf` (36 floats and 3 vectors, ~250 B per
+    cell with their heap parts) and `FO_surf_LRF` (~170 B per cell), ~0.4–0.5 GB for a ~1 M-cell
+    Au+Au surface, plus ~0.1 GB of packed yield arrays and the inverse CDF while sampling
+    (estimate from the structs; the whole `hadronize.py` process peaks at 0.90 GB, Python and
+    libraries included). Different in every job, so nothing to share; `iSS::clear()` keeps the
+    capacity, so it is a steady ~0.5 GB per job, not a growth.
+  - **Hadrons-only drops the pair file,** and with it MUSIC_2's native store (~2.3 GB), kept
+    today only for the pair writer: a job is like `--particlize-only` (~5 GB per job in the
+    sizing tables), so **~5 GB + ~0.5 GB ≈ 5.5 GB**. To measure (validation, *Cost*).
+  - If the 0.5 GB matters: free `FO_surf` once `FO_surf_LRF` is built, if nothing reads it later
+    (about half, in iSS, to check for bit-identity); release the capacity after each surface
+    (`shrink_to_fit`), in case iSS's peak meets the next event's hydro peak (iSS runs at the end
+    of an event); hand the cells to iSS without intermediate copies in step 1's call, and drop
+    the background's cells once it is sampled.
