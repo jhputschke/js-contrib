@@ -221,7 +221,8 @@ Record it in `hadronize.py --diagnose-colored`. Revisit if a Matter-only campaig
   queries the live medium (`GetHydroCellSignal`), and it raises the thermal-parton/iSS
   double-counting question.
 - **SMASH afterburner.** It needs the SMASH hadron list, i.e. an EOS 91 hydro campaign; the
-  production runs EOS 9.
+  production runs EOS 91 from October 2026 (EOS 9 before), and `hadronize.py
+  --keep-primaries` writes the undecayed hadrons ([`PLAN_smash_ready_hadrons.md`](PLAN_smash_ready_hadrons.md)).
 - **Other T_sw.** The surface is at T_fo = 0.15. Other switching temperatures need a hydro rerun,
   or particlization from `arr` (ideal Cooper–Frye).
 - **FastHydro.** Porting FastHydro to the same particlize/hadron layout is the natural follow-up;

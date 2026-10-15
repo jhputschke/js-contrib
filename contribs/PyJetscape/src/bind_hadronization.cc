@@ -17,6 +17,16 @@
  *                                       (ColorlessHadronization, ColoredHadronization)
  *                                       on stored final partons (FINAL_PARTON_COLUMNS)
  *   jet_hadronization_last_random_seed(module)
+ *   soft_primaries_numpy(task)          iSS <keep_primaries> N: the undecayed hadrons of
+ *                                       the first N oversamples (None if not kept)
+ *   hadronization_input_numpy(task)     iColoredHadronization <store_input> 1: the parton
+ *                                       list the last event handed to Pythia
+ *   hadronize_input(module, input, seed=None)
+ *                                       hadronize such a stored list again
+ *                                       (iColoredHadronization)
+ *
+ * Capabilities: ISS_DECAYS_SMASH_LIST, SOFT_HAS_PRIMARIES, ICOLORED_HAS_INPUT_RECORD
+ * (False when this X-SCAPE predates them), PYTHIA_VERSION (e.g. 8312).
  *
  * All are free functions taking a task: create_module() and GetTaskList() hand out
  * JetScapeTask / JetScapeModuleBase pointers whose dynamic types (iSpectraSamplerWrapper,
@@ -43,6 +53,9 @@
 #include "Hadronization.h"
 #include "HadronizationManager.h"
 #include "ColorlessHadronization.h"
+#if __has_include("iColoredHadronization.h")
+#include "iColoredHadronization.h"
+#endif
 
 namespace py = pybind11;
 using namespace Jetscape;
@@ -114,9 +127,59 @@ std::shared_ptr<Hadronization> as_hadronization(const std::shared_ptr<JetScapeTa
   return h;
 }
 
+// A module of type T: `module` itself, else one of its sub-tasks or theirs (a
+// Hadronization parent or the HadronizationManager).
+template <typename T>
+std::shared_ptr<T> find_module(const std::shared_ptr<JetScapeTask> &module) {
+  if (auto t = std::dynamic_pointer_cast<T>(module))
+    return t;
+  for (auto &sub : module->GetTaskList()) {
+    if (auto t = std::dynamic_pointer_cast<T>(sub))
+      return t;
+    for (auto &subsub : sub->GetTaskList())
+      if (auto t = std::dynamic_pointer_cast<T>(subsub))
+        return t;
+  }
+  return nullptr;
+}
+
+py::dict hadron_arrays_to_dict(SoftParticlization::HadronArrays &a) {
+  const py::ssize_t n = static_cast<py::ssize_t>(a.pid.size());
+  py::dict d;
+  d["pid"] = vector_to_numpy(std::move(a.pid), {n});
+  d["pstat"] = vector_to_numpy(std::move(a.pstat), {n});
+  d["p"] = vector_to_numpy(std::move(a.p), {n, 4});
+  d["x"] = vector_to_numpy(std::move(a.x), {n, 4});
+  d["mass"] = vector_to_numpy(std::move(a.mass), {n});
+  const py::ssize_t ns = static_cast<py::ssize_t>(a.sample_counts.size());
+  d["sample_counts"] = vector_to_numpy(std::move(a.sample_counts), {ns});
+  return d;
+}
+
 }  // namespace
 
 void bind_hadronization(py::module_ &m) {
+#ifdef ISS_DECAYS_SMASH_LIST
+  m.attr("ISS_DECAYS_SMASH_LIST") = true;
+#else
+  m.attr("ISS_DECAYS_SMASH_LIST") = false;
+#endif
+#ifdef SOFTPARTICLIZATION_HAS_PRIMARIES
+  m.attr("SOFT_HAS_PRIMARIES") = true;
+#else
+  m.attr("SOFT_HAS_PRIMARIES") = false;
+#endif
+#ifdef ICOLORED_HAS_INPUT_RECORD
+  m.attr("ICOLORED_HAS_INPUT_RECORD") = true;
+#else
+  m.attr("ICOLORED_HAS_INPUT_RECORD") = false;
+#endif
+#ifdef PYTHIA_VERSION_INTEGER
+  m.attr("PYTHIA_VERSION") = static_cast<int>(PYTHIA_VERSION_INTEGER);
+#else
+  m.attr("PYTHIA_VERSION") = 0;
+#endif
+
   m.def(
       "soft_hadrons_numpy",
       [](std::shared_ptr<JetScapeTask> task) {
@@ -127,16 +190,7 @@ void bind_hadronization(py::module_ &m) {
             throw std::runtime_error(
                 "soft_hadrons_numpy: this event's hadrons were already handed over "
                 "(with soft_set_compact_output, call it once per event)");
-          const py::ssize_t n = static_cast<py::ssize_t>(a.pid.size());
-          py::dict d;
-          d["pid"] = vector_to_numpy(std::move(a.pid), {n});
-          d["pstat"] = vector_to_numpy(std::move(a.pstat), {n});
-          d["p"] = vector_to_numpy(std::move(a.p), {n, 4});
-          d["x"] = vector_to_numpy(std::move(a.x), {n, 4});
-          d["mass"] = vector_to_numpy(std::move(a.mass), {n});
-          const py::ssize_t ns = static_cast<py::ssize_t>(a.sample_counts.size());
-          d["sample_counts"] = vector_to_numpy(std::move(a.sample_counts), {ns});
-          return d;
+          return hadron_arrays_to_dict(a);
         }
         std::vector<std::shared_ptr<Hadron>> flat;
         const auto &lists = soft->Hadron_list_;
@@ -154,6 +208,27 @@ void bind_hadronization(py::module_ &m) {
       "pstat, p [E,px,py,pz], x [t,x,y,z], mass, and sample_counts (one entry per "
       "oversample; the rows are the samples concatenated in order). Call between "
       "ExecPerEvent() and ClearPerEvent().",
+      py::arg("task"));
+
+  m.def(
+      "soft_primaries_numpy",
+      [](std::shared_ptr<JetScapeTask> task) -> py::object {
+#ifdef SOFTPARTICLIZATION_HAS_PRIMARIES
+        auto soft = as_soft(task);
+        SoftParticlization::HadronArrays a;
+        if (!soft->TakeCompactPrimaries(a))
+          return py::none();
+        return hadron_arrays_to_dict(a);
+#else
+        throw std::runtime_error("soft_primaries_numpy: this X-SCAPE has no primaries "
+                                 "(SOFT_HAS_PRIMARIES is False)");
+#endif
+      },
+      "The undecayed (primary) hadrons of the first N oversamples this event, as sampled "
+      "before any decay (iSS <keep_primaries> N, with soft_set_compact_output): the "
+      "soft_hadrons_numpy dict, sample_counts with N entries. None if none were kept. "
+      "Takes them over without copying: call it once per event, after "
+      "soft_hadrons_numpy.",
       py::arg("task"));
 
   m.def(
@@ -274,26 +349,101 @@ void bind_hadronization(py::module_ &m) {
   m.def(
       "jet_hadronization_last_random_seed",
       [](std::shared_ptr<JetScapeTask> module) {
-        std::shared_ptr<JetScapeTask> t = module;
-        // A Hadronization parent: look at its module(s)
-        if (!std::dynamic_pointer_cast<ColorlessHadronization>(t)) {
-          for (auto &sub : module->GetTaskList()) {
-            if (std::dynamic_pointer_cast<ColorlessHadronization>(sub)) {
-              t = sub;
-              break;
-            }
-            for (auto &subsub : sub->GetTaskList())
-              if (std::dynamic_pointer_cast<ColorlessHadronization>(subsub))
-                t = subsub;
-          }
-        }
-        auto c = std::dynamic_pointer_cast<ColorlessHadronization>(t);
-        if (!c)
-          throw std::invalid_argument("no ColorlessHadronization found in " +
-                                      module->GetId());
-        return c->GetLastRandomSeed();
+        if (auto c = find_module<ColorlessHadronization>(module))
+          return c->GetLastRandomSeed();
+#ifdef ICOLORED_HAS_INPUT_RECORD
+        if (auto c = find_module<iColoredHadronization>(module))
+          return c->GetLastRandomSeed();
+#endif
+        throw std::invalid_argument(
+            "no ColorlessHadronization (or iColoredHadronization) found in " +
+            module->GetId());
       },
-      "The seed ColorlessHadronization used for the last event (0 if it was not reseeded). "
-      "Accepts the module itself, its Hadronization parent or the HadronizationManager.",
+      "The seed ColorlessHadronization (or iColoredHadronization) used for the last event "
+      "(0 if it was not reseeded). Accepts the module itself, its Hadronization parent or "
+      "the HadronizationManager.",
       py::arg("module"));
+
+#ifdef ICOLORED_HAS_INPUT_RECORD
+  m.def(
+      "hadronization_input_numpy",
+      [](std::shared_ptr<JetScapeTask> module) {
+        auto c = find_module<iColoredHadronization>(module);
+        if (!c)
+          throw std::invalid_argument("no iColoredHadronization found in " +
+                                      module->GetId());
+        const auto &in = c->GetLastInput();
+        const py::ssize_t n = static_cast<py::ssize_t>(in.size());
+        py::array_t<int> pid(n), col(n), acol(n);
+        py::array_t<double> p({n, (py::ssize_t)4}), mass(n);
+        auto a_id = pid.mutable_unchecked<1>();
+        auto a_c = col.mutable_unchecked<1>();
+        auto a_a = acol.mutable_unchecked<1>();
+        auto a_p = p.mutable_unchecked<2>();
+        auto a_m = mass.mutable_unchecked<1>();
+        for (py::ssize_t i = 0; i < n; ++i) {
+          a_id(i) = in[i].id;
+          a_c(i) = in[i].col;
+          a_a(i) = in[i].acol;
+          a_p(i, 0) = in[i].e;
+          a_p(i, 1) = in[i].px;
+          a_p(i, 2) = in[i].py;
+          a_p(i, 3) = in[i].pz;
+          a_m(i) = in[i].m;
+        }
+        py::dict d;
+        d["pid"] = pid;
+        d["col"] = col;
+        d["acol"] = acol;
+        d["p"] = p;
+        d["mass"] = mass;
+        return d;
+      },
+      "iColoredHadronization with <store_input> 1: the parton list the last event handed "
+      "to Pythia (final partons, beam remnants, the colour-balancing parton), as a dict of "
+      "pid, col, acol (int32), p (N, 4) float64 [E, px, py, pz] and mass float64. Empty "
+      "without <store_input>. Accepts the module, its parent or the HadronizationManager.",
+      py::arg("module"));
+
+  m.def(
+      "hadronize_input",
+      [](std::shared_ptr<JetScapeTask> module, py::array_t<int> pid, py::array_t<int> col,
+         py::array_t<int> acol,
+         py::array_t<double, py::array::c_style | py::array::forcecast> p,
+         py::array_t<double, py::array::c_style | py::array::forcecast> mass,
+         py::object seed) {
+        auto c = find_module<iColoredHadronization>(module);
+        if (!c)
+          throw std::invalid_argument("hadronize_input: no iColoredHadronization in " +
+                                      module->GetId());
+        const py::ssize_t n = pid.shape(0);
+        if (col.shape(0) != n || acol.shape(0) != n || mass.shape(0) != n ||
+            p.ndim() != 2 || p.shape(0) != n || p.shape(1) != 4)
+          throw std::invalid_argument(
+              "hadronize_input: pid, col, acol, mass (N,) and p (N, 4) [E, px, py, pz]");
+        auto a_id = pid.unchecked<1>();
+        auto a_c = col.unchecked<1>();
+        auto a_a = acol.unchecked<1>();
+        auto a_p = p.unchecked<2>();
+        auto a_m = mass.unchecked<1>();
+        std::vector<iColoredHadronization::InputParton> in(n);
+        for (py::ssize_t i = 0; i < n; ++i)
+          in[i] = {a_id(i), a_c(i), a_a(i), a_p(i, 1), a_p(i, 2), a_p(i, 3), a_p(i, 0),
+                   a_m(i)};
+        if (!seed.is_none())
+          c->SetNextRandomSeed(seed.cast<unsigned int>());
+        std::vector<std::shared_ptr<Hadron>> hOut;
+        c->HadronizeInput(in, hOut);
+        py::dict d = hadrons_to_dict(hOut);
+        d["seed"] = (long long)c->GetLastRandomSeed();
+        return d;
+      },
+      "Hadronize a parton list stored with hadronization_input_numpy again with "
+      "iColoredHadronization (create_module('iColoredHadronization') after a JetScape "
+      "Init() that loaded the job's XML, then module.Init()). With the stored `seed` and "
+      "the same Pythia version and <JetHadronization> settings the hadrons are those of "
+      "the job. Returns the hadron dict plus the seed used.",
+      py::arg("module"), py::arg("pid"), py::arg("col"), py::arg("acol"), py::arg("p"),
+      py::arg("mass"), py::arg("seed") = py::none());
+#endif
 }

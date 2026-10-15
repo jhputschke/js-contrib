@@ -33,12 +33,12 @@ the automatic task list to it.
 > **Tuned O+O parameters.** The 3dMCGlauber and MUSIC settings in
 > `OO_MCGlauber_MUSIC_isr.xml` are the tuned O+O set of X-SCAPE's
 > `config/BulkFastTest/OO_one_event.xml` (O16 configurations from `nucleusConfigs`,
-> `tau_form_mean` 0.5, MUSIC's viscosities and freeze-out), tuned at √s_NN = 200 GeV. Four
-> settings differ on purpose (see [Physics notes](#physics-notes-and-limits)): EOS 9 instead
-> of 91 (as the Au+Au production: with 91 iSS leaves the resonances undecayed),
+> `tau_form_mean` 0.5, MUSIC's viscosities and freeze-out, EOS 91), tuned at √s_NN =
+> 200 GeV. Three settings differ on purpose (see [Physics notes](#physics-notes-and-limits)):
 > `Subtract_hard_momentum` 1 instead of 0 (with ISR the hard partons' momentum must come out
 > of the strings), `generateOnlyPositions` 1 (the strings are made after the ISR) and
-> b ≤ 3 fm.
+> b ≤ 3 fm. (Until October 2026 the production ran EOS 9, because iSS could not decay the
+> SMASH hadron list of EOS 91; `--eos 9` reruns such campaigns.)
 
 | file | purpose |
 |---|---|
@@ -46,6 +46,7 @@ the automatic task list to it.
 | `grid_oo.yaml` | output grid of the hydro file: 64 × 64 × 32 at 0.3125 fm × 0.3125 fm × 0.3125 (x, y ±9.84 fm) |
 | `run_prod_oo_isr.py` | one job: one seed, N events |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
+| `rehadronize_jets.py` | hadronize a `--store-hadronization-input` job's jets again from the stored Pythia input: `--check` against the job, or decays off / new seeds ([Redoing the jet hadronization](#redoing-the-jet-hadronization)) |
 | `hard_sub_compare/` | two campaigns with and without the hard-momentum subtraction, and a notebook comparing their hadrons ([README](hard_sub_compare/README.md)) |
 | `oo_isr_overview.ipynb` | one job's output: the medium's energy density at three τ (with the freeze-out contour and the dijet), and η, φ, pT and Δφ-to-the-leading-parton distributions of the bulk and jet hadrons |
 
@@ -189,12 +190,15 @@ Au+Au productions:
 
 | hadrons | file | made by | when |
 |---|---|---|---|
-| **jet** | `<stem>_hadrons_jet_frag.h5` | iColoredHadronization: the final partons and the beam remnants, through the ISR colour flow | **always in the job** (unless `--no-jet-hadrons`) |
+| **jet** | `<stem>_hadrons_jet_frag.h5` | iColoredHadronization: the final partons and the beam remnants, through the ISR colour flow | **in the job** (unless `--no-jet-hadrons`); **again afterwards** only with `--store-hadronization-input` (`rehadronize_jets.py`) |
 | **bulk** | `<stem>_hadrons_bulk_bg.h5` | iSS on MUSIC's freeze-out surface, N oversamples per event | **in the job** with `--bulk-hadrons N`, **or afterwards** with `hadronize.py --tags bulk_bg` on the particlize file |
 
-The jet hadrons cannot be made afterwards: iColoredHadronization needs the event's beam
-remnants (momenta from 3dMCGlauber) and the ISR colour connections, which exist only during
-the job. The bulk can be made either way. Choose one of three setups:
+The jet hadrons are made in the job: iColoredHadronization needs the event's beam remnants
+(momenta from 3dMCGlauber) and the ISR colour connections, which exist only during the job.
+With `--store-hadronization-input` the job keeps what it handed to Pythia (see
+[Redoing the jet hadronization](#redoing-the-jet-hadronization)), so the jets can be
+hadronized again later; without it, they cannot. The bulk can be made either way. Choose one
+of three setups:
 
 | setup | command | files | afterwards |
 |---|---|---|---|
@@ -232,7 +236,45 @@ Options for the hadrons made in the job:
 | `--no-particlize` | no `<stem>_particlize.h5`: no surfaces, partons or initiators stored |
 | `--no-hydro-file` | no `<stem>.h5`: the hydro evolution is not stored (`hydro_row` is then -1 for every event) |
 | `--no-jet-hadrons` | no iColoredHadronization, no `<stem>_hadrons_jet_frag.h5` |
+| `--store-hadronization-input` | opt-in: also store each event's Pythia input of the jet hadronization in the jet file (`hadronization_input/`, ~2 kB per event), so `rehadronize_jets.py` can redo the jet hadrons later |
+| `--keep-primaries N` | with `--bulk-hadrons`: also write the undecayed bulk hadrons of the first N oversamples → `<stem>_hadrons_bulk_bg_primary.h5`, for SMASH later (full precision, positions, no selection; the decayed hadrons are the same with or without it) |
+| `--eos 9\|91` | MUSIC's EOS (default: the XML's, 91); 9 only to rerun older campaigns |
 | `--eta-max X`, `--charged`, `--no-x`, `--keep-bits-p B`, `--keep-bits-x B` | store only \|η\| < X / charged hadrons / no positions / rounded p, x — as `hadronize.py`, on both in-job hadron files; iSS and Pythia still sample everything |
+
+**Jet hadronization seeds.** iColoredHadronization reseeds Pythia every event from the
+job's seed (`<reseed_per_event>` 1, always on in this driver) and records the seed: `units/seed`
+of the jet file and `jet_pythia_seed` in every event record. Before October 2026 it ran from
+Pythia's default seed, the same stream in every job, so those jobs' jet hadrons cannot be
+reproduced event by event and differ from a rerun with this driver.
+
+### Redoing the jet hadronization
+
+With `--store-hadronization-input` the jet file keeps, per event, the parton list
+iColoredHadronization handed to Pythia (`hadronization_input/`: pid, col, acol, E, px, py, pz,
+m of the final partons, the beam remnants with their 3dMCGlauber momenta and the
+colour-balancing parton), next to the seed, the Pythia version (`pythia_version`) and the
+effective `<JetHadronization>` settings (`jet_hadronization_xml`). `rehadronize_jets.py` then
+hadronizes the jets again with Pythia alone, no 3dMCGlauber and no hydro:
+
+```bash
+python run_prod_oo_isr.py --events 10 --seed 1 --store-hadronization-input
+python rehadronize_jets.py out/OO_isr_seed0001_hadrons_jet_frag.h5 --check
+            # the stored seeds give the job's jet hadrons exactly (same Pythia version)
+python rehadronize_jets.py out/OO_isr_seed0001_hadrons_jet_frag.h5 --decays off \
+       --out out/OO_isr_seed0001_hadrons_jet_frag_nodecay.h5   # the primary hadrons
+python rehadronize_jets.py out/OO_isr_seed0001_hadrons_jet_frag.h5 --new-seeds 7 \
+       --out out/OO_isr_seed0001_hadrons_jet_frag_seed7.h5     # another fragmentation
+```
+
+What it cannot change: anything before the final partons (Matter, the ISR), and the colour
+flow. Hadron positions (for SMASH) are a later step of
+[`PLAN_smash_ready_hadrons.md`](../../../../docs/Plans/PLAN_smash_ready_hadrons.md)
+(2.2–2.3): they also need each parton's hadronization point, which needs the hydro in the job.
+
+Au+Au needs none of this: its Colorless jet hadronization runs in `hadronize.py`, from the
+final partons in the particlize file, so it can always be redone there; `hadronize.py --check`
+is the counterpart of `--check` here
+([Re-hadronizing the jets](../prod_AuAu_0_10_jet/README.md#re-hadronizing-the-jets)).
 
 **An event at hadron level** is unit *i* of the jet file plus unit *i* of the bulk file
 (units are events in both): sample *k* of the bulk together with the jet hadrons of the same
@@ -357,12 +399,14 @@ events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 
   The output is unchanged. Set 1 in a user XML to get them back. Builds older than X-SCAPE
   `6480dbeb` ignore the tag. The other host-CPU fixes of 2026-10-11 need no setting
   ([`PLAN_cpu_fixes_A.md`](../../../../docs/Plans/PLAN_cpu_fixes_A.md)).
-- **EOS 9, not BulkFastTest's 91.** With EOS 91 iSS samples the SMASH hadron list and
-  leaves the resonance decays to SMASH, which neither the job nor `hadronize.py` runs: ρ, ω,
-  K*, Δ, η ... would stay undecayed (`hadronize.py` warns). In a 3-event test (before the
-  subtraction was switched on) the midrapidity
-  dN/dη was 15.5 per sample with EOS 91 against 34.8, all decayed, with EOS 9. EOS 9 (UrQMD
-  list) is also what the Au+Au productions run.
+- **EOS 91, the tuned set's.** iSS samples the SMASH hadron list and, with
+  `hadronize.xml`'s `<decay_smash_list>` 1 (iSS from `smash_ready` on), decays it itself:
+  the channels the pole masses close (ω → πρ, η′ → ησ, f₂ → ρρ, ... 215 of them) get
+  Breit–Wigner masses for their unstable daughters. η and Σ⁰ stay stable, as in SMASH, so
+  they are among the final hadrons (EOS 9 decays them). An iSS without it leaves the SMASH
+  list undecayed (both scripts warn): in a 3-event test that gave a midrapidity dN/dη of
+  15.5 per sample against 34.8, decayed, with EOS 9. Until October 2026 the production ran
+  EOS 9 (UrQMD list) for that reason; `--eos 9` reruns such campaigns.
 - **One hard scattering per event**, at a binary collision of 3dMCGlauber drawn uniformly.
   The events are therefore hard-triggered with no weight for the number of collisions:
   `glauber_ncoll` is recorded per event for that. `b` selects the centrality

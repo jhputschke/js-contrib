@@ -25,7 +25,8 @@ with the stored lab-frame velocities v = u/u^t.  They are summed over real fluid
 to ~6000, and their float32 velocities round to |v| = 1, so their u^t cannot be recovered
 from the file.  Vacuum cells are only counted.
 
-Needs the environment PyJetscape was built in (js_fno on the GB10) and MUSIC's EOS 9 table.
+Needs the environment PyJetscape was built in (js_fno on the GB10) and MUSIC's EOS table
+(9 or 91, as the pair files record).
 """
 
 from __future__ import annotations
@@ -39,7 +40,21 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 XSCAPE = os.path.abspath(os.path.join(HERE, "..", "..", "..", "..", "..", ".."))
-DEFAULT_EOS = os.path.join(XSCAPE, "build_gpu", "EOS", "hotQCD", "hrg_hotqcd_eos_binary.dat")
+#: MUSIC's hotQCD tables per <EOS> (music/src/eos_hotQCD.cpp)
+EOS_TABLES = {"9": "hrg_hotqcd_eos_binary.dat", "91": "hrg_hotqcd_eos_SMASH_binary.dat"}
+
+
+def eos_table_of(attrs):
+    """The build_gpu table of the EOS a pair file was made with: its ``eos`` attribute, else
+    the number in ``eos_kind`` (files before the attribute were all EOS 9)."""
+    import re
+    eos = str(attrs.get("eos", "")).strip()
+    if not eos:
+        m = re.search(r"EOS (\d+)", str(attrs.get("eos_kind", "")))
+        eos = m.group(1) if m else "9"
+    if eos not in EOS_TABLES:
+        sys.exit(f"the pair file ran MUSIC EOS {eos}: no hotQCD table for it (pass --eos)")
+    return os.path.join(XSCAPE, "build_gpu", "EOS", "hotQCD", EOS_TABLES[eos])
 
 #: MUSIC4GPU's GPU_VACUUM_E (1e-5 1/fm^4) in GeV/fm^3: below it, a cell with u^0 > 10 is put
 #: at rest on the GPU
@@ -172,12 +187,13 @@ def main():
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("gpu_pair")
     p.add_argument("cpu_pair")
-    p.add_argument("--eos", default=DEFAULT_EOS, help=f"MUSIC's EOS 9 table ({DEFAULT_EOS})")
+    p.add_argument("--eos", default=None,
+                   help="MUSIC's hotQCD table (default: build_gpu's table of the files' EOS)")
     a = p.parse_args()
     import hdf5plugin  # noqa: F401  (Blosc-compressed pair files)
 
-    eos = Eos(a.eos)
     fg, fc = h5py.File(a.gpu_pair, "r"), h5py.File(a.cpu_pair, "r")
+    eos = Eos(a.eos or eos_table_of(fg.attrs))
     bg_ids = fg["diag/bg_id"][:].astype(int)
     if not np.array_equal(bg_ids, fc["diag/bg_id"][:].astype(int)):
         sys.exit("music_cpu_gpu_hydro.py: the two files have different backgrounds per event")

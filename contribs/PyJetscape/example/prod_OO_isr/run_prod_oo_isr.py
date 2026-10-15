@@ -22,7 +22,13 @@ One call = one job = one seed.  Each job writes, next to each other:
                                  surface in the job, N oversamples per event, the settings of
                                  hadronize.xml (the file hadronize.py --tags bulk_bg writes)
     <stem>_hadrons_jet_frag.h5   the jet hadrons of iColoredHadronization, made in the job
-                                 (it needs the event's beam remnants), jetscape.hadrons_h5
+                                 (it needs the event's beam remnants), jetscape.hadrons_h5;
+                                 with --store-hadronization-input also the parton list
+                                 handed to Pythia per event (hadronization_input/), so
+                                 rehadronize_jets.py can hadronize the jets again later
+    <stem>_hadrons_bulk_bg_primary.h5
+                                 with --bulk-hadrons and --keep-primaries N: the undecayed
+                                 bulk hadrons of the first N oversamples (for SMASH later)
     <stem>.xml / .json           the job XML and a summary
 
     conda activate js_fno
@@ -35,8 +41,24 @@ One call = one job = one seed.  Each job writes, next to each other:
                               --parton-ymax 0.6       # both hard partons at |y| < 0.6
     python run_prod_oo_isr.py --events 5 --seed 1 --bulk-hadrons 100 --no-particlize
                                      # all hadrons in the job, no surface file
+    python run_prod_oo_isr.py --events 5 --seed 1 --store-hadronization-input
+                                     # + each event's Pythia input: jets can be redone
     python run_prod_oo_isr.py --events 1 --seed 1 --dry-run       # check the XML/grid only
     ./run_jobs.sh 20 25 0                                         # 20 jobs x 25 events
+
+Jet hadronization seeds.  iColoredHadronization is reseeded every event from the job's
+seed (<reseed_per_event> 1) and the seed is recorded (units/seed of the jet_frag file,
+jet_pythia_seed of every event record): each event's jet hadrons can be reproduced on their
+own.  (Before, every job ran Pythia's hadronization from Pythia's default seed.)  With
+--store-hadronization-input the jet_frag file also gets the parton list Pythia received
+(final partons, beam remnants from 3dMCGlauber, the colour-balancing parton), the Pythia
+version and the effective <JetHadronization> settings; rehadronize_jets.py then hadronizes
+the jets again without 3dMCGlauber or the hydro: the same hadrons with the stored seeds
+(--check), or with decays off, other seeds, a newer Pythia.  Opt-in: ~2 kB per event.
+
+EOS.  The production XML runs MUSIC with EOS 91 (hotQCD + the SMASH hadron list, the EOS of
+the tunes); --eos 9 reruns older EOS 9 campaigns.  With EOS 91 iSS decays the SMASH list
+itself (hadronize.xml <decay_smash_list> 1, iSS from smash_ready on).
 
 The hydro is never reused: with ISR the strings, and so the medium, are made from what each
 event's hard scattering left, so every event (also with --pthat-bins) runs the whole chain.
@@ -164,6 +186,19 @@ def parse_args() -> argparse.Namespace:
                         "oversamples per event -> <stem>_hadrons_bulk_bg.h5 (the file "
                         "hadronize.py --tags bulk_bg writes from the particlize file). "
                         "Default 0: no bulk hadrons in the job")
+    p.add_argument("--keep-primaries", type=int, default=0, dest="keep_primaries", metavar="N",
+                   help="with --bulk-hadrons: also write the undecayed bulk hadrons of the "
+                        "first N oversamples (<stem>_hadrons_bulk_bg_primary.h5; full "
+                        "precision, positions, no selection: for SMASH later). Default 0")
+    p.add_argument("--store-hadronization-input", action="store_true",
+                   dest="store_hadronization_input",
+                   help="store each event's Pythia input of the jet hadronization (final "
+                        "partons, beam remnants, colour-balancing parton) in the jet_frag "
+                        "file (hadronization_input/), so rehadronize_jets.py can redo the "
+                        "jet hadrons later (other settings, decays off, positions)")
+    p.add_argument("--eos", choices=("9", "91"), default=None,
+                   help="MUSIC's EOS (default: the XML's, 91: hotQCD + the SMASH hadron "
+                        "list, the tunes' EOS; 9: the UrQMD list, older campaigns)")
     p.add_argument("--hadronize-xml", default=os.path.join(JET_PROD, "hadronize.xml"),
                    dest="hadronize_xml",
                    help="iSS settings for --bulk-hadrons (default: "
@@ -279,6 +314,8 @@ def job_xml(a, out_h5: str):
             problems.append("MUSIC needs <output_evolution_to_memory>1 and <dump_hydro_only>0: "
                             "Matter reads the framework medium")
         _set(m, "slim_bulk_info", 1 if a.bulk_info == "slim" else 0)
+        if a.eos is not None:
+            _set(m, "EOS", a.eos)
         if a.late_dtau is not None:
             _set(m, "late_delta_tau", a.late_dtau)
         if a.late_tau is not None:
@@ -300,6 +337,10 @@ def job_xml(a, out_h5: str):
             root.remove(jh)
     elif jh is None or _text(jh, "name") != "iColored":
         problems.append("need <JetHadronization><name>iColored")
+    else:
+        # every event reseeds Pythia from the job's seed and records the seed
+        _set(jh, "reseed_per_event", 1)
+        _set(jh, "store_input", int(a.store_hadronization_input))
     for tag in ("SoftParticlization", "Afterburner", "Liquefier", "RootBulkWriter",
                 "FastRootBulkWriter"):
         if root.find(tag) is not None:
@@ -308,14 +349,14 @@ def job_xml(a, out_h5: str):
     if problems:
         sys.exit(f"run_prod_oo_isr.py: {a.user_xml}:\n  " + "\n  ".join(problems))
     if a.bulk_hadrons > 0:
-        add_inline_iss(root, a.hadronize_xml, a.bulk_hadrons)
+        add_inline_iss(root, a.hadronize_xml, a.bulk_hadrons, a.keep_primaries)
 
     path = os.path.splitext(out_h5)[0] + ".xml"
     tree.write(path)
     return path, root
 
 
-def add_inline_iss(root, hadronize_xml, n_samples):
+def add_inline_iss(root, hadronize_xml, n_samples, keep_primaries=0):
     """--bulk-hadrons: hadronize.xml's <SoftParticlization> (the settings hadronize.py
     runs), sampling MUSIC's surface in the job's own working directory.  It goes last, so
     iSS runs after MUSIC; '../' paths are made absolute with the job XML's."""
@@ -327,7 +368,21 @@ def add_inline_iss(root, hadronize_xml, n_samples):
     iss = soft.find("iSS")
     _set(iss, "iSS_working_path", ".").text = "."
     _set(iss, "number_of_repeated_sampling", int(n_samples))
+    _set(iss, "keep_primaries", int(keep_primaries))
     root.append(soft)
+
+
+def jet_hadronization_settings(root, main_xml) -> str:
+    """The <JetHadronization> block the job runs: the main XML's with the job XML's tags
+    on top (what iColoredHadronization reads), for rehadronize_jets.py."""
+    main = ET.parse(main_xml).getroot().find("JetHadronization")
+    eff = copy.deepcopy(main) if main is not None else ET.Element("JetHadronization")
+    for child in root.find("JetHadronization"):
+        old = eff.find(child.tag)
+        if old is not None:
+            eff.remove(old)
+        eff.append(copy.deepcopy(child))
+    return ET.tostring(eff, encoding="unicode")
 
 
 def hadron_selection(a) -> dict:
@@ -453,15 +508,15 @@ def main() -> int:
     selection = hadron_selection(a)
     if a.bulk_hadrons < 0:
         sys.exit("run_prod_oo_isr.py: --bulk-hadrons must be >= 0")
+    if a.keep_primaries < 0 or (a.keep_primaries and not a.bulk_hadrons):
+        sys.exit("run_prod_oo_isr.py: --keep-primaries N needs N >= 0 and --bulk-hadrons")
+    if a.store_hadronization_input and a.no_jet_hadrons:
+        sys.exit("run_prod_oo_isr.py: --store-hadronization-input needs the jet "
+                 "hadronization (drop --no-jet-hadrons)")
+    out_bulk_primary = (stem + "_hadrons_bulk_bg_primary.h5"
+                        if out_bulk and a.keep_primaries else None)
     a.hadronize_xml = os.path.abspath(a.hadronize_xml)
-    if out_bulk and (_text(root, "Hydro/MUSIC/EOS") or "").strip() == "91":
-        # iSS (readindata.cpp) takes the SMASH hadron list for EOS 91 and leaves the
-        # decays to SMASH, which this does not run (as hadronize.py warns)
-        print("run_prod_oo_isr.py: WARNING -- MUSIC runs EOS 91 (SMASH hadron list): iSS "
-              "samples that list and does NOT decay the resonances (rho, omega, K*, Delta ... "
-              "stay in the bulk hadrons). Use EOS 9 for decayed hadrons"
-              + ("; with --no-particlize the surfaces are not kept to redo it."
-                 if a.no_particlize else "."), file=sys.stderr)
+    eos = (_text(root, "Hydro/MUSIC/EOS") or "").strip()
 
     mcg = root.find("IS/MCGlauber")
     system = (f"{_text(mcg, 'projectile')}+{_text(mcg, 'target')} "
@@ -489,7 +544,8 @@ def main() -> int:
     print(f"  job XML  {xml}")
     print(f"  grid     {a.grid}")
     print(rp.describe(grid, max_ntau))
-    for path in (None if a.no_hydro_file else out_h5, out_particlize, out_bulk, out_frag):
+    for path in (None if a.no_hydro_file else out_h5, out_particlize, out_bulk,
+                 out_bulk_primary, out_frag):
         if path:
             print(f"  output   {path}")
     if a.dry_run:
@@ -498,6 +554,34 @@ def main() -> int:
     import numpy as np
     import jetscape as js
     from jetscape import pyjetscape_core as core
+    soft = root.find("SoftParticlization/iSS")
+    smash_decays = (soft is not None and (_text(soft, "decay_smash_list") or "0") == "1"
+                    and getattr(core, "ISS_DECAYS_SMASH_LIST", False))
+    if out_bulk and eos == "91" and not smash_decays:
+        # iSS (readindata.cpp) takes the SMASH hadron list for EOS 91; an iSS before
+        # smash_ready (or <decay_smash_list> 0) leaves its decays to SMASH
+        print("run_prod_oo_isr.py: WARNING -- MUSIC runs EOS 91 (SMASH hadron list) and "
+              "this iSS does NOT decay that list (core.ISS_DECAYS_SMASH_LIST False, or "
+              "<decay_smash_list> 0): rho, omega, K*, Delta ... stay in the bulk hadrons"
+              + ("; with --no-particlize the surfaces are not kept to redo it."
+                 if a.no_particlize else "."), file=sys.stderr)
+    if not a.no_jet_hadrons and not getattr(core, "ICOLORED_HAS_INPUT_RECORD", False):
+        if a.store_hadronization_input:
+            sys.exit("run_prod_oo_isr.py: --store-hadronization-input needs X-SCAPE's "
+                     "iColoredHadronization with <store_input> (smash_ready) and PyJetscape "
+                     "built against it")
+        print("run_prod_oo_isr.py: note -- this X-SCAPE's iColoredHadronization cannot "
+              "reseed per event: the jet hadrons run from Pythia's default seed",
+              file=sys.stderr)
+    if a.keep_primaries and not getattr(core, "SOFT_HAS_PRIMARIES", False):
+        sys.exit("run_prod_oo_isr.py: --keep-primaries needs X-SCAPE with iSS "
+                 "<keep_primaries> (smash_ready) and PyJetscape built against it")
+    hadron_list = {"9": "UrQMD", "91": "SMASH"}.get(eos, "other")
+    iss_decays = ("none" if not out_bulk else
+                  "iSS, Breit-Wigner masses for the unstable daughters of channels closed "
+                  "at the pole masses; eta, Sigma0 stable" if hadron_list == "SMASH"
+                  and smash_decays else "none" if hadron_list == "SMASH"
+                  else "iSS, pole masses")
     from jetscape.fast_h5_bulk import H5BulkWriter
     from jetscape.showers import initiators_from_manager
 
@@ -521,6 +605,7 @@ def main() -> int:
                               "(<stem>_hadrons_bulk_bg.h5)" if out_bulk else
                               "none in the job (hadronize.py on the particlize file)",
         "T_fo": float(_text(root, "Hydro/MUSIC/freezeout_temperature") or 0.15),
+        "eos": eos,
         "subtract_hard_momentum": 0 if a.no_subtraction else 1,
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
            if a.parton_ymax is not None else {}),
@@ -611,7 +696,7 @@ def main() -> int:
             verbose=True)
         pwriter.attach(jetscape, bg=hydro, manager=mgr)   # reads ./music_input: the job's
     from jetscape.hadrons_h5 import HadronH5Writer
-    bwriter = iss = None
+    bwriter = pbwriter = iss = None
     if out_bulk:
         iss = tasks["iSS"]
         core.soft_set_compact_output(iss, True)   # arrays, ~8x less memory per oversample
@@ -622,19 +707,43 @@ def main() -> int:
                    "hadronize_xml": ET.tostring(root.find("SoftParticlization"),
                                                 encoding="unicode"),
                    "music_input": open("music_input").read(),
+                   "hadron_list": hadron_list, "iss_decays": iss_decays,
+                   "decayed": iss_decays != "none",
                    **{k: v for k, v in provenance.items()
                       if k in ("prod", "prod_seed", "system", "prod_hard",
-                                 "subtract_hard_momentum")}})
+                                 "subtract_hard_momentum", "eos")}})
+        if out_bulk_primary:
+            # full precision, positions, no selection: what SMASH needs
+            pbwriter = HadronH5Writer(
+                out_bulk_primary, tag="bulk_bg_primary",
+                n_samples=min(a.keep_primaries, a.bulk_hadrons),
+                attrs={**{k: v for k, v in bwriter.f.attrs.items()
+                          if k not in ("format", "format_version", "producer", "tag",
+                                       "n_samples", "complete", "nunits_written",
+                                       "eta_max", "charged_only", "positions",
+                                       "p_columns", "x_columns", "units")},
+                       "decayed": False, "primaries_of": "bulk_bg",
+                       "keep_primaries": int(a.keep_primaries)})
     hwriter = None
     if out_frag:
         hwriter = HadronH5Writer(out_frag, tag="jet_frag", n_samples=1, initiators=True,
+                                 hadronization_input=a.store_hadronization_input,
                                  **selection,
                                  attrs={"inline": True, "module": "iColoredHadronization",
                                         "source": os.path.basename(stem) + ".h5",
+                                        "pythia_version": int(getattr(core, "PYTHIA_VERSION",
+                                                                      0)),
+                                        "reseed_per_event": int(getattr(
+                                            core, "ICOLORED_HAS_INPUT_RECORD", False)),
+                                        "hadronization_input_stored":
+                                            bool(a.store_hadronization_input),
+                                        "jet_hadronization_xml":
+                                            jet_hadronization_settings(root, a.main_xml),
+                                        "prod_user_xml": provenance["prod_user_xml"],
                                         **{k: v for k, v in provenance.items()
                                            if k in ("prod", "prod_seed", "system",
-                                                    "prod_hard",
-                                                    "subtract_hard_momentum")}})
+                                                    "prod_hard", "subtract_hard_momentum",
+                                                    "eos")}})
 
     n = n_hydro = no_medium = 0
     skipped = []                  # (event, error) of events whose simulation threw
@@ -669,6 +778,9 @@ def main() -> int:
                   **hard_partons_record(core, gun)}
             if a.pthat_windows:
                 ev["pthat_bin"] = int(core.pythia_gun_bins(gun)["active"])
+            if not a.no_jet_hadrons and getattr(core, "ICOLORED_HAS_INPUT_RECORD", False):
+                ev["jet_pythia_seed"] = int(core.jet_hadronization_last_random_seed(
+                    tasks["HadronizationManager"]))
             b = hydro.get_bulk_info()
             medium = bool(b.get_data_size())
             ev["tau0_music"] = float(b.tau_min) if medium else float("nan")
@@ -687,10 +799,14 @@ def main() -> int:
             if bwriter is not None:
                 n_cells = int(len(hydro.surface_to_numpy()))
                 bulk = core.soft_hadrons_numpy(iss) if n_cells else []
+                prim = core.soft_primaries_numpy(iss) if n_cells and pbwriter else None
                 iss_seed = int(core.soft_last_random_seed(iss))
                 # the event's record (as diag/) in units/ too: hadron-only jobs keep it
                 bwriter.append_unit(bulk, unit=k, event=i, seed=iss_seed, n_cells=n_cells,
                                     hydro_row=row, **ev)
+                if pbwriter is not None:
+                    pbwriter.append_unit(prim if prim is not None else [], unit=k, event=i,
+                                         seed=iss_seed, n_cells=n_cells, hydro_row=row, **ev)
                 bulk_n = len(bulk["pid"]) if n_cells else 0
                 ev["inline_iss_seed_bg"] = iss_seed
             if pwriter is not None:
@@ -699,8 +815,11 @@ def main() -> int:
             if hwriter is not None:
                 frag = core.hadronization_hadrons_numpy(tasks["HadronizationManager"])
                 frag_n = len(frag["pid"])
+                hin = (core.hadronization_input_numpy(tasks["HadronizationManager"])
+                       if a.store_hadronization_input else None)
                 hwriter.append_unit([frag], initiators=initiators_from_manager(mgr),
-                                    unit=k, event=i, hydro_row=row, **ev)
+                                    hadronization_input=hin, unit=k, event=i, hydro_row=row,
+                                    seed=ev.get("jet_pythia_seed", 0), **ev)
             jetscape.ClearPerEvent()
             wall = time.time() - t0
             if pwriter is not None:
@@ -732,6 +851,8 @@ def main() -> int:
             hwriter.close()
         if bwriter is not None:
             bwriter.close()
+        if pbwriter is not None:
+            pbwriter.close()
 
     final = {"sigma_gen_mb": float(sigma["sigma_gen"]), "sigma_err_mb": float(sigma["sigma_err"])}
     if a.pthat_windows:
@@ -753,7 +874,7 @@ def main() -> int:
             pthat_bin_sigma_err_raw=np.asarray(windows["sigma_err_raw"], dtype=np.float64))
     import h5py
     for path in (None if writer is None or not n_hydro else out_h5, out_particlize, out_frag,
-                 out_bulk):
+                 out_bulk, out_bulk_primary):
         if path and os.path.exists(path):
             with h5py.File(path, "a") as f:
                 f.attrs.update({**final, "prod_wall_s_total": time.time() - t_job,
@@ -776,6 +897,8 @@ def main() -> int:
         summary["jet_frag"] = out_frag
     if out_bulk:
         summary.update(bulk_bg=out_bulk, bulk_oversample=a.bulk_hadrons)
+    if out_bulk_primary:
+        summary.update(bulk_bg_primary=out_bulk_primary, keep_primaries=a.keep_primaries)
     with open(stem + ".json", "w") as f:
         json.dump(summary, f, indent=1)
     print("prod_OO_isr:", json.dumps(summary))

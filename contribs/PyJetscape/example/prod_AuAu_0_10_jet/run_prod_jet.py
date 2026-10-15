@@ -171,6 +171,10 @@ def parse_args() -> argparse.Namespace:
                         "and on a build without the restart. --no-music2-restart: every "
                         "jet leg from tau0. MUSIC_RESTART_VERIFY=1 runs every jet leg from "
                         "tau0 and compares its state with the checkpoint instead")
+    p.add_argument("--eos", choices=("9", "91"), default=None,
+                   help="MUSIC's EOS for both legs (default: the XML's, 91: hotQCD + the SMASH "
+                        "hadron list, the tunes' EOS; 9: the UrQMD list, older campaigns). "
+                        "Recorded as the files' eos / eos_kind")
     p.add_argument("--late-dtau", type=float, default=None, dest="late_dtau", metavar="DT",
                    help="MUSIC's time step from --late-tau on [fm/c] (the XML's "
                         "<late_delta_tau>, 0.05 in the production XML; 0: constant step)")
@@ -233,6 +237,16 @@ def music_delta_tau(build: str) -> float:
 #: MUSIC's hotQCD tables per <EOS> (music/src/eos_hotQCD.cpp): rows (e, P, s, T), e in
 #: GeV/fm^3, T in GeV, float64
 EOS_TABLES = {"9": "hrg_hotqcd_eos_binary.dat", "91": "hrg_hotqcd_eos_SMASH_binary.dat"}
+
+
+def music_eos(root, main_xml: str) -> str:
+    """MUSIC's <EOS> as the job runs it: the first <Hydro><MUSIC> block's, else the main
+    XML's."""
+    for r in (root, ET.parse(main_xml).getroot()):
+        v = _text(r, "Hydro/MUSIC/EOS")
+        if v:
+            return v
+    return ""
 
 
 def freezeout_e(root, main_xml: str, build: str):
@@ -420,6 +434,12 @@ def job_xml(a, out_h5: str):
             problems.append(f"{BG_ID} needs <dump_hydro_only>0: Matter/LBT read its "
                             "framework medium (MUSIC_2 is switched to 1 in Python)")
         _set(music, "slim_bulk_info", 1 if a.bulk_info == "slim" else 0)
+        if a.eos is not None:
+            # every MUSIC instance reads the first block; a second block's own <EOS> too
+            for h in hydros:
+                if h.find("MUSIC") is not None and (h is hydros[0]
+                                                    or h.find("MUSIC/EOS") is not None):
+                    _set(h.find("MUSIC"), "EOS", a.eos)
         if a.late_dtau is not None:
             _set(music, "late_delta_tau", a.late_dtau)
         if a.late_tau is not None:
@@ -776,13 +796,14 @@ def main() -> int:
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
         "jet": "Matter + LBT, CausalLiquefier droplets into MUSIC_2",
         "T_fo": rp.music_freezeout_temperature(root, a.main_xml),
+        "eos": music_eos(root, a.main_xml),
     }
     writer = PairH5Writer(
         out_h5, bg_id=BG_ID, jet_id=JET_ID, grid_mode=grid_mode,
         out_grid=None if a.native else grid, choose_ntau=max_ntau,
         store_showers=not a.no_showers, compression=a.compression, keep_bits=a.keep_bits,
         provenance={"hard_vertex": HARD_VERTEX[a.hard],
-                    "eos_kind": "hotqcd (MUSIC EOS 9)",
+                    "eos_kind": f"hotqcd (MUSIC EOS {provenance['eos']})",
                     "transport_mode": "MUSIC viscous: eta/s(T) and zeta/s(T) "
                                       "parametrization 3, second-order terms"},
         keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True,

@@ -429,6 +429,8 @@ python run_hadronize.py out_had --dry-run --oversample 500    # what it would do
 | `--no-x` | store no positions `t, x, y, z`: ~60% of the bytes; readers give `x` as empty `(N, 0)` arrays (below) |
 | `--add-initiators` | only add `initiators/` (each event's shower-initiating partons, from the particlize file, or for an older one the pair file) to existing `bulk_jet` / `jet_frag` outputs, without hadronizing again: for files made before hadronize.py copied them. `--force` replaces an existing group |
 | `--no-initiators` | don't copy the initiators (by default they are copied from the particlize file, or for an older one from the pair file next to it) |
+| `--check [JET_FRAG]` | replay an existing `jet_frag` file (default: `<out-dir>/<stem>_hadrons_jet_frag.h5`) with the settings and seeds it records, and compare pid, pstat, p and x of every fragmentation; exit 1 on a difference. Writes nothing. See [Re-hadronizing the jets](#re-hadronizing-the-jets) |
+| `--keep-primaries N` | also write iSS's undecayed hadrons of the first N oversamples per unit, for SMASH later: `<stem>_hadrons_bulk_jet_primary.h5` and `<stem>_hadrons_bulk_bg_primary.h5` (tags `bulk_*_primary`, sample k = the undecayed form of sample k of the decayed file). Always full precision, with positions and without `--eta-max`/`--charged`/`--no-x`, which SMASH needs. The decayed hadrons are bit-identical with and without it. `--skip-complete` counts a tag complete only with its primary file (below) |
 
 #### Hadron precision (`--keep-bits-p`, `--keep-bits-x`)
 
@@ -1045,9 +1047,10 @@ processes keep up with a whole four-job GPU campaign.
 | `--jets-per-bin M` | With `--pthat-bins`: jets per window per background (default 1). |
 | `--parton-ymax Y` | PythiaGun keeps only events whose handed-over partons (status 62) pass \|y\| < Y on their two hardest (`--parton-y-mode`); rejected events are regenerated before any shower or hydro, and the cross sections are Pythia's × kept/tried. With or without `--pthat-bins`. See [E](#e-parton-rapidity-cut---parton-ymax). |
 | `--parton-y-mode {leading,both,any}` | With `--parton-ymax`: the hardest parton (default), the two hardest, or either of them. |
+| `--eos {9,91}` | MUSIC's EOS for both legs (default: the XML's, 91: hotQCD + the SMASH hadron list, the EOS of the tunes; 9: the UrQMD list, for reruns of campaigns before October 2026). Recorded as `eos` and `eos_kind`; `hadronize.py` takes it from the stored `music_input` (below). |
 | `--no-deposit` | Null test: MUSIC_2 without the liquefier. `arr` must equal `arr_bg` bit for bit (`diag/frames_identical == ntau`). Showers and droplets are still recorded. |
 | `--native` | Both legs on MUSIC's own grid (100 × 100 × 60) instead of the YAML's. |
-| `--edge-e-threshold E` | Flags a leg whose energy density on the x/y faces of the output grid exceeds E [GeV/fm³] in any stored frame: `diag/{bg,jet}_hit_edge` (also in the particlize file's `events/`), a warning per event, and `events_hit_edge` in the `.json`. The fluid above freeze-out then reaches beyond the stored box (`grid_fno.yaml`: ±12.2 fm; ±10 fm before October 2026), which MUSIC's own grid (±15 fm) still holds, so the stored evolution and a surface built from it miss that part; MUSIC's surface and the hadrons are not affected. Default: MUSIC's freeze-out energy density from the job XML, `eps_switch` or e(`freezeout_temperature`) from the build's EOS 9/91 table (0.2342 GeV/fm³ for T_fo = 0.15, EOS 9; the job prints it); `0`: no flag. `diag/{bg,jet}_edge_e_max` and `..._eta` (the η faces) are recorded either way. The η faces at \|η_s\| = 5 are above freeze-out in every 0–10% event and are not flagged. In the `pth10-40_eta06_gridnorm` campaign (on the ±10 fm grid) the jet leg crossed ±10 fm at τ ≈ 7–14 fm/c in 3 of 60 events checked (edge e up to 0.256), the background never (≤ 0.08). |
+| `--edge-e-threshold E` | Flags a leg whose energy density on the x/y faces of the output grid exceeds E [GeV/fm³] in any stored frame: `diag/{bg,jet}_hit_edge` (also in the particlize file's `events/`), a warning per event, and `events_hit_edge` in the `.json`. The fluid above freeze-out then reaches beyond the stored box (`grid_fno.yaml`: ±12.2 fm; ±10 fm before October 2026), which MUSIC's own grid (±15 fm) still holds, so the stored evolution and a surface built from it miss that part; MUSIC's surface and the hadrons are not affected. Default: MUSIC's freeze-out energy density from the job XML, `eps_switch` or e(`freezeout_temperature`) from the build's EOS 9/91 table (0.2431 GeV/fm³ for T_fo = 0.15 with EOS 91, 0.2342 with EOS 9; the job prints it); `0`: no flag. `diag/{bg,jet}_edge_e_max` and `..._eta` (the η faces) are recorded either way. The η faces at \|η_s\| = 5 are above freeze-out in every 0–10% event and are not flagged. In the `pth10-40_eta06_gridnorm` campaign (on the ±10 fm grid) the jet leg crossed ±10 fm at τ ≈ 7–14 fm/c in 3 of 60 events checked (edge e up to 0.256), the background never (≤ 0.08). |
 | `--workdir DIR` / `--keep-workdir` / `--in-build` | The job's working directory, as in `../prod_AuAu_0_10` (default `OUTDIR/work/<tag>`, removed after a successful job). |
 | `--no-showers` | Skip `shower/`. |
 | `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +5.4 s per event for `both` (+13.5 s before MUSIC4GPU `5058545`; measured, below). |
@@ -1239,6 +1242,32 @@ unit with no samples.
   `hadronize.py --use-stored-seeds` on its particlize file give bit-identical hadrons:
   1,710,050 iSS hadrons and all Colorless fragments.
 
+#### Re-hadronizing the jets
+
+The jets are hadronized here, from the particlize file's `partons/` (float64), not in the
+job, so a `jet_frag` file can be made again at any time: Au+Au needs no counterpart of
+O+O's `--store-hadronization-input` and `rehadronize_jets.py` (O+O's iColored
+hadronization takes the beam remnants, which exist only in the job). With `--tags jet_frag`
+and an `--out-dir` of its own:
+
+| wanted | how |
+|---|---|
+| the same hadrons | the same `--seed`, `--n-frag` and `hadronize.xml` (and Pythia version) |
+| a check that they are | `--check [JET_FRAG]`: takes `base_seed`, `seed_scheme`, `stored_seeds`, `n_samples`, `hadronize_xml`, the precision and the selection from the file, hadronizes its events again in the working directory and compares |
+| other fragmentations | another `--seed`, or a larger `--n-frag`: a fragmentation's seed does not depend on `--n-frag`, so `--n-frag 50` keeps the 10 of `--n-frag 10` and adds 40 |
+| the primary hadrons | a copy of `hadronize.xml` with `<pythia_decays>off</pythia_decays>`, via `--hadronize-xml` |
+
+```bash
+python hadronize.py out_had/AuAu_0_10_jet_seed0001_particlize.h5 --check
+python hadronize.py P.h5 --check other/AuAu_0_10_jet_seed0001_hadrons_jet_frag.h5
+```
+
+`jet_frag` files record `pythia_version` from smash_ready on, and `--check` refuses a file
+made with another Pythia; for an older file it notes that a difference may only mean
+another Pythia.  Tested: files made by the build before smash_ready, files with
+`--keep-bits-p 12 --eta-max 2 --charged`, and a file whose `base_seed` was altered (all
+events reported as different, exit 1).
+
 **Things to know:**
 - **Colored jet hadronization is not supported** for this setup: LBT assigns no colour tags and
   the liquefier removes partons from colour chains. `hadronize.py --diagnose-colored` measures
@@ -1404,6 +1433,19 @@ or be missed. With a constant step everything is bit-identical to before.
   search −30 %, bit-identical.
 
 ## Choices worth knowing
+
+- **EOS 91, and iSS decays the SMASH list.** MUSIC runs EOS 91 (hotQCD + the SMASH hadron
+  list), the EOS of the tunes; until October 2026 the production ran EOS 9 (UrQMD list),
+  because iSS left the SMASH list's resonances for SMASH. With `hadronize.xml`'s
+  `<decay_smash_list>` 1 (iSS `smash_ready`, PLAN_smash_ready_hadrons.md 1.1–1.2) iSS decays
+  it itself: a channel the pole masses close (215 of them: ω → πρ, η′ → ησ, f₂ → ρρ, ...)
+  gets Breit–Wigner masses for its unstable daughters, between their lowest decay mass and
+  what the mother leaves; one closed even then is drawn again among the open ones. η and Σ⁰
+  stay stable, as in SMASH, so they are among the final hadrons (EOS 9 decays them). Checked:
+  four-momentum and charges conserved from the undecayed to the decayed hadrons (float32
+  storage precision), only stable species left, the ρ masses in ω → πρ distributed as the
+  truncated Breit–Wigner. EOS 9 output is bit-identical to before. The hadron files record
+  `hadron_list` (SMASH / UrQMD), `decayed` and `iss_decays`.
 
 - **`<CausalLiquefier><dtau>` must equal MUSIC's `Delta_Tau`** (0.02 in `music_input`), the
   starting step. The kernel is divided by `dtau` and applied in one hydro step

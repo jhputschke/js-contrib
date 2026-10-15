@@ -25,9 +25,9 @@
 
   The 3dMCGlauber and MUSIC settings are the tuned O+O set of X-SCAPE's
   config/BulkFastTest/OO_one_event.xml (tuned at 200 GeV; O16 from nucleusConfigs,
-  tau_form_mean 0.5), except EOS 9 (as the Au+Au production: iSS decays the resonances
-  itself), Subtract_hard_momentum 1 (ISR: the hard partons' momentum is taken from the
-  colliding nucleons), generateOnlyPositions 1 for the ISR and b <= 3 fm.
+  tau_form_mean 0.5, EOS 91), except Subtract_hard_momentum 1 (ISR: the hard partons'
+  momentum is taken from the colliding nucleons), generateOnlyPositions 1 for the ISR and
+  b <= 3 fm.  (EOS 9 before 2026-10, when iSS could not decay the SMASH list.)
 
   Jet energy loss is Matter alone: LBT gives its partons no colour, which the
   iColored hadronization (Pythia strings through the ISR colour flow and the remnants)
@@ -176,10 +176,10 @@
       <name>MUSIC</name>
       <MUSIC_input_file>music_input</MUSIC_input_file>
       <!--EOS used for the hydro evolution: 91 hotQCD EOS (SMASH list), 9 hotQCD EOS (UrQMD list), 20 NEOS-4D-->
-      <!--9, as the Au+Au production (config/BulkFastTest/OO_one_event.xml has 91): with 91
-          iSS samples the SMASH hadron list and leaves the resonance decays to SMASH (iSS
-          readindata.cpp), which is not run here; with 9 (UrQMD list) iSS decays them itself.-->
-      <EOS>9</EOS>
+      <!--91, the tuned set's EOS (config/BulkFastTest/OO_one_event.xml): iSS samples the SMASH
+          hadron list and decays it itself (hadronize.xml decay_smash_list 1, iSS smash_ready).
+          9 (UrQMD list) for reruns of older campaigns: run_prod_oo_isr.py with eos 9-->
+      <EOS>91</EOS>
       <!--InitialProfile = 42 for Trento + Pre-equilibrium or IPGlasma, 13 for the 3D Glauber initial condition-->
       <InitialProfile>131</InitialProfile>
       <!--beastMode = 0: double precision, constant time step-->

@@ -76,12 +76,16 @@ def test_no_threshold_for_an_eos_without_a_table(tmp_path):
 
 
 def test_the_production_xml_gives_musics_value():
-    """The production XML (EOS 9, T_fo 0.15) against the real table, if this checkout has
-    a build: 0.2342 GeV/fm^3, the e MUSIC's surfaces carry."""
+    """The production XML (EOS 91, T_fo 0.15) against the real table, if this checkout has
+    a build: 0.2431 GeV/fm^3, the e MUSIC's surfaces carry (EOS 9: 0.2342)."""
     build = Path(rpj.rp.XSCAPE) / "build_gpu"
-    if not (build / "EOS" / "hotQCD" / rpj.EOS_TABLES["9"]).exists():
-        pytest.skip("no build_gpu EOS table")
+    if not all((build / "EOS" / "hotQCD" / rpj.EOS_TABLES[k]).exists() for k in ("9", "91")):
+        pytest.skip("no build_gpu EOS tables")
     root = ET.parse(rpj.USER_XML).getroot()
-    e, _ = rpj.freezeout_e(root, str(Path(rpj.rp.XSCAPE) / "config" / "jetscape_main.xml"),
-                           str(build))
+    main = str(Path(rpj.rp.XSCAPE) / "config" / "jetscape_main.xml")
+    assert rpj.music_eos(root, main) == "91"
+    e, _ = rpj.freezeout_e(root, main, str(build))
+    assert e == pytest.approx(0.2431, abs=1e-4)
+    root.find("Hydro/MUSIC/EOS").text = "9"            # --eos 9: older campaigns
+    e, _ = rpj.freezeout_e(root, main, str(build))
     assert e == pytest.approx(0.2342, abs=1e-4)

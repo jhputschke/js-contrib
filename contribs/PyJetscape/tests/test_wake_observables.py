@@ -137,3 +137,20 @@ def test_prefetch_passes_a_load_error_on():
 
     with pytest.raises(OSError, match="chunk 2"):
         list(wo.prefetch(range(4), load))
+
+
+def test_find_eos_takes_the_table_of_the_files_eos(tmp_path):
+    d = tmp_path / "EOS" / "hotQCD"
+    d.mkdir(parents=True)
+    for name in wo.EOS_TABLES.values():
+        _table(d / name, np.linspace(0.1, 10.0, 5))
+    build = str(tmp_path)
+    got = wo.find_eos({"eos": "91", "eos_kind": "hotqcd (MUSIC EOS 91)", "prod_build": build},
+                      "")
+    assert got.endswith(wo.EOS_TABLES["91"])
+    # files before the eos attribute: EOS 9, as their eos_kind says
+    old = {"eos_kind": "hotqcd (MUSIC EOS 9)", "prod_build": build}
+    assert wo.find_eos(old, "").endswith(wo.EOS_TABLES["9"])
+    assert wo.file_eos({}) == "9"
+    with pytest.raises(SystemExit):              # the other EOS's table, given explicitly
+        wo.find_eos({"eos": "91", "prod_build": build}, str(d / wo.EOS_TABLES["9"]))

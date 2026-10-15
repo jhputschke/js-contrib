@@ -30,6 +30,21 @@ Layout::
                                             u is rows offsets[u]:[u+1]; copied by hadronize.py
                                             from the pair file's shower/, so jet-relative
                                             analyses do not need the (large) pair file
+    hadronization_input/data     (K, 8) float64  optional, jet_frag only: the parton list the
+    hadronization_input/offsets  (U + 1,) int64  jet hadronization handed to Pythia
+                                            (HADRONIZATION_INPUT_COLUMNS: final partons, beam
+                                            remnants, colour-balancing parton), unit u is rows
+                                            offsets[u]:[u+1]; with units/seed, enough to
+                                            hadronize the event again (prod_OO_isr's
+                                            rehadronize_jets.py)
+
+Undecayed hadrons.  ``bulk_jet_primary`` and ``bulk_bg_primary`` (PRIMARY_TAGS) hold iSS's
+hadrons as sampled, before any decay, for the first N oversamples of each unit (hadronize.py
+--keep-primaries N), in their own files with this layout: input for an afterburner (SMASH)
+later.  Sample k of a unit there is the undecayed form of sample k of the same unit in the
+``bulk_jet`` / ``bulk_bg`` file.  They are written at full precision with positions and
+without a selection (SMASH needs every hadron, its position and its mass from E^2 - p^2).
+The ``decayed`` attribute tells the two apart.
 
 ``p`` and ``x`` are full float32 unless the writer was given ``keep_bits``: then they are
 rounded to that many mantissa bits (``keep_mantissa_bits`` / ``max_rel_error`` on the
@@ -92,7 +107,8 @@ from .showers import INITIATOR_COLUMNS
 __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "ORIGIN",
            "ROUNDABLE", "INITIATOR_COLUMNS", "INITIATOR_TAGS", "hadron_precision",
            "hadron_eta_max", "hadron_selection", "pseudorapidity", "particlize_initiators",
-           "pair_initiators", "add_initiators", "HadronH5Writer", "Hadrons", "HadronFile",
+           "pair_initiators", "add_initiators", "PRIMARY_TAGS", "PRIMARY_OF",
+           "HADRONIZATION_INPUT_COLUMNS", "HadronH5Writer", "Hadrons", "HadronFile",
            "JetEvents", "HadronFileReader",
            "EventHadrons", "EventInfo"]
 
@@ -106,6 +122,14 @@ FORMAT = "xscape/hadrons"
 FORMAT_VERSION = 1
 
 TAGS = ("bulk_jet", "bulk_bg", "jet_frag")
+
+#: iSS's undecayed hadrons (hadronize.py --keep-primaries), one file per bulk tag
+PRIMARY_TAGS = ("bulk_jet_primary", "bulk_bg_primary")
+#: the primary tag of a bulk tag
+PRIMARY_OF = {"bulk_jet": "bulk_jet_primary", "bulk_bg": "bulk_bg_primary"}
+
+#: columns of ``hadronization_input/data``: the partons handed to Pythia (p in GeV)
+HADRONIZATION_INPUT_COLUMNS = ("pid", "col", "acol", "E", "px", "py", "pz", "m")
 
 #: |pid| of the charged hadrons that survive iSS's decays (plus leptons from them)
 CHARGED = (211, 321, 2212, 3222, 3112, 3312, 3334, 11, 13)
@@ -212,18 +236,25 @@ class HadronH5Writer:
     (:func:`pseudorapidity` of the stored, i.e. rounded, momenta); ``charged_only`` only the
     charged ones (|pid| in CHARGED); the samples stay, with fewer hadrons.  ``positions=False``
     writes no ``x`` (``x`` given to :meth:`append_unit` is ignored).  Recorded as the
-    ``eta_max``, ``charged_only`` and ``positions`` attributes (:func:`hadron_selection`)."""
+    ``eta_max``, ``charged_only`` and ``positions`` attributes (:func:`hadron_selection`).
+
+    ``hadronization_input=True`` (jet_frag only) adds the ``hadronization_input/`` group:
+    every :meth:`append_unit` then takes the event's Pythia input, a dict of pid, col, acol,
+    p (K, 4) [E, px, py, pz] and mass (core.hadronization_input_numpy) or a (K, 8) array in
+    ``HADRONIZATION_INPUT_COLUMNS`` order."""
 
     def __init__(self, path, *, tag, n_samples, attrs=None, compression=DEFAULT_COMPRESSION,
                  force=True, keep_bits=None, initiators=False, eta_max=None,
-                 charged_only=False, positions=True):
+                 charged_only=False, positions=True, hadronization_input=False):
         import h5py
 
-        if tag not in TAGS:
-            raise ValueError(f"tag must be one of {TAGS}, got {tag!r}")
+        if tag not in TAGS + PRIMARY_TAGS:
+            raise ValueError(f"tag must be one of {TAGS + PRIMARY_TAGS}, got {tag!r}")
         if initiators and tag not in INITIATOR_TAGS:
             raise ValueError(f"initiators: only {INITIATOR_TAGS} have one event per unit, "
                              f"not {tag!r}")
+        if hadronization_input and tag != "jet_frag":
+            raise ValueError(f"hadronization_input: only jet_frag, not {tag!r}")
         if eta_max is not None and not float(eta_max) > 0:
             raise ValueError(f"eta_max must be > 0 (None: no cut), got {eta_max!r}")
         self.eta_max = None if eta_max is None else float(eta_max)
@@ -273,16 +304,22 @@ class HadronH5Writer:
         from .particlize_h5 import _ScalarTable
         self._units = _ScalarTable(self.f.require_group("units"))
         self._ini = _initiator_group(self.f) if initiators else None
+        self._hin = _hadronization_input_group(self.f) if hadronization_input else None
         self._u = 0
 
-    def append_unit(self, samples, initiators=None, **unit_scalars):
+    def append_unit(self, samples, initiators=None, hadronization_input=None,
+                    **unit_scalars):
         """Append one unit.  ``samples`` is a list of hadron dicts (one per sample, keys
         pid, pstat, p, x), or one dict with ``sample_counts`` (as soft_hadrons_numpy
         returns); ``initiators`` the event's (K, 11) initiator rows, for a writer made with
-        ``initiators=True``.  Returns the unit index."""
+        ``initiators=True``; ``hadronization_input`` the event's Pythia input, for a writer
+        made with ``hadronization_input=True``.  Returns the unit index."""
         if initiators is not None and self._ini is None:
             raise ValueError("initiators given, but the writer was made without "
                              "initiators=True")
+        if hadronization_input is not None and self._hin is None:
+            raise ValueError("hadronization_input given, but the writer was made without "
+                             "hadronization_input=True")
         keys = self._keys
         if isinstance(samples, dict):
             counts = np.asarray(samples.get("sample_counts", [len(samples["pid"])]),
@@ -314,6 +351,8 @@ class HadronH5Writer:
         self._h.append_many(rows, counts)
         if self._ini is not None:
             self._ini.append(_initiator_rows(initiators))
+        if self._hin is not None:
+            self._hin.append({"data": hadronization_input_rows(hadronization_input)})
         n_samples = len(counts)
         n = self._unit_off.shape[0]
         self._unit_off.resize((n + 1,))
@@ -523,6 +562,21 @@ class HadronFile:
         return self.f["initiators/data"][int(off[u]):int(off[u + 1])]
 
     @property
+    def has_hadronization_input(self):
+        return "hadronization_input" in self.f
+
+    def hadronization_input(self, unit):
+        """The Pythia input of recorded unit ``unit`` (an event) as a dict of pid, col, acol
+        (int32), p (K, 4) [E, px, py, pz] and mass (float64), what
+        core.hadronize_input takes; None if the file has no ``hadronization_input/``."""
+        if not self.has_hadronization_input:
+            return None
+        u = self.unit_index(unit)
+        off = self.f["hadronization_input/offsets"]
+        return hadronization_input_dict(
+            self.f["hadronization_input/data"][int(off[u]):int(off[u + 1])])
+
+    @property
     def n_units(self):
         return len(self.unit_offsets) - 1
 
@@ -659,6 +713,45 @@ def _initiator_rows(ini):
     if rows.ndim != 2 or rows.shape[1] != len(INITIATOR_COLUMNS):
         raise ValueError(f"initiators must be (K, {len(INITIATOR_COLUMNS)}), got {rows.shape}")
     return {"data": rows}
+
+
+def _hadronization_input_group(f):
+    g = f.require_group("hadronization_input")
+    g.attrs["columns"] = list(HADRONIZATION_INPUT_COLUMNS)
+    g.attrs["units"] = "E, px, py, pz, m in GeV; pid, col, acol exact (float64)"
+    g.attrs["source"] = ("the parton list the jet hadronization handed to Pythia "
+                         "(iColoredHadronization <store_input>)")
+    return RaggedGroup(g, "offsets",
+                       {"data": (np.float64, (len(HADRONIZATION_INPUT_COLUMNS),))},
+                       compression="gzip", chunk_rows=4096, unit="event")
+
+
+def hadronization_input_rows(d):
+    """A Pythia input (dict of pid, col, acol, p, mass, or a (K, 8) array) -> (K, 8)
+    float64 rows in ``HADRONIZATION_INPUT_COLUMNS`` order (exact: ids and colour tags are
+    far below 2**53)."""
+    n_col = len(HADRONIZATION_INPUT_COLUMNS)
+    if d is None:
+        return np.zeros((0, n_col))
+    if isinstance(d, dict):
+        p = np.asarray(d["p"], dtype=np.float64).reshape(-1, 4)
+        rows = np.column_stack([np.asarray(d["pid"], dtype=np.float64),
+                                np.asarray(d["col"], dtype=np.float64),
+                                np.asarray(d["acol"], dtype=np.float64), p,
+                                np.asarray(d["mass"], dtype=np.float64)])
+    else:
+        rows = np.asarray(d, dtype=np.float64)
+    if rows.ndim != 2 or rows.shape[1] != n_col:
+        raise ValueError(f"hadronization input must be (K, {n_col}), got {rows.shape}")
+    return rows
+
+
+def hadronization_input_dict(rows):
+    """(K, 8) ``hadronization_input/data`` rows -> the dict core.hadronize_input takes."""
+    rows = np.asarray(rows, dtype=np.float64).reshape(-1, len(HADRONIZATION_INPUT_COLUMNS))
+    return {"pid": rows[:, 0].astype(np.int32), "col": rows[:, 1].astype(np.int32),
+            "acol": rows[:, 2].astype(np.int32), "p": np.ascontiguousarray(rows[:, 3:7]),
+            "mass": np.ascontiguousarray(rows[:, 7])}
 
 
 def particlize_initiators(path, nevents=None):

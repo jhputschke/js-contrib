@@ -14,18 +14,25 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
                                         # --pthat-bins file: M x 200, M jets per window per bg
     python hadronize.py P.h5 --tags jet_frag --n-frag 50
     python hadronize.py P.h5 --use-stored-seeds         # replay a --validate-inline job
+    python hadronize.py P.h5 --check        # re-make the jet_frag file's jets, compare
     python hadronize.py P.h5 --diagnose-colored         # colour-flow diagnostic only
     python hadronize.py P.h5 --skip-complete            # campaigns: only what is missing
     python hadronize.py P.h5 --keep-bits-p 12 --keep-bits-x 8   # rounded p, x: 58% of the bytes
     python hadronize.py P.h5 --eta-max 2        # only hadrons at |eta| < 2: ~60% of the bytes
     python hadronize.py P.h5 --charged --no-x   # charged hadrons, no positions
     python hadronize.py P.h5 --add-initiators           # older outputs: add initiators/ only
+    python hadronize.py P.h5 --keep-primaries 20  # + undecayed hadrons of 20 oversamples
 
 Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_h5):
 
     <stem>_hadrons_bulk_jet.h5   iSS on surface/jet     bulk + wake        unit = event
     <stem>_hadrons_bulk_bg.h5    iSS on surface/bg      bulk               unit = background
     <stem>_hadrons_jet_frag.h5   Colorless on partons/  jet fragments      unit = event
+
+and with --keep-primaries N, for SMASH later (jetscape.hadrons_h5, PRIMARY_TAGS):
+
+    <stem>_hadrons_bulk_jet_primary.h5   bulk_jet's first N oversamples, undecayed
+    <stem>_hadrons_bulk_bg_primary.h5    bulk_bg's first N oversamples, undecayed
 
 A jet event is bulk_jet + jet_frag; its background is bulk_bg unit ``events/bg_unit`` of
 the particlize file (units/event in the bulk_bg file is the first event that used it).
@@ -63,6 +70,18 @@ conventional sampling that alignment is lost at the first hadron; --correlated (
 giving the same hadrons wherever their surfaces agree.  Sample k of an event's bulk_jet
 and sample k of its background then belong together: analyse jet - background paired.
 
+Re-hadronizing the jets.  The jets are hadronized here, from the particlize file's
+``partons/``, so a jet_frag file can always be made again: the same command (or the same
+--seed, --n-frag and hadronize.xml) gives the same hadrons, --seed / --n-frag other
+fragmentations (a fragmentation's seed does not depend on --n-frag), a copy of
+hadronize.xml with <pythia_decays> off the primary hadrons (with --tags jet_frag and
+--out-dir).  --check [JET_FRAG] replays an existing jet_frag file (default: this particlize
+file's, in --out-dir): it takes the settings the file records (base_seed, seed_scheme,
+stored_seeds, n_samples, hadronize_xml, precision and selection), hadronizes its events
+again into a temporary file and compares pid, pstat, p and x of every fragmentation; exit 1
+on a difference, nothing is written.  It needs the Pythia version the file records
+(``pythia_version``; files before smash_ready do not record it).
+
 Precision.  p and x are stored as full float32 by default.  --keep-bits-p / --keep-bits-x
 round them to that many mantissa bits (max relative error 2**-(bits+1)); the setting is
 recorded on the datasets (jetscape.hadrons_h5.hadron_precision).  Choose it once per
@@ -84,6 +103,16 @@ They are recorded as the files' ``eta_max``, ``charged_only`` and ``positions`` 
 --skip-complete warns about complete files with another selection, HadronFileReader about
 a campaign that mixes them.  Observables that need every hadron (the total energy balance
 of jet - background, neutral hadrons, space-time) need files without them.
+
+Decays and undecayed hadrons.  iSS decays the resonances of either hadron list: EOS 9's
+UrQMD list as always, EOS 91's SMASH list with <decay_smash_list> 1 (hadronize.xml; needs
+iSS from smash_ready on, core.ISS_DECAYS_SMASH_LIST), where the channels the pole masses
+close get Breit-Wigner masses for their unstable daughters; eta and Sigma0 stay stable, as
+in SMASH.  The files record ``hadron_list`` (SMASH / UrQMD), ``decayed`` and ``iss_decays``.
+--keep-primaries N also writes the hadrons as iSS sampled them, before any decay, for the
+first N oversamples of every unit: full precision, with positions and without --eta-max /
+--charged / --no-x, whatever those are for the decayed files (SMASH needs every hadron, its
+position and its mass).  The decayed hadrons are the same with and without it.
 
 Settings come from hadronize.xml (the file --validate-inline also uses); the iSS paths are
 made absolute and the job's own music_input -- stored in the particlize file -- is written
@@ -175,6 +204,11 @@ def parse_args(argv=None):
                    metavar="DTAU,DX,DETA",
                    help="block size of --correlated in tau [fm/c], x and y [fm], eta "
                         "(default: jetscape_main.xml's, 0.5,1.0,0.5)")
+    p.add_argument("--check", nargs="?", const="", default=None, metavar="JET_FRAG",
+                   help="replay a jet_frag file (default: <out-dir>/<stem>_hadrons_jet_frag.h5) "
+                        "with the settings and seeds it records and compare hadron by hadron; "
+                        "exit 1 on a difference. Writes nothing; --seed, --n-frag, the "
+                        "precision and selection options are taken from the file")
     p.add_argument("--diagnose-colored", action="store_true", dest="diagnose_colored",
                    help="only run the colour-flow diagnostic (ColoredHadronization on the "
                         "stored partons) and write <stem>_colored_diagnostic.json")
@@ -195,6 +229,11 @@ def parse_args(argv=None):
                    help="store only charged hadrons (all tags; default: all hadrons)")
     p.add_argument("--no-x", action="store_true", dest="no_x",
                    help="store no positions t, x, y, z (all tags; ~40%% of the bytes)")
+    p.add_argument("--keep-primaries", type=int, default=0, dest="keep_primaries",
+                   metavar="N",
+                   help="also write iSS's undecayed hadrons of the first N oversamples per "
+                        "unit to <stem>_hadrons_bulk_{jet,bg}_primary.h5 (for SMASH later; "
+                        "full precision, positions, no selection). Default 0: none")
     p.add_argument("--no-initiators", action="store_true", dest="no_initiators",
                    help="do not copy the pair file's shower initiators into bulk_jet and "
                         "jet_frag (initiators/)")
@@ -318,6 +357,7 @@ def write_job_xml(a, path, n_exec, oversample):
     _set_text(iss, "iSS_particle_table_path", os.path.join(iss_dir, "iSS_tables"))
     _set_text(iss, "iSS_working_path", ".")
     _set_text(iss, "number_of_repeated_sampling", oversample)
+    _set_text(iss, "keep_primaries", max(0, int(a.keep_primaries)))
     if a.correlated:
         _set_text(iss, "correlated_sampling", 1)
         if a.correlated_block:
@@ -331,6 +371,39 @@ def write_job_xml(a, path, n_exec, oversample):
             _set_text(iss, "correlated_block_deta", deta)
     tree.write(path)
     return ET.tostring(root, encoding="unicode")
+
+
+#: iSS's hadron list per MUSIC EOS (iSS readindata.cpp)
+HADRON_LIST = {"9": "UrQMD", "91": "SMASH"}
+
+
+def iss_commit():
+    """The iSS checkout the build uses (best effort; '' if git cannot tell)."""
+    import subprocess
+    try:
+        return subprocess.run(["git", "-C", os.path.join(rp.XSCAPE, "external_packages", "iSS"),
+                               "rev-parse", "HEAD"], capture_output=True, text=True,
+                              timeout=10).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def iss_decay_attrs(core, eos, xml_root):
+    """Hadron-file attributes saying which hadron list iSS sampled and how it decayed it."""
+    hadron_list = HADRON_LIST.get(eos, "other")
+    iss = xml_root.find("SoftParticlization/iSS")
+    decays = int((iss.findtext("Perform_resonance_decays") or "0").strip() or 0) == 1
+    smash_decays = int((iss.findtext("decay_smash_list") or "0").strip() or 0) == 1
+    if not decays:
+        how = "none"
+    elif hadron_list == "SMASH":
+        how = ("iSS, Breit-Wigner masses for the unstable daughters of channels closed at "
+               "the pole masses; eta, Sigma0 stable"
+               if smash_decays and getattr(core, "ISS_DECAYS_SMASH_LIST", False) else "none")
+    else:
+        how = "iSS, pole masses"
+    return {"hadron_list": hadron_list, "iss_decays": how, "decayed": how != "none",
+            "iss_commit": iss_commit()}
 
 
 def seed_scheme_of(path):
@@ -416,6 +489,81 @@ def colour_stats(partons):
     }
 
 
+def check_settings(a, core, pf, path):
+    """--check: take over what the jet_frag file ``path`` was made with (seeds, fragmentations,
+    precision, selection) -> (its hadronize_xml or None, the units it holds)."""
+    import h5py
+
+    from jetscape.hadrons_h5 import hadron_precision, hadron_selection
+
+    if not os.path.exists(path):
+        sys.exit(f"hadronize.py: --check: {path} not found (pass the jet_frag file)")
+    with h5py.File(path, "r") as f:
+        at = dict(f.attrs)
+        units = (f["units"]["unit"][:] if "units" in f and "unit" in f["units"]
+                 else np.arange(len(f["hadrons"]["unit_offsets"]) - 1))
+    if str(at.get("tag")) != "jet_frag":
+        sys.exit(f"hadronize.py: --check: {path} is no jet_frag file (tag {at.get('tag')!r})")
+    uuid, src = str(pf.attrs.get("file_uuid", "")), str(at.get("source_uuid", ""))
+    if uuid and src and uuid != src:
+        sys.exit(f"hadronize.py: --check: {os.path.basename(path)} was made from another "
+                 f"particlize file ({at.get('source')}, file_uuid {src})")
+    have, job = int(getattr(core, "PYTHIA_VERSION", 0)), int(at.get("pythia_version", 0))
+    if job and have and job != have:
+        sys.exit(f"hadronize.py: --check: the file was made with Pythia {job}, this build has "
+                 f"{have}: the same seeds give other hadrons")
+    if not job:
+        print("hadronize.py: note -- --check: the file records no pythia_version (made before "
+              "smash_ready); a difference may only mean another Pythia", file=sys.stderr)
+    if not at.get("complete", False):
+        print("hadronize.py: note -- --check: the file is incomplete; checking the events it "
+              "holds", file=sys.stderr)
+    prec, sel = hadron_precision(path), hadron_selection(path)
+    a.seed = int(at.get("base_seed", a.seed))
+    a.legacy_seeds = str(at.get("seed_scheme", "legacy")) == "legacy"
+    a.use_stored_seeds = bool(at.get("stored_seeds", False))
+    a.n_frag = int(at["n_samples"])
+    a.keep_bits_p, a.keep_bits_x = prec["p"], prec["x"]
+    a.eta_max, a.charged, a.no_x = sel["eta_max"], sel["charged_only"], not sel["positions"]
+    a.common_seeds = a.correlated = False
+    a.oversample_bg, a.keep_primaries = None, 0
+    a.no_initiators = a.force = True
+    xml = at.get("hadronize_xml")
+    if not xml:
+        print(f"hadronize.py: note -- --check: the file records no hadronize_xml; using "
+              f"{a.hadronize_xml}", file=sys.stderr)
+    return (str(xml) if xml else None), [int(u) for u in units]
+
+
+def compare_jet_frag(ref_path, new_path, events):
+    """--check: compare the regenerated jet_frag file with the original, event by event;
+    -> the number of events that differ."""
+    from jetscape.hadrons_h5 import Hadrons
+
+    ref, new = Hadrons.from_h5(ref_path), Hadrons.from_h5(new_path)
+    n_bad = 0
+    for e in events:
+        nr, nn = ref.n_samples(e), new.n_samples(e)
+        bad = [] if nr == nn else [f"{nn} fragmentations, the file has {nr}"]
+        sr = int(ref.units["seed"][ref.unit_index(e)]) if "seed" in ref.units else None
+        sn = int(new.units["seed"][new.unit_index(e)])
+        if sr is not None and sr != sn:
+            bad.append(f"seed {sn}, the file has {sr}")
+        for k in range(min(nr, nn)):
+            r, n = ref.sample_event(e, k), new.sample_event(e, k)
+            diff = [key for key in ("pid", "pstat", "p", "x")
+                    if not np.array_equal(r[key], n[key])]
+            if diff:
+                bad.append(f"fragmentation {k}: {', '.join(diff)} differ ({len(n['pid'])} "
+                           f"hadrons, the file {len(r['pid'])})")
+        n_bad += bool(bad)
+        print(f"  event {e}: " + ("same as the file" if not bad else
+                                  "DIFFERENT -- " + "; ".join(bad[:3])
+                                  + (f" (+{len(bad) - 3} more)" if len(bad) > 3 else "")),
+              flush=True)
+    return n_bad
+
+
 def _terminate(signum, frame):
     # SIGTERM would kill the process without running the finally blocks, leaving
     # truncated HDF5 files; turn it into an exception so the writers close.
@@ -433,8 +581,9 @@ def main(argv=None):
         setattr(a, k, os.path.abspath(getattr(a, k)))
     keep_bits = {"p": a.keep_bits_p, "x": a.keep_bits_x}
 
-    from jetscape.hadrons_h5 import (INITIATOR_TAGS, HadronH5Writer, _keep_bits_map,
-                                     add_initiators, hadron_precision, hadron_selection)
+    from jetscape.hadrons_h5 import (INITIATOR_TAGS, PRIMARY_OF, HadronH5Writer,
+                                     _keep_bits_map, add_initiators, hadron_precision,
+                                     hadron_selection)
     from jetscape.particlize_h5 import ParticlizeFile
 
     pf = ParticlizeFile(a.particlize)
@@ -444,6 +593,27 @@ def main(argv=None):
     out_dir = os.path.abspath(a.out_dir or os.path.dirname(a.particlize))
     os.makedirs(out_dir, exist_ok=True)
     events = event_range(a.events, pf.nevents)
+    check = check_xml = None
+    if a.check is not None:
+        if a.add_initiators or a.diagnose_colored or a.skip_complete:
+            sys.exit("hadronize.py: --check replays a jet_frag file: not with --add-initiators, "
+                     "--diagnose-colored or --skip-complete")
+        from jetscape import pyjetscape_core as core
+        check = os.path.abspath(a.check or os.path.join(out_dir, f"{stem}_hadrons_jet_frag.h5"))
+        check_xml, held = check_settings(a, core, pf, check)
+        tags, a.tags = ["jet_frag"], "jet_frag"
+        keep_bits = {"p": a.keep_bits_p, "x": a.keep_bits_x}
+        held = set(held)
+        events = [e for e in events if e in held]
+        if not events:
+            sys.exit(f"hadronize.py: --check: {os.path.basename(check)} holds none of the "
+                     "selected events")
+        a.workdir = a.workdir or os.path.join(out_dir, "work_hadronize", f"{stem}_check")
+        os.makedirs(a.workdir, exist_ok=True)
+        if check_xml:
+            a.hadronize_xml = os.path.join(os.path.abspath(a.workdir), "checked_hadronize.xml")
+            with open(a.hadronize_xml, "w") as fh:
+                fh.write(check_xml)
     want_ini = (not a.no_initiators and not a.diagnose_colored and a.colored_event is None
                 and any(t in INITIATOR_TAGS for t in tags))
     ini = read_initiators(pf, a.particlize) if want_ini else None
@@ -513,9 +683,19 @@ def main(argv=None):
               f"{len(bg_capped)} "
               f"background(s) at --oversample-bg-max {a.oversample_bg_max}", file=sys.stderr)
 
+    if a.keep_primaries < 0:
+        sys.exit("hadronize.py: --keep-primaries must be >= 0")
     outs = {t: os.path.join(out_dir, f"{stem}_hadrons_{t}.h5") for t in tags}
+    if check:
+        # the replay goes to the working directory, which is removed at the end
+        outs = {"jet_frag": os.path.join(os.path.abspath(a.workdir),
+                                         f"{stem}_hadrons_jet_frag_check.h5")}
+    # --keep-primaries: the undecayed hadrons of each bulk tag, in a file of their own
+    pouts = ({t: os.path.join(out_dir, f"{stem}_hadrons_{PRIMARY_OF[t]}.h5")
+              for t in tags if t in PRIMARY_OF} if a.keep_primaries > 0 else {})
     if a.skip_complete:
-        done = [t for t in tags if _complete(outs[t])]
+        done = [t for t in tags if _complete(outs[t])
+                and (t not in pouts or _complete(pouts[t]))]
         if done:
             print(f"hadronize.py: {os.path.basename(a.particlize)}: already complete: "
                   f"{', '.join(done)}")
@@ -541,6 +721,7 @@ def main(argv=None):
                       "redoes it)", file=sys.stderr)
         tags = [t for t in tags if t not in done]
         outs = {t: outs[t] for t in tags}
+        pouts = {t: pouts[t] for t in tags if t in pouts}
         if not tags:
             return 0
         a.force = True                          # what is left is missing or incomplete
@@ -555,7 +736,7 @@ def main(argv=None):
                 bg_units.append((u, e))
     n_exec = (len(events) if "bulk_jet" in tags else 0) + len(bg_units)
 
-    for t, path in outs.items():
+    for path in list(outs.values()) + list(pouts.values()):
         if os.path.exists(path) and not a.force:
             sys.exit(f"hadronize.py: {path} exists (use --force)")
 
@@ -566,12 +747,15 @@ def main(argv=None):
         fh.write(pf.music_input())
     eos = [ln.split()[1] for ln in pf.music_input().splitlines()
            if len(ln.split()) > 1 and ln.split()[0] == "EOS_to_use"]
-    if eos and eos[0] == "91" and any(t.startswith("bulk") for t in tags):
-        # iSS (readindata.cpp) takes the SMASH hadron list for EOS 91 and leaves the
-        # decays to SMASH, which this does not run
-        print("hadronize.py: WARNING -- MUSIC ran EOS 91 (SMASH hadron list): iSS samples "
-              "that list and does NOT decay the resonances (rho, omega, K*, Delta ... stay "
-              "in the bulk hadrons). Use EOS 9 for decayed hadrons.", file=sys.stderr)
+    eos = eos[0] if eos else ""
+    decay_attrs = iss_decay_attrs(core, eos, xml_root)
+    if eos == "91" and any(t.startswith("bulk") for t in tags) and not decay_attrs["decayed"]:
+        # iSS (readindata.cpp) takes the SMASH hadron list for EOS 91, and an iSS before
+        # smash_ready (or <decay_smash_list> 0) leaves its decays to SMASH
+        print("hadronize.py: WARNING -- MUSIC ran EOS 91 (SMASH hadron list) and this iSS "
+              "does NOT decay that list (core.ISS_DECAYS_SMASH_LIST False, or "
+              "<decay_smash_list> 0): rho, omega, K*, Delta ... stay in the bulk hadrons.",
+              file=sys.stderr)
     job_xml = os.path.join(workdir, "hadronize_job.xml")
     xml_text = write_job_xml(a, job_xml, n_exec, oversample)
     main_xml = os.path.join(workdir, "jetscape_main.xml")
@@ -590,6 +774,10 @@ def main(argv=None):
           + (f", only |eta| < {a.eta_max:g} stored" if a.eta_max is not None else "")
           + (", charged hadrons only" if a.charged else "")
           + (", no positions" if a.no_x else "")
+          + (f", undecayed hadrons of {a.keep_primaries} oversample(s) kept"
+             if pouts else "")
+          + f", EOS {eos or '?'} ({decay_attrs['hadron_list']} list, decays: "
+          f"{decay_attrs['iss_decays']})"
           + f"\n  workdir {workdir}")
 
     jetscape = core.JetScapePerEvent()
@@ -622,6 +810,7 @@ def main(argv=None):
               "stored_seeds": bool(a.use_stored_seeds),
               "seed_scheme": seed_scheme,
               "music_input": pf.music_input()}
+    bulk_attrs = {k: decay_attrs[k] for k in ("hadron_list", "iss_decays", "iss_commit")}
     # how the two iSS legs were sampled relative to each other: only on bulk_jet and bulk_bg
     # (jet_frag's Pythia seeds are its own whatever these options)
     pairing = {"common_seeds": bool(a.common_seeds), "correlated_sampling": bool(a.correlated)}
@@ -638,22 +827,35 @@ def main(argv=None):
                           "oversample_jet": int(oversample)})
         else:
             n = oversample
+        if t == "jet_frag":
+            extra.update(generator="ColorlessHadronization (X-SCAPE)", decayed=True,
+                         pythia_version=int(getattr(core, "PYTHIA_VERSION", 0)))
+        else:
+            extra.update(bulk_attrs, generator="iSS (X-SCAPE iSpectraSamplerWrapper)",
+                         decayed=bool(decay_attrs["decayed"]))
         writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n, keep_bits=keep_bits,
                                     eta_max=a.eta_max, charged_only=a.charged,
                                     positions=not a.no_x,
                                     initiators=ini is not None and t in INITIATOR_TAGS,
-                                    attrs=dict(common, **extra, generator=(
-                                        "ColorlessHadronization (X-SCAPE)" if t == "jet_frag"
-                                        else "iSS (X-SCAPE iSpectraSamplerWrapper)")))
+                                    attrs=dict(common, **extra))
+        if t in pouts:
+            # full precision, positions, no selection: what SMASH needs
+            n_keep = a.keep_primaries if n == 0 else min(a.keep_primaries, n)
+            writers[PRIMARY_OF[t]] = HadronH5Writer(
+                pouts[t], tag=PRIMARY_OF[t], n_samples=n_keep,
+                attrs=dict(common, **dict(extra, decayed=False), primaries_of=t,
+                           keep_primaries=int(a.keep_primaries)))
 
     def run_iss(cells, seed, n_samples):
+        """-> (hadrons, seed used, undecayed hadrons or None)."""
         if len(cells) == 0:
-            return None, seed
+            return None, seed, None
         replay.load(cells)
         core.soft_set_number_of_samples(iss, int(n_samples))
         core.soft_set_next_random_seed(iss, int(seed))
         jetscape.ExecPerEvent()
         h = core.soft_hadrons_numpy(iss)
+        prim = core.soft_primaries_numpy(iss) if pouts else None
         used = int(core.soft_last_random_seed(iss))
         jetscape.ClearPerEvent()
         if used != int(seed) or replay.n_cells != len(cells):
@@ -665,7 +867,13 @@ def main(argv=None):
         if len(h["sample_counts"]) != int(n_samples):
             raise RuntimeError(f"iSS made {len(h['sample_counts'])} samples, "
                                f"{n_samples} were asked for")
-        return h, used
+        if pouts:
+            want = min(int(a.keep_primaries), int(n_samples))
+            got = 0 if prim is None else len(prim["sample_counts"])
+            if got != want:
+                raise RuntimeError(f"iSS kept the primaries of {got} samples, {want} were "
+                                   "asked for (an X-SCAPE without <keep_primaries>?)")
+        return h, used, prim
 
     def initiators_of(e):
         return None if ini is None else ini[0][int(ini[1][e]):int(ini[1][e + 1])]
@@ -685,20 +893,28 @@ def main(argv=None):
                 else:
                     seed = unit_seed(a.seed, "bulk_jet", e, prod=prod)
                 cells = pf.surface_unit("jet", e)
-                h, used = run_iss(cells, seed, oversample)
+                h, used, prim = run_iss(cells, seed, oversample)
                 writers["bulk_jet"].append_unit(h if h is not None else [], initiators_of(e),
                                                 unit=e, event=e, seed=used,
                                                 n_cells=len(cells))
+                if "bulk_jet_primary" in writers:
+                    writers["bulk_jet_primary"].append_unit(
+                        prim if prim is not None else [], unit=e, event=e, seed=used,
+                        n_cells=len(cells))
                 msg.append(f"bulk_jet {0 if h is None else len(h['pid'])} hadrons")
             if "bulk_bg" in tags:
                 u = int(pf.events("bg_unit")[e])
                 if u not in bg_done:
                     cells = pf.surface_unit("bg", u)
-                    h, used = run_iss(cells, unit_seed(a.seed, "bulk_bg", u, prod=prod),
-                                       bg_samples[u])
+                    h, used, prim = run_iss(cells, unit_seed(a.seed, "bulk_bg", u, prod=prod),
+                                             bg_samples[u])
                     writers["bulk_bg"].append_unit(h if h is not None else [], unit=u,
                                                    event=bg_first[u], seed=used,
                                                    n_cells=len(cells))
+                    if "bulk_bg_primary" in writers:
+                        writers["bulk_bg_primary"].append_unit(
+                            prim if prim is not None else [], unit=u, event=bg_first[u],
+                            seed=used, n_cells=len(cells))
                     bg_done.add(u)
                     msg.append(f"bulk_bg (unit {u}) {0 if h is None else len(h['pid'])}")
             if "jet_frag" in tags:
@@ -728,6 +944,10 @@ def main(argv=None):
         for w in writers.values():
             w.close(complete=finished)
         os.chdir(cwd)
+    n_bad = 0
+    if check:
+        print(f"hadronize.py: --check against {check}")
+        n_bad = compare_jet_frag(check, outs["jet_frag"], events)
     if not a.keep_workdir:
         shutil.rmtree(workdir, ignore_errors=True)
         try:
@@ -735,7 +955,11 @@ def main(argv=None):
         except OSError:
             pass
     print(f"hadronize.py: done in {time.time() - t0:.1f} s")
-    for t, path in outs.items():
+    if check:
+        print(f"hadronize.py: {len(events) - n_bad} of {len(events)} event(s) reproduce "
+              f"{os.path.basename(check)}" + (" -- MISMATCH" if n_bad else ""))
+        return 1 if n_bad else 0
+    for t, path in list(outs.items()) + [(PRIMARY_OF[t], p) for t, p in pouts.items()]:
         print(f"  {t:9s} -> {path} ({os.path.getsize(path) / 1e6:.1f} MB)")
     return 0
 
