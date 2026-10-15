@@ -987,6 +987,9 @@ class EventInfo:
         self.pthat_bin = (int(f["pthat_bin"][local]) if f["pthat_bin"] is not None
                           else None)
         self.pthat = float(f["pthat"][local]) if f["pthat"] is not None else None
+        # the collision's binary collisions (the weight of a hard process), else None
+        n_coll = f.get("n_coll")
+        self.n_coll = int(n_coll[local]) if n_coll is not None else None
         # PythiaGun's trigger Z: the Z and its leptons (Z_COLUMNS -> value), else None
         z = f.get("z")
         self.z = {k: v[local].item() for k, v in z.items()} if z else None
@@ -1136,6 +1139,7 @@ class HadronFileReader:
                     "pthat_bin": (pf.events("pthat_bin") if pf.has_events("pthat_bin")
                                   else None),
                     "pthat": pf.events("pthat") if pf.has_events("pthat") else None,
+                    "n_coll": pf.events("n_coll") if pf.has_events("n_coll") else None,
                     "z": {k: pf.events(k) for k in Z_COLUMNS if pf.has_events(k)} or None}
             for key, attr in (("pthat_bins", "pthat_bins"),
                               ("sigma_gen", "pthat_bin_sigma_gen"),
@@ -1721,7 +1725,7 @@ def _hadrons_only_info(stem):
                     "source": path, "seed": f.attrs.get("prod_seed"), "pair_file": None,
                     "bg_unit": get("bg_unit"), "bg_key": get("bg_key"),
                     "n_cells_bg": get("n_cells_bg"), "pthat_bin": get("pthat_bin"),
-                    "pthat": get("pthat"),
+                    "pthat": get("pthat"), "n_coll": get("n_coll"),
                     "z": {k: get(k) for k in Z_COLUMNS if k in units} or None}
             for key, attr in (("pthat_bins", "pthat_bins"),
                               ("sigma_gen", "pthat_bin_sigma_gen"),

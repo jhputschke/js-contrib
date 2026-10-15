@@ -1201,7 +1201,7 @@ diff $T/AuAu_MCGlauber_MUSIC_0_10_jet.xml xml/PbPb_0_10_jet.xml     # 8 lines mu
 `/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config/`, no bind
 needed): `PbPb_0_10_jet.xml` (the output of this recipe, with a header comment that says so;
 EOS 91 since 2026-10-15), the larger output grid `grid_PbPb.yaml` (below) and
-`PbPb_0_10_ZJet.xml`, the jet XML with a Z+jet `<PythiaGun>` (Z → ee/μμ, `<trigger>Z`;
+`PbPb_0_30_ZJet.xml`, the jet XML at 0–30 % (`b_max` 8.57 fm) with a Z+jet `<PythiaGun>` (Z → ee/μμ, `<trigger>Z`;
 [`Plans/PLAN_ZJET_CMS10x.md`](Plans/PLAN_ZJET_CMS10x.md), launchers in `utils/zjet/`). Use them
 as they are, or copy them as a start for another system.
 

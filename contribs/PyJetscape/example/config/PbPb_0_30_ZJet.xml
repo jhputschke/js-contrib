@@ -1,9 +1,14 @@
 <?xml version="1.0"?>
-<!-- Pb+Pb 5.02 TeV, 0-10 %, Z+jet: PbPb_0_10_jet.xml with the Z+jet <Hard><PythiaGun> block
+<!-- Pb+Pb 5.02 TeV, 0-30 %, Z+jet (the class of the CMS Z+jet and Z-hadron measurements):
+     PbPb_0_10_jet.xml with b_max 8.57 fm and the Z+jet <Hard><PythiaGun> block
      (PLAN_ZJET_CMS10x.md section 5a step 7; X-SCAPE PythiaGun with <trigger>, branch zjet).
-     Everything else is PbPb_0_10_jet.xml's.
-     Use: run_prod_jet.py ... user-xml ../config/PbPb_0_10_ZJet.xml grid
-     ../config/grid_PbPb.yaml trigger-ymax 2.4 lepton-ptmin 20 lepton-etamax 2.4
+     Everything else is PbPb_0_10_jet.xml's.  The geometry is sampled with P(b) ~ b and every
+     event gets one Z, while Z production scales with N_coll (CMS: 78 % of the Zs are in
+     0-30 %): weight each event by its n_coll (run_prod_jet.py records it per event) to
+     compare with data, or select a narrower class by n_coll.
+     Use: run_prod_jet.py ... user-xml ../config/PbPb_0_30_ZJet.xml grid
+     ../config/grid_PbPb.yaml pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200
+     lepton-ptmin 20 lepton-etamax 2.5 (utils/zjet/)
      (hadronization: ../config/hadronize.xml, eCMforHadronization from <eCM> below) -->
 
 <!-- Copyright (c) The JETSCAPE Collaboration, 2018 -->
@@ -112,7 +117,8 @@
       <projectile>Pb</projectile> <!--Projectile name-->
       <target>Pb</target> <!--Target name-->
       <sqrts>5020</sqrts> <!--Center of mass energy in GeV-->
-      <!--0-10% IS SELECTED HERE, ON b.  Inside X-SCAPE the centrality cut below does nothing:
+      <!--0-30% IS SELECTED HERE, ON b (b_max below).  The rest of this comment is the Au+Au
+          template's (its 0-10 %).  Selected on b.  Inside X-SCAPE the centrality cut below does nothing:
           MCGlauberWrapper::ExecuteTask calls EventGenerator::generate_pre_events(), which samples
           b on [b_min, b_max] (P(b) ~ b) and requires only Npart > 1.  The cut on cenMin/cenMax
           (generateMinBiasEventList, a cut on the string count) runs only in the standalone
@@ -120,9 +126,10 @@
           4.7 fm is the geometric 0-10% (pi b^2 = 0.1 sigma_AuAu, ~690 fm^2), the same range
           make_bulk_comparison_data.py gives FastHydro.-->
       <b_min>0.0</b_min> <!--Minimum impact parameter in fm-->
-      <b_max>4.95</b_max> <!--Maximum impact parameter in fm-->
+      <b_max>8.57</b_max> <!--Maximum impact parameter in fm: the geometric 0-30 % of Pb+Pb,
+          pi b^2 = 0.3 x 7.7 b (README_2stage section 9: 4.95 fm for 0-10 %)-->
       <cenMin>0.0</cenMin> <!--Minimum centrality in %  (ignored inside X-SCAPE, see above)-->
-      <cenMax>10.0</cenMax> <!--Maximum centrality in % (ignored inside X-SCAPE, see above)-->
+      <cenMax>30.0</cenMax> <!--Maximum centrality in % (ignored inside X-SCAPE, see above)-->
       <nucleon_configuration_from_file>0</nucleon_configuration_from_file> <!--0: generate nucleon configuration, 1: read from file-->
       <useQuarks>1</useQuarks> <!--Switch to use valence quarks-->
       <Q2>1.0</Q2> <!--Scale when evaluating the PDF-->

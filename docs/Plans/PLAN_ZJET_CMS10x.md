@@ -33,11 +33,27 @@ the plan below, found while implementing:
 - **Pb+Pb inputs were stale** (step 7): `PbPb_0_10_jet.xml` still had EOS 9 and
   `hadronize_5020.xml` predated smash_ready (no `decay_smash_list`, `keep_primaries`). The jet XML
   is remade with README_2stage §9's recipe from today's Au+Au files (EOS 91);
-  `PbPb_0_10_ZJet.xml` is it with the Z+jet block. `hadronize_5020.xml` is gone: Colorless's
+  `PbPb_0_30_ZJet.xml` is it with the Z+jet block. `hadronize_5020.xml` is gone: Colorless's
   `eCMforHadronization` (the beam remnant) is now the job's `<PythiaGun><eCM>` everywhere
   (`--hadrons-only`, `--validate-inline`, `hadronize.py` from the files' `prod_user_xml`, the
   vacuum driver), so one `hadronize.xml` serves every system. The launchers must pass
   `--grid grid_PbPb.yaml` (edge flags); the templates did not.
+- **0–30 %, the CMS class** (all three CMS papers, checked 2026-10-15; only ATLAS has 0–10 %):
+  `example/config/PbPb_0_30_ZJet.xml` (`b_max` 8.57 fm, π b² = 0.3 × 7.7 b) replaces the 0–10 %
+  Z+jet XML. The geometry is drawn with P(b) ∝ b and every event gets one Z, but Z production
+  scales with N_coll, so every event is weighted by its `n_coll`, which `run_prod_jet.py` now
+  records per event (`diag/`, `events/`, `units/n_coll`; `HadronFileReader`'s
+  `EventInfo.n_coll`). Centrality is geometric (b), not CMS's HF-energy percentiles.
+- **The selection, decided 2026-10-15** (supersedes §2–§3 and §5b's numbers):
+  both **decay leptons p_T > 20 GeV, |η| < 2.5** (the lepton cuts of the three wake papers:
+  CMS 2103.04377, CMS 2507.09307, ATLAS 2008.09811; CMS Z+jet's 10–20 GeV muons are not
+  generated); **no Z rapidity cut** in the generator and no p_T^Z cut (each paper's |y_Z|, p_T^Z
+  and mass window offline from `units/z_*`); **p̂T windows 20–30, 30–40, 40–60, 60–80, 80–120,
+  120–200** — from 40 GeV on, the windows held only 79 % of the p_T^Z > 40 and 53 % of the
+  p_T^Z > 30 cross section (p_T^Z ≠ p̂T event by event), from 20 GeV on 99.1 % and 97 %
+  (standalone Pythia with the final selection; per-window table in `utils/zjet/README.md`); ATLAS's 15–30 GeV p_T^Z bin stays out (the Z + parton matrix element is
+  not reliable at p̂T ≲ 20); **4 jets per window**: 24 events per background, 96-event jobs, 100
+  jobs, 9,600 events per campaign, 96k in ten (16k per window, 400 backgrounds per campaign).
 - **All the productions' XMLs and grid YAMLs** are in `contribs/PyJetscape/example/config/` since
   2026-10-15 (`docs/PbPb_5020/` is gone): one user XML per setup, the shared `hadronize.xml`.
 - **Memory:** a 4-event Pb+Pb Z+jet `--particlize-only` job peaked at **13.5 GB** on the GB10
@@ -94,8 +110,8 @@ which only events average; oversampling contributes the UE realizations for the 
 
 ## 3. Production setting
 
-- **System:** Pb+Pb 5.02 TeV, `example/config/PbPb_*` inputs, 0–10 % (CMS: 0–30 %; ATLAS has 0–10 %). A 0–30 %
-  sample needs the Glauber b-range extended (not an option today).
+- **System:** Pb+Pb 5.02 TeV, `example/config/PbPb_*` inputs, 0–30 % (the CMS class; ATLAS has
+  0–10 %): `b_max` 8.57 fm in `PbPb_0_30_ZJet.xml`, events weighted by `n_coll` (Status above).
 - **Hard process (Pythia inside PythiaGun; no X-SCAPE ISR module):** `HardQCD:all = off`,
   `WeakBosonAndParton:qqbar2gmZg = on`, `WeakBosonAndParton:qg2gmZq = on`, `WeakZ0:gmZmode = 2` (pure Z;
   CMS 70–110 GeV window), `23:onMode = off`, `23:onIfAny = 11 13`; vertex from the Glauber collisions
@@ -112,8 +128,9 @@ which only events average; oversampling contributes the UE realizations for the 
   **PythiaGun keeps an event only with ≥ 2 accepted partons:** with the Z dropped (id 23 fails the
   parton filter) the hard process gives one, so with MPI off the sample would be biased toward hard
   ISR emissions; with MPI on the MPI partons nearly always satisfy it. Relax it to ≥ 1 for Z+jet anyway.
-- **Layout:** `--pthat-bins 40-60,60-80,80-120,120-200 --jets-per-bin 5` (20 events per background),
-  `--parton-ymax 1.9`, 100 events per job (5 backgrounds) → 1,000 jobs.
+- **Layout:** `--pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4` (24 events
+  per background), `--parton-ymax 1.9`, 96 events per job (4 backgrounds) → 1,000 jobs (2026-10-15;
+  first planned: 4 windows from 40 GeV × 5 jets, 100-event jobs).
 - **Output:** `--hadrons-only --oversample 40 --n-frag 40 --oversample-bg per-pthat-bin --correlated
   --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0`.
   Central Pb+Pb has ~2× the Au+Au multiplicity: ~7 MB/event → **~0.7 TB** for 4 M sampled full events.
@@ -174,35 +191,34 @@ hadron and particlize files (`INITIATOR_COLUMNS`); `--user-xml`, `--pthat-bins`,
 | **4. Leptons are not partons downstream** | js-contrib `run_prod_jet.py`: the `--parton-ymax` / `--parton-y-mode leading` selection (`check_parton_ycut`, the leading-parton choice); the liquefier's parton list; `hadronizer` (`fragments`) | skip `\|id\| ∈ {11, 13, 22}` when choosing the leading parton, when building the droplet sources and when fragmenting (Colorless must not see leptons) | `droplets_total` and `E_dep` unchanged against a run where the leptons are removed by hand |
 | **5. The Z in the event record** | js-contrib `run_prod_jet.py` (the per-event record → `units/` and `events/`), `hadrons_h5.py` | add `z_pt, z_y, z_phi, z_m` and `lep_*` columns computed from the two lepton initiators (pdg ±11/±13 pair with the largest invariant mass if several); attribute `trigger = "Z"` | `HadronFileReader` returns the Z per event; `z_pt` ≈ p_T of the recoil system |
 | **6. Z acceptance pre-selection** | js-contrib `run_prod_jet.py`, next to `--parton-ymax` (events outside are regenerated before any shower or hydro) | `--trigger-ymax Y` (\|y_Z\| < Y), `--lepton-ptmin`, `--lepton-etamax`; CMS: 2.4 / 20 / 2.4 (ee 2.5) | the regeneration counter in the `.json`; the efficiency ≈ 0.65 for p̂T 60–80 |
-| **7. Pb+Pb Z+jet user XML** | `example/config/PbPb_0_10_ZJet.xml` from `example/config/PbPb_0_10_jet.xml` | the Z+jet `<PythiaGun>` block (+ `<trigger>Z`); `eCM 5020`; grid and η range covering \|η\| < 2.6 (hadrons) and \|η_jet\| < 1.9 | `--dry-run`; the edge flags of a 15-event test job |
+| **7. Pb+Pb Z+jet user XML** | `example/config/PbPb_0_30_ZJet.xml` from `example/config/PbPb_0_10_jet.xml` | the Z+jet `<PythiaGun>` block (+ `<trigger>Z`); `eCM 5020`; grid and η range covering \|η\| < 2.6 (hadrons) and \|η_jet\| < 1.9 | `--dry-run`; the edge flags of a 15-event test job |
 | **8. Vacuum (pp) driver** | js-contrib `prod_AuAu_0_10_jet/run_prod_vacuum.py` (new, ~150 lines) | PythiaGun → Matter in vacuum (`<Matter><in_vac>1`) → Colorless, no hydro, same hadron files (`jet_frag` + `initiators/` + Z columns) | R_jZ, ⟨x_jZ⟩ of 10k events against CMS pp |
 | **9. Image (mandatory)** | a new `xscape-prod` build (CI `workflow_dispatch`, as the test images were built from branch heads) from **X-SCAPE `auau_hadrons_only`** (+ steps 1–3), **js-contrib `auau_hadrons_only`** (+ steps 4–6), **iSS `smash_ready`**, MUSIC4GPU main | **`--hadrons-only` exists only in that image.** The current production images (`cu124-20261013-9e84450` and earlier) do not have it, and it cannot be added from outside: it needs X-SCAPE C++ (`SoftParticlization::SampleCells`, `SetNextTaskNumber`), rebuilt PyJetscape bindings (`soft_sample_cells`, `set_next_task_number`, `xml_add_user_blocks`) and the `smash_ready` iSS, not just Python. One image, digest pinned, for all ten campaigns and the Au+Au phases 2–3 | `BUILD_INFO.txt` lists the four commits; `run_prod_jet.py --help` shows `--hadrons-only`; the 4-event identity check of `PLAN_AuAu_hadrons_only.md` (hadrons-only ≡ particlize-only + `hadronize.py --seed-uuid`) passes in the image |
-| **10. Benchmark** | 3090 box, the XML of 7, QCD dijets or Z+jet at the four windows, 15 events/job, 6–7 jobs/GPU, `--hadrons-only` | events/h, VmHWM, droplets per event, edge flags | fixes `JOBS_PER_GPU` / `P` and the time estimate of §6 |
+| **10. Benchmark** | 3090 box, the XML of 7, QCD dijets or Z+jet at the six windows, 24 events/job (one background), 6–7 jobs/GPU, `--hadrons-only` | events/h, VmHWM, droplets per event, edge flags | fixes `JOBS_PER_GPU` / `P` and the time estimate of §6 |
 
 Steps 1–3 are X-SCAPE (one PR), 4–6 js-contrib (one PR), 7 configuration, 8 optional for the
 first campaign, 9–10 before campaign 1. Nothing here touches MUSIC, iSS or the hydro writers, so the
 Au+Au outputs stay bit-identical (check with one Au+Au seed).
 
-## 5b. Campaign scheme: 10 × 10k events
+## 5b. Campaign scheme: 10 × 9,600 events
 
-The 100k events run as **ten identical campaigns of 10,000 events** (`zjet_c00` … `zjet_c09`), each
-4 windows × 2,500 events on 500 backgrounds, 100 jobs × 100 events (5 backgrounds × 20). One campaign
-is ~10× CMS's Z count in every p_T^Z bin (≈ 1,600 Z's in acceptance per window against CMS's 150 in
-60–80), i.e. ~3× its precision; the ten together are the 100× / 10× of §2. A single CMS-equivalent
-(~1,000 events) is one campaign with `NJOBS=1` per task: the smoke test. Campaigns differ only in
+The 96k events run as **ten identical campaigns of 9,600 events** (`zjet_c00` … `zjet_c09`), each
+6 windows × 1,600 events on 400 backgrounds, 100 jobs × 96 events (4 backgrounds × 24; the
+2026-10-15 layout, Status above; first planned as 4 windows × 2,500 on 500 backgrounds). A single
+CMS-equivalent (~1,000 events) is one campaign with `NJOBS=1` per task: the smoke test. Campaigns differ only in
 their seed range (`SEED_BASE = 1 + 1000 × c`), so any subset combines, and a bad campaign is redone
-alone. Launchers in `utils/zjet/` (the step-7 XML is `example/config/PbPb_0_10_ZJet.xml`):
+alone. Launchers in `utils/zjet/` (the step-7 XML is `example/config/PbPb_0_30_ZJet.xml`):
 
 | file | what |
 |---|---|
-| `zjet_slurm_campaign.sh` | Delta A40: `C=3 sbatch zjet_slurm_campaign.sh` → one campaign on 10 A40s (array 0–9, 10 jobs × 100 events per task, `P=6`, 16 cores, 58 GB); ~2.5 h per task at 400–500 events/h |
+| `zjet_slurm_campaign.sh` | Delta A40: `C=3 sbatch zjet_slurm_campaign.sh` → one campaign on 10 A40s (array 0–9, 10 jobs × 96 events per task, `P=6`, 16 cores, 58 GB); ~2.5 h per task at 400–500 events/h |
 | `zjet_3090_campaign.sh` | the 3090 box: `IMAGE=… ./zjet_3090_campaign.sh 3` → the same campaign via `launch_2gpu.sh`, 6–7 jobs/GPU; ~9 h |
 | `README.md` | the per-campaign checklist (dry run, `check_deposition.py`, upload) |
 
 Both launchers pass the same `run_prod_jet.py` arguments (`$D` = the image's
-`contribs/PyJetscape/example/config`): `--user-xml $D/PbPb_0_10_ZJet.xml
---grid $D/grid_PbPb.yaml --pthat-bins 40-60,60-80,80-120,120-200 --jets-per-bin 5
---parton-ymax 1.9 --trigger-ymax 2.4 --lepton-ptmin 20 --lepton-etamax 2.4 --hadrons-only
+`contribs/PyJetscape/example/config`): `--user-xml $D/PbPb_0_30_ZJet.xml
+--grid $D/grid_PbPb.yaml --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4
+--parton-ymax 1.9 --lepton-ptmin 20 --lepton-etamax 2.5 --hadrons-only
 --oversample 40 --n-frag 40 --oversample-bg per-pthat-bin --correlated --charged --eta-max 2.6 --no-x
 --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0`.
 **The container decides which mode runs.** With the step-9 image, `--hadrons-only` as above. With any
@@ -250,8 +266,8 @@ conservative end).
 only if the result is wanted within a day or the box is busy with phases 1–2 of `PLAN_CAMPAIGN_1M.md`.
 
 **The benchmark that fixes these numbers needs no Z code:** the existing Pb+Pb 5.02 TeV inputs
-(`README_2stage` §9) with QCD dijets at `--pthat-bins 40-60,60-80,80-120,120-200 --jets-per-bin 5`,
-15 events per job, 6 jobs per GPU, `--hadrons-only` (or `--particlize-only` on the current image):
+(`README_2stage` §9) with QCD dijets at `--pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200
+--jets-per-bin 4` (or the Z+jet XML itself once the image has it), 24 events per job, 6 jobs per GPU, `--hadrons-only` (or `--particlize-only` on the current image):
 events/h by makespan, VmHWM per job, droplets per event. The cost is the same with a Z in the record.
 
 ## 7. Summary

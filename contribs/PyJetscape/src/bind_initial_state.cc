@@ -10,6 +10,8 @@
  *   - isr_hard_momentum(task): with initial-state radiation, the hard-parton
  *     momentum handed to the initial state for subtraction this event, the
  *     subtraction setting and the hard nucleons' remnants (3dMCGlauber)
+ *   - initial_state_info(task): the event's n_coll, n_part, centrality (a task
+ *     from GetTaskList(), whose dynamic type pybind11 does not know)
  ******************************************************************************/
 
 #include <pybind11/pybind11.h>
@@ -262,6 +264,29 @@ void bind_initial_state(py::module_ &m) {
                  ``arr[iy, ix]`` maps to index ``iy * nx + ix``.
            )pbdoc",
            py::arg("arr"));
+
+  // ── The event's geometry, for weighting hard probes in a centrality class ──
+  m.def(
+      "initial_state_info",
+      [](std::shared_ptr<JetScapeTask> task) {
+        auto ini = std::dynamic_pointer_cast<InitialState>(task);
+        if (!ini)
+          throw std::invalid_argument("not an InitialState module: " +
+                                      (task ? task->GetId() : std::string("None")));
+        py::dict d;
+        d["n_coll"] = ini->GetNcoll();                    // -1: not available
+        d["n_part"] = ini->GetNpart();
+        d["centrality"] = ini->GetEventCentrality();
+        return d;
+      },
+      R"pbdoc(
+        The current event's geometry from its initial-state module: ``n_coll`` (binary
+        collisions), ``n_part`` and ``centrality``; -1 where the module does not provide it
+        (3dMCGlauber gives n_coll only).  A hard process scales with n_coll, so events of a
+        wide centrality class sampled minimum-bias-like (P(b) ~ b, one hard process each)
+        are weighted by it to match data.  Call between ExecPerEvent() and ClearPerEvent().
+      )pbdoc",
+      py::arg("task"));
 
   // ── ISR: what the hard process takes from the initial state ───────────────
   // A free function on a task: GetTaskList() hands out JetScapeTask pointers whose

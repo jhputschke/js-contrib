@@ -22,9 +22,9 @@ One call = one job = one seed:
     <stem>.json, <stem>.xml      the summary and the job XML that ran
 
     conda activate js_fno
-    python run_prod_vacuum.py --events 1000 --seed 1 --user-xml ../config/PbPb_0_10_ZJet.xml \\
-        --pthat-bins 40-60,60-80,80-120,120-200 --parton-ymax 1.9 \\
-        --trigger-ymax 2.4 --lepton-ptmin 20 --lepton-etamax 2.4 --n-frag 10
+    python run_prod_vacuum.py --events 1000 --seed 1 --user-xml ../config/PbPb_0_30_ZJet.xml \\
+        --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --parton-ymax 1.9 \\
+        --lepton-ptmin 20 --lepton-etamax 2.5 --n-frag 10
                                      # the pp reference of the Pb+Pb Z+jet production
     python run_prod_vacuum.py --events 100 --seed 1 --pthat-bins 10-20,20-30,30-40
                                      # QCD jets, the Au+Au production's PythiaGun and Matter

@@ -20,10 +20,9 @@ grid YAMLs, grid checks and environment checks this reuses.
                                      # one background per 3 jets, one in each pTHat window
     python run_prod_jet.py --events 30 --seed 1 --pthat-bins 10-20,20-30,30-40 --parton-ymax 0.6
                                      # only events whose hardest parton has |y| < 0.6
-    python run_prod_jet.py --events 20 --seed 1 --user-xml ../config/PbPb_0_10_ZJet.xml \
-        --grid ../config/grid_PbPb.yaml --pthat-bins 40-60,60-80,80-120,120-200 \
-        --jets-per-bin 5 --parton-ymax 1.9 --trigger-ymax 2.4 --lepton-ptmin 20 \
-        --lepton-etamax 2.4 --hadrons-only
+    python run_prod_jet.py --events 24 --seed 1 --user-xml ../config/PbPb_0_30_ZJet.xml \
+        --grid ../config/grid_PbPb.yaml --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 \
+        --jets-per-bin 4 --parton-ymax 1.9 --lepton-ptmin 20 --lepton-etamax 2.5 --hadrons-only
                                      # Pb+Pb Z+jet (the XML's PythiaGun has <trigger>Z): the
                                      #   Z's leptons pass through like photons, the Z per
                                      #   event
@@ -605,7 +604,7 @@ PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_ea
                    "jet_edge_e_max", "bg_edge_e_max", "jet_edge_e_max_eta",
                    "bg_edge_e_max_eta", "pthat_bin", "pthat",
                    "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
-                   "parton_pt_sub")
+                   "parton_pt_sub", "n_coll")
 
 
 def check_bulk_info(a, jetscape):
@@ -718,6 +717,34 @@ def pthat_diag(gun, trigger="none") -> dict:
         from jetscape.hadrons_h5 import z_record
         d.update(z_record(core.pythia_gun_trigger(gun)["leptons"]))
     return d
+
+
+def open_initial_state(jetscape):
+    """The initial-state task (3dMCGlauber) whose n_coll goes into the event record, or None
+    (a build without initial_state_info, or no such task)."""
+    from jetscape import pyjetscape_core as core
+
+    if not hasattr(core, "initial_state_info"):
+        return None
+    for task in jetscape.GetTaskList():
+        try:
+            core.initial_state_info(task)
+        except (ValueError, TypeError):
+            continue
+        return task
+    return None
+
+
+def geometry_diag(ini) -> dict:
+    """The event's n_coll, for diag/ (and events/, units/): a hard process scales with it, so
+    it weights the events of a wide centrality class (sampled with P(b) ~ b, one hard process
+    each) like the data.  Shared by the jets of a reused background."""
+    if ini is None:
+        return {}
+    from jetscape import pyjetscape_core as core
+
+    n = core.initial_state_info(ini)["n_coll"]
+    return {"n_coll": int(n)} if n >= 0 else {}
 
 
 #: |pid| of the leptons PythiaGun hands over (a Z's decay; Parton::isLepton)
@@ -1230,6 +1257,7 @@ def main() -> int:
     jet_leg = restart_legs(a, jetscape, writer)  # after both: their surface settings
     inline = open_inline(a, jetscape, stem) if a.validate_inline else None
     gun = open_pthat_bins(a, jetscape)
+    ini = open_initial_state(jetscape)
     hadr = None
     if a.hadrons_only:
         hadr = HadronsOnly(a, stem, pwriter, provenance, *hxml)
@@ -1245,7 +1273,8 @@ def main() -> int:
         for i in range(jetscape.GetNumberOfEvents()):
             t0 = time.time()
             jetscape.ExecPerEvent()
-            idx = writer.Exec(**pthat_diag(gun, a.trigger_kind))   # both legs are live
+            idx = writer.Exec(**pthat_diag(gun, a.trigger_kind),   # both legs are live
+                              **geometry_diag(ini))
             if idx is not None and pwriter is not None:
                 d = writer.last_event_diag
                 pwriter.Exec(idx, bg_id=d["bg_id"], bg_key=writer.last_bg_key,
@@ -1272,7 +1301,8 @@ def main() -> int:
                    f"freeze-out), "
                    + (f"{d['frames_identical']} leading frames identical, "
                       if "frames_identical" in d else "")
-                   + f"bg {d['bg_id']}")
+                   + f"bg {d['bg_id']}"
+                   + (f", N_coll {d['n_coll']}" if "n_coll" in d else ""))
             if not a.native and d["tau0_music"] > grid.tau_min + rp._TOL:
                 late += 1
                 msg += (f"  WARNING: tau0 after tau.min = {grid.tau_min:g}, so the first "
