@@ -26,6 +26,9 @@ grid YAMLs, grid checks and environment checks this reuses.
                                      #   partons, for hadronize.py (PLAN_particlize_h5.md)
     python run_prod_jet.py --events 10 --seed 1 --write-particlize both --particlize-only
                                      # only <stem>_particlize.h5 (+ .json): no pair file
+    python run_prod_jet.py --events 30 --seed 1 --reuse 3 --hadrons-only
+                                     # only hadron files: iSS on both legs and the jet
+                                     #   hadronization in the job (PLAN_AuAu_hadrons_only.md)
     python run_prod_jet.py --events 1 --seed 1 --dry-run         # check, print the plan
     python run_prod_jet.py --events 10 --seed 0 --campaign test  # unique seed from OS entropy,
                                                                  # -> out/AuAu_0_10_jet_test_0001.h5
@@ -171,6 +174,10 @@ def parse_args() -> argparse.Namespace:
                         "and on a build without the restart. --no-music2-restart: every "
                         "jet leg from tau0. MUSIC_RESTART_VERIFY=1 runs every jet leg from "
                         "tau0 and compares its state with the checkpoint instead")
+    p.add_argument("--eos", choices=("9", "91"), default=None,
+                   help="MUSIC's EOS for both legs (default: the XML's, 91: hotQCD + the SMASH "
+                        "hadron list, the tunes' EOS; 9: the UrQMD list, older campaigns). "
+                        "Recorded as the files' eos / eos_kind")
     p.add_argument("--late-dtau", type=float, default=None, dest="late_dtau", metavar="DT",
                    help="MUSIC's time step from --late-tau on [fm/c] (the XML's "
                         "<late_delta_tau>, 0.05 in the production XML; 0: constant step)")
@@ -192,6 +199,46 @@ def parse_args() -> argparse.Namespace:
                    dest="hadronize_xml",
                    help="iSS / JetHadronization settings for --validate-inline (default: "
                         "hadronize.xml next to this script)")
+    h = p.add_argument_group(
+        "hadrons only", "--hadrons-only: iSS on both legs and Colorless on the final partons "
+        "in this job, exactly as hadronize.py would from this job's particlize file (the same "
+        "code, settings and seeds); writes <stem>_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5 "
+        "(+ *_primary.h5) and <stem>.json, nothing else. The options are hadronize.py's")
+    h.add_argument("--hadrons-only", action="store_true", dest="hadrons_only",
+                   help="write hadron files only: no pair file, no particlize file, no stage 2. "
+                        "The jet sample of a seed is the same as without it")
+    h.add_argument("--hadronize-seed", type=int, default=None, dest="hadronize_seed",
+                   help="base seed of the hadronization (hadronize.py --seed; default 1); "
+                        "every unit's seed derives from it and this job's file uuid")
+    h.add_argument("--oversample", type=int, default=None,
+                   help="iSS samples per jet event (default 1)")
+    h.add_argument("--oversample-bg", default=None, dest="oversample_bg",
+                   help="iSS samples per background: N, 'auto' (--oversample x the events "
+                        "using it) or 'per-pthat-bin' (--oversample x --jets-per-bin). "
+                        "Default: per-pthat-bin with --pthat-bins, else auto")
+    h.add_argument("--oversample-bg-max", type=int, default=None, dest="oversample_bg_max",
+                   help="cap for --oversample-bg auto / per-pthat-bin (default 2000)")
+    h.add_argument("--n-frag", type=int, default=None, dest="n_frag",
+                   help="Colorless fragmentations per event (default 1)")
+    h.add_argument("--keep-primaries", default=None, dest="keep_primaries", metavar="N|all",
+                   help="iSS's undecayed hadrons of the first N samples of every unit, in "
+                        "<stem>_hadrons_bulk_{jet,bg}_primary.h5 (full precision, positions, "
+                        "no selection: for SMASH later). Default all; 0: none")
+    h.add_argument("--hadron-keep-bits-p", type=int, default=None, dest="hadron_keep_bits_p",
+                   help="hadronize.py --keep-bits-p for the hadron files")
+    h.add_argument("--hadron-keep-bits-x", type=int, default=None, dest="hadron_keep_bits_x",
+                   help="hadronize.py --keep-bits-x for the hadron files")
+    h.add_argument("--eta-max", type=float, default=None, dest="eta_max",
+                   help="store only hadrons with |eta| < ETA_MAX (hadronize.py --eta-max)")
+    h.add_argument("--charged", action="store_true",
+                   help="store only charged hadrons (hadronize.py --charged)")
+    h.add_argument("--no-x", action="store_true", dest="no_x",
+                   help="store no hadron positions (hadronize.py --no-x)")
+    h.add_argument("--correlated", action="store_true",
+                   help="correlated sampling, jet and background paired (hadronize.py "
+                        "--correlated)")
+    h.add_argument("--correlated-block", default=None, dest="correlated_block",
+                   metavar="DTAU,DX,DETA", help="its block size (hadronize.py)")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, Matter/LBT")
@@ -233,6 +280,16 @@ def music_delta_tau(build: str) -> float:
 #: MUSIC's hotQCD tables per <EOS> (music/src/eos_hotQCD.cpp): rows (e, P, s, T), e in
 #: GeV/fm^3, T in GeV, float64
 EOS_TABLES = {"9": "hrg_hotqcd_eos_binary.dat", "91": "hrg_hotqcd_eos_SMASH_binary.dat"}
+
+
+def music_eos(root, main_xml: str) -> str:
+    """MUSIC's <EOS> as the job runs it: the first <Hydro><MUSIC> block's, else the main
+    XML's."""
+    for r in (root, ET.parse(main_xml).getroot()):
+        v = _text(r, "Hydro/MUSIC/EOS")
+        if v:
+            return v
+    return ""
 
 
 def freezeout_e(root, main_xml: str, build: str):
@@ -420,6 +477,12 @@ def job_xml(a, out_h5: str):
             problems.append(f"{BG_ID} needs <dump_hydro_only>0: Matter/LBT read its "
                             "framework medium (MUSIC_2 is switched to 1 in Python)")
         _set(music, "slim_bulk_info", 1 if a.bulk_info == "slim" else 0)
+        if a.eos is not None:
+            # every MUSIC instance reads the first block; a second block's own <EOS> too
+            for h in hydros:
+                if h.find("MUSIC") is not None and (h is hydros[0]
+                                                    or h.find("MUSIC/EOS") is not None):
+                    _set(h.find("MUSIC"), "EOS", a.eos)
         if a.late_dtau is not None:
             _set(music, "late_delta_tau", a.late_dtau)
         if a.late_tau is not None:
@@ -614,6 +677,216 @@ def open_inline(a, jetscape, stem):
     return InlineHadrons(tasks["iSS"], tasks["HadronizationManager"], stem, n_os)
 
 
+#: --hadrons-only options: value options (None when not given) and flags
+HADRON_VALUE_OPTS = ("hadronize_seed", "oversample", "oversample_bg", "oversample_bg_max",
+                     "n_frag", "keep_primaries", "hadron_keep_bits_p", "hadron_keep_bits_x",
+                     "eta_max", "correlated_block")
+HADRON_FLAG_OPTS = ("charged", "no_x", "correlated")
+
+
+def check_hadrons_only(a) -> None:
+    """--hadrons-only: its defaults, and what it cannot be combined with (sys.exit)."""
+    from jetscape import hadronizer as hz
+
+    if not a.hadrons_only:
+        given = ([k for k in HADRON_VALUE_OPTS if getattr(a, k) is not None]
+                 + [k for k in HADRON_FLAG_OPTS if getattr(a, k)])
+        if given:
+            sys.exit("run_prod_jet.py: " + ", ".join("--" + k.replace("_", "-") for k in given)
+                     + (" needs" if len(given) == 1 else " need")
+                     + " --hadrons-only (or hadronize.py on a particlize file)")
+        return
+    for bad, what in ((a.validate_inline, "--validate-inline"),
+                      (a.particlize_only, "--particlize-only"),
+                      (a.write_particlize != "none", "--write-particlize")):
+        if bad:
+            sys.exit(f"run_prod_jet.py: --hadrons-only writes no particlize file: drop {what}")
+    a.write_particlize, a.particlize_only = "both", True   # both surfaces, no pair file
+    a.hadronize_seed = 1 if a.hadronize_seed is None else a.hadronize_seed
+    a.oversample = 1 if a.oversample is None else a.oversample
+    a.n_frag = 1 if a.n_frag is None else a.n_frag
+    a.oversample_bg_max = 2000 if a.oversample_bg_max is None else a.oversample_bg_max
+    if a.oversample_bg is None:
+        a.oversample_bg = "per-pthat-bin" if a.pthat_windows else "auto"
+    if str(a.oversample_bg).lower() == "per-pthat-bin" and not a.pthat_windows:
+        sys.exit("run_prod_jet.py: --oversample-bg per-pthat-bin needs --pthat-bins")
+    if a.oversample < 1 or a.n_frag < 1:
+        sys.exit("run_prod_jet.py: --oversample and --n-frag must be >= 1")
+    try:
+        hz.samples_per_background(a.oversample, a.oversample_bg, 1, a.oversample_bg_max)
+    except ValueError as err:
+        sys.exit(f"run_prod_jet.py: {err}")
+    kp = "all" if a.keep_primaries is None else str(a.keep_primaries).lower()
+    try:
+        a.keep_primaries_n = hz.KEEP_ALL_PRIMARIES if kp == "all" else int(kp)
+    except ValueError:
+        a.keep_primaries_n = -1
+    if a.keep_primaries_n < 0:
+        sys.exit(f"run_prod_jet.py: --keep-primaries takes N >= 0 or 'all', got {kp!r}")
+    a.keep_primaries = kp
+    for k in ("hadron_keep_bits_p", "hadron_keep_bits_x"):
+        v = getattr(a, k)
+        if v is not None and not 1 <= v <= 23:
+            sys.exit(f"run_prod_jet.py: --{k.replace('_', '-')} must be 1..23")
+    if a.eta_max is not None and not a.eta_max > 0:
+        sys.exit("run_prod_jet.py: --eta-max must be > 0")
+    if a.correlated_block is not None and not a.correlated:
+        sys.exit("run_prod_jet.py: --correlated-block needs --correlated")
+
+
+def hadronize_xml_for_job(a):
+    """--hadrons-only: hadronize.xml with this job's settings -> (its text, recorded as the
+    hadron files' hadronize_xml, and the <SoftParticlization> + <JetHadronization> blocks
+    the modules read, as a <jetscape> document)."""
+    from jetscape import hadronizer as hz
+
+    root = ET.parse(a.hadronize_xml).getroot()
+    soft, had = root.find("SoftParticlization"), root.find("JetHadronization")
+    if soft is None or soft.find("iSS") is None or had is None:
+        sys.exit(f"run_prod_jet.py: {a.hadronize_xml} needs <SoftParticlization><iSS> and "
+                 "<JetHadronization>")
+    try:
+        hz.configure_hadronize_xml(root, xscape=rp.XSCAPE, seed=a.hadronize_seed, n_events=1,
+                                   oversample=a.oversample, keep_primaries=a.keep_primaries_n,
+                                   correlated=a.correlated,
+                                   correlated_block=a.correlated_block)
+    except ValueError as err:
+        sys.exit(f"run_prod_jet.py: {err}")
+    blocks = ("<jetscape>" + ET.tostring(soft, encoding="unicode")
+              + ET.tostring(had, encoding="unicode") + "</jetscape>")
+    return ET.tostring(root, encoding="unicode"), blocks
+
+
+class HadronsOnly:
+    """--hadrons-only: the particlize writer's memory sink -> jetscape.hadronizer, per event,
+    with hadronize.py's seeds and settings (docs/Plans/PLAN_AuAu_hadrons_only.md)."""
+
+    #: units/ keys the Hadronizer sets itself (not taken from the event record)
+    RESERVED = ("unit", "event", "seed", "n_cells", "n_partons", "n_samples")
+
+    def __init__(self, a, stem, pwriter, provenance, xml_text, blocks):
+        from jetscape import hadronizer as hz
+        from jetscape import pyjetscape_core as core
+        from jetscape.hadrons_h5 import PRIMARY_OF
+
+        for cap in ("SOFT_HAS_SAMPLE_CELLS", "HAS_NEXT_TASK_NUMBER"):
+            if not getattr(core, cap, False):
+                sys.exit(f"run_prod_jet.py: --hadrons-only needs PyJetscape with {cap} "
+                         "(X-SCAPE auau_hadrons_only or later)")
+        self.a, self.hz = a, hz
+        # The modules are made after JetScape.Init and outside its task list; the task
+        # counter is set back afterwards, so every later task (the per-event jet-loss
+        # clones) gets the ID, and so the random seed, it would have had without them.
+        n_task = core.next_task_number()
+        core.xml_add_user_blocks(blocks)
+        iss = core.create_module("iSS")
+        iss.Init()
+        colorless = core.create_module("ColorlessHadronization")
+        colorless.Init()
+        core.set_next_task_number(n_task)
+
+        uuid = str(pwriter.attrs["file_uuid"])
+        self.h = hz.Hadronizer(core, iss=iss, colorless=colorless, base_seed=a.hadronize_seed,
+                               prod=hz.uuid_key(uuid), common_seeds=a.correlated)
+        eos = str(provenance.get("eos", ""))
+        decay = hz.iss_decay_attrs(core, eos, ET.fromstring(xml_text), rp.XSCAPE)
+        if eos == "91" and not decay["decayed"]:
+            print("run_prod_jet.py: WARNING -- EOS 91 and this iSS does not decay the SMASH "
+                  "hadron list (<decay_smash_list> 0 in --hadronize-xml?)", file=sys.stderr)
+        common = {"source": os.path.basename(stem), "source_uuid": uuid,
+                  "hadronize_xml": xml_text, "base_seed": a.hadronize_seed,
+                  "stored_seeds": False, "seed_scheme": "production_file",
+                  "music_input": pwriter.attrs.get("music_input", ""), "hadrons_only": True,
+                  "legs": ["jet", "bg"],
+                  **{k: v for k, v in provenance.items()}}
+        keep_bits = {"p": a.hadron_keep_bits_p, "x": a.hadron_keep_bits_x}
+        per_unit = str(a.oversample_bg).lower() in hz.PER_UNIT_OVERSAMPLE_BG
+        self.outs = {}
+        for t in hz.TAGS:
+            extra = hz.tag_attrs(t, core, decay, common_seeds=a.correlated,
+                                 correlated=a.correlated)
+            if t == "jet_frag":
+                n = a.n_frag
+                extra["x_had"] = "none"
+            elif t == "bulk_bg":
+                n = 0 if per_unit else int(a.oversample_bg)
+                extra.update({"oversample_bg": str(a.oversample_bg),
+                              "oversample_bg_max": int(a.oversample_bg_max),
+                              "oversample_jet": int(a.oversample)})
+            else:
+                n = a.oversample
+            self.outs[t] = f"{stem}_hadrons_{t}.h5"
+            ppath = (f"{stem}_hadrons_{PRIMARY_OF[t]}.h5"
+                     if t in PRIMARY_OF and a.keep_primaries_n > 0 else None)
+            if ppath:
+                self.outs[PRIMARY_OF[t]] = ppath
+            self.h.open(t, self.outs[t], n_samples=n, attrs=dict(common, **extra),
+                        keep_bits=keep_bits, eta_max=a.eta_max, charged_only=a.charged,
+                        positions=not a.no_x, initiators=t != "bulk_bg",
+                        partons=t == "jet_frag", primary_tag=PRIMARY_OF.get(t),
+                        primary_path=ppath, keep_primaries=a.keep_primaries_n)
+        self.records = []
+        self.seconds = 0.0
+        self.n_capped = 0
+        if a.pthat_windows:
+            self.per_bg = len(a.pthat_windows) * a.jets_per_bin
+        else:
+            self.per_bg = max(1, a.reuse)
+        print(f"  hadrons  in the job: iSS {a.oversample} sample(s) per jet event, "
+              f"background {a.oversample_bg} (max {a.oversample_bg_max}), {a.n_frag} "
+              f"fragmentation(s), primaries: {a.keep_primaries}, base seed "
+              f"{a.hadronize_seed}, EOS {eos} ({decay['hadron_list']} list, decays: "
+              f"{decay['iss_decays']})")
+
+    def sink(self, record):
+        """The particlize writer's memory sink: keep the event until it is hadronized."""
+        self.records.append(record)
+
+    def _background_uses(self, i_loop):
+        """Events that will use the background starting at loop event ``i_loop``
+        (hadronize.py counts them in the particlize file; the same unless events are
+        skipped)."""
+        a = self.a
+        left = min(self.per_bg, a.events - i_loop)
+        if str(a.oversample_bg).lower() == "per-pthat-bin":
+            k = len(a.pthat_windows)
+            return min(a.jets_per_bin, -(-left // k))
+        return left
+
+    def event(self, i_loop):
+        """Hadronize the event the sink got last (after ClearPerEvent) -> a log line."""
+        import time as _time
+
+        t0 = _time.time()
+        a, h, hz = self.a, self.h, self.hz
+        rec = self.records.pop()
+        e, bg_unit = int(rec["event"]), int(rec["bg_unit"])
+        scal = {k: v for k, v in rec["row"].items() if k not in self.RESERVED}
+        had, _ = h.bulk("bulk_jet", e, rec["jet"], h.bulk_jet_seed(e, bg_unit), a.oversample,
+                        event=e, initiators=rec["initiators"],
+                        keep_primaries=a.keep_primaries_n, **scal)
+        msg = f"bulk_jet {0 if had is None else len(had['pid'])}"
+        if rec["bg"] is not None:
+            n, capped = hz.samples_per_background(a.oversample, a.oversample_bg,
+                                                  self._background_uses(i_loop),
+                                                  a.oversample_bg_max)
+            self.n_capped += capped
+            bg, _ = h.bulk("bulk_bg", bg_unit, rec["bg"], h.seed("bulk_bg", bg_unit), n,
+                           event=e, keep_primaries=a.keep_primaries_n)
+            msg += f", bulk_bg (unit {bg_unit}, {n} samples) {0 if bg is None else len(bg['pid'])}"
+        frags = h.fragments(e, rec["partons"], [h.seed("jet_frag", e, s)
+                                                for s in range(a.n_frag)],
+                            initiators=rec["initiators"], **scal)
+        dt = _time.time() - t0
+        self.seconds += dt
+        return (msg + f", jet_frag {sum(len(f['pid']) for f in frags) / a.n_frag:.1f}"
+                f"/fragmentation, hadronized in {dt:.1f} s")
+
+    def finish(self, complete, attrs):
+        self.h.set_attrs(dict(attrs, prod_hadronize_s_total=round(self.seconds, 2)))
+        self.h.close(complete=complete)
+
+
 def restart_plan(a) -> tuple:
     """Whether MUSIC_2 starts from MUSIC_1's state (--music2-restart, the default), from
     the options and the build alone, so the files record it.  -> (on, why not)."""
@@ -670,6 +943,7 @@ def main() -> int:
         check_parton_ycut(a)
     except ValueError as exc:
         sys.exit(f"run_prod_jet.py: {exc}")
+    check_hadrons_only(a)          # --hadrons-only: both surfaces, no pair file, a sink
     if a.validate_inline and a.write_particlize == "none":
         sys.exit("run_prod_jet.py: --validate-inline compares with the stored surfaces and "
                  "partons; add --write-particlize jet (or both)")
@@ -677,6 +951,7 @@ def main() -> int:
         sys.exit("run_prod_jet.py: --particlize-only keeps only the particlize file; add "
                  "--write-particlize jet (or both)")
     a.hadronize_xml = os.path.abspath(a.hadronize_xml)
+    hxml = hadronize_xml_for_job(a) if a.hadrons_only else None
     unused = sorted(surface_legs(a) - set(particlize_legs(a)))
     if unused:
         print(f"run_prod_jet.py: WARNING -- --surface {a.surface} builds the freeze-out surface "
@@ -722,8 +997,9 @@ def main() -> int:
           f"{hard_desc}, reuse {a.reuse}, deposition {'OFF (null test)' if a.no_deposit else 'on'}, "
           f"freeze-out surface: {'+'.join(sorted(surface_legs(a))) or 'none'}"
           + (f", particlize input: {a.write_particlize}" if particlize_legs(a) else "")
-          + (" (no pair file)" if a.particlize_only else "")
-          + (" + inline iSS/Colorless (validation)" if a.validate_inline else ""))
+          + (" (no pair file)" if a.particlize_only and not a.hadrons_only else "")
+          + (" + inline iSS/Colorless (validation)" if a.validate_inline else "")
+          + (", HADRONS ONLY (no pair or particlize file)" if a.hadrons_only else ""))
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
     print(f"  grid     {a.grid}")
@@ -739,9 +1015,13 @@ def main() -> int:
     if not a.particlize_only:
         print(f"  output   {out_h5}")
     stem = os.path.splitext(out_h5)[0]
-    out_particlize = stem + "_particlize.h5" if particlize_legs(a) else None
+    out_particlize = (stem + "_particlize.h5"
+                      if particlize_legs(a) and not a.hadrons_only else None)
     if out_particlize:
         print(f"  output   {out_particlize}")
+    if a.hadrons_only:
+        print(f"  output   {stem}_hadrons_{{bulk_jet,bulk_bg,jet_frag}}.h5"
+              + (" + *_primary.h5" if a.keep_primaries_n > 0 else ""))
     if a.dry_run:
         return 0
 
@@ -766,6 +1046,7 @@ def main() -> int:
         "prod_bulk_info": a.bulk_info,
         **({"prod_particlize_only": True, "prod_jet_leg_read": False}
            if a.particlize_only else {}),
+        **({"prod_hadrons_only": True} if a.hadrons_only else {}),
         "prod_music2_restart": a.restart_on,
         **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
@@ -776,26 +1057,28 @@ def main() -> int:
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
         "jet": "Matter + LBT, CausalLiquefier droplets into MUSIC_2",
         "T_fo": rp.music_freezeout_temperature(root, a.main_xml),
+        "eos": music_eos(root, a.main_xml),
     }
     writer = PairH5Writer(
         out_h5, bg_id=BG_ID, jet_id=JET_ID, grid_mode=grid_mode,
         out_grid=None if a.native else grid, choose_ntau=max_ntau,
         store_showers=not a.no_showers, compression=a.compression, keep_bits=a.keep_bits,
         provenance={"hard_vertex": HARD_VERTEX[a.hard],
-                    "eos_kind": "hotqcd (MUSIC EOS 9)",
+                    "eos_kind": f"hotqcd (MUSIC EOS {provenance['eos']})",
                     "transport_mode": "MUSIC viscous: eta/s(T) and zeta/s(T) "
                                       "parametrization 3, second-order terms"},
         keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True,
         bg_layout=a.bg_layout, reuse=a.reuse, store_evolution=not a.particlize_only,
         read_jet=not a.particlize_only, edge_e_threshold=a.edge_e_threshold)
     pwriter = None
-    if out_particlize:
+    records = []                       # --hadrons-only: the particlize writer's memory sink
+    if out_particlize or a.hadrons_only:
         from jetscape.particlize_h5 import ParticlizeH5Writer
         pwriter = ParticlizeH5Writer(
             out_particlize, legs=particlize_legs(a), bg_id=BG_ID, jet_id=JET_ID,
             T_fo=provenance["T_fo"], pair_file=None if a.particlize_only else out_h5,
             extra_attrs={k: v for k, v in provenance.items() if k != "T_fo"},
-            verbose=True)
+            verbose=True, sink=records.append if a.hadrons_only else None)
 
     # MUSIC / 3dMCGlauber resolve their input files relative to the working directory:
     # a private one per job (rp.enter_workdir), so concurrent jobs share no file.
@@ -817,10 +1100,16 @@ def main() -> int:
     jet_leg = restart_legs(a, jetscape, writer)  # after both: their surface settings
     inline = open_inline(a, jetscape, stem) if a.validate_inline else None
     gun = open_pthat_bins(a, jetscape)
+    hadr = None
+    if a.hadrons_only:
+        hadr = HadronsOnly(a, stem, pwriter, provenance, *hxml)
+        hadr.records = records
 
     late = 0
     droplets = e_late = 0.0
     t_job = time.time()
+    finished = False
+    windows = None
     try:
         jetscape.ExecInit()
         for i in range(jetscape.GetNumberOfEvents()):
@@ -841,6 +1130,7 @@ def main() -> int:
             writer.write_diag(idx, wall_s=wall)
             if a.particlize_only:                # the only per-event record of it
                 pwriter.write_events(idx, wall_s=wall)
+            hmsg = hadr.event(i) if hadr is not None else None
             d = writer.last_event_diag
             droplets += d["n_droplets"]
             e_late += d["E_droplets_late"]
@@ -864,8 +1154,11 @@ def main() -> int:
                 if "parton_y_lead" in d:
                     msg += f", hardest parton y {d['parton_y_lead']:+.2f}"
             print(msg)
+            if hmsg:
+                print(f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} hadrons: {hmsg}")
         windows = None if gun is None else pthat_windows_final(gun)
         jetscape.Finish()
+        finished = True
     finally:
         writer.Finish()
         if pwriter is not None:
@@ -873,6 +1166,13 @@ def main() -> int:
                            == writer.GetNumberOfEventsWritten())
         if inline is not None:
             inline.close()
+        if hadr is not None:
+            # complete only if every event went through (as hadronize.py's files)
+            hadr.finish(complete=finished and pwriter.GetNumberOfEventsWritten()
+                        == writer.GetNumberOfEventsWritten(),
+                        attrs={**(windows or {}), "prod_wall_s_total": time.time() - t_job,
+                               "nevents": pwriter.GetNumberOfEventsWritten(),
+                               "complete_job": finished})
 
     n = writer.GetNumberOfEventsWritten()
     if n and not a.particlize_only:
@@ -888,6 +1188,7 @@ def main() -> int:
             with h5py.File(out_particlize, "a") as f:
                 f.attrs["prod_wall_s_total"] = time.time() - t_job
     summary = {"out": None if a.particlize_only else out_h5, "seed": a.seed,
+               "eos": provenance["eos"],
                "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
                "grid": a.grid, "hard": hard_desc,
                "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,
@@ -899,11 +1200,21 @@ def main() -> int:
                "events_hit_edge": writer.n_hit_edge,
                "droplets_total": int(droplets), "E_droplets_late_total": round(e_late, 3),
                "wall_s": round(time.time() - t_job, 1)}
-    if pwriter is not None:
+    if out_particlize:
         summary.update(particlize=out_particlize, particlize_legs=list(particlize_legs(a)),
                        particlize_events_written=pwriter.GetNumberOfEventsWritten())
-    if a.particlize_only:
+    if a.particlize_only and not a.hadrons_only:
         summary["particlize_only"] = True
+    if hadr is not None:
+        summary.update(hadrons_only=True, hadron_files=hadr.outs,
+                       hadronize_s_total=round(hadr.seconds, 1),
+                       hadronize_settings={"oversample": a.oversample,
+                                           "oversample_bg": str(a.oversample_bg),
+                                           "n_frag": a.n_frag,
+                                           "keep_primaries": a.keep_primaries,
+                                           "base_seed": a.hadronize_seed,
+                                           "correlated": a.correlated},
+                       backgrounds_capped=hadr.n_capped)
     if writer.bg_layout == "shared":
         summary["bg_layout"] = "shared"
     if windows is not None:

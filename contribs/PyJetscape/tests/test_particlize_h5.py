@@ -118,6 +118,40 @@ def test_surfaces_partons_and_background_reuse(tmp_path):
         assert pf.f["surface/jet/cells"].dtype == np.float32
 
 
+def test_memory_sink_hands_over_what_the_file_stores(tmp_path):
+    # the same three events into a file and into a sink
+    plan = [(0, 5, 4, 3), (0, 6, 99, 0), (2, 2, 3, 2)]
+    recs = []
+    jet, bg, mgr = _Leg("MUSIC_2"), _Leg("MUSIC_1"), _Mgr()
+    ws = ParticlizeH5Writer(None, legs=("jet", "bg"), music_input="EOS_to_use 91\n",
+                            T_fo=0.15, sink=recs.append)
+    ws.attach(_JS(bg, jet), manager=mgr)
+    w, jet_f, bg_f, mgr_f = _writer(tmp_path)
+    for k, (bg_id, nj, nb, npart) in enumerate(plan):
+        for j, b, m in ((jet, bg, mgr), (jet_f, bg_f, mgr_f)):
+            j.cells, b.cells, m.rows = _cells(nj, k), _cells(nb, 10 + k), _partons(npart)
+        assert ws.Exec(k, bg_id=bg_id, E_droplets=1.5 * k) == w.Exec(k, bg_id=bg_id,
+                                                                     E_droplets=1.5 * k)
+    ws.write_events(2, wall_s=4.0)
+    ws.Finish()
+    w.Finish()
+    assert not (tmp_path / "None").exists() and ws.path is None
+    assert ws.attrs["music_input"] == "EOS_to_use 91\n" and ws.attrs["complete"]
+    assert len(ws.attrs["file_uuid"]) == 36 and ws.attrs["nevents_written"] == 3
+    assert [r["event"] for r in recs] == [0, 1, 2]
+    with ParticlizeFile(tmp_path / "p.h5") as pf:
+        for k, r in enumerate(recs):
+            np.testing.assert_array_equal(r["jet"], pf.surface("jet", k))
+            np.testing.assert_array_equal(r["partons"], pf.partons(k))
+            assert r["bg_unit"] == pf.events("bg_unit")[k] == r["row"]["bg_unit"]
+            assert r["row"]["n_partons"] == pf.events("n_partons")[k]
+        # a new background's cells only when it is new (event 1 reuses background 0)
+        np.testing.assert_array_equal(recs[0]["bg"], pf.surface_unit("bg", 0))
+        assert recs[1]["bg"] is None
+        np.testing.assert_array_equal(recs[2]["bg"], pf.surface_unit("bg", 1))
+    assert recs[2]["row"]["wall_s"] == 4.0 and recs[1]["row"]["E_droplets"] == 1.5
+
+
 def test_empty_surface_is_an_empty_unit(tmp_path):
     w, jet, bg, mgr = _writer(tmp_path, legs=("jet",))
     jet.cells = _cells(3, 1)
@@ -1294,3 +1328,132 @@ def test_root_export_takes_initiators_from_the_particlize_file(tmp_path):
     ini = r2r._stored_initiators(a, 2, INITIATOR_COLUMNS)
     assert ini is not None and list(ini["px"][1]) == [1, 1]     # one initiator per event
     assert np.allclose(ini["px"][0], [np.cos(PHI_JET[("A", 0)]), np.cos(PHI_JET[("A", 1)])])
+
+
+# ───────────────────────────── undecayed hadrons and the jet hadronization's input
+def test_primary_tags_are_files_of_their_own(tmp_path):
+    from jetscape.hadrons_h5 import PRIMARY_OF, PRIMARY_TAGS, HadronFile, hadron_selection
+
+    assert set(PRIMARY_OF.values()) == set(PRIMARY_TAGS)
+    p = tmp_path / "h_hadrons_bulk_jet_primary.h5"
+    with HadronH5Writer(p, tag="bulk_jet_primary", n_samples=2,
+                        attrs={"decayed": False, "primaries_of": "bulk_jet"}) as w:
+        w.append_unit([_hadrons(3, pid=223), _hadrons(1, pid=113)], unit=0, event=0, seed=5)
+        w.append_unit([], unit=1, event=1, seed=6)                 # empty surface
+    with HadronFile(p) as hf:
+        assert hf.tag == "bulk_jet_primary" and not hf.attrs["decayed"]
+        assert hf.n_samples(0) == 2 and hf.n_samples(1) == 0
+        assert np.array_equal(hf.sample_event(0, 0)["pid"], [223] * 3)
+    assert hadron_selection(p) == {"eta_max": None, "charged_only": False, "positions": True}
+    with pytest.raises(ValueError, match="one event per unit"):
+        HadronH5Writer(tmp_path / "i.h5", tag="bulk_jet_primary", n_samples=1,
+                       initiators=True)
+
+
+def test_hadron_file_keeps_the_hadronization_input_per_event(tmp_path):
+    from jetscape.hadrons_h5 import (HADRONIZATION_INPUT_COLUMNS, HadronFile,
+                                     hadronization_input_rows)
+
+    inp = {"pid": np.array([21, -2, 2101], np.int32), "col": np.array([501, 0, 502], np.int32),
+           "acol": np.array([502, 501, 0], np.int32),
+           "p": np.array([[10.123456789012, 1e-9, -3.25, 9.5], [0.3, 0.1, 0.2, -0.1],
+                          [1.0e3, 0.0, 0.0, 1.0e3]]),
+           "mass": np.zeros(3)}
+    p = tmp_path / "h_hadrons_jet_frag.h5"
+    with HadronH5Writer(p, tag="jet_frag", n_samples=1, hadronization_input=True) as w:
+        w.append_unit([_hadrons(2)], hadronization_input=inp, unit=0, event=0, seed=7)
+        w.append_unit([_hadrons(1)], hadronization_input=None, unit=1, event=1, seed=8)
+    with HadronFile(p) as hf:
+        assert hf.has_hadronization_input
+        assert list(hf.f["hadronization_input"].attrs["columns"]) == \
+            list(HADRONIZATION_INPUT_COLUMNS)
+        got = hf.hadronization_input(0)
+        for k in inp:                    # exact: float64 for p, ids and tags as integers
+            assert np.array_equal(got[k], inp[k]) and got[k].dtype == np.asarray(inp[k]).dtype
+        assert len(hf.hadronization_input(1)["pid"]) == 0
+    with HadronH5Writer(tmp_path / "plain.h5", tag="jet_frag", n_samples=1) as w:
+        with pytest.raises(ValueError, match="hadronization_input=True"):
+            w.append_unit([], hadronization_input=inp)
+    with HadronFile(tmp_path / "plain.h5") as hf:
+        assert not hf.has_hadronization_input and hf.hadronization_input(0) is None
+    with pytest.raises(ValueError, match="only jet_frag"):
+        HadronH5Writer(tmp_path / "b.h5", tag="bulk_bg", n_samples=1, hadronization_input=True)
+    with pytest.raises(ValueError, match=r"\(K, 8\)"):
+        hadronization_input_rows(np.zeros((2, 5)))
+
+
+def test_hadronize_keep_primaries_option_and_decay_attributes():
+    import xml.etree.ElementTree as ET
+
+    hz = _load_example("hadronize.py")
+    assert hz.parse_args(["x_particlize.h5"]).keep_primaries == 0
+    assert hz.parse_args(["x_particlize.h5", "--keep-primaries", "20"]).keep_primaries == 20
+
+    class Core:
+        ISS_DECAYS_SMASH_LIST = True
+
+    xml = ET.fromstring("<jetscape><SoftParticlization><iSS><Perform_resonance_decays>1"
+                        "</Perform_resonance_decays><decay_smash_list>1</decay_smash_list>"
+                        "</iSS></SoftParticlization></jetscape>")
+    a91 = hz.iss_decay_attrs(Core, "91", xml)
+    assert a91["hadron_list"] == "SMASH" and a91["decayed"] and "Breit-Wigner" in a91["iss_decays"]
+    a9 = hz.iss_decay_attrs(Core, "9", xml)
+    assert a9["hadron_list"] == "UrQMD" and a9["iss_decays"] == "iSS, pole masses"
+    Core.ISS_DECAYS_SMASH_LIST = False                  # an iSS before smash_ready
+    assert not hz.iss_decay_attrs(Core, "91", xml)["decayed"]
+    xml.find("SoftParticlization/iSS/decay_smash_list").text = "0"
+    Core.ISS_DECAYS_SMASH_LIST = True
+    assert hz.iss_decay_attrs(Core, "91", xml)["iss_decays"] == "none"
+    # hadronize.xml decays the SMASH list
+    ref = ET.parse(Path(hz.__file__).with_name("hadronize.xml")).getroot()
+    assert ref.findtext("SoftParticlization/iSS/decay_smash_list").strip() == "1"
+
+
+def test_hadronize_check_takes_the_files_settings_and_compares(tmp_path, capsys):
+    from types import SimpleNamespace
+
+    hz = _load_example("hadronize.py")
+    assert hz.parse_args(["x_particlize.h5"]).check is None
+    assert hz.parse_args(["x_particlize.h5", "--check"]).check == ""
+    assert hz.parse_args(["x_particlize.h5", "--check", "f.h5"]).check == "f.h5"
+
+    rng = np.random.default_rng(3)
+
+    def frag(n):
+        return {"pid": rng.choice([211, -211, 2212], n), "pstat": np.zeros(n, int),
+                "p": rng.normal(size=(n, 4)), "x": np.zeros((n, 4))}
+
+    def write(path, samples, **kw):
+        attrs = {"source": "x_particlize.h5", "source_uuid": "uuid-1", "base_seed": 7,
+                 "seed_scheme": "production_file", "stored_seeds": False,
+                 "hadronize_xml": "<jetscape/>", "pythia_version": 8312}
+        attrs.update(kw.pop("attrs", {}))
+        w = HadronH5Writer(str(path), tag="jet_frag", n_samples=2, attrs=attrs, **kw)
+        for u, s in enumerate(samples):
+            w.append_unit(s, unit=u, event=u, seed=100 + u)
+        w.close(complete=True)
+
+    events = [[frag(5), frag(3)], [frag(4), frag(6)]]
+    ref = tmp_path / "ref.h5"
+    write(ref, events, keep_bits={"p": 12}, eta_max=2.0)
+    a = hz.parse_args(["x_particlize.h5", "--check", str(ref), "--seed", "1", "--n-frag", "9"])
+    pf = SimpleNamespace(attrs={"file_uuid": "uuid-1"})
+    xml, units = hz.check_settings(a, SimpleNamespace(PYTHIA_VERSION=8312), pf, str(ref))
+    assert xml == "<jetscape/>" and units == [0, 1]
+    assert (a.seed, a.n_frag, a.legacy_seeds, a.use_stored_seeds) == (7, 2, False, False)
+    assert (a.keep_bits_p, a.keep_bits_x, a.eta_max, a.charged, a.no_x) == (12, None, 2.0,
+                                                                          False, False)
+    with pytest.raises(SystemExit, match="Pythia 8312"):
+        hz.check_settings(a, SimpleNamespace(PYTHIA_VERSION=8315), pf, str(ref))
+    with pytest.raises(SystemExit, match="another particlize file"):
+        hz.check_settings(a, SimpleNamespace(PYTHIA_VERSION=8312),
+                          SimpleNamespace(attrs={"file_uuid": "uuid-2"}), str(ref))
+
+    same, other = tmp_path / "same.h5", tmp_path / "other.h5"
+    write(same, events, keep_bits={"p": 12}, eta_max=2.0)
+    assert hz.compare_jet_frag(str(ref), str(same), [0, 1]) == 0
+    events[1][1] = frag(6)
+    write(other, events, keep_bits={"p": 12}, eta_max=2.0)
+    assert hz.compare_jet_frag(str(ref), str(other), [0, 1]) == 1
+    out = capsys.readouterr().out
+    assert "event 1: DIFFERENT -- fragmentation 1" in out

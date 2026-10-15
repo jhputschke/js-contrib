@@ -17,7 +17,7 @@ the reference hadrons. Only the surface changes:
 | `ref_no_shear` | MUSIC's, $\pi^{\mu\nu}$ = 0 | bulk δf only | shear δf |
 | `ref_no_bulk` | MUSIC's, $\Pi$ = 0 | shear δf only | bulk δf |
 | `ref_ideal` | MUSIC's, $\pi^{\mu\nu}$ = $\Pi$ = 0 | none | all of δf |
-| `hist` | Cornelius on the saved history (X-SCAPE `SurfaceFinder`), $T$ from MUSIC's EoS 9 | none | + the coarse history |
+| `hist` | Cornelius on the saved history (X-SCAPE `SurfaceFinder`), $T$ from MUSIC's EoS (the pair file's, 9 or 91) | none | + the coarse history |
 
 `hist − ref` is the total error of hadronizing from the history. It splits into the
 viscous part, `ref_ideal − ref` (itself split into shear and bulk), and the history part,
@@ -37,7 +37,7 @@ viscous part, `ref_ideal − ref` (itself split into shear and bulk), and the hi
 
 - An X-SCAPE build with iSS and PyJetscape (`pyjetscape_core`), as for `hadronize.py`
   (`conda activate js_fno` on the GB10). The `hist` surfaces also need the
-  `FluidDynamics.find_freezeout_surface` / `surface_to_numpy` bindings and MUSIC's EoS 9
+  `FluidDynamics.find_freezeout_surface` / `surface_to_numpy` bindings and MUSIC's EoS (9 or 91)
   table (`<build>/EOS/hotQCD/hrg_hotqcd_eos_binary.dat`; `--eos` for another path).
 - A production directory made with `run_prod_jet.py --write-particlize both`, i.e. the
   pair files `<stem>.h5` next to `<stem>_particlize.h5`, and the reference hadrons made from
@@ -130,7 +130,7 @@ provenance) and replace only `surface/jet` and `surface/bg`. `hadronize.py` and
 - **`ref_*`**: the reference's cells, with the $\pi^{\mu\nu}$ and/or $\Pi$ columns set to 0.
 - **`hist`**, for the jet leg of every event (`arr[e]`) and every new background
   (`arr_bg[bg_id]`):
-  1. $T(e)$ and $P(e)$ from MUSIC's EoS 9 table, which is linear in $e$ as MUSIC reads it.
+  1. $T(e)$ and $P(e)$ from the pair file's MUSIC EoS table (9 or 91), which is linear in $e$ as MUSIC reads it.
      $e(T_{sw}=0.15) = 0.2342$ GeV/fm³ reproduces the reference surface's $e$ = 0.2341.
   2. The history is stored in a `FluidDynamics` (`temperature, energy_density, pressure, vx,
      vy, vz`). The frames after the leg's freeze-out are zero, and all but the first of them

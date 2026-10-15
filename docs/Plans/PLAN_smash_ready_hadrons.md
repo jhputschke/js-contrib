@@ -1,11 +1,12 @@
-<!-- Plan, written 2026-10-14. Status: not started. Branches to use: smash_ready in the iSS fork (from iSS_optim 98deaff), X-SCAPE (from contrib) and js-contrib (from main). -->
+<!-- Plan, written 2026-10-14. Status (2026-10-15): Part 1 and the minimal Part 2 (O+O: the jet hadronization's input stored, opt-in) implemented on branches smash_ready in the iSS fork (from iSS_optim 98deaff), X-SCAPE (from contrib) and js-contrib (from main); see "Implementation status". Parts 2.1-2.4, 2.6 and 3 not started. -->
 
 # Plan: EOS 91 hadrons, undecayed primaries, and SMASH as a later afterburner (Au+Au and O+O)
 
 ## Goal
 
-1. **EOS 91 in production.** MUSIC with EOS 91 (hotQCD + the SMASH hadron list) and iSS
-   decaying that list itself, so an EOS 91 campaign gives decayed hadrons like EOS 9 does today.
+1. **EOS 91 in production** (the tunes' EOS; decision 1). MUSIC with EOS 91 (hotQCD + the SMASH
+   hadron list) and iSS decaying that list itself, so an EOS 91 campaign gives decayed hadrons
+   like EOS 9 does today.
 2. **Bulk primaries.** iSS also keeps the undecayed hadrons (with positions), so SMASH can run on
    them later, without a new hydro or particlization.
 3. **Jet primaries with positions.** The jet hadronization keeps its undecayed hadrons as well,
@@ -20,6 +21,25 @@ For **Au+Au and O+O**, in every place where the hadronization runs (table in
 
 Not in this plan: SMASH campaigns and their analysis, and a hadrons-only mode for Au+Au
 ([Follow-ups](#follow-ups)).
+
+## Implementation status (2026-10-15)
+
+Done on the `smash_ready` branches; scope set on 2026-10-15: Part 1, and of Part 2 only what
+is needed to redo the O+O jet hadronization later (positions left for later), opt-in for O+O.
+
+| item | where | state |
+|---|---|---|
+| 1.1 iSS decays the SMASH list | iSS `FSSW` (`decay_smash_list`, default 0: as before), X-SCAPE wrapper + `jetscape_main.xml` default, `hadronize.xml` sets 1 | done |
+| 1.2 Breit–Wigner daughter masses, re-drawn closed channels | iSS `particle_decay` (`smash_list_`: SMASH list only, UrQMD/PDG lists unchanged) | done |
+| 1.0 measure the EOS 9 loss, 1.3 η/Σ⁰ decays | — | dropped (decisions 2 and 4) |
+| 1.4 `keep_primaries` | iSS `FSSW` (first N samples, both sampling paths) | done |
+| 1.5 wrapper, binding | `SoftParticlization` compact primaries, `core.soft_primaries_numpy`, `ISS_DECAYS_SMASH_LIST`, `SOFT_HAS_PRIMARIES`, `PYTHIA_VERSION` | done |
+| 1.6 writers | `hadrons_h5` tags `bulk_jet_primary` / `bulk_bg_primary` (own files), `hadronize.py` / `run_prod_oo_isr.py --keep-primaries N`; attributes `decayed`, `hadron_list`, `iss_decays`, `iss_commit` | done |
+| 1.7 EOS 91 | the three production XMLs, `--eos` in `run_prod_jet.py` and `run_prod_oo_isr.py`, `eos` / `eos_kind` recorded, `wake_observables.py`, `make_surfaces.py`, `music_cpu_gpu_hydro.py` take the file's EOS table | done |
+| 1.8 validation | see 1.8 | done, except speed at production scale |
+| 2.5 minimal: O+O input stored | iColored `<reseed_per_event>`, `<store_input>`, `HadronizeInput`; `core.hadronization_input_numpy` / `hadronize_input`; `run_prod_oo_isr.py --store-hadronization-input` (opt-in; reseed always on), `hadronization_input/` group, `rehadronize_jets.py` | done |
+| Pythia version in the jet files | `pythia_version` attribute (hadronize.py jet_frag, O+O jet_frag) | done |
+| Au+Au replay check | `hadronize.py --check [JET_FRAG]`: re-makes a jet_frag file from `partons/` with the seeds and settings it records and compares (Au+Au needs no stored input: Colorless runs from the particlize file's partons) | done |
 
 ## What the code does today
 
@@ -110,32 +130,59 @@ partons' `x_in` become Pythia's production vertices (`vProd`) and the hadrons ta
 
 ## Decisions before starting
 
-1. **Which setup were the model parameters calibrated with?** X-SCAPE's default
-   `jetscape_main.xml:549` uses EOS 91, and 3D Glauber + MUSIC calibrations usually run SMASH as
-   afterburner. If our parameter sets come from such a calibration, the missing hadronic stage
-   matters more than 9 vs 91, and this plan is the way back to it. If they were tuned with EOS 9
-   and no afterburner, EOS 91 changes the tuned setup.
-2. **Fix the EOS 9 loss too?** The Breit–Wigner daughter masses (1.2) also open the UrQMD
-   list's closed channels. That changes EOS 9 output (not bit-identical) and needs a version
-   attribute, so files from before and after are told apart. Measure the loss first (1.0).
-3. **The jet-hadron formation time** (2.4): Pythia's Lund space-time picture of the string
-   breakups (`Fragmentation:setVertices`) on top of the positions of 2.3, or no formation time.
+All taken; 2–4 on 2026-10-15.
+
+1. **Decided (2026-10-14): the tunes are EOS 91, and the production campaigns use EOS 91.**
+   Today's EOS 9 production differs from the tuned setup in the EOS (the table above) and in
+   the hadron list. Consequences:
+   - EOS 91 becomes the default of the production XMLs (1.7), not an option.
+   - Part 1 (1.1–1.3, 1.8) is needed before an EOS 91 campaign gives decayed bulk hadrons.
+     Au+Au stage 1 has no iSS (unless `--validate-inline`), so it can switch to EOS 91 as soon
+     as 1.7 is in; its stage 2 waits for Part 1. O+O with in-job bulk hadrons waits for Part 1,
+     or keeps its particlize files until then.
+   - EOS 9 primaries can never go into SMASH (UrQMD species), so only EOS 91 campaigns can.
+   - Still open: whether the tunes also ran SMASH as afterburner. If yes, Part 3 is part of
+     the tuned setup too, not only a later option.
+2. **Decided: EOS 9 stays bit-identical, and its loss is not measured.** The decay fixes
+   (1.2) apply to the SMASH list only. (A by-product of the 1.8 checks: in one Au+Au file, the
+   EOS 9 decays lose ~2.5 % of a sample's energy, and charges are not conserved, through the
+   UrQMD list's `-2` and 4-body channels.)
+3. **The jet-hadron formation time** (2.4): open, but no longer on the production's path: the
+   minimal 2.5 lets 2.3–2.4 run in an offline redo of the jet hadronization.
+4. **Decided: η and Σ⁰ stay stable** (SMASH's stable set), so 1.3 is dropped: with EOS 91 the
+   final hadrons include η and Σ⁰, which EOS 9 decays.
+5. **Decided: `--keep-primaries N`**, the first N oversamples, default 0; and the O+O driver
+   always reseeds the jet hadronization per event (not bit-identical for O+O jet hadrons).
 
 ## Part 1: the bulk (iSS)
 
-### 1.0 Measure the EOS 9 loss (½ day)
+### 1.0 Measure the EOS 9 loss (½ day) — dropped (decision 2)
 
 Count, per event, the hadrons iSS drops through the `-2` channels (a counter in
 `perform_decays`, or a Python re-run of the decay chain on one file's primaries). Report the
 dropped energy per event and per species. Decides decision 2.
 
-### 1.1 iSS: decays for the SMASH list (½ day)
+### 1.1 iSS: decays for the SMASH list (½ day) — done
 
 Decouple "which list" from "who decays": `FSSW.cpp:403` and `:1549–1550` decay whenever
-`perform_decays` is on and **no SMASH runs** (a parameter, e.g. `afterburner_runs`, default 0
-in our XMLs; X-SCAPE's `SmashWrapper` path sets it to 1). The list stays the one the EOS forces.
+`perform_decays` is on and **no SMASH runs**. The list stays the one the EOS forces.
+Implemented the other way round, so nothing changes for anyone who does not ask: iSS
+parameter `decay_smash_list` (default 0: the SMASH list is left to SMASH, as before; X-SCAPE
+`<SoftParticlization><iSS><decay_smash_list>`, default 0 in `jetscape_main.xml`), set to 1 in
+`hadronize.xml`.
 
-### 1.2 iSS: Breit–Wigner masses for unstable daughters (1–2 days)
+### 1.2 iSS: Breit–Wigner masses for unstable daughters (1–2 days) — done (SMASH list only)
+
+As implemented (`particle_decay.cpp`): a channel open at the pole masses decays as before. One
+the pole masses close gets, for each unstable daughter with a width, a mass from the
+(non-relativistic, constant-width) Breit–Wigner truncated to [its lowest decay mass, M minus
+the others' lowest masses], drawn again until they fit; the lowest decay mass is the lightest
+channel's sum, recursively. A channel closed even at the lowest masses is replaced by a draw
+among the open ones (by branching ratio); a mother with none stays undecayed (counted and
+reported, never `exit`, never dropped; it does not happen with the shipped table, where every
+species has an open channel). The `-2` and 4-body channels of the UrQMD list are untouched
+(decision 2). SMASH itself uses mass-dependent widths, so far off-shell daughters are more
+suppressed there.
 
 In `perform_two_body_decay` / `perform_three_body_decay`: when the pole masses close the channel,
 sample the unstable daughters' masses from a Breit–Wigner with m₁ + m₂ (+ m₃) ≤ M
@@ -148,61 +195,80 @@ The random numbers: the correlated sampling addresses its random numbers by cell
 (`FSSW.cpp`, Philox); the extra draws must come from the same per-primary stream, so the jet leg
 and the background still decay a shared primary identically.
 
-### 1.3 Our copy of `pdg-SMASH.dat`: η and Σ⁰ decays (½ day)
+### 1.3 Our copy of `pdg-SMASH.dat`: η and Σ⁰ decays (½ day) — dropped (decision 4)
 
 Add their channels from `pdg-urqmd_v3.3+.dat`, so the final stable set is the same as with
 EOS 9 (γ, π, K, p, n, Λ, Σ±, Ξ, Ω; π⁰ stays stable as today, see
 [`PLAN_analysis_decays.md`](PLAN_analysis_decays.md)). Record the table's checksum in the
 hadron files.
 
-### 1.4 iSS: `keep_primaries` (½ day)
+### 1.4 iSS: `keep_primaries` (½ day) — done
 
-A parameter (`keep_primaries`, default 0). Both decay paths, `decay_one_primary` (correlated
+A parameter (`keep_primaries` = N, default 0: the first N samples). Both decay paths, `decay_one_primary` (correlated
 sampling) and `perform_resonance_feed_down`, copy each primary into a second list before
 decaying it. No new random numbers, so the final hadrons are bit-identical with and without it.
 
-### 1.5 Wrapper and binding (½ day)
+### 1.5 Wrapper and binding (½ day) — done
 
 `iSpectraSamplerWrapper` hands the second list over next to the final one (flat arrays, as the
 compact output does); PyJetscape gets `core.soft_primaries_numpy` and a capability flag
 (`core.ISS_DECAYS_SMASH_LIST`), which the warnings use.
 
-### 1.6 Writers, precision, attributes (1 day)
+### 1.6 Writers, precision, attributes (1 day) — done
 
-- `hadronize.py` and `run_prod_oo_isr.py` write the primaries as separate groups,
-  `bulk_bg_primary` and `bulk_jet_primary`, with the layout of the final groups (`pid`, `pstat`,
-  `p`, `x`, sample and unit offsets). Existing readers keep reading only the final groups.
+- `hadronize.py` and `run_prod_oo_isr.py` write the primaries as separate **files** (one tag
+  per file, as the hadron format has it), tags `bulk_bg_primary` and `bulk_jet_primary`, with
+  the layout of the final files (`pid`, `pstat`, `p`, `x`, sample and unit offsets). Existing
+  readers never see them.
 - **Precision per group.** SMASH needs the primaries' positions and full float32 momenta: the
   mass comes from E² − p², and with 12 mantissa bits a 5 GeV pion's m² is ~25 % off.
   `--keep-bits-p`, `--keep-bits-x` and `--no-x` then apply to the final groups only, and the
   primaries keep full precision (or get their own options).
 - Attributes: `decayed` (final groups: true; primaries: false), `hadron_list` (`SMASH` /
-  `UrQMD`), the iSS commit and table checksum, `decayer` (`iSS, Breit–Wigner daughters`).
+  `UrQMD`), `iss_commit`, `iss_decays` (`iSS, Breit-Wigner masses ...` / `iSS, pole masses`).
 - An option for the setting: `hadronize.py --keep-primaries`, `run_prod_oo_isr.py
   --keep-primaries` (writes them for the in-job bulk), passed into the iSS block of
   `hadronize.xml`.
 
-### 1.7 EOS 91 in the XMLs and the warnings (2 h)
+### 1.7 EOS 91 in the XMLs, the scripts and the warnings (½ day) — done
 
-- An `--eos 9|91` option in `run_prod_jet.py` and `run_prod_oo_isr.py` that sets `<EOS>` in the
-  job XML (the default stays 9), recorded in the files; the XML comments about EOS 91 updated.
-- The warnings in `hadronize.py:569` and `run_prod_oo_isr.py` only for a build without
+- `<EOS>91</EOS>` in the production XMLs (`prod_AuAu_0_10_jet`, `prod_AuAu_0_10`, `prod_OO_isr`;
+  decision 1), and an `--eos 9|91` option in `run_prod_jet.py` and `run_prod_oo_isr.py` for
+  reruns of EOS 9 campaigns; the XML comments about EOS 91 updated.
+- **Places that assume EOS 9 today:**
+  - `run_prod_jet.py:785` writes `eos_kind = "hotqcd (MUSIC EOS 9)"` whatever the XML says: take
+    it from `<EOS>` (and record the EOS number as its own attribute);
+  - `analysis/wake_observables.py:184` (`find_eos`) falls back to the EOS 9 table
+    (`hrg_hotqcd_eos_binary.dat`): choose the table by the file's EOS, as `run_prod_jet.py:235`
+    does, and refuse a mismatch with an explicit `--eos` table;
+  - the defaults of `hydro_hist_vs_surface/make_surfaces.py:79` and
+    `prod_AuAu_0_10_jet/music_cpu_gpu_hydro.py:42` (validation scripts; the same change);
+  - [`PLAN_analysis_decays.md`](PLAN_analysis_decays.md) reads the UrQMD table: with EOS 91 the
+    decay table is `pdg-SMASH.dat`, where η and Σ⁰ are stable (decision 4). Not changed yet:
+    that plan is not implemented.
+- The warnings in `hadronize.py:569` and `run_prod_oo_isr.py:457` only for a build without
   `core.ISS_DECAYS_SMASH_LIST`.
 
-### 1.8 Validation (1–2 days)
+### 1.8 Validation (1–2 days) — done 2026-10-15 (GB10; 2-event Au+Au and O+O jobs)
 
-- **Decays:** energy, momentum and charge conserved per primary through its chain; no
-  `exit`, no dropped mother; the closed-channel draws distributed as the Breit–Wigner.
-- **Primaries → finals:** decaying a file's stored primaries with the same per-primary random
-  stream reproduces its final hadrons exactly (a test script on one job of each system).
-- **Bit-identity where nothing should change:** EOS 9 with `keep_primaries 0` and without the
-  Breit–Wigner change (if decision 2 is "no") identical to today's hadrons
-  (the baseline-vs-new comparison of earlier bit-identical changes, e.g.
-  [`PLAN_iSS_optim.md`](PLAN_iSS_optim.md) Part C).
-- **Physics:** EOS 91 against EOS 9 on the same seeds: dN/dη, identified π/K/p yields and
-  spectra, ⟨p_T⟩, the wake observables; EOS 9 before and after the Breit–Wigner change.
-- **Speed:** iSS samples ~400 instead of ~321 species and decays longer chains; measure stage-2
-  time and memory per event.
+- **Decays** (a standalone test of `particle_decay` with the SMASH list, 200 000 decays each of
+  ω, η′, f₂, K₁ in flight): four-momentum conserved to 2·10⁻⁷ GeV, the sampled daughter masses
+  always below M, no `exit`, no undecayed mother; ω → πρ takes its 90 %, and the ρ masses
+  follow the truncated Breit–Wigner (KS distance 0.0036, 95 % bound 0.0055); f₂ → ρρ (two
+  unstable daughters) works.
+- **Primaries → finals** (instead of a replay of the decays): per kept sample, the summed
+  four-momentum of the decayed hadrons equals the primaries' to 1–5·10⁻⁵ (float32 storage)
+  and Q, B, S agree exactly; Au+Au jet leg and background, plain and `--correlated`, and O+O.
+  Only stable species remain (15: γ, π, K, N, Λ, Σ, Ξ, Ω, η, Σ⁰).
+- **Bit-identity:** EOS 9 hadronize.py output (all three tags, plain and `--correlated`)
+  identical to the build before; EOS 9 and EOS 91 decayed hadrons identical with and without
+  `--keep-primaries`; O+O EOS 9 in-job bulk identical. The O+O jet hadrons differ, as they
+  must (per-event reseed).
+- **O+O replay:** `rehadronize_jets.py --check` reproduces the job's jet hadrons exactly from
+  the stored input and seeds; `--decays off` gives the primary hadrons.
+- **Physics comparison EOS 91 vs EOS 9:** not needed (2026-10-15).
+- **Speed:** not measured at production scale (the 2-event tests: 3.3 s with EOS 91 against
+  3.0 s with EOS 9 for 5 oversamples per surface).
 
 ## Part 2: the jet hadrons
 
@@ -322,12 +388,27 @@ Caveats:
 - whether JETSCAPE's rescattering study uses a formation time (Pythia's, or HH's `had_prop`),
   and which: ask Hendrik Roch.
 
-### 2.5 O+O: what is needed to redo the jet hadronization later (1 day)
+### 2.5 O+O: what is needed to redo the jet hadronization later (1 day) — minimal part done
+
+Implemented (2026-10-15), positions left out: `--store-hadronization-input` (opt-in) stores
+`pythia.event` before `pythia.next()` (pid, col, acol, E, px, py, pz, m; float64) as
+`hadronization_input/` of the jet_frag file, with the per-event seed (`units/seed`, always on),
+`pythia_version` and the effective `<JetHadronization>` block (`jet_hadronization_xml`);
+`rehadronize_jets.py` (prod_OO_isr) is the offline driver (`--check`, `--decays off`,
+`--new-seeds`). Still to do for positions: the partons' hadronization points (2.2), stored
+next to the input.
+
+The original plan:
 
 `iColoredHadronization` dumps the complete parton list it gives Pythia (final partons, ISR
 partons, beam remnants: pid, four-momentum, col, acol, t, x, y, z, the hadronization point of
-2.2) into a ragged group `hadronization_input/` of the jet file (the layout of `partons/`). The
-Pythia seed is already recorded (`reseed_per_event`). Then the O+O jet hadronization can be redone
+2.2) into a ragged group `hadronization_input/` of the jet file (the layout of `partons/`); most
+simply `pythia.event` just before `pythia.next()`, which also has the remnants' momenta as
+iColored builds them from 3dMCGlauber and the colour-balancing parton. **The seed is not there
+yet:** iColored sets no `Random:seed` (not in the module, not in `OO_MCGlauber_MUSIC_isr.xml`),
+so every job starts from Pythia's default seed and the stream runs on through the job's events.
+Exact replay needs a per-event reseed as in Colorless (`reseed_per_event`, `:125`), recorded in
+the file; it changes O+O's jet hadrons (not bit-identical). Then the O+O jet hadronization can be redone
 offline with other settings (positions, decays off, another model), which today is impossible.
 Size per event: tens of KB (estimate; next to 0.13 MB of hadrons per event in hadron-only runs).
 Needs an offline driver that feeds the stored list to Pythia the way iColored does.
@@ -473,7 +554,7 @@ yet: add one before using it.
 
 | | Au+Au | O+O |
 |---|---|---|
-| **EOS 91** | stage-1 XML (`--eos 91`) | stage-1 XML (`--eos 91`) |
+| **EOS 91** | stage-1 XML (the default, 1.7) | job XML (the default, 1.7) |
 | **Part 1, bulk** | stage 2 (`hadronize.py`), on kept particlize files | in the job (`--bulk-hadrons`) or stage 2 on kept particlize files |
 | **Part 2, jet primaries** | stage 2 (`hadronize.py`, colorless) | **in the job only** (iColored), or offline from `hadronization_input/` once 2.5 exists |
 | **Part 2, positions** | stage 2, against the stored jet-leg surface | in the job, against the hydro |
@@ -502,9 +583,9 @@ need a rebuild (CI for amd64, see `utils/BuildContainerProd.md`).
 |---|---|
 | 1.0 measure the EOS 9 loss | ½ |
 | 1.1–1.4 iSS | 2½–3½ |
-| 1.5–1.7 wrapper, binding, writers, options | 2 |
+| 1.5–1.7 wrapper, binding, writers, options | 2½ |
 | 1.8 validation | 1–2 |
-| **Part 1** | **6–8** |
+| **Part 1** | **6½–8½** |
 | 2.1 jet primaries | ½–1 |
 | 2.2 hadronization points | 1–2 |
 | 2.3 positions (Pythia's parton vertices) | ½–1 |
@@ -540,12 +621,40 @@ production-scale validation runs.
 
 ## Open points
 
-- Decisions 1–3 above.
-- Hybrid Hadronization's `hydro_Tc` default against our T_fo = 0.15 GeV.
+- Decision 3 above, and whether the EOS 91 tunes ran SMASH (decision 1).
+- Hybrid Hadronization's `hydro_Tc` is 0.16 GeV in X-SCAPE (`jetscape_main.xml:349`); 2.2 uses
+  our T_fo = 0.15 GeV, so the jet hadrons start on the bulk's surface (recorded in the files).
+- **Decision 3 can move out of the production:** the Au+Au jet hadronization is redone from the
+  stored partons anyway, and O+O's once 2.5 exists. Then the production needs only 2.2 (O+O: in
+  the job, with the hydro) and 2.5; 2.1, 2.3 and 2.4 run in the offline redo, with Pythia ≥ 8.315.
+- **Negative hadrons:** Au+Au stage 2 runs `take_recoil 1` (`hadronize.xml:78`), so Colorless
+  turns holes into negative hadrons (`ColorlessHadronization.cc:519`). SMASH can't propagate
+  negative-weight particles: keep them out of SMASH and subtract them afterwards, unscattered?
+  Ask Hendrik Roch with the formation-time question.
+- **Jet sample k with bulk sample k:** `--n-frag` is 10 by default against 100–200 bulk
+  oversamples, and the reader pairs `k mod n_frag`, so the same jet hadrons would go into 10–20
+  SMASH events. Either n_frag = the number of samples that get SMASH, or accept the correlation.
+- **How many oversamples keep primaries:** full float32 with positions roughly doubles the bulk
+  hadron storage per kept sample. `--keep-primaries N` exists (1.6); the campaign value of N
+  comes from 3.0's timing (how many samples get SMASH).
+- **Au+Au correlated sampling after SMASH** (Follow-ups) before Parts 2–3 for Au+Au: the
+  `--keep-primaries` files of a few EOS 91 events can go through standalone SMASH (one jet leg
+  and its background) now, together with 3.0's timing.
+- **Jet and bulk coordinates:** the partons' `x_in` and the hydro/iSS positions in the same
+  frame (origin, t against τ₀), for both systems; a check in 2.6.
+- **The surface crossing of 2.2 (Au+Au):** the last crossing of a straight worldline with a
+  set of discrete surface cells is not an inside/outside lookup; it needs an algorithm and a
+  tolerance, and is the riskiest estimate of Part 2.
+- **The SMASH version of iSS's `pdg-SMASH.dat`:** EOS 91's table, iSS's sampling and SMASH
+  3.2.2's `particles.txt` should have the same species and masses (3.2's pid check).
 - `ColoredHadronizationSinglet` (`cparker/eA-update`) sets the partons' `vProd` but neither
   `PartonVertex:setVertex` nor `Fragmentation:setVertices` (none found on the branch), so its
   primary hadrons should come out at (0,0,0,0) and the "infinity" ones from decay vertices: ask
   Cameron Parker / erickolbusz whether that is what they see.
 - Whether conda-forge has Pythia 8.315 (for 3.1), or it is built from source in the image.
-- Whether X-SCAPE upstream wants 1.1–1.2 and 2.1–2.3 (they change shared modules): keep them
-  behind switches that default to today's behaviour.
+- Whether X-SCAPE upstream wants 1.1–1.2 and 2.1–2.3 (they change shared modules): kept
+  behind switches that default to today's behaviour (`decay_smash_list`, `keep_primaries`,
+  `<reseed_per_event>` and `<store_input>` for iColored, all 0 by default).
+- **FastHydro's particlization** (`contribs/FastHydro`) still refuses `hotqcd_smash` (EOS 91)
+  without an afterburner (`check_xml_agrees_with_cfg`); with `decay_smash_list` it could allow
+  it. Not changed.

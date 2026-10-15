@@ -15,7 +15,8 @@
 
   Derived from contribs/FastHydro/config/AuAu_MCGlauber_MUSIC_0_10.xml.  The <MCGlauber>,
   <IS> grid, <Preequilibrium> and MUSIC physics settings are unchanged (b_max = 4.7 fm for
-  0-10%, EOS 9, T_fo = 0.15 GeV).  Changes, all output-side:
+  0-10%, T_fo = 0.15 GeV), except EOS 91 (the tunes' EOS; was 9 before 2026-10).  Changes,
+  all output-side:
 
     <dump_hydro_only> 1       keep MUSIC's native store, skip the framework copy
                               (the source file's RootBulkWriter path: ~65 GB RSS per event)
@@ -172,8 +173,9 @@
       <name>MUSIC</name>
       <MUSIC_input_file>music_input</MUSIC_input_file>
       <!--EOS used for the hydro evolution: 91 hotQCD EOS (SMASH list), 9 hotQCD EOS (UrQMD list), 20 NEOS-4D-->
-      <!--9, not 91: iSS decays resonances only for the UrQMD list, and there is no SMASH (see the header)-->
-      <EOS>9</EOS>
+      <!--91, the EOS of the tunes (hotQCD + the SMASH hadron list).  9 (UrQMD list) for reruns
+          of older campaigns-->
+      <EOS>91</EOS>
       <!--InitialProfile = 42 for Trento + Pre-equilibrium or IPGlasma, 13 for the 3D Glauber initial condition-->
       <InitialProfile>131</InitialProfile>
       <!--beastMode = 0: double precision, constant time step-->

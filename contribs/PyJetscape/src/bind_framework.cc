@@ -36,6 +36,15 @@ using namespace Jetscape;
 // Walk a sequence of XML tag names from root, returning the deepest element
 // found (nullptr if any step fails).  Mirrors the logic in JetScapeXML.cc but
 // accepts std::vector<std::string> so it can be called from Python.
+// A node and everything below it, copied into `doc` (tinyxml2 4 has no DeepClone).
+static tinyxml2::XMLNode *xml_deep_clone(const tinyxml2::XMLNode *src,
+                                         tinyxml2::XMLDocument *doc) {
+  tinyxml2::XMLNode *copy = src->ShallowClone(doc);
+  for (const tinyxml2::XMLNode *c = src->FirstChild(); c; c = c->NextSibling())
+    copy->InsertEndChild(xml_deep_clone(c, doc));
+  return copy;
+}
+
 static tinyxml2::XMLElement *
 xml_walk(tinyxml2::XMLElement *root, const std::vector<std::string> &path) {
   if (!root) return nullptr;
@@ -409,6 +418,77 @@ void bind_framework(py::module_ &m) {
         )pbdoc",
         py::arg("main_xml"), py::arg("user_xml") = std::string(),
         py::arg("init_random") = true);
+
+  // ── Modules made outside the physics (run_prod_jet.py --hadrons-only) ──────────
+  // A task's ID fixes its random seed (one generator per task), and every task made
+  // shifts the IDs of all later ones -- the jet-loss clones made per event among them.
+  // Hadronization modules made in the production process take their seeds explicitly,
+  // so the driver sets the counter back after making them: the physics then draws the
+  // random numbers it would without them.
+  m.def("next_task_number",
+        []() {
+#ifdef JETSCAPETASKSUPPORT_HAS_NEXT_TASK_NUMBER
+          return JetScapeTaskSupport::Instance()->GetNextTaskNumber();
+#else
+          throw std::runtime_error("next_task_number: this X-SCAPE has no "
+                                   "JetScapeTaskSupport::GetNextTaskNumber");
+          return 0;
+#endif
+        },
+        "The task ID the next task made will get (JetScapeTaskSupport).");
+  m.def("set_next_task_number",
+        [](int n) {
+#ifdef JETSCAPETASKSUPPORT_HAS_NEXT_TASK_NUMBER
+          JetScapeTaskSupport::Instance()->SetNextTaskNumber(n);
+#else
+          throw std::runtime_error("set_next_task_number: this X-SCAPE has no "
+                                   "JetScapeTaskSupport::SetNextTaskNumber");
+#endif
+        },
+        "Set the task ID the next task gets: back to next_task_number()'s value before "
+        "modules made outside the physics, so later tasks keep their random seeds.",
+        py::arg("n"));
+#ifdef JETSCAPETASKSUPPORT_HAS_NEXT_TASK_NUMBER
+  m.attr("HAS_NEXT_TASK_NUMBER") = true;
+#else
+  m.attr("HAS_NEXT_TASK_NUMBER") = false;
+#endif
+
+  m.def("xml_add_user_blocks",
+        [](const std::string &text) {
+          auto *xml = JetScapeXML::Instance();
+          tinyxml2::XMLElement *root = xml->GetXMLRootUser();
+          if (!root)
+            throw std::runtime_error("xml_add_user_blocks: no user XML is open (call after "
+                                     "JetScape.Init())");
+          tinyxml2::XMLDocument doc;
+          if (doc.Parse(text.c_str()) != tinyxml2::XML_SUCCESS)
+            throw py::value_error("xml_add_user_blocks: the text is no valid XML (tinyxml2 "
+                                  "error " + std::to_string(int(doc.ErrorID())) + ")");
+          tinyxml2::XMLElement *src = doc.FirstChildElement("jetscape");
+          if (!src)
+            throw py::value_error("xml_add_user_blocks: the text needs a <jetscape> root");
+          int n = 0;
+          for (auto *c = src->FirstChildElement(); c; c = c->NextSiblingElement()) {
+            if (root->FirstChildElement(c->Name()))
+              throw py::value_error(std::string("xml_add_user_blocks: the user XML has <") +
+                                    c->Name() + "> already");
+          }
+          for (auto *c = src->FirstChildElement(); c; c = c->NextSiblingElement()) {
+            root->InsertEndChild(xml_deep_clone(c, root->GetDocument()));
+            ++n;
+          }
+          return n;
+        },
+        R"pbdoc(
+          Append the children of ``<jetscape>`` in ``text`` to the open user XML, in memory.
+
+          After JetScape.Init(), so the automatic task list never sees them: modules made
+          afterwards (create_module + Init) read their settings from them, while the event
+          loop keeps exactly the tasks the file had.  A block the user XML has already is
+          refused.  Returns the number of blocks added.
+        )pbdoc",
+        py::arg("text"));
 
   // Writers built with create_module() get no file name: in XML mode that is set by
   // JetScape::DetermineWritersFromXML(), which does not run for a hand-wired pipeline.

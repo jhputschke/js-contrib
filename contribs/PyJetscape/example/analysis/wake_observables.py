@@ -181,15 +181,38 @@ class Grid:
                 (np.asarray(eta) - self.eta0) / self.deta)
 
 
+#: MUSIC's hotQCD tables per <EOS> (music/src/eos_hotQCD.cpp), as run_prod_jet.py
+EOS_TABLES = {"9": "hrg_hotqcd_eos_binary.dat", "91": "hrg_hotqcd_eos_SMASH_binary.dat"}
+
+
+def file_eos(attrs):
+    """The MUSIC EOS a pair file was made with: its ``eos`` attribute, else the number in
+    ``eos_kind`` (files before the attribute were all EOS 9)."""
+    v = str(attrs.get("eos", "")).strip()
+    if v:
+        return v
+    m = re.search(r"EOS (\d+)", str(attrs.get("eos_kind", "")))
+    return m.group(1) if m else "9"
+
+
 def find_eos(attrs, override):
-    cands = [override, os.environ.get("MUSIC_EOS_TABLE", ""),
-             os.path.join(str(attrs.get("prod_build", "")), "EOS", "hotQCD",
-                          "hrg_hotqcd_eos_binary.dat")]
-    path = next((c for c in cands if c and os.path.exists(c)), None)
-    if path is None:
-        sys.exit("hotQCD EoS table not found: pass --eos or set MUSIC_EOS_TABLE")
+    """The hotQCD table of the file's EOS: --eos, $MUSIC_EOS_TABLE or the production
+    build's.  A given table must be the file's (EOS 9 and 91 differ by up to 6% in e(T)
+    around T_fo)."""
     if "hotqcd" not in str(attrs.get("eos_kind", "hotqcd")).lower():
         sys.exit(f"eos_kind is {attrs.get('eos_kind')!r}; only the hotQCD table is supported")
+    eos = file_eos(attrs)
+    if eos not in EOS_TABLES:
+        sys.exit(f"the file ran MUSIC EOS {eos}: no hotQCD table for it here")
+    want = EOS_TABLES[eos]
+    cands = [override, os.environ.get("MUSIC_EOS_TABLE", ""),
+             os.path.join(str(attrs.get("prod_build", "")), "EOS", "hotQCD", want)]
+    path = next((c for c in cands if c and os.path.exists(c)), None)
+    if path is None:
+        sys.exit(f"hotQCD EoS table {want} (EOS {eos}) not found: pass --eos or set "
+                 "MUSIC_EOS_TABLE")
+    if os.path.basename(path) != want:
+        sys.exit(f"{path} is not the table of the file's EOS {eos} ({want})")
     return path
 
 
@@ -689,7 +712,8 @@ def main(argv=None):
     ap.add_argument("paths", nargs="+", help="production directories or pair .h5 files")
     ap.add_argument("-o", "--out", default="wake_observables.h5")
     ap.add_argument("-j", "--jobs", type=int, default=4, help="files processed in parallel")
-    ap.add_argument("--eos", default="", help="hotQCD EoS table (default: from prod_build)")
+    ap.add_argument("--eos", default="", help="hotQCD EoS table (default: the production "
+                    "build's table of the file's EOS, 9 or 91)")
     ap.add_argument("--max-events", type=int, default=0, help="per file, for tests")
     args = ap.parse_args(argv)
 

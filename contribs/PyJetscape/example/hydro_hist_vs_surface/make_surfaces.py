@@ -76,7 +76,21 @@ XSCAPE = os.path.abspath(os.path.join(PYJETSCAPE, "..", "..", "..", ".."))
 sys.path.insert(0, os.path.join(PYJETSCAPE, "python"))
 
 VARIANTS = ("hist", "ref_ideal", "ref_no_bulk", "ref_no_shear")
-DEFAULT_EOS = os.path.join(XSCAPE, "build_gpu", "EOS", "hotQCD", "hrg_hotqcd_eos_binary.dat")
+#: MUSIC's hotQCD tables per <EOS> (music/src/eos_hotQCD.cpp)
+EOS_TABLES = {"9": "hrg_hotqcd_eos_binary.dat", "91": "hrg_hotqcd_eos_SMASH_binary.dat"}
+
+
+def eos_table_of(attrs):
+    """The build_gpu table of the EOS a pair file was made with: its ``eos`` attribute, else
+    the number in ``eos_kind`` (files before the attribute were all EOS 9)."""
+    import re
+    eos = str(attrs.get("eos", "")).strip()
+    if not eos:
+        m = re.search(r"EOS (\d+)", str(attrs.get("eos_kind", "")))
+        eos = m.group(1) if m else "9"
+    if eos not in EOS_TABLES:
+        sys.exit(f"the pair file ran MUSIC EOS {eos}: no hotQCD table for it (pass --eos)")
+    return os.path.join(XSCAPE, "build_gpu", "EOS", "hotQCD", EOS_TABLES[eos])
 #: MUSIC's lower cut of the low-temperature freeze-out (evolve.cpp: epsFO_low = 0.05/hbarc)
 E_CAP_LOW = 0.05
 
@@ -105,8 +119,9 @@ def parse_args(argv=None):
                    help="Cornelius lattice for hist (default: the output grid's spacing)")
     p.add_argument("--no-cap", action="store_false", dest="cap",
                    help="hist: no low-temperature cap at the first frame (see above)")
-    p.add_argument("--eos", default=DEFAULT_EOS,
-                   help=f"MUSIC's EOS 9 table (default {DEFAULT_EOS})")
+    p.add_argument("--eos", default=None,
+                   help="MUSIC's hotQCD table (default: build_gpu's table of the pair file's "
+                        "EOS, 9 or 91)")
     p.add_argument("--new-uuid", action="store_true", dest="new_uuid",
                    help="give the output a new file_uuid: hadronize.py then samples it "
                         "independently of the reference (default: the reference's uuid, "
@@ -119,13 +134,13 @@ def parse_args(argv=None):
 
 # ── EoS ─────────────────────────────────────────────────────────────────────────
 class Eos:
-    """MUSIC's hotQCD table (EOS 9): rows (e, P, s, T), e and P in GeV/fm^3, T in GeV,
+    """MUSIC's hotQCD table (EOS 9 or 91): rows (e, P, s, T), e and P in GeV/fm^3, T in GeV,
     interpolated linearly as MUSIC's own table lookup does (uniform e steps)."""
 
     def __init__(self, path):
         if not os.path.exists(path):
             sys.exit(f"make_surfaces.py: EoS table {path} not found (--eos). It is the file "
-                     "MUSIC reads for EOS 9: <build>/EOS/hotQCD/hrg_hotqcd_eos_binary.dat")
+                     "MUSIC reads: <build>/EOS/hotQCD/" + " or ".join(EOS_TABLES.values()))
         tab = np.fromfile(path, dtype="<f8")
         if tab.size == 0 or tab.size % 4:
             sys.exit(f"make_surfaces.py: {path} is not a MUSIC hotQCD table")
@@ -289,6 +304,8 @@ def process(a, src, core, eos):
             sys.exit(f"make_surfaces.py: pair file {pair_path} of {src} not found")
         pair = h5py.File(pair_path, "r")
         A = pair.attrs
+        if not a.eos:
+            eos = Eos(eos_table_of(A))
         grid = {k: float(A[k]) for k in ("tau_min", "dtau", "x_min", "dx", "y_min", "dy",
                                          "eta_min", "deta")}
         lattice = ((grid["dtau"], grid["dx"], grid["deta"]) if not a.lattice
@@ -417,7 +434,7 @@ def main(argv=None):
     core = eos = None
     if a.variant == "hist":
         from jetscape import pyjetscape_core as core
-        eos = Eos(a.eos)
+        eos = Eos(a.eos) if a.eos else None     # else per input: its pair file's EOS
         if tuple(core.SURFACE_CELL_COLUMNS) != tuple(COL):
             sys.exit("make_surfaces.py: pyjetscape_core's surface columns differ from "
                      "jetscape.particlize_h5's; rebuild the core")

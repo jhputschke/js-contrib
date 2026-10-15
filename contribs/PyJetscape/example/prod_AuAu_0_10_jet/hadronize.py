@@ -14,18 +14,27 @@ No GPU, no MUSIC: only the stored inputs, the iSS tables and Pythia.
                                         # --pthat-bins file: M x 200, M jets per window per bg
     python hadronize.py P.h5 --tags jet_frag --n-frag 50
     python hadronize.py P.h5 --use-stored-seeds         # replay a --validate-inline job
+    python hadronize.py P.h5 --check        # re-make the jet_frag file's jets, compare
+    python hadronize.py S_hadrons_jet_frag.h5 --check   # a run_prod_jet.py --hadrons-only
+                                        # job's jets, from its jet file's partons/
     python hadronize.py P.h5 --diagnose-colored         # colour-flow diagnostic only
     python hadronize.py P.h5 --skip-complete            # campaigns: only what is missing
     python hadronize.py P.h5 --keep-bits-p 12 --keep-bits-x 8   # rounded p, x: 58% of the bytes
     python hadronize.py P.h5 --eta-max 2        # only hadrons at |eta| < 2: ~60% of the bytes
     python hadronize.py P.h5 --charged --no-x   # charged hadrons, no positions
     python hadronize.py P.h5 --add-initiators           # older outputs: add initiators/ only
+    python hadronize.py P.h5 --keep-primaries 20  # + undecayed hadrons of 20 oversamples
 
 Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_h5):
 
     <stem>_hadrons_bulk_jet.h5   iSS on surface/jet     bulk + wake        unit = event
     <stem>_hadrons_bulk_bg.h5    iSS on surface/bg      bulk               unit = background
     <stem>_hadrons_jet_frag.h5   Colorless on partons/  jet fragments      unit = event
+
+and with --keep-primaries N, for SMASH later (jetscape.hadrons_h5, PRIMARY_TAGS):
+
+    <stem>_hadrons_bulk_jet_primary.h5   bulk_jet's first N oversamples, undecayed
+    <stem>_hadrons_bulk_bg_primary.h5    bulk_bg's first N oversamples, undecayed
 
 A jet event is bulk_jet + jet_frag; its background is bulk_bg unit ``events/bg_unit`` of
 the particlize file (units/event in the bulk_bg file is the first event that used it).
@@ -63,6 +72,25 @@ conventional sampling that alignment is lost at the first hadron; --correlated (
 giving the same hadrons wherever their surfaces agree.  Sample k of an event's bulk_jet
 and sample k of its background then belong together: analyse jet - background paired.
 
+Re-hadronizing the jets.  The jets are hadronized here, from the particlize file's
+``partons/``, so a jet_frag file can always be made again: the same command (or the same
+--seed, --n-frag and hadronize.xml) gives the same hadrons, --seed / --n-frag other
+fragmentations (a fragmentation's seed does not depend on --n-frag), a copy of
+hadronize.xml with <pythia_decays> off the primary hadrons (with --tags jet_frag and
+--out-dir).  --check [JET_FRAG] replays an existing jet_frag file (default: this particlize
+file's, in --out-dir): it takes the settings the file records (base_seed, seed_scheme,
+stored_seeds, n_samples, hadronize_xml, precision and selection), hadronizes its events
+again into a temporary file and compares pid, pstat, p and x of every fragmentation; exit 1
+on a difference, nothing is written.  It needs the Pythia version the file records
+(``pythia_version``; files before smash_ready do not record it).  The input can also be
+the ``<stem>_hadrons_jet_frag.h5`` of a run_prod_jet.py --hadrons-only job (no particlize
+file): its ``partons/`` and ``units/`` stand in for the particlize file's, jet_frag only.
+
+The per-unit work is jetscape.hadronizer, which run_prod_jet.py --hadrons-only runs in the
+production job: the same code, settings and seeds.  --seed-uuid UUID derives the seeds from
+that job's uuid (its hadron files' ``source_uuid``) instead of the particlize file's, so a
+particlize run of the same seed reproduces a --hadrons-only job's hadrons exactly.
+
 Precision.  p and x are stored as full float32 by default.  --keep-bits-p / --keep-bits-x
 round them to that many mantissa bits (max relative error 2**-(bits+1)); the setting is
 recorded on the datasets (jetscape.hadrons_h5.hadron_precision).  Choose it once per
@@ -84,6 +112,16 @@ They are recorded as the files' ``eta_max``, ``charged_only`` and ``positions`` 
 --skip-complete warns about complete files with another selection, HadronFileReader about
 a campaign that mixes them.  Observables that need every hadron (the total energy balance
 of jet - background, neutral hadrons, space-time) need files without them.
+
+Decays and undecayed hadrons.  iSS decays the resonances of either hadron list: EOS 9's
+UrQMD list as always, EOS 91's SMASH list with <decay_smash_list> 1 (hadronize.xml; needs
+iSS from smash_ready on, core.ISS_DECAYS_SMASH_LIST), where the channels the pole masses
+close get Breit-Wigner masses for their unstable daughters; eta and Sigma0 stay stable, as
+in SMASH.  The files record ``hadron_list`` (SMASH / UrQMD), ``decayed`` and ``iss_decays``.
+--keep-primaries N also writes the hadrons as iSS sampled them, before any decay, for the
+first N oversamples of every unit: full precision, with positions and without --eta-max /
+--charged / --no-x, whatever those are for the decayed files (SMASH needs every hadron, its
+position and its mass).  The decayed hadrons are the same with and without it.
 
 Settings come from hadronize.xml (the file --validate-inline also uses); the iSS paths are
 made absolute and the job's own music_input -- stored in the particlize file -- is written
@@ -112,8 +150,10 @@ _spec = importlib.util.spec_from_file_location("_run_prod", os.path.join(PROD, "
 rp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rp)                 # also puts PyJetscape/python on sys.path
 
-TAGS = ("bulk_jet", "bulk_bg", "jet_frag")
-TAG_INDEX = {t: k for k, t in enumerate(TAGS)}
+# the per-unit work, shared with run_prod_jet.py --hadrons-only
+from jetscape import hadronizer as hz                     # noqa: E402
+from jetscape.hadronizer import (HADRON_LIST, PER_UNIT_OVERSAMPLE_BG,  # noqa: E402,F401
+                                 SEED_SCHEMES, TAG_INDEX, TAGS, unit_seed)
 
 
 def _mantissa_bits(text):
@@ -133,7 +173,9 @@ def _positive_float(text):
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("particlize", help="a <stem>_particlize.h5 from run_prod_jet.py")
+    p.add_argument("particlize", help="a <stem>_particlize.h5 from run_prod_jet.py, or the "
+                   "<stem>_hadrons_jet_frag.h5 of a run_prod_jet.py --hadrons-only job (jets "
+                   "only: its partons/)")
     p.add_argument("--tags", default=",".join(TAGS),
                    help=f"comma-separated subset of {', '.join(TAGS)} (default: all)")
     p.add_argument("--oversample", type=int, default=None,
@@ -161,6 +203,10 @@ def parse_args(argv=None):
                    help="derive the seeds from (--seed, tag, unit, sample) only, as before "
                         "the production file entered them: to reproduce older hadron files. "
                         "Their events share seeds across the files of a campaign")
+    p.add_argument("--seed-uuid", default=None, dest="seed_uuid", metavar="UUID",
+                   help="derive the seeds from this file uuid instead of the particlize "
+                        "file's: to reproduce a run_prod_jet.py --hadrons-only job (its "
+                        "hadron files' source_uuid) from a particlize run of the same seed")
     p.add_argument("--common-seeds", action="store_true", dest="common_seeds",
                    help="seed every event's bulk_jet with its background's bulk_bg seed, so "
                         "the two legs draw the same random numbers as long as they stay "
@@ -175,6 +221,11 @@ def parse_args(argv=None):
                    metavar="DTAU,DX,DETA",
                    help="block size of --correlated in tau [fm/c], x and y [fm], eta "
                         "(default: jetscape_main.xml's, 0.5,1.0,0.5)")
+    p.add_argument("--check", nargs="?", const="", default=None, metavar="JET_FRAG",
+                   help="replay a jet_frag file (default: <out-dir>/<stem>_hadrons_jet_frag.h5) "
+                        "with the settings and seeds it records and compare hadron by hadron; "
+                        "exit 1 on a difference. Writes nothing; --seed, --n-frag, the "
+                        "precision and selection options are taken from the file")
     p.add_argument("--diagnose-colored", action="store_true", dest="diagnose_colored",
                    help="only run the colour-flow diagnostic (ColoredHadronization on the "
                         "stored partons) and write <stem>_colored_diagnostic.json")
@@ -195,6 +246,11 @@ def parse_args(argv=None):
                    help="store only charged hadrons (all tags; default: all hadrons)")
     p.add_argument("--no-x", action="store_true", dest="no_x",
                    help="store no positions t, x, y, z (all tags; ~40%% of the bytes)")
+    p.add_argument("--keep-primaries", type=int, default=0, dest="keep_primaries",
+                   metavar="N",
+                   help="also write iSS's undecayed hadrons of the first N oversamples per "
+                        "unit to <stem>_hadrons_bulk_{jet,bg}_primary.h5 (for SMASH later; "
+                        "full precision, positions, no selection). Default 0: none")
     p.add_argument("--no-initiators", action="store_true", dest="no_initiators",
                    help="do not copy the pair file's shower initiators into bulk_jet and "
                         "jet_frag (initiators/)")
@@ -219,43 +275,14 @@ def parse_args(argv=None):
     return p.parse_args(argv)
 
 
-#: ``seed_scheme`` attribute of the hadron files; files without it are "legacy"
-SEED_SCHEMES = ("production_file", "legacy")
-
-
-def unit_seed(base, tag, unit, sample=0, prod=None):
-    """Independent, reproducible 31-bit seed per (base, production file, tag, unit, sample).
-
-    ``prod`` is the production file's key (:func:`production_key`); None gives the legacy
-    seeds, the same for every production file."""
-    key = [int(base), TAG_INDEX[tag], int(unit), int(sample)]
-    if prod is not None:
-        key.insert(1, int(prod))
-    s = np.random.SeedSequence(key)
-    return int(s.generate_state(1, dtype=np.uint32)[0] & 0x7FFFFFFF) or 1
-
-
 def production_key(pf):
     """The production file's seed key: its particlize file's ``file_uuid`` as an integer."""
-    import uuid
-
     text = str(pf.attrs.get("file_uuid", ""))
     try:
-        return uuid.UUID(text).int
+        return hz.uuid_key(text)
     except ValueError:
         raise ValueError(f"the particlize file has no valid file_uuid ({text!r}) to derive "
                          "independent seeds from; pass --legacy-seeds") from None
-
-
-def _set_text(parent, tag, value):
-    n = parent.find(tag)
-    if n is None:
-        n = ET.SubElement(parent, tag)
-    n.text = str(value)
-
-
-#: --oversample-bg values that give every background its own count (units/n_samples)
-PER_UNIT_OVERSAMPLE_BG = ("auto", "per-pthat-bin")
 
 
 def background_samples(pf, oversample, spec, cap):
@@ -267,17 +294,9 @@ def background_samples(pf, oversample, spec, cap):
     use it in one pTHat window (``events/pthat_bin``), i.e. --jets-per-bin.  At most ``cap``.
     """
     n_bg, _ = pf.bg_units()
-    if spec is None:
-        return {u: oversample for u in range(n_bg)}, []
-    mode = str(spec).lower()
+    mode = None if spec is None else str(spec).lower()
     if mode not in PER_UNIT_OVERSAMPLE_BG:
-        try:
-            n = int(spec)
-        except ValueError:
-            n = 0
-        if n < 1:
-            raise ValueError(f"--oversample-bg must be >= 1, 'auto' or 'per-pthat-bin', got "
-                             f"{spec!r}")
+        n, _ = hz.samples_per_background(oversample, spec, 1, cap)
         return {u: n for u in range(n_bg)}, []
     bg_unit = np.asarray(pf.events("bg_unit"), dtype=np.int64)
     if mode == "auto":
@@ -297,11 +316,9 @@ def background_samples(pf, oversample, spec, cap):
         uses = per_window.max(axis=1)
     out, capped = {}, []
     for u in range(n_bg):
-        n = oversample * max(int(uses[u]), 1)
-        if n > cap:
+        out[u], hit = hz.samples_per_background(oversample, mode, uses[u], cap)
+        if hit:
             capped.append(u)
-            n = cap
-        out[u] = n
     return out, capped
 
 
@@ -309,28 +326,25 @@ def write_job_xml(a, path, n_exec, oversample):
     """hadronize.xml with this run's iSS paths, oversample count, seed and event count."""
     tree = ET.parse(a.hadronize_xml)
     root = tree.getroot()
-    _set_text(root, "nEvents", max(1, n_exec))
-    root.find("Random/seed").text = str(a.seed)
-    iss = root.find("SoftParticlization/iSS")
-    iss_dir = os.path.join(rp.XSCAPE, "external_packages", "iSS")
-    _set_text(iss, "iSS_input_file", os.path.join(iss_dir, "iSS_parameters.dat"))
-    _set_text(iss, "iSS_table_path", os.path.join(iss_dir, "iSS_tables"))
-    _set_text(iss, "iSS_particle_table_path", os.path.join(iss_dir, "iSS_tables"))
-    _set_text(iss, "iSS_working_path", ".")
-    _set_text(iss, "number_of_repeated_sampling", oversample)
-    if a.correlated:
-        _set_text(iss, "correlated_sampling", 1)
-        if a.correlated_block:
-            try:
-                dtau, dx, deta = (float(v) for v in a.correlated_block.split(","))
-            except ValueError:
-                sys.exit(f"hadronize.py: --correlated-block wants DTAU,DX,DETA, got "
-                         f"{a.correlated_block!r}")
-            _set_text(iss, "correlated_block_dtau", dtau)
-            _set_text(iss, "correlated_block_dx", dx)
-            _set_text(iss, "correlated_block_deta", deta)
+    try:
+        hz.configure_hadronize_xml(root, xscape=rp.XSCAPE, seed=a.seed, n_events=n_exec,
+                                   oversample=oversample, keep_primaries=a.keep_primaries,
+                                   correlated=a.correlated,
+                                   correlated_block=a.correlated_block)
+    except ValueError as err:
+        sys.exit(f"hadronize.py: {err}")
     tree.write(path)
     return ET.tostring(root, encoding="unicode")
+
+
+def iss_commit():
+    """The iSS checkout the build uses (best effort; '' if git cannot tell)."""
+    return hz.iss_commit(rp.XSCAPE)
+
+
+def iss_decay_attrs(core, eos, xml_root):
+    """Hadron-file attributes saying which hadron list iSS sampled and how it decayed it."""
+    return hz.iss_decay_attrs(core, eos, xml_root, rp.XSCAPE)
 
 
 def seed_scheme_of(path):
@@ -416,6 +430,133 @@ def colour_stats(partons):
     }
 
 
+def check_settings(a, core, pf, path):
+    """--check: take over what the jet_frag file ``path`` was made with (seeds, fragmentations,
+    precision, selection) -> (its hadronize_xml or None, the units it holds)."""
+    import h5py
+
+    from jetscape.hadrons_h5 import hadron_precision, hadron_selection
+
+    if not os.path.exists(path):
+        sys.exit(f"hadronize.py: --check: {path} not found (pass the jet_frag file)")
+    with h5py.File(path, "r") as f:
+        at = dict(f.attrs)
+        units = (f["units"]["unit"][:] if "units" in f and "unit" in f["units"]
+                 else np.arange(len(f["hadrons"]["unit_offsets"]) - 1))
+    if str(at.get("tag")) != "jet_frag":
+        sys.exit(f"hadronize.py: --check: {path} is no jet_frag file (tag {at.get('tag')!r})")
+    uuid, src = str(pf.attrs.get("file_uuid", "")), str(at.get("source_uuid", ""))
+    if uuid and src and uuid != src:
+        sys.exit(f"hadronize.py: --check: {os.path.basename(path)} was made from another "
+                 f"particlize file ({at.get('source')}, file_uuid {src})")
+    have, job = int(getattr(core, "PYTHIA_VERSION", 0)), int(at.get("pythia_version", 0))
+    if job and have and job != have:
+        sys.exit(f"hadronize.py: --check: the file was made with Pythia {job}, this build has "
+                 f"{have}: the same seeds give other hadrons")
+    if not job:
+        print("hadronize.py: note -- --check: the file records no pythia_version (made before "
+              "smash_ready); a difference may only mean another Pythia", file=sys.stderr)
+    if not at.get("complete", False):
+        print("hadronize.py: note -- --check: the file is incomplete; checking the events it "
+              "holds", file=sys.stderr)
+    prec, sel = hadron_precision(path), hadron_selection(path)
+    a.seed = int(at.get("base_seed", a.seed))
+    a.legacy_seeds = str(at.get("seed_scheme", "legacy")) == "legacy"
+    a.use_stored_seeds = bool(at.get("stored_seeds", False))
+    a.n_frag = int(at["n_samples"])
+    a.keep_bits_p, a.keep_bits_x = prec["p"], prec["x"]
+    a.eta_max, a.charged, a.no_x = sel["eta_max"], sel["charged_only"], not sel["positions"]
+    a.common_seeds = a.correlated = False
+    a.oversample_bg, a.keep_primaries = None, 0
+    a.no_initiators = a.force = True
+    xml = at.get("hadronize_xml")
+    if not xml:
+        print(f"hadronize.py: note -- --check: the file records no hadronize_xml; using "
+              f"{a.hadronize_xml}", file=sys.stderr)
+    return (str(xml) if xml else None), [int(u) for u in units]
+
+
+def compare_jet_frag(ref_path, new_path, events):
+    """--check: compare the regenerated jet_frag file with the original, event by event;
+    -> the number of events that differ."""
+    from jetscape.hadrons_h5 import Hadrons
+
+    ref, new = Hadrons.from_h5(ref_path), Hadrons.from_h5(new_path)
+    n_bad = 0
+    for e in events:
+        nr, nn = ref.n_samples(e), new.n_samples(e)
+        bad = [] if nr == nn else [f"{nn} fragmentations, the file has {nr}"]
+        sr = int(ref.units["seed"][ref.unit_index(e)]) if "seed" in ref.units else None
+        sn = int(new.units["seed"][new.unit_index(e)])
+        if sr is not None and sr != sn:
+            bad.append(f"seed {sn}, the file has {sr}")
+        for k in range(min(nr, nn)):
+            r, n = ref.sample_event(e, k), new.sample_event(e, k)
+            diff = [key for key in ("pid", "pstat", "p", "x")
+                    if not np.array_equal(r[key], n[key])]
+            if diff:
+                bad.append(f"fragmentation {k}: {', '.join(diff)} differ ({len(n['pid'])} "
+                           f"hadrons, the file {len(r['pid'])})")
+        n_bad += bool(bad)
+        print(f"  event {e}: " + ("same as the file" if not bad else
+                                  "DIFFERENT -- " + "; ".join(bad[:3])
+                                  + (f" (+{len(bad) - 3} more)" if len(bad) > 3 else "")),
+              flush=True)
+    return n_bad
+
+
+class JetFileInput:
+    """A run_prod_jet.py --hadrons-only jet file read the way hadronize.py reads a particlize
+    file: no surfaces, the final partons (``partons/``), the initiators and the event record
+    (``units/``); its ``source_uuid`` is the job's file uuid, which the seeds derive from."""
+
+    legs = ()
+
+    def __init__(self, path):
+        from jetscape.hadrons_h5 import HadronFile
+
+        self.hf = HadronFile(path)
+        if self.hf.tag != "jet_frag" or not self.hf.has_partons:
+            self.hf.close()
+            raise ValueError(f"{path}: no jet_frag file with partons/ (run_prod_jet.py "
+                             "--hadrons-only)")
+        self.f = self.hf.f
+        self.attrs = dict(self.hf.attrs, file_uuid=str(self.hf.attrs.get("source_uuid", "")))
+        self.nevents = self.hf.n_units
+
+    def partons(self, event):
+        return self.hf.partons(event)
+
+    def events(self, key):
+        return self.hf.units[key]
+
+    def has_events(self, key):
+        return key in self.hf.units
+
+    def bg_units(self):
+        return 0, np.zeros(0, dtype=np.int64)
+
+    def initiators_all(self):
+        if not self.hf.has_initiators:
+            return None
+        return self.f["initiators/data"][:], self.f["initiators/offsets"][:]
+
+    def music_input(self):
+        return str(self.attrs.get("music_input", ""))
+
+    def close(self):
+        self.hf.close()
+
+
+def open_input(path):
+    """A particlize file, or a --hadrons-only jet file (JetFileInput)."""
+    from jetscape.particlize_h5 import ParticlizeFile
+
+    if path.endswith("_hadrons_jet_frag.h5"):
+        return JetFileInput(path)
+    return ParticlizeFile(path)
+
+
 def _terminate(signum, frame):
     # SIGTERM would kill the process without running the finally blocks, leaving
     # truncated HDF5 files; turn it into an exception so the writers close.
@@ -433,17 +574,54 @@ def main(argv=None):
         setattr(a, k, os.path.abspath(getattr(a, k)))
     keep_bits = {"p": a.keep_bits_p, "x": a.keep_bits_x}
 
-    from jetscape.hadrons_h5 import (INITIATOR_TAGS, HadronH5Writer, _keep_bits_map,
-                                     add_initiators, hadron_precision, hadron_selection)
-    from jetscape.particlize_h5 import ParticlizeFile
+    from jetscape.hadrons_h5 import (INITIATOR_TAGS, PRIMARY_OF,
+                                     _keep_bits_map, add_initiators, hadron_precision,
+                                     hadron_selection)
 
-    pf = ParticlizeFile(a.particlize)
+    try:
+        pf = open_input(a.particlize)
+    except ValueError as err:
+        sys.exit(f"hadronize.py: {err}")
+    jet_file = isinstance(pf, JetFileInput)
     stem = os.path.basename(a.particlize)
-    stem = stem[:-len("_particlize.h5")] if stem.endswith("_particlize.h5") \
-        else os.path.splitext(stem)[0]
+    for suffix in ("_particlize.h5", "_hadrons_jet_frag.h5"):
+        if stem.endswith(suffix):
+            stem = stem[:-len(suffix)]
+            break
+    else:
+        stem = os.path.splitext(stem)[0]
+    if jet_file:
+        # a --hadrons-only jet file: the jets only (it holds no surfaces)
+        asked = [t.strip() for t in a.tags.split(",") if t.strip()]
+        if a.tags == ",".join(TAGS):
+            tags, a.tags = ["jet_frag"], "jet_frag"
+        elif asked != ["jet_frag"]:
+            sys.exit(f"hadronize.py: {a.particlize} is a --hadrons-only jet file: it has no "
+                     "surfaces, only --tags jet_frag")
     out_dir = os.path.abspath(a.out_dir or os.path.dirname(a.particlize))
     os.makedirs(out_dir, exist_ok=True)
     events = event_range(a.events, pf.nevents)
+    check = check_xml = None
+    if a.check is not None:
+        if a.add_initiators or a.diagnose_colored or a.skip_complete:
+            sys.exit("hadronize.py: --check replays a jet_frag file: not with --add-initiators, "
+                     "--diagnose-colored or --skip-complete")
+        from jetscape import pyjetscape_core as core
+        check = os.path.abspath(a.check or os.path.join(out_dir, f"{stem}_hadrons_jet_frag.h5"))
+        check_xml, held = check_settings(a, core, pf, check)
+        tags, a.tags = ["jet_frag"], "jet_frag"
+        keep_bits = {"p": a.keep_bits_p, "x": a.keep_bits_x}
+        held = set(held)
+        events = [e for e in events if e in held]
+        if not events:
+            sys.exit(f"hadronize.py: --check: {os.path.basename(check)} holds none of the "
+                     "selected events")
+        a.workdir = a.workdir or os.path.join(out_dir, "work_hadronize", f"{stem}_check")
+        os.makedirs(a.workdir, exist_ok=True)
+        if check_xml:
+            a.hadronize_xml = os.path.join(os.path.abspath(a.workdir), "checked_hadronize.xml")
+            with open(a.hadronize_xml, "w") as fh:
+                fh.write(check_xml)
     want_ini = (not a.no_initiators and not a.diagnose_colored and a.colored_event is None
                 and any(t in INITIATOR_TAGS for t in tags))
     ini = read_initiators(pf, a.particlize) if want_ini else None
@@ -490,9 +668,12 @@ def main(argv=None):
                  "from the backgrounds and the same number of samples on both legs: drop "
                  "--use-stored-seeds / --oversample-bg")
     try:
-        prod = None if a.legacy_seeds else production_key(pf)
+        prod = (None if a.legacy_seeds else hz.uuid_key(a.seed_uuid) if a.seed_uuid
+                else production_key(pf))
     except ValueError as err:
         sys.exit(f"hadronize.py: {err}")
+    if a.seed_uuid and a.legacy_seeds:
+        sys.exit("hadronize.py: --seed-uuid and --legacy-seeds exclude each other")
     seed_scheme = "legacy" if a.legacy_seeds else "production_file"
     if a.use_stored_seeds:
         for key in ("inline_iss_seed_jet", "inline_pythia_seed"):
@@ -513,9 +694,19 @@ def main(argv=None):
               f"{len(bg_capped)} "
               f"background(s) at --oversample-bg-max {a.oversample_bg_max}", file=sys.stderr)
 
+    if a.keep_primaries < 0:
+        sys.exit("hadronize.py: --keep-primaries must be >= 0")
     outs = {t: os.path.join(out_dir, f"{stem}_hadrons_{t}.h5") for t in tags}
+    if check:
+        # the replay goes to the working directory, which is removed at the end
+        outs = {"jet_frag": os.path.join(os.path.abspath(a.workdir),
+                                         f"{stem}_hadrons_jet_frag_check.h5")}
+    # --keep-primaries: the undecayed hadrons of each bulk tag, in a file of their own
+    pouts = ({t: os.path.join(out_dir, f"{stem}_hadrons_{PRIMARY_OF[t]}.h5")
+              for t in tags if t in PRIMARY_OF} if a.keep_primaries > 0 else {})
     if a.skip_complete:
-        done = [t for t in tags if _complete(outs[t])]
+        done = [t for t in tags if _complete(outs[t])
+                and (t not in pouts or _complete(pouts[t]))]
         if done:
             print(f"hadronize.py: {os.path.basename(a.particlize)}: already complete: "
                   f"{', '.join(done)}")
@@ -541,6 +732,7 @@ def main(argv=None):
                       "redoes it)", file=sys.stderr)
         tags = [t for t in tags if t not in done]
         outs = {t: outs[t] for t in tags}
+        pouts = {t: pouts[t] for t in tags if t in pouts}
         if not tags:
             return 0
         a.force = True                          # what is left is missing or incomplete
@@ -555,7 +747,9 @@ def main(argv=None):
                 bg_units.append((u, e))
     n_exec = (len(events) if "bulk_jet" in tags else 0) + len(bg_units)
 
-    for t, path in outs.items():
+    for path in list(outs.values()) + list(pouts.values()):
+        if os.path.abspath(path) == os.path.abspath(a.particlize):
+            sys.exit(f"hadronize.py: {path} is the input: pass another --out-dir (or --check)")
         if os.path.exists(path) and not a.force:
             sys.exit(f"hadronize.py: {path} exists (use --force)")
 
@@ -566,12 +760,15 @@ def main(argv=None):
         fh.write(pf.music_input())
     eos = [ln.split()[1] for ln in pf.music_input().splitlines()
            if len(ln.split()) > 1 and ln.split()[0] == "EOS_to_use"]
-    if eos and eos[0] == "91" and any(t.startswith("bulk") for t in tags):
-        # iSS (readindata.cpp) takes the SMASH hadron list for EOS 91 and leaves the
-        # decays to SMASH, which this does not run
-        print("hadronize.py: WARNING -- MUSIC ran EOS 91 (SMASH hadron list): iSS samples "
-              "that list and does NOT decay the resonances (rho, omega, K*, Delta ... stay "
-              "in the bulk hadrons). Use EOS 9 for decayed hadrons.", file=sys.stderr)
+    eos = eos[0] if eos else ""
+    decay_attrs = iss_decay_attrs(core, eos, xml_root)
+    if eos == "91" and any(t.startswith("bulk") for t in tags) and not decay_attrs["decayed"]:
+        # iSS (readindata.cpp) takes the SMASH hadron list for EOS 91, and an iSS before
+        # smash_ready (or <decay_smash_list> 0) leaves its decays to SMASH
+        print("hadronize.py: WARNING -- MUSIC ran EOS 91 (SMASH hadron list) and this iSS "
+              "does NOT decay that list (core.ISS_DECAYS_SMASH_LIST False, or "
+              "<decay_smash_list> 0): rho, omega, K*, Delta ... stay in the bulk hadrons.",
+              file=sys.stderr)
     job_xml = os.path.join(workdir, "hadronize_job.xml")
     xml_text = write_job_xml(a, job_xml, n_exec, oversample)
     main_xml = os.path.join(workdir, "jetscape_main.xml")
@@ -590,24 +787,25 @@ def main(argv=None):
           + (f", only |eta| < {a.eta_max:g} stored" if a.eta_max is not None else "")
           + (", charged hadrons only" if a.charged else "")
           + (", no positions" if a.no_x else "")
+          + (f", undecayed hadrons of {a.keep_primaries} oversample(s) kept"
+             if pouts else "")
+          + f", EOS {eos or '?'} ({decay_attrs['hadron_list']} list, decays: "
+          f"{decay_attrs['iss_decays']})"
           + f"\n  workdir {workdir}")
 
+    # no framework events: the instance only reads the XML; iSS samples the given cells
+    # (core.soft_sample_cells), Colorless the given partons
     jetscape = core.JetScapePerEvent()
     jetscape.SetXMLMainFileName(main_xml)
     jetscape.SetXMLUserFileName(job_xml)
-    replay = iss = None
-    if "bulk_jet" in tags or "bulk_bg" in tags:
-        from jetscape.surface_replay import SurfaceReplay
-        replay = SurfaceReplay()
-        iss = core.create_module("iSS")
-        jetscape.Add(replay)
-        jetscape.Add(iss)
     jetscape.Init()
-    jetscape.ExecInit()
-    if iss is not None:
-        # hadrons as arrays, not one framework Hadron object each: same numbers, ~8x
-        # less memory per oversample (nothing here needs the framework's hadron list)
-        core.soft_set_compact_output(iss, True)
+    iss = None
+    if "bulk_jet" in tags or "bulk_bg" in tags:
+        if not getattr(core, "SOFT_HAS_SAMPLE_CELLS", False):
+            sys.exit("hadronize.py: this PyJetscape has no soft_sample_cells (X-SCAPE "
+                     "auau_hadrons_only or later)")
+        iss = core.create_module("iSS")
+        iss.Init()
     colorless = None
     if "jet_frag" in tags:
         colorless = core.create_module("ColorlessHadronization")
@@ -621,13 +819,16 @@ def main(argv=None):
               "hadronize_xml": xml_text, "base_seed": a.seed,
               "stored_seeds": bool(a.use_stored_seeds),
               "seed_scheme": seed_scheme,
-              "music_input": pf.music_input()}
-    # how the two iSS legs were sampled relative to each other: only on bulk_jet and bulk_bg
-    # (jet_frag's Pythia seeds are its own whatever these options)
-    pairing = {"common_seeds": bool(a.common_seeds), "correlated_sampling": bool(a.correlated)}
-    writers = {}
+              "music_input": pf.music_input(),
+              **({"eos": eos} if eos else {}),      # MUSIC's EOS_to_use, from music_input
+              **({"seed_uuid": str(a.seed_uuid)} if a.seed_uuid else {})}
+    h = hz.Hadronizer(core, iss=iss, colorless=colorless, base_seed=a.seed, prod=prod,
+                      common_seeds=a.common_seeds)
     for t in tags:
-        extra = {} if t == "jet_frag" else dict(pairing)
+        # how the two iSS legs were sampled relative to each other: only on bulk_jet and
+        # bulk_bg (jet_frag's Pythia seeds are its own whatever these options)
+        extra = hz.tag_attrs(t, core, decay_attrs, common_seeds=a.common_seeds,
+                             correlated=a.correlated)
         if t == "jet_frag":
             n = n_frag
         elif t == "bulk_bg" and a.oversample_bg is not None:
@@ -638,34 +839,12 @@ def main(argv=None):
                           "oversample_jet": int(oversample)})
         else:
             n = oversample
-        writers[t] = HadronH5Writer(outs[t], tag=t, n_samples=n, keep_bits=keep_bits,
-                                    eta_max=a.eta_max, charged_only=a.charged,
-                                    positions=not a.no_x,
-                                    initiators=ini is not None and t in INITIATOR_TAGS,
-                                    attrs=dict(common, **extra, generator=(
-                                        "ColorlessHadronization (X-SCAPE)" if t == "jet_frag"
-                                        else "iSS (X-SCAPE iSpectraSamplerWrapper)")))
-
-    def run_iss(cells, seed, n_samples):
-        if len(cells) == 0:
-            return None, seed
-        replay.load(cells)
-        core.soft_set_number_of_samples(iss, int(n_samples))
-        core.soft_set_next_random_seed(iss, int(seed))
-        jetscape.ExecPerEvent()
-        h = core.soft_hadrons_numpy(iss)
-        used = int(core.soft_last_random_seed(iss))
-        jetscape.ClearPerEvent()
-        if used != int(seed) or replay.n_cells != len(cells):
-            # iSS (or the replay) was switched off for this framework event -- e.g. hydro
-            # reuse -- and h would be the previous surface's hadrons
-            raise RuntimeError(f"iSS did not sample this surface (seed {used} != {seed}, "
-                               f"replayed {replay.n_cells} of {len(cells)} cells); check "
-                               "<setReuseHydro> false in the hadronization XML")
-        if len(h["sample_counts"]) != int(n_samples):
-            raise RuntimeError(f"iSS made {len(h['sample_counts'])} samples, "
-                               f"{n_samples} were asked for")
-        return h, used
+        # the primaries: full precision, positions, no selection: what SMASH needs
+        h.open(t, outs[t], n_samples=n, attrs=dict(common, **extra), keep_bits=keep_bits,
+               eta_max=a.eta_max, charged_only=a.charged, positions=not a.no_x,
+               initiators=ini is not None and t in INITIATOR_TAGS,
+               primary_tag=PRIMARY_OF.get(t), primary_path=pouts.get(t),
+               keep_primaries=a.keep_primaries)
 
     def initiators_of(e):
         return None if ini is None else ini[0][int(ini[1][e]):int(ini[1][e + 1])]
@@ -678,44 +857,25 @@ def main(argv=None):
         for n, e in enumerate(events):
             msg = [f"event {e}"]
             if "bulk_jet" in tags:
-                if a.use_stored_seeds:
-                    seed = int(pf.events("inline_iss_seed_jet")[e])
-                elif a.common_seeds:
-                    seed = unit_seed(a.seed, "bulk_bg", int(pf.events("bg_unit")[e]), prod=prod)
-                else:
-                    seed = unit_seed(a.seed, "bulk_jet", e, prod=prod)
-                cells = pf.surface_unit("jet", e)
-                h, used = run_iss(cells, seed, oversample)
-                writers["bulk_jet"].append_unit(h if h is not None else [], initiators_of(e),
-                                                unit=e, event=e, seed=used,
-                                                n_cells=len(cells))
-                msg.append(f"bulk_jet {0 if h is None else len(h['pid'])} hadrons")
+                seed = (int(pf.events("inline_iss_seed_jet")[e]) if a.use_stored_seeds
+                        else h.bulk_jet_seed(e, int(pf.events("bg_unit")[e])
+                                             if a.common_seeds else None))
+                had, _ = h.bulk("bulk_jet", e, pf.surface_unit("jet", e), seed, oversample,
+                                event=e, initiators=initiators_of(e),
+                                keep_primaries=a.keep_primaries)
+                msg.append(f"bulk_jet {0 if had is None else len(had['pid'])} hadrons")
             if "bulk_bg" in tags:
                 u = int(pf.events("bg_unit")[e])
                 if u not in bg_done:
-                    cells = pf.surface_unit("bg", u)
-                    h, used = run_iss(cells, unit_seed(a.seed, "bulk_bg", u, prod=prod),
-                                       bg_samples[u])
-                    writers["bulk_bg"].append_unit(h if h is not None else [], unit=u,
-                                                   event=bg_first[u], seed=used,
-                                                   n_cells=len(cells))
+                    had, _ = h.bulk("bulk_bg", u, pf.surface_unit("bg", u),
+                                    h.seed("bulk_bg", u), bg_samples[u], event=bg_first[u],
+                                    keep_primaries=a.keep_primaries)
                     bg_done.add(u)
-                    msg.append(f"bulk_bg (unit {u}) {0 if h is None else len(h['pid'])}")
+                    msg.append(f"bulk_bg (unit {u}) {0 if had is None else len(had['pid'])}")
             if "jet_frag" in tags:
-                partons = pf.partons(e)
-                samples, seeds = [], []
-                for s in range(n_frag):
-                    seed = (int(pf.events("inline_pythia_seed")[e]) if a.use_stored_seeds
-                            else unit_seed(a.seed, "jet_frag", e, s, prod=prod))
-                    if len(partons):
-                        d = core.hadronize_partons(colorless, partons, seed)
-                    else:
-                        d = {k: np.zeros((0, 4) if k in ("p", "x") else 0) for k in
-                             ("pid", "pstat", "p", "x")}
-                    samples.append(d)
-                    seeds.append(seed)
-                writers["jet_frag"].append_unit(samples, initiators_of(e), unit=e, event=e,
-                                                seed=seeds[0], n_partons=len(partons))
+                seeds = ([int(pf.events("inline_pythia_seed")[e])] if a.use_stored_seeds
+                         else [h.seed("jet_frag", e, s) for s in range(n_frag)])
+                samples = h.fragments(e, pf.partons(e), seeds, initiators=initiators_of(e))
                 msg.append(f"jet_frag {sum(len(d['pid']) for d in samples) / n_frag:.1f}"
                            "/sample")
             print("  " + ", ".join(msg), flush=True)
@@ -725,9 +885,12 @@ def main(argv=None):
         # complete only if every event went through: an exception, Ctrl-C or SIGTERM
         # (run_hadronize.py stopping its children) leaves readable, incomplete files that
         # --skip-complete redoes
-        for w in writers.values():
-            w.close(complete=finished)
+        h.close(complete=finished)
         os.chdir(cwd)
+    n_bad = 0
+    if check:
+        print(f"hadronize.py: --check against {check}")
+        n_bad = compare_jet_frag(check, outs["jet_frag"], events)
     if not a.keep_workdir:
         shutil.rmtree(workdir, ignore_errors=True)
         try:
@@ -735,7 +898,11 @@ def main(argv=None):
         except OSError:
             pass
     print(f"hadronize.py: done in {time.time() - t0:.1f} s")
-    for t, path in outs.items():
+    if check:
+        print(f"hadronize.py: {len(events) - n_bad} of {len(events)} event(s) reproduce "
+              f"{os.path.basename(check)}" + (" -- MISMATCH" if n_bad else ""))
+        return 1 if n_bad else 0
+    for t, path in list(outs.items()) + [(PRIMARY_OF[t], p) for t, p in pouts.items()]:
         print(f"  {t:9s} -> {path} ({os.path.getsize(path) / 1e6:.1f} MB)")
     return 0
 

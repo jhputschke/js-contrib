@@ -15,6 +15,8 @@
 #     --write-particlize both" sbatch --array=0-19 utils/slurm_prod_array.sh
 #   PROD=oo CAMPAIGN=OO_c1 EXTRA_ARGS="--bulk-hadrons 10 --no-particlize --no-hydro-file" \
 #     sbatch --mem=40G utils/slurm_prod_array.sh        # O+O, hadron files only
+#   CAMPAIGN=c3 EXTRA_ARGS="--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
+#     --hadrons-only" sbatch --array=0-19 utils/slurm_prod_array.sh   # Au+Au, hadron files only
 #
 # Per GPU (docs/README_2stage.md section 1; extrapolated from 2 x RTX 3090 and the GB10, none
 # of these GPUs measured).  Give sbatch the resources and P the jobs; the script sets
