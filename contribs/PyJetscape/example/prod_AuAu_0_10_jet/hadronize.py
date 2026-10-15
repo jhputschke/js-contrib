@@ -820,6 +820,7 @@ def main(argv=None):
               "stored_seeds": bool(a.use_stored_seeds),
               "seed_scheme": seed_scheme,
               "music_input": pf.music_input(),
+              **({"eos": eos} if eos else {}),      # MUSIC's EOS_to_use, from music_input
               **({"seed_uuid": str(a.seed_uuid)} if a.seed_uuid else {})}
     h = hz.Hadronizer(core, iss=iss, colorless=colorless, base_seed=a.seed, prod=prod,
                       common_seeds=a.common_seeds)

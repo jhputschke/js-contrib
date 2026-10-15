@@ -1188,6 +1188,7 @@ def main() -> int:
             with h5py.File(out_particlize, "a") as f:
                 f.attrs["prod_wall_s_total"] = time.time() - t_job
     summary = {"out": None if a.particlize_only else out_h5, "seed": a.seed,
+               "eos": provenance["eos"],
                "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
                "grid": a.grid, "hard": hard_desc,
                "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,

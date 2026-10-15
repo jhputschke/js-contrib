@@ -879,7 +879,7 @@ def main() -> int:
             with h5py.File(path, "a") as f:
                 f.attrs.update({**final, "prod_wall_s_total": time.time() - t_job,
                                 "events_skipped": len(skipped)})
-    summary = {"out": None if writer is None else out_h5, "seed": a.seed,
+    summary = {"out": None if writer is None else out_h5, "seed": a.seed, "eos": eos,
                "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
                "grid": a.grid, "system": system, "hard": hard, "bulk_info": a.bulk_info,
                "subtract_hard_momentum": 0 if a.no_subtraction else 1,
