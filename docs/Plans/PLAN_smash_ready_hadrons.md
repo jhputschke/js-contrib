@@ -246,6 +246,37 @@ That is Hybrid Hadronization's "spread along the string segments", done by Pythi
 string record: no colour tracing of our own (`set_spacetime_for_pythia_hadrons`, ~600 lines),
 and nothing different for colorless and iColored.
 
+**Pythia versions.** The parton vertices came in 8.230 (Oct 2017, for rope hadronization;
+rewritten in 8.303, Sep 2020). Between the image's 8.312 and 8.316 `PartonVertex.h` and the
+vertex documentation are unchanged apart from the copyright line, and the update notes of
+8.313–8.316 list no change to them: 2.3 works with 8.312.
+
+**Beyond Pythia's intended use.** Pythia's docs describe the parton vertices as transverse
+(MPI) offsets "still assumed to occur at t = z = 0", inherited by the hadrons with "an
+interpolation … in case of strings stretched between partons from different vertices".
+`vertexHadrons` interpolates all four components of `vProd`, so our hadronization points with
+t, z ≠ 0 work arithmetically, but outside the documented use: the validation checks that
+primaries land between their partons' hadronization points, not at t = 0.
+
+**Compared with JETSCAPE's Hybrid Hadronization** (`HybridHadronization.cc`, the same in
+JETSCAPE `main` and X-SCAPE), which does not use Pythia's vertex settings
+(`PartonVertex:setVertex` is commented out, `:479`) and places the hadrons itself after Pythia,
+by colour tracing:
+
+| | Hybrid Hadronization | this plan (Pythia's own) |
+|---|---|---|
+| partons' hadronization point | later of production point and T_c crossing, at least `part_prop` | the same rule (2.2) |
+| who places the hadrons | HH after Pythia (`set_spacetime_for_pythia_hadrons`, ~600 lines) | Pythia during the fragmentation, from the partons' `vProd` |
+| along a string segment | **evenly spaced** by order in the list, at 1/(n+1) … n/(n+1) between the two partons (`:10060–10090`) | **energy-weighted**: each hadron's energy midpoint along the whole string, gluons counted half to each side |
+| one gluon / one-hadron string / junction | the gluon's position / the average / the legs' centre | covered by the same interpolation / the midpoint / along each leg |
+| untraceable topology | (0,0,0,0) with a warning | Pythia logs an error and leaves it unshifted: also at 0 |
+| decay products | the string's position (traced back through the mothers) | Pythia's decay vertex; the primaries' positions are stored, which is what SMASH uses |
+| formation time | none; optional `had_prop` (default 0) moves every hadron by a fixed proper time, adding γ·`had_prop` to the position but only `had_prop` to the time (`:1203–1215`), which looks inconsistent | optional: Lund breakup space-time (2.4) |
+| recombination hadrons | constituents' boosted centre-of-mass position (`pos_lab`) | none: strings only (Colorless, iColored), as in production today |
+
+The same coarse picture (hadrons between their string's partons' hadronization points), with
+differences at the fm level along a string.
+
 What the two modules need:
 - each input parton's `vProd` = its hadronization point of 2.2 (fm → mm, `Pythia8::FM2MM`);
   today `ColorlessHadronization` sets only the beam remnants' `vProd(0,0,0,0)` (`:180`) and
@@ -281,7 +312,15 @@ Caveats:
   only their positions;
 - the breakups are measured from the string's origin, here the hadronization point of 2.2: the
   string is taken to form there;
-- whether JETSCAPE's rescattering study uses a formation time, and which: ask Hendrik Roch.
+- **needs Pythia ≥ 8.315:** 8.315 (May 2025) fixed "a rare bug in
+  `StringFragmentation::setHadronVertices` that caused a segmentation fault when the string
+  endpoints are c or b quarks" and added a quark-mass offset correction. Our jets have c and b
+  quarks (heavy flavour in Pythia's hard QCD, in Matter and LBT), so with the image's 8.312 a
+  job can rarely crash. 8.315 is also what SMASH 3.2.2 needs (Part 3): choosing 2.4 means the
+  Pythia upgrade of the production. (The string-model vertices came in 8.235, Mar 2018;
+  `maxSmear` in 8.244, `maxTau` in 8.303.)
+- whether JETSCAPE's rescattering study uses a formation time (Pythia's, or HH's `had_prop`),
+  and which: ask Hendrik Roch.
 
 ### 2.5 O+O: what is needed to redo the jet hadronization later (1 day)
 
