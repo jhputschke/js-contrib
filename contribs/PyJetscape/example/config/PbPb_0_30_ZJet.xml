@@ -29,8 +29,9 @@
        -> MUSIC_2 (same strings + the droplets)         the jet leg
 
   Derived from AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
-  grid, <Preequilibrium> and MUSIC physics settings are unchanged (b_max = 4.7 fm for 0-10%,
-  T_fo = 0.15 GeV), except EOS 91 (the tunes' EOS; was 9 before 2026-10).  Changes:
+  grid, <Preequilibrium> and MUSIC physics settings are unchanged (T_fo = 0.15 GeV), except
+  EOS 91 (the tunes' EOS; was 9 before 2026-10).  In this Pb+Pb copy the nuclei, sqrts, b_max
+  and the <IS> grid are Pb+Pb's (the header above and <MCGlauber> below).  Changes:
 
     <name> MUSIC_1           the background leg.  Every MUSIC instance reads the FIRST
                              <Hydro><MUSIC> block, so all MUSIC settings live here and apply
@@ -117,14 +118,18 @@
       <projectile>Pb</projectile> <!--Projectile name-->
       <target>Pb</target> <!--Target name-->
       <sqrts>5020</sqrts> <!--Center of mass energy in GeV-->
-      <!--0-30% IS SELECTED HERE, ON b (b_max below).  The rest of this comment is the Au+Au
-          template's (its 0-10 %).  Selected on b.  Inside X-SCAPE the centrality cut below does nothing:
-          MCGlauberWrapper::ExecuteTask calls EventGenerator::generate_pre_events(), which samples
-          b on [b_min, b_max] (P(b) ~ b) and requires only Npart > 1.  The cut on cenMin/cenMax
-          (generateMinBiasEventList, a cut on the string count) runs only in the standalone
-          3dMCGlauber main.cpp.  With b_max = 20 this file gave MINIMUM-BIAS events.
-          4.7 fm is the geometric 0-10% (pi b^2 = 0.1 sigma_AuAu, ~690 fm^2), the same range
-          make_bulk_comparison_data.py gives FastHydro.-->
+      <!--0-30 % IS SELECTED HERE, ON b (b_max below).  Inside X-SCAPE the centrality cut (cenMin/cenMax) does
+          nothing: MCGlauberWrapper::ExecuteTask calls EventGenerator::generate_pre_events(),
+          which samples b on [b_min, b_max] (P(b) ~ b) and requires only Npart > 1.  The cut on
+          cenMin/cenMax (generateMinBiasEventList: 50,000 minimum-bias events ranked by their
+          string count) runs only in the standalone 3dMCGlauber main.cpp.  With b_max = 20 this
+          file gives MINIMUM-BIAS events.
+          b_max: pi b^2 = 0.3 x 7.7 b (the experiments' sigma_inel) = 8.57 fm.  Checked with
+          200,000 minimum-bias events of this <MCGlauber> block (standalone 3dMCGlb.e,
+          2026-10-16): this model's own sigma_inel is 7.89 b (sigma_NN 67.6 mb), so 8.57 fm is
+          its 0-29.3 % (8.68 fm would be 0-30 %).  Its 0-30 % by string count (the standalone
+          cut), by N_part or by a two-component N_part/N_coll mix has 96-97 % of its events at
+          b < 8.57 fm, the same <N_coll> (1,030) and N_coll-weighted <b> (4.9 fm).-->
       <b_min>0.0</b_min> <!--Minimum impact parameter in fm-->
       <b_max>8.57</b_max> <!--Maximum impact parameter in fm: the geometric 0-30 % of Pb+Pb,
           pi b^2 = 0.3 x 7.7 b (README_2stage section 9: 4.95 fm for 0-10 %)-->

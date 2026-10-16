@@ -3,7 +3,7 @@
      AuAu_MCGlauber_MUSIC_0_10_jet.xml made with the sed recipe of docs/README_2stage.md
      section 9 (8 lines: Pb nuclei, sqrts 5020, b_max 4.95, MUSIC's grid +-20 fm x +-8, Pythia
      eCM 5020).  One event run with it on 2026-10-13 (README_2stage.md section 9); remade on
-     2026-10-15 from the EOS 91 template (smash_ready).  Everything else, including the
+     2026-10-15 from the EOS 91 template (smash_ready).  Everything else, including most
      comments below, is the Au+Au 200 GeV template's: not tuned at the LHC.
      Use: run_prod_jet.py ... user-xml ../config/PbPb_0_10_jet.xml grid ../config/grid_PbPb.yaml -->
 
@@ -25,8 +25,9 @@
        -> MUSIC_2 (same strings + the droplets)         the jet leg
 
   Derived from AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
-  grid, <Preequilibrium> and MUSIC physics settings are unchanged (b_max = 4.7 fm for 0-10%,
-  T_fo = 0.15 GeV), except EOS 91 (the tunes' EOS; was 9 before 2026-10).  Changes:
+  grid, <Preequilibrium> and MUSIC physics settings are unchanged (T_fo = 0.15 GeV), except
+  EOS 91 (the tunes' EOS; was 9 before 2026-10).  In this Pb+Pb copy the nuclei, sqrts, b_max
+  and the <IS> grid are Pb+Pb's (the header above and <MCGlauber> below).  Changes:
 
     <name> MUSIC_1           the background leg.  Every MUSIC instance reads the FIRST
                              <Hydro><MUSIC> block, so all MUSIC settings live here and apply
@@ -113,13 +114,17 @@
       <projectile>Pb</projectile> <!--Projectile name-->
       <target>Pb</target> <!--Target name-->
       <sqrts>5020</sqrts> <!--Center of mass energy in GeV-->
-      <!--0-10% IS SELECTED HERE, ON b.  Inside X-SCAPE the centrality cut below does nothing:
-          MCGlauberWrapper::ExecuteTask calls EventGenerator::generate_pre_events(), which samples
-          b on [b_min, b_max] (P(b) ~ b) and requires only Npart > 1.  The cut on cenMin/cenMax
-          (generateMinBiasEventList, a cut on the string count) runs only in the standalone
-          3dMCGlauber main.cpp.  With b_max = 20 this file gave MINIMUM-BIAS events.
-          4.7 fm is the geometric 0-10% (pi b^2 = 0.1 sigma_AuAu, ~690 fm^2), the same range
-          make_bulk_comparison_data.py gives FastHydro.-->
+      <!--0-10 % IS SELECTED HERE, ON b (b_max below).  Inside X-SCAPE the centrality cut (cenMin/cenMax) does
+          nothing: MCGlauberWrapper::ExecuteTask calls EventGenerator::generate_pre_events(),
+          which samples b on [b_min, b_max] (P(b) ~ b) and requires only Npart > 1.  The cut on
+          cenMin/cenMax (generateMinBiasEventList: 50,000 minimum-bias events ranked by their
+          string count) runs only in the standalone 3dMCGlauber main.cpp.  With b_max = 20 this
+          file gives MINIMUM-BIAS events.
+          b_max: pi b^2 = 0.1 x 7.7 b (the experiments' sigma_inel) = 4.95 fm.  Checked with
+          200,000 minimum-bias events of this <MCGlauber> block (standalone 3dMCGlb.e,
+          2026-10-16): this model's own sigma_inel is 7.89 b (sigma_NN 67.6 mb), so 4.95 fm is
+          its 0-9.8 % (5.01 fm would be 0-10 %).  Its 0-10 % by string count has 95 % of its
+          events at b < 4.95 fm, <N_coll> 1,570.-->
       <b_min>0.0</b_min> <!--Minimum impact parameter in fm-->
       <b_max>4.95</b_max> <!--Maximum impact parameter in fm-->
       <cenMin>0.0</cenMin> <!--Minimum centrality in %  (ignored inside X-SCAPE, see above)-->
