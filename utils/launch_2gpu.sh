@@ -60,6 +60,10 @@
 # command resumes: completed jobs are skipped.  Ctrl-C stops both containers.
 #
 # Environment overrides: JOBS_PER_GPU (8), OMP_THREADS (4), IMAGE, WORKDIR ($HOME/prod_test).
+# TAG_PREFIX (default: the production's, AuAu_0_10_jet_seed / OO_isr_seed) names the files
+# <prefix><seed>.*, or <prefix without _seed>_<campaign>_... with --campaign, e.g.
+# TAG_PREFIX=PbPb_0_30_seed for Pb+Pb: letters, digits, '.', '_', '-', ending in _seed; it
+# needs an image whose run_jobs.sh keeps it (js-contrib of 2026-10-16 or later, checked).
 # MUSIC_CUDA_SYNC (block|yield|spin|auto) is passed to the jobs if set; block: ~30 % less CPU
 # per event, needed for 10 jobs/GPU to pay off.
 # PROD=oo runs prod_OO_isr instead (use launch_2gpu_oo.sh, which sets it and the O+O defaults).
@@ -101,6 +105,13 @@ shift $(( $# < 4 ? $# : 4 ))
 J=${JOBS_PER_GPU:-$DEF_J}; OMP=${OMP_THREADS:-$DEF_OMP}
 IMAGE=${IMAGE:-jhputschke/xscape-prod:cu124}
 WORKDIR=${WORKDIR:-$HOME/prod_test}
+TAG_PREFIX=${TAG_PREFIX:-}
+case $TAG_PREFIX in
+  '') ;;
+  .*|-*|*[!A-Za-z0-9._-]*) echo "TAG_PREFIX '$TAG_PREFIX': use letters, digits, '.', '_', '-'" >&2; exit 2 ;;
+  ?*_seed) ;;
+  *) echo "TAG_PREFIX '$TAG_PREFIX': must end in _seed, e.g. PbPb_0_30_seed" >&2; exit 2 ;;
+esac
 mounts=(-v "$WORKDIR:/work")
 case $OUTBASE in
   /work|/work/*) ;;                              # inside WORKDIR, already mounted
@@ -161,6 +172,12 @@ if [ -n "$STAGGER" ] && ! docker run --rm --entrypoint grep "$IMAGE" -q -e '--st
   echo "--stagger: run_jobs.sh in $IMAGE has no --stagger (needs js-contrib 64e39ba or later)" >&2
   exit 1
 fi
+if [ -n "$TAG_PREFIX" ] && ! docker run --rm --entrypoint grep "$IMAGE" -qF 'TAG_PREFIX:-' \
+       "${PROD_W:-.}/run_jobs.sh"; then
+  echo "TAG_PREFIX: run_jobs.sh in $IMAGE replaces it with its own (needs js-contrib of" \
+       "2026-10-16 or later, e.g. xscape-prod:cu124-zjet rebuilt then); unset it or use a newer image" >&2
+  exit 1
+fi
 if [ -n "$LBT_H" ] && [ ! -s "$LBT_H" ]; then  # make the cache once, before the jobs need it
   echo "LBT table cache $LBT_H not there yet: making it with one 1-event job on GPU0 (~1 min)"
   docker run --rm --name "xscape_lbtcache_$$" --gpus '"device=0"' --user "$(id -u):$(id -g)" \
@@ -175,6 +192,7 @@ if [ -n "$LBT_H" ] && [ ! -s "$LBT_H" ]; then  # make the cache once, before the
   echo "LBT table cache written: $LBT_H ($(stat -c %s "$LBT_H") bytes)"
 fi
 jobenv=(); [ -n "$LBT_C" ] && jobenv+=(-e "LBT_TABLE_CACHE=$LBT_C")
+[ -n "$TAG_PREFIX" ] && jobenv+=(-e "TAG_PREFIX=$TAG_PREFIX")
 [ -n "$PROD_W" ] && jobenv+=(-w "$PROD_W")      # run_jobs.sh of that production
 rjopts=(); [ -n "$STAGGER" ] && rjopts+=(--stagger "$STAGGER")
 

@@ -12,6 +12,6 @@
 #   ./run_jobs.sh -j 4 --mps 20 25 0 out_b5 --b-max 5  # 4 at a time, GPU shared via CUDA MPS
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROD_SCRIPT="$HERE/run_prod_oo_isr.py"
-export TAG_PREFIX="OO_isr_seed"
+export TAG_PREFIX="${TAG_PREFIX:-OO_isr_seed}"   # or the caller's (TAG_PREFIX=..._seed)
 export PROD_OUTDIR="$HERE/out"
 exec "$HERE/../prod_AuAu_0_10/run_jobs.sh" "$@"

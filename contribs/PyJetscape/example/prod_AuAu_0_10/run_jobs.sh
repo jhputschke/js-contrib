@@ -48,7 +48,13 @@
 # Other productions reuse this script through three environment variables (defaults: this
 # folder's): PROD_SCRIPT (the per-job driver), TAG_PREFIX (file names <prefix><seed>.*, and
 # <prefix without _seed>_<campaign>_<NNNN>.* for a campaign) and PROD_OUTDIR (the default
-# OUTDIR); see ../prod_AuAu_0_10_jet/run_jobs.sh.
+# OUTDIR); see ../prod_AuAu_0_10_jet/run_jobs.sh.  TAG_PREFIX can also be set by the caller
+# (the wrappers keep it; launch_2gpu.sh and slurm_prod_array.sh pass it into the container),
+# e.g. TAG_PREFIX=PbPb_0_30_seed for Pb+Pb jobs of prod_AuAu_0_10_jet: letters, digits, '.',
+# '_', '-', ending in _seed.  Every job gets --out <its file name>.h5, so the driver writes
+# all its files (.h5, .json, .xml, particlize and hadron files, work/<name>) under the name
+# the skip test looks for.  One prefix per OUTDIR (kept in OUTDIR/run_jobs.prefix), as for
+# the campaign.
 set -u
 
 usage() { sed -n '6,12p' "$0"; exit 2; }
@@ -79,6 +85,13 @@ done
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROD_SCRIPT=${PROD_SCRIPT:-"$HERE/run_prod.py"}
 TAG_PREFIX=${TAG_PREFIX:-AuAu_0_10_seed}
+case $TAG_PREFIX in
+  .*|-*|*[!A-Za-z0-9._-]*)
+    echo "TAG_PREFIX '$TAG_PREFIX': use letters, digits, '.', '_', '-'" >&2; exit 2 ;;
+  ?*_seed) ;;
+  *) echo "TAG_PREFIX '$TAG_PREFIX': must end in _seed (files <prefix><NNNN>, and" \
+          "<prefix without _seed>_<campaign>_... for a campaign), e.g. PbPb_0_30_seed" >&2; exit 2 ;;
+esac
 NAME_BASE=${TAG_PREFIX%_seed}                  # AuAu_0_10_seed -> AuAu_0_10
 shift 3
 # The arguments after the numbers go to every job, except --campaign, which is this script's
@@ -139,6 +152,14 @@ case $registry in
      fi ;;
 esac
 
+
+# ---- the file prefix: one per OUTDIR, so a re-run resumes the same files
+if [ -f "$OUTDIR/run_jobs.prefix" ] && [ "$(cat "$OUTDIR/run_jobs.prefix")" != "$TAG_PREFIX" ]; then
+  echo "$OUTDIR holds jobs with TAG_PREFIX '$(cat "$OUTDIR/run_jobs.prefix")' (run_jobs.prefix)," \
+       "not '$TAG_PREFIX': one prefix per OUTDIR, so a re-run resumes it. Use another OUTDIR," \
+       "or TAG_PREFIX=$(cat "$OUTDIR/run_jobs.prefix")." >&2; exit 2
+fi
+echo "$TAG_PREFIX" > "$OUTDIR/run_jobs.prefix"
 
 # ---- campaign: FIRST_SEED 0 (unique seeds) or --campaign names the files <base>_<name>_NNNN
 if [ "$SEED0" -eq 0 ] || [ -n "$CAMPAIGN" ]; then
@@ -259,8 +280,10 @@ for (( k = 0; k < NJOBS; k++ )); do
   fi
   nstarted=$(( ${nstarted:-0} + 1 ))
   echo "[$(date +%F\ %T)] $label: job $((k + 1))/$NJOBS, $EVENTS events -> $OUTDIR/$tag.h5"
+  # --out: the driver's files carry this job's name (with the default prefix the same name
+  # the driver would choose itself)
   python "$PROD_SCRIPT" --events "$EVENTS" --seed "$seed" ${naming[@]+"${naming[@]}"} \
-    --outdir "$OUTDIR" ${1+"$@"} > "$OUTDIR/$tag.log" 2>&1 &
+    --outdir "$OUTDIR" --out "$tag.h5" ${1+"$@"} > "$OUTDIR/$tag.log" 2>&1 &
   pids+=("$!"); jobs_k+=("$k")
 done
 while [ ${#pids[@]} -gt 0 ]; do reap; done

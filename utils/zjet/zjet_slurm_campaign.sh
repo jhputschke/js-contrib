@@ -43,6 +43,7 @@ export EVENTS=${EVENTS:-96}                            # 4 backgrounds x (6 wind
 export SEED_MODE=ranges                                # no cross-node lock needed
 export SEED_BASE=$(( 1 + 1000 * C ))                   # campaigns never share a seed
 export MUSIC_CUDA_SYNC=block
+export TAG_PREFIX=${TAG_PREFIX:-PbPb_0_30_seed}          # PbPb_0_30_zjet_cNN_tTTT_seedNNNN.*
 export LBT_CACHE=/work/lbt_cache/lbt_tables_v1_amd64.bin
 export STAGGER=12
 export USE_MPS=${USE_MPS:-1}                           # 0 if the GPU is in Exclusive_Process mode
@@ -55,7 +56,18 @@ export EXTRA_ARGS=${EXTRA_ARGS:-"--user-xml $XML_DIR/PbPb_0_30_ZJet.xml \
   --hadrons-only --oversample 40 --n-frag 40 --correlated \
   --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0"}
 
-SCRIPT=${SCRIPT:-$HOME/js-contrib/utils/slurm_prod_array.sh}
-[ -f "$SCRIPT" ] || { echo "slurm_prod_array.sh not found at $SCRIPT" >&2; exit 1; }
+# slurm_prod_array.sh of the same checkout: sbatch copies this script away, so look where it
+# was submitted from (utils/zjet, utils or the repo top), then ~/js-contrib
+if [ -z "${SCRIPT:-}" ]; then
+  for SCRIPT in "${SLURM_SUBMIT_DIR:-$PWD}/../slurm_prod_array.sh" \
+                "${SLURM_SUBMIT_DIR:-$PWD}/slurm_prod_array.sh" \
+                "${SLURM_SUBMIT_DIR:-$PWD}/utils/slurm_prod_array.sh" \
+                "$HOME/js-contrib/utils/slurm_prod_array.sh"; do
+    [ -f "$SCRIPT" ] && break
+  done
+fi
+[ -f "$SCRIPT" ] || { echo "slurm_prod_array.sh not found at $SCRIPT (set SCRIPT=...)" >&2; exit 1; }
+grep -q 'TAG_PREFIX' "$SCRIPT" ||
+  { echo "$SCRIPT does not pass TAG_PREFIX to the jobs (js-contrib 2026-10-16 or later)" >&2; exit 1; }
 echo "campaign $CAMPAIGN, task ${SLURM_ARRAY_TASK_ID:-0}: seeds from $(( SEED_BASE + ${SLURM_ARRAY_TASK_ID:-0} * NJOBS ))"
 exec bash "$SCRIPT"

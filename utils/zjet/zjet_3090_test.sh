@@ -14,6 +14,8 @@
 #                                 # against the GB10's (the same Pythia and Glauber draws?)
 #   ./zjet_3090_test.sh smoke     # zjet_3090_campaign.sh 0 10: ~1,000 events (~2 h)
 #
+# Run it from the repo (utils/zjet/: it uses ../launch_2gpu.sh of the same checkout) or set
+# LAUNCH.  Files are named like the campaign's, TAG_PREFIX=PbPb_0_30_seed: PbPb_0_30_seed0101.*.
 # OUT (default /data/zjet_test) holds everything; LBT_CACHE (default
 # /work/lbt_cache/lbt_tables_v1.bin) is the campaigns' table cache.  The image must be pinned:
 # the digest info prints goes into the campaign log and IMAGE=...@sha256:... for campaign 0.
@@ -24,7 +26,11 @@ IMAGE=${IMAGE:?set IMAGE, e.g. jhputschke/xscape-prod:cu124-zjet}
 OUT=${OUT:-/data/zjet_test}
 LBT_CACHE=${LBT_CACHE:-/work/lbt_cache/lbt_tables_v1.bin}
 D=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config
-LAUNCH=${LAUNCH:-$HOME/prod_test/launch_2gpu.sh}
+export TAG_PREFIX=${TAG_PREFIX:-PbPb_0_30_seed}
+if [ -z "${LAUNCH:-}" ]; then
+  LAUNCH=$HOME/prod_test/launch_2gpu.sh
+  [ -x "$HERE/../launch_2gpu.sh" ] && LAUNCH=$HERE/../launch_2gpu.sh
+fi
 ARGS=(--user-xml "$D/PbPb_0_30_ZJet.xml" --grid "$D/grid_PbPb.yaml"
       --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4 --parton-ymax 1.9
       --lepton-ptmin 20 --lepton-etamax 2.5
@@ -42,17 +48,26 @@ info)
   run_img cat /opt/X-SCAPE/BUILD_INFO.txt | tee -a "$OUT/image.txt"
   echo "--- run_prod_jet.py --help (Z options):"
   run_img python run_prod_jet.py --help | grep -E -- "--trigger|--lepton-|--hadrons-only" | head -6
+  ok=1
+  echo "--- file names (TAG_PREFIX=$TAG_PREFIX):"
+  if run_img grep -qF 'TAG_PREFIX:-' run_jobs.sh &&
+     run_img grep -qF -- '--out "$tag.h5"' ../prod_AuAu_0_10/run_jobs.sh; then
+    echo "  ok: the image's run_jobs.sh keeps TAG_PREFIX and names the driver's files"
+  else
+    echo "  MISSING: run_jobs.sh in $IMAGE ignores TAG_PREFIX (an image before 2026-10-16)"; ok=0
+  fi
+  if grep -q 'TAG_PREFIX' "$LAUNCH" 2>/dev/null; then echo "  ok: $LAUNCH passes it on"
+  else echo "  MISSING: $LAUNCH does not pass TAG_PREFIX (use the repo's utils/launch_2gpu.sh)"; ok=0; fi
   echo "--- dry run of a campaign job (no GPU):"
   run_img python run_prod_jet.py --events 96 --seed 1 "${ARGS[@]}" --seed-registry none \
     --dry-run --outdir "$OUT/dry" > "$OUT/dry.log" 2>&1
-  ok=1
   for want in "trigger Z (lepton pT > 20 GeV, lepton |eta| < 2.5)" "EOS 91" \
               "eCMforHadronization 5020" "reuse 24" "HADRONS ONLY"; do
     if grep -qF "$want" "$OUT/dry.log"; then echo "  ok: $want"; else echo "  MISSING: $want"; ok=0; fi
   done
   if grep -q "<b_max> *8.57" "$OUT"/dry/*.xml; then echo "  ok: <b_max> 8.57 in the job XML"
   else echo "  MISSING: <b_max> 8.57 in $OUT/dry/*.xml"; ok=0; fi
-  [ $ok = 1 ] && echo "info: all checks passed" || { echo "info: see $OUT/dry.log"; exit 1; }
+  [ $ok = 1 ] && echo "info: all checks passed" || { echo "info: something is missing (above; $OUT/dry.log)"; exit 1; }
   ;;
 bench)
   J=${2:?bench J (jobs per GPU)}

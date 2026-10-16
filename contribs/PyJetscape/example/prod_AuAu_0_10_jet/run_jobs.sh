@@ -10,6 +10,8 @@
 #   ./run_jobs.sh 20 25 0                              # unique seeds -> ./out/AuAu_0_10_jet_<start time>_00NN.h5
 #   ./run_jobs.sh --campaign pth50 20 25 0             # named ./out/AuAu_0_10_jet_pth50_00NN.h5
 #   ./run_jobs.sh 20 25 1                              # seeds 1..20 -> ./out/AuAu_0_10_jet_seed00NN.h5
+#   TAG_PREFIX=PbPb_0_30_seed ./run_jobs.sh --campaign zjet_c00 100 96 1 /data/zjet_c00 \
+#     --user-xml ../config/PbPb_0_30_ZJet.xml ...    # -> PbPb_0_30_zjet_c00_seed00NN.h5
 #   ./run_jobs.sh -j 2 20 25 0 out_pgun --hard pgun --pgun-pt 40
 #   ./run_jobs.sh 10 30 0 out_reuse3 --reuse 3         # one background per 3 jet events
 #   ./run_jobs.sh -j 4 --mps 20 25 0                   # 4 at a time, GPU shared via CUDA MPS
@@ -18,6 +20,6 @@
 #                                                      # only the _particlize.h5, no pair file
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROD_SCRIPT="$HERE/run_prod_jet.py"
-export TAG_PREFIX="AuAu_0_10_jet_seed"
+export TAG_PREFIX="${TAG_PREFIX:-AuAu_0_10_jet_seed}"   # the caller's, e.g. TAG_PREFIX=PbPb_0_30_seed
 export PROD_OUTDIR="$HERE/out"
 exec "$HERE/../prod_AuAu_0_10/run_jobs.sh" "$@"

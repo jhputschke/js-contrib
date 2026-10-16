@@ -55,6 +55,18 @@ Pythia 8.312 with PythiaGun's settings, no medium, 20,000 events per window, 202
 | `zjet_3090_campaign.sh` | 3090 box: `IMAGE=… ./zjet_3090_campaign.sh <n>` (3 jobs per GPU, ~14–19 h, estimate) |
 | `zjet_3090_test.sh` | 3090 box, before campaign 0: `IMAGE=… ./zjet_3090_test.sh info \| bench 3 \| bench 4 \| report \| smoke` (steps 1, 2, 4, 5 below) |
 
+**Run them from a checkout of this repo** (e.g. `git clone -b zjet https://github.com/jhputschke/js-contrib`
+on the box, then `utils/zjet/…`): the 3090 scripts use `../launch_2gpu.sh` of the same checkout
+(`LAUNCH=…` for another), the Slurm one the `slurm_prod_array.sh` next to where it was submitted
+from (`utils/zjet`, `utils` or the repo top; `SCRIPT=…` for another). Both refuse a launcher
+that does not pass `TAG_PREFIX` on (copies from before 2026-10-16, e.g. an old
+`~/prod_test/launch_2gpu.sh`).
+
+**File names:** `TAG_PREFIX=PbPb_0_30_seed`, so `PbPb_0_30_zjet_cNN_seedNNNN.*` on the box and
+`PbPb_0_30_zjet_cNN_tTTT_seedNNNN.*` on Delta, not `AuAu_0_10_jet_*` (README_launch.md,
+`TAG_PREFIX`). This needs an image of js-contrib 2026-10-16 or later; the launchers check it
+before any job starts.
+
 **Cost (GB10, 2026-10-15; [docs/BENCHMARK_PbPb_vs_AuAu.md](../../docs/BENCHMARK_PbPb_vs_AuAu.md)):**
 a Pb+Pb Z+jet job takes 2.1× the time of an Au+Au jet job (323 against 693 events/h, 2 jobs
 at once), peaks at **14–16 GB** (2.1×) and writes 1.7× the disk. The memory is mostly MUSIC's
