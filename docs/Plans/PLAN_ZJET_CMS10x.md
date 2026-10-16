@@ -1,9 +1,12 @@
-# Z+jet in Pb+Pb 5.02 TeV at 10× CMS's statistical precision (plan, 2026-10-15)
+# Z+jet in Pb+Pb 5.02 TeV beyond CMS's statistical precision (plan, 2026-10-15; layout 2026-10-16)
 
 Goal: reproduce the CMS Z+jet and Z–hadron measurements with the full chain (Pythia Z+jet with
 Glauber vertices, MUSIC4GPU hydro with the wake, iSS, jet hadronization), analysed **with the experiments'
-own background subtraction** on full sampled events, at 10× their statistical precision in every
-p_T^Z bin. Companion of `PLAN_CAMPAIGN_1M.md` (same settings, same tools).
+own background subtraction** on full sampled events, beyond their statistical precision in every
+p_T^Z bin. First aimed at 10× everywhere; the decided layout (96k events, §2) gives 10× for
+CMS Z+jet's p_T^Z > 60 (8–22× per bin above 60, 4–6× in 40–60) and 3–5× by Z count for the
+Z–hadron measurements (more with the 40 samples per event, ~50× with the paired truth).
+Companion of `PLAN_CAMPAIGN_1M.md` (same settings, same tools).
 
 ## Status (2026-10-16)
 
@@ -30,9 +33,10 @@ campaigns not yet. What changed against the plan below, found while implementing
 - **MPI at 5.02 TeV:** PythiaGun hands over **~15 partons above 2 GeV per event** (standalone
   Pythia, all four windows), not "several"; each is showered and can deposit. The same holds for
   QCD dijets at 5.02 TeV, so the benchmark measures it.
-- **Acceptances** (standalone Pythia, 4,000 events per window): Z (|y_Z| < 2.4, leptons
-  p_T > 20, |η| < 2.4) 0.56 / 0.59 / 0.62 / 0.66 for the four windows; with the leading parton
-  |y| < 1.9 as well 0.45 / 0.50 / 0.53 / 0.61.
+- **Acceptances** (the generator's, both leptons p_T > 20, |η| < 2.5 and the leading parton
+  |y| < 1.9; vacuum reference, 2026-10-15): 0.39 / 0.44 / 0.46 / 0.50 / 0.54 / 0.60 for the six
+  windows 20–30 … 120–200, σ × acceptance 34.2 / 19.2 / 18.6 / 7.52 / 5.29 / 1.75 pb (86.6 pb in
+  all); every paper's own cuts come on top, offline (§2).
 - **Pb+Pb inputs were stale** (step 7): `PbPb_0_10_jet.xml` still had EOS 9 and
   `hadronize_5020.xml` predated smash_ready (no `decay_smash_list`, `keep_primaries`). The jet XML
   is remade with README_2stage §9's recipe from today's Au+Au files (EOS 91);
@@ -49,7 +53,7 @@ campaigns not yet. What changed against the plan below, found while implementing
   scales with N_coll, so every event is weighted by its `n_coll`, which `run_prod_jet.py` now
   records per event (`diag/`, `events/`, `units/n_coll`; `HadronFileReader`'s
   `EventInfo.n_coll`). Centrality is geometric (b), not CMS's HF-energy percentiles.
-- **The selection, decided 2026-10-15** (supersedes §2–§3 and §5b's numbers):
+- **The selection, decided 2026-10-15** (§2–§3 and §5b updated to it on 2026-10-16):
   both **decay leptons p_T > 20 GeV, |η| < 2.5** (the lepton cuts of the three wake papers:
   CMS 2103.04377, CMS 2507.09307, ATLAS 2008.09811; CMS Z+jet's 10–20 GeV muons are not
   generated); **no Z rapidity cut** in the generator and no p_T^Z cut (each paper's |y_Z|, p_T^Z
@@ -99,29 +103,64 @@ All four are statistics-limited (statistical > systematic uncertainties througho
 p_T^Z > 60 split roughly as 150 (60–80), 65 (80–120), 20 (> 120), and ~500 / 200 in the 40–50 / 50–60
 R_jZ bins (from the ~p_T⁻⁴·⁵ spectrum).
 
-## 2. Statistics: generated events → accepted pairs
+## 2. Statistics: generated events → selected Z's (recomputed 2026-10-16)
 
-10× precision = 100× the accepted sample per bin. Per generated event with p̂T in a window: Z in the
-lepton acceptance (|y_Z| ≲ 2.4, lepton p_T) ~65 %; partner parton within |η| < 1.6 + R is free
-(`--parton-ymax 1.9` regenerates events outside before any shower or hydro); jet above 30 GeV and
-Δφ_jZ > 7π/8 ~60–70 % (R_jZ is itself a result; all events count for it). **≈ 0.45 accepted pairs per
-generated event.**
+**Layout:** 10 campaigns × 9,600 = **96,000 events**: 6 p̂T windows × 16,000, on **4,000
+backgrounds** (24 events each: 6 windows × 4 jets), 1,000 jobs of 96 events. Every generated event
+already has both leptons p_T > 20 GeV, |η| < 2.5 and the leading parton |y| < 1.9 (regenerated in
+PythiaGun before any shower or hydro). Per window, from the vacuum reference
+(`analysis/zjet_test/data/vacuum`, 1,000 events per window, the campaign's PythiaGun):
 
-| p̂T window (GeV) | CMS Z's (est.) | 100× (Z's) | events generated | Z's in acceptance | precision vs CMS |
+| p̂T window [GeV] | σ × generator acceptance | generator acceptance | events (10 campaigns) | events passing 2507.09307 | share of the σ-weighted 2507.09307 sample |
 |---|---|---|---|---|---|
-| 40–60 | ~700 | 70k | 25k | ~16k | ~5× (10× needs +50k in this window) |
-| 60–80 | ~150 | 15k | 25k | ~16k | ~10× |
-| 80–120 | ~65 | 6.5k | 25k | ~16k | ~16× |
-| 120–200 | ~20 | 2k | 25k | ~16k | ~30× |
-| (30–40, optional) | – | – | 25k | – | for the p_T^Z > 30 Z–hadron selection |
+| 20–30 | 34.2 pb | 0.39 | 16,000 | 4.0 % | 3.8 % |
+| 30–40 | 19.2 pb | 0.44 | 16,000 | 31 % | 16.4 % |
+| 40–60 | 18.6 pb | 0.46 | 16,000 | 82 % | 41.9 % |
+| 60–80 | 7.52 pb | 0.50 | 16,000 | 95 % | 19.6 % |
+| 80–120 | 5.29 pb | 0.54 | 16,000 | 95 % | 13.8 % |
+| 120–200 | 1.75 pb | 0.60 | 16,000 | 95 % | 4.5 % |
 
-**Baseline: 4 windows × 25k = 100k events on 5,000 backgrounds**, ≥ 10× CMS for everything above 60 GeV.
-Add 50k in 40–60 if the R_jZ turn-on matters; add the 30–40 window for 2103.04377's selection.
+Events weigh σ_window / N_window × N_coll; a weighted sample counts as N_eff = (Σw)² / Σw². The
+window weights cost ~35 % (the few events of the low windows that pass carry large weights), the
+N_coll weights another 15 % (Kish factor 0.85 for P(b) ∝ b, b < 8.57 fm; minimum-bias 3dMCGlauber,
+`analysis/zjet_test/centrality_check.py`). Each paper's cuts offline (mass window, |y_Z|, lepton
+|η| < 2.4 for CMS), 96k events:
 
-Z–hadron side: 100× CMS's 2,000–5,000 Z's is 2–5 × 10⁵ sample-events of uncorrelated S − B. At 40 iSS
-samples per event with the fluid-level floor (×2), 10–25k events with p_T^Z > 40 — inside the 100k.
-Jet-level observables (x_jZ, R_jZ) are dominated by event-to-event shower and energy-loss variation,
-which only events average; oversampling contributes the UE realizations for the jet reconstruction.
+| selection | Z's selected | N_eff (window weights) | N_eff (× N_coll) | CMS, 0–30 % | √(N_eff / N_CMS) |
+|---|---|---|---|---|---|
+| 2507.09307: 40 < p_T^Z < 350, \|y_Z\| < 2.4 | 64,400 | 40,300 | 34,100 | ~1,550 (78 % of ~2,000) | 4.7 |
+| 2103.04377: p_T^Z > 30 | 76,600 | 48,300 | 40,900 | ~3,900 (78 % of ~5,000) | 3.2 |
+| 1702.01060 (70–110 GeV): p_T^Z 40–50 | 9,700 | 9,200 | 7,800 | ~500 | 3.9 |
+| 50–60 | 8,000 | 7,200 | 6,100 | ~200 | 5.5 |
+| 60–80 | 14,300 | 11,500 | 9,700 | ~150 | 8.0 |
+| 80–120 | 16,500 | 14,000 | 11,900 | ~65 | 13.5 |
+| > 120 | 15,100 | 11,700 | 10,000 | ~20 | 22 |
+| > 60 (Δφ_jZ, x_jZ) | 45,900 | 29,500 | 25,000 | 232 | 10.4 |
+| ATLAS 2008.09811 (76–106 GeV): 30–60 | 30,500 | 27,700 | 23,500 | (of ~7,500 in 0–80 %, not split) | – |
+| > 60 | 46,700 | 30,000 | 25,500 | | – |
+
+(78 %: the share of all Z's in 0–30 % for N_coll scaling. CMS 2507.09307 uses μμ only; our
+counts hold ee + μμ.)
+
+- **Jet observables** (Δφ_jZ, x_jZ, ⟨x_jZ⟩, R_jZ): event-to-event shower and energy-loss
+  fluctuations dominate, so the precision is ~√(N_eff / N_CMS): **10× for p_T^Z > 60 together**,
+  8× in 60–80, 13–22× above 80, 4–6× in 40–60. 10× in 60–80 would take ~15 campaigns, in 40–60
+  ~65. The jet selection (p_T > 30, |η| < 1.6, Δφ_jZ > 7π/8) removes the same fraction from both,
+  so the ratios stand.
+- **Z–hadron the experiments' way** (mixed events): **4.7× (2507.09307) and 3.2× (2103.04377)
+  by Z count alone.** CMS's per-Z variance is mostly the uncorrelated bulk; every event here has 40
+  independent samples of it, worth up to √40 more where the bulk dominates, down to the
+  event-by-event fluid fluctuation (not measured; the first mixed-event analysis will).
+- **Z–hadron truth** (the paired wake, correlated sampling): the GB10 test (`analysis/zjet_test/`,
+  34 effective events, errors incl. a jackknife over its 4 backgrounds) already had half of CMS's
+  errors at Δφ ≈ 0 for 1–2 GeV; scaled to 34k effective events, ~50× (extrapolated).
+- **One campaign:** 3.4k effective 2507.09307 Z's (2.2× CMS's count), 2.5k with p_T^Z > 60 (11×
+  CMS Z+jet's 232). The smoke test (10 jobs, 960 events): ~340 and ~250, about one CMS Z+jet
+  equivalent at p_T^Z > 60 and a fifth of 2507.09307's.
+- ATLAS's 15–30 GeV p_T^Z bin is not covered (p̂T from 20 GeV; the Z + parton matrix element is
+  not reliable below). Jet-level observables are dominated by event-to-event shower and
+  energy-loss variation, which only events average; oversampling adds the UE realizations for the
+  jet reconstruction.
 
 ## 3. Production setting
 
@@ -142,13 +181,18 @@ which only events average; oversampling contributes the UE realizations for the 
   campaign's setting and not what data contain. PythiaIsrGun (the O+O ISR production) is not used.
   **PythiaGun keeps an event only with ≥ 2 accepted partons:** with the Z dropped (id 23 fails the
   parton filter) the hard process gives one, so with MPI off the sample would be biased toward hard
-  ISR emissions; with MPI on the MPI partons nearly always satisfy it. Relax it to ≥ 1 for Z+jet anyway.
+  ISR emissions; with MPI on the MPI partons nearly always satisfy it. Relaxed to ≥ 1 for Z+jet
+  (`<minPartons>1` in `PbPb_0_30_ZJet.xml`, done).
 - **Layout:** `--pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4` (24 events
-  per background), `--parton-ymax 1.9`, 96 events per job (4 backgrounds) → 1,000 jobs (2026-10-15;
-  first planned: 4 windows from 40 GeV × 5 jets, 100-event jobs).
+  per background), `--parton-ymax 1.9`, 96 events per job (4 backgrounds) → 100 jobs and 9,600
+  events per campaign, 1,000 jobs and 96k events (4,000 backgrounds) in ten (2026-10-15; first
+  planned: 4 windows from 40 GeV × 5 jets, 100-event jobs, 100k on 5,000 backgrounds).
 - **Output:** `--hadrons-only --oversample 40 --n-frag 40 --correlated
   --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0`.
-  Central Pb+Pb has ~2× the Au+Au multiplicity: ~7 MB/event → **~0.7 TB** for 4 M sampled full events.
+  Disk: 9.1 MB per event in the GB10 test (|η| < 4, positions kept at full precision, 10
+  fragmentations; 1.7× Au+Au); with these arguments (|η| < 2.6, no positions, 12-bit momenta)
+  ~3–4 MB → **~0.35 TB** for the 96k events (3.84 M sampled full events); estimate, the box
+  benchmark measures it.
   A 5k-event subset with `--write-particlize both` if hydro-level Z-jet wakes are wanted (~2 TB).
 - **pp reference** (for I_AA, x_jZ^pp, R_jZ^pp): the same Pythia Z+jet with vacuum showers and
   Colorless hadronization, no hydro, no medium (10k events, minutes). A vacuum mode of
@@ -206,10 +250,10 @@ hadron and particlize files (`INITIATOR_COLUMNS`); `--user-xml`, `--pthat-bins`,
 | **3. Leptons through the energy loss untouched** | X-SCAPE `src/jet/Matter.cc:301` and `src/jet/LBT.cc:337` (both `pid == photonid`: set status 22, push to `pOut`, return) | one helper `is_non_parton(pid)` for {22, 11, 13} used by both guards and by step 1's filter. **No change in the hadronization:** `ColorlessHadronization.cc:229` already passes every status-22 particle into the hadron list, so the leptons come out in `jet_frag` with their pid and four-momentum, exactly as prompt photons do today (γ-jet already works end-to-end in the current image) | lepton four-momenta identical in and out; no droplets from leptons; two leptons per event in `jet_frag` |
 | **4. Leptons are not partons downstream** | js-contrib `run_prod_jet.py`: the `--parton-ymax` / `--parton-y-mode leading` selection (`check_parton_ycut`, the leading-parton choice); the liquefier's parton list; `hadronizer` (`fragments`) | skip `\|id\| ∈ {11, 13, 22}` when choosing the leading parton, when building the droplet sources and when fragmenting (Colorless must not see leptons) | `droplets_total` and `E_dep` unchanged against a run where the leptons are removed by hand |
 | **5. The Z in the event record** | js-contrib `run_prod_jet.py` (the per-event record → `units/` and `events/`), `hadrons_h5.py` | add `z_pt, z_y, z_phi, z_m` and `lep_*` columns computed from the two lepton initiators (pdg ±11/±13 pair with the largest invariant mass if several); attribute `trigger = "Z"` | `HadronFileReader` returns the Z per event; `z_pt` ≈ p_T of the recoil system |
-| **6. Z acceptance pre-selection** | js-contrib `run_prod_jet.py`, next to `--parton-ymax` (events outside are regenerated before any shower or hydro) | `--trigger-ymax Y` (\|y_Z\| < Y), `--lepton-ptmin`, `--lepton-etamax`; CMS: 2.4 / 20 / 2.4 (ee 2.5) | the regeneration counter in the `.json`; the efficiency ≈ 0.65 for p̂T 60–80 |
+| **6. Z acceptance pre-selection** | js-contrib `run_prod_jet.py`, next to `--parton-ymax` (events outside are regenerated before any shower or hydro) | `--trigger-ymax Y` (\|y_Z\| < Y), `--lepton-ptmin`, `--lepton-etamax`. Decided: no y_Z cut, leptons 20 GeV / 2.5 (every paper's cuts offline, §2) | the regeneration counter in the `.json`; the acceptance with `--parton-ymax 1.9`: 0.39–0.60 per window |
 | **7. Pb+Pb Z+jet user XML** | `example/config/PbPb_0_30_ZJet.xml` from `example/config/PbPb_0_10_jet.xml` | the Z+jet `<PythiaGun>` block (+ `<trigger>Z`); `eCM 5020`; grid and η range covering \|η\| < 2.6 (hadrons) and \|η_jet\| < 1.9 | `--dry-run`; the edge flags of a 15-event test job |
 | **8. Vacuum (pp) driver** | js-contrib `prod_AuAu_0_10_jet/run_prod_vacuum.py` (new, ~150 lines) | PythiaGun → Matter in vacuum (`<Matter><in_vac>1`) → Colorless, no hydro, same hadron files (`jet_frag` + `initiators/` + Z columns) | R_jZ, ⟨x_jZ⟩ of 10k events against CMS pp |
-| **9. Image (mandatory)** | a new `xscape-prod` build (CI `workflow_dispatch`, as the test images were built from branch heads) from **X-SCAPE `auau_hadrons_only`** (+ steps 1–3), **js-contrib `auau_hadrons_only`** (+ steps 4–6), **iSS `smash_ready`**, MUSIC4GPU main | **`--hadrons-only` exists only in that image.** The current production images (`cu124-20261013-9e84450` and earlier) do not have it, and it cannot be added from outside: it needs X-SCAPE C++ (`SoftParticlization::SampleCells`, `SetNextTaskNumber`), rebuilt PyJetscape bindings (`soft_sample_cells`, `set_next_task_number`, `xml_add_user_blocks`) and the `smash_ready` iSS, not just Python. One image, digest pinned, for all ten campaigns and the Au+Au phases 2–3 | `BUILD_INFO.txt` lists the four commits; `run_prod_jet.py --help` shows `--hadrons-only`; the 4-event identity check of `PLAN_AuAu_hadrons_only.md` (hadrons-only ≡ particlize-only + `hadronize.py --seed-uuid`) passes in the image |
+| **9. Image (mandatory)** | before the PRs the test image `jhputschke/xscape-prod:cu124-zjet` (`docker-prod.yml` from X-SCAPE `zjet` and js-contrib `zjet`, MUSIC4GPU XSCAPE; `moving_tag=false`); after the PRs the same from `contrib` / `main` (smash_ready and auau_hadrons_only are merged there) | **`--hadrons-only`, the Z trigger and the `TAG_PREFIX` naming exist only in such an image**, and cannot be added from outside: X-SCAPE C++ (`SoftParticlization::SampleCells`, `SetNextTaskNumber`, PythiaGun's trigger), rebuilt PyJetscape bindings and the `smash_ready` iSS, not just Python. One image, digest pinned, for all ten campaigns | `zjet_3090_test.sh info`: `BUILD_INFO.txt`, `--help` shows `--trigger`, the dry run, the `TAG_PREFIX` checks |
 | **10. Benchmark** | 3090 box, the XML of 7, QCD dijets or Z+jet at the six windows, 24 events/job (one background), 3 and 4 jobs/GPU (GB10: 14–16 GB per job), `--hadrons-only` | events/h, VmHWM, droplets per event, edge flags | confirms or replaces the GB10-based `JOBS_PER_GPU` / `P` (3) and the time estimate of §6 |
 
 Steps 1–3 are X-SCAPE (one PR), 4–6 js-contrib (one PR), 7 configuration, 8 optional for the
@@ -221,7 +265,7 @@ Au+Au outputs stay bit-identical (check with one Au+Au seed).
 The 96k events run as **ten identical campaigns of 9,600 events** (`zjet_c00` … `zjet_c09`), each
 6 windows × 1,600 events on 400 backgrounds, 100 jobs × 96 events (4 backgrounds × 24; the
 2026-10-15 layout, Status above; first planned as 4 windows × 2,500 on 500 backgrounds). A single
-CMS-equivalent (~1,000 events) is one campaign with `NJOBS=1` per task: the smoke test. Campaigns differ only in
+CMS Z+jet equivalent at p_T^Z > 60 (~1,000 events, §2) is one campaign with `NJOBS=1` per task: the smoke test. Campaigns differ only in
 their seed range (`SEED_BASE = 1 + 1000 × c`), so any subset combines, and a bad campaign is redone
 alone. Launchers in `utils/zjet/` (the step-7 XML is `example/config/PbPb_0_30_ZJet.xml`):
 
@@ -287,7 +331,8 @@ Pb+Pb-to-Au+Au ratios measured on the GB10, applied to the Au+Au rates measured 
 | **→ events/h** | **6 × 3600 / 30–42 s ≈ 500–720** (central ~600); 4 per GPU: ~650–900 |
 
 **A campaign** (9,600 events = 100 jobs × 96, 50 per GPU, 3 at a time = 17 rounds of one job):
-**~14–19 h**, so one campaign (~10× CMS's Z count per p_T^Z bin) is an overnight-plus run. The
+**~14–19 h**, so one campaign (§2: 11× CMS Z+jet's p_T^Z > 60 count, 2.2× 2507.09307's) is an
+overnight-plus run. The
 smoke test (10 jobs, ~1,000 events) takes ~2 h.
 
 ### Totals
@@ -300,7 +345,7 @@ smoke test (10 jobs, ~1,000 events) takes ~2 h.
 | 96k events (10 campaigns) | **~140–190 h ≈ 6–8 days** (4 per GPU: ~5–6 days) | ~240–380 A40-hours |
 | wall on 8 / 32 / 100 A40 | – | ~30–48 h / ~8–12 h / ~2.5–4 h (+ queue) |
 | cost | none; no queue | ~16–25k credits at the A100 rate (less with the A40 discount) |
-| disk | 0.35–0.7 TB, fits `/data` (1.6 TB free) | same, no upload issue |
+| disk | ~0.35 TB (§3, estimate), fits `/data` (1.6 TB free) | same, no upload issue |
 | pp reference (10k, no hydro) | < 1 h | – |
 | stage 2 | none (hadrons-only) | none |
 
@@ -329,10 +374,11 @@ Ways to shorten it:
 ## 7. Summary
 
 96k Pb+Pb 5.02 TeV 0–30 % Z+jet events in ten campaigns of 9,600 (6 p̂T windows × 16k, 4,000
-backgrounds), hadrons-only at 40 samples (3.8 M full events, 0.35–0.7 TB), ~240–380 A40-hours or
+backgrounds), hadrons-only at 40 samples (3.8 M full events, ~0.35 TB), ~240–380 A40-hours or
 6–8 days on the 3090 box alone, ~16 h per campaign (§6, estimates from the GB10 and box
-measurements, to be confirmed on the box); 10k pp-reference events. Gives ≥ 10× CMS's statistical
-precision in every p_T^Z bin above 60 GeV for x_jZ, ⟨x_jZ⟩, R_jZ, and ≥ 10× for the Z–hadron Δφ/Δy/I_AA
-with the experiments' mixed-event subtraction, with the paired truth on the same events. The production
+measurements, to be confirmed on the box); 10k pp-reference events. Gives (§2) 10× CMS's
+statistical precision for x_jZ, ⟨x_jZ⟩, R_jZ at p_T^Z > 60 (8× in 60–80, 13–22× above 80, 4–6×
+in 40–60), 3–5× by Z count for the Z–hadron Δφ/Δy/I_AA with the experiments' mixed-event
+subtraction (more with the 40 samples per event), and the paired truth on the same events (~50×). The production
 side has the Z record and needs the RTX-box benchmark; the analysis side needs the mixed-event and
 R = 0.3 subtraction scripts.

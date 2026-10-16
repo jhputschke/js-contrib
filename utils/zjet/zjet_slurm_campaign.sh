@@ -1,11 +1,12 @@
 #!/bin/bash
 # zjet_slurm_campaign.sh -- one Z+jet campaign (9,600 Pb+Pb 5.02 TeV 0-30 % events) on NCSA Delta
 # A40s, through js-contrib's utils/slurm_prod_array.sh.  Ten campaigns C=0..9 give the 96k events of
-# docs/Plans/PLAN_ZJET_CMS10x.md (section 5b); one campaign is ~10x CMS's Z count per p_T^Z bin.
+# docs/Plans/PLAN_ZJET_CMS10x.md (section 5b); one campaign has 11x CMS Z+jet's p_T^Z > 60 count and
+# 2.2x CMS 2507.09307's Z count (effective, after the window and N_coll weights; plan section 2).
 #
 #   C=0 sbatch zjet_slurm_campaign.sh            # campaign zjet_c00: 10 A40s x 10 jobs x 96 events
 #   C=1 sbatch zjet_slurm_campaign.sh            # ... up to C=9
-#   C=0 NJOBS=1 sbatch zjet_slurm_campaign.sh    # smoke test: ~1,000 events = one CMS-equivalent
+#   C=0 NJOBS=1 sbatch zjet_slurm_campaign.sh    # smoke test: ~1,000 events = one CMS Z+jet (p_T^Z > 60)
 #   C=0 sbatch zjet_slurm_campaign.sh            # resubmit the same command to resume
 #
 # Per task (one A40): one GPU's share of a gpuA40x4 node, 16 cores, 58 GiB; P=3 jobs at once

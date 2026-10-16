@@ -119,6 +119,8 @@ for b in sorted(glob.glob(os.path.join(out, "bench_j*"))):
           f"peak memory {np.nanmin(pk):.1f}-{np.nanmax(pk):.1f} GB (ru_maxrss)")
     print(f"   host: {base:.0f} GB before, peak {peak:.0f} GB of {os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES') / 1e9:.0f} "
           f"-> room for ~{int((118 - peak) // max(np.nanmax(pk), 1))} more jobs of this size (118 GB usable)")
+    mb = sum(os.path.getsize(f) for f in glob.glob(os.path.join(b, "gpu*", "*_hadrons_*.h5"))) / 1e6
+    print(f"   disk: {mb:.0f} MB of hadron files, {mb / max(ev, 1):.2f} MB per event")
     print(f"   droplets per job {[j[5] for j in jobs]}, edge hits {[j[4] for j in jobs]}, "
           f"acceptance (job 1) {jobs[0][3] if jobs else None}")
 # seed 101's first events against the GB10 (zjet_test, 2026-10-15): Pythia and 3dMCGlauber

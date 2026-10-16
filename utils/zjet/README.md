@@ -48,7 +48,9 @@ Pythia 8.312 with PythiaGun's settings, no medium, 20,000 events per window, 202
 - **Few of the low windows' events pass p_T^Z > 40** (4 % of 20–30, 29 % of 30–40): with 16k
   events per window the p_T^Z > 40 sample has ~67k events, and since those from low windows carry
   large weights (the window's σ / N), its effective size for a cross-section-weighted p_T^Z > 40
-  quantity is ~42k (before the N_coll weights).
+  quantity is ~42k, ~36k with the N_coll weights (Kish factor 0.85). With CMS 2507.09307's cuts
+  (|y_Z| < 2.4, leptons |η| < 2.4, 60–120 GeV) 64k selected, 34k effective: 4.7× CMS's precision
+  by Z count; CMS Z+jet's p_T^Z > 60 25k effective, 10× (per-bin table: PLAN_ZJET_CMS10x.md §2).
 - **p_T^Z > 30** (CMS 2103.04377): shares 2.4 / 16.0 / 25.6 / 30.7 / 12.9 / 8.7 / 3.2 / 0.5 % for
   the windows 10–20 … 200–400; the six windows cover 97 %, and the 20–30 window serves mainly this
   sample.
@@ -117,7 +119,8 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
    GB10's 14–16 GB per job; on discrete GPUs the hydro's arrays are in device memory, so the
    host peak may be lower (Au+Au peaks the same on both, 6.4–7.6 GB). VRAM: ~1 GB per Au+Au
    job on a 3090 (9.6 GB at 10 per GPU), so ~2.4 GB per Pb+Pb job: no limit at 3–4 per GPU.
-5. Smoke test = one CMS-equivalent: `C=0 NJOBS=1 sbatch zjet_slurm_campaign.sh` (Delta) or
+5. Smoke test, about one CMS Z+jet equivalent at p_T^Z > 60 (a fifth of 2507.09307's Z's):
+   `C=0 NJOBS=1 sbatch zjet_slurm_campaign.sh` (Delta) or
    `./zjet_3090_campaign.sh 0 10` (box; `zjet_3090_test.sh smoke`), ~1,000 events, files
    `PbPb_0_30_zjet_c00_….*`. Check: two leptons per event in
    `initiators/` and in every `jet_frag` sample, `units/z_pt` ≥ ~the window's lower edge for most
