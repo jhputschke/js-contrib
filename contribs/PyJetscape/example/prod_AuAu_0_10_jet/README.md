@@ -156,6 +156,13 @@ OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 20 
   name is kept in `out/run_jobs.campaign`, so re-running the same command resumes the
   campaign; give each campaign its own `OUTDIR` (a second name in the same one is refused).
   See [Campaigns with `run_jobs.sh`](#campaigns-with-run_jobssh) for the details.
+- **`TAG_PREFIX` replaces `AuAu_0_10_jet`** for jobs of another system:
+  `TAG_PREFIX=PbPb_0_30_seed ./run_jobs.sh --campaign zjet_c00 100 96 1 … --user-xml
+  ../config/PbPb_0_30_ZJet.xml …` writes `PbPb_0_30_zjet_c00_seed0001.*` (without
+  `--campaign`: `PbPb_0_30_seed0001.*`). Letters, digits, `.`, `_`, `-`, ending in `_seed`;
+  one per `OUTDIR` (`OUTDIR/run_jobs.prefix`, a different one is refused). `run_jobs.sh` passes
+  every job its name as `--out`, so all the driver's files carry it. `launch_2gpu.sh` and
+  `slurm_prod_array.sh` pass `TAG_PREFIX` into the container (`utils/README_launch.md`).
 
 **Recommended campaign settings** (measured; machine-specific, so they are not built into
 the scripts). The campaign setting is `--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5

@@ -120,6 +120,9 @@ a separately made test set can be the training events themselves). So:
   `OUTDIR` (`--seed-registry PATH` to share one, `none` to turn it off). Files are numbered per
   campaign, `AuAu_0_10_<campaign>_NNNN.h5`, with `<campaign>` = `--campaign NAME` or the start
   time; `OUTDIR/run_jobs.campaign` keeps it, so a re-run resumes the campaign.
+- **The prefix** (`AuAu_0_10_seed`; the jet and O+O productions' `run_jobs.sh` set theirs) can be
+  given as `TAG_PREFIX=<name>_seed`: files `<name>_seedNNNN.*`, or `<name>_<campaign>_…` with a
+  campaign. One per `OUTDIR` (`OUTDIR/run_jobs.prefix`); every job gets its name as `--out`.
 - **The seed that ran is recorded** (`prod_seed`, `prod_seed_source`, `prod_campaign`,
   `prod_index` in the file, `seed` etc. in the `.json`, and the job XML): `--seed <it>`
   reproduces the file bit for bit.

@@ -482,6 +482,7 @@ script.
 | `WORK` | `$SCRATCH/xscape_prod` (`$HOME/…` without `$SCRATCH`) | bound to `/work`: writable, the same for all tasks |
 | `PROD` | `auau` | `auau`: `prod_AuAu_0_10_jet`; `oo`: `prod_OO_isr` |
 | `CAMPAIGN` | `AuAu_0_10_jet` / `OO_isr` | the campaign; task `t` writes `WORK/CAMPAIGN/t<ttt>/`, named `CAMPAIGN_t<ttt>` |
+| `TAG_PREFIX` | the production's (`AuAu_0_10_jet_seed`, `OO_isr_seed`) | the files' prefix, e.g. `PbPb_0_30_seed` → `PbPb_0_30_<CAMPAIGN>_t<ttt>_seedNNNN.*` (ranges) or `…_NNNN.*` (registry); ending in `_seed`; needs an image of js-contrib 2026-10-16 or later (checked) |
 | `P` | 10 | production jobs at once per GPU; the script sets `OMP_NUM_THREADS = cpus-per-task / P` and warns below 2 |
 | `NJOBS`, `EVENTS` | 40; 45 (Au+Au, a multiple of 15 for the pT̂-window setting) or 60 (O+O) | jobs (files) per task, events per job |
 | `SEED_MODE` | `registry` | `registry` or `ranges`, see below |

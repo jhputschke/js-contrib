@@ -85,11 +85,16 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
 
 ## Before campaign 0 (once)
 
-1. **The image is mandatory:** the Z trigger and `--hadrons-only` exist only in an image built
-   from X-SCAPE `contrib` and js-contrib `main` with the `zjet` changes (plan 5a step 9); they
-   cannot be bind-mounted in (C++ and compiled bindings). Pin it by digest:
+1. **The image is mandatory:** the Z trigger, `--hadrons-only` and the `TAG_PREFIX` naming exist
+   only in an image with the `zjet` changes (plan 5a step 9); they cannot be bind-mounted in
+   (C++ and compiled bindings). Before the PRs: the test image
+   `jhputschke/xscape-prod:cu124-zjet`, built by `docker-prod.yml` from the `zjet` branches with
+   `moving_tag=false` (the moving `cu124` stays on the production image;
+   `utils/BuildContainerProd.md`). After the PRs: a build from X-SCAPE `contrib` and js-contrib
+   `main`. Pin it by digest:
    `apptainer pull xscape_prod_zjet.sif docker://jhputschke/xscape-prod@sha256:…` (Delta), `IMAGE=…`
-   (box). Check: `BUILD_INFO.txt` lists the commits, `run_prod_jet.py --help` shows `--trigger`.
+   (box). Check: `BUILD_INFO.txt` lists the commits, `run_prod_jet.py --help` shows `--trigger`
+   (`zjet_3090_test.sh info` does both, the dry run of step 2 and the `TAG_PREFIX` checks).
 2. `--dry-run` inside the image (no GPU work):
    `python run_prod_jet.py --events 96 --seed 1 --user-xml $D/PbPb_0_30_ZJet.xml
    --grid $D/grid_PbPb.yaml --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4
@@ -107,8 +112,9 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
    GB10's 14–16 GB per job; on discrete GPUs the hydro's arrays are in device memory, so the
    host peak may be lower (Au+Au peaks the same on both, 6.4–7.6 GB). VRAM: ~1 GB per Au+Au
    job on a 3090 (9.6 GB at 10 per GPU), so ~2.4 GB per Pb+Pb job: no limit at 3–4 per GPU.
-5. Smoke test = one CMS-equivalent: `C=0 NJOBS=1 sbatch …` (Delta) or
-   `./zjet_3090_campaign.sh 0 10` (box), ~1,000 events. Check: two leptons per event in
+5. Smoke test = one CMS-equivalent: `C=0 NJOBS=1 sbatch zjet_slurm_campaign.sh` (Delta) or
+   `./zjet_3090_campaign.sh 0 10` (box; `zjet_3090_test.sh smoke`), ~1,000 events, files
+   `PbPb_0_30_zjet_c00_….*`. Check: two leptons per event in
    `initiators/` and in every `jet_frag` sample, `units/z_pt` ≥ ~the window's lower edge for most
    events, `units/n_coll` filled, `pthat_bin_acceptance` in the `.json`s (~0.4–0.65 with
    `--parton-ymax 1.9`, lowest in the 20–30 window), `droplets_total/events_written`, no edge

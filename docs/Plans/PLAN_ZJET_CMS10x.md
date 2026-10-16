@@ -5,11 +5,14 @@ Glauber vertices, MUSIC4GPU hydro with the wake, iSS, jet hadronization), analys
 own background subtraction** on full sampled events, at 10× their statistical precision in every
 p_T^Z bin. Companion of `PLAN_CAMPAIGN_1M.md` (same settings, same tools).
 
-## Status (2026-10-15)
+## Status (2026-10-16)
 
 Production code (§5a steps 1–7) on the `zjet` branches of X-SCAPE (off `contrib`) and js-contrib
-(off `main`), tested on the GB10; image, benchmark and campaigns not yet. What changed against
-the plan below, found while implementing:
+(off `main`), tested on the GB10. **Image before the PRs** (changed order, 2026-10-16): the test
+image `jhputschke/xscape-prod:cu124-zjet` is built from the `zjet` branches (`docker-prod.yml`
+with the new `moving_tag=false`, so the moving `cu124` stays on the production image) and tested
+on the RTX box with `utils/zjet/zjet_3090_test.sh` (step 10) before the PRs; benchmark and
+campaigns not yet. What changed against the plan below, found while implementing:
 
 - **The Z's leptons are not status 62.** Pythia attaches the resonance decay after the beam
   remnants: the Z is status −62 and its leptons are final with status **23**. PythiaGun takes
@@ -224,8 +227,13 @@ alone. Launchers in `utils/zjet/` (the step-7 XML is `example/config/PbPb_0_30_Z
 |---|---|
 | `zjet_slurm_campaign.sh` | Delta A40: `C=3 sbatch zjet_slurm_campaign.sh` → one campaign on 10 A40s (array 0–9, 10 jobs × 96 events per task, `P=3`, 16 cores, 58 GB); ~3–4.5 h per task at ~250–400 events/h (estimate) |
 | `zjet_3090_campaign.sh` | the 3090 box: `IMAGE=… ./zjet_3090_campaign.sh 3` → the same campaign via `launch_2gpu.sh`, 3 jobs/GPU, OMP 6; ~14–19 h (estimate) |
+| `zjet_3090_test.sh` | the box test before campaign 0: `info`, `bench 3` / `bench 4`, `report`, `smoke` |
 | `README.md` | the per-campaign checklist (dry run, `check_deposition.py`, upload) |
 
+The launchers run from a checkout of js-contrib (they use its `launch_2gpu.sh` /
+`slurm_prod_array.sh`) and set `TAG_PREFIX=PbPb_0_30_seed`: the files are
+`PbPb_0_30_zjet_cNN_seedNNNN.*` (box) and `PbPb_0_30_zjet_cNN_tTTT_seedNNNN.*` (Delta), not
+`AuAu_0_10_jet_*` (`run_jobs.sh` passes every job its name as `--out`; js-contrib 2026-10-16).
 Both launchers pass the same `run_prod_jet.py` arguments (`$D` = the image's
 `contribs/PyJetscape/example/config`): `--user-xml $D/PbPb_0_30_ZJet.xml
 --grid $D/grid_PbPb.yaml --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4
