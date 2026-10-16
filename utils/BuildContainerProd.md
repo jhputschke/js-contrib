@@ -287,6 +287,8 @@ gh workflow run docker-prod.yml -f variants=all          # cu126, cu130 and cu12
 gh workflow run docker-prod.yml -f variants=cu130 -f platforms=arm64 -f push=false   # test one image
 gh workflow run docker-prod.yml -f release_tag=2026.10   # + tags cu126-2026.10, cu130-2026.10
 gh workflow run docker-prod.yml -f with_gcs=true         # with GCS: tags cu126-gcs, cu130-gcs, ...
+gh workflow run docker-prod.yml --ref zjet -f xscape_ref=zjet -f js_contrib_ref=zjet \
+    -f variants=cu124 -f release_tag=zjet -f moving_tag=false   # a branch's test image: cu124-zjet
 gh run watch                                             # follow the run
 ```
 
@@ -304,6 +306,7 @@ commands for the new tags.
 | `platforms` | `both` | `amd64`, `arm64` or both; a published tag should have both. `cu124` is built for amd64 only, whatever is chosen (`cu124` with `arm64` stops with an error) |
 | `with_gcs` | off | on: `WITH_GCS=1`, Google Cloud Storage for Python; every tag gets `-gcs` after the variant (`cu126-gcs`, `cu126-gcs-<YYYYMMDD>-<xscape7>`), so the images without it keep their tags |
 | `release_tag` | empty | an extra tag per variant, e.g. `2026.10` → `cu126-2026.10` |
+| `moving_tag` | on | off: the moving tag (`cu124`, …) stays where it is; for a branch's test image, since `launch_2gpu.sh` and the docs default to `cu124` (`--ref <branch>` runs the branch's workflow file) |
 | `push` | on | off: build only, to test a change of the Dockerfile |
 
 - **By default you get the latest versions:** the heads of X-SCAPE `contrib`, MUSIC4GPU
@@ -326,7 +329,7 @@ commands for the new tags.
 
 | tag | moves? | use |
 |---|---|---|
-| `cu126`, `cu130`, `cu124` | yes: every run that builds the variant overwrites it | trying out the latest build |
+| `cu126`, `cu130`, `cu124` | yes: every run that builds the variant overwrites it (not with `moving_tag=false`) | trying out the latest build |
 | `cu126-<YYYYMMDD>-<xscape7>` | no | what a campaign should pull: a fixed image |
 | `cu126-<release_tag>` | only if the same `release_tag` is given again | a name for a campaign's image |
 
