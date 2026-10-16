@@ -51,6 +51,7 @@ the HDF5 study and the benchmarks stay here.
 | [`BENCHMARK_GB10.md`](BENCHMARK_GB10.md) | GB10 (CUDA): per-event profile, speed-ups, concurrent jobs, MPS, thread settings |
 | [`BENCHMARK_M3MAX.md`](BENCHMARK_M3MAX.md) | Apple M3 Max (Metal): the same measurements, `run_jobs.sh` on macOS |
 | [`BENCHMARK_2x3090.md`](BENCHMARK_2x3090.md) | 2 × RTX 3090 (Docker): jobs per GPU, threads, MPS, memory, the campaign default, `final_optim` |
+| [`BENCHMARK_PbPb_vs_AuAu.md`](BENCHMARK_PbPb_vs_AuAu.md) | GB10: Pb+Pb 5.02 TeV Z+jet against Au+Au 200 GeV jets: time, memory, disk; the MUSIC box as the memory's cause |
 | [`REPORT_FINAL_OPTIM.md`](REPORT_FINAL_OPTIM.md) | `cu124-final_optim` on 2 × RTX 3090: throughput, and the physics check of C4 and the late time step (D1) |
 | [`REPORT_SUMMARY_CLUSTER.md`](REPORT_SUMMARY_CLUSTER.md) | throughput per machine, and the per-GPU settings extrapolated to cluster GPUs (V100, A40, A100, L40S) |
 | [`REPORT_CLUSTER_ACCESS.md`](REPORT_CLUSTER_ACCESS.md) | which NSF ACCESS GPU resource to request: ACCESS exchange rates, estimated events/h and events per credit per resource, the DeltaAI (first) and Delta A40 (second) settings, request sizing, scratch space and the upload to OSDF; Lambda 8 × A100 and A10 for comparison (2026-10-13) |

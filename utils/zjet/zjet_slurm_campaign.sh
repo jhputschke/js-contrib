@@ -8,9 +8,10 @@
 #   C=0 NJOBS=1 sbatch zjet_slurm_campaign.sh    # smoke test: ~1,000 events = one CMS-equivalent
 #   C=0 sbatch zjet_slurm_campaign.sh            # resubmit the same command to resume
 #
-# Per task (one A40): one GPU's share of a gpuA40x4 node, 16 cores, 58 GiB; P=6 jobs at once
-# (~8-9 GB each, Pb+Pb), OMP_NUM_THREADS = 16/6 = 2.  ~400-500 events/h per A40 (estimate,
-# section 6 of the plan): 960 events per task in ~2-2.5 h.
+# Per task (one A40): one GPU's share of a gpuA40x4 node, 16 cores, 58 GiB; P=3 jobs at once
+# (14-16 GB each: a Pb+Pb Z+jet job's peak on the GB10, docs/BENCHMARK_PbPb_vs_AuAu.md),
+# OMP_NUM_THREADS = 16/3 = 5.  ~250-350 events/h per A40 (estimate): 960 events per task in
+# ~3-4 h.  TO BE CONFIRMED (benchmark, plan 5a step 10): set P from the measured MaxRSS.
 #
 # Before campaign 0: the Z+jet image pulled into $SIF (pinned by digest), the LBT cache made
 # once by a 1-event job, and the 15-event benchmark (plan 5a step 10).  The inputs are the
@@ -35,7 +36,7 @@ export WORK=${WORK:-/work/hdd/$USER/xscape_prod}       # shared by all tasks and
 XML_DIR=${XML_DIR:-/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config}
 export PROD=auau
 export CAMPAIGN=$(printf "zjet_c%02d" "$C")
-export P=${P:-6}                                       # jobs at once per A40 (from the benchmark)
+export P=${P:-3}                                       # jobs at once per A40 (GB10 memory; confirm)
 export NJOBS=${NJOBS:-10}                              # jobs per task: 10 tasks x 10 jobs = 100 jobs
 export EVENTS=${EVENTS:-96}                            # 4 backgrounds x (6 windows x 4 jets)
 export SEED_MODE=ranges                                # no cross-node lock needed

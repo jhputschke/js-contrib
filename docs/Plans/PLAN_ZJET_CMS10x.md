@@ -62,9 +62,13 @@ the plan below, found while implementing:
   smaller and the background's iSS time 4× lower.
 - **All the productions' XMLs and grid YAMLs** are in `contribs/PyJetscape/example/config/` since
   2026-10-15 (`docs/PbPb_5020/` is gone): one user XML per setup, the shared `hadronize.xml`.
-- **Memory:** a 4-event Pb+Pb Z+jet `--particlize-only` job peaked at **13.5 GB** on the GB10
-  (§6 assumed 8–9 GB), and the jet leg's surface has 2.8 M cells. Fewer jobs per GPU than §6's
-  6–7 (box) / 6 (A40) unless the benchmark says otherwise.
+- **Cost measured on the GB10** (2026-10-15, [BENCHMARK_PbPb_vs_AuAu.md](../BENCHMARK_PbPb_vs_AuAu.md)):
+  against an Au+Au jet job with the same layout and hadron settings, a Pb+Pb Z+jet job takes
+  **2.1× the time** (323 against 693 events/h, 37 against 17 core-s per event), **2.1× the
+  memory (14–16 GB per job**; §6 assumed 8–9) and 1.7× the disk. The memory is mostly MUSIC's
+  larger box: the same Au+Au job in the Pb+Pb box needs 10.8 instead of 5.2 GB. The launchers
+  now default to 3 jobs per 3090 and `P=3` per A40, and §6 is redone with these numbers;
+  **all to be confirmed on the RTX box** (step 10).
 - The templates are now `utils/zjet/` (launchers read the image's own `example/config/` files;
   the 3090 smoke test is `./zjet_3090_campaign.sh 0 10`).
 - **Step 8 done:** `prod_AuAu_0_10_jet/run_prod_vacuum.py` takes the user XML's PythiaGun (through
@@ -144,9 +148,9 @@ which only events average; oversampling contributes the UE realizations for the 
 - **pp reference** (for I_AA, x_jZ^pp, R_jZ^pp): the same Pythia Z+jet with vacuum showers and
   Colorless hadronization, no hydro, no medium (10k events, minutes). A vacuum mode of
   `run_prod_jet.py` does not exist; it is a small driver (Pythia → Matter vacuum → Colorless).
-- **Cost:** Pb+Pb 5.02 TeV **not measured** on this image. From the longer lifetime, larger grid and
-  60–200 GeV showers: 2–3× the Au+Au cost → ~400–600 events/h per A40 → **~200 A40-hours
-  (~13k credits at the A100 rate)**; ~5 days on the 3090 box.
+- **Cost:** measured on the GB10 (Status, §6): 2.1× the Au+Au time and memory per event, so
+  memory sets the jobs per GPU → ~250–350 events/h per A40 → **~300–400 A40-hours**; 5–7 days
+  on the 3090 box (estimates, to be confirmed there).
 
 ## 4. Analysis chain (experiment-like)
 
@@ -200,7 +204,7 @@ hadron and particlize files (`INITIATOR_COLUMNS`); `--user-xml`, `--pthat-bins`,
 | **7. Pb+Pb Z+jet user XML** | `example/config/PbPb_0_30_ZJet.xml` from `example/config/PbPb_0_10_jet.xml` | the Z+jet `<PythiaGun>` block (+ `<trigger>Z`); `eCM 5020`; grid and η range covering \|η\| < 2.6 (hadrons) and \|η_jet\| < 1.9 | `--dry-run`; the edge flags of a 15-event test job |
 | **8. Vacuum (pp) driver** | js-contrib `prod_AuAu_0_10_jet/run_prod_vacuum.py` (new, ~150 lines) | PythiaGun → Matter in vacuum (`<Matter><in_vac>1`) → Colorless, no hydro, same hadron files (`jet_frag` + `initiators/` + Z columns) | R_jZ, ⟨x_jZ⟩ of 10k events against CMS pp |
 | **9. Image (mandatory)** | a new `xscape-prod` build (CI `workflow_dispatch`, as the test images were built from branch heads) from **X-SCAPE `auau_hadrons_only`** (+ steps 1–3), **js-contrib `auau_hadrons_only`** (+ steps 4–6), **iSS `smash_ready`**, MUSIC4GPU main | **`--hadrons-only` exists only in that image.** The current production images (`cu124-20261013-9e84450` and earlier) do not have it, and it cannot be added from outside: it needs X-SCAPE C++ (`SoftParticlization::SampleCells`, `SetNextTaskNumber`), rebuilt PyJetscape bindings (`soft_sample_cells`, `set_next_task_number`, `xml_add_user_blocks`) and the `smash_ready` iSS, not just Python. One image, digest pinned, for all ten campaigns and the Au+Au phases 2–3 | `BUILD_INFO.txt` lists the four commits; `run_prod_jet.py --help` shows `--hadrons-only`; the 4-event identity check of `PLAN_AuAu_hadrons_only.md` (hadrons-only ≡ particlize-only + `hadronize.py --seed-uuid`) passes in the image |
-| **10. Benchmark** | 3090 box, the XML of 7, QCD dijets or Z+jet at the six windows, 24 events/job (one background), 6–7 jobs/GPU, `--hadrons-only` | events/h, VmHWM, droplets per event, edge flags | fixes `JOBS_PER_GPU` / `P` and the time estimate of §6 |
+| **10. Benchmark** | 3090 box, the XML of 7, QCD dijets or Z+jet at the six windows, 24 events/job (one background), 3 and 4 jobs/GPU (GB10: 14–16 GB per job), `--hadrons-only` | events/h, VmHWM, droplets per event, edge flags | confirms or replaces the GB10-based `JOBS_PER_GPU` / `P` (3) and the time estimate of §6 |
 
 Steps 1–3 are X-SCAPE (one PR), 4–6 js-contrib (one PR), 7 configuration, 8 optional for the
 first campaign, 9–10 before campaign 1. Nothing here touches MUSIC, iSS or the hydro writers, so the
@@ -217,8 +221,8 @@ alone. Launchers in `utils/zjet/` (the step-7 XML is `example/config/PbPb_0_30_Z
 
 | file | what |
 |---|---|
-| `zjet_slurm_campaign.sh` | Delta A40: `C=3 sbatch zjet_slurm_campaign.sh` → one campaign on 10 A40s (array 0–9, 10 jobs × 96 events per task, `P=6`, 16 cores, 58 GB); ~2.5 h per task at 400–500 events/h |
-| `zjet_3090_campaign.sh` | the 3090 box: `IMAGE=… ./zjet_3090_campaign.sh 3` → the same campaign via `launch_2gpu.sh`, 6–7 jobs/GPU; ~9 h |
+| `zjet_slurm_campaign.sh` | Delta A40: `C=3 sbatch zjet_slurm_campaign.sh` → one campaign on 10 A40s (array 0–9, 10 jobs × 96 events per task, `P=3`, 16 cores, 58 GB); ~3–4 h per task at ~250–350 events/h (estimate) |
+| `zjet_3090_campaign.sh` | the 3090 box: `IMAGE=… ./zjet_3090_campaign.sh 3` → the same campaign via `launch_2gpu.sh`, 3 jobs/GPU, OMP 6; ~12–16 h (estimate) |
 | `README.md` | the per-campaign checklist (dry run, `check_deposition.py`, upload) |
 
 Both launchers pass the same `run_prod_jet.py` arguments (`$D` = the image's
@@ -244,43 +248,51 @@ afterwards with the same hadronization arguments; the campaign scheme is unchang
 
 ## 6. Time: 2 × RTX 3090 box alone vs Delta A40s
 
-The one unmeasured input is the Pb+Pb 5.02 TeV cost per event; everything below scales with it.
-
-**Cost per event, Pb+Pb 5.02 TeV at p̂T 40–200 vs the measured Au+Au 200 GeV event at 10–40
-(35 core-s, 2.1 GPU-s on a 3090, ~6 GB per job):** hydro ~2× (multiplicity 2×, lifetime +30–40 %,
-larger grid: ≈ 4 GPU-s, 2× freeze-out search, 2× iSS per surface); jets at 60–200 GeV 2–3× the partons,
-droplets and LBT work (deposition 4–5 → ~12 core-s); no pair-file compression (−6 core-s).
-Net **~60–70 core-s, ~4 GPU-s, ~8–9 GB per job**: 1.8–2× the Au+Au event (§3's "2–3×" is the
-conservative end).
+**Measured on the GB10** (2026-10-15, [BENCHMARK_PbPb_vs_AuAu.md](../BENCHMARK_PbPb_vs_AuAu.md)):
+Pb+Pb 5.02 TeV 0–30 % Z+jet against Au+Au 200 GeV 0–10 % jets, the same layout (24 jets per
+background) and hadron settings, 2 jobs at once: **2.1× the time** (37 against 17 core-s per
+event, 323 against 693 events/h), **14–16 GB per job** (Au+Au 6.8–7.1) and 1.7× the disk. The
+memory is mostly MUSIC's larger box: x, y ±20 fm and η_s ±8 have 2.4× Au+Au's cells, and the
+background's evolution is kept in memory on the whole grid; the same Au+Au job in the Pb+Pb box
+needs 10.8 instead of 5.2 GB. The first estimate here (1.8–2× the Au+Au event, ~8–9 GB per job,
+from multiplicity, lifetime and grid) got the time right and half the memory. **Host memory, not
+cores or the GPU, now sets the jobs per GPU:**
 
 | | 2 × RTX 3090 box | Delta A40 |
 |---|---|---|
-| jobs per GPU | 6–7 (20 × 8.5 GB > 125 GB; down from 10) | 6 (58 GB share / 8.5 GB) |
-| limit | host: 24 cores / 65 core-s ≈ 1,300/h (GPU limit ≈ 1,600/h) | memory → jobs: 6 × 3600 / ~50 s ≈ 430/h (cores would allow ~900/h) |
-| events/h | **~1,000–1,300** (~700 in the 3× case) | **~400–500 per A40** |
-| 100k events | **~80–100 h ≈ 3.5–4.5 days** (6 days at 3×) | 200–250 A40-hours |
-| wall on 8 A40 (2 nodes) | – | ~25–30 h |
-| wall on 32 A40 (8 nodes) | – | ~6–8 h (+ queue) |
-| wall on 100 A40 (25 nodes) | – | ~2–3 h (+ queue) |
-| cost | none; no queue | ~13–17k credits at the A100 rate (less with the A40 discount) |
+| jobs per GPU | 3 (6 × ~16 GB ≈ 96 GB of 125; 4 if the box's peaks are lower) | 3 (58 GB share / ~16 GB) |
+| limit | host memory | host memory (the cores would allow more) |
+| events/h | **~600–850** (estimate) | **~250–350 per A40** (estimate) |
+| 96k events (10 campaigns) | **~115–160 h ≈ 5–7 days** | ~300–400 A40-hours |
+| wall on 8 A40 (2 nodes) | – | ~35–50 h |
+| wall on 32 A40 (8 nodes) | – | ~9–12 h (+ queue) |
+| wall on 100 A40 (25 nodes) | – | ~3–4 h (+ queue) |
+| cost | none; no queue | ~20–27k credits at the A100 rate (less with the A40 discount) |
 | disk | 0.7 TB, fits `/data` (1.6 TB free) | 0.7 TB, no upload issue |
 | pp reference (10k, no hydro) | < 1 h | – |
 | stage 2 | none (hadrons-only) | none |
 
-**The 3090 box alone does the whole production in 4–6 days of continuous running**, against a day on
-2 Delta nodes or a few hours on 8+. For a 100k-event study the box is the simpler choice; Delta wins
-only if the result is wanted within a day or the box is busy with phases 1–2 of `PLAN_CAMPAIGN_1M.md`.
+The rates assume ~25–35 s per event and job at 3 jobs per 3090 (the GB10's 19–22 s with 2 jobs,
+plus the sharing) and ~30–45 s on an A40. **To be confirmed on the RTX box** (§5a step 10, the
+launchers' defaults follow these numbers): VmHWM per job at 3 and 4 jobs per GPU (on discrete GPUs
+the hydro's arrays are device memory, so the host peak may be lower than the GB10's; Au+Au peaks
+the same on both), events/h by makespan; then `JOBS_PER_GPU`, `P` and this table.
 
-**The benchmark that fixes these numbers needs no Z code:** the existing Pb+Pb 5.02 TeV inputs
-(`README_2stage` §9) with QCD dijets at `--pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200
---jets-per-bin 4` (or the Z+jet XML itself once the image has it), 24 events per job, 6 jobs per GPU, `--hadrons-only` (or `--particlize-only` on the current image):
-events/h by makespan, VmHWM per job, droplets per event. The cost is the same with a Z in the record.
+**The 3090 box alone does the whole production in about a week of continuous running**, against
+~2 days on 2 Delta nodes or half a day on 8+. For a 96k-event study the box is still the simpler
+choice; Delta wins if the result is wanted within days or the box is busy with phases 1–2 of
+`PLAN_CAMPAIGN_1M.md`.
+
+**Memory is the lever:** keeping the background's evolution only where the jets go (|η_s| ≲ 4 for
+partons with |y| < 1.9) or only above freeze-out could bring a job back toward Au+Au's and double
+the jobs per GPU (BENCHMARK_PbPb_vs_AuAu.md, not tried).
 
 ## 7. Summary
 
 100k Pb+Pb 5.02 TeV Z+jet events (4 p̂T windows × 25k, 5,000 backgrounds), hadrons-only at 40 samples
-(4 M full events, ~0.7 TB), ~200–250 A40-hours or 4–6 days on the 3090 box alone (§6); 10k pp-reference events. Gives ≥ 10× CMS's statistical
+(4 M full events, ~0.7 TB), ~300–400 A40-hours or 5–7 days on the 3090 box alone (§6, estimates from the GB10
+measurement, to be confirmed on the box); 10k pp-reference events. Gives ≥ 10× CMS's statistical
 precision in every p_T^Z bin above 60 GeV for x_jZ, ⟨x_jZ⟩, R_jZ, and ≥ 10× for the Z–hadron Δφ/Δy/I_AA
 with the experiments' mixed-event subtraction, with the paired truth on the same events. The production
-side needs the Z record and the Pb+Pb benchmark first; the analysis side needs the mixed-event and
+side has the Z record and needs the RTX-box benchmark; the analysis side needs the mixed-event and
 R = 0.3 subtraction scripts.

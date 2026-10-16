@@ -51,8 +51,16 @@ Pythia 8.312 with PythiaGun's settings, no medium, 20,000 events per window, 202
 
 | file | use |
 |---|---|
-| `zjet_slurm_campaign.sh` | Delta: `C=<n> sbatch zjet_slurm_campaign.sh` (10 A40s, ~2.5 h) |
-| `zjet_3090_campaign.sh` | 3090 box: `IMAGE=… ./zjet_3090_campaign.sh <n>` (~9 h) |
+| `zjet_slurm_campaign.sh` | Delta: `C=<n> sbatch zjet_slurm_campaign.sh` (10 A40s, `P=3`, ~3–4 h, estimate) |
+| `zjet_3090_campaign.sh` | 3090 box: `IMAGE=… ./zjet_3090_campaign.sh <n>` (3 jobs per GPU, ~12–16 h, estimate) |
+
+**Cost (GB10, 2026-10-15; [docs/BENCHMARK_PbPb_vs_AuAu.md](../../docs/BENCHMARK_PbPb_vs_AuAu.md)):**
+a Pb+Pb Z+jet job takes 2.1× the time of an Au+Au jet job (323 against 693 events/h, 2 jobs
+at once), peaks at **14–16 GB** (2.1×) and writes 1.7× the disk. The memory is mostly MUSIC's
+larger box (x, y ±20 fm, η_s ±8: 2.4× the cells): the background's evolution is kept in
+memory on the whole grid. The launchers' defaults (3 jobs per 3090, `P=3` per A40) and the
+times above follow from these GB10 numbers and are **to be confirmed on the RTX box**
+(step 4 below).
 
 The inputs are the image's own `contribs/PyJetscape/example/config/` files, so they always match
 its code: `PbPb_0_30_ZJet.xml` (0–30 %, the centrality class of the CMS measurements; the Z+jet
@@ -77,10 +85,13 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
    `eCMforHadronization 5020`, and the job XML it writes (`<stem>.xml`) `<b_max>8.57`.
 3. LBT cache: one 1-event job writes `lbt_tables_v1_amd64.bin` (Delta `/work/hdd`) /
    `lbt_tables_v1.bin` (box).
-4. Benchmark (plan 5a step 10): 24 events/job (one background: 6 windows × 4 jets) at several jobs per GPU; set `P` / `JOBS_PER_GPU`
-   from the memory peak (`sacct -o MaxRSS` / `mem.log`), note events/h. On the GB10 a 4-event
-   Pb+Pb Z+jet `--particlize-only` job peaked at 13.5 GB, not the plan's 8–9 GB: expect fewer
-   jobs per GPU than the scripts' defaults (6).
+4. Benchmark (plan 5a step 10), first on the RTX box: 24 events/job (one background: 6
+   windows × 4 jets) at 3 and 4 jobs per GPU; set `JOBS_PER_GPU` / `P` from the memory peak
+   (`mem.log` / `sacct -o MaxRSS`, with ~10 % headroom for jobs peaking together), note
+   events/h, and replace the estimates here and in the scripts. The defaults (3) are from the
+   GB10's 14–16 GB per job; on discrete GPUs the hydro's arrays are in device memory, so the
+   host peak may be lower (Au+Au peaks the same on both, 6.4–7.6 GB). VRAM: ~0.8 GB per Au+Au
+   job on a 3090 (6.5 GB at 8 per GPU), so ~2 GB per Pb+Pb job: no limit at 3–4 per GPU.
 5. Smoke test = one CMS-equivalent: `C=0 NJOBS=1 sbatch …` (Delta) or
    `./zjet_3090_campaign.sh 0 10` (box), ~1,000 events. Check: two leptons per event in
    `initiators/` and in every `jet_frag` sample, `units/z_pt` ≥ ~the window's lower edge for most
@@ -117,6 +128,9 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
   (Δη, Δφ) maps, Δφ and Z-side Δη distributions per track p_T class, Pb+Pb − pp with the vacuum
   reference, the p_T^Z dependence, one event's hydro wake. Events are weighted by window
   cross section × N_coll; the Z's leptons are removed from the tracks.
+- `contribs/PyJetscape/example/analysis/zjet_test/`: a small test set to run the notebook and
+  the movies on (96 Pb+Pb events, the pp reference, one movie event) and the commands that
+  make it (`make_data.sh`); data and figures are git-ignored.
 - Movies of single events need a pair file, so a few events run without `--hadrons-only`
   (`--write-particlize both`): `contribs/Visualization/wake_pyvista.py` and
   `hydro_jet_particles_pyvista.py` draw the Z's leptons as straight tracks and an arrow along
