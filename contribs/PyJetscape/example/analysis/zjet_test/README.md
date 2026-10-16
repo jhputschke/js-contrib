@@ -16,7 +16,9 @@ data.
 | `accumulate.py` | hadron files → `data/hists.npz` (~15 s) |
 | `centrality_check.py` | minimum-bias 3dMCGlauber with the XML's settings: the model's σ_inel and how well the b cut matches activity classes (→ `data/glauber_mb/summary.txt`, ~8 min) |
 | `compare.py` | `data/hists.npz` + HEPData → `figures/` |
+| `mix.py` | event mixing (`../zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `data/pbpb` and `data/vacuum` (cached in `data/mix/`) → `figures/mixing_dphi.png`, `mixing_dy.png`, `mixing_errors_d{phi,y}.png`, `mixing_summary.txt` (~10 s on the test) |
 | `figures/zjet_vs_cms2507_dphi.png`, `…_dy.png`, `summary.txt`, `RESULTS.md` | the result |
+| `figures/MIXING.md` (`.html`) | the event-mixing document: modes and settings, the small-sample checks and comparisons, the plan for the campaigns (git-ignored with the figures) |
 | `data/pbpb/` | 2 jobs × 48 Pb+Pb 0–30 % Z+jet events, hadrons only (833 MB) |
 | `data/vacuum/` | 6,000 pp (vacuum) Z+jet events (63 MB) |
 | `data/hepdata/` | CMS's HEPData record (YAML, 31 tables) |
@@ -123,6 +125,64 @@ B mixed events (the Z of one event with the tracks of another Z event), merged o
   sharing one are correlated; the jackknife is 0.8–2.3 × the per-event error); pp per-event
   statistics. χ² over the independent (unreflected) bins with CMS stat ⊕ syst, bin-to-bin
   correlations ignored.
+
+## Event mixing (`mix.py`)
+
+`mix.py` (with `../zjet_mixing.py`, 2026-10-16; all details, the numbers and the plan for the
+campaigns in the git-ignored `figures/MIXING.md`) forms S − B the experiment's way, from the full
+events (`bulk_jet` + fragments, the bulk included), next to the factorized result above. One
+mixed pair is exactly the factorized pair plus the bulk term (bulk_bg_i − bulk_bg_j) seen from
+Z_i, which averages to zero here (the bulk does not know the Z: `Subtract_hard_momentum` 0) and
+carries the bulk's fluctuations. The map step writes one pool per production file
+(`data/mix/<sample>/<stem>.npz`, compressed, cached and rebuilt when the files change; per event its S in
+its Z frame for the 40-sample mean and for one oversample, and that oversample's tracks; per
+background the summed lab-frame densities), ~2 s per test file; the modes take seconds.
+
+| mode | S | B | error |
+|---|---|---|---|
+| factorized | Z-correlated yield (paired wake + fragments) | compare.py's: Δφ S's own average, Δy the folded η density over the pairs i ≠ j | jackknife over blocks of backgrounds |
+| all | full event, 40-sample mean | every selected event, pairs weighted w_i w_j: the pooled density shifted into each Z's frame, no noise of its own | jackknife |
+| cms10 | full event, 40-sample mean | CMS's procedure: 10 partners from 10 other backgrounds, drawn ~ w, one oversample each (one recorded collision) | jackknife |
+| strict | one Z per background (drawn ~ w inside it, weighted by the background's total W_b): every Z its own fluid, as in data; one oversample | 10 partners from 10 other backgrounds of that set, one oversample each | the spread over the Z's (the experiment's statistical error) |
+
+The checks, first in `figures/mixing_summary.txt`:
+
+1. **factorized = compare.py** to 10⁻¹⁵ (Pb+Pb) and 2 × 10⁻¹⁴ (pp) relative: the pools, the
+   shifts and the weights.
+2. **The own-background rule with the bulk off** agrees with (1) within its errors.
+3. **Closure**: the bulk term (all − all with the bulk off) against 0. On the test only a rough
+   check: with a 4-block jackknife the χ² per bin has mean ≈ 3 (F(1, 3)) instead of 1.
+4. **The exclusion bias**: leaving a Z's own background out of its partners shifts S − B by a
+   flat level Σ W_b² (N_b − ⟨N⟩) / (W² − Σ W_b²) (`zjet_mixing.exclusion_bias`), because the
+   backgrounds' weights (N_coll) grow with their multiplicity. Measured = predicted to all
+   digits; of order 1/(number of backgrounds): 3 per radian at 1–2 GeV with the test's 4, ~10⁻³
+   of the errors with a campaign's 4,000 (estimated). Data have no weights, so no such term. So
+   `all` keeps every partner (S − B then integrates to zero exactly); `cms10` and `strict`
+   exclude the own background as CMS does and print the bias.
+5. **The strict spread error** against the scatter of 10 disjoint subsamples (partners inside
+   each): pp pull widths 0.84–1.09 over 6 seeds and 10 or 20 subsamples: right to ~15 %. Pb+Pb
+   needs ≥ 220 backgrounds, i.e. a campaign.
+6. **The noise budget per Z**, from all Z's (`zjet_mixing.per_z_noise`, `strict_noise`): the
+   spreads of the pooled mode, of the same with B scaled to each event's own multiplicity (no
+   flat level), and of one oversample's Poisson noise; from them the strict error predicted at
+   CMS's Z count with and without each event's flat multiplicity level and Poisson only
+   (`--efficiency` scales the Poisson part as efficiency-corrected tracks do), against CMS's
+   statistical errors (drawn in `figures/mixing_errors_d*.png`). On the test the level is ~90 %
+   of the per-Z variance at 1–4 GeV; which variant matches CMS's errors needs a campaign.
+
+**The strict emulation against CMS's errors**: its error × √(N_eff / N_CMS) (`--n-cms`, default
+1,550, the plan's estimate for 0–30 %) against CMS's statistical errors (HEPData), bin by bin
+(`figures/mixing_errors_d*.png`, the ratio in the summary). On the test the strict set is 4 Z's
+with 3 partners each: the comparison is meaningless here and is meant for the campaigns (400 Z's
+per campaign, 4,000 for all ten). Caveats: CMS's tracks are efficiency-corrected (their Poisson
+part is larger than at perfect efficiency), and N_CMS is an estimate.
+
+On a campaign (the vacuum reference with the campaign's windows and storage):
+
+```bash
+python mix.py --pbpb <campaign dir> --vacuum data/vacuum_all --pools <pool dir> \
+  --hists '' --jobs 8 --tag _c01
+```
 
 ## Result
 
