@@ -144,6 +144,9 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
 
 ## In the files
 
+**What the hadrons are** (η and Σ⁰ stable in the bulk, no weak decays anywhere, against what a
+detector sees): the "Read first" note at the top of PLAN_ZJET_CMS10x.md.
+
 - The Z per event: `units/` of `bulk_jet` and `jet_frag` (`z_pt, z_y, z_phi, z_m,
   lep{1,2}_{pid,pt,eta,phi}`, `jetscape.hadrons_h5.Z_COLUMNS`); `HadronFileReader`'s
   `EventInfo.z`. File attributes `trigger = "Z"`, `lepton_ptmin`, `lepton_etamax`,

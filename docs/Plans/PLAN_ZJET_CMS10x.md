@@ -9,6 +9,35 @@ and 3.5× 2103.04377's precision by Z count (more with the 40 samples per event,
 paired truth), and 9.9× for CMS Z+jet's p_T^Z > 60 (9–12× per bin above 60, 5–7× in 40–60).
 Companion of `PLAN_CAMPAIGN_1M.md` (same settings, same tools).
 
+> **Read first: what the stored hadrons are, against what a detector sees.** Every hadron-level
+> output (Z+jet and Au+Au alike) is "final state" by two different decay settings, and neither is
+> a detector's view. Any comparison with data has to define its particle set and treat both legs
+> the same way.
+>
+> - **Bulk (iSS, `config/hadronize.xml`):** strong and electromagnetic resonance decays of the
+>   SMASH list, **but η and Σ⁰ stay stable** (the SMASH convention, meant for an afterburner that
+>   the hadrons-only campaigns do not run). The charged pions of η → π⁺π⁻π⁰ (23 %) and
+>   π⁺π⁻γ (4 %) are missing from the bulk (~1–3 % of its charged pions, estimated from η/π⁰ ≈ 0.1,
+>   mostly at low p_T), while the jet fragments
+>   decay their η: the two legs differ. To be fixed (iSS / `hadronize.xml`, an image change) or
+>   decayed offline before any analysis.
+> - **Jet fragments (Colorless, Pythia decays with τ₀ < 10 mm/c):** everything shorter-lived
+>   decays (η, Σ⁰, charm and beauty, so ~1 % of the jet's tracks are e/μ from heavy flavour and
+>   Dalitz decays; data have them too).
+> - **Weak decays happen in neither:** K⁰_S, Λ, Σ±, Ξ, Ω (and π±, K±) are stored undecayed. That
+>   is the primary-charged-particle definition (cτ > 1 cm stable) to which CMS corrects its
+>   tracks, but not what the tracker records: Σ±, Ξ⁻, Ω⁻ (cτ 2.4–4.9 cm, **~10 % of the bulk's
+>   charged particles above 1 GeV** here) mostly decay inside it and are rarely reconstructed,
+>   and the charged daughters of K⁰_S → π⁺π⁻, Λ → pπ⁻ and of the hyperons appear as displaced
+>   secondaries that the analyses reject by DCA cuts and correct for. The stored files keep only
+>   charged particles (`--charged`), so the neutral K⁰_S and Λ and their daughters are absent.
+>   A detector-level comparison (raw tracks, efficiency or feed-down studies) needs the weak
+>   decays applied offline with a vertex/DCA model; a primary-particle comparison should state
+>   that the charged hyperons are included.
+> - **Leptons:** the Z's two leptons are in `jet_frag` (and pass `--charged`); every track
+>   analysis removes them (`zjet_wake.not_z_lepton`). Decays in flight (π, K → μ ν) are not
+>   modelled.
+
 ## Status (2026-10-16)
 
 Production code (§5a steps 1–7) on the `zjet` branches of X-SCAPE (off `contrib`) and js-contrib
