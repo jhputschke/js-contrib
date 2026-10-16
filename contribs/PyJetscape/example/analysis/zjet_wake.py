@@ -209,6 +209,27 @@ def project(h, err, axis, bins_kept=None):
     return h.sum(axis), np.sqrt((err ** 2).sum(axis))
 
 
+def cms_dphi(h, err, dphi_bins):
+    """A Delta phi yield (counts per Z per bin, last axis over ``dphi_bins`` from -pi/2)
+    in CMS's convention (2507.09307): +/-Delta phi merged and halved (the mean of the bins
+    at Delta phi and -Delta phi), per radian, minus its Delta phi average (what the
+    mixed-event subtraction removes over all Delta y). -> (value, error); the average's
+    error is left out."""
+    edges = np.asarray(dphi_bins, float)
+    c = 0.5 * (edges[1:] + edges[:-1])
+    neg = (-c + np.pi / 2) % (2 * np.pi) - np.pi / 2
+    mirror = np.array([int(np.argmin(np.abs(x - c))) for x in neg])
+    if not np.allclose(c[mirror], neg, atol=1e-9):
+        raise ValueError("dphi_bins must be symmetric under dphi -> -dphi (an even number "
+                         "of equal bins from -pi/2)")
+    width = np.diff(edges)
+    h, err = np.asarray(h, float), np.asarray(err, float)
+    hs = 0.5 * (h + h[..., mirror]) / width
+    self_ = mirror == np.arange(len(c))
+    es = np.where(self_, err, 0.5 * np.hypot(err, err[..., mirror])) / width
+    return hs - np.average(hs, axis=-1, weights=width)[..., None], es
+
+
 # ── hydro: one event's energy-density wake in the transverse plane ────────────────
 def pair_grid(f):
     """(x, y, eta_s, tau) axes of a pair file (``PairH5Writer``: x, y, eta_s from their
