@@ -32,7 +32,7 @@ if [ -z "${LAUNCH:-}" ]; then
   [ -x "$HERE/../launch_2gpu.sh" ] && LAUNCH=$HERE/../launch_2gpu.sh
 fi
 ARGS=(--user-xml "$D/PbPb_0_30_ZJet.xml" --grid "$D/grid_PbPb.yaml"
-      --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4 --parton-ymax 1.9
+      --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 --jets-per-bin 4
       --lepton-ptmin 20 --lepton-etamax 2.5
       --hadrons-only --oversample 40 --n-frag 40 --correlated
       --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8
@@ -123,10 +123,11 @@ for b in sorted(glob.glob(os.path.join(out, "bench_j*"))):
     print(f"   disk: {mb:.0f} MB of hadron files, {mb / max(ev, 1):.2f} MB per event")
     print(f"   droplets per job {[j[5] for j in jobs]}, edge hits {[j[4] for j in jobs]}, "
           f"acceptance (job 1) {jobs[0][3] if jobs else None}")
-# seed 101's first events against the GB10 (zjet_test, 2026-10-15): Pythia and 3dMCGlauber
-# draws are CPU-side, so they should be the same on both machines
-ref = [(0, 29.618, +0.3052), (1, 36.936, -1.0004), (2, 62.470, -1.6314), (3, 95.602, +1.3301),
-       (4, 111.481, -0.4506), (5, 128.379, +0.5013)]
+# seed 101's first events against the GB10 (the campaign arguments of 2026-10-16: windows
+# 20-30 ... 70-200, no parton cut): Pythia and 3dMCGlauber draws are CPU-side, so they should
+# be the same on both machines
+ref = [(0, 29.618, +0.3052), (1, 31.995, -0.9308), (2, 43.674, -1.2796), (3, 57.921, +1.4830),
+       (4, 58.526, +1.6469), (5, 98.625, +0.0177)]
 f = [js[:-5] + "_hadrons_jet_frag.h5" for js in sorted(glob.glob(os.path.join(out, "bench_j*", "gpu*", "*.json")))
      if json.load(open(js)).get("seed") == 101]
 f = [x for x in f if os.path.exists(x)]

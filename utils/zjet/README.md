@@ -1,12 +1,14 @@
 # Z+jet campaigns (docs/Plans/PLAN_ZJET_CMS10x.md, sections 5a–5b)
 
 Ten campaigns `zjet_c00` … `zjet_c09`, 9,600 Pb+Pb 5.02 TeV 0–30 % Z+jet events each: 6 p̂T
-windows (20–30, 30–40, 40–60, 60–80, 80–120, 120–200 GeV) × 4 jets per window per background = 24
+windows (20–30, 30–35, 35–45, 45–55, 55–70, 70–200 GeV) × 4 jets per window per background = 24
 events per background, 96 events per job (4 backgrounds), 100 jobs; 96k events, 16k per window.
+**Set up for the Z–hadron measurements** (2026-10-16): no cut on the recoiling parton, and the
+windows chosen for the most effective Z's above 30–40 GeV.
 Seeds: campaign C uses 1 + 1000 C … 1000 C + 100, so campaigns from Delta and from the 3090 box
 combine and never overlap.
 
-The selection (decided 2026-10-15, docs/Plans/PLAN_ZJET_CMS10x.md):
+The selection (decided 2026-10-15, windows and parton cut changed 2026-10-16; docs/Plans/PLAN_ZJET_CMS10x.md):
 
 - **0–30 %**, the class of all three CMS measurements (`b_max` 8.57 fm); every event is weighted
   by its `n_coll` (below). Centrality is selected on b only: X-SCAPE ignores `cenMin`/`cenMax`
@@ -21,40 +23,44 @@ The selection (decided 2026-10-15, docs/Plans/PLAN_ZJET_CMS10x.md):
   before any hydro.
 - **No Z rapidity cut** in the generator (2507.09307's |y_Z| < 2.4 is applied offline); no
   p_T^Z cut either: every paper's p_T^Z and mass window is applied offline from `units/z_*`.
-- **p̂T from 20 GeV**: the windows hold 99.1 % of the p_T^Z > 40 and 97 % of the p_T^Z > 30 cross
-  section (table below); ATLAS's 15–30 GeV p_T^Z bin is out of reach (Z + parton matrix element).
+- **No cut on the recoiling parton** (`--parton-ymax` is not passed; first 1.9, for CMS Z+jet's
+  jets in |η| < 1.6). The Z–hadron measurements have no jet requirement: the cut removed 18–19 %
+  of CMS 2507.09307's Z's (those with the leading parton at |y| > 1.9, whose jet and wake go to
+  large |Δy|), and without it the pp reference matches CMS better (Δφ χ² 35 → 20, Δy 17 → 12 over
+  the three p_T classes, 30 independent bins each; the jet-side peak at 2–10 GeV was too high with
+  it). Jet observables select |η_jet| < 1.6 offline.
+- **p̂T from 20 GeV, windows 20–30, 30–35, 35–45, 45–55, 55–70, 70–200** (equal events per
+  window): of the 6-window layouts from 20 to 200 GeV, the one with the most effective Z's for
+  2507.09307 (41.6k in 96k events against 32.3k with the first windows 20–30 … 120–200, both
+  without the cut), +25 % for 2103.04377. p̂T > 200 (~0.8 % of p_T^Z > 40) and 10–20 (0.1 %) are
+  not produced; ATLAS's 15–30 GeV p_T^Z bin is out of reach (Z + parton matrix element).
 
 ### Where the p_T^Z > 40 sample comes from
 
 p̂T is the hard scattering's, not the Z's: with ISR, a Z of given p_T comes from a spread of p̂T.
-With this selection (both leptons p_T > 20 GeV, |η| < 2.5; hardest parton |y| < 1.9; standalone
-Pythia 8.312 with PythiaGun's settings, no medium, 20,000 events per window, 2026-10-15):
+With this selection (both leptons p_T > 20 GeV, |η| < 2.5, no parton cut; the vacuum reference
+`run_prod_vacuum.py` with the campaign's PythiaGun, 1,000 events per window, 2026-10-16):
 
-| p̂T window [GeV] | σ × acceptance, p_T^Z > 40 | share of p_T^Z > 40 | the window's accepted events with p_T^Z > 40 |
-|---|---|---|---|
-| 10–20 (not produced) | 0.02 pb | 0.1 % | 0.0 % |
-| **20–30** | 1.46 pb | **3.9 %** | 4.2 % |
-| **30–40** | 5.48 pb | **14.6 %** | 29 % |
-| 40–60 | 15.8 pb | 42.0 % | 85 % |
-| 60–80 | 7.56 pb | 20.1 % | 99 % |
-| 80–120 | 5.10 pb | 13.6 % | 99.8 % |
-| 120–200 | 1.88 pb | 5.0 % | 100 % |
-| 200–400 (not produced) | 0.31 pb | 0.8 % | 100 % |
-| **total** | **37.6 pb** | | |
+| p̂T window [GeV] | σ × generator acceptance | acceptance | p_T^Z > 40: σ × acc. | share of p_T^Z > 40 | the window's events with p_T^Z > 40 | share of p_T^Z > 30 | share of p_T^Z > 60 |
+|---|---|---|---|---|---|---|---|
+| 20–30 | 46.6 pb | 0.53 | 2.38 pb | 5.1 % | 5 % | 17.7 % | 0.0 % |
+| 30–35 | 14.6 pb | 0.57 | 2.87 pb | 6.2 % | 20 % | 15.0 % | 0.6 % |
+| 35–45 | 18.6 pb | 0.57 | 10.0 pb | 21.6 % | 54 % | 23.1 % | 4.3 % |
+| 45–55 | 11.4 pb | 0.60 | 10.3 pb | 22.3 % | 91 % | 15.3 % | 9.4 % |
+| 55–70 | 9.82 pb | 0.62 | 9.64 pb | 20.7 % | 98 % | 13.4 % | 31.3 % |
+| 70–200 | 11.3 pb | 0.61 | 11.2 pb | 24.1 % | 100 % | 15.4 % | 54.4 % |
+| **total** | **112.3 pb** | | **46.5 pb** | | | | |
 
-- **The windows 20–30 and 30–40 supply 18.5 % of the p_T^Z > 40 cross section**, at p_T^Z just
-  above 40 where the steep spectrum has most Zs; windows from 40 GeV held only 81 %. The six
-  windows cover 99.1 %; missing are p̂T > 200 (0.8 %; 1.8 % of p_T^Z > 60) and 10–20 (0.1 %).
-- **Few of the low windows' events pass p_T^Z > 40** (4 % of 20–30, 29 % of 30–40): with 16k
-  events per window the p_T^Z > 40 sample has ~67k events, and since those from low windows carry
-  large weights (the window's σ / N), its effective size for a cross-section-weighted p_T^Z > 40
-  quantity is ~42k, ~36k with the N_coll weights (Kish factor 0.85). With CMS 2507.09307's cuts
-  (|y_Z| < 2.4, leptons |η| < 2.4, 60–120 GeV) 64k selected, 34k effective: 4.7× CMS's precision
-  by Z count; CMS Z+jet's p_T^Z > 60 25k effective, 10× (per-bin table: PLAN_ZJET_CMS10x.md §2).
-- **p_T^Z > 30** (CMS 2103.04377): shares 2.4 / 16.0 / 25.6 / 30.7 / 12.9 / 8.7 / 3.2 / 0.5 % for
-  the windows 10–20 … 200–400; the six windows cover 97 %, and the 20–30 window serves mainly this
-  sample.
-- **p_T^Z > 60**: 0.0 / 0.1 / 1.4 / 19.0 / 37.5 / 29.4 / 10.9 / 1.8 %.
+- **The p_T^Z > 40 cross section is spread evenly over the windows** (5–24 %), so with equal
+  events per window the weights (the window's σ / N) are similar and little is lost to them: 96k
+  events give 56k Z's that pass CMS 2507.09307's cuts (|y_Z| < 2.4, leptons |η| < 2.4,
+  60–120 GeV), 49k effective, **42k with the N_coll weights** (Kish factor 0.85): **5.2× CMS's
+  precision by Z count**; 2103.04377 (p_T^Z > 30) 48k effective, 3.5× (per-paper table:
+  PLAN_ZJET_CMS10x.md §2).
+- **Few of the 20–30 window's events pass p_T^Z > 40** (5 %), but it supplies 18 % of the
+  p_T^Z > 30 sample (2103.04377, ATLAS).
+- **p_T^Z > 60** comes mostly from 55–70 and 70–200 (86 %): CMS Z+jet's p_T^Z > 60 has 23k
+  effective Z's, 9.9×.
 
 | file | use |
 |---|---|
@@ -104,7 +110,7 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
    (`zjet_3090_test.sh info` does both, the dry run of step 2 and the `TAG_PREFIX` checks).
 2. `--dry-run` inside the image (no GPU work):
    `python run_prod_jet.py --events 96 --seed 1 --user-xml $D/PbPb_0_30_ZJet.xml
-   --grid $D/grid_PbPb.yaml --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4
+   --grid $D/grid_PbPb.yaml --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 --jets-per-bin 4
    --lepton-ptmin 20 --lepton-etamax 2.5 --hadrons-only --dry-run` with
    `D=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config`: the plan
    must say `trigger Z (lepton pT > 20 GeV, lepton |eta| < 2.5)`, `EOS 91` and
@@ -119,13 +125,13 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
    GB10's 14–16 GB per job; on discrete GPUs the hydro's arrays are in device memory, so the
    host peak may be lower (Au+Au peaks the same on both, 6.4–7.6 GB). VRAM: ~1 GB per Au+Au
    job on a 3090 (9.6 GB at 10 per GPU), so ~2.4 GB per Pb+Pb job: no limit at 3–4 per GPU.
-5. Smoke test, about one CMS Z+jet equivalent at p_T^Z > 60 (a fifth of 2507.09307's Z's):
+5. Smoke test, about one CMS Z+jet equivalent at p_T^Z > 60 (a quarter of 2507.09307's Z's):
    `C=0 NJOBS=1 sbatch zjet_slurm_campaign.sh` (Delta) or
    `./zjet_3090_campaign.sh 0 10` (box; `zjet_3090_test.sh smoke`), ~1,000 events, files
    `PbPb_0_30_zjet_c00_….*`. Check: two leptons per event in
    `initiators/` and in every `jet_frag` sample, `units/z_pt` ≥ ~the window's lower edge for most
-   events, `units/n_coll` filled, `pthat_bin_acceptance` in the `.json`s (~0.4–0.65 with
-   `--parton-ymax 1.9`, lowest in the 20–30 window), `droplets_total/events_written`, no edge
+   events, `units/n_coll` filled, `pthat_bin_acceptance` in the `.json`s (~0.53–0.62
+   without the parton cut, lowest in the 20–30 window), `droplets_total/events_written`, no edge
    flags, R_jZ of a few hundred events sane.
 
 ## Per campaign
@@ -179,8 +185,8 @@ liquefier, Colorless with eCMforHadronization = the PythiaGun's eCM; ~0.02 s per
 `D=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config` inside the image:
 
     python run_prod_vacuum.py --events 12000 --seed 900001 --campaign zjet_pp \
-      --user-xml $D/PbPb_0_30_ZJet.xml --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 \
-      --parton-ymax 1.9 --lepton-ptmin 20 --lepton-etamax 2.5 \
+      --user-xml $D/PbPb_0_30_ZJet.xml --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 \
+      --lepton-ptmin 20 --lepton-etamax 2.5 \
       --n-frag 40 --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --outdir /data/zjet_pp
 
 One `<stem>_hadrons_jet_frag.h5` (attribute `vacuum`), read like the Pb+Pb jet files

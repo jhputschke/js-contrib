@@ -11,7 +11,7 @@
      0-30 %): weight each event by its n_coll (run_prod_jet.py records it per event) to
      compare with data, or select a narrower class by n_coll.
      Use: run_prod_jet.py ... user-xml ../config/PbPb_0_30_ZJet.xml grid
-     ../config/grid_PbPb.yaml pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200
+     ../config/grid_PbPb.yaml pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200
      lepton-ptmin 20 lepton-etamax 2.5 (utils/zjet/)
      (hadronization: ../config/hadronize.xml, eCMforHadronization from <eCM> below) -->
 

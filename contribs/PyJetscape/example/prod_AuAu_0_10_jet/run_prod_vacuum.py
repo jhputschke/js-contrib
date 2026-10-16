@@ -23,7 +23,7 @@ One call = one job = one seed:
 
     conda activate js_fno
     python run_prod_vacuum.py --events 1000 --seed 1 --user-xml ../config/PbPb_0_30_ZJet.xml \\
-        --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --parton-ymax 1.9 \\
+        --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 \\
         --lepton-ptmin 20 --lepton-etamax 2.5 --n-frag 10
                                      # the pp reference of the Pb+Pb Z+jet production
     python run_prod_vacuum.py --events 100 --seed 1 --pthat-bins 10-20,20-30,30-40

@@ -56,6 +56,8 @@ ZJET_HADRONS=$D/pbpb ZJET_VACUUM=$D/vacuum ZJET_PAIR=$D/movie/AuAu_0_10_jet_seed
 - **Pb+Pb** (seeds 101, 102): `PbPb_0_30_ZJet.xml` (b < 8.57 fm, Z + parton, Z → ee/μμ,
   EOS 91), both leptons p_T > 20 GeV, |η| < 2.5, hardest parton |y| < 1.9. Per job 2 hydro
   backgrounds × 6 p̂T windows (20–30 … 120–200 GeV) × 4 jets; 4 backgrounds in all,
+  (the campaigns' settings until 2026-10-16; since then no parton cut and the windows 20–30,
+  30–35, 35–45, 45–55, 55–70, 70–200, `utils/zjet/README.md`; this test is not remade)
   N_coll 443, 487, 772, 835. 40 iSS samples of the jet and the background legs, sampled
   correlated, 10 fragmentations; charged hadrons, |η| < 4. `bulk_jet` holds one full
   Pb+Pb event (bulk + wake, ~5,550 hadrons per sample) per Z event, `bulk_bg` one per
@@ -105,6 +107,13 @@ In `figures/RESULTS.md` (the figures, a table and the findings), with all number
 `figures/summary.txt`; both are git-ignored with the figures until the result is public.
 
 ## Caveats
+
+- **The parton cut |y| < 1.9 of this test** removes 18–19 % of CMS 2507.09307's Z's (those with
+  the recoil at |y| > 1.9; vacuum references, 2026-10-16). Without it the pp reference matches CMS
+  better: Δφ χ² 35 → 20 and Δy 17 → 12 over the three p_T classes (30 independent bins each),
+  most at 4–10 GeV (Δφ 20.6/10 → 7.1/10). So the too-high pp jet-side peak of this test comes
+  mostly from the cut; whether it also narrows the Pb+Pb Δy dip is not checked (the campaigns run
+  without it).
 
 - 4 hydro events: the geometry and its fluctuations are poorly sampled, and a 4-group
   jackknife is itself a rough error estimate.

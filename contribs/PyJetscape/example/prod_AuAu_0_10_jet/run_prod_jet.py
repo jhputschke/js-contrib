@@ -21,8 +21,8 @@ grid YAMLs, grid checks and environment checks this reuses.
     python run_prod_jet.py --events 30 --seed 1 --pthat-bins 10-20,20-30,30-40 --parton-ymax 0.6
                                      # only events whose hardest parton has |y| < 0.6
     python run_prod_jet.py --events 24 --seed 1 --user-xml ../config/PbPb_0_30_ZJet.xml \
-        --grid ../config/grid_PbPb.yaml --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 \
-        --jets-per-bin 4 --parton-ymax 1.9 --lepton-ptmin 20 --lepton-etamax 2.5 --hadrons-only
+        --grid ../config/grid_PbPb.yaml --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 \
+        --jets-per-bin 4 --lepton-ptmin 20 --lepton-etamax 2.5 --hadrons-only
                                      # Pb+Pb Z+jet (the XML's PythiaGun has <trigger>Z): the
                                      #   Z's leptons pass through like photons, the Z per
                                      #   event

@@ -1,8 +1,8 @@
 #!/bin/bash
 # zjet_slurm_campaign.sh -- one Z+jet campaign (9,600 Pb+Pb 5.02 TeV 0-30 % events) on NCSA Delta
 # A40s, through js-contrib's utils/slurm_prod_array.sh.  Ten campaigns C=0..9 give the 96k events of
-# docs/Plans/PLAN_ZJET_CMS10x.md (section 5b); one campaign has 11x CMS Z+jet's p_T^Z > 60 count and
-# 2.2x CMS 2507.09307's Z count (effective, after the window and N_coll weights; plan section 2).
+# docs/Plans/PLAN_ZJET_CMS10x.md (section 5b); one campaign has 2.7x CMS 2507.09307's Z count and
+# 10x CMS Z+jet's p_T^Z > 60 count (effective, after the window and N_coll weights; plan section 2).
 #
 #   C=0 sbatch zjet_slurm_campaign.sh            # campaign zjet_c00: 10 A40s x 10 jobs x 96 events
 #   C=1 sbatch zjet_slurm_campaign.sh            # ... up to C=9
@@ -52,7 +52,7 @@ export CHECK_DEPOSITION=1
 
 export EXTRA_ARGS=${EXTRA_ARGS:-"--user-xml $XML_DIR/PbPb_0_30_ZJet.xml \
   --grid $XML_DIR/grid_PbPb.yaml \
-  --pthat-bins 20-30,30-40,40-60,60-80,80-120,120-200 --jets-per-bin 4 --parton-ymax 1.9 \
+  --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 --jets-per-bin 4 \
   --lepton-ptmin 20 --lepton-etamax 2.5 \
   --hadrons-only --oversample 40 --n-frag 40 --correlated \
   --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0"}
