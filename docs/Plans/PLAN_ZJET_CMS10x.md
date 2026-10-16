@@ -29,13 +29,14 @@ Companion of `PLAN_CAMPAIGN_1M.md` (same settings, same tools).
 >   tracks, but not what the tracker records: Σ±, Ξ⁻, Ω⁻ (cτ 2.4–4.9 cm, **~10 % of the bulk's
 >   charged particles above 1 GeV** here) mostly decay inside it and are rarely reconstructed,
 >   and the charged daughters of K⁰_S → π⁺π⁻, Λ → pπ⁻ and of the hyperons appear as displaced
->   secondaries that the analyses reject by DCA cuts and correct for. The stored files keep only
->   charged particles (`--charged`), so the neutral K⁰_S and Λ and their daughters are absent.
+>   secondaries that the analyses reject by DCA cuts and correct for. The campaign files keep
+>   all final particles (no `--charged` since 2026-10-16), so K⁰_S, Λ, K⁰_L and n are there,
+>   undecayed; a track analysis selects the charged ones, a jet analysis drops the neutrinos.
 >   A detector-level comparison (raw tracks, efficiency or feed-down studies) needs the weak
 >   decays applied offline with a vertex/DCA model; a primary-particle comparison should state
 >   that the charged hyperons are included.
-> - **Leptons:** the Z's two leptons are in `jet_frag` (and pass `--charged`); every track
->   analysis removes them (`zjet_wake.not_z_lepton`). Decays in flight (π, K → μ ν) are not
+> - **Leptons:** the Z's two leptons are in `jet_frag`; every track
+>   and jet analysis removes them (`zjet_wake.not_z_lepton`). Decays in flight (π, K → μ ν) are not
 >   modelled.
 
 ## Status (2026-10-16)
@@ -229,13 +230,15 @@ outside |η| < 1.6, as in data.)
   events per campaign, 1,000 jobs and 96k events (4,000 backgrounds) in ten (2026-10-15; first
   planned: 4 windows from 40 GeV × 5 jets, 100-event jobs, 100k on 5,000 backgrounds).
 - **Output:** `--hadrons-only --oversample 40 --n-frag 40 --correlated
-  --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0`.
-  Disk: 9.1 MB per event in the GB10 test (|η| < 4, positions kept at full precision, 10
-  fragmentations; 1.7× Au+Au); with these arguments (|η| < 2.6, no positions, 12-bit momenta,
-  40 fragmentations) **1.6 MB per event, 10.3 bytes per hadron** (measured on the GB10, 2026-10-16:
-  one 24-event job, a background with N_coll 443, 3,650 charged hadrons per sample; 14 s per event
-  and 10.6 GB alone) → ~2 MB per event over 0–30 % → **~0.2 TB** for the 96k events (3.84 M
-  sampled full events).
+  --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0`
+  (all final particles since 2026-10-16, no `--charged`: the same events serve the Z–hadron
+  and the Z+jet analysis).
+  Disk: 9.1 MB per event in the GB10 test (charged, |η| < 4, positions kept at full precision,
+  10 fragmentations; 1.7× Au+Au); with these arguments (|η| < 2.6, no positions, 12-bit momenta,
+  40 fragmentations) **2.7 MB per event with all particles, 1.6 MB charged only** (10.3 bytes per
+  hadron; measured on the GB10, 2026-10-16: one 24-event job, a background with N_coll 443, the
+  same 14 s per event and 10.6 GB alone either way; `analysis/zjet_test/data/pbpb_campaign*`) →
+  ~3.5 MB per event over 0–30 % → **~0.35 TB** for the 96k events (3.84 M sampled full events).
   A 5k-event subset with `--write-particlize both` if hydro-level Z-jet wakes are wanted (~2 TB).
 - **pp reference** (for I_AA, x_jZ^pp, R_jZ^pp): the same Pythia Z+jet with vacuum showers and
   Colorless hadronization, no hydro, no medium (10k events, minutes). A vacuum mode of
@@ -251,8 +254,11 @@ Each oversample k of an event is one full Pb+Pb event: `bulk_jet` sample k (medi
 fragmentation k, with the Z four-momentum from the event record.
 
 **Z+jet (CMS 1702.01060):**
-1. anti-k_T R = 0.3 on all charged + neutral hadrons of the sample (|η| < 2.6 stored; CMS uses
-   calorimeter jets), **UE subtraction**: the ρA-median k_T method of `README_analysis` §6 adapted to
+1. anti-k_T R = 0.3 on all particles of the sample except neutrinos and the Z's leptons (|η| < 2.6
+   stored, all particles since 2026-10-16; CMS uses calorimeter jets corrected to particle level, and
+   compares models after its jet-resolution smearing, Appendix A of the paper). The pp side is in
+   place: `analysis/zjet_test/zjet_pp_jets.py` on the vacuum reference with all particles (results
+   git-ignored). **UE subtraction**: the ρA-median k_T method of `README_analysis` §6 adapted to
    R = 0.3, or CMS's iterative subtraction; validate ⟨δp_T⟩ = 0 by embedding into untouched `bulk_bg`
    samples (the existing embedding test).
 2. jets with p_T > 30, |η| < 1.6, ΔR(jet, lepton) > 0.4 (leptons from the Z decay are in the record),
@@ -271,7 +277,7 @@ fragmentation k, with the Z four-momentum from the event record.
 4. truth on the same events: paired `bulk_jet` − `bulk_bg` with `--correlated`; the difference to the
    mixed-event result is the method's bias on the wake, the hole and the Δy dip.
 
-The Z leptons are in `jet_frag` with pid ±11/±13 (and pass `--charged`): every track and jet
+The Z leptons are in `jet_frag` with pid ±11/±13: every track and jet
 analysis removes them first (the event record's `lep{1,2}_*` identify them).
 
 Scripts to write: mixed-event builder with N_ch/Ψ₂ matching, R = 0.3 UE-subtracted jet finder on the
@@ -327,7 +333,7 @@ Both launchers pass the same `run_prod_jet.py` arguments (`$D` = the image's
 `contribs/PyJetscape/example/config`): `--user-xml $D/PbPb_0_30_ZJet.xml
 --grid $D/grid_PbPb.yaml --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 --jets-per-bin 4
 --lepton-ptmin 20 --lepton-etamax 2.5 --hadrons-only
---oversample 40 --n-frag 40 --correlated --charged --eta-max 2.6 --no-x
+--oversample 40 --n-frag 40 --correlated --eta-max 2.6 --no-x
 --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0`.
 **The container decides which mode runs.** With the step-9 image, `--hadrons-only` as above. With any
 current image (no `--hadrons-only`, but the Z+jet steps 1–6 would also be missing, so this is only the
@@ -388,7 +394,7 @@ smoke test (10 jobs, ~1,000 events) takes ~2 h.
 | 96k events (10 campaigns) | **~140–190 h ≈ 6–8 days** (4 per GPU: ~5–6 days) | ~240–380 A40-hours |
 | wall on 8 / 32 / 100 A40 | – | ~30–48 h / ~8–12 h / ~2.5–4 h (+ queue) |
 | cost | none; no queue | ~16–25k credits at the A100 rate (less with the A40 discount) |
-| disk | ~0.2 TB (§3), fits `/data` (1.6 TB free) | same, no upload issue |
+| disk | ~0.35 TB (§3, all particles), fits `/data` (1.6 TB free) | same, no upload issue |
 | pp reference (10k, no hydro) | < 1 h | – |
 | stage 2 | none (hadrons-only) | none |
 
@@ -417,7 +423,7 @@ Ways to shorten it:
 ## 7. Summary
 
 96k Pb+Pb 5.02 TeV 0–30 % Z+jet events in ten campaigns of 9,600 (6 p̂T windows × 16k, 4,000
-backgrounds), hadrons-only at 40 samples (3.8 M full events, ~0.2 TB), ~240–380 A40-hours or
+backgrounds), hadrons-only at 40 samples, all particles (3.8 M full events, ~0.35 TB), ~240–380 A40-hours or
 6–8 days on the 3090 box alone, ~16 h per campaign (§6, estimates from the GB10 and box
 measurements, to be confirmed on the box); 10k pp-reference events. Set up for the Z–hadron
 measurements (no parton cut, windows 20–30, 30–35, 35–45, 45–55, 55–70, 70–200), it gives (§2)

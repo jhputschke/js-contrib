@@ -22,10 +22,32 @@ data.
 | `data/movie/` | one Z+jet event with its hydro evolution, its hadrons and two movies (1.7 GB) |
 | `data/logs/` | the production and render logs |
 
+**The campaign set-up checks** (2026-10-16; `make_data.sh checks`, the scripts read `data/`):
+
+| file | |
+|---|---|
+| `parton_cut_check.py` | what the leading-parton cut \|y\| < 1.9 removes from CMS 2507.09307's Z sample, and the pp Δφ / Δy against CMS with and without it (`data/vacuum` against `data/vacuum_zh`) |
+| `window_layout.py` | effective Z's of 2507.09307, 2103.04377 and ATLAS for 5- and 6-window layouts from 20 to 200 GeV, by reweighting a vacuum sample with its events' p̂T (`data/vacuum_nocut`) |
+| `zjet_pp_jets.py` | pp Z+jet against CMS 1702.01060: anti-k_T R = 0.3 jets from all particles except neutrinos and the Z's leptons, smeared with CMS's jet resolution (pp, and Pb+Pb 0–30 % for the "smeared pp" tables), Δφ_jZ, x_jZ, ⟨x_jZ⟩, R_jZ (`data/vacuum_all` → `figures/zjet_pp_vs_cms1702.png`, `zjet_pp_summary.txt`; ~2 min) |
+| `data/vacuum_nocut/`, `vacuum_zh/` | 6,000 vacuum events each, no parton cut, charged, \|η\| < 4: the test's windows / the campaign's (20–30, 30–35, 35–45, 45–55, 55–70, 70–200) |
+| `data/vacuum_all/` | 12,000 vacuum events, the campaign's windows and storage with all particles (\|η\| < 2.6, no positions): the pp reference of the Z+jet analysis (174 MB) |
+| `data/hepdata_zjet/` | CMS 1702.01060's HEPData record (ins1512112: Δφ_jZ, x_jZ, ⟨x_jZ⟩, R_jZ, pp and Pb+Pb) |
+| `data/pbpb_campaign/`, `pbpb_campaign_charged/` | one 24-event Pb+Pb job (seed 101, one background, N_coll 443) with the campaign's arguments, all particles / `--charged`: 2.7 / 1.6 MB per event, ~14 s per event and 10.6 GB alone on the GB10; the seed-101 reference of `utils/zjet/zjet_3090_test.sh report` |
+
 `data/` and `figures/` are git-ignored (`.gitignore`): the hadron files are 1–525 MB each,
 the movie's pair and particlize files 930 and 770 MB; the figures are not public yet.
 
 ## Making the figures
+
+The checks (2026-10-16), once `make_data.sh checks` (or the single targets) made their data:
+
+```bash
+python parton_cut_check.py     # fraction removed by the cut, pp vs CMS 2507.09307 with / without
+python window_layout.py        # the window layouts' effective Z's
+python zjet_pp_jets.py         # -> figures/zjet_pp_vs_cms1702.png, figures/zjet_pp_summary.txt
+```
+
+The test:
 
 ```bash
 ./make_data.sh                 # or: ./make_data.sh pbpb | vacuum | hepdata | movie

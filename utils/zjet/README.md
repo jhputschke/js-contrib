@@ -139,7 +139,8 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
 1. Submit / launch; resubmit the same command to resume (finished jobs are skipped).
 2. After the jobs: `utils/check_deposition.py <OUTDIR>` → move flagged jobs away, resubmit.
 3. Upload: `js_osdf.py upload <OUTDIR> osdf:///fno4hic/zjet/zjet_cNN` (or `--upload` in
-   `launch_2gpu.sh`); ~35 GB per campaign at 40 samples (`--charged --no-x`, 12/8 bits).
+   `launch_2gpu.sh`); ~35 GB per campaign at 40 samples (all particles, `--no-x`, 12/8 bits:
+   2.7 MB per event measured for a low-N_coll background, ~3.5 MB over 0–30 %).
 4. Record in the campaign log: image digest, events/h by makespan, flagged jobs.
 
 ## In the files
@@ -155,7 +156,10 @@ detector sees): the "Read first" note at the top of PLAN_ZJET_CMS10x.md.
   event's binary collisions): the geometry is drawn with P(b) ∝ b over 0–30 % and every event
   gets one Z, while Z production scales with N_coll (CMS: 78 % of all Zs fall in 0–30 %). A
   narrower class (e.g. ATLAS's 0–10 %) is a cut on the geometry, weighted the same way.
-- The two leptons are in `jet_frag` (pid ±11/±13; `--charged` keeps them) and in `initiators/`:
+- **All final particles are stored** (no `--charged` since 2026-10-16), |η| < 2.6: the same
+  events serve the Z–hadron (charged tracks, selected in the analysis) and the Z+jet analysis
+  (anti-k_T R = 0.3 jets from all particles except neutrinos), against the vacuum reference.
+- The two leptons are in `jet_frag` (pid ±11/±13) and in `initiators/`:
   **remove them before a track or jet analysis** (match `lep{1,2}_*`).
 - `pthat_bin_sigma_gen` is Pythia's σ × kept/tried of both cuts (`--parton-ymax` and the trigger).
 
@@ -190,7 +194,7 @@ liquefier, Colorless with eCMforHadronization = the PythiaGun's eCM; ~0.02 s per
     python run_prod_vacuum.py --events 12000 --seed 900001 --campaign zjet_pp \
       --user-xml $D/PbPb_0_30_ZJet.xml --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 \
       --lepton-ptmin 20 --lepton-etamax 2.5 \
-      --n-frag 40 --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --outdir /data/zjet_pp
+      --n-frag 40 --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --outdir /data/zjet_pp
 
 One `<stem>_hadrons_jet_frag.h5` (attribute `vacuum`), read like the Pb+Pb jet files
 (`HadronFileReader`, `EventInfo.z`). Seeds of its own: the Pb+Pb campaigns' seeds would give the

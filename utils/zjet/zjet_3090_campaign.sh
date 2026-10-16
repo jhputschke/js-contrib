@@ -53,5 +53,5 @@ exec "$LAUNCH" \
   --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 --jets-per-bin 4 \
   --lepton-ptmin 20 --lepton-etamax 2.5 \
   --hadrons-only --oversample 40 --n-frag 40 --correlated \
-  --charged --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0 \
+  --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0 \
   > "$OUT.log" 2>&1
