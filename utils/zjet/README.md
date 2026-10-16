@@ -9,7 +9,12 @@ combine and never overlap.
 The selection (decided 2026-10-15, docs/Plans/PLAN_ZJET_CMS10x.md):
 
 - **0–30 %**, the class of all three CMS measurements (`b_max` 8.57 fm); every event is weighted
-  by its `n_coll` (below).
+  by its `n_coll` (below). Centrality is selected on b only: X-SCAPE ignores `cenMin`/`cenMax`
+  (3dMCGlauber applies them only in its standalone program). Checked with 200,000 minimum-bias
+  events of the same `<MCGlauber>` settings (2026-10-16,
+  `contribs/PyJetscape/example/analysis/zjet_test/centrality_check.py`): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm). The
+  cut is a good stand-in for an activity-based class; CMS's HF-energy class is not modelled
+  beyond that.
 - **Both decay leptons p_T > 20 GeV, |η| < 2.5** (`--lepton-ptmin 20 --lepton-etamax 2.5`): the
   lepton cuts of CMS Z–hadron (2103.04377), CMS Z–hadron Δφ/Δy (2507.09307) and ATLAS
   (2008.09811); CMS Z+jet's 10–20 GeV muons are not generated. Events failing it are regenerated

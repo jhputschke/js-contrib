@@ -43,7 +43,9 @@ campaigns not yet. What changed against the plan below, found while implementing
   `--grid grid_PbPb.yaml` (edge flags); the templates did not.
 - **0–30 %, the CMS class** (all three CMS papers, checked 2026-10-15; only ATLAS has 0–10 %):
   `example/config/PbPb_0_30_ZJet.xml` (`b_max` 8.57 fm, π b² = 0.3 × 7.7 b) replaces the 0–10 %
-  Z+jet XML. The geometry is drawn with P(b) ∝ b and every event gets one Z, but Z production
+  Z+jet XML. Checked 2026-10-16 with 200,000 minimum-bias 3dMCGlauber events
+  (`analysis/zjet_test/centrality_check.py`): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm); X-SCAPE ignores `cenMin`/`cenMax`,
+  so b is the only cut. The geometry is drawn with P(b) ∝ b and every event gets one Z, but Z production
   scales with N_coll, so every event is weighted by its `n_coll`, which `run_prod_jet.py` now
   records per event (`diag/`, `events/`, `units/n_coll`; `HadronFileReader`'s
   `EventInfo.n_coll`). Centrality is geometric (b), not CMS's HF-energy percentiles.

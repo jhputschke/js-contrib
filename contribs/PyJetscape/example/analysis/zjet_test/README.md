@@ -13,6 +13,7 @@ data.
 |---|---|
 | `make_data.sh` | the commands that made `data/` (Pb+Pb, pp, HEPData, movie) |
 | `accumulate.py` | hadron files → `data/hists.npz` (~15 s) |
+| `centrality_check.py` | minimum-bias 3dMCGlauber with the XML's settings: the model's σ_inel and how well the b cut matches activity classes (→ `data/glauber_mb/summary.txt`, ~8 min) |
 | `compare.py` | `data/hists.npz` + HEPData → `figures/` |
 | `figures/zjet_vs_cms2507_dphi.png`, `…_dy.png`, `summary.txt`, `RESULTS.md` | the result |
 | `data/pbpb/` | 2 jobs × 48 Pb+Pb 0–30 % Z+jet events, hadrons only (833 MB) |
@@ -107,7 +108,10 @@ In `figures/RESULTS.md` (the figures, a table and the findings), with all number
 
 - 4 hydro events: the geometry and its fluctuations are poorly sampled, and a 4-group
   jackknife is itself a rough error estimate.
-- Centrality from b < 8.57 fm with N_coll weights; CMS from the HF energy.
+- Centrality from b < 8.57 fm with N_coll weights; CMS from the HF energy. `centrality_check.py`
+  (200,000 minimum-bias events, 2026-10-16): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm). So the b cut is the model's 0–29.3 %
+  and nearly the same events as an activity class; how HF energy orders the events is not
+  modelled.
 - Pythia 8 Z + parton at leading order; CMS's reference generator is MadGraph5_aMC@NLO.
 - Hadron level, no detector; CMS's data are corrected. CMS uses Z → μμ only (no effect at
   this level).
