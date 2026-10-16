@@ -10,8 +10,9 @@
 #
 # Per task (one A40): one GPU's share of a gpuA40x4 node, 16 cores, 58 GiB; P=3 jobs at once
 # (14-16 GB each: a Pb+Pb Z+jet job's peak on the GB10, docs/BENCHMARK_PbPb_vs_AuAu.md),
-# OMP_NUM_THREADS = 16/3 = 5.  ~250-350 events/h per A40 (estimate): 960 events per task in
-# ~3-4 h.  TO BE CONFIRMED (benchmark, plan 5a step 10): set P from the measured MaxRSS.
+# OMP_NUM_THREADS = 16/3 = 5.  ~250-400 events/h per A40 (estimate, plan section 6): 960
+# events per task in ~3-4.5 h (10 jobs at P=3 = 4 rounds).  TO BE CONFIRMED (benchmark, plan
+# 5a step 10): set P from the measured MaxRSS.
 #
 # Before campaign 0: the Z+jet image pulled into $SIF (pinned by digest), the LBT cache made
 # once by a 1-event job, and the 15-event benchmark (plan 5a step 10).  The inputs are the

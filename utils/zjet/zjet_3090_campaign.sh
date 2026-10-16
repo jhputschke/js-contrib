@@ -3,15 +3,16 @@
 # box, through ~/prod_test/launch_2gpu.sh.  Same campaign layout and seeds as
 # zjet_slurm_campaign.sh, so campaigns from both machines combine (docs/Plans/PLAN_ZJET_CMS10x.md).
 #
-#   ./zjet_3090_campaign.sh 0            # campaign zjet_c00: 100 jobs x 96 events, ~12-16 h
-#   ./zjet_3090_campaign.sh 0 10         # smoke test: 10 jobs x 96 events (~1,000 events)
+#   ./zjet_3090_campaign.sh 0            # campaign zjet_c00: 100 jobs x 96 events, ~14-19 h
+#   ./zjet_3090_campaign.sh 0 10         # smoke test: 10 jobs x 96 events (~1,000 events), ~2 h
 #   ./zjet_3090_campaign.sh 0            # rerun the same command to resume
 #
 # 3 jobs per GPU, OMP 6: a Pb+Pb Z+jet job peaks at 14-16 GB on the GB10, 2.1x an Au+Au job,
 # mostly from MUSIC's larger box (docs/BENCHMARK_PbPb_vs_AuAu.md), so 6 jobs take ~96 GB of
-# 125; 4 per GPU (8 x 14-16 = 112-128 GB) only if the box's peaks are lower.  ~600-850
-# events/h (estimate).  TO BE CONFIRMED on the box (plan 5a step 10): set JOBS_PER_GPU /
-# OMP_THREADS and these numbers from its VmHWM and events/h.
+# 125; 4 per GPU (8 x 14-16 = 112-128 GB) only if the box's peaks are lower.  ~500-720
+# events/h, ~30-42 s per event and job (estimate, plan section 6).  TO BE CONFIRMED on the
+# box (plan 5a step 10): set JOBS_PER_GPU / OMP_THREADS and these numbers from its VmHWM and
+# events/h.
 #
 # The inputs are the image's own example/config files (the Z+jet XML and the Pb+Pb output
 # grid), so they always match the image's code; XML_DIR=/work/xml takes copies from

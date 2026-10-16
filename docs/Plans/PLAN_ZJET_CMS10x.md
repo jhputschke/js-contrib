@@ -149,8 +149,9 @@ which only events average; oversampling contributes the UE realizations for the 
   Colorless hadronization, no hydro, no medium (10k events, minutes). A vacuum mode of
   `run_prod_jet.py` does not exist; it is a small driver (Pythia → Matter vacuum → Colorless).
 - **Cost:** measured on the GB10 (Status, §6): 2.1× the Au+Au time and memory per event, so
-  memory sets the jobs per GPU → ~250–350 events/h per A40 → **~300–400 A40-hours**; 5–7 days
-  on the 3090 box (estimates, to be confirmed there).
+  memory sets the jobs per GPU → ~500–720 events/h on the 3090 box (**6–8 days** for 96k events,
+  ~16 h per campaign) or ~250–400 per A40 (~240–380 A40-hours); estimates, to be confirmed on
+  the box.
 
 ## 4. Analysis chain (experiment-like)
 
@@ -221,8 +222,8 @@ alone. Launchers in `utils/zjet/` (the step-7 XML is `example/config/PbPb_0_30_Z
 
 | file | what |
 |---|---|
-| `zjet_slurm_campaign.sh` | Delta A40: `C=3 sbatch zjet_slurm_campaign.sh` → one campaign on 10 A40s (array 0–9, 10 jobs × 96 events per task, `P=3`, 16 cores, 58 GB); ~3–4 h per task at ~250–350 events/h (estimate) |
-| `zjet_3090_campaign.sh` | the 3090 box: `IMAGE=… ./zjet_3090_campaign.sh 3` → the same campaign via `launch_2gpu.sh`, 3 jobs/GPU, OMP 6; ~12–16 h (estimate) |
+| `zjet_slurm_campaign.sh` | Delta A40: `C=3 sbatch zjet_slurm_campaign.sh` → one campaign on 10 A40s (array 0–9, 10 jobs × 96 events per task, `P=3`, 16 cores, 58 GB); ~3–4.5 h per task at ~250–400 events/h (estimate) |
+| `zjet_3090_campaign.sh` | the 3090 box: `IMAGE=… ./zjet_3090_campaign.sh 3` → the same campaign via `launch_2gpu.sh`, 3 jobs/GPU, OMP 6; ~14–19 h (estimate) |
 | `README.md` | the per-campaign checklist (dry run, `check_deposition.py`, upload) |
 
 Both launchers pass the same `run_prod_jet.py` arguments (`$D` = the image's
@@ -248,50 +249,79 @@ afterwards with the same hadronization arguments; the campaign scheme is unchang
 
 ## 6. Time: 2 × RTX 3090 box alone vs Delta A40s
 
-**Measured on the GB10** (2026-10-15, [BENCHMARK_PbPb_vs_AuAu.md](../BENCHMARK_PbPb_vs_AuAu.md)):
-Pb+Pb 5.02 TeV 0–30 % Z+jet against Au+Au 200 GeV 0–10 % jets, the same layout (24 jets per
-background) and hadron settings, 2 jobs at once: **2.1× the time** (37 against 17 core-s per
-event, 323 against 693 events/h), **14–16 GB per job** (Au+Au 6.8–7.1) and 1.7× the disk. The
-memory is mostly MUSIC's larger box: x, y ±20 fm and η_s ±8 have 2.4× Au+Au's cells, and the
-background's evolution is kept in memory on the whole grid; the same Au+Au job in the Pb+Pb box
-needs 10.8 instead of 5.2 GB. The first estimate here (1.8–2× the Au+Au event, ~8–9 GB per job,
-from multiplicity, lifetime and grid) got the time right and half the memory. **Host memory, not
-cores or the GPU, now sets the jobs per GPU:**
+**Estimated from two measurements, to be confirmed on the RTX box** (§5a step 10): the
+Pb+Pb-to-Au+Au ratios measured on the GB10, applied to the Au+Au rates measured on the box.
 
-| | 2 × RTX 3090 box | Delta A40 |
+### Inputs
+
+| input | value | source |
 |---|---|---|
-| jobs per GPU | 3 (6 × ~16 GB ≈ 96 GB of 125; 4 if the box's peaks are lower) | 3 (58 GB share / ~16 GB) |
-| limit | host memory | host memory (the cores would allow more) |
-| events/h | **~600–850** (estimate) | **~250–350 per A40** (estimate) |
-| 96k events (10 campaigns) | **~115–160 h ≈ 5–7 days** | ~300–400 A40-hours |
-| wall on 8 A40 (2 nodes) | – | ~35–50 h |
-| wall on 32 A40 (8 nodes) | – | ~9–12 h (+ queue) |
-| wall on 100 A40 (25 nodes) | – | ~3–4 h (+ queue) |
-| cost | none; no queue | ~20–27k credits at the A100 rate (less with the A40 discount) |
-| disk | 0.7 TB, fits `/data` (1.6 TB free) | 0.7 TB, no upload issue |
+| Pb+Pb Z+jet / Au+Au jets, same layout and hadron settings, 2 jobs at once | **2.1× the wall time, 2.2× the CPU** (37 / 17 core-s per event), **2.1× the memory** (14–16 / 6.8–7.1 GB per job), 1.7× the disk | GB10, 2026-10-15, [BENCHMARK_PbPb_vs_AuAu.md](../BENCHMARK_PbPb_vs_AuAu.md) |
+| why the memory | MUSIC's box: x, y ±20 fm, η_s ±8 = 2.4× Au+Au's cells, the background's evolution kept on the whole grid; the same Au+Au job in the Pb+Pb box: 5.2 → 10.8 GB | same |
+| Pb+Pb job on the GB10 | 19–22 s per event (wall, 96-event average incl. start and hadronization), ~1.8 cores busy per job | same |
+| Au+Au on the box (`cu124-final_optim`, 20 jobs, campaign setting with particlize) | 25.4 s per event and job, 35.4 core-s, 2.09 GPU-s per event; VmHWM 6.0 [6.7] GB; ~1 GB VRAM per job; host-bound (21 of 24 cores), 2,160 events/h | [BENCHMARK_2x3090.md](../BENCHMARK_2x3090.md) |
+| box against GB10, CPU per Au+Au event | ~1.5–1.9× (box ≈ 32 core-s without the pair-file compression, with hadronization; GB10 16.7) | the two above |
+
+### Pb+Pb on the box
+
+- **Per event:** ~55–70 core-s (2.2 × 32 at the box's speed; the first estimate here said 60–70),
+  ~5 GPU-s (2.09 × 2.4 cells), ~2.4 GB VRAM per job.
+- **Per job:** ~30–42 s per event (the GB10's 19–22 s × 1.5–1.9); a 96-event job takes ~50–67 min.
+- **Memory sets the jobs** (14–16 GB each, the box 125 GB with ~10 GB for the rest):
+
+| limit | jobs or events/h |
+|---|---|
+| host memory | **6 jobs (3 per GPU)**, ~96 GB; 8 (4 per GPU, 112–128 GB) only if the box's peaks are ≤ ~13.5 GB |
+| CPU (21 of 24 cores, as Au+Au) | ~1,100–1,350 events/h: not reached by 6–8 jobs (~11–15 cores busy) |
+| GPU (~65 % busy, as Au+Au) | ~950 events/h: not reached by 6 jobs (~45 % busy) |
+| **→ events/h** | **6 × 3600 / 30–42 s ≈ 500–720** (central ~600); 4 per GPU: ~650–900 |
+
+**A campaign** (9,600 events = 100 jobs × 96, 50 per GPU, 3 at a time = 17 rounds of one job):
+**~14–19 h**, so one campaign (~10× CMS's Z count per p_T^Z bin) is an overnight-plus run. The
+smoke test (10 jobs, ~1,000 events) takes ~2 h.
+
+### Totals
+
+| | 2 × RTX 3090 box | Delta A40 (not measured; EPYC cores ~ the box's or faster) |
+|---|---|---|
+| jobs per GPU | 3 (memory) | `P=3` (58 GB share / ~16 GB) |
+| events/h | **~500–720** (4 per GPU: ~650–900) | ~250–400 per A40 (3 × 3600 / 27–42 s) |
+| one campaign (9,600) | **~14–19 h** | ~3–4.5 h per task (10 jobs: 4 rounds at `P=3`; 9 or 12 jobs per task would avoid the 1-job round) |
+| 96k events (10 campaigns) | **~140–190 h ≈ 6–8 days** (4 per GPU: ~5–6 days) | ~240–380 A40-hours |
+| wall on 8 / 32 / 100 A40 | – | ~30–48 h / ~8–12 h / ~2.5–4 h (+ queue) |
+| cost | none; no queue | ~16–25k credits at the A100 rate (less with the A40 discount) |
+| disk | 0.35–0.7 TB, fits `/data` (1.6 TB free) | same, no upload issue |
 | pp reference (10k, no hydro) | < 1 h | – |
 | stage 2 | none (hadrons-only) | none |
 
-The rates assume ~25–35 s per event and job at 3 jobs per 3090 (the GB10's 19–22 s with 2 jobs,
-plus the sharing) and ~30–45 s on an A40. **To be confirmed on the RTX box** (§5a step 10, the
-launchers' defaults follow these numbers): VmHWM per job at 3 and 4 jobs per GPU (on discrete GPUs
-the hydro's arrays are device memory, so the host peak may be lower than the GB10's; Au+Au peaks
-the same on both), events/h by makespan; then `JOBS_PER_GPU`, `P` and this table.
+### Is the RTX box still feasible?
 
-**The 3090 box alone does the whole production in about a week of continuous running**, against
-~2 days on 2 Delta nodes or half a day on 8+. For a 96k-event study the box is still the simpler
-choice; Delta wins if the result is wanted within days or the box is busy with phases 1–2 of
-`PLAN_CAMPAIGN_1M.md`.
+**Yes: about a week of continuous running for all ten campaigns** (6–8 days; the first
+estimate, with 8–9 GB per job, said 4–6), and ~16 h per campaign, so campaigns can be run one
+by one between other work and combined later. Delta does it in 1–2 days on 2 nodes or half a
+day on 8+. The box stays the simpler choice unless the result is wanted within days or the box
+is busy with phases 1–2 of `PLAN_CAMPAIGN_1M.md`.
 
-**Memory is the lever:** keeping the background's evolution only where the jets go (|η_s| ≲ 4 for
-partons with |y| < 1.9) or only above freeze-out could bring a job back toward Au+Au's and double
-the jobs per GPU (BENCHMARK_PbPb_vs_AuAu.md, not tried).
+Ways to shorten it:
+
+- **4 jobs per GPU**, if the box's peaks are lower than the GB10's (on discrete GPUs the hydro's
+  arrays are device memory; Au+Au peaks the same on both machines): ~5–6 days.
+- **Less memory per job** (BENCHMARK_PbPb_vs_AuAu.md, not tried): keeping the background's
+  evolution only where the jets go (|η_s| ≲ 4 for partons with |y| < 1.9) or only above freeze-out
+  could bring a job toward ~8–10 GB, 5–6 per GPU, and the box toward its GPU/CPU limit of
+  ~950–1,100 events/h: ~4 days.
+- **The GB10 alongside** (323 events/h measured with 2 jobs): ~4–5 days together, if both run the
+  same commits (the campaigns' seeds are disjoint, so their files combine).
+
+**To be confirmed on the RTX box** (§5a step 10): VmHWM per job and events/h by makespan at 3 and
+4 jobs per GPU with the campaign arguments; then `JOBS_PER_GPU`, `P` and these tables.
 
 ## 7. Summary
 
-100k Pb+Pb 5.02 TeV Z+jet events (4 p̂T windows × 25k, 5,000 backgrounds), hadrons-only at 40 samples
-(4 M full events, ~0.7 TB), ~300–400 A40-hours or 5–7 days on the 3090 box alone (§6, estimates from the GB10
-measurement, to be confirmed on the box); 10k pp-reference events. Gives ≥ 10× CMS's statistical
+96k Pb+Pb 5.02 TeV 0–30 % Z+jet events in ten campaigns of 9,600 (6 p̂T windows × 16k, 4,000
+backgrounds), hadrons-only at 40 samples (3.8 M full events, 0.35–0.7 TB), ~240–380 A40-hours or
+6–8 days on the 3090 box alone, ~16 h per campaign (§6, estimates from the GB10 and box
+measurements, to be confirmed on the box); 10k pp-reference events. Gives ≥ 10× CMS's statistical
 precision in every p_T^Z bin above 60 GeV for x_jZ, ⟨x_jZ⟩, R_jZ, and ≥ 10× for the Z–hadron Δφ/Δy/I_AA
 with the experiments' mixed-event subtraction, with the paired truth on the same events. The production
 side has the Z record and needs the RTX-box benchmark; the analysis side needs the mixed-event and

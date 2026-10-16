@@ -51,16 +51,17 @@ Pythia 8.312 with PythiaGun's settings, no medium, 20,000 events per window, 202
 
 | file | use |
 |---|---|
-| `zjet_slurm_campaign.sh` | Delta: `C=<n> sbatch zjet_slurm_campaign.sh` (10 A40s, `P=3`, ~3–4 h, estimate) |
-| `zjet_3090_campaign.sh` | 3090 box: `IMAGE=… ./zjet_3090_campaign.sh <n>` (3 jobs per GPU, ~12–16 h, estimate) |
+| `zjet_slurm_campaign.sh` | Delta: `C=<n> sbatch zjet_slurm_campaign.sh` (10 A40s, `P=3`, ~3–4.5 h, estimate) |
+| `zjet_3090_campaign.sh` | 3090 box: `IMAGE=… ./zjet_3090_campaign.sh <n>` (3 jobs per GPU, ~14–19 h, estimate) |
 
 **Cost (GB10, 2026-10-15; [docs/BENCHMARK_PbPb_vs_AuAu.md](../../docs/BENCHMARK_PbPb_vs_AuAu.md)):**
 a Pb+Pb Z+jet job takes 2.1× the time of an Au+Au jet job (323 against 693 events/h, 2 jobs
 at once), peaks at **14–16 GB** (2.1×) and writes 1.7× the disk. The memory is mostly MUSIC's
 larger box (x, y ±20 fm, η_s ±8: 2.4× the cells): the background's evolution is kept in
 memory on the whole grid. The launchers' defaults (3 jobs per 3090, `P=3` per A40) and the
-times above follow from these GB10 numbers and are **to be confirmed on the RTX box**
-(step 4 below).
+times above follow from these GB10 numbers and the box's Au+Au rates: ~500–720 events/h on
+the box, all ten campaigns in 6–8 days ([PLAN_ZJET_CMS10x.md](../../docs/Plans/PLAN_ZJET_CMS10x.md)
+§6); **to be confirmed on the RTX box** (step 4 below).
 
 The inputs are the image's own `contribs/PyJetscape/example/config/` files, so they always match
 its code: `PbPb_0_30_ZJet.xml` (0–30 %, the centrality class of the CMS measurements; the Z+jet
@@ -90,8 +91,8 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
    (`mem.log` / `sacct -o MaxRSS`, with ~10 % headroom for jobs peaking together), note
    events/h, and replace the estimates here and in the scripts. The defaults (3) are from the
    GB10's 14–16 GB per job; on discrete GPUs the hydro's arrays are in device memory, so the
-   host peak may be lower (Au+Au peaks the same on both, 6.4–7.6 GB). VRAM: ~0.8 GB per Au+Au
-   job on a 3090 (6.5 GB at 8 per GPU), so ~2 GB per Pb+Pb job: no limit at 3–4 per GPU.
+   host peak may be lower (Au+Au peaks the same on both, 6.4–7.6 GB). VRAM: ~1 GB per Au+Au
+   job on a 3090 (9.6 GB at 10 per GPU), so ~2.4 GB per Pb+Pb job: no limit at 3–4 per GPU.
 5. Smoke test = one CMS-equivalent: `C=0 NJOBS=1 sbatch …` (Delta) or
    `./zjet_3090_campaign.sh 0 10` (box), ~1,000 events. Check: two leptons per event in
    `initiators/` and in every `jet_frag` sample, `units/z_pt` ≥ ~the window's lower edge for most

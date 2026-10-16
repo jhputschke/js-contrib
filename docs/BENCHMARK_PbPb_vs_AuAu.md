@@ -108,13 +108,16 @@ in C++ and numpy, and the harder jets.
 
 ## For the campaigns
 
-- **Jobs per GPU:** `zjet_3090_campaign.sh` (6 jobs per GPU, 2 GPUs, 125 GB) and
-  `zjet_slurm_campaign.sh` (`P=6` in 58 GiB per A40) assumed 8–9 GB per job. At 14–16 GB,
-  about 4 jobs fit per 3090 (8 on the box) and 3 per A40 share. On discrete GPUs the hydro's
-  device arrays are not host memory, so the host peak there may be lower than the GB10's:
-  measure it in the benchmark of PLAN_ZJET_CMS10x §5a step 10 before setting
-  `JOBS_PER_GPU` and `P`.
-- **Time:** the plan's 1.8–2× of the Au+Au cost per event (§6) matches the measured 2.1–2.2×.
+- **Jobs per GPU:** `zjet_3090_campaign.sh` and `zjet_slurm_campaign.sh` assumed 8–9 GB per
+  job (6 jobs per GPU). At 14–16 GB they now default to 3 per 3090 (6 jobs, ~96 GB of the
+  box's 125; 4 per GPU = 112–128 GB only if the box's peaks are lower) and `P=3` per A40
+  share (58 GiB). On discrete GPUs the hydro's device arrays are not host memory, so the host
+  peak there may be lower than the GB10's: measure it in the benchmark of PLAN_ZJET_CMS10x
+  §5a step 10 and set `JOBS_PER_GPU` and `P` from it.
+- **Time:** the plan's 1.8–2× of the Au+Au cost per event matches the measured 2.1–2.2×; the
+  memory limit is new. With the box's Au+Au rates (`cu124-final_optim`): ~500–720 Pb+Pb
+  events/h at 3 jobs per GPU, ~16 h per 9,600-event campaign, 6–8 days for the ten
+  (PLAN_ZJET_CMS10x §6, estimates).
 
 **Ideas to cut the memory (not tried):**
 
