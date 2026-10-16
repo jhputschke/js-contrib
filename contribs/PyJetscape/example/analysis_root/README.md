@@ -12,6 +12,7 @@ The Python analyses of the HDF5 files are in [`../analysis`](../analysis/README.
 | [`read_hadrons.C`](read_hadrons.C) | the reader by example: pT spectra and Δφ to the leading parton, per source and for the wake (§2) | a new `.root` |
 | [`read_hadrons.ipynb`](read_hadrons.ipynb) | `read_hadrons.C` as a ROOT C++ notebook, one step per cell, with the histograms drawn (§2) | a new `.root` |
 | [`hadron_distributions.C`](hadron_distributions.C) | RDataFrame macro: η, φ, pT of background, background + deposition, jet fragments and the wake (§3) | a new `.root` + `.pdf`/`.png` |
+| [`zjet/`](zjet/README.md) | the Z+jet analyses' map steps in C++: the Z–hadron pools (CMS 2507.09307) and the jets with FastJet, ρA-subtracted in Pb+Pb, with embedding and random cones (CMS 1702.01060); the final stage is the Python of `../analysis/zjet_test`, and both map steps agree with their Python twins value for value | per production file `.root` |
 
 Everything here needs ROOT itself, **≥ 6.34** for the RNTuple files that `run_h5toROOT.py`
 writes by default (TTree files, `--format ttree`, read with any recent ROOT). Set up as in
@@ -65,7 +66,7 @@ for (long e : r.select_events()) {         // hadronized events, flagged ones le
   events.event`. This is `HadronFileReader`'s numbering for the same production files.
 - `n_events()`, `n_files()`, `file(i)`; `n_oversamples(e)`, `n_bg_samples(e)`, `n_frag(e)`.
 - `select_events(window = -1, keep_flagged = false)`: the hadronized events
-  (`n_oversamples > 0`), of one pT̂ window or all. Events whose legs are not alike are left
+  (`n_oversamples > 0`; vacuum files: `n_frag > 0`), of one pT̂ window or all. Events whose legs are not alike are left
   out (`EventInfo::flagged`, below).
 - `n_windows()`, `pthat_lo(k)`, `pthat_hi(k)`, `sigma_mb(k)`, `sigma_err_mb(k)`,
   `n_window_events(k)`, `weight_mb(k)`, `sigma_source()`: the pT̂ windows and their cross
@@ -91,7 +92,12 @@ event's weight:
   pz, E, x, y, z, t`, with `pt()`, `eta()`, `phi()`), and `leading()`, the one with the
   largest pT;
 - `flagged()`: the background has more than 20% more or fewer freeze-out cells than the jet
-  leg, so one surface is not a freeze-out surface (as in `wake_hadrons.py`).
+  leg, so one surface is not a freeze-out surface (as in `wake_hadrons.py`);
+- `n_coll`, the collision's binary collisions (−1 if not recorded), and `z`, PythiaGun's
+  trigger Z (`ZRecord`: `valid`, `pt`, `y`, `phi`, `m`, `lep_pid/pt/eta/phi[2]`;
+  `is_lepton(h)` is true for the Z's two leptons, `zjet_wake.not_z_lepton`'s match);
+- `vacuum`: a `run_prod_vacuum.py` file (jet_frag only). `bkg_dep_frag(e, k)` is then
+  fragmentation k alone, and `hadronized()` asks for fragmentations instead of oversamples.
 
 **Cross sections** (`--pthat-bins` campaigns). The cross section of window k is the
 combination of all production files' Pythia estimates, weighted by their accepted events:

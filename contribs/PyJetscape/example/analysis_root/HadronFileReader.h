@@ -132,6 +132,36 @@ struct Initiator {
   double phi() const { return std::atan2(py, px); }
 };
 
+// PythiaGun's trigger Z (events.z_*, lep{1,2}_*; jetscape.hadrons_h5.Z_COLUMNS): the lepton
+// pair and its two decay leptons, hardest first.  valid is false without a Z.
+struct ZRecord {
+  bool valid = false;
+  double pt = 0, y = 0, phi = 0, m = 0;
+  int lep_pid[2] = {0, 0};
+  double lep_pt[2] = {0, 0}, lep_eta[2] = {0, 0}, lep_phi[2] = {0, 0};
+
+  // the momentum of lepton i (massless, from pt, eta, phi), as zjet_wake.lepton_p3
+  std::array<double, 3> lep_p3(int i) const {
+    return {lep_pt[i] * std::cos(lep_phi[i]), lep_pt[i] * std::sin(lep_phi[i]),
+            lep_pt[i] * std::sinh(lep_eta[i])};
+  }
+  // h is one of the Z's two leptons: the same pid and momentum within rtol of |p_lep|
+  // (zjet_wake.not_z_lepton); hadron-decay leptons are not
+  bool is_lepton(const Hadron &h, double rtol = 1e-3) const {
+    if (!valid) return false;
+    for (int i = 0; i < 2; ++i) {
+      if (h.pid != lep_pid[i]) continue;
+      const auto p = lep_p3(i);
+      const double pl = std::sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+      const double d = std::sqrt(std::pow(double(h.px) - p[0], 2) +
+                                 std::pow(double(h.py) - p[1], 2) +
+                                 std::pow(double(h.pz) - p[2], 2));
+      if (d < rtol * std::max(pl, 1.0)) return true;
+    }
+    return false;
+  }
+};
+
 // what is known about one event (the file's events table, plus the campaign weight)
 struct EventInfo {
   long event = -1;              // global index over the files
@@ -144,7 +174,13 @@ struct EventInfo {
   int n_cells_jet = -1, n_cells_bg = -1;
   double sigma_file_mb = std::numeric_limits<double>::quiet_NaN();   // this file's estimate
   double weight_mb = std::numeric_limits<double>::quiet_NaN();       // weight_mb(pthat_bin)
+  int n_coll = -1;              // the collision's binary collisions (-1: not recorded)
+  ZRecord z;                    // the trigger Z (z.valid false: none)
+  bool vacuum = false;          // a file without jet leg (run_prod_vacuum.py: jet_frag only)
   std::vector<Initiator> initiators;
+
+  // hadronized: the jet leg has samples (vacuum files: the fragments)
+  bool hadronized() const { return vacuum ? n_samples_frag > 0 : n_samples_jet > 0; }
 
   // the legs are not alike: background over jet-leg freeze-out cells outside
   // [1/1.2, 1.2], one surface is not a freeze-out surface (wake_hadrons.py)
@@ -481,7 +517,7 @@ class HadronFileReader {
     std::vector<long> out;
     for (const auto &e : events_) {
       if (window >= 0 && e.pthat_bin != window) continue;
-      if (e.n_samples_jet <= 0) continue;
+      if (!e.hadronized()) continue;
       if (!keep_flagged && e.flagged()) continue;
       out.push_back(e.event);
     }
@@ -526,10 +562,11 @@ class HadronFileReader {
   // the whole jet event: bulk_jet sample k plus fragmentation k mod n_frag (frag_sample
   // >= 0: that one); origin tells bulk (kBulk) and fragments (kFrag) apart.  No
   // fragments if the event has none.
+  // Vacuum files (no jet leg): fragmentation k mod n_frag (or frag_sample) alone.
   Hadrons bkg_dep_frag(long event, int k, int frag_sample = -1) {
     const EventInfo &e = info(event);
     Hadrons out;
-    append(e.file_index, kTagJet, e.local_event, k, kBulk, out);
+    if (!e.vacuum) append(e.file_index, kTagJet, e.local_event, k, kBulk, out);
     if (e.n_samples_frag > 0) {
       const int j = frag_sample >= 0 ? frag_sample : k % e.n_samples_frag;
       append(e.file_index, kTagFrag, e.local_event, j, kFrag, out);
@@ -599,7 +636,7 @@ class HadronFileReader {
     }
     n_window_.assign(windows_.size(), 0);
     for (const auto &e : events_)
-      if (e.pthat_bin >= 0 && e.pthat_bin < n_windows() && e.n_samples_jet > 0)
+      if (e.pthat_bin >= 0 && e.pthat_bin < n_windows() && e.hadronized())
         ++n_window_[e.pthat_bin];
     weight_mb_.resize(windows_.size());
     for (size_t k = 0; k < windows_.size(); ++k)
@@ -624,6 +661,15 @@ class HadronFileReader {
     std::optional<ROOT::RDF::RResultPtr<std::vector<double>>> pthat, sigma;
     if (df.HasColumn("pthat")) pthat = df.Take<double>("pthat");
     if (df.HasColumn("sigma_file_mb")) sigma = df.Take<double>("sigma_file_mb");
+    const bool vacuum = !df.HasColumn("n_samples_jet");
+    auto n_coll = ints("n_coll");
+    // the Z record (hadrons_h5.Z_COLUMNS), as doubles whatever their type
+    const bool has_z = df.HasColumn("z_pt");
+    std::map<std::string, std::vector<double>> zc;
+    if (has_z)
+      for (const char *c : {"z_pt", "z_y", "z_phi", "z_m", "lep1_pid", "lep1_pt", "lep1_eta",
+                            "lep1_phi", "lep2_pid", "lep2_pt", "lep2_eta", "lep2_phi"})
+        zc[c] = detail::take_double(df, c);
     const bool has_ini = df.HasColumn("ini_px");
     std::optional<ROOT::RDF::RResultPtr<std::vector<ROOT::RVecI>>> ii[3];
     std::optional<ROOT::RDF::RResultPtr<std::vector<ROOT::RVecD>>> id[8];
@@ -651,6 +697,19 @@ class HadronFileReader {
       e.n_samples_frag = get(nsf, i, 0);
       e.n_cells_jet = get(ncj, i, -1);
       e.n_cells_bg = get(ncb, i, -1);
+      e.n_coll = get(n_coll, i, -1);
+      e.vacuum = vacuum;
+      if (has_z && std::isfinite(zc["z_pt"][i])) {
+        ZRecord &z = e.z;
+        z.valid = true;
+        z.pt = zc["z_pt"][i]; z.y = zc["z_y"][i]; z.phi = zc["z_phi"][i]; z.m = zc["z_m"][i];
+        for (int l = 0; l < 2; ++l) {
+          const std::string p = "lep" + std::to_string(l + 1) + "_";
+          z.lep_pid[l] = int(zc[p + "pid"][i]);
+          z.lep_pt[l] = zc[p + "pt"][i]; z.lep_eta[l] = zc[p + "eta"][i];
+          z.lep_phi[l] = zc[p + "phi"][i];
+        }
+      }
       if (has_ini) {
         const size_t n = (**ii[0])[i].size();
         e.initiators.resize(n);

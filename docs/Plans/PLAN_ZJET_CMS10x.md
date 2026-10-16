@@ -347,7 +347,7 @@ afterwards with the same hadronization arguments; the campaign scheme is unchang
 | item | what |
 |---|---|
 | mixed-event builder | **CMS's (other Z events, no matching): done**, `analysis/zjet_mixing.py` + `zjet_test/mix.py` (2026-10-16): all partners, 10 from 10 other backgrounds, a strict one-Z-per-background emulation for the errors, the checks against the factorized result. Open: ATLAS's, `bulk_bg` samples of other backgrounds matched in N_ch (HF energy) and Ψ₂ (π/16), 10–160 mixings; or other samples of the same background (ideal matching) |
-| R = 0.3 UE-subtracted jets on the hadron files | ρA-median k_T method (`README_analysis` §6) at R = 0.3, or a CMS-like iterative subtraction; embedding validation ⟨δp_T⟩ = 0 |
+| R = 0.3 UE-subtracted jets on the hadron files | **done** 2026-10-16: ρA (k_T R = 0.4 median in a strip \|Δy\| < 1), the fragments embedded in `bulk_bg`, random cones; C++ (`analysis_root/zjet/zjets`) and Python (`zjet_test/zjet_jets_map.py`) map steps, identical; final stage `zjet_test/zjet_jets.py` with CMS's smearing optional (none, detector, full, matched to the random cones). Open: a CMS-like iterative subtraction |
 | Z pairing and observables | Δφ_jZ, x_jZ, ⟨x_jZ⟩(p_T^Z), R_jZ; Δφ_hZ, Δy, ξ_T, I_AA; errors per event, clustered by background |
 | sanity | R_jZ and ⟨x_jZ⟩ of the pp reference against CMS pp; Δφ_jZ shape (CMS: KS p > 0.4 between pp and PbPb) |
 

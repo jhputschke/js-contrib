@@ -16,6 +16,8 @@ data.
 | `accumulate.py` | hadron files → `data/hists.npz` (~15 s) |
 | `centrality_check.py` | minimum-bias 3dMCGlauber with the XML's settings: the model's σ_inel and how well the b cut matches activity classes (→ `data/glauber_mb/summary.txt`, ~8 min) |
 | `compare.py` | `data/hists.npz` + HEPData → `figures/` |
+| `zjet_jets_map.py`, `zjet_jets.py` | Z+jet against CMS 1702.01060: the map step in Python (anti-k_T R = 0.3, ρA-subtracted in Pb+Pb, embedding, random cones; the twin of `../../analysis_root/zjet/zjets`) and the shared final stage (Z and jet cuts, the optional CMS smearing in four variants, HEPData, χ², jackknife) → `figures/zjet_jets*.png`, `zjet_jets_summary*.txt` |
+| `check_cxx.py` | the C++ map steps (`../../analysis_root/zjet`) against the Python ones: `pools` and `jets` |
 | `mix.py` | event mixing (`../zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `data/pbpb` and `data/vacuum` (cached in `data/mix/`) → `figures/mixing_dphi.png`, `mixing_dy.png`, `mixing_errors_d{phi,y}.png`, `mixing_summary.txt` (~10 s on the test) |
 | `figures/zjet_vs_cms2507_dphi.png`, `…_dy.png`, `summary.txt`, `RESULTS.md` | the result |
 | `figures/MIXING.md` (`.html`) | the event-mixing document: modes and settings, the small-sample checks and comparisons, the plan for the campaigns (git-ignored with the figures) |
@@ -36,6 +38,11 @@ data.
 | `data/vacuum_all/` | 12,000 vacuum events, the campaign's windows and storage with all particles (\|η\| < 2.6, no positions): the pp reference of the Z+jet analysis (174 MB) |
 | `data/hepdata_zjet/` | CMS 1702.01060's HEPData record (ins1512112: Δφ_jZ, x_jZ, ⟨x_jZ⟩, R_jZ, pp and Pb+Pb) |
 | `data/pbpb_campaign/`, `pbpb_campaign_charged/` | one 24-event Pb+Pb job (seed 101, one background, N_coll 443) with the campaign's arguments, all particles / `--charged`: 2.7 / 1.6 MB per event, ~14 s per event and 10.6 GB alone on the GB10; the seed-101 reference of `utils/zjet/zjet_3090_test.sh report` |
+
+**The ROOT path** (2026-10-16; [`../../analysis_root/zjet`](../../analysis_root/zjet/README.md)):
+`data/root/<sample>/` the ROOT files of `run_h5toROOT.py`, `data/mix_cxx/` and
+`data/jets_cxx/` the C++ map steps' outputs, `data/jets_py/` the Python Z+jet map step's
+(`*_s4`: 4 oversamples, for the jet-by-jet check).
 
 `data/` and `figures/` are git-ignored (`.gitignore`): the hadron files are 1–525 MB each,
 the movie's pair and particlize files 930 and 770 MB; the figures are not public yet.

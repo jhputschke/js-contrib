@@ -5,6 +5,8 @@ figures/mixing_dphi.png, mixing_dy.png, mixing_errors.png and mixing_summary.txt
 
   python mix.py                                     # the test: data/pbpb, data/vacuum
   python mix.py --pbpb <dir> --vacuum <dir> --pools <dir> --jobs 8 --tag <name>  # a campaign
+  python mix.py --pbpb-pools <dir> --vacuum-pools <dir> --tag _cxx   # the C++ map step's pools
+                                    # (example/analysis_root/zjet/zhadron_pools, *_pool.root)
 
 Pb+Pb, CMS 2507.09307's selection (zjet_wake.CMS_2507), every event weighted w (window cross
 section / events x N_coll):
@@ -26,6 +28,7 @@ Poisson part as efficiency-corrected tracks do).  Then the modes against CMS, an
 errors scaled to CMS's Z count (``--n-cms``) against CMS's statistical errors.  Errors:
 jackknife over blocks of backgrounds (``--blocks``); strict: the spread."""
 import argparse
+import glob
 import json
 import os
 import sys
@@ -44,7 +47,7 @@ except ImportError:                                              # the source tr
 import zjet_mixing as zm                                         # noqa: E402
 import zjet_wake as zw                                           # noqa: E402
 
-POOL_VERSION = 2
+POOL_VERSION = 3
 MODES = ("factorized", "all", "cms10", "strict")
 COLORS = {"factorized": "C3", "all": "C0", "cms10": "C2", "strict": "C1"}
 
@@ -172,6 +175,10 @@ def main():
     ap.add_argument("--vacuum", default=os.path.join(HERE, "data", "vacuum"))
     ap.add_argument("--pools", default=os.path.join(HERE, "data", "mix"),
                     help="pool cache (default data/mix/{pbpb,vacuum})")
+    ap.add_argument("--pbpb-pools", default=None,
+                    help="read these pools (*_pool.root of zhadron_pools, or *.npz) instead of "
+                         "building them from --pbpb")
+    ap.add_argument("--vacuum-pools", default=None, help="the same for --vacuum")
     ap.add_argument("--hists", default=os.path.join(HERE, "data", "hists.npz"),
                     help="accumulate.py's output, for the check against compare.py ('' none)")
     ap.add_argument("--hepdata", default=os.path.join(HERE, "data", "hepdata",
@@ -194,10 +201,18 @@ def main():
     from compare import PT_LABELS, PT_TAGS, Model, cms
 
     t0 = time.time()
-    pb = zm.Pool.load(build_pools(a.pbpb, os.path.join(a.pools, "pbpb"), a.jobs, a.seed,
-                                  a.rebuild))
-    pp = zm.Pool.load(build_pools(a.vacuum, os.path.join(a.pools, "vacuum"), a.jobs, a.seed,
-                                  a.rebuild))
+    def pool_files(given, src, sub):
+        if given:
+            paths = sorted(glob.glob(os.path.join(given, "*_pool.root"))
+                           or glob.glob(os.path.join(given, "*.npz")))
+            if not paths:
+                raise FileNotFoundError(f"no *_pool.root or *.npz in {given}")
+            print(f"pools: {len(paths)} files from {given}", flush=True)
+            return paths
+        return build_pools(src, os.path.join(a.pools, sub), a.jobs, a.seed, a.rebuild)
+
+    pb = zm.Pool.load(pool_files(a.pbpb_pools, a.pbpb, "pbpb"))
+    pp = zm.Pool.load(pool_files(a.vacuum_pools, a.vacuum, "vacuum"))
     blocks, pblocks = pb.blocks(a.blocks), pp.blocks(a.blocks)
     R = {}
     R["factorized"] = from_all(pb, "zc", ("all", "self"), True, blocks, 2)

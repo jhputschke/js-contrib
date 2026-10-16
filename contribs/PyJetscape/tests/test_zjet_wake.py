@@ -45,3 +45,17 @@ def test_leading_axes_and_bad_bins():
     assert np.allclose(v.mean(axis=-1), 0.0)
     with pytest.raises(ValueError):
         zw.cms_dphi(np.ones(5), np.ones(5), np.linspace(-np.pi / 2, 3 * np.pi / 2, 6))
+
+
+def test_portable_choices_match_the_cxx_header():
+    """zjet_wake.event_key / key_index / key_uniform = analysis_root/zjet/ZJetCommon.h's (the
+    values printed by the C++ header, 2026-10-16): the C++ and Python map steps pick the same
+    oversample and random cones."""
+    k = zw.event_key(1, "AuAu_0_10_jet_seed0101", 5)
+    assert k == 18343560298641494376
+    assert zw.key_index(k, 40) == 3
+    assert zw.key_uniform(k, 3) == 0.64022033611364748
+    k = zw.event_key(7, "PbPb_0_30_zjet_c03_seed0042", 95)
+    assert k == 13175064054514708589
+    assert zw.key_index(k, 40) == 0
+    assert zw.key_uniform(k, 3) == 0.81802700494343383

@@ -64,7 +64,6 @@ from __future__ import annotations
 
 import os
 import warnings
-import zlib
 
 import numpy as np
 
@@ -152,10 +151,10 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
     Per event: S in its Z frame for the full event (the per-sample mean, ``S_full``; its
     number of samples ``n_samples``) and one oversample ``k_one`` (``S_one``; the
     fragmentation ``k_one mod n_frag`` as ``JetEvents.jet_event``), and that oversample's
-    tracks (the partner content of the explicit modes).  ``k_one`` is drawn from (``seed``,
-    the file's name, the event in the file), so that it stays the same when files are added
-    to a campaign.  Per background, summed over its selected events: w S, w^2 S and the
-    lab-frame density w rho, for the full event and the Z-correlated yield (bulk_jet -
+    tracks (the partner content of the explicit modes).  ``k_one`` is
+    ``zjet_wake.key_index(event_key(seed, the file's name, the event in the file), n)``: the
+    same when files are added to a campaign, and in analysis_root/zjet's C++ pools.  Per
+    background, summed over its selected events: w S, w^2 S and the lab-frame density w rho, for the full event and the Z-correlated yield (bulk_jet -
     bulk_bg, per sample, + fragments).  Vacuum files (jet_frag only): the event is its own
     background and the two contents are the same, stored once (``Pool`` aliases them)."""
     from jetscape.hadrons_h5 import EventHadrons, HadronFile, HadronFileReader, Hadrons
@@ -178,7 +177,7 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
                            "S_one", "trk_n", "trk_pt", "trk_eta", "trk_phi")}
     per_bg = {}
     contents = CONTENTS if bulk else ("full",)
-    file_key = zlib.crc32(os.path.basename(stem).encode())
+    name = os.path.basename(stem)
     if len(local_events) == 0:
         return _pack(out, per_bg, contents)
     hfr = load("jet_frag", local_events)
@@ -207,9 +206,8 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
             tj = _tracks(J, info, mask)
         elif nf == 0:
             continue
-        rng = np.random.default_rng([int(seed), file_key, int(e)])
         n_s = K if bulk else nf
-        k = int(rng.integers(n_s))
+        k = zw.key_index(zw.event_key(seed, name, int(e)), n_s)
         SF, RF = z_hist(*tf[:3], y, ph) / nf, lab_hist(*tf[:3]) / nf
         fk = tf[3] == (k % nf)
         if bulk:
@@ -268,6 +266,42 @@ def _pack(out, per_bg, contents):
     return d
 
 
+def read_root_pool(path):
+    """A pool written by analysis_root/zjet/zhadron_pools (one ROOT file per production file)
+    -> the dict of :func:`file_pool`.  Trees ``pool_events`` (event, bg, w, y, phi, k_one,
+    n_samples, S_full[N_PT*N_DY*N_DPHI], S_one[...], trk_pt/eta/phi[n]) and ``pool_bg``
+    (bg_id, W, W2, SW_<c>, T_<c>, R_<c> for the contents it has)."""
+    import awkward as ak
+    import uproot
+
+    shp_z, shp_l = (N_PT, N_DY, N_DPHI), (N_PT, N_ETA, N_PHI)
+    with uproot.open(path) as f:
+        ev = f["pool_events"].arrays(library="ak")
+        bg = f["pool_bg"].arrays(library="ak")
+    n = len(ev)
+
+    def col(a, k, dt):
+        return np.asarray(ak.to_numpy(a[k]), dt)
+
+    d = {"event": col(ev, "event", np.int64), "bg": col(ev, "bg", np.int64),
+         "w": col(ev, "w", float), "y": col(ev, "y", float), "phi": col(ev, "phi", float),
+         "k_one": col(ev, "k_one", np.int64), "n_samples": col(ev, "n_samples", np.int64),
+         "S_full": col(ev, "S_full", np.float32).reshape(n, *shp_z),
+         "S_one": col(ev, "S_one", np.float32).reshape(n, *shp_z),
+         "trk_n": np.asarray(ak.to_numpy(ak.num(ev["trk_pt"])), np.int64),
+         "trk_pt": np.asarray(ak.to_numpy(ak.flatten(ev["trk_pt"])), np.int8),
+         "trk_eta": np.asarray(ak.to_numpy(ak.flatten(ev["trk_eta"])), np.float32),
+         "trk_phi": np.asarray(ak.to_numpy(ak.flatten(ev["trk_phi"])), np.float32),
+         "bg_id": col(bg, "bg_id", np.int64), "bg_W": col(bg, "W", float),
+         "bg_W2": col(bg, "W2", float)}
+    nb = len(bg)
+    for c in CONTENTS:
+        if f"SW_{c}" in bg.fields:
+            for q, shp in (("SW", shp_z), ("T", shp_z), ("R", shp_l)):
+                d[f"bg_{q}_{c}"] = col(bg, f"{q}_{c}", float).reshape(nb, *shp)
+    return d
+
+
 # ── the reduce step's input ─────────────────────────────────────────────────────
 class Pool:
     """The per-file pools of a campaign merged: per selected event (``event``, ``bg``,
@@ -303,8 +337,13 @@ class Pool:
 
     @classmethod
     def load(cls, paths):
+        """The pools of ``paths``: ``.npz`` (``file_pool``) or ``.root``
+        (analysis_root/zjet's ``zhadron_pools``, :func:`read_root_pool`)."""
         parts = []
         for p in paths:
+            if str(p).endswith(".root"):
+                parts.append(read_root_pool(p))
+                continue
             with np.load(p) as f:
                 parts.append({k: f[k] for k in f.files})
         return cls.from_parts(parts)

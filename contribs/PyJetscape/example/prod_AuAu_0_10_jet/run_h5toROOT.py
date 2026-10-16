@@ -90,8 +90,9 @@ def parse_args(argv=None):
     p.add_argument("-j", "--jobs", type=int, default=1, help="processes at once (default 1)")
     p.add_argument("--out-dir", default=None, dest="out_dir",
                    help="output directory (default: next to each input)")
-    p.add_argument("--tags", default=",".join(TAGS),
-                   help=f"comma-separated subset of {', '.join(TAGS)} (default: all)")
+    p.add_argument("--tags", default=None,
+                   help=f"comma-separated subset of {', '.join(TAGS)} (default: all; jet_frag "
+                        "for run_prod_vacuum.py's files, which have no bulk)")
     p.add_argument("--format", choices=("rntuple", "ttree"), default="rntuple",
                    help="rntuple (default; ROOT >= 6.34 to read) or ttree (any ROOT)")
     p.add_argument("--writer", choices=("auto", "root", "uproot"), default="auto",
@@ -113,7 +114,8 @@ def parse_args(argv=None):
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="show what would be done and exit")
     a = p.parse_args(argv)
-    a.tags = [t.strip() for t in a.tags.split(",") if t.strip()]
+    a.tags_given = a.tags is not None
+    a.tags = [t.strip() for t in (a.tags or ",".join(TAGS)).split(",") if t.strip()]
     bad = set(a.tags) - set(TAGS)
     if bad:
         p.error(f"unknown tag(s) {sorted(bad)}")
@@ -171,6 +173,16 @@ def _complete(path):
             return bool(f.attrs.get("complete", False))
     except OSError:
         return False
+
+
+def _is_vacuum(stem):
+    """run_prod_vacuum.py's files: jet_frag only, flagged ``vacuum``."""
+    import h5py
+    path = f"{stem}_hadrons_jet_frag.h5"
+    if not os.path.exists(path) or os.path.exists(f"{stem}_hadrons_bulk_jet.h5"):
+        return False
+    with h5py.File(path, "r") as f:
+        return bool(f.attrs.get("vacuum", False))
 
 
 def input_state(stem, tags):
@@ -518,6 +530,14 @@ def main(argv=None):
     if not stems:
         sys.exit(f"run_h5toROOT.py: no particlize files (or --hadrons-only jet files) in "
                  f"{a.inputs}")
+    if not a.tags_given:
+        vac = [_is_vacuum(st) for st in stems]
+        if all(vac):
+            a.tags = ["jet_frag"]
+            settings = settings_of(a, writer)
+        elif any(vac):
+            sys.exit("run_h5toROOT.py: vacuum (run_prod_vacuum.py) and medium files mixed: "
+                     "convert them separately")
     plan, done, skipped = [], [], {}
     for st in stems:
         out = out_path(st, a.out_dir)
