@@ -53,6 +53,7 @@ Pythia 8.312 with PythiaGun's settings, no medium, 20,000 events per window, 202
 |---|---|
 | `zjet_slurm_campaign.sh` | Delta: `C=<n> sbatch zjet_slurm_campaign.sh` (10 A40s, `P=3`, ~3–4.5 h, estimate) |
 | `zjet_3090_campaign.sh` | 3090 box: `IMAGE=… ./zjet_3090_campaign.sh <n>` (3 jobs per GPU, ~14–19 h, estimate) |
+| `zjet_3090_test.sh` | 3090 box, before campaign 0: `IMAGE=… ./zjet_3090_test.sh info \| bench 3 \| bench 4 \| report \| smoke` (steps 1, 2, 4, 5 below) |
 
 **Cost (GB10, 2026-10-15; [docs/BENCHMARK_PbPb_vs_AuAu.md](../../docs/BENCHMARK_PbPb_vs_AuAu.md)):**
 a Pb+Pb Z+jet job takes 2.1× the time of an Au+Au jet job (323 against 693 events/h, 2 jobs
@@ -86,7 +87,8 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
    `eCMforHadronization 5020`, and the job XML it writes (`<stem>.xml`) `<b_max>8.57`.
 3. LBT cache: one 1-event job writes `lbt_tables_v1_amd64.bin` (Delta `/work/hdd`) /
    `lbt_tables_v1.bin` (box).
-4. Benchmark (plan 5a step 10), first on the RTX box: 24 events/job (one background: 6
+4. Benchmark (plan 5a step 10), first on the RTX box (`zjet_3090_test.sh bench 3`, `bench 4`,
+   `report`; the test image is `jhputschke/xscape-prod:cu124-zjet`): 24 events/job (one background: 6
    windows × 4 jets) at 3 and 4 jobs per GPU; set `JOBS_PER_GPU` / `P` from the memory peak
    (`mem.log` / `sacct -o MaxRSS`, with ~10 % headroom for jobs peaking together), note
    events/h, and replace the estimates here and in the scripts. The defaults (3) are from the
