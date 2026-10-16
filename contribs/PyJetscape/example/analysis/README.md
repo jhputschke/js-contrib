@@ -20,6 +20,20 @@ Everything here runs without X-SCAPE, in the venv of
 Both scripts read the pair files that `run_prod_jet.py` writes (`<stem>.h5`), and the fix
 script also reads the `<stem>_particlize.h5` next to each one.
 
+> **Multi-GPU output** (`OUTBASE/gpu0/`, `OUTBASE/gpu1/`, …, `utils/launch_2gpu.sh`).
+> `jetscape.hadrons_h5.HadronFileReader(source)` looks only in a directory it is given, not in
+> its subdirectories, and a list must name files or stems, not directories (2026-10-16). For
+> the whole output pass a glob: `HadronFileReader("OUTBASE/gpu*/*_hadrons_jet_frag.h5")`
+> (`--hadrons-only` jobs; else `"OUTBASE/gpu*/*_particlize.h5"`). The same glob goes to the
+> scripts that take a source (`zjet_test/mix.py --pbpb`, `zjet_test/zjet_jets_map.py`; quote
+> it). Events are numbered in the order of the sorted paths, `gpu0/` before `gpu1/`. The C++
+> reader of [`../analysis_root`](../analysis_root/README.md) sorts by file name instead: with
+> the launchers' fixed, zero-padded seeds (GPU0 the first block) the two orders agree, with
+> `FIRST_SEED 0` (random seeds) they can differ. That changes no physics (an event's
+> oversample choice depends only on its file name and place in the file), but the global event
+> numbers, the jackknife blocks and the strict-mixing draws, so `zjet_test/check_cxx.py`
+> would report differences.
+
 The balance was first checked in §11 of
 [`../prod_AuAu_0_10_jet/jet_wake.ipynb`](../prod_AuAu_0_10_jet/jet_wake.ipynb); that is where
 the bug was found. The notebook works one event at a time, and the scripts do the same checks

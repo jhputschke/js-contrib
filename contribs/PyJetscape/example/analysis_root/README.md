@@ -76,6 +76,16 @@ for (long e : r.select_events()) {         // hadronized events, flagged ones le
   cut). `clear_filter()` turns it off.
 - Bad input throws: a missing file or ntuple, an event out of range, a sample that isn't
   there (`std::runtime_error`, `std::out_of_range`).
+- **Multi-GPU output** (`OUTBASE/gpu0/`, `OUTBASE/gpu1/`, …, `utils/launch_2gpu.sh`): a
+  directory is read without its subdirectories (2026-10-16), so `OUTBASE` itself has no
+  files. Convert all subdirectories into one directory, `run_h5toROOT.py OUTBASE/gpu0
+  OUTBASE/gpu1 --out-dir OUT` (the campaign file goes there too), and read `OUT`; or pass
+  the files as a `std::vector<std::string>` (without the campaign file, the cross sections
+  then come from the files' windows tables). The reader sorts a directory by file name, the
+  Python reader a glob over the subdirectories by path: with the launchers' fixed,
+  zero-padded seeds (GPU0 the first block) both give the same order and event numbers, with
+  `FIRST_SEED 0` (random seeds) they can differ (the global event numbers, the jackknife
+  blocks and the strict-mixing draws of `zjet/`; not the physics).
 
 **`Hadron`**: `pid`, `pstat`, `E`, `px`, `py`, `pz` (GeV), `t`, `x`, `y`, `z` (fm), `origin`;
 `pt()`, `p()`, `eta()`, `rapidity()`, `phi()`, `mass()`, `charged()` and `p4()`, a
