@@ -12,6 +12,7 @@ data.
 | file | |
 |---|---|
 | `make_data.sh` | the commands that made `data/` (Pb+Pb, pp, HEPData, movie) |
+| `README_zjet_2507.09307.md` | every cut of CMS 2507.09307 (Z–hadron Δφ / Δy) and its setting in the production and the analysis |
 | `accumulate.py` | hadron files → `data/hists.npz` (~15 s) |
 | `centrality_check.py` | minimum-bias 3dMCGlauber with the XML's settings: the model's σ_inel and how well the b cut matches activity classes (→ `data/glauber_mb/summary.txt`, ~8 min) |
 | `compare.py` | `data/hists.npz` + HEPData → `figures/` |
