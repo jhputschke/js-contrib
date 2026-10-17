@@ -283,6 +283,7 @@ def cmd_plot(a):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import figdata
 
     os.makedirs(a.outdir, exist_ok=True)
     samples = [("Pb+Pb", a.pbpb)] + ([("pp", a.pp)] if a.pp else [])
@@ -299,7 +300,7 @@ def cmd_plot(a):
             lines.append(f"  {sn:9s}: {int(m.sum()):6d} Z's, N_eff (σ) {n_eff(wts['σ'][m]):8.0f}, "
                          f"N_eff (σ × N_coll) {n_eff(wts['σ × N_coll'][m]):8.0f}")
         # the Z and its leptons
-        fig, ax = plt.subplots(6, 3, figsize=(15, 22))
+        fig, ax = figdata.subplots(6, 3, figsize=(15, 22))
         for col, (wn, w) in enumerate(wts.items()):
             for row, (var, edges, lab) in enumerate(zvars):
                 for sn, m in sels.items():
@@ -323,10 +324,11 @@ def cmd_plot(a):
         fig.suptitle(f"QA, {name}: the Z and its leptons (columns: unweighted, σ_k/N_k, "
                      f"σ_k/N_k × N_coll)", y=0.995)
         fig.tight_layout()
-        fig.savefig(os.path.join(a.outdir, f"qa_z_{name.replace('+', '')}{a.tag}.png"), dpi=90)
+        figdata.savefig(fig, os.path.join(a.outdir, f"qa_z_{name.replace('+', '')}{a.tag}.png"),
+                        dpi=90)
         plt.close(fig)
         # windows, N_coll, weights
-        fig, ax = plt.subplots(1, 4, figsize=(20, 4))
+        fig, ax = figdata.subplots(1, 4, figsize=(20, 4))
         for k in np.unique(E["pthat_bin"][E["pthat_bin"] >= 0]):
             m = E["pthat_bin"] == k
             ax[0].hist(E["z_pt"][m], zvars[0][1], histtype="step", label=f"window {k}")
@@ -345,14 +347,14 @@ def cmd_plot(a):
                       f"(N_eff {n_eff(w):.0f} of {len(w)})")
         fig.tight_layout()
         tagged = f"qa_weights_{name.replace('+', '')}{a.tag}.png"
-        fig.savefig(os.path.join(a.outdir, tagged), dpi=90)
+        figdata.savefig(fig, os.path.join(a.outdir, tagged), dpi=90)
         plt.close(fig)
         # the Z leptons among the fragments
         bad = int(np.sum(E["nzlep_min"] != 2))
         lines.append(f"  Z leptons found among the fragments: mean {E['nzlep'].mean():.3f} per "
                      f"fragmentation; events with a fragmentation of != 2: {bad}")
     # the hadrons: per charge a bulk-scale and a jet-scale column
-    fig, ax = plt.subplots(3, 4, figsize=(24, 13))
+    fig, ax = figdata.subplots(3, 4, figsize=(24, 13))
     for col0, ch in ((0, "charged"), (2, "all")):
         for row, var in enumerate(VARS):
             edges = EDGES[var]
@@ -387,10 +389,10 @@ def cmd_plot(a):
     fig.suptitle("QA: hadrons per source, per Z event (σ × N_coll-weighted; the Z's leptons "
                  "removed)", y=0.995)
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_hadrons{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_hadrons{a.tag}.png"), dpi=90)
     plt.close(fig)
     # the total charged multiplicity
-    fig, ax = plt.subplots(1, 5, figsize=(26, 4.3))
+    fig, ax = figdata.subplots(1, 5, figsize=(26, 4.3))
     for name, (E, H) in data.items():
         w = event_weights_qa(E)
         panel = ax[0] if name == "Pb+Pb" else ax[1]
@@ -429,10 +431,10 @@ def cmd_plot(a):
         if x.get_legend_handles_labels()[0]:
             x.legend(fontsize=7)
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_multiplicity{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_multiplicity{a.tag}.png"), dpi=90)
     plt.close(fig)
     # the species
-    fig, ax = plt.subplots(figsize=(13, 4.5))
+    fig, ax = figdata.subplots(figsize=(13, 4.5))
     xs = np.arange(len(SPECIES_NAMES))
     bars = [(f"{n}: {s}", H[f"s_{s}_sc"]) for n, (E, H) in data.items()
             for s in (SOURCES if n == "Pb+Pb" else ("jet_frag",)) if f"s_{s}_sc" in H]
@@ -445,7 +447,7 @@ def cmd_plot(a):
     ax.set(yscale="log", ylabel="fraction of the particles", title="QA: species per source")
     ax.legend(fontsize=7)
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_species{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_species{a.tag}.png"), dpi=90)
     plt.close(fig)
     text = "\n".join(lines) + "\n"
     with open(os.path.join(a.outdir, f"qa_summary{a.tag}.txt"), "w") as f:

@@ -338,11 +338,12 @@ def main():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import figdata
 
     scale = np.sqrt(neff_strict / a.n_cms)
     for var in ("phi", "y"):
-        fig, ax = plt.subplots(2, 3, figsize=(16, 8), sharex=True)
-        fe, ae = plt.subplots(1, 3, figsize=(16, 4.2))
+        fig, ax = figdata.subplots(2, 3, figsize=(16, 8), sharex=True)
+        fe, ae = figdata.subplots(1, 3, figsize=(16, 4.2))
         for c in range(len(PT_TAGS)):
             cx, yp, sp, yp_sy = cms(a.hepdata, var, "pbpb", PT_TAGS[c])
             _, yq, sq, yq_sy = cms(a.hepdata, var, "pp", PT_TAGS[c])
@@ -412,7 +413,7 @@ def main():
         os.makedirs(a.outdir, exist_ok=True)
         for f_, name in ((fig, f"mixing_d{var}"), (fe, f"mixing_errors_d{var}")):
             path = os.path.join(a.outdir, f"{name}{a.tag}.png")
-            f_.savefig(path, dpi=110)
+            figdata.savefig(f_, path, dpi=110)
             plt.close(f_)
             print(f"-> {path}")
     # step 1, the reference: the factorized result alone, with the pp row (compare.py's figure)
@@ -420,7 +421,7 @@ def main():
                  "in the model; figures mixing_reference_d*): model and CMS at the first bin "
                  "past 0, chi2/ndf with the model's errors + CMS stat + syst:"]
     for var in ("phi", "y"):
-        fig, ax = plt.subplots(3, 3, figsize=(16, 11), sharex=True)
+        fig, ax = figdata.subplots(3, 3, figsize=(16, 11), sharex=True)
         for c in range(len(PT_TAGS)):
             cx, yp, sp, yp_sy = cms(a.hepdata, var, "pbpb", PT_TAGS[c])
             cq, yq, sq, yq_sy = cms(a.hepdata, var, "pp", PT_TAGS[c])
@@ -456,7 +457,7 @@ def main():
                      f"fragments), Pb+Pb 0–30 % ({pb.n} Z's) and pp ({pp.n} Z's)", y=0.995)
         fig.tight_layout()
         path = os.path.join(a.outdir, f"mixing_reference_d{var}{a.tag}.png")
-        fig.savefig(path, dpi=110)
+        figdata.savefig(fig, path, dpi=110)
         plt.close(fig)
         print(f"-> {path}")
     lines = lines[:3] + ref_lines + [""] + lines[3:]

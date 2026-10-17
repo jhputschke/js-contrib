@@ -52,6 +52,11 @@ python check_cxx.py pools data/mix/pbpb data/mix_cxx/pbpb
 python check_cxx.py jets data/jets_py/vacuum_all data/jets_cxx/vacuum_all
 ```
 
+The final stage's figures come with `<figure>.root` (one directory per panel: TH1D, TH2D,
+TGraphAsymmErrors, TGraph, named after the curves) and `<figure>.npz`, so the plotted numbers
+can be restyled in ROOT or Python without rerunning (`../../analysis/zjet_test/figdata.py`,
+`replot.py`).
+
 ## `zhadron_pools`
 
 For the events passing CMS 2507.09307's Z selection (`zjet::CMS_2507` = `zjet_wake.CMS_2507`),

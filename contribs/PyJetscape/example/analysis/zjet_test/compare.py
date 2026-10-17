@@ -23,6 +23,7 @@ import yaml
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import figdata  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PT_TAGS = ["1_<_p_t_<_2", "2_<_p_t_<_4", "4_<_p_t_<_10"]
@@ -153,7 +154,7 @@ def main():
              f"{'':4s} {'':20s} {'':13s} {'bin at 0':>30s}   {'bin at pi':>30s}"]
     xy = np.linspace(-3.6, 3.6, 10), np.linspace(-3.8, 3.8, 20)
     for var in ("phi", "y"):
-        fig, ax = plt.subplots(3, 3, figsize=(16, 11), sharex=True)
+        fig, ax = figdata.subplots(3, 3, figsize=(16, 11), sharex=True)
         for c in range(3):
             mp, ep = pb[var][0][c], pb[var][1][c]
             if var == "phi":
@@ -203,7 +204,7 @@ def main():
                      "40 < p_T^Z < 350 GeV, |y_Z| < 2.4, |η_ch| < 2.4", y=0.995)
         fig.tight_layout()
         path = os.path.join(a.outdir, f"zjet_vs_cms2507_d{var}.png")
-        fig.savefig(path, dpi=110)
+        figdata.savefig(fig, path, dpi=110)
         print(f"-> {path}")
     text = "\n".join(lines) + "\n"
     with open(os.path.join(a.outdir, "summary.txt"), "w") as f:

@@ -23,6 +23,7 @@ import jetscape.h5_compression  # noqa: F401
 import h5py
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import figdata
 
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 ap.add_argument("--vacuum", default=os.path.join(HERE, "data", "vacuum_all"),
@@ -108,7 +109,7 @@ def cms(i):
     y = np.array([float(b["value"]) for b in v]); e = np.array([np.hypot(*[float(x["symerror"]) for x in b["errors"]]) for b in v])
     return y, e
 out = [f"{n_used} selected Z's (p_T^Z > 40, CMS 1702.01060 lepton cuts) from {os.path.basename(VAC)}"]
-fig, ax = plt.subplots(1, 4, figsize=(19, 4.3))
+fig, ax = figdata.subplots(1, 4, figsize=(19, 4.3))
 phic = 0.5 * (PHI_EDGES[1:] + PHI_EDGES[:-1]); xc = 0.5 * (X_EDGES[1:] + X_EDGES[:-1]); zc = [45, 55, 70, 100]
 for key, sty in (("pp", "s"), ("PbPb 0-30 %", "o")):
     a = acc[key]
@@ -130,5 +131,5 @@ for i, axi, xv, lab in ((1, 0, phic, "CMS smeared pp"), (3, 1, xc, "CMS smeared 
 for a_, t in zip(ax, ("Δφ_jZ, p_T^Z > 60", "x_jZ, p_T^Z > 60, Δφ > 7π/8", "⟨x_jZ⟩ vs p_T^Z", "R_jZ vs p_T^Z")):
     a_.set_title(t); a_.legend(fontsize=7)
 ax[0].set_yscale("log")
-fig.tight_layout(); fig.savefig(os.path.join(OUT, "zjet_pp_vs_cms1702.png"), dpi=100)
+fig.tight_layout(); figdata.savefig(fig, os.path.join(OUT, "zjet_pp_vs_cms1702.png"), dpi=100)
 print("\n".join(out)); open(os.path.join(OUT, "zjet_pp_summary.txt"), "w").write("\n".join(out) + "\n")

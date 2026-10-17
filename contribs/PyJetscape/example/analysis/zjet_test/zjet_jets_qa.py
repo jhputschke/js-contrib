@@ -117,6 +117,7 @@ def main():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import figdata
 
     os.makedirs(a.outdir, exist_ok=True)
     lines = []
@@ -182,7 +183,7 @@ def main():
     sets = [s for s in sets if s[1] is not None]
 
     # ── 1. the subtraction
-    fig, ax = plt.subplots(2, 3, figsize=(17, 9))
+    fig, ax = figdata.subplots(2, 3, figsize=(17, 9))
     for lab, j, W, col in sets:
         acc = np.abs(j["eta"]) < ETA_CUT
         ax[0, 0].stairs(hist(j["pt_raw"][acc], PT_RAW, j["w"][acc], W), PT_RAW, color=col,
@@ -247,7 +248,7 @@ def main():
         x.legend(fontsize=7)
     fig.suptitle("Z+jet jet QA: the ρA subtraction (QA samples, all jets with p_T,raw > 1 GeV)")
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_jets_subtraction{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_jets_subtraction{a.tag}.png"), dpi=90)
     plt.close(fig)
     for (lab, kind), r in fake.items():
         i = np.searchsorted(edges, PT_CUT)
@@ -262,7 +263,7 @@ def main():
                      f"{np.sum(j['w'][acc & (j['pt'] > PT_CUT)]) / W:.3f}")
 
     # ── 2. area and rho
-    fig, ax = plt.subplots(2, 3, figsize=(17, 9))
+    fig, ax = figdata.subplots(2, 3, figsize=(17, 9))
     a_edges = np.linspace(0, 2, 51)
     for (lo, hi), col in zip(PT_CLASSES, ("C0", "C1", "C3")):
         m = (np.abs(S["eta"]) < ETA_CUT) & (S["pt"] >= lo) & (S["pt"] < hi)
@@ -380,11 +381,11 @@ def main():
                      f"{np.average(S['area'][m] / AREA, weights=S['w'][m]):.3f}")
     fig.suptitle("Z+jet jet QA: area and ρ")
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_jets_area_rho{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_jets_area_rho{a.tag}.png"), dpi=90)
     plt.close(fig)
 
     # ── 3. random cones and the embedding (the jets tree, every sample)
-    fig, ax = plt.subplots(2, 3, figsize=(17, 9))
+    fig, ax = figdata.subplots(2, 3, figsize=(17, 9))
     rc = ak.to_numpy(ak.flatten(Jb["rc_dpt"])) if "rc_dpt" in Jb else np.zeros(0)
     if len(rc):
         ev_rc = np.repeat(np.array([row_of_b[g] for g in Jb["event"]]),
@@ -455,11 +456,11 @@ def main():
                              f"{np.mean(r):+.3f}, JER {np.std(r):.3f} ({int(m.sum())} jets)")
     fig.suptitle("Z+jet jet QA: background fluctuations and the response (every sample)")
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_jets_response{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_jets_response{a.tag}.png"), dpi=90)
     plt.close(fig)
 
     # ── 4. geometry and the selection
-    fig, ax = plt.subplots(2, 3, figsize=(17, 9))
+    fig, ax = figdata.subplots(2, 3, figsize=(17, 9))
     for lab, j, W, col in sets:
         E = Ep if lab == "pp" else Eb
         m = cuts(E, j)
@@ -516,11 +517,11 @@ def main():
     ax[1, 2].legend(fontsize=7)
     fig.suptitle("Z+jet jet QA: geometry and the selection (QA samples)")
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_jets_geometry{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_jets_geometry{a.tag}.png"), dpi=90)
     plt.close(fig)
 
     # ── 5. constituents
-    fig, ax = plt.subplots(1, 4, figsize=(21, 4.6))
+    fig, ax = figdata.subplots(1, 4, figsize=(21, 4.6))
     ne = np.arange(0.5, 200.5, 4)
     pe = np.array([-20, -10, 0, 10, 20, 30, 40, 60, 80, 120.0])
     for lab, j, W, col in sets:
@@ -556,11 +557,11 @@ def main():
     fig.suptitle("Z+jet jet QA: the jets' constituents (all final particles but ν and the Z's "
                  "leptons; Pb+Pb before subtraction)")
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_jets_constituents{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_jets_constituents{a.tag}.png"), dpi=90)
     plt.close(fig)
 
     # ── 6. the mixing: B_mixed's backgrounds against the own one
-    fig, ax = plt.subplots(1, 3, figsize=(17, 4.6))
+    fig, ax = figdata.subplots(1, 3, figsize=(17, 4.6))
     if B_mix is not None and nn_info is not None:
         ax[0].hist(nn_info, 40, histtype="step")
         ax[0].set(xlabel="|N_coll(mixed) − N_coll(own)|", ylabel="backgrounds drawn",
@@ -602,7 +603,7 @@ def main():
         lines.append("mixing QA skipped: one hydro background")
     fig.suptitle("Z+jet jet QA: B_mixed (step 3) against B_own (step 2)")
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"qa_jets_mixing{a.tag}.png"), dpi=90)
+    figdata.savefig(fig, os.path.join(a.outdir, f"qa_jets_mixing{a.tag}.png"), dpi=90)
     plt.close(fig)
 
     text = "\n".join(lines) + "\n"

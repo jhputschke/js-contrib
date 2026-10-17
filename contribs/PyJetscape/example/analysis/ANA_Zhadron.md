@@ -368,6 +368,15 @@ saw the files in another order (`../README.md`, *Multi-GPU output*).
 (`zjet_test/compare.py`'s `zjet_vs_cms2507_*.png` are step 1 on the 96-event test set; on a
 campaign `mix.py`'s `mixing_reference_d*` are the same figure, check (1) shows the equality.)
 
+**Every figure's data.** Next to each `<figure>.png` the plotting step writes `<figure>.npz` and
+`<figure>.root` with exactly what is drawn (`zjet_test/figdata.py`): every curve, histogram, band
+and data point with its errors, the labels, scales and limits. To restyle a figure, or to plot
+its numbers in a notebook or a ROOT macro, without running any analysis step again:
+`python zjet_test/replot.py $ANA/figures/<figure>.npz [--style my.mplstyle]` (or `replot.draw`
+with an edit function, see its header), `figdata.load(<figure>.npz)` for the arrays, and in
+ROOT one directory per panel (`ax0`, `ax1`, …) with TH1D / TH2D / TGraphAsymmErrors / TGraph
+named after the curves' labels. The PNGs themselves are unchanged by this.
+
 ## The final figures and how they compare with data
 
 All against CMS 2507.09307's HEPData (ins2945894, in `zjet_test/data/hepdata/`): the Pb+Pb

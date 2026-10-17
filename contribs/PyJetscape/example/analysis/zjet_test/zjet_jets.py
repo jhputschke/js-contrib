@@ -39,6 +39,8 @@ import os
 
 import numpy as np
 
+import figdata
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 C = 0.061
@@ -262,7 +264,7 @@ def pp_figure(a, res, xs, lines, plt):
     zedges = np.array([lo for lo, _ in ZPT_BINS] + [ZPT_BINS[-1][1]], float)
     edges = {"phi": PHI_EDGES, "x": X_EDGES, "mx": zedges, "rjz": zedges}
     lines.append("pp against CMS 1702.01060 (zjet_jets_pp): chi2 with model and CMS errors")
-    fig, ax = plt.subplots(2, 4, figsize=(20, 7.5), sharex="col",
+    fig, ax = figdata.subplots(2, 4, figsize=(20, 7.5), sharex="col",
                            gridspec_kw={"height_ratios": [3, 1.3]})
     for col, obs in enumerate(OBS):
         top, bot = ax[0, col], ax[1, col]
@@ -298,7 +300,7 @@ def pp_figure(a, res, xs, lines, plt):
     fig.suptitle("Z+jet in pp, CMS 1702.01060: the model unsmeared, with pp's and with PbPb's "
                  "jet resolution (bands: CMS's errors)", y=0.995)
     fig.tight_layout()
-    fig.savefig(os.path.join(a.outdir, f"zjet_jets_pp{a.tag}.png"), dpi=100)
+    figdata.savefig(fig, os.path.join(a.outdir, f"zjet_jets_pp{a.tag}.png"), dpi=100)
     plt.close(fig)
 
 
@@ -454,7 +456,7 @@ def main():
     pp_figure(a, res, xs, lines, plt)
     for st, variants in steps.items():
         lines.append(f"Step {st}: {titles[st].split(': ', 1)[1]}")
-        fig, ax = plt.subplots(2, 4, figsize=(20, 8.5))
+        fig, ax = figdata.subplots(2, 4, figsize=(20, 8.5))
         for col, obs in enumerate(OBS):
             ipp, ipb = TABLES[obs]
             for row, (ti, keys, lab) in enumerate((
@@ -482,10 +484,10 @@ def main():
         fig.suptitle(f"Z+jet, CMS 1702.01060: pp (top, smeared to PbPb's resolution) and "
                      f"Pb+Pb 0–30 % (bottom), {titles[st]}", y=0.995)
         fig.tight_layout()
-        fig.savefig(os.path.join(a.outdir, f"zjet_jets_step{st}{a.tag}.png"), dpi=100)
+        figdata.savefig(fig, os.path.join(a.outdir, f"zjet_jets_step{st}{a.tag}.png"), dpi=100)
         plt.close(fig)
     # the embedding figure
-    fe, ae = plt.subplots(1, 2, figsize=(12, 4.2))
+    fe, ae = figdata.subplots(1, 2, figsize=(12, 4.2))
     if len(rc):
         ae[0].hist(rc, bins=60, histtype="step", density=True, label="random cones in bulk_bg")
         xx = np.linspace(rc.min(), rc.max(), 200)
@@ -499,7 +501,7 @@ def main():
         ae[1].set_xlabel("p_T of the fragments' jet [GeV]")
         ae[1].set_ylabel("p_T,embedded − p_T [GeV]")
     fe.tight_layout()
-    fe.savefig(os.path.join(a.outdir, f"zjet_jets_embedding{a.tag}.png"), dpi=100)
+    figdata.savefig(fe, os.path.join(a.outdir, f"zjet_jets_embedding{a.tag}.png"), dpi=100)
     plt.close(fe)
     text = "\n".join(lines) + "\n"
     with open(os.path.join(a.outdir, f"zjet_jets_summary{a.tag}.txt"), "w") as f:

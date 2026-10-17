@@ -256,6 +256,9 @@ and B4 agree too: the smearing's and the draws' random numbers come in the same 
 | B1 | `$ANA/root/…` (shared with ANA_Zhadron) | – |
 | B5 | stdout | – |
 
+Every figure also comes with its `.npz` and `.root` figure data (ANA_Zhadron.md, *Outputs*:
+restyle with `zjet_test/replot.py` without rerunning anything).
+
 ## The jet QA figures
 
 `zjet_jets_qa.py`, before the final stage: the jet reconstruction, not the physics. Jets per Z
