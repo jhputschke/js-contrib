@@ -87,7 +87,9 @@ fragmentation k in vacuum; all final particles but neutrinos and the Z's two lep
   the k_T R = 0.4 jets with |y| < 2.2 in the strip |y − y_jet| < 1; p_T = p_T,raw − ρA.
 - **Embedding** (Pb+Pb): the fragments alone (reference jets, p_T > 10 GeV) and embedded in
   `bulk_bg` sample k, which has no wake; each reference jet with the nearest embedded jet
-  (ΔR < 0.15, else NaN): the subtraction's offset and resolution without medium response.
+  (ΔR < 0.15, else NaN): the subtraction's offset and resolution without medium response. The
+  embedded event's jets above `--ptmin` are stored too (`nw_*`): the Z event without its wake,
+  for the final stage's "no wake" variant and the wake's effect (`ANA_Zjet.md` A8).
 - **Random cones** (Pb+Pb): `--cones` per oversample in `bulk_bg` at |η| < 1.6, positions from
   `key_uniform`; δp_T = Σp_T(ΔR < 0.3) − ρπR²: the model's background fluctuations, to set
   against CMS's N term.
@@ -101,7 +103,8 @@ fragmentation k in vacuum; all final particles but neutrinos and the Z's two lep
 
 Output: `jet_events` (per event: `event`, `local_event`, `file`, `bg`, `pthat_bin`, `weight_mb`
 = σ_k / N_k, `n_coll`, `n_samples`, the Z and its leptons) and `jets` (per event and oversample:
-`jet_{pt_raw, pt, eta, phi, area, rho, m, nconst, lead_pt}`, `emb_{ref_pt, ref_eta, ref_phi,
+`jet_{pt_raw, pt, eta, phi, area, rho, m, nconst, lead_pt}`, the same `nw_*` for the embedded
+event (no wake), `emb_{ref_pt, ref_eta, ref_phi,
 pt, dr}`, `rc_{eta, phi, sum, rho, dpt}`), `bg_jets` (per background and `bulk_bg` sample:
 `bg`, `bg_unit`, `sample`, `n_coll`, the same `jet_*`), and for the QA `qa_jets` (`event`,
 `sample`, `jet_*`) and `qa_bg_jets` (as `bg_jets`). `zjet_test/zjet_jets.py`

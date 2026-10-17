@@ -21,7 +21,9 @@
 // jet also its mass, the number of its (non-ghost) constituents and the leading one's p_T.
 // Embedding (Pb+Pb): the fragments of sample k alone (reference jets, p_T > 10 GeV,
 // |eta| < 2) and embedded in bulk_bg sample k (no wake), clustered and subtracted as above;
-// each reference jet with the embedded jet nearest in Delta R (NaN beyond 0.15).
+// each reference jet with the embedded jet nearest in Delta R (NaN beyond 0.15).  The
+// embedded event's jets above --ptmin are also stored (nw_*): the Z event without its wake,
+// for the final stage's "no wake" variant.
 // Random cones (Pb+Pb): --cones cones per sample in bulk_bg k at |eta| < 1.6, positions
 // from zjet_wake.key_uniform; delta p_T = sum p_T within Delta R < 0.3 - rho pi 0.3^2.
 // Background jets (Pb+Pb, tree bg_jets): every hydro background's bulk_bg samples k = 0 ..
@@ -158,14 +160,14 @@ std::vector<Jet> jets_of(const std::vector<fj::PseudoJet> &parts, bool subtract,
   return out;
 }
 
-// the jet columns of a tree: jet_pt_raw, jet_pt, ... (one vector each, refilled per row)
+// the jet columns of a tree: <prefix>_pt_raw, <prefix>_pt, ... (one vector each, refilled per
+// row; prefix "jet", or "nw" for the embedded event's jets)
 struct JetColumns {
   std::vector<double> v[9];
-  static constexpr const char *names[9] = {"jet_pt_raw", "jet_pt", "jet_eta", "jet_phi",
-                                           "jet_area", "jet_rho", "jet_m", "jet_nconst",
-                                           "jet_lead_pt"};
-  void branch(TTree &t) {
-    for (int i = 0; i < 9; ++i) t.Branch(names[i], &v[i]);
+  static constexpr const char *names[9] = {"pt_raw", "pt", "eta", "phi", "area", "rho", "m",
+                                           "nconst", "lead_pt"};
+  void branch(TTree &t, const std::string &prefix = "jet") {
+    for (int i = 0; i < 9; ++i) t.Branch((prefix + "_" + names[i]).c_str(), &v[i]);
   }
   void clear() {
     for (auto &x : v) x.clear();
@@ -235,7 +237,7 @@ int run(int argc, char **argv) {
     }
     // per (event, sample)
     int sample = 0, frag_sample = 0;
-    JetColumns jc, qc;
+    JetColumns jc, nwc, qc;                        // nwc: the embedded event's jets (no wake)
     std::vector<double> e_rpt, e_reta, e_rphi, e_pt, e_dr;
     std::vector<double> c_eta, c_phi, c_sum, c_rho, c_dpt;
     TTree tj("jets", "jets per oversample");
@@ -244,6 +246,7 @@ int run(int argc, char **argv) {
     tj.Branch("sample", &sample);
     tj.Branch("frag_sample", &frag_sample);
     jc.branch(tj);
+    nwc.branch(tj, "nw");
     for (auto &p : std::vector<std::pair<const char *, std::vector<double> *>>{
              {"emb_ref_pt", &e_rpt}, {"emb_ref_eta", &e_reta}, {"emb_ref_phi", &e_rphi},
              {"emb_pt", &e_pt}, {"emb_dr", &e_dr}, {"rc_eta", &c_eta}, {"rc_phi", &c_phi},
@@ -296,6 +299,7 @@ int run(int argc, char **argv) {
         sample = k;
         frag_sample = info.vacuum ? k : k % nf;
         jc.clear();
+        nwc.clear();
         qc.clear();
         for (auto *v : {&e_rpt, &e_reta, &e_rphi, &e_pt, &e_dr, &c_eta, &c_phi, &c_sum, &c_rho,
                         &c_dpt})
@@ -320,6 +324,8 @@ int run(int argc, char **argv) {
           emb.insert(emb.end(), frag.begin(), frag.end());
           const auto ref = jets_of(frag, false, PT_REF, c);
           const auto ej = jets_of(emb, true, 1.0, c);
+          for (const Jet &x : ej)                 // the same event without the wake
+            if (x.pt > ptmin) nwc.push(x);
           for (const Jet &rj : ref) {
             double best = NaN, dr_best = std::numeric_limits<double>::infinity();
             for (const Jet &x : ej) {

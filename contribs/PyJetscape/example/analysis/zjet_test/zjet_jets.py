@@ -25,6 +25,11 @@ The Pb+Pb analysis in three steps, from the model-only ideal to the experiment's
           produced): 3dMCGlauber puts every event's impact parameter along x, so without it the
           mixed backgrounds would share the Z event's event plane, unlike CMS's minimum-bias
           events (the means do not change, B_mixed's fluctuations against S do)
+The wake's effect: the map step also stores the jets of the embedded event, bulk_bg k + the
+same fragments (the Z event without its wake: the same fluid sample, random numbers and
+subtraction), and steps 2 and 3 are repeated on it ('no wake', unsmeared); step 2 - step 2
+without the wake is what the wake does to the observables, with the jackknife of the
+difference (the two share their events) -> figures/zjet_jets_wake{tag}.png.
 Steps 2 and 3 in four smearing variants (CMS's smearing being optional): none; detector (C, S
 of PbPb: the model's own fluctuations stand for N); full (C, S, N: counts them twice); match
 (C, S and sqrt(N^2 - sigma_RC^2), sigma_RC the random cones' width).  pp (every step's top
@@ -66,7 +71,7 @@ def _flat_tree(t):
     """A tree's arrays with the Python map step's records flattened (jet -> jet_pt, ...)."""
     out = {}
     for k in t.fields:
-        if k in ("njet", "nemb", "nrc"):
+        if k in ("njet", "nnw", "nemb", "nrc"):
             continue
         x = t[k]
         if x.fields:
@@ -209,6 +214,28 @@ def with_errors(c, groups, n_blocks):
     if len(blocks) < 2:
         return v, {k: np.full_like(x, np.nan) for k, x in v.items()}
     reps = [observables(c, ~np.isin(groups, b)) for b in blocks]
+    G = len(blocks)
+    with np.errstate(invalid="ignore"):
+        err = {k: np.sqrt((G - 1) / G * np.nansum((np.array([r[k] for r in reps]) - v[k]) ** 2,
+                                                   axis=0)) for k in v}
+    return v, err
+
+
+def diff_with_errors(c1, c2, groups, n_blocks):
+    """observables(c1) - observables(c2) and the jackknife of the difference over the same
+    blocks: for two results on the same events (the wake's effect)."""
+    one = np.ones(len(groups), bool)
+    o1, o2 = observables(c1, one), observables(c2, one)
+    v = {k: o1[k] - o2[k] for k in o1}
+    ug = np.unique(groups)
+    blocks = [b for b in np.array_split(ug, min(n_blocks, len(ug))) if len(b)]
+    if len(blocks) < 2:
+        return v, {k: np.full_like(x, np.nan) for k, x in v.items()}
+    reps = []
+    for b in blocks:
+        keep = ~np.isin(groups, b)
+        r1, r2 = observables(c1, keep), observables(c2, keep)
+        reps.append({k: r1[k] - r2[k] for k in r1})
     G = len(blocks)
     with np.errstate(invalid="ignore"):
         err = {k: np.sqrt((G - 1) / G * np.nansum((np.array([r[k] for r in reps]) - v[k]) ** 2,
@@ -390,6 +417,8 @@ def main():
     rows = np.arange(len(Jb["event"]))
     w_row = wb[ev] / Eb["n_samples"][ev]
     S_flat = flatten_rows(Eb, Jb, "jet", rows, w_row, ev)
+    NW_flat = (flatten_rows(Eb, Jb, "nw", rows, w_row, ev)          # the event without the wake
+               if "nw_pt" in Jb else None)
     F_flat = flatten_rows(Eb, Jb, "emb_ref", rows, w_row, ev)
     rc = ak.to_numpy(ak.flatten(Jb["rc_dpt"])) if "rc_dpt" in Jb else np.zeros(0)
     sig_rc = float(np.std(rc)) if len(rc) else 0.0
@@ -438,6 +467,9 @@ def main():
     zc = z_counts(Eb, selb, wb)
 
     def result(sig_flat, bkg_flat, n_extra):
+        return with_errors(counts(sig_flat, bkg_flat, n_extra), groups, a.blocks)
+
+    def counts(sig_flat, bkg_flat, n_extra):
         e, pt, eta, phi, wj = sig_flat
         ptx = pt if n_extra == "none" else smear(pt, S, N, rng, n_extra=n_extra)
         c = {**zc, **pair_sums(Eb, selb, e, ptx, eta, phi, wj)}
@@ -447,7 +479,7 @@ def main():
             b = pair_sums(Eb, selb, e, ptx, eta, phi, wj)
             for k in b:
                 c[k] = c[k] - b[k]
-        return with_errors(c, groups, a.blocks)
+        return c
 
     n_extra = {"none": "none", "detector": 0.0, "full": None,
                "match": np.sqrt(max(N ** 2 - sig_rc ** 2, 0.0))}
@@ -529,6 +561,51 @@ def main():
         fig.tight_layout()
         figdata.savefig(fig, os.path.join(a.outdir, f"zjet_jets_step{st}{a.tag}.png"), dpi=100)
         plt.close(fig)
+    # the wake's effect: step 2 against the same on the event without the wake (unsmeared)
+    if NW_flat is not None and B_own is not None:
+        c_s, c_nw = counts(S_flat, B_own, "none"), counts(NW_flat, B_own, "none")
+        nowake = {"S − B_own, none, no wake": with_errors(c_nw, groups, a.blocks)}
+        if B_mix is not None:
+            nowake["S − B_mixed, none, no wake"] = result(NW_flat, B_mix, "none")
+        wake = diff_with_errors(c_s, c_nw, groups, a.blocks)
+        lines.append("Without the wake: steps 2 and 3 on the embedded event (bulk_bg k + the same "
+                     "fragments), unsmeared")
+        fw, aw = figdata.subplots(2, 4, figsize=(20, 8.5))
+        for col, obs in enumerate(OBS):
+            ti = TABLES[obs][1]
+            y, e = cms(a.hepdata, ti)
+            top = aw[0, col]
+            top.errorbar(xs[obs], y, e, fmt="o", color="k", ms=4, label="CMS PbPb 0–30 %")
+            shown = [("step 2: S − B_own, none", steps[2]["S − B_own, none"], "C0"),
+                     ("step 2 without the wake", nowake["S − B_own, none, no wake"], "C1"),
+                     ("step 1: fragments, none", steps[1]["fragments, none"], "C2")]
+            for j, (lab, (m, me), colr) in enumerate(shown):
+                top.errorbar(xs[obs] * (1 + 0.008 * (j - 1)), m[obs], me[obs], fmt="s--",
+                             ms=3.5, mfc="none", lw=0.8, color=colr, label=f"model {lab}")
+            for k, (m, me) in nowake.items():
+                chi, nb = chi2(m[obs], me[obs], y, e)
+                lines.append(f"  {obs:4s} {k:32s} vs data{ti}: chi2 {chi:6.1f}/{nb}"
+                             f"   model {fmt(m[obs])}")
+            top.set_title(LABELS[obs])
+            if obs == "phi":
+                top.set_yscale("log")
+            top.legend(fontsize=6)
+            bot = aw[1, col]
+            bot.errorbar(xs[obs], wake[0][obs], wake[1][obs], fmt="s", ms=4, color="C3",
+                         label="the wake: step 2 − step 2 without the wake")
+            bot.axhline(0, color="0.5", lw=0.8)
+            bot.set_xlabel({"phi": "Δφ_jZ", "x": "x_jZ", "mx": "p_T^Z [GeV]",
+                            "rjz": "p_T^Z [GeV]"}[obs])
+            bot.legend(fontsize=6)
+        lines.append("The wake's effect: step 2 - step 2 without the wake (S - B_own, unsmeared; "
+                     "jackknife of the difference)")
+        for obs in OBS:
+            lines.append(f"  {obs:4s} {fmt(wake[0][obs])} ± {fmt(wake[1][obs])}")
+        fw.suptitle("Z+jet, Pb+Pb 0–30 %: the wake's effect (top: step 2 with and without the "
+                    "wake, step 1; bottom: their difference)", y=0.995)
+        fw.tight_layout()
+        figdata.savefig(fw, os.path.join(a.outdir, f"zjet_jets_wake{a.tag}.png"), dpi=100)
+        plt.close(fw)
     # the embedding figure
     fe, ae = figdata.subplots(1, 2, figsize=(12, 4.2))
     if len(rc):

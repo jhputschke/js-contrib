@@ -13,8 +13,9 @@ at once; the weights still come from all files, so the slices combine.
 
 Jets: anti-k_T R = 0.3 from all final particles but neutrinos and the Z's leptons; Pb+Pb with
 explicit ghosts on a fixed grid and rho(jet) from the k_T R = 0.4 median in a strip
-|y - y_jet| < 1 (|y| < 2.2), p_T = p_T,raw - rho A; the fragments embedded in bulk_bg; random
-cones in bulk_bg; the jets of every background's bulk_bg samples (tree bg_jets, the final
+|y - y_jet| < 1 (|y| < 2.2), p_T = p_T,raw - rho A; the fragments embedded in bulk_bg (the
+matched reference jets, and all its jets above --ptmin as `nw`: the same event without the
+wake, the final stage's "no wake" variant); random cones in bulk_bg; the jets of every background's bulk_bg samples (tree bg_jets, the final
 stage's B); per jet also its mass, the number of its (non-ghost) constituents and the leading
 one's p_T.  The jet QA (trees qa_jets, qa_bg_jets): the first --qa-samples samples of every Z
 event and background with all their jets (p_T,raw > 1 GeV, no cut on the subtracted p_T), for
@@ -212,7 +213,7 @@ def main():
                                "lep1_pid", "lep1_pt", "lep1_eta", "lep1_phi", "lep2_pid",
                                "lep2_pt", "lep2_eta", "lep2_phi")}
         rows = {k: [] for k in ("event", "sample", "frag_sample")}
-        jet, emb, rc = [], [], []
+        jet, nw, emb, rc = [], [], [], []
         qa_rows, qa_jet = {"event": [], "sample": []}, []
         bg_cache = {}            # (bg_unit, k) -> the background's particles, rho, rap, phi
 
@@ -275,6 +276,7 @@ def main():
                     qa_rows["sample"].append(k)
                     qa_jet.append(every)
                 if not bulk:
+                    nw.append([])
                     emb.append([])
                     rc.append([])
                     continue
@@ -282,6 +284,7 @@ def main():
                 bp, b, by, bphi = background(info, k)
                 ref = c.jets(fp, False, PT_REF)
                 ej = c.jets(bp + fp, True, 1.0)
+                nw.append([x for x in ej if x[1] > a.ptmin])    # the event without the wake
                 pairs = []
                 for rj in ref:
                     best, dr_best = math.nan, math.inf
@@ -362,6 +365,7 @@ def main():
                    "frag_sample": np.asarray(rows["frag_sample"], np.int32)}
             for gname, lists, names in (
                     ("jet", jet, JET_NAMES),
+                    ("nw", nw, JET_NAMES),
                     ("emb", emb, ("ref_pt", "ref_eta", "ref_phi", "pt", "dr")),
                     ("rc", rc, ("eta", "phi", "sum", "rho", "dpt"))):
                 out[gname] = jet_record(lists, names)

@@ -117,7 +117,10 @@ oversample k (all 40 by default, `--samples N` fewer): the whole event, `bulk_je
 - **ρA subtraction**: explicit ghosts on a fixed grid (|y| < 2.6, area 0.01), ρ(jet) the
   median p_T / area of the k_T R = 0.4 jets with |y| < 2.2 in the strip |y − y_jet| < 1;
 - **embedding**: the fragments alone (reference jets, p_T > 10 GeV: step 1's jets) and embedded
-  into `bulk_bg` sample k, which has no wake: the subtraction's offset and resolution;
+  into `bulk_bg` sample k, which has no wake: the subtraction's offset and resolution. The
+  embedded event's jets above 5 GeV are stored as well (`nw_*`): **the Z event without its
+  wake** (the same fragments, fluid sample and random numbers), for the final stage's
+  "no wake" variant (A8);
 - **random cones**: 4 per oversample in `bulk_bg` (|η| < 1.6): the background's fluctuations,
   to set against CMS's N;
 - per hydro background and `bulk_bg` sample: its **jets**, subtracted the same way (tree
@@ -210,6 +213,16 @@ procedure, against CMS's PbPb tables. Against step 2: whether mixing other backg
 N_coll reproduces the twin's B (it should, within the errors, if centrality is the only thing
 that matters for the fakes); if it does, step 2 is the same comparison with smaller errors.
 
+**A8. The wake's effect** — `zjet_jets_wake_c00.png` and the summary's "Without the wake" and
+"The wake's effect" blocks. Steps 2 and 3 are repeated, unsmeared, on the embedded event
+(`bulk_bg` k + the same fragments; `nw_*`), the Z event without its wake. It shares everything
+else with step 2: the fragments, the background's fluid sample and random numbers (correlated
+sampling), the ρA subtraction, B, the fluctuations' threshold feed. So **step 2 − step 2
+without the wake is what the wake does to Δφ_jZ, x_jZ, ⟨x_jZ⟩ and R_jZ**, with the jackknife of
+the difference (the two share their events: far smaller errors than either). Step 2 − step 1
+is not: it also contains the background's fluctuations and the subtraction. Top row: CMS,
+step 2, step 2 without the wake, step 1 (all unsmeared); bottom row: the difference.
+
 ## B. ROOT: the C++ map step, the same final stage
 
 **B1. Convert to ROOT** (once, shared with ANA_Zhadron §B1):
@@ -270,7 +283,7 @@ and B4 agree too: the smearing's and the draws' random numbers come in the same 
 |---|---|---|
 | A1 / B3 (map) | `$ANA/jets_py/pbpb/<stem>_jets.root` (100), `$ANA/jets_py/pp/<stem>_jets.root` (or `jets_cxx/`): trees `jet_events` (per Z event: the Z, its leptons, weight σ_k/N_k, N_coll, background, samples used), `jets` (per event and oversample: jets, embedding pairs, random cones), `bg_jets` (per background and `bulk_bg` sample: its jets, N_coll), `qa_jets`, `qa_bg_jets` (the first oversample's jets without the p_T cut) | – |
 | A3 / B4 (jet QA) | `$ANA/figures/qa_jets_summary_c00.txt` (`_c00_cxx`) | `qa_jets_subtraction_c00.png`, `qa_jets_area_rho_c00.png`, `qa_jets_response_c00.png`, `qa_jets_geometry_c00.png`, `qa_jets_constituents_c00.png`, `qa_jets_mixing_c00.png` |
-| A2 / B4 (final) | `$ANA/figures/zjet_jets_summary_c00.txt` (`_c00_cxx`) | `zjet_jets_pp_c00.png`, `zjet_jets_step1_c00.png`, `zjet_jets_step2_c00.png`, `zjet_jets_step3_c00.png`, `zjet_jets_embedding_c00.png` |
+| A2 / B4 (final) | `$ANA/figures/zjet_jets_summary_c00.txt` (`_c00_cxx`) | `zjet_jets_pp_c00.png`, `zjet_jets_step1_c00.png`, `zjet_jets_step2_c00.png`, `zjet_jets_step3_c00.png`, `zjet_jets_wake_c00.png`, `zjet_jets_embedding_c00.png` |
 | B1 | `$ANA/root/…` (shared with ANA_Zhadron) | – |
 | B5 | stdout | – |
 
