@@ -55,7 +55,13 @@ def compare_tag(h5path, nt, tag):
         check(np.array_equal(ak.to_numpy(arr["bg_unit"]),
                              np.repeat(np.asarray(h.units["bg_unit"]), per)), f"{tag}: bg_unit")
     counts = ak.to_numpy(ak.num(arr["pid"]))
-    check(np.array_equal(counts, np.diff(h.sample_offsets)), f"{tag}: hadrons per sample")
+    same = np.array_equal(counts, np.diff(h.sample_offsets))
+    check(same, f"{tag}: hadrons per sample")
+    if not same:                                   # the hadron lists cannot be compared
+        n_bad = int(np.sum(counts != np.diff(h.sample_offsets)))
+        check(False, f"{tag}: {n_bad} of {len(counts)} samples differ in their hadron "
+                     f"count ({int(counts.sum()):,} against {len(h.pid):,} hadrons)")
+        return
     check(np.array_equal(flat(arr["pid"]), h.pid), f"{tag}: pid ({len(h.pid):,} hadrons)")
     check(np.array_equal(flat(arr["pstat"]), h.pstat), f"{tag}: pstat")
     for j, name in enumerate(("E", "px", "py", "pz")):
