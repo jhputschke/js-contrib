@@ -74,6 +74,7 @@ As in [ANA_Zhadron.md](ANA_Zhadron.md) §0–2, with these variables:
 REPO=~/js-contrib-zjet; EX=$REPO/contribs/PyJetscape/example
 DATA=/data/zjet_c00     # gpu0/ (seeds 1-50), gpu1/ (51-100): PbPb_0_30_zjet_c00_seedNNNN_hadrons_*.h5
 PP=/data/zjet_pp        # vacuum_jet_zjet_pp_seed900001_hadrons_jet_frag.h5 (12,000 events, 40 fragmentations)
+# PP=$EX/analysis/zjet_test/data/vacuum_all   # on the GB10: 12,000 events, 10 fragmentations (ANA_Zhadron §0)
 ANA=/data/ana_c00; mkdir -p $ANA/logs
 cd $EX/analysis/zjet_test && ./make_data.sh hepdata_zjet      # CMS 1702.01060's HEPData, once
 ```
@@ -148,18 +149,31 @@ embedding and B lines:
 - the B lines: background jets per Z (R_jZ of B) for B_own and B_mixed against R_jZ of S alone:
   how much of S is fake.
 
-**A4. Step 1, the reference** (a model quantity, not the measured observable) —
-`zjet_jets_step1_c00.png`, the summary's "Step 1" block:
-1. **pp first** (top row): the model's pp, smeared to PbPb's resolution, against CMS's smeared-pp
-   tables; with pp's resolution against the unsmeared pp x_jZ (`data9`, summary only).
-2. **Pb+Pb** (bottom row): the fragments' jets with CMS's theory smearing (and unsmeared)
-   against CMS's PbPb tables: the jet's energy loss alone, without background or medium response.
+**A4. pp, the baseline** — `zjet_jets_pp_c00.png`, the summary's "pp against CMS" block. Before
+any Pb+Pb step: does the model's vacuum Z+jet describe CMS's pp? Every Pb+Pb conclusion rests on
+it, and it is the one Z+jet comparison without a background. Two comparisons, each with the
+smearing CMS's table has:
+1. **pp at PbPb's resolution** (blue) against CMS's pp smeared to PbPb (`data1`, `data3`,
+   `data5`, `data7`, black), all four observables: the pp the Pb+Pb tables are compared with,
+   the top row of every step figure;
+2. **pp at pp's resolution** (green) against CMS's pp x_jZ (`data9`, green diamonds), the only
+   pp table at pp's own resolution.
 
-**A5. Step 2** — `zjet_jets_step2_c00.png`: S − B_own in the four smearing variants. Against step 1:
+The unsmeared model (grey, particle level, no table) shows what the smearing does: mostly x_jZ
+and ⟨x_jZ⟩ at low p_T^Z, where the resolution is widest. The lower row: model / CMS, the bands
+CMS's errors (stat ⊕ syst). A pp disagreement is the generator's (Pythia, the Z's and the jets'
+p_T), not the medium's, and carries over into every Pb+Pb step.
+
+**A5. Step 1, the reference** (a model quantity, not the measured observable) —
+`zjet_jets_step1_c00.png`, the summary's "Step 1" block: the fragments' jets with CMS's theory
+smearing (and unsmeared) against CMS's PbPb tables (bottom row): the jet's energy loss alone,
+without background or medium response. The top row repeats A4's pp at PbPb's resolution.
+
+**A6. Step 2** — `zjet_jets_step2_c00.png`: S − B_own in the four smearing variants. Against step 1:
 what the background, its subtraction and the medium response (the wake's hadrons inside the
 cone) do to the jets.
 
-**A6. Step 3, the comparison with data** — `zjet_jets_step3_c00.png`: S − B_mixed, CMS's
+**A7. Step 3, the comparison with data** — `zjet_jets_step3_c00.png`: S − B_mixed, CMS's
 procedure, against CMS's PbPb tables. Against step 2: whether mixing other backgrounds of similar
 N_coll reproduces the twin's B (it should, within the errors, if centrality is the only thing
 that matters for the fakes); if it does, step 2 is the same comparison with smaller errors.
@@ -193,7 +207,7 @@ done; wait
 0.12 s per Pb+Pb oversample (measured on the test), ~0.35 GB per process; about as fast as the
 Python route (FastJet clusters in both), the pp in seconds.
 
-**B4. The final stage on the C++ jets** (all three steps, read as in A3–A6):
+**B4. The final stage on the C++ jets** (pp and all three steps, read as in A3–A7):
 
 ```bash
 cd $EX/analysis/zjet_test
@@ -221,7 +235,7 @@ and B4 agree too: the smearing's and the draws' random numbers come in the same 
 | step | writes | figures |
 |---|---|---|
 | A1 / B3 (map) | `$ANA/jets_py/pbpb/<stem>_jets.root` (100), `$ANA/jets_py/pp/<stem>_jets.root` (or `jets_cxx/`): trees `jet_events` (per Z event: the Z, its leptons, weight σ_k/N_k, N_coll, background, samples used), `jets` (per event and oversample: jets, embedding pairs, random cones), `bg_jets` (per background and `bulk_bg` sample: its jets, N_coll) | – |
-| A2 / B4 (final) | `$ANA/figures/zjet_jets_summary_c00.txt` (`_c00_cxx`) | `zjet_jets_step1_c00.png`, `zjet_jets_step2_c00.png`, `zjet_jets_step3_c00.png`, `zjet_jets_embedding_c00.png` |
+| A2 / B4 (final) | `$ANA/figures/zjet_jets_summary_c00.txt` (`_c00_cxx`) | `zjet_jets_pp_c00.png`, `zjet_jets_step1_c00.png`, `zjet_jets_step2_c00.png`, `zjet_jets_step3_c00.png`, `zjet_jets_embedding_c00.png` |
 | B1 | `$ANA/root/…` (shared with ANA_Zhadron) | – |
 | B5 | stdout | – |
 
@@ -230,9 +244,19 @@ and B4 agree too: the smearing's and the draws' random numbers come in the same 
 Against CMS 1702.01060's HEPData (ins1512112, `zjet_test/data/hepdata_zjet/`), errors: CMS's
 stat ⊕ syst (black) and the model's jackknife.
 
+**`zjet_jets_pp_c00.png`, pp** — 2 rows × 4 columns: Δφ_jZ (log scale), x_jZ, ⟨x_jZ⟩ vs p_T^Z,
+R_jZ vs p_T^Z (top), model / CMS with CMS's errors as bands (bottom). The model's vacuum jets
+three ways: smeared with PbPb's resolution against the smeared-pp tables `data1`, `data3`,
+`data5`, `data7`; smeared with pp's resolution (S 0.95, N 0.001) against `data9` (x_jZ, pp
+unsmeared by CMS's definition: at pp's own resolution); unsmeared, for reference. The pp
+selection, jets, weights and errors (a jackknife over blocks of events) are those of the Pb+Pb
+steps. `zjet_test/zjet_pp_jets.py` makes the same comparison from the HDF5 files with its own
+jet finding (`figures/zjet_pp_vs_cms1702.png`): an independent cross-check, agreeing within the
+smearing's random numbers.
+
 **`zjet_jets_step1_c00.png`, `_step2_`, `_step3_`** — the same layout for every step, 2 rows × 4
 columns: Δφ_jZ (log scale), x_jZ, ⟨x_jZ⟩ vs p_T^Z, R_jZ vs p_T^Z.
-- **Top row, pp** (the same in every step): the model's pp jets smeared with PbPb's resolution (the
+- **Top row, pp** (the same in every step, the blue points of the pp figure): the model's pp jets smeared with PbPb's resolution (the
   model is at particle level, so the whole σ_PbPb, which is where CMS's pp data smeared by
   √(σ_PbPb² − σ_pp²) end up) against CMS's "smeared pp" tables `data1` (Δφ_jZ), `data3` (x_jZ),
   `data5` (⟨x_jZ⟩), `data7` (R_jZ).
@@ -251,7 +275,9 @@ against the data's. Right: embedded − reference p_T against the reference p_T:
 subtraction's offset and resolution.
 
 **`zjet_jets_summary_c00.txt`** — the Z counts after CMS's cuts (pp, Pb+Pb) and the number of
-backgrounds, the B lines, the random cones, the embedding, and per step the χ² lines.
+backgrounds, the B lines, the random cones, the embedding, the pp block (χ² against `data1`,
+`data3`, `data5`, `data7` at PbPb's resolution and `data9` at pp's, the unsmeared values), and per
+step the χ² lines of Pb+Pb. All χ² use the model's jackknife and CMS's errors in quadrature.
 
 **Caveats of the comparison**
 - **The muons**: CMS takes muons from p_T > 10 GeV, the production requires p_T > 20 GeV for both

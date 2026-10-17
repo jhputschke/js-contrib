@@ -29,6 +29,14 @@ below; the repository's `zjet_test/figures/` is git-ignored for the same reason.
 minutes on any CPU. What the stored hadrons are (η and Σ⁰ stable in the bulk, no weak decays):
 the "Read first" note of [`docs/Plans/PLAN_ZJET_CMS10x.md`](../../../../docs/Plans/PLAN_ZJET_CMS10x.md).
 
+**No `/data/zjet_pp` yet (on the GB10): `vacuum_all/`.** Until the 40-fragmentation pp reference
+is made, `zjet_test/data/vacuum_all/` (`cd zjet_test && ./make_data.sh vacuum_all`, ~8 min on
+the CPU) serves as `PP` for both analyses: 12,000 vacuum events (seed 902, 2,000 per window), the
+campaign's p̂T windows, no parton cut, all particles, |η| < 2.6, no positions, as above, but
+**10 fragmentations** instead of 40 (the pp statistics of the fragments are 4× lower, the Z's
+the same). Set `PP=$EX/analysis/zjet_test/data/vacuum_all` in §1; every command below takes the
+directory unchanged.
+
 **The two subdirectories.** The readers do not look below the directory they are given
 (`../README.md`, *Multi-GPU output*): give Python a quoted glob over `gpu*/`, and convert both
 subdirectories into one ROOT directory for C++. GPU0 has the first block of seeds and the seeds
@@ -166,6 +174,7 @@ per campaign file and ~100 MB per campaign (estimated), against the campaign's ~
 git clone -b zjet https://github.com/jhputschke/js-contrib ~/js-contrib-zjet
 REPO=~/js-contrib-zjet; EX=$REPO/contribs/PyJetscape/example
 DATA=/data/zjet_c00; PP=/data/zjet_pp; ANA=/data/ana_c00       # ANA: outputs, private
+# PP=$EX/analysis/zjet_test/data/vacuum_all                      # on the GB10, see §0
 mkdir -p $ANA/logs
 ```
 

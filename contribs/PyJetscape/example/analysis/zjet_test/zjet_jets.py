@@ -25,11 +25,13 @@ Steps 2 and 3 in four smearing variants (CMS's smearing being optional): none; d
 of PbPb: the model's own fluctuations stand for N); full (C, S, N: counts them twice); match
 (C, S and sqrt(N^2 - sigma_RC^2), sigma_RC the random cones' width).  pp (every step's top
 row): smeared with PbPb's resolution against CMS's smeared-pp tables 1, 3, 5, 7 (the model is
-at particle level, so the whole sigma_PbPb); with pp's resolution against table 9 (summary).
+at particle level, so the whole sigma_PbPb).  The pp figure (zjet_jets_pp): the four observables
+unsmeared, with pp's and with PbPb's resolution, against tables 1, 3, 5, 7 (smeared pp) and
+table 9 (x_jZ of pp at pp's resolution, CMS's only unsmeared pp table), with model / CMS below.
 CMS's resolution (Appendix A): sigma / p_T = sqrt(C^2 + S^2 / p_T + N^2 / p_T^2), C 0.061;
 pp S 0.95, N 0.001; PbPb 0-30 % S 1.24, N 8.08.  Errors: a jackknife over blocks of the Z's
 hydro backgrounds (pp: of events).
--> figures/zjet_jets_step{1,2,3}{tag}.png, zjet_jets_embedding{tag}.png,
+-> figures/zjet_jets_pp{tag}.png, zjet_jets_step{1,2,3}{tag}.png, zjet_jets_embedding{tag}.png,
    zjet_jets_summary{tag}.txt."""
 import argparse
 import glob
@@ -214,6 +216,65 @@ def cms(hep, i):
     return y, e
 
 
+def chi2(m, me, y, e):
+    """chi^2 and its bins, model and CMS errors in quadrature (CMS: stat. and syst.)."""
+    ee = np.where(np.isfinite(me), me, 0.0)
+    good = np.isfinite(m) & np.isfinite(y) & (e ** 2 + ee ** 2 > 0)
+    return float(np.sum((m[good] - y[good]) ** 2 / (e[good] ** 2 + ee[good] ** 2))), int(good.sum())
+
+
+def pp_figure(a, res, xs, lines, plt):
+    """pp against CMS: the four observables (top) and model / CMS (bottom).  CMS's pp tables
+    1, 3, 5, 7 are smeared to PbPb's resolution, so they go with the PbPb-smeared model; table 9
+    (x_jZ) is pp at pp's own resolution and goes with the pp-smeared model.  The unsmeared
+    (particle-level) model shows what the smearing does."""
+    pairs = {obs: [(TABLES[obs][0], "pp, PbPb-smeared", "CMS pp, smeared to PbPb", "o", "k")]
+             for obs in OBS}
+    pairs["x"].append((9, "pp, pp-smeared", "CMS pp", "D", "C2"))
+    style = {"pp, PbPb-smeared": "C0", "pp, pp-smeared": "C2", "pp, unsmeared": "0.5"}
+    zedges = np.array([lo for lo, _ in ZPT_BINS] + [ZPT_BINS[-1][1]], float)
+    edges = {"phi": PHI_EDGES, "x": X_EDGES, "mx": zedges, "rjz": zedges}
+    lines.append("pp against CMS 1702.01060 (zjet_jets_pp): chi2 with model and CMS errors")
+    fig, ax = plt.subplots(2, 4, figsize=(20, 7.5), sharex="col",
+                           gridspec_kw={"height_ratios": [3, 1.3]})
+    for col, obs in enumerate(OBS):
+        top, bot = ax[0, col], ax[1, col]
+        for j, k in enumerate(style):
+            m, me = res[k][0][obs], res[k][1][obs]
+            top.errorbar(xs[obs] * (1 + 0.008 * (j - 1)), m, me, fmt="s--", ms=3.5, mfc="none",
+                         lw=0.8, color=style[k], label=f"model {k[4:]}")
+        for ti, k, lab, mk, colr in pairs[obs]:
+            y, e = cms(a.hepdata, ti)
+            top.errorbar(xs[obs], y, e, fmt=mk, color=colr, ms=4, label=f"{lab} (table {ti})")
+            m, me = res[k][0][obs], res[k][1][obs]
+            with np.errstate(invalid="ignore", divide="ignore"):
+                r, re_, rd = m / y, me / y, e / y
+            bot.errorbar(xs[obs], r, re_, fmt="s", ms=3.5, mfc="none", color=style[k],
+                         label=f"{k[4:]} / table {ti}")
+            bot.stairs(1 + rd, edges[obs], baseline=1 - rd, fill=True, color=colr, alpha=0.15)
+            c, nb = chi2(m, me, y, e)
+            lines.append(f"  {obs:4s} {k:32s} vs data{ti}: chi2 {c:6.1f}/{nb}   model {fmt(m)}")
+        m = res["pp, unsmeared"][0][obs]
+        lines.append(f"  {obs:4s} {'pp, unsmeared':32s} (no table)        model {fmt(m)}")
+        top.set_title(LABELS[obs])
+        if obs == "phi":
+            top.set_yscale("log")
+        top.legend(fontsize=6)
+        bot.axhline(1, color="0.5", lw=0.6)
+        bot.set_ylim(0.2, 1.8)
+        bot.set_ylabel("model / CMS")
+        bot.legend(fontsize=6)
+    ax[1, 0].set_xlabel("Δφ_jZ")
+    ax[1, 1].set_xlabel("x_jZ")
+    ax[1, 2].set_xlabel("p_T^Z [GeV]")
+    ax[1, 3].set_xlabel("p_T^Z [GeV]")
+    fig.suptitle("Z+jet in pp, CMS 1702.01060: the model unsmeared, with pp's and with PbPb's "
+                 "jet resolution (bands: CMS's errors)", y=0.995)
+    fig.tight_layout()
+    fig.savefig(os.path.join(a.outdir, f"zjet_jets_pp{a.tag}.png"), dpi=100)
+    plt.close(fig)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pbpb", required=True, help="the map step's Pb+Pb *_jets.root")
@@ -247,9 +308,10 @@ def main():
     rows = np.arange(len(Jp["event"]))
     pp_flat = flatten_rows(Ep, Jp, "jet", rows, wp[evp] / Ep["n_samples"][evp], evp)
     res = {}
-    for key, (Sx, Nx) in (("pp, pp-smeared", RES["pp"]), ("pp, PbPb-smeared", RES["PbPb"])):
+    for key, sn in (("pp, pp-smeared", RES["pp"]), ("pp, PbPb-smeared", RES["PbPb"]),
+                    ("pp, unsmeared", None)):
         e, pt, eta, phi, wj = pp_flat
-        ptx = smear(pt, Sx, Nx, rng)
+        ptx = pt if sn is None else smear(pt, *sn, rng)
         c = {**z_counts(Ep, selp, wp), **pair_sums(Ep, selp, e, ptx, eta, phi, wj)}
         res[key] = with_errors(c, Ep["event"], a.blocks)
     lines.append(f"pp: {int(selp.sum())} Z's (CMS 1702.01060's cuts) of {len(selp)} in {a.pp}")
@@ -362,6 +424,7 @@ def main():
               2: "step 2: S − B_own (the Z's own background, the model's twin)",
               3: "step 3: S − B_mixed (bulk_bg of the backgrounds closest in N_coll, as CMS)"}
     os.makedirs(a.outdir, exist_ok=True)
+    pp_figure(a, res, xs, lines, plt)
     for st, variants in steps.items():
         lines.append(f"Step {st}: {titles[st].split(': ', 1)[1]}")
         fig, ax = plt.subplots(2, 4, figsize=(20, 8.5))
@@ -381,7 +444,7 @@ def main():
                     ee = np.where(np.isfinite(me), me, 0.0)
                     good = np.isfinite(m) & np.isfinite(y) & (e ** 2 + ee ** 2 > 0)
                     chi = float(np.sum((m[good] - y[good]) ** 2 / (e[good] ** 2 + ee[good] ** 2)))
-                    if row == 1 or st == 1:
+                    if row == 1:
                         lines.append(f"  {obs:4s} {k:32s} vs data{ti}: chi2 {chi:6.1f}/"
                                      f"{int(good.sum())}   model "
                                      f"{fmt(m)}")
@@ -394,11 +457,6 @@ def main():
         fig.tight_layout()
         fig.savefig(os.path.join(a.outdir, f"zjet_jets_step{st}{a.tag}.png"), dpi=100)
         plt.close(fig)
-    y9, e9 = cms(a.hepdata, 9)
-    m = res["pp, pp-smeared"][0]["x"]
-    good = np.isfinite(m) & (e9 > 0)
-    c9 = float(np.sum((m[good] - y9[good]) ** 2 / e9[good] ** 2))
-    lines.append(f"  x    {'pp, pp-smeared':32s} vs data9: chi2 {c9:6.1f}/{int(good.sum())}")
     # the embedding figure
     fe, ae = plt.subplots(1, 2, figsize=(12, 4.2))
     if len(rc):

@@ -121,7 +121,8 @@ and √(N² − σ_RC²), σ_RC the random cones' width), all four shown in step
   the per-event tables and every histogram identical (`check_cxx.py qa`: 0 differences), the plot
   step's summaries line for line.
 - **The final stage** on the C++ jets reproduces the earlier pp comparison (`zjet_pp_jets.py`):
-  R_jZ 0.30, 0.42, 0.54, 0.68 in the four p_T^Z classes.
+  R_jZ 0.30, 0.42, 0.54, 0.68 in the four p_T^Z classes; its pp figure (`zjet_jets_pp*.png`)
+  agrees with `zjet_pp_vs_cms1702.png` within the smearing's random numbers.
 - **Speed**: `zjets` 0.12 s per Pb+Pb oversample (six clusterings with areas), 3 s for the
   12,000 pp events. The Python twin is about as fast for jets (FastJet does the work in both);
   the C++ map steps are an example of the ROOT workflow rather than a speed-up. A campaign's
