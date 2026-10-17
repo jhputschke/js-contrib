@@ -231,8 +231,8 @@ In `figures/RESULTS.md` (the figures, a table and the findings), with all number
   jackknife is itself a rough error estimate.
 - **Every hydro event has its event plane near φ = 0** (3dMCGlauber's impact parameter along x),
   in this test and in the campaigns: the bulk's φ, summed over backgrounds, is not flat. Harmless
-  for the means; `mix.py` rotates the backgrounds for the mixed modes' noise (above); the Z+jet
-  mixing (`zjet_jets.py`, B_mixed) does not yet.
+  for the means; `mix.py` and `zjet_jets.py` (B_mixed, and `zjet_jets_qa.py` with it) rotate the
+  backgrounds for the mixed modes' noise by default (above; `--no-rotate` as produced).
 - Centrality from b < 8.57 fm with N_coll weights; CMS from the HF energy. `centrality_check.py`
   (200,000 minimum-bias events, 2026-10-16): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm). So the b cut is the model's 0–29.3 %
   and nearly the same events as an activity class; how HF energy orders the events is not

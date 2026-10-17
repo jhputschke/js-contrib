@@ -10,8 +10,9 @@ subtracted p_T) and its jets tree (embedding, random cones), from either map ste
 The Z events: CMS 1702.01060's selection and weights (zjet_jets.py: window cross section /
 events x N_coll for Pb+Pb, normalised per Z).  Jets per Z: S the Z events' jets (bulk_jet +
 fragments), B_own the jets of the Z's own background (bulk_bg, the same oversample index),
-B_mixed the jets of the --n-nearest other backgrounds closest in N_coll (zjet_jets.py's step 3),
-pp the vacuum's.  The Z+jet cuts where a panel says so: |eta| < 1.6, Delta R > 0.4 from the Z's
+B_mixed the jets of the --n-nearest other backgrounds closest in N_coll (zjet_jets.py's step 3,
+each background rotated by zjet_jets.py's random angle; --no-rotate as produced), pp the
+vacuum's.  The Z+jet cuts where a panel says so: |eta| < 1.6, Delta R > 0.4 from the Z's
 leptons, the subtracted p_T > 30 GeV (no smearing here).
 
   qa_jets_subtraction  p_T,raw, rho A, p_T = p_T,raw - rho A (the negative tail), p_T,raw vs
@@ -32,8 +33,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from zjet_jets import (dphi, load_jets, load_qa_jets, weights,  # noqa: E402
-                       z_selection)
+from zjet_jets import (SEED, background_angles, dphi, load_jets,  # noqa: E402
+                       load_qa_jets, rotation_seed, weights, z_selection)
 
 R_JET = 0.3
 AREA = np.pi * R_JET ** 2
@@ -45,9 +46,9 @@ PT_CLASSES = ((-np.inf, 10), (10, 30), (30, np.inf))
 
 
 def flat(T, rows, row_w, row_ev, names=("pt_raw", "pt", "eta", "phi", "area", "rho", "m",
-                                         "nconst", "lead_pt")):
+                                         "nconst", "lead_pt"), row_dphi=None):
     """The jets of the rows ``rows`` of a QA/jets tree -> dict of flat arrays (the jet_* columns,
-    their event row ``e`` and weight ``w``)."""
+    their event row ``e`` and weight ``w``); ``row_dphi`` rotates each row's jets."""
     import awkward as ak
     out = {}
     first = T[f"jet_{names[0]}"][rows]
@@ -55,6 +56,8 @@ def flat(T, rows, row_w, row_ev, names=("pt_raw", "pt", "eta", "phi", "area", "r
     rep = np.repeat(np.arange(len(rows)), counts)
     for nm in names:
         out[nm] = ak.to_numpy(ak.flatten(T[f"jet_{nm}"][rows])).astype(float)
+    if row_dphi is not None:
+        out["phi"] = out["phi"] + np.asarray(row_dphi, float)[rep]
     out["e"] = np.asarray(row_ev)[rep]
     out["w"] = np.asarray(row_w, float)[rep]
     return out
@@ -110,6 +113,11 @@ def main():
                          "dN_ch/deta of the background")
     ap.add_argument("--n-nearest", type=int, default=20,
                     help="B_mixed: the other backgrounds closest in N_coll (zjet_jets.py's)")
+    ap.add_argument("--no-rotate", dest="rotate", action="store_false",
+                    help="B_mixed: keep the backgrounds as produced (event planes all near "
+                         "phi = 0) instead of zjet_jets.py's random rotations (the default)")
+    ap.add_argument("--rotate-seed", type=int, default=None,
+                    help="seed of the rotations (default: zjet_jets.py's, from its --seed 7)")
     ap.add_argument("--outdir", default=os.path.join(HERE, "figures"))
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
@@ -176,7 +184,16 @@ def main():
         if orow:
             B_own = flat(QB, np.concatenate(orow), np.concatenate(ow), np.concatenate(oev))
         if mrow:
-            B_mix = flat(QB, np.concatenate(mrow), np.concatenate(mw), np.concatenate(mev))
+            mrow, mev = np.concatenate(mrow), np.concatenate(mev)
+            turn = None
+            if a.rotate:
+                angle = background_angles(np.concatenate([QB["bg"], Eb["bg"]]),
+                                          rotation_seed(SEED, a.rotate_seed))
+                turn = angle(QB["bg"][mrow]) - angle(Eb["bg"][mev])
+            B_mix = flat(QB, mrow, np.concatenate(mw), mev, row_dphi=turn)
+            lines.append("B_mixed: the backgrounds " + (
+                "rotated by zjet_jets.py's random angles" if a.rotate else
+                "as produced (--no-rotate): event planes all near phi = 0"))
             nn_info = np.concatenate(dnc)
     sets = [("S (Z events)", S, Wb, "C3"), ("B_own", B_own, Wb, "C0"),
             ("B_mixed", B_mix, Wb, "C1"), ("pp", P, Wp, "k")]

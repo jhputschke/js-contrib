@@ -20,7 +20,11 @@ The Pb+Pb analysis in three steps, from the model-only ideal to the experiment's
           own background (bulk_bg, the same fluid without the jet, sample by sample): the jets
           not from the Z's interaction removed with the model's twin, as only the model can
   step 3  S - B_mixed: B from --n-mixed bulk_bg samples of the --n-nearest other backgrounds
-          closest in N_coll, as CMS's 40 minimum-bias events of the same centrality
+          closest in N_coll, as CMS's 40 minimum-bias events of the same centrality; every
+          background rotated by its own random angle (default; --no-rotate keeps them as
+          produced): 3dMCGlauber puts every event's impact parameter along x, so without it the
+          mixed backgrounds would share the Z event's event plane, unlike CMS's minimum-bias
+          events (the means do not change, B_mixed's fluctuations against S do)
 Steps 2 and 3 in four smearing variants (CMS's smearing being optional): none; detector (C, S
 of PbPb: the model's own fluctuations stand for N); full (C, S, N: counts them twice); match
 (C, S and sqrt(N^2 - sigma_RC^2), sigma_RC the random cones' width).  pp (every step's top
@@ -46,6 +50,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 C = 0.061
 RES = {"pp": (0.95, 0.001), "PbPb": (1.24, 8.08)}
 PBPB_SMEAR = ("none", "detector", "full", "match")
+SEED = 7                                       # --seed's default
 PHI_EDGES = np.array([0, np.pi / 5, 2 * np.pi / 5, 3 * np.pi / 5, 7 * np.pi / 10, 4 * np.pi / 5,
                       9 * np.pi / 10, 19 * np.pi / 20, np.pi])
 X_EDGES = np.linspace(0, 2, 11)
@@ -218,16 +223,37 @@ def smear(pt, S, N, rng, n_extra=None):
     return pt * (1 + sig * rng.standard_normal(len(pt)))
 
 
-def flatten_rows(E, J, prefix, rows, row_weight, ev_of_row):
+def flatten_rows(E, J, prefix, rows, row_weight, ev_of_row, row_dphi=None):
     """Jets of the jagged columns ``prefix``_pt/eta/phi at ``rows`` -> flat (e, pt, eta, phi,
-    wj): every jet with its row's event and weight."""
+    wj): every jet with its row's event and weight; ``row_dphi`` rotates each row's jets."""
     import awkward as ak
     pt = J[f"{prefix}_pt"][rows]
     counts = ak.to_numpy(ak.num(pt))
     rep = np.repeat(np.arange(len(rows)), counts)
+    phi = ak.to_numpy(ak.flatten(J[f"{prefix}_phi"][rows]))
+    if row_dphi is not None:
+        phi = phi + np.asarray(row_dphi, float)[rep]
     return (ev_of_row[rep], ak.to_numpy(ak.flatten(pt)),
-            ak.to_numpy(ak.flatten(J[f"{prefix}_eta"][rows])),
-            ak.to_numpy(ak.flatten(J[f"{prefix}_phi"][rows])), row_weight[rep])
+            ak.to_numpy(ak.flatten(J[f"{prefix}_eta"][rows])), phi, row_weight[rep])
+
+
+def background_angles(bg_ids, seed):
+    """A random angle in [0, 2 pi) per hydro background (one draw per distinct id, in sorted
+    order) -> function of an array of background ids.  Rotating a background (its Z events,
+    their jets, the background's own jets and random cones) is an exact symmetry; only jets
+    paired with another background's Z change: a mixed jet of background b seen from a Z of
+    background b' turns by angle(b) - angle(b').  3dMCGlauber puts every event's impact
+    parameter along x (all event planes near phi = 0); the rotation makes them random, as
+    for CMS's minimum-bias events (ANA_Zjet.md, *The backgrounds' event planes*)."""
+    ids = np.unique(np.asarray(bg_ids))
+    ang = np.random.default_rng(seed).uniform(0, 2 * np.pi, len(ids))
+    return lambda b: ang[np.searchsorted(ids, np.asarray(b))]
+
+
+def rotation_seed(seed, given=None):
+    """The rotations' seed: ``given`` (--rotate-seed), else derived from --seed
+    (zjet_jets_qa.py uses zjet_jets.py's default --seed, so that both draw the same angles)."""
+    return given if given is not None else [int(seed), 0x726F74]
 
 
 def fmt(m):
@@ -317,8 +343,13 @@ def main():
                     help="bulk_bg samples per Z for step 3's B (CMS: 40 minimum-bias events)")
     ap.add_argument("--n-nearest", type=int, default=20,
                     help="step 3: the other backgrounds closest in N_coll to draw them from")
-    ap.add_argument("--seed", type=int, default=7,
+    ap.add_argument("--seed", type=int, default=SEED,
                     help="the smearing's and the draws' random numbers")
+    ap.add_argument("--no-rotate", dest="rotate", action="store_false",
+                    help="step 3: keep the backgrounds as produced (their event planes all near "
+                         "phi = 0) instead of rotating each by a random angle (the default)")
+    ap.add_argument("--rotate-seed", type=int, default=None,
+                    help="seed of the background rotations (default: derived from --seed)")
     a = ap.parse_args()
     import awkward as ak
     import matplotlib
@@ -387,8 +418,20 @@ def main():
             mev.append(np.full(a.n_mixed, e_))
             mw.append(np.full(a.n_mixed, wb[e_] / a.n_mixed))
         if mrows:
-            B_mix = flatten_rows(Eb, Bb, "jet", np.concatenate(mrows), np.concatenate(mw),
-                                 np.concatenate(mev))
+            mrows, mev = np.concatenate(mrows), np.concatenate(mev)
+            turn = None
+            if a.rotate:
+                angle = background_angles(np.concatenate([Bb["bg"], Eb["bg"]]),
+                                          rotation_seed(a.seed, a.rotate_seed))
+                turn = angle(Bb["bg"][mrows]) - angle(Eb["bg"][mev])
+            B_mix = flatten_rows(Eb, Bb, "jet", mrows, np.concatenate(mw), mev, turn)
+            if not a.rotate:
+                how = "as produced (--no-rotate): event planes all near phi = 0"
+            elif a.rotate_seed is not None:
+                how = f"rotated by random angles (seed {a.rotate_seed})"
+            else:
+                how = f"rotated by random angles (from --seed {a.seed})"
+            lines.append(f"step 3: the mixed backgrounds {how}")
     zc = z_counts(Eb, selb, wb)
 
     def result(sig_flat, bkg_flat, n_extra):

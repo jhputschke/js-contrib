@@ -64,16 +64,20 @@ CMS's recipe for theory approximates).
 every event; on `zjet_c00` 84 % of the 400 backgrounds within ±π/8). In data they are random. The
 means of steps 2 and 3 are unaffected (φ_Z is uniform), but step 3's mixed backgrounds share the
 Z's plane, so their fake jets (more in plane) line up with the Z event's own in Δφ_jZ and cancel
-part of its fluctuations, which CMS's minimum-bias events cannot: step 3's errors come out too
-small. The Z–hadron mixing rotates every background by a random angle for this
-(`mix.py`, [ANA_Zhadron.md](ANA_Zhadron.md#the-measurement-s-b-and-the-ladder), *The
-backgrounds' event planes*); `zjet_jets.py` does not yet (it would rotate each background's jets,
-its Z's and its random cones together, the same exact symmetry).
+part of its fluctuations, which CMS's minimum-bias events cannot: step 3's errors would come out
+too small. So `zjet_jets.py` (and `zjet_jets_qa.py`'s B_mixed, with the same angles) rotates every
+background by its own random angle by default, as the Z–hadron mixing does (`mix.py`,
+[ANA_Zhadron.md](ANA_Zhadron.md#the-measurement-s-b-and-the-ladder), *The backgrounds' event
+planes*). Rotating a background with its Z events, their jets, its own jets and random cones is an
+exact symmetry, so only B_mixed changes: a mixed jet of background b seen from a Z of background b'
+turns by angle(b) − angle(b'). Steps 1 and 2 and pp do not depend on it; `--no-rotate` reproduces
+the outputs from before 2026-10-17 (checked: every figure array and summary line).
 
 **The settings** (`zjet_jets.py`): `--blocks` (100, jackknife blocks of the Z's backgrounds),
 `--n-mixed` (40, step 3's `bulk_bg` samples per Z, CMS's 40 minimum-bias events), `--n-nearest`
 (20, the other backgrounds closest in N_coll to draw them from), `--seed` (7, the smearing's and
-the draws' random numbers). The map step: `--samples` (all 40 oversamples), `--cones` (4),
+the draws' random numbers), `--no-rotate` (keep the mixed backgrounds as produced),
+`--rotate-seed` (the rotations; default from `--seed`; `zjet_jets_qa.py` takes the same). The map step: `--samples` (all 40 oversamples), `--cones` (4),
 `--ptmin` (5 GeV), `--seed` (1).
 
 ## 0.–2. Data, set-up, checks

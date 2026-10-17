@@ -167,9 +167,9 @@ detector sees): the "Read first" note at the top of PLAN_ZJET_CMS10x.md.
   400 backgrounds; the bulk's φ summed over them is modulated, lab v₂ ≈ 0.03), where data have
   random planes. φ_Z is uniform, so the means of a Z-frame analysis are unaffected; **event
   mixing** (partners sharing the Z's plane) needs each background rotated by a random angle to
-  have realistic fluctuations. The Z–hadron `mix.py` does that by default (ANA_Zhadron.md, *The
-  backgrounds' event planes*); `zjet_jets.py`'s B_mixed does not yet. A random reaction-plane
-  angle per background in production would make it unnecessary.
+  have realistic fluctuations. The Z–hadron `mix.py` and the Z+jet `zjet_jets.py` (B_mixed) do
+  that by default (ANA_Zhadron.md, *The backgrounds' event planes*; ANA_Zjet.md). A random
+  reaction-plane angle per background in production would make it unnecessary.
 
 ## Analysis and movies
 
