@@ -161,6 +161,15 @@ background the summed lab-frame densities), ~2 s per test file; the modes take s
 | cms10 | full event, 40-sample mean | CMS's procedure: 10 partners from 10 other backgrounds, drawn ~ w, one oversample each (one recorded collision) | jackknife |
 | strict | one Z per background (drawn ~ w inside it, weighted by the background's total W_b): every Z its own fluid, as in data; one oversample | 10 partners from 10 other backgrounds of that set, one oversample each | the spread over the Z's (the experiment's statistical error) |
 
+**The backgrounds are rotated** (2026-10-17, default): 3dMCGlauber puts the impact parameter
+along x in every event, so all hydro backgrounds have their event plane near φ = 0 (on the
+first campaign 84 % within ±π/8). The means do not care (φ_Z is uniform), but partners sharing
+the Z's plane cancel part of its flow modulation in the mixed modes' noise, which mixing in data
+cannot. `mix.py` rotates every Pb+Pb background by its own random multiple of 6° when it loads
+the pools (`zjet_mixing.Pool.rotate_backgrounds`; the Z's, tracks and lab densities together, an
+exact symmetry); `--no-rotate` keeps them as produced, `--rotate-seed` sets the angles. The
+pools on disk are not rotated. Details: [`../ANA_Zhadron.md`](../ANA_Zhadron.md#the-measurement-s-b-and-the-ladder) (*The backgrounds' event planes*).
+
 The checks, first in `figures/mixing_summary.txt`:
 
 1. **factorized = compare.py** to 10⁻¹⁵ (Pb+Pb) and 2 × 10⁻¹⁴ (pp) relative: the pools, the
@@ -220,6 +229,10 @@ In `figures/RESULTS.md` (the figures, a table and the findings), with all number
 
 - 4 hydro events: the geometry and its fluctuations are poorly sampled, and a 4-group
   jackknife is itself a rough error estimate.
+- **Every hydro event has its event plane near φ = 0** (3dMCGlauber's impact parameter along x),
+  in this test and in the campaigns: the bulk's φ, summed over backgrounds, is not flat. Harmless
+  for the means; `mix.py` rotates the backgrounds for the mixed modes' noise (above); the Z+jet
+  mixing (`zjet_jets.py`, B_mixed) does not yet.
 - Centrality from b < 8.57 fm with N_coll weights; CMS from the HF energy. `centrality_check.py`
   (200,000 minimum-bias events, 2026-10-16): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm). So the b cut is the model's 0–29.3 %
   and nearly the same events as an activity class; how HF energy orders the events is not

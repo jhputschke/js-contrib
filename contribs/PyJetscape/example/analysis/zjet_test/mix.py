@@ -17,6 +17,13 @@ section / events x N_coll):
               backgrounds of that set; the error from the spread over the Z's
 pp: the factorized result (no fluid: every event its own background).
 
+Pb+Pb backgrounds: every one rotated by its own random angle (a multiple of 6 degrees; the
+Z, its tracks and the background's lab densities together, an exact symmetry), because
+3dMCGlauber puts the impact parameter along x in every event and the event planes would all
+lie near phi = 0: the means do not change, but partners sharing the Z's event plane would
+cancel part of its flow modulation in the mixed modes' noise, which mixing in data cannot
+(zjet_mixing.Pool.rotate_backgrounds).  ``--no-rotate`` keeps them as produced.
+
 Checks first: (1) factorized = compare.py (data/hists.npz) to rounding, Pb+Pb and pp; (2)
 the own-background rule with the bulk off, within the errors of (1); (3) the closure: the
 bulk term (all - all with the bulk off) against 0; (4) the exclusion bias of leaving the own
@@ -190,6 +197,11 @@ def main():
     ap.add_argument("--n-mix", type=int, default=10, help="partners per Z (CMS: 10)")
     ap.add_argument("--blocks", type=int, default=100, help="jackknife blocks of backgrounds")
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--no-rotate", dest="rotate", action="store_false",
+                    help="keep the Pb+Pb backgrounds as produced (their event planes all near "
+                         "phi = 0) instead of rotating each by a random angle (the default)")
+    ap.add_argument("--rotate-seed", type=int, default=None,
+                    help="seed of the background rotations (default: derived from --seed)")
     ap.add_argument("--n-cms", type=float, default=1550.0,
                     help="CMS's Z count in 0-30 %% (plan: ~1,550, 78 %% of ~2,000)")
     ap.add_argument("--strict-split", type=int, default=10,
@@ -212,6 +224,9 @@ def main():
         return build_pools(src, os.path.join(a.pools, sub), a.jobs, a.seed, a.rebuild)
 
     pb = zm.Pool.load(pool_files(a.pbpb_pools, a.pbpb, "pbpb"))
+    if a.rotate:
+        pb.rotate_backgrounds(a.rotate_seed if a.rotate_seed is not None
+                              else [int(a.seed), 0x726F74])
     pp = zm.Pool.load(pool_files(a.vacuum_pools, a.vacuum, "vacuum"))
     blocks, pblocks = pb.blocks(a.blocks), pp.blocks(a.blocks)
     R = {}
@@ -250,11 +265,19 @@ def main():
     print(f"mixing: {time.time() - t0:.0f} s", flush=True)
 
     neff_pb, neff_strict = zm.n_eff(pb.w), zm.n_eff(W)
+    if not a.rotate:
+        rotation = "as produced (--no-rotate): event planes all near phi = 0"
+    elif a.rotate_seed is not None:
+        rotation = f"rotated by random angles (seed {a.rotate_seed})"
+    else:
+        rotation = f"rotated by random angles (from --seed {a.seed})"
     lines = [f"Pb+Pb: {pb.n} selected Z's (effective {neff_pb:.0f}) on {pb.n_bg} hydro "
              f"backgrounds, jackknife over {len(blocks)} blocks; strict: {len(zi)} Z's "
              f"(effective {neff_strict:.0f}), partners per Z {strict['n_mix'].min()}-"
              f"{strict['n_mix'].max()}; cms10 partners {cms10['n_mix'].min()}-"
-             f"{cms10['n_mix'].max()}", f"pp: {pp.n} selected Z's", ""]
+             f"{cms10['n_mix'].max()}", f"Pb+Pb backgrounds {rotation}",
+             f"pp: {pp.n} selected Z's", ""]
+    n_head = len(lines)
 
     # (1) factorized = compare.py
     if a.hists and os.path.exists(a.hists):
@@ -460,7 +483,7 @@ def main():
         figdata.savefig(fig, path, dpi=110)
         plt.close(fig)
         print(f"-> {path}")
-    lines = lines[:3] + ref_lines + [""] + lines[3:]
+    lines = lines[:n_head] + ref_lines + [""] + lines[n_head:]
     lines += [""] + err_lines + [""] + budget_lines + [
         "", "strict@CMS: the strict emulation's spread error x sqrt(N_eff / N_CMS). CMS's "
         "statistical errors are of efficiency-corrected tracks (larger than at perfect "

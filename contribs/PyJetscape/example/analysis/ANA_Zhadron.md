@@ -92,6 +92,21 @@ fluid (and the random numbers), and such a partner would cancel part of S's fluc
 no experiment can do. The price, with weighted backgrounds, is a small flat bias of order
 1/(number of backgrounds) (check 4); step 2 keeps every partner because its B has no noise anyway.
 
+**The backgrounds' event planes: `mix.py` rotates them (default).** 3dMCGlauber puts the impact
+parameter along x in every event, so all hydro backgrounds of a production have their event
+plane near φ = 0 (`zjet_c00`: Ψ₂ within ±π/8 of the x-axis for 84 % of the 400 backgrounds at
+1–2 GeV, ⟨cos 2Ψ₂⟩ = 0.82; the bulk's φ summed over all of them is modulated, lab v₂ ≈ 0.03). In
+data the event planes are random. φ_Z is uniform and independent of the plane, so the **means**
+of every step are unaffected, but in steps 2–4 the partners share the Z's event plane and cancel
+part of its flow modulation Z by Z, which mixing in data cannot: the mixed modes' **noise** and
+the error predictions (checks 5, 6) come out too small in Δφ (on `zjet_c00` by 17 % in the per-Z
+shape noise at 1–2 GeV, 10 % at 2–4 GeV; Δy and 4–10 GeV unchanged). `mix.py` therefore rotates
+every Pb+Pb background by its own random multiple of 6° when it loads the pools
+(`zjet_mixing.Pool.rotate_backgrounds`: the Z's, their tracks and the background's lab densities
+together, an exact symmetry of each event), for both routes' pools; the pools themselves stay as
+produced. `--no-rotate` keeps the backgrounds as produced, `--rotate-seed` sets the angles
+(default: from `--seed`). Step 1 does not depend on it, digit for digit.
+
 **The settings** (`mix.py`; one run makes all four steps):
 
 | option | default | what it changes |
@@ -99,6 +114,8 @@ no experiment can do. The price, with weighted backgrounds, is a small flat bias
 | `--n-mix` | 10 | partners per Z in steps 3 and 4 (CMS: 10); more partners, less B noise |
 | `--blocks` | 100 | jackknife blocks of hydro backgrounds (4 per block for 400 backgrounds) |
 | `--seed` | 1 | the strict set, the partner draws, and each event's recorded oversample `k_one` |
+| `--no-rotate` | off (rotated) | keep the Pb+Pb backgrounds' event planes as produced (all near φ = 0) instead of rotating each by a random angle; for comparisons with outputs from before 2026-10-17 |
+| `--rotate-seed` | from `--seed` | the backgrounds' random rotations |
 | `--n-cms` | 1550 | CMS's 0–30 % Z count (78 % of "about 2000"), for scaling the strict errors |
 | `--strict-split` | 10 | disjoint subsamples for check (5) |
 | `--efficiency` | 1 | the Poisson part of the predicted strict errors / ε (CMS's tracks are efficiency-corrected) |
@@ -233,8 +250,11 @@ python check_cxx.py qa $ANA/qa_py/pbpb $ANA/qa_cxx/pbpb | tail -1          # 0 d
 | `qa_summary_c00.txt` | Z counts and N_eff per selection and weighting, the Z leptons found among the fragments (2 per fragmentation expected; they are removed), the mean multiplicities, the oversamples' spread, the species |
 
 Look for: the windows tiling p_T^Z smoothly, N_coll spanning 0–30 % (not a few values), the
-weights' range (N_eff), exactly 2 Z leptons per fragmentation, a smooth bulk η (|η| < 2.6 stored)
-and φ (flat on average over many backgrounds), dN_ch/dη rising with N_coll.
+weights' range (N_eff), exactly 2 Z leptons per fragmentation, a smooth bulk η (|η| < 2.6 stored),
+dN_ch/dη rising with N_coll. The bulk's φ is **not** flat: a cos 2φ modulation with maxima at 0
+and ±π (lab v₂ ≈ 0.03 on `zjet_c00`), because every background has its event plane near φ = 0
+(*The backgrounds' event planes* above); the QA shows the files as produced, `mix.py` rotates
+them.
 
 ## A. Python on the HDF5 files
 

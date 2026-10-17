@@ -364,6 +364,31 @@ class Pool:
         """The backgrounds in ``n`` contiguous blocks (file order) for the jackknife."""
         return [b for b in np.array_split(np.arange(self.n_bg), min(n, self.n_bg)) if len(b)]
 
+    def rotate_backgrounds(self, seed):
+        """Rotate every background by its own random multiple of the lab phi bin (6 degrees),
+        in place: its Z's (``phi``), their tracks (``trk_phi``) and its lab densities
+        (``bg_R``) together, an exact symmetry of each event; the Z-frame histograms do not
+        change.  3dMCGlauber puts the impact parameter along x in every event, so the
+        backgrounds' event planes all lie near phi = 0 (zjet_c00: 84 % within pi/8 at 1-2
+        GeV): their means are unaffected (phi_Z is uniform), but partners sharing the Z's
+        event plane cancel part of its flow modulation, which mixing in data cannot.  After
+        the rotation the planes are random.  ``seed``: anything ``np.random.default_rng``
+        takes; one draw per background in ``bg_id`` order.  Returns the angles [rad]."""
+        rng = np.random.default_rng(seed)
+        k = np.array([int(rng.integers(N_PHI)) for _ in self.bg_id], np.int64)
+        dphi = k * (2 * np.pi / N_PHI)
+        wrap = lambda p: np.mod(p + np.pi, 2 * np.pi) - np.pi
+        ev = dphi[self.zb]
+        self.phi = wrap(self.phi + ev)
+        self.trk_phi = wrap(self.trk_phi + np.repeat(ev, self.trk_n)).astype(self.trk_phi.dtype)
+        same = self.bg_R["zc"] is self.bg_R["full"]
+        for c in ("full",) if same else ("full", "zc"):
+            r = self.bg_R[c]
+            self.bg_R[c] = np.stack([np.roll(r[b], k[b], axis=-1) for b in range(len(k))])
+        if same:
+            self.bg_R["zc"] = self.bg_R["full"]
+        return dphi
+
 
 def n_eff(w):
     """Kish's effective number of a weighted sample."""

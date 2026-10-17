@@ -60,6 +60,16 @@ step 2 is the same with the ideal B, and step 3 − step 2 tests CMS's B on the 
 the reference that shows what the background, its subtraction and the response add (and is what
 CMS's recipe for theory approximates).
 
+**The backgrounds' event planes are all near φ = 0** (3dMCGlauber's impact parameter along x in
+every event; on `zjet_c00` 84 % of the 400 backgrounds within ±π/8). In data they are random. The
+means of steps 2 and 3 are unaffected (φ_Z is uniform), but step 3's mixed backgrounds share the
+Z's plane, so their fake jets (more in plane) line up with the Z event's own in Δφ_jZ and cancel
+part of its fluctuations, which CMS's minimum-bias events cannot: step 3's errors come out too
+small. The Z–hadron mixing rotates every background by a random angle for this
+(`mix.py`, [ANA_Zhadron.md](ANA_Zhadron.md#the-measurement-s-b-and-the-ladder), *The
+backgrounds' event planes*); `zjet_jets.py` does not yet (it would rotate each background's jets,
+its Z's and its random cones together, the same exact symmetry).
+
 **The settings** (`zjet_jets.py`): `--blocks` (100, jackknife blocks of the Z's backgrounds),
 `--n-mixed` (40, step 3's `bulk_bg` samples per Z, CMS's 40 minimum-bias events), `--n-nearest`
 (20, the other backgrounds closest in N_coll to draw them from), `--seed` (7, the smearing's and

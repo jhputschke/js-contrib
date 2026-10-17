@@ -240,3 +240,28 @@ def test_strict_noise_algebra():
     assert np.allclose(out["full"], np.sqrt((fluid2 + 32.0) * 1.1))
     assert np.allclose(out["shape"], np.sqrt((4.0 - 1.0 + 32.0) * 1.1))
     assert np.allclose(out["poisson"], np.sqrt(32.0 * 1.1))
+
+
+def test_rotate_backgrounds_is_a_symmetry_of_each_background():
+    """One random multiple of 6 degrees per background, applied to its Z's, their tracks and
+    its lab densities: every background seen from its own Z's does not change; the same
+    seed gives the same angles; a vacuum pool keeps its one content."""
+    d, _, _ = synthetic()
+    pool, rot = zm.Pool(d), zm.Pool(d)
+    dphi = rot.rotate_backgrounds(11)
+    step = 2 * np.pi / zm.N_PHI
+    assert np.allclose(dphi / step, np.round(dphi / step)) and len(dphi) == pool.n_bg
+    assert np.allclose(np.mod(rot.phi - pool.phi - dphi[pool.zb] + np.pi, 2 * np.pi), np.pi)
+    ev = np.repeat(dphi[pool.zb], pool.trk_n)
+    assert np.allclose(np.mod(rot.trk_phi - pool.trk_phi - ev + np.pi, 2 * np.pi), np.pi,
+                       atol=1e-5)
+    assert np.array_equal(rot.trk_eta, pool.trk_eta) and np.array_equal(rot.S_full, pool.S_full)
+    for c in zm.CONTENTS:
+        for i in range(pool.n):
+            b = pool.zb[i]
+            assert np.allclose(zm.shift_sum(rot.bg_R[c][b], [rot.y[i]], [rot.phi[i]], [1.0]),
+                               zm.shift_sum(pool.bg_R[c][b], [pool.y[i]], [pool.phi[i]], [1.0]))
+    assert np.array_equal(zm.Pool(d).rotate_backgrounds(11), dphi)
+    vac = zm.Pool({k: v for k, v in d.items() if not k.endswith("_zc")})
+    vac.rotate_backgrounds(11)
+    assert vac.bg_R["zc"] is vac.bg_R["full"]

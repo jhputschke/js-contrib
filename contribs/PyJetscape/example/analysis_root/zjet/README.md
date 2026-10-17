@@ -127,6 +127,11 @@ and √(N² − σ_RC²), σ_RC the random cones' width), all four shown in step
   backgrounds, `k_one`, the tracks, `S_full` and `S_one` identical; the background sums to
   10⁻¹³ (the weights' normalization). `mix.py` on the C++ pools prints the same summary as on
   the Python ones, apart from the last digit of check (1). 0.5–0.8 s per test file.
+  The pools of both map steps are as produced; `mix.py` rotates every Pb+Pb background's event
+  plane when it loads them (the default since 2026-10-17, `--no-rotate` to keep them:
+  [`ANA_Zhadron.md`](../../analysis/ANA_Zhadron.md#the-measurement-s-b-and-the-ladder), *The
+  backgrounds' event planes*), the same angles for both, so `check_cxx.py pools` and the
+  summaries' comparison are unaffected.
 - **`zjets`** against `zjet_jets_map.py`: pp (`vacuum_all`, 96,980 oversamples, 213,682
   jets) identical; Pb+Pb (`pbpb_campaign`, 4 oversamples of 19 Z events: 2,085 jets, 61
   embedding pairs, 304 random cones) to 10⁻¹⁴, areas and ρ included; the masses, constituent

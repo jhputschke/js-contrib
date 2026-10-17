@@ -162,6 +162,14 @@ detector sees): the "Read first" note at the top of PLAN_ZJET_CMS10x.md.
 - The two leptons are in `jet_frag` (pid ±11/±13) and in `initiators/`:
   **remove them before a track or jet analysis** (match `lep{1,2}_*`).
 - `pthat_bin_sigma_gen` is Pythia's σ × kept/tried of both cuts (`--parton-ymax` and the trigger).
+- **Every hydro background has its event plane near φ = 0**: 3dMCGlauber puts the impact
+  parameter along x in every event (`zjet_c00`: Ψ₂ within ±π/8 of the x-axis for 84 % of the
+  400 backgrounds; the bulk's φ summed over them is modulated, lab v₂ ≈ 0.03), where data have
+  random planes. φ_Z is uniform, so the means of a Z-frame analysis are unaffected; **event
+  mixing** (partners sharing the Z's plane) needs each background rotated by a random angle to
+  have realistic fluctuations. The Z–hadron `mix.py` does that by default (ANA_Zhadron.md, *The
+  backgrounds' event planes*); `zjet_jets.py`'s B_mixed does not yet. A random reaction-plane
+  angle per background in production would make it unnecessary.
 
 ## Analysis and movies
 
@@ -195,6 +203,10 @@ liquefier, Colorless with eCMforHadronization = the PythiaGun's eCM; ~0.02 s per
       --user-xml $D/PbPb_0_30_ZJet.xml --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 \
       --lepton-ptmin 20 --lepton-etamax 2.5 \
       --n-frag 40 --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --outdir /data/zjet_pp
+
+Where `/data` itself is not writable (the RTX box), add `--seed-registry
+/data/zjet_pp/seeds_used.tsv`: the registry defaults to `seeds_used.tsv` next to the output
+directory, i.e. `/data/` (made this way on 2026-10-17, 10.5 min on the CPU).
 
 One `<stem>_hadrons_jet_frag.h5` (attribute `vacuum`), read like the Pb+Pb jet files
 (`HadronFileReader`, `EventInfo.z`). Seeds of its own: the Pb+Pb campaigns' seeds would give the
