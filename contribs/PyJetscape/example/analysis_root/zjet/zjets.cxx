@@ -23,6 +23,10 @@
 // each reference jet with the embedded jet nearest in Delta R (NaN beyond 0.15).
 // Random cones (Pb+Pb): --cones cones per sample in bulk_bg k at |eta| < 1.6, positions
 // from zjet_wake.key_uniform; delta p_T = sum p_T within Delta R < 0.3 - rho pi 0.3^2.
+// Background jets (Pb+Pb, tree bg_jets): every hydro background's bulk_bg samples k = 0 ..
+// min(n, --samples) - 1 clustered and subtracted as above, the model's minimum-bias events
+// without any hard process: the final stage's B (jets not from the Z's interaction), from the
+// Z's own background or mixed from others of similar N_coll.
 
 #include "ZJetCommon.h"
 
@@ -164,6 +168,15 @@ int run(int argc, char **argv) {
       tj.Branch(p.first, p.second);
 
     long n_ev = 0, n_jets = 0;
+    std::vector<long> bg_first;                    // the first event of every background
+    std::map<int, bool> bg_seen;
+    for (long e = r.event_offset(f); e < n && r.info(e).file_index == f; ++e) {
+      const EventInfo &i0 = r.info(e);
+      if (!i0.vacuum && i0.bg_unit >= 0 && !bg_seen[i0.bg_unit]) {
+        bg_seen[i0.bg_unit] = true;
+        bg_first.push_back(e);
+      }
+    }
     for (long e = r.event_offset(f); e < n && r.info(e).file_index == f; ++e) {
       const EventInfo &info = r.info(e);
       const ZRecord &z = info.z;
@@ -239,15 +252,48 @@ int run(int argc, char **argv) {
         tj.Fill();
       }
     }
+    // the background jets: per hydro background and bulk_bg sample
+    Long64_t b_bg = 0;
+    int b_unit = 0, b_sample = 0, b_ncoll = -1;
+    std::vector<double> b_raw, b_pt, b_eta, b_phi, b_area, b_rho;
+    TTree tbj("bg_jets", "jets of the backgrounds' bulk_bg samples");
+    tbj.SetDirectory(&fo);
+    tbj.Branch("bg", &b_bg);
+    tbj.Branch("bg_unit", &b_unit);
+    tbj.Branch("sample", &b_sample);
+    tbj.Branch("n_coll", &b_ncoll);
+    for (auto &p : std::vector<std::pair<const char *, std::vector<double> *>>{
+             {"jet_pt_raw", &b_raw}, {"jet_pt", &b_pt}, {"jet_eta", &b_eta},
+             {"jet_phi", &b_phi}, {"jet_area", &b_area}, {"jet_rho", &b_rho}})
+      tbj.Branch(p.first, p.second);
+    const ZRecord no_z;                            // a background has no Z leptons
+    long n_bgj = 0;
+    for (long e : bg_first) {
+      const EventInfo &info = r.info(e);
+      b_bg = bgid[e]; b_unit = info.bg_unit; b_ncoll = info.n_coll;
+      for (int k = 0; k < std::min(info.n_samples_bg, max_samples); ++k) {
+        b_sample = k;
+        for (auto *v : {&b_raw, &b_pt, &b_eta, &b_phi, &b_area, &b_rho}) v->clear();
+        std::vector<fj::PseudoJet> bp;
+        to_pseudojets(r.bkg(e, k), no_z, bp);
+        for (const Jet &j : jets_of(bp, true, ptmin, c)) {
+          b_raw.push_back(j.pt_raw); b_pt.push_back(j.pt); b_eta.push_back(j.eta);
+          b_phi.push_back(j.phi); b_area.push_back(j.area); b_rho.push_back(j.rho);
+        }
+        n_bgj += long(b_pt.size());
+        tbj.Fill();
+      }
+    }
     fo.cd();
     te.Write();
     tj.Write();
+    if (!bg_first.empty()) tbj.Write();
     fo.Close();
     gSystem->Rename((path + ".part").c_str(), path.c_str());
     const double dt =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-    std::printf("%s: %ld Z events, %ld jets, %.1f s -> %s\n", name.c_str(), n_ev, n_jets, dt,
-                path.c_str());
+    std::printf("%s: %ld Z events, %ld jets, %zu backgrounds (%ld jets), %.1f s -> %s\n",
+                name.c_str(), n_ev, n_jets, bg_first.size(), n_bgj, dt, path.c_str());
   }
   return 0;
 }

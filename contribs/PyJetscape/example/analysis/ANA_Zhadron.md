@@ -4,7 +4,9 @@ CMS 2507.09307 (Z–hadron Δφ and Δy, Pb+Pb 5.02 TeV 0–30 % and pp; HEPData
 first campaign, `zjet_c00`: 9,600 Pb+Pb events from the 2 × RTX 3090 box, in two GPU
 subdirectories. Two routes to the same final stage: **A**, Python on the HDF5 files;
 **B**, ROOT/C++ map step on the converted files, then the same Python final stage. The
-Z+jet analysis of the same events is [ANA_Zjet.md](ANA_Zjet.md); the method in detail:
+analysis itself is a ladder of four steps, from the model-only ideal (step 1, the reference) to
+a one-to-one emulation of the measurement (step 4). The Z+jet analysis of the same events is
+[ANA_Zjet.md](ANA_Zjet.md); the method in detail:
 [`zjet_test/README.md`](zjet_test/README.md#event-mixing-mixpy), `zjet_mixing.py`,
 [`../analysis_root/zjet/README.md`](../analysis_root/zjet/README.md).
 
@@ -32,10 +34,77 @@ the "Read first" note of [`docs/Plans/PLAN_ZJET_CMS10x.md`](../../../../docs/Pla
 subdirectories into one ROOT directory for C++. GPU0 has the first block of seeds and the seeds
 are zero-padded in the names, so both readers see the files in the same order.
 
+## The measurement: S, B, and the ladder
+
+CMS 2507.09307 (§5, Eqs. 1–2) measures, per Z, the charged tracks around it in the Z's frame,
+Δφ = φ_Z − φ_ch and Δy = y_Z − η_ch (the model uses φ_ch − φ_Z and η_ch − y_Z; the folding
+below removes the sign):
+
+- **S**, the same-event yield: the Z of an event with the tracks of **its own** event;
+- **B**, the mixed-event yield: the Z of an event with the tracks of **other** Z events, 10 per Z
+  in CMS, without further matching ("the impact … was found to be negligible");
+- **Δ⟨N_ch⟩ = S − B**, averaged over the Z's. The uncorrelated bulk cancels on average, what is
+  left is the Z-correlated yield: the jet's fragments (Δφ ≈ π), the medium response, the wake's
+  depletion near the Z (Δφ ≈ 0, Δy ≈ 0). ±Δφ (±Δy) are merged and scaled by 0.5; Δy is taken on
+  the Z side, |Δφ| < π/2. B is flat in Δφ, so in Δφ S − B is S around its mean (it integrates to
+  zero); in Δy B carries the acceptance (|η_ch| < 2.4 shifted by y_Z).
+
+Tracks: charged, |η| < 2.4, p_T classes 1–2, 2–4, 4–10 GeV, the Z's two leptons removed (CMS: a
+cone of 0.0025 around them). Z's: CMS 2507.09307's cuts (`zjet_wake.CMS_2507`: 40 < p_T^Z <
+350 GeV, |y_Z| < 2.4, 60 < m < 120 GeV, leptons p_T > 20 GeV, |η| < 2.4; ee and μμ, CMS μμ only).
+Every Z weighs window cross section / events × N_coll (CMS: every Z 1), normalized to mean 1.
+
+**Step 1 is the model-only ideal.** Every event has a twin without the jet (`bulk_bg`, the same
+fluid without the jet's energy, sampled with the same random numbers), so its Z-correlated yield
+is known exactly: S of the jet leg minus S of its background, sample by sample, plus the
+fragments; B is then noise-free. That is the **reference**: the model's prediction of the
+quantity CMS measures, as precise as the model allows. CMS's S − B is an estimator of that same
+Z-correlated yield, not another observable, so step 1 is compared with the data directly. Whether
+that is legitimate is what **step 2** decides: it applies the experiment's method (mixing, the
+full events) to the same model events. If its closure holds (the bulk term consistent with zero),
+mixing and step 1 give the same answer on average and the data comparison belongs on step 1,
+which has the smallest errors and no estimator noise. If it fails, something in the model
+correlates the bulk with the Z, CMS's S − B is then not the Z-correlated yield alone, and the
+like-for-like comparison with data is step 2 or 3 (the data went through mixing too); the
+difference to step 1 is then the method's bias (CMS's own MC closure found it negligible). Steps
+3 and 4 are not closer to the data's answer: they estimate the same quantity with CMS's partner
+noise and an experiment's statistics, and step 4 exists to compare the errors. Each step adds one
+ingredient, its difference to the step before is what that ingredient costs:
+
+| step | mode | S (per Z) | B (per Z) | adds | its difference to the step before |
+|---|---|---|---|---|---|
+| **1** | factorized | the Z-correlated yield: (`bulk_jet` − `bulk_bg`) + fragments, mean over the 40 oversamples | Δφ: S's own Δφ average; Δy: the pooled η density of the Z-correlated yields folded with each y_Z, pairs i ≠ j, weights w_i w_j | the reference; pp against CMS pp first | – |
+| **2** | all | the full event (`bulk_jet` + fragments), mean over 40 | the pooled full-event density (η, φ) of every selected event, shifted into each Z's frame (`ZKernel`): no noise of its own | the bulk and its fluctuations in S | the **closure**: zero within the bulk's noise, CMS's method tested on the model (check 3) |
+| **3** | cms10 | full event, mean over 40 | 10 partner events from 10 different hydro backgrounds, never the Z's own, drawn ∝ weight; each one recorded oversample (`k_one`) | CMS's procedure on every Z | partner noise and a small exclusion bias (check 4) |
+| **4** | strict | one Z per background (drawn ∝ w, weighted by the background's Σw), **one** oversample | 10 partners from 10 other backgrounds **of that set**, one oversample each | an experiment's statistics: every Z its own fluid | the **errors**, compared with CMS's statistical errors (checks 5, 6); its central values are not the point |
+| (pp) | – | the fragments (Pythia's Z + jet with MPI, Matter in vacuum) | as step 1 (no fluid) | – | the reference for Pb+Pb − pp in every step |
+
+Why steps 3 and 4 never take a partner from the Z's own background: its 24 events share the
+fluid (and the random numbers), and such a partner would cancel part of S's fluctuations, which
+no experiment can do. The price, with weighted backgrounds, is a small flat bias of order
+1/(number of backgrounds) (check 4); step 2 keeps every partner because its B has no noise anyway.
+
+**The settings** (`mix.py`; one run makes all four steps):
+
+| option | default | what it changes |
+|---|---|---|
+| `--n-mix` | 10 | partners per Z in steps 3 and 4 (CMS: 10); more partners, less B noise |
+| `--blocks` | 100 | jackknife blocks of hydro backgrounds (4 per block for 400 backgrounds) |
+| `--seed` | 1 | the strict set, the partner draws, and each event's recorded oversample `k_one` |
+| `--n-cms` | 1550 | CMS's 0–30 % Z count (78 % of "about 2000"), for scaling the strict errors |
+| `--strict-split` | 10 | disjoint subsamples for check (5) |
+| `--efficiency` | 1 | the Poisson part of the predicted strict errors / ε (CMS's tracks are efficiency-corrected) |
+| `--hists` | the test's | `''` on a campaign (check 1 compares with the 96-event test's `compare.py`) |
+
+In the code (`zjet_mixing.all_partners`): the pair rule `all` (every pair), `self` (i ≠ j,
+compare.py's Δy rule), `background` (no pair inside a background, check 2); `phi_flat` (B
+flat in Δφ by construction, compare.py's); the contents `full` and `zc` (the Z-correlated
+yield, "bulk off").
+
 ## 1. Set up (once)
 
 ```bash
-git clone -b zjet https://github.com/jhputschke/js-contrib ~/js-contrib-zjet   # >= f741862
+git clone -b zjet https://github.com/jhputschke/js-contrib ~/js-contrib-zjet
 REPO=~/js-contrib-zjet; EX=$REPO/contribs/PyJetscape/example
 DATA=/data/zjet_c00; PP=/data/zjet_pp; ANA=/data/ana_c00       # ANA: outputs, private
 mkdir -p $ANA/logs
@@ -68,14 +137,14 @@ in ~250 Au+Au jobs): move its files away and rerun the campaign's command, which
 
 ## A. Python on the HDF5 files
 
-**A1. Pools and mixing** (map: one process per production file; reduce: every mode):
+**A1. The pools and the four steps** (map: one process per production file; reduce: every step):
 
 ```bash
 cd $EX/analysis/zjet_test
 python mix.py --pbpb "$DATA/gpu*/*_hadrons_jet_frag.h5" --vacuum "$PP/*_hadrons_jet_frag.h5" \
     --pools $ANA/pools --hists '' --jobs 8 --outdir $ANA/figures --tag _c00 \
     > $ANA/logs/mix_c00.log 2>&1
-# the same with the Poisson part of the predicted strict errors for CMS's corrected tracks
+# step 4's predicted errors with the Poisson part of CMS's efficiency-corrected tracks
 python mix.py --pbpb "$DATA/gpu*/*_hadrons_jet_frag.h5" --vacuum "$PP/*_hadrons_jet_frag.h5" \
     --pools $ANA/pools --hists '' --efficiency 0.65 --outdir $ANA/figures --tag _c00_eff065
 ```
@@ -86,36 +155,41 @@ python mix.py --pbpb "$DATA/gpu*/*_hadrons_jet_frag.h5" --vacuum "$PP/*_hadrons_
 - `--hists ''`: check (1) compares with the 96-event test's `compare.py` and is skipped here.
 - Cost (estimated from the test): the map a few seconds per file and ~2–3 GB per process, so
   `--jobs 8` takes minutes and ~20 GB; the reduce a few minutes.
-- Options: `--n-mix` (10, CMS's partners), `--blocks` (100 jackknife blocks of backgrounds, 4
-  backgrounds each here), `--n-cms` (1,550, CMS's estimated 0–30 % Z count), `--strict-split`
-  (10), `--seed` (1).
 
-**A2. Read `$ANA/figures/mixing_summary_c00.txt`** (the checks first):
+Then read `$ANA/figures/mixing_summary_c00.txt` and the figures **in the order of the steps**:
 
-| check | expect on one campaign |
-|---|---|
-| (2) own-background rule, bulk off − factorized | within the errors |
-| (3) closure: the bulk term against 0 | χ²/ndf ≈ 1 with 100 blocks (a real test now; the test sample's 4 blocks could not do it) |
-| (4) exclusion bias | predicted = measured; ≲ 0.03 per radian at 1–2 GeV (O(1 / 400 backgrounds)) |
-| (5) strict spread error against 10 subsamples | pull widths ≈ 1 for Pb+Pb now (≥ 220 backgrounds), as for pp |
-| (6) noise budget per Z | the flat multiplicity level's share and the fluid term from 400 fluids (the test had 4) |
+**A2. Step 1, the reference** — `mixing_reference_dphi_c00.png`, `mixing_reference_dy_c00.png`,
+the summary's "Step 1" block: the model's prediction against CMS, to be read together with
+step 2's closure (A3), which decides whether it is the comparison with data.
+1. **pp first**: the model's pp against CMS's pp (top row). It tests the Z + jet itself (Pythia
+   with ISR and MPI, Matter in vacuum, the hadronization) without any medium; Pb+Pb − pp cancels
+   much of what it gets wrong, not all.
+2. **Pb+Pb 0–30 %** (middle row): the jet side (Δφ ≈ π, quenched fragments plus medium response)
+   and the Z side (Δφ ≈ 0, Δy ≈ 0: the wake's depletion at 1–2 GeV).
+3. **Pb+Pb − pp** (bottom row): the medium's modification, the paper's headline observable.
 
-Then the modes against CMS (Pb+Pb, Pb+Pb − pp) and the errors:
+**A3. Step 2, the closure** — `mixing_dphi_c00.png`, `mixing_dy_c00.png`: blue (all) against red
+(factorized); the summary's checks (2) and (3). Expect the bulk term (all − all with the bulk
+off) consistent with zero (χ²/ndf ≈ 1 with 100 blocks) and blue's errors larger than red's at
+1–2 GeV (the bulk's fluctuations), equal at 4–10 GeV. A significant bulk term would mean the bulk
+correlates with the Z: then CMS's S − B is not the Z-correlated yield alone.
 
-- **factorized** is the physics result (the paired wake + fragments; jackknife over 100 blocks);
-  **all** is the experiment's method on the same events, its difference from factorized the
-  closure; **cms10** CMS's procedure literally; **strict** the one-to-one emulation (400 Z's,
-  one per background).
-- **The error comparison** (`mixing_errors_d{phi,y}_c00.png`, the "ratio" column): the strict
-  error at CMS's Z count against CMS's statistical error, and the three predictions of check (6)
-  (with each event's flat level, without it, Poisson only), with `--efficiency 1` and 0.65.
-  Which one matches tells how CMS's errors were made, or how realistic the model's fluctuations
-  are; at 4–10 GeV the model's errors can come out small, its background having no minijets
-  from the other binary collisions.
-- Figures: `mixing_dphi_c00.png`, `mixing_dy_c00.png`. What every mode and check means:
-  `zjet_test/README.md`, *Event mixing*.
+**A4. Step 3, CMS's procedure** — green (cms10) in the same figures; check (4): the exclusion
+bias, predicted = measured, ≲ 0.03 per radian at 1–2 GeV with 400 backgrounds (an estimate).
+cms10 agrees with steps 1–2 within its larger errors (10 partners' noise).
 
-**A3. Optional: maps and profiles.** `zjet_wake.ipynb` (in this folder) draws the (Δη, Δφ)
+**A5. Step 4, the errors** — orange (strict) and `mixing_errors_dphi_c00.png`,
+`mixing_errors_dy_c00.png`; checks (5) and (6).
+- (5): the strict error formula, pull widths ≈ 1 now also for Pb+Pb (400 Z's, ≥ 220 needed).
+- (6): the noise budget per Z from 400 fluids (the test had 4): the flat multiplicity level's
+  share, the fluid term, and the predicted strict errors at CMS's Z count with each event's flat
+  level, without it, and Poisson only, at `--efficiency` 1 and 0.65 (the `_c00_eff065` run).
+- The "ratio" column: the strict error at CMS's count against CMS's statistical error. Which
+  prediction matches tells how CMS's errors were made, or how realistic the model's fluctuations
+  are; at 4–10 GeV the model's errors can come out small, its background having no minijets from
+  the other binary collisions.
+
+**A6. Optional: maps and profiles.** `zjet_wake.ipynb` (in this folder) draws the (Δη, Δφ)
 maps, the p_T^Z dependence and one event's wake: point its data cell at the same glob
 (`HadronFileReader("$DATA/gpu*/*_hadrons_jet_frag.h5")`) and the vacuum file.
 
@@ -155,7 +229,7 @@ done; wait
 ~1 s per test file, ~0.5–1.6 GB per process (measured on the test); the outputs are
 `<stem>_pool.root`, written as `.part` and renamed when complete (a rerun redoes its slice).
 
-**B4. The final stage on the C++ pools**:
+**B4. The final stage on the C++ pools** (all four steps, read as in A2–A5):
 
 ```bash
 cd $EX/analysis/zjet_test
@@ -174,6 +248,60 @@ diff $ANA/figures/mixing_summary_c00.txt $ANA/figures/mixing_summary_c00_cxx.txt
 The pools agree array by array (background sums to ~10⁻¹³) and the summaries line by line,
 apart from rounding in the last digits. A difference in the event numbers means the two readers
 saw the files in another order (`../README.md`, *Multi-GPU output*).
+
+## Outputs of every step
+
+| step | writes | figures |
+|---|---|---|
+| 2 | nothing (stdout) | – |
+| A1 (map) | `$ANA/pools/pbpb/<stem>.npz` (100), `$ANA/pools/vacuum/<stem>.npz`, `manifest.json` each | – |
+| A1 (reduce) | `$ANA/figures/mixing_summary_c00.txt` | step 1: `mixing_reference_dphi_c00.png`, `mixing_reference_dy_c00.png`; steps 1–4: `mixing_dphi_c00.png`, `mixing_dy_c00.png`; step 4: `mixing_errors_dphi_c00.png`, `mixing_errors_dy_c00.png` |
+| A1, second run | `mixing_summary_c00_eff065.txt` | the same six with `_c00_eff065` (only the predicted strict errors change) |
+| A6 | – | in the notebook: (Δη, Δφ) maps, profiles, p_T^Z dependence |
+| B1 | `$ANA/root/pbpb/<stem>_hadrons.root` (100), `zjet_c00_campaign.root`; `$ANA/root/pp/…` | – |
+| B3 | `$ANA/pools_cxx/pbpb/<stem>_pool.root` (100), `$ANA/pools_cxx/pp/…` | – |
+| B4 | `mixing_summary_c00_cxx.txt` | the six figures with `_c00_cxx`: equal to A1's |
+| B5 | stdout | – |
+
+(`zjet_test/compare.py`'s `zjet_vs_cms2507_*.png` are step 1 on the 96-event test set; on a
+campaign `mix.py`'s `mixing_reference_d*` are the same figure, check (1) shows the equality.)
+
+## The final figures and how they compare with data
+
+All against CMS 2507.09307's HEPData (ins2945894, in `zjet_test/data/hepdata/`): the Pb+Pb
+0–30 % and pp tables per track p_T class ("Δφ_ch,Z in PbPb 0-30%", "Δφ_ch,Z spectra in pp",
+"Δy_ch,Z in PbPb 0-30%", "Δy_ch,Z spectra in pp"), with their statistical and systematic errors,
+drawn as stat ⊕ syst (black). In every figure the columns are the track p_T classes 1–2, 2–4,
+4–10 GeV; y is d⟨ΔN_ch⟩/dΔφ (per Z per radian) or d⟨ΔN_ch⟩/dΔy (per Z per unit), after the ±
+merging and the factor 0.5; x is Δφ_ch,Z from −π/2 to 3π/2 in 20 bins of π/10 (CMS's binning and
+reflected range), or Δy_ch,Z on the Z side (|Δφ| < π/2) over |Δy| < 4 in bins of 0.8 (Pb+Pb) and
+0.4 (pp), as CMS. Pb+Pb − pp: the model's Pb+Pb minus its pp, against CMS's PbPb minus pp (errors
+in quadrature; CMS's pp rebinned to 0.8 in Δy). The summary gives the value at the first bin
+past 0 (Δφ ≈ π/20, Δy 0–0.8: next to the Z, the wake's depletion) and χ²/ndf over the
+independent bins (10 in Δφ, 5 in Pb+Pb Δy, 10 in pp Δy) with the model's errors ⊕ CMS's stat ⊕
+syst, bin-to-bin correlations ignored as CMS does.
+
+**Step 1: `mixing_reference_dphi_c00.png`, `mixing_reference_dy_c00.png`** — 3 rows: pp,
+Pb+Pb 0–30 %, Pb+Pb − pp; the factorized model (red) against CMS: the model's prediction of
+CMS's observable, the comparison with data once step 2's closure holds (else steps 2–3, which
+went through the same mixing as the data).
+
+**Steps 1–4: `mixing_dphi_c00.png`, `mixing_dy_c00.png`** — 2 rows: Pb+Pb 0–30 % and
+Pb+Pb − pp; the four steps side by side (factorized red, all blue, cms10 green, strict orange)
+with their errors (jackknife over the backgrounds; strict: the spread over its Z's). How each
+experimental ingredient moves the result (it should not, within the errors, if the closure
+holds) and widens the errors.
+
+**Step 4: `mixing_errors_dphi_c00.png`, `mixing_errors_dy_c00.png`** — 1 × 3, Pb+Pb only, log
+scale: the statistical error per bin of every step, the strict error scaled to CMS's Z count (×
+√(N_eff / 1550), orange diamonds), the three predictions of check (6) at CMS's count (purple:
+with each event's flat multiplicity level dashed, without it dash-dotted, Poisson only dotted),
+and CMS's statistical error (black, HEPData's stat column). The question: are the model's
+event-by-event fluctuations those of the data, and which error definition did CMS use.
+
+**`mixing_summary_c00.txt`** — the step-1 block (pp, Pb+Pb, Pb+Pb − pp against CMS), the checks
+(1)–(6), the table of every step against CMS (Pb+Pb and Pb+Pb − pp), the errors table and the
+noise budget per Z.
 
 ## 3. Afterwards
 

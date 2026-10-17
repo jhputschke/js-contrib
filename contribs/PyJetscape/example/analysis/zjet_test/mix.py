@@ -415,6 +415,51 @@ def main():
             f_.savefig(path, dpi=110)
             plt.close(f_)
             print(f"-> {path}")
+    # step 1, the reference: the factorized result alone, with the pp row (compare.py's figure)
+    ref_lines = ["Step 1, the reference (factorized: the exact Z-correlated yield, possible only "
+                 "in the model; figures mixing_reference_d*): model and CMS at the first bin "
+                 "past 0, chi2/ndf with the model's errors + CMS stat + syst:"]
+    for var in ("phi", "y"):
+        fig, ax = plt.subplots(3, 3, figsize=(16, 11), sharex=True)
+        for c in range(len(PT_TAGS)):
+            cx, yp, sp, yp_sy = cms(a.hepdata, var, "pbpb", PT_TAGS[c])
+            cq, yq, sq, yq_sy = cms(a.hepdata, var, "pp", PT_TAGS[c])
+            tp, tq = np.hypot(sp, yp_sy), np.hypot(sq, yq_sy)
+            if var == "y":                            # pp 0.4 -> 0.8 for the difference
+                yq2 = yq.reshape(-1, 2).mean(1)
+                tq2 = np.sqrt((tq.reshape(-1, 2) ** 2).sum(1)) / 2
+                mq2, eq2 = P["y08"][0][c], P["y08"][1][c]
+            else:
+                yq2, tq2 = yq, tq
+                mq2, eq2 = P["phi"][0][c], P["phi"][1][c]
+            mq, eq = P[var][0][c], P[var][1][c]
+            m, e = R["factorized"][var][0][c], R["factorized"][var][1][c]
+            for row, (mm, ee, xx, yy, tt, lab) in enumerate((
+                    (mq, eq, cq, yq, tq, "pp"), (m, e, cx, yp, tp, "Pb+Pb 0–30 %"),
+                    (m - mq2, np.hypot(e, eq2), cx, yp - yq2, np.hypot(tp, tq2), "Pb+Pb − pp"))):
+                axr = ax[row, c]
+                axr.errorbar(xx, yy, tt, fmt="o", color="k", ms=4,
+                             label="CMS 2507.09307 (stat ⊕ syst)")
+                axr.errorbar(xx, mm, ee, fmt="s", color="C3", ms=4, mfc="none",
+                             label="model, factorized")
+                axr.axhline(0, color="0.6", lw=0.6)
+                axr.set_ylabel(f"{lab}: d⟨ΔN_ch⟩/dΔ{'φ' if var == 'phi' else 'y'}")
+                c2, ndf = chi2(mm, ee, yy, tt)
+                i0 = _first(var, len(xx))
+                ref_lines.append(f"d{var:4s} {PT_LABELS[c]:20s} {lab:13s} {mm[i0]:+7.3f} ± "
+                                 f"{ee[i0]:5.3f}  CMS {yy[i0]:+7.3f} ± {tt[i0]:5.3f}  "
+                                 f"{c2:6.1f}/{ndf}")
+            ax[0, c].set_title(PT_LABELS[c] + ("" if var == "phi" else ",  |Δφ| < π/2"))
+            ax[2, c].set_xlabel("Δφ_ch,Z" if var == "phi" else "Δy_ch,Z")
+        ax[0, 0].legend(fontsize=8)
+        fig.suptitle(f"Step 1, the reference: Z–hadron S − B, factorized (paired wake + "
+                     f"fragments), Pb+Pb 0–30 % ({pb.n} Z's) and pp ({pp.n} Z's)", y=0.995)
+        fig.tight_layout()
+        path = os.path.join(a.outdir, f"mixing_reference_d{var}{a.tag}.png")
+        fig.savefig(path, dpi=110)
+        plt.close(fig)
+        print(f"-> {path}")
+    lines = lines[:3] + ref_lines + [""] + lines[3:]
     lines += [""] + err_lines + [""] + budget_lines + [
         "", "strict@CMS: the strict emulation's spread error x sqrt(N_eff / N_CMS). CMS's "
         "statistical errors are of efficiency-corrected tracks (larger than at perfect "

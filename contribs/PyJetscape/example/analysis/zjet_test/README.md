@@ -16,9 +16,9 @@ data.
 | `accumulate.py` | hadron files → `data/hists.npz` (~15 s) |
 | `centrality_check.py` | minimum-bias 3dMCGlauber with the XML's settings: the model's σ_inel and how well the b cut matches activity classes (→ `data/glauber_mb/summary.txt`, ~8 min) |
 | `compare.py` | `data/hists.npz` + HEPData → `figures/` |
-| `zjet_jets_map.py`, `zjet_jets.py` | Z+jet against CMS 1702.01060: the map step in Python (anti-k_T R = 0.3, ρA-subtracted in Pb+Pb, embedding, random cones; the twin of `../../analysis_root/zjet/zjets`) and the shared final stage (Z and jet cuts, the optional CMS smearing in four variants, HEPData, χ², jackknife) → `figures/zjet_jets*.png`, `zjet_jets_summary*.txt` |
+| `zjet_jets_map.py`, `zjet_jets.py` | Z+jet against CMS 1702.01060: the map step in Python (anti-k_T R = 0.3, ρA-subtracted in Pb+Pb, embedding, random cones, the backgrounds' `bulk_bg` jets; the twin of `../../analysis_root/zjet/zjets`) and the shared final stage, three steps: the fragments' jets (the reference), S − B with the own background's jets, S − B mixed as CMS (Z and jet cuts, the optional CMS smearing in four variants, HEPData, χ², jackknife) → `figures/zjet_jets_step{1,2,3}*.png`, `zjet_jets_embedding*.png`, `zjet_jets_summary*.txt` |
 | `check_cxx.py` | the C++ map steps (`../../analysis_root/zjet`) against the Python ones: `pools` and `jets` |
-| `mix.py` | event mixing (`../zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `data/pbpb` and `data/vacuum` (cached in `data/mix/`) → `figures/mixing_dphi.png`, `mixing_dy.png`, `mixing_errors_d{phi,y}.png`, `mixing_summary.txt` (~10 s on the test) |
+| `mix.py` | event mixing (`../zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `data/pbpb` and `data/vacuum` (cached in `data/mix/`) → step 1, the reference (factorized, with pp; `compare.py`'s figure): `figures/mixing_reference_d{phi,y}.png`; all four steps: `mixing_dphi.png`, `mixing_dy.png`; the errors: `mixing_errors_d{phi,y}.png`; `mixing_summary.txt` (~10 s on the test) |
 | `figures/zjet_vs_cms2507_dphi.png`, `…_dy.png`, `summary.txt`, `RESULTS.md` | the result |
 | `figures/MIXING.md` (`.html`) | the event-mixing document: modes and settings, the small-sample checks and comparisons, the plan for the campaigns (git-ignored with the figures) |
 | `data/pbpb/` | 2 jobs × 48 Pb+Pb 0–30 % Z+jet events, hadrons only (833 MB) |

@@ -14,7 +14,8 @@ at once; the weights still come from all files, so the slices combine.
 Jets: anti-k_T R = 0.3 from all final particles but neutrinos and the Z's leptons; Pb+Pb with
 explicit ghosts on a fixed grid and rho(jet) from the k_T R = 0.4 median in a strip
 |y - y_jet| < 1 (|y| < 2.2), p_T = p_T,raw - rho A; the fragments embedded in bulk_bg; random
-cones in bulk_bg.  Slow in Python (~1 s per Pb+Pb oversample): use --samples for checks."""
+cones in bulk_bg; the jets of every background's bulk_bg samples (tree bg_jets, the final
+stage's B).  Slow in Python (~1 s per Pb+Pb oversample): use --samples for checks."""
 import argparse
 import math
 import os
@@ -208,6 +209,25 @@ def main():
                     cones.append((eta, axis.phi_std(), tot, rho, tot - rho * math.pi * R_JET ** 2))
                 rc.append(cones)
 
+        # the background jets: every hydro background's bulk_bg samples, as zjets.cxx
+        bgj = {k: [] for k in ("bg", "bg_unit", "sample", "n_coll")}
+        bg_rows = []
+        if bulk:
+            seen = set()
+            no_z = type("NoZ", (), {"z": None})()
+            for g in range(int(r._offsets[fi]), int(r._offsets[fi + 1])):
+                info = infos[g]
+                if info.bg_unit is None or info.bg_unit in seen:
+                    continue
+                seen.add(info.bg_unit)
+                n_bg = h["bulk_bg"].n_samples(info.bg_unit)
+                for k in range(min(n_bg, a.samples)):
+                    for key, v in (("bg", bgid[g]), ("bg_unit", info.bg_unit), ("sample", k),
+                                   ("n_coll", info.n_coll if info.n_coll is not None else -1)):
+                        bgj[key].append(v)
+                    bp = pseudojets(fj, sample("bulk_bg", info.bg_unit, k), no_z)
+                    bg_rows.append(c.jets(bp, True, a.ptmin))
+
         with uproot.recreate(os.path.join(a.out, f"{name}_jets.root")) as fo:
             fo["jet_events"] = {k: np.asarray(v, np.int64 if k in ("event", "bg") else
                                               np.int32 if k in ("local_event", "file",
@@ -228,6 +248,17 @@ def main():
                         for i, nm in enumerate(names)}
                 out[gname] = ak.zip(cols)
             fo["jets"] = out
+            if bg_rows:
+                counts = np.array([len(row) for row in bg_rows], np.int64)
+                names = ("pt_raw", "pt", "eta", "phi", "area", "rho")
+                fo["bg_jets"] = {
+                    "bg": np.asarray(bgj["bg"], np.int64),
+                    "bg_unit": np.asarray(bgj["bg_unit"], np.int32),
+                    "sample": np.asarray(bgj["sample"], np.int32),
+                    "n_coll": np.asarray(bgj["n_coll"], np.int32),
+                    "jet": ak.zip({nm: ak.unflatten(np.array([x[i] for row in bg_rows
+                                                              for x in row], np.float64), counts)
+                                   for i, nm in enumerate(names)})}
         print(f"{name}: {len(evs['event'])} Z events, {sum(len(j) for j in jet)} jets, "
               f"{time.time() - t0:.0f} s", flush=True)
 

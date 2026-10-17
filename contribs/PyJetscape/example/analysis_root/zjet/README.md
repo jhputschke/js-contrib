@@ -81,16 +81,25 @@ fragmentation k in vacuum; all final particles but neutrinos and the Z's two lep
 - **Random cones** (Pb+Pb): `--cones` per oversample in `bulk_bg` at |η| < 1.6, positions from
   `key_uniform`; δp_T = Σp_T(ΔR < 0.3) − ρπR²: the model's background fluctuations, to set
   against CMS's N term.
+- **Background jets** (Pb+Pb): every hydro background's `bulk_bg` samples clustered and
+  subtracted the same way, the model's minimum-bias events: the final stage's B (the jets not
+  from the Z's interaction), from the Z's own background (step 2) or mixed from the backgrounds
+  closest in N_coll (step 3, as CMS's 40 minimum-bias events).
 
 Output: `jet_events` (per event: `event`, `local_event`, `file`, `bg`, `pthat_bin`, `weight_mb`
 = σ_k / N_k, `n_coll`, `n_samples`, the Z and its leptons) and `jets` (per event and oversample:
 `jet_{pt_raw, pt, eta, phi, area, rho}`, `emb_{ref_pt, ref_eta, ref_phi, pt, dr}`,
-`rc_{eta, phi, sum, rho, dpt}`). `zjet_test/zjet_jets.py` reads both layouts (the Python map
+`rc_{eta, phi, sum, rho, dpt}`) and `bg_jets` (per background and `bulk_bg` sample: `bg`,
+`bg_unit`, `sample`, `n_coll`, `jet_{pt_raw, pt, eta, phi, area, rho}`). `zjet_test/zjet_jets.py`
+reads both layouts (the Python map
 step's groups come back from uproot as records).
 
-The final stage's CMS smearing is optional: `none`, `detector` (C and S of PbPb), `full`
-(C, S, N) and `match` (C, S and √(N² − σ_RC²), σ_RC the random cones' width), all four
-shown.
+The final stage is a ladder of three steps: (1) the fragments' jets alone with CMS's theory
+smearing (the model-only reference); (2) S − B with the Z's own background's jets (the model's
+twin); (3) S − B mixed from other backgrounds of similar N_coll (CMS's procedure). The CMS
+smearing is optional: `none`, `detector` (C and S of PbPb), `full` (C, S, N) and `match` (C, S
+and √(N² − σ_RC²), σ_RC the random cones' width), all four shown in steps 2 and 3
+([`../../analysis/ANA_Zjet.md`](../../analysis/ANA_Zjet.md)).
 
 ## Checked (2026-10-16, the GB10)
 
