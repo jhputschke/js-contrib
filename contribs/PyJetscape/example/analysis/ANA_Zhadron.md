@@ -101,6 +101,65 @@ compare.py's Δy rule), `background` (no pair inside a background, check 2); `ph
 flat in Δφ by construction, compare.py's); the contents `full` and `zc` (the Z-correlated
 yield, "bulk off").
 
+## The pools: what the map step keeps
+
+The analysis runs in two stages. A **map step** reads the hadrons of every production file once
+and writes a **pool**, a per-file summary from which the **reduce step** (`mix.py`) computes all
+four steps, the checks and the jackknife without reading the hadrons again. Two map steps make
+the same pools:
+
+```
+route A:  *_hadrons_*.h5  --mix.py (map + reduce)--------------------------------------->  figures
+route B:  *_hadrons_*.h5  --run_h5toROOT.py-->  *_hadrons.root  --zhadron_pools-->  *_pool.root
+                                                                          --mix.py --pbpb-pools (reduce)-->  figures
+```
+
+| pools made by | format | read by |
+|---|---|---|
+| `mix.py`'s own map step (route A, Python, from the HDF5 files; `zjet_mixing.file_pool`) | compressed `.npz` in `--pools/<sample>/`, with a manifest | `mix.py` (cached; rebuilt when the files, the selection or the seed change) |
+| `zhadron_pools` (route B, C++, from the ROOT hadron files) | `.root` (TTrees `pool_events`, `pool_bg`) | `mix.py --pbpb-pools / --vacuum-pools` (`zjet_mixing.read_root_pool`) |
+
+The content is the same (`check_cxx.py pools`, array by array); `mix.py` never reads the ROOT
+hadron files itself. Pb+Pb and pp can come from different routes, but the checks assume one.
+
+**Per selected Z** (CMS 2507.09307's Z selection):
+
+| field | shape | what |
+|---|---|---|
+| `event`, `bg` | – | the global event index, its hydro background (dense id over the campaign) |
+| `w` | – | the weight: window σ / events × N_coll, mean 1 over the selected Z's |
+| `y`, `phi` | – | the Z's y_Z and φ_Z |
+| `k_one`, `n_samples` | – | the event's one "recorded" oversample (`zjet_wake.key_index(event_key(seed, file name, event in the file), n)`), the number of oversamples |
+| `S_full` | 3 × 24 × 20 | the full event's tracks (`bulk_jet` + fragments) in the Z frame: p_T class × Δy (0.4) × Δφ (π/10), mean over all oversamples |
+| `S_one` | 3 × 24 × 20 | the same for oversample `k_one` alone: one collision |
+| `trk_pt`, `trk_eta`, `trk_phi` | n tracks | that oversample's tracks in the lab frame (p_T class, η, φ): what this event contributes as a mixing partner |
+
+**Per hydro background** (summed over its selected Z's):
+
+| field | shape | what |
+|---|---|---|
+| `W`, `W2` | – | Σw, Σw² |
+| `SW_full`, `SW_zc` | 3 × 24 × 20 | Σ w·S in the Z frame: the full event; the Z-correlated yield (`bulk_jet` − `bulk_bg` sample by sample, + fragments) |
+| `T_full`, `T_zc` | 3 × 24 × 20 | Σ w²·S, the self pairs' terms |
+| `R_full`, `R_zc` | 3 × 48 × 60 | Σ w·ρ, the lab-frame track density: p_T class × η (0.1) × φ (6°) |
+
+Tracks are always charged, |η| < 2.4, p_T 1–10 GeV, without the Z's two leptons. Vacuum pools
+store one content (full = Z-correlated).
+
+**Which step uses what:**
+- step 1 (factorized): the `_zc` sums: S from `SW_zc`, B from `R_zc` (its η marginal folded with
+  each y_Z), the self pairs removed with `T_zc`;
+- step 2 (all): `SW_full` and `R_full` (η and φ), shifted into each Z's frame; against the `_zc`
+  version, the closure;
+- step 3 (cms10): each Z's `S_full` with 10 partners' `trk_*`, shifted into its frame;
+- step 4 (strict): `S_one` with partners' `trk_*`; the noise budget (check 6): `S_full`,
+  `S_one`, `R_full`;
+- the jackknife: whole backgrounds left out, which the per-background sums make cheap.
+
+Only one oversample's tracks are kept per event (all 40 would be ~40× the size); the densities
+and the S histograms average over all 40. Size: ~0.4–0.6 MB per test file (compressed), ~1 MB
+per campaign file and ~100 MB per campaign (estimated), against the campaign's ~35 GB of hadrons.
+
 ## 1. Set up (once)
 
 ```bash
@@ -313,3 +372,58 @@ noise budget per Z.
   `zjet_test/figures/MIXING.md` §8 in the GB10's checkout (git-ignored), in short: closure,
   exclusion bias and strict pulls on the first campaign; the strict error comparison and the
   error definition with all ten.
+
+## Appendix: the pools and the naive mixing loop
+
+Event mixing is usually written as a loop over the other events' tracks:
+
+```
+for each Z event i:
+    for each track t of event i:                       # S
+        fill S(η_t − y_i, φ_t − φ_i)
+    for each of M partner events j:                    # B
+        for each track t of event j:
+            fill B(η_t − y_i, φ_t − φ_i), weight 1/M
+ΔN = (S − B) / N_Z
+```
+
+The pools (*The pools: what the map step keeps*) store each piece of that loop at the point
+where it no longer depends on the pairing.
+
+1. **S, the own tracks.** S needs only event i's tracks and its own Z, so the map step bins it
+   once: `S_full` and `S_one` are the per-Z Δy/Δφ distributions, already in the Z's frame.
+   `S_full` averages the 40 oversamples (the loop over all 40 tracks lists, divided by 40),
+   `S_one` takes one of them.
+2. **B from a few partners (steps 3, 4) is the naive loop.** A partner's Δy/Δφ histogram cannot be
+   stored in advance, it depends on the Z it is paired with (y_i, φ_i). So the pool keeps each
+   event's tracks in the lab frame (`trk_*`, one oversample), and the reduce step
+   (`zjet_mixing.explicit_partners`) runs the inner loop literally: for Z i, its 10 partners j,
+   every track, η − y_i and φ − φ_i.
+3. **B from all partners (step 2) is the same loop, summed first.** Pairing Z i with every track
+   of every other event gives
+
+   ```
+   B_i(Δy, Δφ) = Σ_j Σ_{t∈j} δ(Δy − (η_t − y_i)) δ(Δφ − (φ_t − φ_i)) = ρ(η = Δy + y_i, φ = Δφ + φ_i),
+   ```
+
+   ρ the summed lab-frame (η, φ) density of all partner tracks. Instead of looping over the tracks
+   of thousands of events per Z, the pool stores ρ (`R_full`, summed per background) and every Z
+   gets ρ shifted by its own (y_i, φ_i) (`ZKernel`, which even groups the Z's that shift alike).
+   The result is the naive loop's up to the binning of ρ (η 0.1, φ 6°: ±0.05 in Δy, ±3° in Δφ).
+   The cost: ~5,600 Z's × 5,600 events × ~1,600 tracks ≈ 5 × 10¹⁰ track pairs per oversample for
+   a campaign, against one shift of a 3 × 48 × 60 histogram per Z.
+4. **Step 1 (factorized) is the same with what tracks cannot hold.** Its content is the
+   Z-correlated yield, `bulk_jet` − `bulk_bg` sample by sample plus the fragments: a difference
+   of histograms that can be negative, so only histograms work: `SW_zc` for S, `R_zc` for B (flat
+   in Δφ, in Δy the η density folded with each y_Z).
+
+**The per-background sums** make the variations of the loop subtractions: the exclusion "not
+the Z's own background" is the total minus that background's sum; the jackknife leaves a block
+of backgrounds out without a new loop; step 1's i ≠ j rule removes the self pairs with the w²
+terms (`T_*`).
+
+**Weights.** The weighted naive loop fills S with w_i and B with w_i·w_j (normalized); the pools
+carry w per Z and Σw per background for that.
+
+In short: S is stored as the histograms usually filled, B from a few partners as the partners'
+tracks, B from all partners as their summed density.

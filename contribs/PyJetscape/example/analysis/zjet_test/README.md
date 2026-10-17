@@ -184,6 +184,10 @@ with 3 partners each: the comparison is meaningless here and is meant for the ca
 per campaign, 4,000 for all ten). Caveats: CMS's tracks are efficiency-corrected (their Poisson
 part is larger than at perfect efficiency), and N_CMS is an estimate.
 
+How the pools relate to the usual loop over the other events' tracks (S as per-Z Δy/Δφ
+histograms, B from a few partners as their tracks, B from all partners as their summed
+density): [`../ANA_Zhadron.md`](../ANA_Zhadron.md#appendix-the-pools-and-the-naive-mixing-loop).
+
 On a campaign (the vacuum reference with the campaign's windows and storage):
 
 ```bash
