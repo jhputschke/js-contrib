@@ -3,6 +3,7 @@
 
     python check_cxx.py pools <python pool dir> <C++ pool dir>     # mix.py's / zhadron_pools'
     python check_cxx.py jets  <python jets dir> <C++ jets dir>     # zjet_jets_map.py's / zjets'
+    python check_cxx.py qa    <python qa dir> <C++ qa dir>         # qa.py map's / zqa's
 
 pools: every array of zjet_mixing's pool (per event S_full, S_one, the one oversample's
 tracks, weights, Z, k_one; per background W, W2, SW, T, rho for both contents).  jets: every
@@ -98,11 +99,29 @@ def jets(py_dir, cxx_dir):
                 close(x[~nan], y[~nan], f"{what}.{k} ({len(x)})", 1e-9)
 
 
+def qa(py_dir, cxx_dir):
+    from qa import load
+    Ea, Ha = load(py_dir)
+    Eb, Hb = load(cxx_dir)
+    for what, a, b in (("qa_events", Ea, Eb), ("qa_hist", Ha, Hb)):
+        report(set(a) == set(b), f"{what}: the same columns ({len(a)})"
+               + ("" if set(a) == set(b) else f": {sorted(set(a) ^ set(b))}"))
+        for k in sorted(set(a) & set(b)):
+            x, y = np.asarray(a[k]), np.asarray(b[k])
+            if x.shape != y.shape:
+                report(False, f"{what}.{k}: shapes {x.shape} / {y.shape}")
+            elif x.dtype.kind in "iu" and y.dtype.kind in "iu":
+                report(np.array_equal(x, y), f"{what}.{k} equal")
+            else:
+                close(x, y, f"{what}.{k}", 1e-9)
+
+
 def main():
-    if len(sys.argv) != 4 or sys.argv[1] not in ("pools", "jets"):
+    modes = {"pools": pools, "jets": jets, "qa": qa}
+    if len(sys.argv) != 4 or sys.argv[1] not in modes:
         print(__doc__)
         sys.exit(2)
-    (pools if sys.argv[1] == "pools" else jets)(sys.argv[2], sys.argv[3])
+    modes[sys.argv[1]](sys.argv[2], sys.argv[3])
     print(f"{len(BAD)} difference(s)")
     sys.exit(1 if BAD else 0)
 

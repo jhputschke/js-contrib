@@ -84,6 +84,12 @@ In addition to ANA_Zhadron's Python packages: **FastJet** for Python (`pip insta
 particles: the campaign files store them all (|η| < 2.6), the 96-event test set of
 `zjet_test/data/pbpb` holds charged ones only.
 
+## QA first
+
+The same QA pass as for the Z–hadron analysis: [ANA_Zhadron.md](ANA_Zhadron.md#qa-first-both-analyses-qapy-zqa)
+(`qa.py map`, `zqa`, `qa.py plot`: the Z, its leptons and weights, the hadrons per source, the total
+charged multiplicity, the species).
+
 ## What the map step does (both routes)
 
 Per Z event (60 < m < 120 GeV, p_T^Z > 30 GeV; the paper's cuts come in the final stage) and per

@@ -20,6 +20,7 @@ CMS smearing, HEPData, χ², jackknife, figures). Every map step has a Python tw
 | `ZJetCommon.h` | the C++ mirror of `zjet_wake.py`: Z selection, event weights, track mask, Z frame, numpy's binning conventions, the portable random choices (`event_key`, `key_index`, `key_uniform`) |
 | `zhadron_pools.cxx` | the Z–hadron map step → `<out>/<stem>_pool.root` |
 | `zjets.cxx` | the Z+jet map step → `<out>/<stem>_jets.root` |
+| `zqa.cxx` | the QA map step (the twin of `zjet_test/qa.py map`) → `<out>/<stem>_qa.root`: a table per Z event (the Z, weights, N_coll, the total charged multiplicity per source) and per-source hadron histograms; drawn by `qa.py plot` |
 | `Makefile` | `make` with `root-config` and `fastjet-config` on `PATH` |
 
 A campaign from the RTX box (`gpu0/`, `gpu1/`), step by step in Python and in ROOT:
@@ -116,6 +117,9 @@ and √(N² − σ_RC²), σ_RC the random cones' width), all four shown in step
 - **`zjets`** against `zjet_jets_map.py`: pp (`vacuum_all`, 96,980 oversamples, 213,682
   jets) identical; Pb+Pb (`pbpb_campaign`, 4 oversamples of 19 Z events: 2,085 jets, 61
   embedding pairs, 304 random cones) to 10⁻¹⁴, areas and ρ included.
+- **`zqa`** against `qa.py map` on `data/pbpb`, `data/vacuum`, `data/pbpb_campaign`, `data/vacuum_all`:
+  the per-event tables and every histogram identical (`check_cxx.py qa`: 0 differences), the plot
+  step's summaries line for line.
 - **The final stage** on the C++ jets reproduces the earlier pp comparison (`zjet_pp_jets.py`):
   R_jZ 0.30, 0.42, 0.54, 0.68 in the four p_T^Z classes.
 - **Speed**: `zjets` 0.12 s per Pb+Pb oversample (six clusterings with areas), 3 s for the

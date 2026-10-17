@@ -194,6 +194,39 @@ Expect 100 files, 9,600 events, `correlated True`, the six windows 20–30 … 7
 duplicate backgrounds. A job flagged by `check_deposition.py` (no jet deposition, seen once
 in ~250 Au+Au jobs): move its files away and rerun the campaign's command, which redoes it.
 
+## QA first (both analyses): `qa.py`, `zqa`
+
+The same events for both papers; one QA pass before either analysis. The map step reads every
+production file once and writes per file a table per Z event and per-source hadron histograms;
+the plot step draws them. Route A (HDF5) and route B (ROOT) give the same numbers
+(`check_cxx.py qa`).
+
+```bash
+cd $EX/analysis/zjet_test
+# route A
+python qa.py map "$DATA/gpu*/*_hadrons_jet_frag.h5" $ANA/qa_py/pbpb --jobs 8
+python qa.py map "$PP/*_hadrons_jet_frag.h5" $ANA/qa_py/pp
+python qa.py plot --pbpb $ANA/qa_py/pbpb --pp $ANA/qa_py/pp --outdir $ANA/figures --tag _c00
+# route B (after the conversion, B1)
+$EX/analysis_root/zjet/zqa $ANA/root/pbpb $ANA/qa_cxx/pbpb [--files i:j]
+$EX/analysis_root/zjet/zqa $ANA/root/pp $ANA/qa_cxx/pp
+python qa.py plot --pbpb $ANA/qa_cxx/pbpb --pp $ANA/qa_cxx/pp --outdir $ANA/figures --tag _c00_cxx
+python check_cxx.py qa $ANA/qa_py/pbpb $ANA/qa_cxx/pbpb | tail -1          # 0 difference(s)
+```
+
+| figure | shows |
+|---|---|
+| `qa_z_PbPb_c00.png`, `qa_z_pp_c00.png` | 6 × 3: p_T^Z, y_Z, φ_Z, m_ℓℓ, the leptons' p_T and η (e dashed, μ solid); columns unweighted, σ_k/N_k-weighted, σ_k/N_k × N_coll-weighted (normalized); every panel for all Z's, CMS 2507.09307's and CMS 1702.01060's selections |
+| `qa_weights_PbPb_c00.png`, `qa_weights_pp_c00.png` | p_T^Z per p̂T window, the σ-weighted p_T^Z, N_coll per hydro background, the σ × N_coll weights of CMS 2507's Z's (w / ⟨w⟩) with N_eff |
+| `qa_hadrons_c00.png` | 3 × 4: p_T, η, φ per Z event (σ × N_coll-weighted), charged and all particles, each on the bulk's scale (background, background + wake, full event) and on the jet's (Pb+Pb fragments, the wake bulk_jet − bulk_bg, pp fragments); the Z's leptons removed |
+| `qa_multiplicity_c00.png` | the **total charged multiplicity** N_ch (\|η\| < 2.4, all p_T) of the full event per Z event, Pb+Pb and pp, unweighted and σ × N_coll-weighted; dN_ch/dη (\|η\| < 0.5) against N_coll (full event, background); the oversamples' var / mean of N_ch (1: Poisson; resonance decays make it ~1.5–2); the fragments' N_ch, Pb+Pb against pp |
+| `qa_species_c00.png` | the species fractions per source (bulk π⁰, η, Σ⁰, K⁰ are stable in iSS's list, the fragments' decayed) |
+| `qa_summary_c00.txt` | Z counts and N_eff per selection and weighting, the Z leptons found among the fragments (2 per fragmentation expected; they are removed), the mean multiplicities, the oversamples' spread, the species |
+
+Look for: the windows tiling p_T^Z smoothly, N_coll spanning 0–30 % (not a few values), the
+weights' range (N_eff), exactly 2 Z leptons per fragmentation, a smooth bulk η (|η| < 2.6 stored)
+and φ (flat on average over many backgrounds), dN_ch/dη rising with N_coll.
+
 ## A. Python on the HDF5 files
 
 **A1. The pools and the four steps** (map: one process per production file; reduce: every step):
@@ -313,6 +346,7 @@ saw the files in another order (`../README.md`, *Multi-GPU output*).
 | step | writes | figures |
 |---|---|---|
 | 2 | nothing (stdout) | – |
+| QA | `$ANA/qa_py/{pbpb,pp}/<stem>_qa.npz` (route B: `qa_cxx/…/<stem>_qa.root`), `qa_summary_c00.txt` | `qa_z_*`, `qa_weights_*`, `qa_hadrons_*`, `qa_multiplicity_*`, `qa_species_*` |
 | A1 (map) | `$ANA/pools/pbpb/<stem>.npz` (100), `$ANA/pools/vacuum/<stem>.npz`, `manifest.json` each | – |
 | A1 (reduce) | `$ANA/figures/mixing_summary_c00.txt` | step 1: `mixing_reference_dphi_c00.png`, `mixing_reference_dy_c00.png`; steps 1–4: `mixing_dphi_c00.png`, `mixing_dy_c00.png`; step 4: `mixing_errors_dphi_c00.png`, `mixing_errors_dy_c00.png` |
 | A1, second run | `mixing_summary_c00_eff065.txt` | the same six with `_c00_eff065` (only the predicted strict errors change) |

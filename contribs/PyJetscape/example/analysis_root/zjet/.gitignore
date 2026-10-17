@@ -1,3 +1,6 @@
 # the C++ map steps (make)
 zhadron_pools
 zjets
+zqa
+# the build file (the repository ignores Makefiles, CMake's)
+!Makefile
