@@ -97,6 +97,33 @@ def load_jets(directory):
     return E, J, B
 
 
+def load_qa_jets(directory):
+    """The jet QA trees of a directory's map-step files -> (qa_jets, qa_bg_jets), dicts of flat
+    names as load_jets; qa_bg_jets {} without (vacuum).  Files from before the QA trees:
+    KeyError."""
+    import awkward as ak
+    import uproot
+    paths = sorted(glob.glob(os.path.join(directory, "*_jets.root")))
+    if not paths:
+        raise FileNotFoundError(f"no *_jets.root in {directory}")
+    qs, qbs = [], []
+    for p in paths:
+        with uproot.open(p) as f:
+            if "qa_jets" not in f:
+                raise KeyError(f"{p}: no qa_jets tree (made before the jet QA: rerun the map step)")
+            qs.append(f["qa_jets"].arrays())
+            if "qa_bg_jets" in f:
+                qbs.append(f["qa_bg_jets"].arrays())
+    Q = _flat_tree(ak.concatenate(qs))
+    for k in ("event", "sample"):
+        Q[k] = ak.to_numpy(Q[k])
+    QB = _flat_tree(ak.concatenate(qbs)) if qbs else {}
+    for k in ("bg", "bg_unit", "sample", "n_coll"):
+        if k in QB:
+            QB[k] = ak.to_numpy(QB[k])
+    return Q, QB
+
+
 def lep_ok(pid, eta):
     a = np.abs(eta)
     return np.where(np.abs(pid) == 13, a < 2.4, (a < 2.5) & ~((a > 1.44) & (a < 1.57)))

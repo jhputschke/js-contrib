@@ -6,7 +6,7 @@ The same algorithm and output as the C++ map step, example/analysis_root/zjet/zj
 final stage of both.
 
     python zjet_jets_map.py <h5 dir or quoted glob> <out dir> [--seed 1] [--samples N]
-                            [--cones 4] [--ptmin 5] [--files i:j]
+                            [--cones 4] [--ptmin 5] [--qa-samples 1] [--files i:j]
 
 --files i:j maps only production files i .. j-1 (in the reader's order), for several processes
 at once; the weights still come from all files, so the slices combine.
@@ -15,7 +15,10 @@ Jets: anti-k_T R = 0.3 from all final particles but neutrinos and the Z's lepton
 explicit ghosts on a fixed grid and rho(jet) from the k_T R = 0.4 median in a strip
 |y - y_jet| < 1 (|y| < 2.2), p_T = p_T,raw - rho A; the fragments embedded in bulk_bg; random
 cones in bulk_bg; the jets of every background's bulk_bg samples (tree bg_jets, the final
-stage's B).  Slow in Python (~1 s per Pb+Pb oversample): use --samples for checks."""
+stage's B); per jet also its mass, the number of its (non-ghost) constituents and the leading
+one's p_T.  The jet QA (trees qa_jets, qa_bg_jets): the first --qa-samples samples of every Z
+event and background with all their jets (p_T,raw > 1 GeV, no cut on the subtracted p_T), for
+zjet_jets_qa.py.  Slow in Python (~1 s per Pb+Pb oversample): use --samples for checks."""
 import argparse
 import math
 import os
@@ -35,6 +38,8 @@ import zjet_wake as zw  # noqa: E402
 R_JET, ETA_JET, PT_REF, DR_MATCH, ETA_RC = 0.3, 2.0, 10.0, 0.15, 1.6
 RC_SALT = 0x5243000000000000
 NU = (12, 14, 16)
+JET_NAMES = ("pt_raw", "pt", "eta", "phi", "area", "rho", "m", "nconst", "lead_pt")
+ALL = -math.inf
 
 
 def keep_mask(pid, p, info):
@@ -70,15 +75,25 @@ class Clusterer:
         b.set_particles(parts)
         return b
 
+    @staticmethod
+    def _jet(j, pt, a, rho, ghosts):
+        n, lead = 0, 0.0
+        for q in j.constituents():
+            if not ghosts or not q.is_pure_ghost():
+                n += 1
+                lead = max(lead, q.pt())
+        return (j.pt(), pt, j.eta(), j.phi_std(), a, rho, j.m(), float(n), lead)
+
     def jets(self, parts, subtract, ptmin):
-        """-> list of (pt_raw, pt, eta, phi, area, rho), as zjets.cxx's jets_of."""
+        """-> list of (pt_raw, pt, eta, phi, area, rho, m, nconst, lead_pt), as zjets.cxx's
+        jets_of: p_T,raw > 1 GeV, |eta| < 2, p_T > ptmin (ALL: no cut)."""
         fj = self.fj
         out = []
         if not subtract:
             cs = fj.ClusterSequence(parts, self.akt)
-            for j in fj.sorted_by_pt(cs.inclusive_jets(ptmin)):
-                if abs(j.eta()) < ETA_JET:
-                    out.append((j.pt(), j.pt(), j.eta(), j.phi_std(), 0.0, 0.0))
+            for j in fj.sorted_by_pt(cs.inclusive_jets(1.0)):
+                if abs(j.eta()) < ETA_JET and j.pt() >= ptmin:
+                    out.append(self._jet(j, j.pt(), 0.0, 0.0, False))
             return out
         b = self.bge(parts)
         cs = fj.ClusterSequenceArea(parts, self.akt, self.area)
@@ -88,7 +103,7 @@ class Clusterer:
             rho, a = b.rho(j), j.area()
             pt = j.pt() - rho * a
             if pt > ptmin:
-                out.append((j.pt(), pt, j.eta(), j.phi_std(), a, rho))
+                out.append(self._jet(j, pt, a, rho, True))
         return out
 
 
@@ -100,6 +115,9 @@ def main():
     ap.add_argument("--samples", type=int, default=1 << 30)
     ap.add_argument("--cones", type=int, default=4)
     ap.add_argument("--ptmin", type=float, default=5.0)
+    ap.add_argument("--qa-samples", type=int, default=1,
+                    help="the first N samples' jets without the p_T cut "
+                         "(trees qa_jets, qa_bg_jets)")
     ap.add_argument("--files", default=None, help="i:j, only production files i .. j-1")
     a = ap.parse_args()
     import awkward as ak
@@ -142,6 +160,7 @@ def main():
                                "lep2_pt", "lep2_eta", "lep2_phi")}
         rows = {k: [] for k in ("event", "sample", "frag_sample")}
         jet, emb, rc = [], [], []
+        qa_rows, qa_jet = {"event": [], "sample": []}, []
         for g in range(int(r._offsets[fi]), int(r._offsets[fi + 1])):
             info = infos[g]
             z = info.z
@@ -175,8 +194,12 @@ def main():
                             "p": np.concatenate([bj["p"], frag["p"]])}
                 else:
                     full = frag
-                js = c.jets(pseudojets(fj, full, info), bulk, a.ptmin)
-                jet.append(js)
+                every = c.jets(pseudojets(fj, full, info), bulk, ALL)
+                jet.append([x for x in every if (x[1] > a.ptmin if bulk else x[1] >= a.ptmin)])
+                if k < a.qa_samples:
+                    qa_rows["event"].append(g)
+                    qa_rows["sample"].append(k)
+                    qa_jet.append(every)
                 if not bulk:
                     emb.append([])
                     rc.append([])
@@ -212,6 +235,8 @@ def main():
         # the background jets: every hydro background's bulk_bg samples, as zjets.cxx
         bgj = {k: [] for k in ("bg", "bg_unit", "sample", "n_coll")}
         bg_rows = []
+        qbj = {k: [] for k in bgj}
+        qa_bg_rows = []
         if bulk:
             seen = set()
             no_z = type("NoZ", (), {"z": None})()
@@ -222,11 +247,30 @@ def main():
                 seen.add(info.bg_unit)
                 n_bg = h["bulk_bg"].n_samples(info.bg_unit)
                 for k in range(min(n_bg, a.samples)):
-                    for key, v in (("bg", bgid[g]), ("bg_unit", info.bg_unit), ("sample", k),
-                                   ("n_coll", info.n_coll if info.n_coll is not None else -1)):
+                    ids = (("bg", bgid[g]), ("bg_unit", info.bg_unit), ("sample", k),
+                           ("n_coll", info.n_coll if info.n_coll is not None else -1))
+                    for key, v in ids:
                         bgj[key].append(v)
                     bp = pseudojets(fj, sample("bulk_bg", info.bg_unit, k), no_z)
-                    bg_rows.append(c.jets(bp, True, a.ptmin))
+                    every = c.jets(bp, True, ALL)
+                    bg_rows.append([x for x in every if x[1] > a.ptmin])
+                    if k < a.qa_samples:
+                        for key, v in ids:
+                            qbj[key].append(v)
+                        qa_bg_rows.append(every)
+
+        def jet_record(lists, names=JET_NAMES):
+            counts = np.array([len(row) for row in lists], np.int64)
+            return ak.zip({nm: ak.unflatten(np.array([x[i] for row in lists for x in row],
+                                                     np.float64), counts)
+                           for i, nm in enumerate(names)})
+
+        def bg_tree(ids, lists):
+            return {"bg": np.asarray(ids["bg"], np.int64),
+                    "bg_unit": np.asarray(ids["bg_unit"], np.int32),
+                    "sample": np.asarray(ids["sample"], np.int32),
+                    "n_coll": np.asarray(ids["n_coll"], np.int32),
+                    "jet": jet_record(lists)}
 
         with uproot.recreate(os.path.join(a.out, f"{name}_jets.root")) as fo:
             fo["jet_events"] = {k: np.asarray(v, np.int64 if k in ("event", "bg") else
@@ -239,26 +283,17 @@ def main():
                    "sample": np.asarray(rows["sample"], np.int32),
                    "frag_sample": np.asarray(rows["frag_sample"], np.int32)}
             for gname, lists, names in (
-                    ("jet", jet, ("pt_raw", "pt", "eta", "phi", "area", "rho")),
+                    ("jet", jet, JET_NAMES),
                     ("emb", emb, ("ref_pt", "ref_eta", "ref_phi", "pt", "dr")),
                     ("rc", rc, ("eta", "phi", "sum", "rho", "dpt"))):
-                counts = np.array([len(row) for row in lists], np.int64)
-                cols = {nm: ak.unflatten(np.array([x[i] for row in lists for x in row],
-                                                  np.float64), counts)
-                        for i, nm in enumerate(names)}
-                out[gname] = ak.zip(cols)
+                out[gname] = jet_record(lists, names)
             fo["jets"] = out
+            fo["qa_jets"] = {"event": np.asarray(qa_rows["event"], np.int64),
+                             "sample": np.asarray(qa_rows["sample"], np.int32),
+                             "jet": jet_record(qa_jet)}
             if bg_rows:
-                counts = np.array([len(row) for row in bg_rows], np.int64)
-                names = ("pt_raw", "pt", "eta", "phi", "area", "rho")
-                fo["bg_jets"] = {
-                    "bg": np.asarray(bgj["bg"], np.int64),
-                    "bg_unit": np.asarray(bgj["bg_unit"], np.int32),
-                    "sample": np.asarray(bgj["sample"], np.int32),
-                    "n_coll": np.asarray(bgj["n_coll"], np.int32),
-                    "jet": ak.zip({nm: ak.unflatten(np.array([x[i] for row in bg_rows
-                                                              for x in row], np.float64), counts)
-                                   for i, nm in enumerate(names)})}
+                fo["bg_jets"] = bg_tree(bgj, bg_rows)
+                fo["qa_bg_jets"] = bg_tree(qbj, qa_bg_rows)
         print(f"{name}: {len(evs['event'])} Z events, {sum(len(j) for j in jet)} jets, "
               f"{time.time() - t0:.0f} s", flush=True)
 

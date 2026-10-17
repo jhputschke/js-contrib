@@ -97,7 +97,9 @@ Per Z event (60 < m < 120 GeV, p_T^Z > 30 GeV; the paper's cuts come in the fina
 oversample k (all 40 by default, `--samples N` fewer): the whole event, `bulk_jet` k +
 `jet_frag` (k mod 40), all final particles but neutrinos and the Z's two leptons;
 
-- **jets** (S): anti-k_T R = 0.3, |η| < 2, p_T > 5 GeV after the subtraction;
+- **jets** (S): anti-k_T R = 0.3, |η| < 2, p_T,raw > 1 GeV and p_T > 5 GeV after the
+  subtraction; per jet p_T,raw, p_T, η, φ, area, ρ, the mass, the number of its (non-ghost)
+  constituents and the leading one's p_T;
 - **ρA subtraction**: explicit ghosts on a fixed grid (|y| < 2.6, area 0.01), ρ(jet) the
   median p_T / area of the k_T R = 0.4 jets with |y| < 2.2 in the strip |y − y_jet| < 1;
 - **embedding**: the fragments alone (reference jets, p_T > 10 GeV: step 1's jets) and embedded
@@ -106,6 +108,9 @@ oversample k (all 40 by default, `--samples N` fewer): the whole event, `bulk_je
   to set against CMS's N;
 - per hydro background and `bulk_bg` sample: its **jets**, subtracted the same way (tree
   `bg_jets`, with the background's N_coll): steps 2 and 3's B;
+- **the jet QA** (trees `qa_jets`, `qa_bg_jets`): the first `--qa-samples` (default 1)
+  oversamples of every Z event and background with **all** their jets, without the cut on the
+  subtracted p_T (the negative tail; a few hundred kB per file);
 - pp: the fragmentation k alone, no subtraction, no embedding, cones or background jets.
 
 ## A. Python on the HDF5 files
@@ -139,7 +144,16 @@ jackknife over 100 blocks of the 400 hydro backgrounds (pp: of events). Seconds 
 
 Then read `$ANA/figures/zjet_jets_summary_c00.txt` and the figures **in the order of the steps**:
 
-**A3. The jets' diagnostics first** — `zjet_jets_embedding_c00.png` and the summary's random-cone,
+**A3. The jets' diagnostics first** — the jet QA (seconds; `--hadron-qa`: the hadron QA's
+output of §QA first, for ρ against dN_ch/dη; without it that line is left out):
+
+```bash
+python zjet_jets_qa.py --pbpb $ANA/jets_py/pbpb --pp $ANA/jets_py/pp \
+    --hadron-qa $ANA/qa_py/pbpb --outdir $ANA/figures --tag _c00
+```
+
+Its six figures and `qa_jets_summary_c00.txt` (what each shows and what to look for:
+*The jet QA figures* below), then `zjet_jets_embedding_c00.png` and the final stage's random-cone,
 embedding and B lines:
 - the random cones' mean δp_T (≈ 0 if ρ is unbiased) and width σ_RC against CMS's N = 8.08 GeV:
   how the model's background (hydro hadrons, no minijets from the other binary collisions)
@@ -211,6 +225,8 @@ Python route (FastJet clusters in both), the pp in seconds.
 
 ```bash
 cd $EX/analysis/zjet_test
+python zjet_jets_qa.py --pbpb $ANA/jets_cxx/pbpb --pp $ANA/jets_cxx/pp \
+    --hadron-qa $ANA/qa_cxx/pbpb --outdir $ANA/figures --tag _c00_cxx
 python zjet_jets.py --pbpb $ANA/jets_cxx/pbpb --pp $ANA/jets_cxx/pp \
     --outdir $ANA/figures --tag _c00_cxx --blocks 100
 ```
@@ -234,10 +250,34 @@ and B4 agree too: the smearing's and the draws' random numbers come in the same 
 
 | step | writes | figures |
 |---|---|---|
-| A1 / B3 (map) | `$ANA/jets_py/pbpb/<stem>_jets.root` (100), `$ANA/jets_py/pp/<stem>_jets.root` (or `jets_cxx/`): trees `jet_events` (per Z event: the Z, its leptons, weight σ_k/N_k, N_coll, background, samples used), `jets` (per event and oversample: jets, embedding pairs, random cones), `bg_jets` (per background and `bulk_bg` sample: its jets, N_coll) | – |
+| A1 / B3 (map) | `$ANA/jets_py/pbpb/<stem>_jets.root` (100), `$ANA/jets_py/pp/<stem>_jets.root` (or `jets_cxx/`): trees `jet_events` (per Z event: the Z, its leptons, weight σ_k/N_k, N_coll, background, samples used), `jets` (per event and oversample: jets, embedding pairs, random cones), `bg_jets` (per background and `bulk_bg` sample: its jets, N_coll), `qa_jets`, `qa_bg_jets` (the first oversample's jets without the p_T cut) | – |
+| A3 / B4 (jet QA) | `$ANA/figures/qa_jets_summary_c00.txt` (`_c00_cxx`) | `qa_jets_subtraction_c00.png`, `qa_jets_area_rho_c00.png`, `qa_jets_response_c00.png`, `qa_jets_geometry_c00.png`, `qa_jets_constituents_c00.png`, `qa_jets_mixing_c00.png` |
 | A2 / B4 (final) | `$ANA/figures/zjet_jets_summary_c00.txt` (`_c00_cxx`) | `zjet_jets_pp_c00.png`, `zjet_jets_step1_c00.png`, `zjet_jets_step2_c00.png`, `zjet_jets_step3_c00.png`, `zjet_jets_embedding_c00.png` |
 | B1 | `$ANA/root/…` (shared with ANA_Zhadron) | – |
 | B5 | stdout | – |
+
+## The jet QA figures
+
+`zjet_jets_qa.py`, before the final stage: the jet reconstruction, not the physics. Jets per Z
+with the Z's weights; S the Z events' jets, B_own the jets of the Z's own background, B_mixed
+those of the 20 backgrounds nearest in N_coll (step 3's), pp the vacuum's; "Z+jet cuts" =
+|η| < 1.6, ΔR > 0.4 from the Z's leptons, p_T > 30 GeV, without smearing. All from the QA trees
+(one oversample, all jets) except the random cones and the embedding (every oversample).
+
+| figure | panels | what to look for |
+|---|---|---|
+| `qa_jets_subtraction_c00.png` | p_T,raw; ρA; p_T = p_T,raw − ρA with its negative tail; p_T,raw against ρA (S); the fake fraction B/S against p_T, inclusive and at Δφ_jZ > 7π/8, for B_own and B_mixed; S − B_own against pp | about half the jets below 0 after subtracting the median (ρ is a median); a B/S still large at 30 GeV says how much of steps 2 and 3 is subtraction; S − B_own above ~30 GeV approaching the shape of pp's spectrum, below it by the quenching |
+| `qa_jets_area_rho_c00.png` | A/πR² in p_T classes; ⟨A⟩/πR² against p_T; ρ per sample (Z events, `bulk_bg`); ρ against N_coll per background; ρ against η; ρ(Z event) − ρ(its own `bulk_bg`) | hard jets at A ≈ πR² (soft ones spread lower); ρ rising with N_coll, and its ratio to dN_ch/dη (summary) the same for every background; ρ(η) follows dN/dη of the hydro; ρ(Z event) − ρ(bulk_bg) ≈ 0: the wake and the fragments do not move the median (if they did, step 2 would subtract differently from data) |
+| `qa_jets_response_c00.png` | random cones' δp_T (log: the tails) against Gaussians of σ_RC and of CMS's N; σ_RC and ⟨δp_T⟩ against N_coll and η; the embedding's (p_T,emb − p_T)/p_T (JES, JER) and matching efficiency against p_T, ΔR of the pairs | ⟨δp_T⟩ ≈ 0; σ_RC against CMS's 8.08 GeV (it sets the `match` smearing) and its growth with N_coll; non-Gaussian tails (the summary's fraction beyond 3σ, Gauss 0.27 %); JES → 0 and efficiency → 1 above 30 GeV |
+| `qa_jets_geometry_c00.png` | η, Δφ to the Z, φ (after the cuts); jets per Z; ΔR(jet, nearest Z lepton) before the 0.4 cut; jet against Z p_T (S) | flat η and φ within the acceptance; B flat in Δφ, S and pp peaked at π; no pile-up of jets at ΔR → 0 from the leptons (they are removed from the particles; what the cut removes is the leptons' radiation, the summary gives the rate) |
+| `qa_jets_constituents_c00.png` | constituents (after the cuts) and against p_T; p_T,lead / p_T,raw; m / p_T,raw (unsubtracted) | Pb+Pb jets hold the background's tens of soft particles (pp: about ten); fakes have a small leading fraction; the mass is the unsubtracted one (background-dominated in Pb+Pb), a QA quantity only |
+| `qa_jets_mixing_c00.png` | ΔN_coll of the mixed backgrounds; their ⟨ρ⟩ − the own ρ; B_mixed / B_own against p_T | small ΔN_coll and Δρ ≈ 0, and the ratio ≈ 1: then step 3's B is step 2's, as the ladder assumes (needs ≥ 2 backgrounds: empty on one) |
+
+`qa_jets_summary_c00.txt`: per set the jets per Z (all, below 0, above 30 GeV), the fake
+fractions at 30–40 and 50–70 GeV, ρ per background and against dN_ch/dη, ρ(Z event) −
+ρ(background) with its error, the random cones (mean, σ_RC, tails), the embedding's JES, JER and
+efficiency, the lepton cut's rate, the constituents, the mixing's ΔN_coll and Δρ. Only σ_RC has a
+number from the paper to compare with (CMS's N); the rest are the model's own checks.
 
 ## The final figures and how they compare with data
 

@@ -40,10 +40,12 @@ python $P/root_export/check_h5_vs_root.py $D/pbpb_campaign $D/root/pbpb_campaign
     --campaign $D/root/pbpb_campaign/pbpb_campaign.root      # every hadron, column, sigma
 # 2. the map steps (--files i:j for one slice of the files; the weights read all of them)
 ./zhadron_pools $D/root/pbpb_campaign $D/mix_cxx/pbpb [--seed 1] [--eta-max 2.4]
-./zjets $D/root/pbpb_campaign $D/jets_cxx/pbpb_campaign [--samples N] [--cones 4] [--ptmin 5]
+./zjets $D/root/pbpb_campaign $D/jets_cxx/pbpb_campaign [--samples N] [--cones 4] [--ptmin 5] \
+    [--qa-samples 1]
 # 3. the final stage (Python)
 cd ../../analysis/zjet_test
 python mix.py --pbpb-pools data/mix_cxx/pbpb --vacuum-pools data/mix_cxx/vacuum --tag _cxx
+python zjet_jets_qa.py --pbpb data/jets_cxx/pbpb_campaign --pp data/jets_cxx/vacuum_all
 python zjet_jets.py --pbpb data/jets_cxx/pbpb_campaign --pp data/jets_cxx/vacuum_all
 # the C++ map steps against the Python ones
 python check_cxx.py pools data/mix/pbpb data/mix_cxx/pbpb
@@ -72,7 +74,9 @@ Events with a Z of 60 < m < 120 GeV and p_T^Z > 30 GeV (the final stage applies 
 cuts); for each oversample k (≤ `--samples`): bulk_jet k + jet_frag (k mod n_frag) in Pb+Pb, the
 fragmentation k in vacuum; all final particles but neutrinos and the Z's two leptons.
 
-- **Jets**: anti-k_T R = 0.3, p_T > `--ptmin` (5 GeV) after the subtraction, |η| < 2.
+- **Jets**: anti-k_T R = 0.3, p_T,raw > 1 GeV, p_T > `--ptmin` (5 GeV) after the subtraction,
+  |η| < 2; per jet also its mass, the number of its real (non-ghost) constituents and the
+  leading one's p_T.
 - **Subtraction** (Pb+Pb): active areas with explicit ghosts on a fixed grid (|y| < 2.6, area
   0.01, no scatter, so that C++ and Python find the same areas); ρ(jet) the median p_T / area of
   the k_T R = 0.4 jets with |y| < 2.2 in the strip |y − y_jet| < 1; p_T = p_T,raw − ρA.
@@ -86,12 +90,16 @@ fragmentation k in vacuum; all final particles but neutrinos and the Z's two lep
   subtracted the same way, the model's minimum-bias events: the final stage's B (the jets not
   from the Z's interaction), from the Z's own background (step 2) or mixed from the backgrounds
   closest in N_coll (step 3, as CMS's 40 minimum-bias events).
+- **Jet QA**: the first `--qa-samples` (1) oversamples of every Z event and background again,
+  with all their jets (no cut on the subtracted p_T: its negative tail), for
+  `zjet_test/zjet_jets_qa.py`; a few hundred kB per campaign file.
 
 Output: `jet_events` (per event: `event`, `local_event`, `file`, `bg`, `pthat_bin`, `weight_mb`
 = σ_k / N_k, `n_coll`, `n_samples`, the Z and its leptons) and `jets` (per event and oversample:
-`jet_{pt_raw, pt, eta, phi, area, rho}`, `emb_{ref_pt, ref_eta, ref_phi, pt, dr}`,
-`rc_{eta, phi, sum, rho, dpt}`) and `bg_jets` (per background and `bulk_bg` sample: `bg`,
-`bg_unit`, `sample`, `n_coll`, `jet_{pt_raw, pt, eta, phi, area, rho}`). `zjet_test/zjet_jets.py`
+`jet_{pt_raw, pt, eta, phi, area, rho, m, nconst, lead_pt}`, `emb_{ref_pt, ref_eta, ref_phi,
+pt, dr}`, `rc_{eta, phi, sum, rho, dpt}`), `bg_jets` (per background and `bulk_bg` sample:
+`bg`, `bg_unit`, `sample`, `n_coll`, the same `jet_*`), and for the QA `qa_jets` (`event`,
+`sample`, `jet_*`) and `qa_bg_jets` (as `bg_jets`). `zjet_test/zjet_jets.py`
 reads both layouts (the Python map
 step's groups come back from uproot as records).
 
@@ -116,7 +124,9 @@ and √(N² − σ_RC²), σ_RC the random cones' width), all four shown in step
   the Python ones, apart from the last digit of check (1). 0.5–0.8 s per test file.
 - **`zjets`** against `zjet_jets_map.py`: pp (`vacuum_all`, 96,980 oversamples, 213,682
   jets) identical; Pb+Pb (`pbpb_campaign`, 4 oversamples of 19 Z events: 2,085 jets, 61
-  embedding pairs, 304 random cones) to 10⁻¹⁴, areas and ρ included.
+  embedding pairs, 304 random cones) to 10⁻¹⁴, areas and ρ included; the masses, constituent
+  counts, leading p_T and the QA trees (2,457 jets, 127 background jets) identical
+  (2026-10-17, with the jet QA's columns; the jets and the final stage's summary as before).
 - **`zqa`** against `qa.py map` on `data/pbpb`, `data/vacuum`, `data/pbpb_campaign`, `data/vacuum_all`:
   the per-event tables and every histogram identical (`check_cxx.py qa`: 0 differences), the plot
   step's summaries line for line.

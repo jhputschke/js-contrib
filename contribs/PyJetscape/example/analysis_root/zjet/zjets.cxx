@@ -7,17 +7,18 @@
 // is the same map step in Python (check_cxx.py jets compares the two).
 //
 //   ./zjets <root dir> <out dir> [--seed 1] [--files i:j] [--samples N] [--cones 4]
-//           [--ptmin 5]
+//           [--ptmin 5] [--qa-samples 1]
 //
 // Events: a Z with 60 < m < 120 GeV and p_T^Z > 30 GeV (the final stage applies the paper's
 // cuts).  Samples: k = 0 .. min(n, --samples) - 1, n the oversamples (vacuum: the
 // fragmentations).  Particles of sample k: bulk_jet k + jet_frag (k mod n_frag) (vacuum:
 // jet_frag k), all final particles but neutrinos and the Z's two leptons.
 //
-// Jets: anti-k_T R = 0.3, E scheme, p_T > --ptmin, |eta| < 2.  Pb+Pb: active areas with
-// explicit ghosts on a fixed grid (|y| < 2.6, area 0.01, no scatter: the same jets as the
-// Python map step) and rho(jet) the median p_T / area of the k_T R = 0.4 jets with |y| < 2.2
-// in a strip |y - y_jet| < 1; p_T = p_T,raw - rho A.  Vacuum: no subtraction.
+// Jets: anti-k_T R = 0.3, E scheme, p_T,raw > 1 GeV, p_T > --ptmin, |eta| < 2.  Pb+Pb: active
+// areas with explicit ghosts on a fixed grid (|y| < 2.6, area 0.01, no scatter: the same jets
+// as the Python map step) and rho(jet) the median p_T / area of the k_T R = 0.4 jets with
+// |y| < 2.2 in a strip |y - y_jet| < 1; p_T = p_T,raw - rho A.  Vacuum: no subtraction.  Per
+// jet also its mass, the number of its (non-ghost) constituents and the leading one's p_T.
 // Embedding (Pb+Pb): the fragments of sample k alone (reference jets, p_T > 10 GeV,
 // |eta| < 2) and embedded in bulk_bg sample k (no wake), clustered and subtracted as above;
 // each reference jet with the embedded jet nearest in Delta R (NaN beyond 0.15).
@@ -27,6 +28,9 @@
 // min(n, --samples) - 1 clustered and subtracted as above, the model's minimum-bias events
 // without any hard process: the final stage's B (jets not from the Z's interaction), from the
 // Z's own background or mixed from others of similar N_coll.
+// The jet QA (trees qa_jets, qa_bg_jets): the first --qa-samples samples of every Z event and
+// of every background with all their jets (p_T,raw > 1 GeV, no cut on p_T = p_T,raw - rho A),
+// for the subtraction's negative tail; zjet_jets_qa.py makes the figures.
 
 #include "ZJetCommon.h"
 
@@ -70,18 +74,33 @@ struct Clusterer {
   fj::Selector rho_sel = fj::SelectorAbsRapMax(2.2) * fj::SelectorStrip(1.0);
 };
 
-// the jets of a particle list: raw p_T, subtracted p_T, eta, phi, area, rho
+// the jets of a particle list: raw p_T, subtracted p_T, eta, phi, area, rho, mass, the number
+// of real (non-ghost) constituents, the leading one's p_T
 struct Jet {
-  double pt_raw, pt, eta, phi, area, rho;
+  double pt_raw, pt, eta, phi, area, rho, m, nconst, lead;
 };
 
+Jet make_jet(const fj::PseudoJet &j, double pt, double area, double rho, bool ghosts) {
+  int n = 0;
+  double lead = 0;
+  for (const auto &q : j.constituents())
+    if (!ghosts || !q.is_pure_ghost()) {
+      ++n;
+      lead = std::max(lead, q.pt());
+    }
+  return {j.pt(), pt, j.eta(), j.phi_std(), area, rho, j.m(), double(n), lead};
+}
+
+// every jet with p_T,raw > 1 GeV and |eta| < 2; ptmin cuts on p_T (subtracted in Pb+Pb), -inf
+// keeps them all
 std::vector<Jet> jets_of(const std::vector<fj::PseudoJet> &parts, bool subtract,
                          double ptmin, Clusterer &c) {
   std::vector<Jet> out;
   if (!subtract) {
     fj::ClusterSequence cs(parts, c.akt);
-    for (const auto &j : fj::sorted_by_pt(cs.inclusive_jets(ptmin)))
-      if (std::fabs(j.eta()) < ETA_JET) out.push_back({j.pt(), j.pt(), j.eta(), j.phi_std(), 0, 0});
+    for (const auto &j : fj::sorted_by_pt(cs.inclusive_jets(1.0)))
+      if (std::fabs(j.eta()) < ETA_JET && j.pt() >= ptmin)
+        out.push_back(make_jet(j, j.pt(), 0, 0, false));
     return out;
   }
   fj::JetMedianBackgroundEstimator bge(c.rho_sel, c.kt, c.area);
@@ -90,15 +109,34 @@ std::vector<Jet> jets_of(const std::vector<fj::PseudoJet> &parts, bool subtract,
   for (const auto &j : fj::sorted_by_pt(cs.inclusive_jets(1.0))) {
     if (!(std::fabs(j.eta()) < ETA_JET)) continue;
     const double rho = bge.rho(j), a = j.area(), pt = j.pt() - rho * a;
-    if (pt > ptmin) out.push_back({j.pt(), pt, j.eta(), j.phi_std(), a, rho});
+    if (pt > ptmin) out.push_back(make_jet(j, pt, a, rho, true));
   }
   return out;
 }
 
+// the jet columns of a tree: jet_pt_raw, jet_pt, ... (one vector each, refilled per row)
+struct JetColumns {
+  std::vector<double> v[9];
+  static constexpr const char *names[9] = {"jet_pt_raw", "jet_pt", "jet_eta", "jet_phi",
+                                           "jet_area", "jet_rho", "jet_m", "jet_nconst",
+                                           "jet_lead_pt"};
+  void branch(TTree &t) {
+    for (int i = 0; i < 9; ++i) t.Branch(names[i], &v[i]);
+  }
+  void clear() {
+    for (auto &x : v) x.clear();
+  }
+  void push(const Jet &j) {
+    const double x[9] = {j.pt_raw, j.pt, j.eta, j.phi, j.area, j.rho, j.m, j.nconst, j.lead};
+    for (int i = 0; i < 9; ++i) v[i].push_back(x[i]);
+  }
+  size_t size() const { return v[0].size(); }
+};
+
 int run(int argc, char **argv) {
   if (argc < 3) {
     std::fprintf(stderr, "usage: %s <root dir> <out dir> [--seed 1] [--files i:j] "
-                         "[--samples N] [--cones 4] [--ptmin 5]\n", argv[0]);
+                         "[--samples N] [--cones 4] [--ptmin 5] [--qa-samples 1]\n", argv[0]);
     return 2;
   }
   const std::string in = argv[1], out = argv[2];
@@ -107,6 +145,8 @@ int run(int argc, char **argv) {
   const int max_samples = o.count("--samples") ? std::stoi(o.at("--samples")) : 1 << 30;
   const int n_cones = o.count("--cones") ? std::stoi(o.at("--cones")) : 4;
   const double ptmin = o.count("--ptmin") ? std::stod(o.at("--ptmin")) : 5.0;
+  const int qa_samples = o.count("--qa-samples") ? std::stoi(o.at("--qa-samples")) : 1;
+  const double ALL = -std::numeric_limits<double>::infinity();
   gSystem->mkdir(out.c_str(), true);
   fj::ClusterSequence::print_banner();
 
@@ -151,7 +191,7 @@ int run(int argc, char **argv) {
     }
     // per (event, sample)
     int sample = 0, frag_sample = 0;
-    std::vector<double> j_raw, j_pt, j_eta, j_phi, j_area, j_rho;
+    JetColumns jc, qc;
     std::vector<double> e_rpt, e_reta, e_rphi, e_pt, e_dr;
     std::vector<double> c_eta, c_phi, c_sum, c_rho, c_dpt;
     TTree tj("jets", "jets per oversample");
@@ -159,13 +199,18 @@ int run(int argc, char **argv) {
     tj.Branch("event", &ev);
     tj.Branch("sample", &sample);
     tj.Branch("frag_sample", &frag_sample);
+    jc.branch(tj);
     for (auto &p : std::vector<std::pair<const char *, std::vector<double> *>>{
-             {"jet_pt_raw", &j_raw}, {"jet_pt", &j_pt}, {"jet_eta", &j_eta},
-             {"jet_phi", &j_phi}, {"jet_area", &j_area}, {"jet_rho", &j_rho},
              {"emb_ref_pt", &e_rpt}, {"emb_ref_eta", &e_reta}, {"emb_ref_phi", &e_rphi},
              {"emb_pt", &e_pt}, {"emb_dr", &e_dr}, {"rc_eta", &c_eta}, {"rc_phi", &c_phi},
              {"rc_sum", &c_sum}, {"rc_rho", &c_rho}, {"rc_dpt", &c_dpt}})
       tj.Branch(p.first, p.second);
+    // the jet QA: every jet of the first qa_samples samples
+    TTree tq("qa_jets", "all jets of the first --qa-samples samples (no p_T cut)");
+    tq.SetDirectory(&fo);
+    tq.Branch("event", &ev);
+    tq.Branch("sample", &sample);
+    qc.branch(tq);
 
     long n_ev = 0, n_jets = 0;
     std::vector<long> bg_first;                    // the first event of every background
@@ -201,16 +246,19 @@ int run(int argc, char **argv) {
       for (int k = 0; k < n_used; ++k) {
         sample = k;
         frag_sample = info.vacuum ? k : k % nf;
-        for (auto *v : {&j_raw, &j_pt, &j_eta, &j_phi, &j_area, &j_rho, &e_rpt, &e_reta,
-                        &e_rphi, &e_pt, &e_dr, &c_eta, &c_phi, &c_sum, &c_rho, &c_dpt})
+        jc.clear();
+        qc.clear();
+        for (auto *v : {&e_rpt, &e_reta, &e_rphi, &e_pt, &e_dr, &c_eta, &c_phi, &c_sum, &c_rho,
+                        &c_dpt})
           v->clear();
         std::vector<fj::PseudoJet> parts;
         to_pseudojets(info.vacuum ? r.frag(e, k) : r.bkg_dep_frag(e, k), z, parts);
-        for (const Jet &j : jets_of(parts, !info.vacuum, ptmin, c)) {
-          j_raw.push_back(j.pt_raw); j_pt.push_back(j.pt); j_eta.push_back(j.eta);
-          j_phi.push_back(j.phi); j_area.push_back(j.area); j_rho.push_back(j.rho);
+        for (const Jet &j : jets_of(parts, !info.vacuum, ALL, c)) {
+          if (info.vacuum ? j.pt >= ptmin : j.pt > ptmin) jc.push(j);
+          if (k < qa_samples) qc.push(j);
         }
-        n_jets += long(j_pt.size());
+        if (k < qa_samples) tq.Fill();
+        n_jets += long(jc.size());
         if (!info.vacuum) {
           // embedding: the fragments alone, and in the background without the wake
           std::vector<fj::PseudoJet> frag, emb;
@@ -255,17 +303,18 @@ int run(int argc, char **argv) {
     // the background jets: per hydro background and bulk_bg sample
     Long64_t b_bg = 0;
     int b_unit = 0, b_sample = 0, b_ncoll = -1;
-    std::vector<double> b_raw, b_pt, b_eta, b_phi, b_area, b_rho;
+    JetColumns bc, bqc;
     TTree tbj("bg_jets", "jets of the backgrounds' bulk_bg samples");
-    tbj.SetDirectory(&fo);
-    tbj.Branch("bg", &b_bg);
-    tbj.Branch("bg_unit", &b_unit);
-    tbj.Branch("sample", &b_sample);
-    tbj.Branch("n_coll", &b_ncoll);
-    for (auto &p : std::vector<std::pair<const char *, std::vector<double> *>>{
-             {"jet_pt_raw", &b_raw}, {"jet_pt", &b_pt}, {"jet_eta", &b_eta},
-             {"jet_phi", &b_phi}, {"jet_area", &b_area}, {"jet_rho", &b_rho}})
-      tbj.Branch(p.first, p.second);
+    TTree tbq("qa_bg_jets", "all jets of the backgrounds' first --qa-samples bulk_bg samples");
+    for (TTree *t : {&tbj, &tbq}) {
+      t->SetDirectory(&fo);
+      t->Branch("bg", &b_bg);
+      t->Branch("bg_unit", &b_unit);
+      t->Branch("sample", &b_sample);
+      t->Branch("n_coll", &b_ncoll);
+    }
+    bc.branch(tbj);
+    bqc.branch(tbq);
     const ZRecord no_z;                            // a background has no Z leptons
     long n_bgj = 0;
     for (long e : bg_first) {
@@ -273,21 +322,27 @@ int run(int argc, char **argv) {
       b_bg = bgid[e]; b_unit = info.bg_unit; b_ncoll = info.n_coll;
       for (int k = 0; k < std::min(info.n_samples_bg, max_samples); ++k) {
         b_sample = k;
-        for (auto *v : {&b_raw, &b_pt, &b_eta, &b_phi, &b_area, &b_rho}) v->clear();
+        bc.clear();
+        bqc.clear();
         std::vector<fj::PseudoJet> bp;
         to_pseudojets(r.bkg(e, k), no_z, bp);
-        for (const Jet &j : jets_of(bp, true, ptmin, c)) {
-          b_raw.push_back(j.pt_raw); b_pt.push_back(j.pt); b_eta.push_back(j.eta);
-          b_phi.push_back(j.phi); b_area.push_back(j.area); b_rho.push_back(j.rho);
+        for (const Jet &j : jets_of(bp, true, ALL, c)) {
+          if (j.pt > ptmin) bc.push(j);
+          if (k < qa_samples) bqc.push(j);
         }
-        n_bgj += long(b_pt.size());
+        n_bgj += long(bc.size());
         tbj.Fill();
+        if (k < qa_samples) tbq.Fill();
       }
     }
     fo.cd();
     te.Write();
     tj.Write();
-    if (!bg_first.empty()) tbj.Write();
+    tq.Write();
+    if (!bg_first.empty()) {
+      tbj.Write();
+      tbq.Write();
+    }
     fo.Close();
     gSystem->Rename((path + ".part").c_str(), path.c_str());
     const double dt =

@@ -8,7 +8,7 @@
 pools: every array of zjet_mixing's pool (per event S_full, S_one, the one oversample's
 tracks, weights, Z, k_one; per background W, W2, SW, T, rho for both contents).  jets: every
 (event, sample) entry's jets, embedding pairs and random cones, and every background
-sample's jets (bg_jets).  Integers and the events
+sample's jets (bg_jets), and the jet QA trees (qa_jets, qa_bg_jets).  Integers and the events
 must be equal; floats agree to float32 / float64 rounding (the C++ and numpy logarithms can
 differ in the last bit, which can move a track across a bin edge: such moves are counted).
 Exits 1 on a difference beyond that."""
@@ -73,10 +73,13 @@ def pools(py_dir, cxx_dir):
 
 def jets(py_dir, cxx_dir):
     import awkward as ak
-    from zjet_jets import load_jets
+    from zjet_jets import load_jets, load_qa_jets
     Ea, Ja, Ba = load_jets(py_dir)
     Eb, Jb, Bb = load_jets(cxx_dir)
-    for what, a, b in (("jet_events", Ea, Eb), ("jets", Ja, Jb), ("bg_jets", Ba, Bb)):
+    Qa, QBa = load_qa_jets(py_dir)
+    Qb, QBb = load_qa_jets(cxx_dir)
+    for what, a, b in (("jet_events", Ea, Eb), ("jets", Ja, Jb), ("bg_jets", Ba, Bb),
+                       ("qa_jets", Qa, Qb), ("qa_bg_jets", QBa, QBb)):
         report(set(a) == set(b), f"{what}: the same columns ({len(a)})"
                + ("" if set(a) == set(b) else f": {sorted(set(a) ^ set(b))}"))
         for k in sorted(set(a) & set(b)):
