@@ -141,10 +141,14 @@ done; wait
 python zjet_jets_map.py "$PP/*_hadrons_jet_frag.h5" $ANA/jets_py/pp > $ANA/logs/jets_py_pp.log 2>&1
 ```
 
-- Cost (estimated from the test): ~0.13 s per Pb+Pb oversample, ~75 Z events × 40 oversamples
-  per file plus 4 × 40 background samples, so ~7 min per file and ~1.5 h with 8 processes;
-  ~2–3 GB per process (a file's hadrons in memory). `--samples 10` makes it 4× faster.
-- pp: ~1 min (the test's 9,700 Z events × 10 fragmentations took 15 s).
+- Cost (measured on `zjet_c00`, the RTX box): ~75 Z events × 40 oversamples per file plus 4 ×
+  40 background samples; ~0.37 s per Pb+Pb oversample in one process. With 16 processes 23 min
+  per file and 2.8 h for the 100 files, 92 GB at peak (~5.3 GB per process). Since 2026-10-17
+  ~1.5× faster with the same outputs, bit for bit (both map steps): ρ(jet) once per strip
+  content, no ρ for jets that cannot pass the p_T cut, the background's particles and ρ kept
+  per background and sample, the random cones' particles preselected. `--samples 10` makes it
+  another 4× faster.
+- pp: ~4 min for 12,000 events × 40 fragmentations (`zjet_pp`).
 
 **A2. The final stage**:
 

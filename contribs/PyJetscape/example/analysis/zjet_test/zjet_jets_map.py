@@ -18,7 +18,10 @@ cones in bulk_bg; the jets of every background's bulk_bg samples (tree bg_jets, 
 stage's B); per jet also its mass, the number of its (non-ghost) constituents and the leading
 one's p_T.  The jet QA (trees qa_jets, qa_bg_jets): the first --qa-samples samples of every Z
 event and background with all their jets (p_T,raw > 1 GeV, no cut on the subtracted p_T), for
-zjet_jets_qa.py.  Slow in Python (~1 s per Pb+Pb oversample): use --samples for checks."""
+zjet_jets_qa.py.  Slow in Python (~0.3 s per Pb+Pb oversample): use --samples for checks.
+Exact shortcuts, the outputs unchanged: rho(jet) once per strip content (StripRho), no rho for
+jets that cannot pass the p_T cut, the background's particles and estimator kept per hydro
+background and sample, the random cones' particles preselected in numpy."""
 import argparse
 import math
 import os
@@ -61,6 +64,53 @@ def pseudojets(fj, ev, info):
     return [fj.PseudoJet(float(q[1]), float(q[2]), float(q[3]), float(q[0])) for q in p[m]]
 
 
+STRIP = 1.0          # the rho strip's half width in rapidity (Clusterer.rho_sel)
+
+
+class StripRho:
+    """rho(jet) of JetMedianBackgroundEstimator(SelectorAbsRapMax(2.2) * SelectorStrip(1.0)),
+    computed once per strip content.  With explicit ghosts the median depends only on which
+    k_T jets lie in the strip |y - y_jet| < 1, and that set changes only where y_jet +- 1
+    crosses a k_T jet's rapidity: the jets in between share one value, so each distinct
+    content (the number of k_T jets below y_jet - 1 and below y_jet + 1) is computed once.
+    A k_T jet within 1e-9 of a strip edge (where the selector's comparison decides) is never
+    cached.  The same values as the estimator's, bit for bit."""
+
+    def __init__(self, fj, cs, sel):
+        self.cs = cs                             # the estimator's jets refer to it
+        jets = cs.inclusive_jets()
+        self.b = fj.JetMedianBackgroundEstimator(sel)
+        self.b.set_jets(jets)
+        self.ys = np.sort(np.array([j.rap() for j in jets]))
+        self.cache = {}
+
+    def rho(self, jet):
+        y, ys = jet.rap(), self.ys
+        key = []
+        for edge in (y - STRIP, y + STRIP):
+            i = int(np.searchsorted(ys, edge))
+            if (i < len(ys) and abs(ys[i] - edge) < 1e-9) or (i and abs(ys[i - 1] - edge) < 1e-9):
+                return self.b.rho(jet)
+            key.append(i)
+        key = tuple(key)
+        if key not in self.cache:
+            self.cache[key] = self.b.rho(jet)
+        return self.cache[key]
+
+
+def rap_phi(ev, keep):
+    """Rapidity and phi of the kept particles, as FastJet computes them (for preselecting the
+    random cones' particles; the cone sum itself uses PseudoJet.delta_R)."""
+    p = np.asarray(ev["p"], np.float64)[keep]
+    E, px, py, pz = p[:, 0], p[:, 1], p[:, 2], p[:, 3]
+    kt2 = px * px + py * py
+    m2 = np.maximum(E * E - kt2 - pz * pz, 0.0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        y = 0.5 * np.log((kt2 + m2) / (E + np.abs(pz)) ** 2)
+    y = np.where(pz > 0, -y, y)
+    return np.nan_to_num(y, nan=0.0, posinf=1e5, neginf=-1e5), np.arctan2(py, px)
+
+
 class Clusterer:
     def __init__(self, fj):
         self.fj = fj
@@ -71,9 +121,10 @@ class Clusterer:
         self.rho_sel = fj.SelectorAbsRapMax(2.2) * fj.SelectorStrip(1.0)
 
     def bge(self, parts):
-        b = self.fj.JetMedianBackgroundEstimator(self.rho_sel, self.kt, self.area)
-        b.set_particles(parts)
-        return b
+        """The k_T jets' rho estimator of a particle list (StripRho: rho(jet) as
+        JetMedianBackgroundEstimator's, computed once per strip content)."""
+        return StripRho(self.fj, self.fj.ClusterSequenceArea(parts, self.kt, self.area),
+                        self.rho_sel)
 
     @staticmethod
     def _jet(j, pt, a, rho, ghosts):
@@ -99,6 +150,8 @@ class Clusterer:
         cs = fj.ClusterSequenceArea(parts, self.akt, self.area)
         for j in fj.sorted_by_pt(cs.inclusive_jets(1.0)):
             if not abs(j.eta()) < ETA_JET:
+                continue
+            if j.pt() <= ptmin:                  # rho >= 0: p_T <= p_T,raw cannot pass
                 continue
             rho, a = b.rho(j), j.area()
             pt = j.pt() - rho * a
@@ -161,6 +214,26 @@ def main():
         rows = {k: [] for k in ("event", "sample", "frag_sample")}
         jet, emb, rc = [], [], []
         qa_rows, qa_jet = {"event": [], "sample": []}, []
+        bg_cache = {}            # (bg_unit, k) -> the background's particles, rho, rap, phi
+
+        def background(info, k):
+            """bulk_bg sample k of the event's background: its particles (as pseudojets(),
+            the event's Z leptons removed), their StripRho, rapidities and phis; shared by the
+            background's events (one background at a time) unless a Z lepton is among them."""
+            ev = sample("bulk_bg", info.bg_unit, k)
+            pid, p = np.asarray(ev["pid"]), np.asarray(ev["p"])
+            m = keep_mask(pid, p, info)
+            shared = np.array_equal(m, ~np.isin(np.abs(pid), NU))
+            key = (info.bg_unit, k)
+            if shared and key in bg_cache:
+                return bg_cache[key]
+            bp = pseudojets(fj, ev, info)
+            out = (bp, c.bge(bp)) + rap_phi(ev, m)
+            if shared:
+                if bg_cache and next(iter(bg_cache))[0] != info.bg_unit:
+                    bg_cache.clear()
+                bg_cache[key] = out
+            return out
         for g in range(int(r._offsets[fi]), int(r._offsets[fi + 1])):
             info = infos[g]
             z = info.z
@@ -194,7 +267,8 @@ def main():
                             "p": np.concatenate([bj["p"], frag["p"]])}
                 else:
                     full = frag
-                every = c.jets(pseudojets(fj, full, info), bulk, ALL)
+                every = c.jets(pseudojets(fj, full, info), bulk,
+                               ALL if k < a.qa_samples else a.ptmin)
                 jet.append([x for x in every if (x[1] > a.ptmin if bulk else x[1] >= a.ptmin)])
                 if k < a.qa_samples:
                     qa_rows["event"].append(g)
@@ -205,8 +279,7 @@ def main():
                     rc.append([])
                     continue
                 fp = pseudojets(fj, frag, info)
-                bg = sample("bulk_bg", info.bg_unit, k)
-                bp = pseudojets(fj, bg, info)
+                bp, b, by, bphi = background(info, k)
                 ref = c.jets(fp, False, PT_REF)
                 ej = c.jets(bp + fp, True, 1.0)
                 pairs = []
@@ -219,7 +292,6 @@ def main():
                     pairs.append((rj[1], rj[2], rj[3], best if dr_best < DR_MATCH else math.nan,
                                   dr_best if math.isfinite(dr_best) else math.nan))
                 emb.append(pairs)
-                b = c.bge(bp)
                 cones = []
                 for q in range(a.cones):
                     s = RC_SALT | (k << 16) | q
@@ -227,7 +299,13 @@ def main():
                     phi = -math.pi + 2 * math.pi * zw.key_uniform(key, 2 * s + 1)
                     axis = fj.PseudoJet()
                     axis.reset_PtYPhiM(1.0, eta, phi, 0.0)
-                    tot = sum(p.pt() for p in bp if p.delta_R(axis) < R_JET)
+                    # preselect in numpy (0.01 margin), then FastJet's delta_R in the same
+                    # order: the same particles and the same sum as over all of bp
+                    dphi = np.abs(bphi - axis.phi())
+                    dphi = np.minimum(dphi, 2 * np.pi - dphi)
+                    near = np.flatnonzero((by - axis.rap()) ** 2 + dphi ** 2
+                                          < (R_JET + 0.01) ** 2)
+                    tot = sum(bp[i].pt() for i in near if bp[i].delta_R(axis) < R_JET)
                     rho = b.rho(axis)
                     cones.append((eta, axis.phi_std(), tot, rho, tot - rho * math.pi * R_JET ** 2))
                 rc.append(cones)
@@ -252,7 +330,7 @@ def main():
                     for key, v in ids:
                         bgj[key].append(v)
                     bp = pseudojets(fj, sample("bulk_bg", info.bg_unit, k), no_z)
-                    every = c.jets(bp, True, ALL)
+                    every = c.jets(bp, True, ALL if k < a.qa_samples else a.ptmin)
                     bg_rows.append([x for x in every if x[1] > a.ptmin])
                     if k < a.qa_samples:
                         for key, v in ids:

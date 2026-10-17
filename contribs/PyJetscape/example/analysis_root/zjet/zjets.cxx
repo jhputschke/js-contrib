@@ -31,6 +31,9 @@
 // The jet QA (trees qa_jets, qa_bg_jets): the first --qa-samples samples of every Z event and
 // of every background with all their jets (p_T,raw > 1 GeV, no cut on p_T = p_T,raw - rho A),
 // for the subtraction's negative tail; zjet_jets_qa.py makes the figures.
+// Exact shortcuts, the outputs unchanged (as zjet_jets_map.py): rho(jet) once per strip
+// content (StripRho), no rho for jets that cannot pass the p_T cut, the background's particles
+// and estimator kept per hydro background and sample.
 
 #include "ZJetCommon.h"
 
@@ -43,9 +46,12 @@
 #include <fastjet/Selector.hh>
 #include <fastjet/tools/JetMedianBackgroundEstimator.hh>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <limits>
+#include <map>
+#include <memory>
 
 using namespace zjet;
 namespace fj = fastjet;
@@ -54,6 +60,7 @@ namespace {
 
 constexpr double R_JET = 0.3, ETA_JET = 2.0, PT_REF = 10.0, DR_MATCH = 0.15;
 constexpr double ETA_RC = 1.6;
+constexpr double STRIP = 1.0;                  // the rho strip's half width (Clusterer::rho_sel)
 constexpr std::uint64_t RC_SALT = 0x5243000000000000ULL;     // "RC": away from k_one's salt 0
 const double NaN = std::numeric_limits<double>::quiet_NaN();
 
@@ -72,6 +79,43 @@ struct Clusterer {
   fj::AreaDefinition area{fj::active_area_explicit_ghosts,
                           fj::GhostedAreaSpec(2.6, 1, 0.01, 0.0, 0.0)};
   fj::Selector rho_sel = fj::SelectorAbsRapMax(2.2) * fj::SelectorStrip(1.0);
+};
+
+// rho(jet) of JetMedianBackgroundEstimator(SelectorAbsRapMax(2.2) * SelectorStrip(1.0)),
+// computed once per strip content.  With explicit ghosts the median depends only on which k_T
+// jets lie in the strip |y - y_jet| < 1, and that set changes only where y_jet +- 1 crosses a
+// k_T jet's rapidity: each distinct content (the number of k_T jets below y_jet - 1 and below
+// y_jet + 1) is computed once.  A k_T jet within 1e-9 of a strip edge (where the selector's
+// comparison decides) is never cached.  The same values as the estimator's, bit for bit
+// (zjet_jets_map.py's StripRho).
+struct StripRho {
+  fj::ClusterSequenceArea cs;                  // the estimator's jets refer to it
+  fj::JetMedianBackgroundEstimator bge;
+  std::vector<double> ys;
+  std::map<std::pair<long, long>, double> cache;
+  StripRho(const std::vector<fj::PseudoJet> &parts, const Clusterer &c)
+      : cs(parts, c.kt, c.area), bge(c.rho_sel) {
+    const auto jets = cs.inclusive_jets();
+    bge.set_jets(jets);
+    for (const auto &j : jets) ys.push_back(j.rap());
+    std::sort(ys.begin(), ys.end());
+  }
+  double rho(const fj::PseudoJet &jet) {
+    const double y = jet.rap();
+    long key[2];
+    for (int s = 0; s < 2; ++s) {
+      const double edge = y + (s ? STRIP : -STRIP);
+      const long i = std::lower_bound(ys.begin(), ys.end(), edge) - ys.begin();
+      if ((i < long(ys.size()) && std::fabs(ys[i] - edge) < 1e-9) ||
+          (i > 0 && std::fabs(ys[i - 1] - edge) < 1e-9))
+        return bge.rho(jet);
+      key[s] = i;
+    }
+    const auto k = std::make_pair(key[0], key[1]);
+    const auto it = cache.find(k);
+    if (it != cache.end()) return it->second;
+    return cache[k] = bge.rho(jet);
+  }
 };
 
 // the jets of a particle list: raw p_T, subtracted p_T, eta, phi, area, rho, mass, the number
@@ -103,11 +147,11 @@ std::vector<Jet> jets_of(const std::vector<fj::PseudoJet> &parts, bool subtract,
         out.push_back(make_jet(j, j.pt(), 0, 0, false));
     return out;
   }
-  fj::JetMedianBackgroundEstimator bge(c.rho_sel, c.kt, c.area);
-  bge.set_particles(parts);
+  StripRho bge(parts, c);
   fj::ClusterSequenceArea cs(parts, c.akt, c.area);
   for (const auto &j : fj::sorted_by_pt(cs.inclusive_jets(1.0))) {
     if (!(std::fabs(j.eta()) < ETA_JET)) continue;
+    if (j.pt() <= ptmin) continue;              // rho >= 0: p_T <= p_T,raw cannot pass
     const double rho = bge.rho(j), a = j.area(), pt = j.pt() - rho * a;
     if (pt > ptmin) out.push_back(make_jet(j, pt, a, rho, true));
   }
@@ -213,6 +257,11 @@ int run(int argc, char **argv) {
     qc.branch(tq);
 
     long n_ev = 0, n_jets = 0;
+    const ZRecord no_z;                            // a background has no Z leptons
+    // bulk_bg sample k's particles and their StripRho, shared by the background's events (one
+    // background at a time) unless one of the event's Z leptons is among them
+    std::map<std::pair<int, int>,
+             std::pair<std::vector<fj::PseudoJet>, std::unique_ptr<StripRho>>> bg_cache;
     std::vector<long> bg_first;                    // the first event of every background
     std::map<int, bool> bg_seen;
     for (long e = r.event_offset(f); e < n && r.info(e).file_index == f; ++e) {
@@ -253,7 +302,7 @@ int run(int argc, char **argv) {
           v->clear();
         std::vector<fj::PseudoJet> parts;
         to_pseudojets(info.vacuum ? r.frag(e, k) : r.bkg_dep_frag(e, k), z, parts);
-        for (const Jet &j : jets_of(parts, !info.vacuum, ALL, c)) {
+        for (const Jet &j : jets_of(parts, !info.vacuum, k < qa_samples ? ALL : ptmin, c)) {
           if (info.vacuum ? j.pt >= ptmin : j.pt > ptmin) jc.push(j);
           if (k < qa_samples) qc.push(j);
         }
@@ -265,6 +314,9 @@ int run(int argc, char **argv) {
           to_pseudojets(r.frag(e, frag_sample), z, frag);
           const Hadrons bkg = r.bkg(e, k);
           to_pseudojets(bkg, z, emb);
+          const std::size_t n_kept = emb.size();
+          std::size_t n_all = 0;
+          for (const Hadron &h : bkg) n_all += keep(h, no_z);
           emb.insert(emb.end(), frag.begin(), frag.end());
           const auto ref = jets_of(frag, false, PT_REF, c);
           const auto ej = jets_of(emb, true, 1.0, c);
@@ -278,11 +330,30 @@ int run(int argc, char **argv) {
             e_pt.push_back(dr_best < DR_MATCH ? best : NaN);
             e_dr.push_back(std::isfinite(dr_best) ? dr_best : NaN);
           }
-          // random cones in the background
-          std::vector<fj::PseudoJet> bp;
-          to_pseudojets(bkg, z, bp);
-          fj::JetMedianBackgroundEstimator bge(c.rho_sel, c.kt, c.area);
-          bge.set_particles(bp);
+          // random cones in the background: its particles (the event's Z leptons removed)
+          // and their rho, shared by the background's events if no Z lepton is among them
+          const std::vector<fj::PseudoJet> *bpp;
+          StripRho *bge;
+          std::vector<fj::PseudoJet> own_bp;
+          std::unique_ptr<StripRho> own_bge;
+          if (n_kept == n_all) {
+            if (!bg_cache.empty() && bg_cache.begin()->first.first != info.bg_unit)
+              bg_cache.clear();
+            auto it = bg_cache.find({info.bg_unit, k});
+            if (it == bg_cache.end()) {
+              std::vector<fj::PseudoJet> v(emb.begin(), emb.begin() + long(n_kept));
+              auto rho = std::make_unique<StripRho>(v, c);
+              it = bg_cache.emplace(std::make_pair(info.bg_unit, k),
+                                    std::make_pair(std::move(v), std::move(rho))).first;
+            }
+            bpp = &it->second.first;
+            bge = it->second.second.get();
+          } else {
+            own_bp.assign(emb.begin(), emb.begin() + long(n_kept));
+            own_bge = std::make_unique<StripRho>(own_bp, c);
+            bpp = &own_bp;
+            bge = own_bge.get();
+          }
           for (int q = 0; q < n_cones; ++q) {
             const std::uint64_t s = RC_SALT | (std::uint64_t(k) << 16) | std::uint64_t(q);
             const double eta = -ETA_RC + 2 * ETA_RC * key_uniform(key, 2 * s);
@@ -290,9 +361,9 @@ int run(int argc, char **argv) {
             fj::PseudoJet axis;
             axis.reset_PtYPhiM(1.0, eta, phi, 0.0);
             double sum = 0;
-            for (const auto &p : bp)
+            for (const auto &p : *bpp)
               if (p.delta_R(axis) < R_JET) sum += p.pt();
-            const double rho = bge.rho(axis);
+            const double rho = bge->rho(axis);
             c_eta.push_back(eta); c_phi.push_back(axis.phi_std()); c_sum.push_back(sum);
             c_rho.push_back(rho); c_dpt.push_back(sum - rho * M_PI * R_JET * R_JET);
           }
@@ -315,7 +386,6 @@ int run(int argc, char **argv) {
     }
     bc.branch(tbj);
     bqc.branch(tbq);
-    const ZRecord no_z;                            // a background has no Z leptons
     long n_bgj = 0;
     for (long e : bg_first) {
       const EventInfo &info = r.info(e);
@@ -326,7 +396,7 @@ int run(int argc, char **argv) {
         bqc.clear();
         std::vector<fj::PseudoJet> bp;
         to_pseudojets(r.bkg(e, k), no_z, bp);
-        for (const Jet &j : jets_of(bp, true, ALL, c)) {
+        for (const Jet &j : jets_of(bp, true, k < qa_samples ? ALL : ptmin, c)) {
           if (j.pt > ptmin) bc.push(j);
           if (k < qa_samples) bqc.push(j);
         }
