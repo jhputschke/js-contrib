@@ -272,9 +272,12 @@ def cms(hep, i):
 
 
 def chi2(m, me, y, e):
-    """chi^2 and its bins, model and CMS errors in quadrature (CMS: stat. and syst.)."""
+    """chi^2 and its bins, model and CMS errors in quadrature (CMS: stat. and syst.).  Bins
+    where CMS gives no error are left out: CMS's empty bins (0 +- 0, x_jZ 1.6-2.0 in PbPb)
+    are not measurements, and the model's small values there with tiny errors would
+    dominate the sum."""
     ee = np.where(np.isfinite(me), me, 0.0)
-    good = np.isfinite(m) & np.isfinite(y) & (e ** 2 + ee ** 2 > 0)
+    good = np.isfinite(m) & np.isfinite(y) & (e > 0)
     return float(np.sum((m[good] - y[good]) ** 2 / (e[good] ** 2 + ee[good] ** 2))), int(good.sum())
 
 
@@ -513,13 +516,10 @@ def main():
                     m, me = m[obs], me[obs]
                     axr.errorbar(xs[obs] * (1 + 0.008 * (j - 1.5)), m, me, fmt="s--", ms=3.5,
                                  mfc="none", lw=0.8, label=f"model {k}")
-                    ee = np.where(np.isfinite(me), me, 0.0)
-                    good = np.isfinite(m) & np.isfinite(y) & (e ** 2 + ee ** 2 > 0)
-                    chi = float(np.sum((m[good] - y[good]) ** 2 / (e[good] ** 2 + ee[good] ** 2)))
+                    chi, nb = chi2(m, me, y, e)
                     if row == 1:
-                        lines.append(f"  {obs:4s} {k:32s} vs data{ti}: chi2 {chi:6.1f}/"
-                                     f"{int(good.sum())}   model "
-                                     f"{fmt(m)}")
+                        lines.append(f"  {obs:4s} {k:32s} vs data{ti}: chi2 {chi:6.1f}/{nb}"
+                                     f"   model {fmt(m)}")
                 axr.set_title(LABELS[obs])
                 if obs == "phi":
                     axr.set_yscale("log")

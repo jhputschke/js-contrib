@@ -126,8 +126,9 @@ for i, axi, xv, lab in ((1, 0, phic, "CMS smeared pp"), (3, 1, xc, "CMS smeared 
     ax[axi].errorbar(np.array(xv) + (0.02 if i == 9 else 0), y, e, fmt="o" if i != 9 else "D", color="k" if i != 9 else "C2", ms=4, label=lab)
     m = acc["PbPb 0-30 %"] if i != 9 else acc["pp"]
     mv = {1: m["phi_d"], 3: m["x_d"], 9: m["x_d"], 5: m["mx_d"], 7: m["rjz_d"]}[i]
-    chi = np.sum((mv - y) ** 2 / e ** 2)
-    out.append(f"  vs data{i} ({lab}): chi2 {chi:.1f}/{len(y)} (CMS errors only)")
+    good = e > 0                                  # CMS's empty bins (0 +- 0) are no measurement
+    chi = np.sum((mv[good] - y[good]) ** 2 / e[good] ** 2)
+    out.append(f"  vs data{i} ({lab}): chi2 {chi:.1f}/{int(good.sum())} (CMS errors only)")
 for a_, t in zip(ax, ("Δφ_jZ, p_T^Z > 60", "x_jZ, p_T^Z > 60, Δφ > 7π/8", "⟨x_jZ⟩ vs p_T^Z", "R_jZ vs p_T^Z")):
     a_.set_title(t); a_.legend(fontsize=7)
 ax[0].set_yscale("log")

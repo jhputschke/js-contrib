@@ -323,7 +323,7 @@ columns: Δφ_jZ (log scale), x_jZ, ⟨x_jZ⟩ vs p_T^Z, R_jZ vs p_T^Z.
   observable; step 3 with CMS's B).
 - Bins: Δφ_jZ edges 0, π/5, 2π/5, 3π/5, 7π/10, 4π/5, 9π/10, 19π/20, π; x_jZ 10 bins of 0.2 up to
   2; the four p_T^Z classes. In the summary, per observable and variant: the model values and
-  χ²/ndf against the table (bins with zero error left out). After subtracting B a class can come
+  χ²/ndf against the table (bins with zero CMS error left out: CMS's empty x_jZ bins, 0 ± 0). After subtracting B a class can come
   out empty or negative: ⟨x_jZ⟩ is then not given (NaN).
 
 **`zjet_jets_embedding_c00.png`** — left: the random cones' δp_T = Σp_T − ρπR² in `bulk_bg`
