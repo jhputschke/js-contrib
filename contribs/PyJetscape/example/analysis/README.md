@@ -14,6 +14,10 @@ same at hadron level, §8 points to the ROOT analyses in [`../analysis_root`](..
 | [`wake_hadrons.py`](wake_hadrons.py) | one pass over a production's hadron files → `wake_hadrons.h5` | a new file only |
 | [`wake_hadrons.ipynb`](wake_hadrons.ipynb) | hadron-level figures from `wake_hadrons.h5` + `wake_observables.h5` | no |
 
+**The Z+jet campaigns, step by step** (from the RTX box's `gpu0/`, `gpu1/` output to the
+figures, in Python on the HDF5 files and in ROOT): [`ANA_Zhadron.md`](ANA_Zhadron.md) (the
+Z–hadron wake, CMS 2507.09307) and [`ANA_Zjet.md`](ANA_Zjet.md) (Z+jet, CMS 1702.01060).
+
 Everything here runs without X-SCAPE, in the venv of
 [`utils/analysis_env`](../../../../utils/analysis_env/README.md).
 

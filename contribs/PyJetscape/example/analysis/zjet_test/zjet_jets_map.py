@@ -5,8 +5,11 @@ The same algorithm and output as the C++ map step, example/analysis_root/zjet/zj
 (its header has the definitions); check_cxx.py jets compares the two, zjet_jets.py is the
 final stage of both.
 
-    python zjet_jets_map.py <h5 dir> <out dir> [--seed 1] [--samples N] [--cones 4]
-                            [--ptmin 5]
+    python zjet_jets_map.py <h5 dir or quoted glob> <out dir> [--seed 1] [--samples N]
+                            [--cones 4] [--ptmin 5] [--files i:j]
+
+--files i:j maps only production files i .. j-1 (in the reader's order), for several processes
+at once; the weights still come from all files, so the slices combine.
 
 Jets: anti-k_T R = 0.3 from all final particles but neutrinos and the Z's leptons; Pb+Pb with
 explicit ghosts on a fixed grid and rho(jet) from the k_T R = 0.4 median in a strip
@@ -96,6 +99,7 @@ def main():
     ap.add_argument("--samples", type=int, default=1 << 30)
     ap.add_argument("--cones", type=int, default=4)
     ap.add_argument("--ptmin", type=float, default=5.0)
+    ap.add_argument("--files", default=None, help="i:j, only production files i .. j-1")
     a = ap.parse_args()
     import awkward as ak
     import fastjet as fj
@@ -114,7 +118,13 @@ def main():
     bgid = bgid.ravel()
     c = Clusterer(fj)
     os.makedirs(a.out, exist_ok=True)
+    lo, hi = 0, len(r.stems)
+    if a.files:
+        i, _, j = a.files.partition(":")
+        lo, hi = max(0, int(i)), min(hi, int(j) if j else int(i) + 1)
     for fi, stem in enumerate(r.stems):
+        if not lo <= fi < hi:
+            continue
         t0 = time.time()
         name = os.path.basename(stem)
         h = {t: Hadrons.from_h5(f"{stem}_hadrons_{t}.h5")

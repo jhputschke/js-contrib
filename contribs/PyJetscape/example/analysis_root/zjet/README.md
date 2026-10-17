@@ -22,6 +22,10 @@ CMS smearing, HEPData, χ², jackknife, figures). Every map step has a Python tw
 | `zjets.cxx` | the Z+jet map step → `<out>/<stem>_jets.root` |
 | `Makefile` | `make` with `root-config` and `fastjet-config` on `PATH` |
 
+A campaign from the RTX box (`gpu0/`, `gpu1/`), step by step in Python and in ROOT:
+[`../../analysis/ANA_Zhadron.md`](../../analysis/ANA_Zhadron.md),
+[`../../analysis/ANA_Zjet.md`](../../analysis/ANA_Zjet.md).
+
 ## The chain
 
 ```bash
