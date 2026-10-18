@@ -12,6 +12,8 @@
  *     subtraction setting and the hard nucleons' remnants (3dMCGlauber)
  *   - initial_state_info(task): the event's n_coll, n_part, centrality (a task
  *     from GetTaskList(), whose dynamic type pybind11 does not know)
+ *   - lo_hard_subtraction(task): the LO hard subtraction setting and this
+ *     event's record (3dMCGlauber <LO_hard_subtraction>, the jet leg's strings)
  ******************************************************************************/
 
 #include <pybind11/pybind11.h>
@@ -285,6 +287,31 @@ void bind_initial_state(py::module_ &m) {
         (3dMCGlauber gives n_coll only).  A hard process scales with n_coll, so events of a
         wide centrality class sampled minimum-bias-like (P(b) ~ b, one hard process each)
         are weighted by it to match data.  Call between ExecPerEvent() and ClearPerEvent().
+      )pbdoc",
+      py::arg("task"));
+
+  // ── LO hard subtraction: the jet leg's strings without the hard process ──
+  m.def(
+      "lo_hard_subtraction",
+      [](std::shared_ptr<JetScapeTask> task) {
+        auto ini = std::dynamic_pointer_cast<InitialState>(task);
+        if (!ini)
+          throw std::invalid_argument("not an InitialState module: " +
+                                      (task ? task->GetId() : std::string("None")));
+        py::dict d;
+        d["mode"] = ini->GetLOHardSubtraction();
+        d["info"] = ini->GetLOHardSubtractionInfo();
+        return d;
+      },
+      R"pbdoc(
+        The LO hard subtraction (3dMCGlauber ``<LO_hard_subtraction>``): ``mode`` (0 off, 1
+        the energy PythiaGun's hard process took, beam minus remnants, is taken from a
+        valence quark of each nucleon of its binary collision in a copy of the strings that
+        only the jet leg's hydro reads) and ``info``, this event's record (name -> value;
+        empty if no subtraction ran): energies requested and taken per side
+        (``E_req_proj`` ...), the quarks used, their rapidity shifts, the strings' energy
+        before and after, and checks (``n_capped``, ``n_evolve_mismatch``).  Call between
+        ExecPerEvent() and ClearPerEvent().
       )pbdoc",
       py::arg("task"));
 

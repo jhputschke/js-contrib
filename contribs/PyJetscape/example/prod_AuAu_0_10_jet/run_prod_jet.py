@@ -165,6 +165,15 @@ def parse_args() -> argparse.Namespace:
                         "is reused (--reuse > 1, or --pthat-bins), else full")
     p.add_argument("--no-deposit", action="store_true", dest="no_deposit",
                    help="null test: MUSIC_2 without the liquefier, so arr must equal arr_bg")
+    p.add_argument("--lo-hard-subtraction", type=int, choices=(0, 1), default=None,
+                   dest="lo_hard_subtraction",
+                   help="3dMCGlauber <LO_hard_subtraction> for this job (default: the XML's, "
+                        "0 if absent). 1: the energy PythiaGun took from each proton (beam "
+                        "minus remnants) is taken from a valence quark of each nucleon of the "
+                        "hard process's binary collision, in a copy of the strings that only "
+                        "MUSIC_2 reads, so bulk_jet - bulk_bg holds that effect (with "
+                        "--no-deposit alone); MUSIC_2 then runs from tau0 "
+                        "(docs/Plans/PLAN_hard_momentum_subtraction.md)")
     p.add_argument("--no-showers", action="store_true", dest="no_showers",
                    help="do not store the parton showers (shower/)")
     p.add_argument("--surface", choices=("none", "bg", "jet", "both"), default="none",
@@ -540,6 +549,17 @@ def job_xml(a, out_h5: str):
         _set(pgun, "name", "PGun")
         _set(pgun, "pT", a.pgun_pt)
 
+    mcg = root.find("IS/MCGlauber")
+    if a.lo_hard_subtraction is not None:
+        if mcg is None:
+            problems.append("--lo-hard-subtraction needs <IS><MCGlauber>")
+        else:
+            _set(mcg, "LO_hard_subtraction", a.lo_hard_subtraction)
+    a.lo_sub = int(_text(root, "IS/MCGlauber/LO_hard_subtraction") or 0)
+    if a.lo_sub and a.hard != "pythia":
+        problems.append("<LO_hard_subtraction> needs PythiaGun (--hard pythia): it reports "
+                        "what the hard process took")
+
     hydros = root.findall("Hydro")
     names = [_text(h, "MUSIC/name") for h in hydros]
     if names != [BG_ID, JET_ID]:
@@ -747,6 +767,30 @@ def geometry_diag(ini) -> dict:
 
     n = core.initial_state_info(ini)["n_coll"]
     return {"n_coll": int(n)} if n >= 0 else {}
+
+
+#: the LO hard subtraction's per-event record (core.lo_hard_subtraction's info, prefixed
+#: losub_), in diag/, the particlize file's events/ and the hadron files' units/
+LOSUB_KEYS = tuple("losub_" + k for k in (
+    "E_req_proj", "E_req_targ", "E_taken_proj", "E_taken_targ", "nq_proj", "nq_targ",
+    "dy_proj", "dy_targ", "Eq_proj", "Eq_targ", "n_strings_changed", "n_capped",
+    "n_evolve_mismatch", "E_strings_before", "E_strings_after", "Pz_strings_before",
+    "Pz_strings_after", "n_hard_pair_strings", "pz_req_proj", "pz_req_targ",
+    "E_sys0_proj", "E_sys0_targ", "n_mpi", "collision_idx"))
+
+
+def lo_sub_diag(ini, mode) -> dict:
+    """This event's LO hard subtraction record (LOSUB_KEYS), {} without one."""
+    if ini is None or not mode:
+        return {}
+    from jetscape import pyjetscape_core as core
+
+    info = core.lo_hard_subtraction(ini)["info"]
+    if not info:
+        raise RuntimeError("LO hard subtraction is on, but this event has no record "
+                           "(PythiaGun did not report its momenta?)")
+    return {k: float(info[k[len("losub_"):]]) for k in LOSUB_KEYS
+            if k[len("losub_"):] in info}
 
 
 #: |pid| of the leptons PythiaGun hands over (a Z's decay; Parton::isLepton)
@@ -1045,6 +1089,9 @@ def restart_plan(a) -> tuple:
     the options and the build alone, so the files record it.  -> (on, why not)."""
     if not a.music2_restart:
         return False, "--no-music2-restart"
+    if getattr(a, "lo_sub", 0):
+        return False, (f"LO hard subtraction: {JET_ID} reads other strings than {BG_ID}, "
+                       "so it runs from tau0")
     legs = surface_legs(a)
     if "jet" in legs and "bg" not in legs:
         # the jet leg's surface up to the checkpoint would come from MUSIC_1, which
@@ -1153,6 +1200,7 @@ def main() -> int:
           + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
           + f", grid_mode {grid_mode}, "
           f"{hard_desc}, reuse {a.reuse}, deposition {'OFF (null test)' if a.no_deposit else 'on'}, "
+          + (f"LO hard subtraction {a.lo_sub}, " if a.lo_sub else "") +
           f"freeze-out surface: {'+'.join(sorted(surface_legs(a))) or 'none'}"
           + (f", particlize input: {a.write_particlize}" if particlize_legs(a) else "")
           + (" (no pair file)" if a.particlize_only and not a.hadrons_only else "")
@@ -1192,7 +1240,8 @@ def main() -> int:
     from jetscape.hadrons_h5 import Z_COLUMNS
     from jetscape.pair_h5 import PairH5Writer
     # diag/ values the particlize file's events/ (and the hadron files' units/) get
-    particlize_diag = PARTICLIZE_DIAG + (Z_COLUMNS if a.trigger_kind == "Z" else ())
+    particlize_diag = (PARTICLIZE_DIAG + (Z_COLUMNS if a.trigger_kind == "Z" else ())
+                       + (LOSUB_KEYS if a.lo_sub else ()))
     a.restart_on, a.restart_why = restart_plan(a)
 
     provenance = {
@@ -1212,6 +1261,7 @@ def main() -> int:
            if a.particlize_only else {}),
         **({"prod_hadrons_only": True} if a.hadrons_only else {}),
         "prod_music2_restart": a.restart_on,
+        **({"prod_lo_hard_subtraction": a.lo_sub} if a.lo_sub else {}),
         **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
@@ -1285,7 +1335,7 @@ def main() -> int:
             t0 = time.time()
             jetscape.ExecPerEvent()
             idx = writer.Exec(**pthat_diag(gun, a.trigger_kind),   # both legs are live
-                              **geometry_diag(ini))
+                              **geometry_diag(ini), **lo_sub_diag(ini, a.lo_sub))
             if idx is not None and pwriter is not None:
                 d = writer.last_event_diag
                 pwriter.Exec(idx, bg_id=d["bg_id"], bg_key=writer.last_bg_key,
@@ -1326,6 +1376,9 @@ def main() -> int:
                     msg += f", hardest parton y {d['parton_y_lead']:+.2f}"
                 if "z_pt" in d:
                     msg += f", Z pT {d['z_pt']:.1f} GeV y {d['z_y']:+.2f}"
+                if "losub_E_taken_proj" in d:
+                    msg += (f", LO sub {d['losub_E_taken_proj']:.0f}+"
+                            f"{d['losub_E_taken_targ']:.0f} GeV")
             print(msg)
             if hmsg:
                 print(f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} hadrons: {hmsg}")
