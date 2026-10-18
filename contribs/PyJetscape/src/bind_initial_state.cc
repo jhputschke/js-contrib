@@ -306,8 +306,10 @@ void bind_initial_state(py::module_ &m) {
       R"pbdoc(
         The LO hard subtraction (3dMCGlauber ``<LO_hard_subtraction>``): ``mode`` (0 off, 1
         the energy PythiaGun's hard process took, beam minus remnants, is taken from a
-        valence quark of each nucleon of its binary collision in a copy of the strings that
-        only the jet leg's hydro reads) and ``info``, this event's record (name -> value;
+        valence quark of each nucleon of its binary collision, 2 that quark's strings and
+        the pair's strings with each other are removed and the momentum is taken from their
+        remnants; in a copy of the strings that only the jet leg's hydro reads) and
+        ``info``, this event's record (name -> value;
         empty if no subtraction ran): energies requested and taken per side
         (``E_req_proj`` ...), the quarks used, their rapidity shifts, the strings' energy
         before and after, and checks (``n_capped``, ``n_evolve_mismatch``).  Call between

@@ -165,14 +165,17 @@ def parse_args() -> argparse.Namespace:
                         "is reused (--reuse > 1, or --pthat-bins), else full")
     p.add_argument("--no-deposit", action="store_true", dest="no_deposit",
                    help="null test: MUSIC_2 without the liquefier, so arr must equal arr_bg")
-    p.add_argument("--lo-hard-subtraction", type=int, choices=(0, 1), default=None,
+    p.add_argument("--lo-hard-subtraction", type=int, choices=(0, 1, 2), default=None,
                    dest="lo_hard_subtraction",
                    help="3dMCGlauber <LO_hard_subtraction> for this job (default: the XML's, "
                         "0 if absent). 1: the energy PythiaGun took from each proton (beam "
                         "minus remnants) is taken from a valence quark of each nucleon of the "
                         "hard process's binary collision, in a copy of the strings that only "
                         "MUSIC_2 reads, so bulk_jet - bulk_bg holds that effect (with "
-                        "--no-deposit alone); MUSIC_2 then runs from tau0 "
+                        "--no-deposit alone). 2: that quark's strings and the pair's "
+                        "strings with each other are removed and the momentum is taken from "
+                        "the pair's remnants (3dMCGlauber's ISR picture). MUSIC_2 then runs "
+                        "from tau0 "
                         "(docs/Plans/PLAN_hard_momentum_subtraction.md)")
     p.add_argument("--no-showers", action="store_true", dest="no_showers",
                    help="do not store the parton showers (shower/)")
@@ -775,7 +778,9 @@ LOSUB_KEYS = tuple("losub_" + k for k in (
     "E_req_proj", "E_req_targ", "E_taken_proj", "E_taken_targ", "nq_proj", "nq_targ",
     "dy_proj", "dy_targ", "Eq_proj", "Eq_targ", "n_strings_changed", "n_capped",
     "n_evolve_mismatch", "E_strings_before", "E_strings_after", "Pz_strings_before",
-    "Pz_strings_after", "n_hard_pair_strings", "pz_req_proj", "pz_req_targ",
+    "Pz_strings_after", "n_hard_pair_strings", "n_strings_removed", "n_remnants_changed",
+    "n_baryons_dropped", "tau_start_min_before", "tau_start_min_after",
+    "pz_req_proj", "pz_req_targ",
     "E_sys0_proj", "E_sys0_targ", "n_mpi", "collision_idx"))
 
 
