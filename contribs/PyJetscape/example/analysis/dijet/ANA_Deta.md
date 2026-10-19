@@ -57,28 +57,53 @@ Old outputs from before the layout move (`analysis/zjet_test/data/*_c00`, `figur
 Every output carries its file's record (`file_info`) and the settings (`run_info`): a new
 campaign maps only itself, and combinations are lists of runs at load time.
 
+**Route: C++ on the converted files (recommended).** The same outputs as the Python map step
+on the HDF5 files (`check_cxx.py jets` / `pools`: 0 differences, floats within 3·10⁻¹³; the
+conversion bit-exact), 1.1× faster per process and 2.6× less memory (GB10, one 48-event file,
+40 oversamples, R = 0.4: 180 s and 0.99 GB against 203 s and 2.56 GB), so more processes
+side by side; about 10 CPU-hours per campaign (plan A5, its remark). The conversion is done
+once per campaign and serves every later map step (an existing one from `ANA_Zjet.md` B1 too).
+
 ```bash
-# Python on the HDF5 files, one process per --files slice (~0.3 s per Pb+Pb oversample)
-N=$(ls $PB | wc -l)                          # 100 files
-for i in $(seq 0 $((N - 1))); do
-  python $A/zjet/zjet_jets_map.py "$PB" $RUNS/zjet_c$C/data/jets_r04 --R 0.4 --files $i:$((i + 1)) &
-done; wait
-# or C++ on the converted files (route B, ANA_Zjet.md): the same jets
-python $EX/prod_AuAu_0_10_jet/run_h5toROOT.py "$PB" -j 8 --out-dir $RUNS/zjet_c$C/data/root
-$EX/analysis_root/zjet/zjets $RUNS/zjet_c$C/data/root $RUNS/zjet_c$C/data/jets_r04 --R 0.4 --files 0:10
-# pp (once)
+P=$EX/prod_AuAu_0_10_jet; Z=$EX/analysis_root/zjet; D=$RUNS/zjet_c$C/data
+mkdir -p $D/logs
+# convert once (skip if done), and check: "0 difference(s)"
+python $P/run_h5toROOT.py "$PB" -j 8 --out-dir $D/root --campaign-file $D/root/zjet_c${C}_campaign.root
+python $P/root_export/check_h5_vs_root.py "$PB" $D/root --campaign $D/root/zjet_c${C}_campaign.root | tail -1
+# the map step, one process per file, 40 at a time (~1 GB each; 100 files)
+N=$(ls $PB | wc -l)
+seq 0 $((N - 1)) | xargs -P 40 -I{} sh -c \
+  "$Z/zjets $D/root $D/jets_r04 --R 0.4 --files {}:\$(({} + 1)) > $D/logs/zjets_r04_{}.log 2>&1"
+grep -h " Z events" $D/logs/zjets_r04_*.log | wc -l            # N files done
+# the pp, once
+python $P/run_h5toROOT.py $PP --out-dir $RUNS/zjet_pp/data/root --campaign-file $RUNS/zjet_pp/data/root/zjet_pp_campaign.root
+$Z/zjets $RUNS/zjet_pp/data/root $RUNS/zjet_pp/data/jets_r04 --R 0.4
+```
+
+**Or Python on the HDF5 files** (no conversion; ~2.6 GB per process, so fewer at a time):
+
+```bash
+seq 0 $((N - 1)) | xargs -P 16 -I{} sh -c \
+  "python $A/zjet/zjet_jets_map.py '$PB' $D/jets_r04 --R 0.4 --files {}:\$(({} + 1)) > $D/logs/jets_r04_{}.log 2>&1"
 python $A/zjet/zjet_jets_map.py $PP $RUNS/zjet_pp/data/jets_r04 --R 0.4
 ```
+
+Keep one route per campaign (bit-reproducible outputs); campaigns of different routes combine
+(they agree to 10⁻¹³).
 
 ## 2. The pools (version 4), once per campaign
 
 ```bash
-python $A/zjet/mix.py --pbpb "$PB" --vacuum none --pools $RUNS/zjet_c$C/data/mix --jobs 16 --pools-only
-#   -> runs/zjet_c$C/data/mix/pbpb/*.npz
+# C++ (with the conversion of step 1), --files slices in parallel likewise:
+seq 0 $((N - 1)) | xargs -P 40 -I{} sh -c \
+  "$Z/zhadron_pools $D/root $D/mix/pbpb --files {}:\$(({} + 1)) > $D/logs/pools_{}.log 2>&1"
+$Z/zhadron_pools $RUNS/zjet_pp/data/root $RUNS/zjet_pp/data/mix/vacuum           # the pp, once
+# or Python:
+python $A/zjet/mix.py --pbpb "$PB" --vacuum none --pools $D/mix --jobs 16 --pools-only
 python $A/zjet/mix.py --pbpb none --vacuum $PP --pools $RUNS/zjet_pp/data/mix --jobs 16 --pools-only
-#   -> runs/zjet_pp/data/mix/vacuum/*.npz (the pp, once)
-# C++: $EX/analysis_root/zjet/zhadron_pools $RUNS/zjet_c$C/data/root $RUNS/zjet_c$C/data/mix_cxx/pbpb
 ```
+
+`deta.py` and `mix.py` read a directory's `*_pool.root` (C++) if it has any, else its `*.npz`.
 
 ## 3. Checks (plan A4)
 
@@ -94,8 +119,11 @@ python $A/zjet/test/combine_check.py \
     --out <scratch>/combine --samples 2       # campaign C's seeds start at 1 + 1000 C
 # the C++ map steps against the Python ones at R = 0.4 (one file, --samples 2)
 python $A/zjet/zjet_jets_map.py "$PB" <scratch>/py --R 0.4 --samples 2 --files 0:1
-$EX/analysis_root/zjet/zjets $RUNS/zjet_c$C/data/root <scratch>/cxx --R 0.4 --samples 2 --files 0:1
+$EX/analysis_root/zjet/zjets $D/root <scratch>/cxx --R 0.4 --samples 2 --files 0:1
 python $A/zjet/check_cxx.py jets <scratch>/py <scratch>/cxx
+# the pools of the other route, the whole campaign (their stored weights are the directory's)
+python $A/zjet/mix.py --pbpb "$PB" --vacuum none --pools <scratch>/mix --jobs 16 --pools-only
+python $A/zjet/check_cxx.py pools <scratch>/mix/pbpb $D/mix/pbpb
 ```
 
 ## 4. The jets at R = 0.4: QA and counts
@@ -112,15 +140,15 @@ oversample) relative to the full events' jet2: the input of D2's revisit (60/30 
 ## 5. The analysis
 
 ```bash
-D="--pools $RUNS/zjet_c$C/data/mix/pbpb --vacuum-pools $RUNS/zjet_pp/data/mix/vacuum \
+OPT="--pools $RUNS/zjet_c$C/data/mix/pbpb --vacuum-pools $RUNS/zjet_pp/data/mix/vacuum \
    --jets $RUNS/zjet_c$C/data/jets_r04 --pp-jets $RUNS/zjet_pp/data/jets_r04 --run zjet_c$C"
-python $A/dijet/deta.py $D --tag _c$C                          # the baseline
-python $A/dijet/deta.py $D --tag _c${C}_noxcut --no-xcut       # the variants (B4.7)
-python $A/dijet/deta.py $D --tag _c${C}_zcone --jet1 zcone
-python $A/dijet/deta.py $D --tag _c${C}_b2b --jet2-pick b2b
-python $A/dijet/deta.py $D --tag _c${C}_6040 --jet2 40
-python $A/dijet/deta.py $D --tag _c${C}_10050 --zpt 100 --jet2 50
-python $A/dijet/deta.py $D --tag _c${C}_10050c --zpt 100 --jet2 50 --central   # the CoLBT-like cut
+python $A/dijet/deta.py $OPT --tag _c$C                          # the baseline
+python $A/dijet/deta.py $OPT --tag _c${C}_noxcut --no-xcut       # the variants (B4.7)
+python $A/dijet/deta.py $OPT --tag _c${C}_zcone --jet1 zcone
+python $A/dijet/deta.py $OPT --tag _c${C}_b2b --jet2-pick b2b
+python $A/dijet/deta.py $OPT --tag _c${C}_6040 --jet2 40
+python $A/dijet/deta.py $OPT --tag _c${C}_10050 --zpt 100 --jet2 50
+python $A/dijet/deta.py $OPT --tag _c${C}_10050c --zpt 100 --jet2 50 --central   # the CoLBT-like cut
 ```
 
 **A combination** (e.g. c00 + c01): every option takes several directories, figures to the
