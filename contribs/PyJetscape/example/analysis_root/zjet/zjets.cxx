@@ -7,7 +7,7 @@
 // is the same map step in Python (check_cxx.py jets compares the two).
 //
 //   ./zjets <root dir> <out dir> [--R 0.3] [--seed 1] [--files i:j] [--samples N]
-//           [--emb-samples N] [--cones 4] [--ptmin 5] [--qa-samples 1]
+//           [--emb-samples N] [--cones 4] [--ptmin 5] [--qa-samples 1] [--rho-m 1]
 //
 // Events: a Z with 60 < m < 120 GeV and p_T^Z > 30 GeV (the final stage applies the paper's
 // cuts).  Samples: k = 0 .. min(n, --samples) - 1, n the oversamples (vacuum: the
@@ -32,6 +32,8 @@
 // for the final stage's "no wake" variant.  --emb-samples N: the embedded event (emb_*, nw_*,
 // zcone_nw_*) only for the first N oversamples, about half the time of the others; the jets,
 // the Z cone and the random cones of every oversample are unchanged (default: all).
+// --rho-m 1: every jet also gets rho_m of its strip (<prefix>_rho_m, for mass subtraction; off
+// by default: with --emb-samples 4 it takes ~1.6x the time).
 // Random cones (Pb+Pb): --cones cones per sample in bulk_bg k at |eta| < 1.6, positions
 // from zjet_wake.key_uniform; delta p_T = sum p_T within Delta R < R - rho pi R^2.
 // The Z cone (zcone_*): the same at (y_Z, phi_Z) in the full event (rho its own) and in the
@@ -87,7 +89,7 @@ int run(int argc, char **argv) {
   if (argc < 3) {
     std::fprintf(stderr, "usage: %s <root dir> <out dir> [--R 0.3] [--seed 1] [--files i:j] "
                          "[--samples N] [--emb-samples N] [--cones 4] [--ptmin 5] "
-                         "[--qa-samples 1]\n", argv[0]);
+                         "[--qa-samples 1] [--rho-m 1]\n", argv[0]);
     return 2;
   }
   const std::string in = argv[1], out = argv[2];
@@ -99,6 +101,7 @@ int run(int argc, char **argv) {
   const int qa_samples = o.count("--qa-samples") ? std::stoi(o.at("--qa-samples")) : 1;
   const double R = o.count("--R") ? std::stod(o.at("--R")) : R_JET;
   const int emb_samples = o.count("--emb-samples") ? std::stoi(o.at("--emb-samples")) : 1 << 30;
+  const bool rho_m = o.count("--rho-m") && std::stoi(o.at("--rho-m")) != 0;
   const double dr_match = R / 2;
   const double ALL = -std::numeric_limits<double>::infinity();
   gSystem->mkdir(out.c_str(), true);
@@ -112,7 +115,7 @@ int run(int argc, char **argv) {
     if (r.info(e).pthat_bin >= 0) ++nk[r.info(e).pthat_bin];
   const auto bgid = background_ids(r);
   const auto range = file_range(o, r.n_files());
-  Clusterer c(R);
+  Clusterer c(R, rho_m);
 
   for (int f = range.first; f < range.second; ++f) {
     const auto t0 = std::chrono::steady_clock::now();
@@ -146,7 +149,7 @@ int run(int argc, char **argv) {
     }
     // per (event, sample)
     int sample = 0, frag_sample = 0;
-    JetColumns jc, nwc, qc;                        // nwc: the embedded event's jets (no wake)
+    JetColumns jc(rho_m), nwc(rho_m), qc(rho_m);   // nwc: the embedded event's jets (no wake)
     std::vector<double> e_rpt, e_reta, e_rphi, e_pt, e_dr;
     std::vector<double> c_eta, c_phi, c_sum, c_rho, c_dpt;
     double zc[6];                                  // zcone_{sum,rho,dpt}, zcone_nw_{...}
@@ -300,7 +303,7 @@ int run(int argc, char **argv) {
     // the background jets: per hydro background and bulk_bg sample
     Long64_t b_bg = 0;
     int b_unit = 0, b_sample = 0, b_ncoll = -1;
-    JetColumns bc, bqc;
+    JetColumns bc(rho_m), bqc(rho_m);
     TTree tbj("bg_jets", "jets of the backgrounds' bulk_bg samples");
     TTree tbq("qa_bg_jets", "all jets of the backgrounds' first --qa-samples bulk_bg samples");
     for (TTree *t : {&tbj, &tbq}) {
@@ -343,6 +346,7 @@ int run(int argc, char **argv) {
     write_run_info(fo, {{"R", R}, {"ghost_area", GHOST_AREA}, {"ptmin", ptmin}},
                    {{"cones", n_cones}, {"seed", seed}, {"qa_samples", qa_samples},
                     {"samples", max_samples}, {"emb_samples", emb_samples},
+                    {"rho_m", rho_m ? 1 : 0},
                     {"version", MAP_VERSION}});
     fo.Close();
     gSystem->Rename((path + ".part").c_str(), path.c_str());

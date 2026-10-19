@@ -7,7 +7,7 @@ final stage of both.
 
     python zjet_jets_map.py <h5 dir or quoted glob> <out dir> [--R 0.3] [--seed 1]
                             [--samples N] [--emb-samples N] [--cones 4] [--ptmin 5]
-                            [--qa-samples 1] [--files i:j]
+                            [--qa-samples 1] [--rho-m [1]] [--files i:j]
 
 --files i:j maps only production files i .. j-1 (in the reader's order), for several processes
 at once.  Every output stands alone: its ``file_info`` tree (the production file's name,
@@ -31,7 +31,9 @@ event and background with all their jets (p_T,raw > 1 GeV, no cut on the subtrac
 zjet_jets_qa.py.  --emb-samples N: the embedded event (the fragments alone and in bulk_bg: emb,
 nw, zcone_nw) only for the first N oversamples, about half the time of the others; the jets,
 the Z cone and the random cones of every oversample are unchanged (default: all).  Slow in
-Python (~0.2 s per Pb+Pb oversample): use --samples for checks.
+Python (~0.2 s per Pb+Pb oversample): use --samples for checks.  --rho-m: every jet also gets
+rho_m of its strip (jet_rho_m, for mass subtraction; off by default: with --emb-samples 4 it
+takes 1.5x the time).
 Exact shortcuts, the outputs unchanged: rho(jet) once per strip content (StripRho), no rho for
 jets that cannot pass the p_T cut, the background's particles and estimator kept per hydro
 background and sample, the random cones' particles preselected in numpy."""
@@ -52,7 +54,7 @@ except ImportError:
 import zjet_wake as zw  # noqa: E402
 from jetcorr import mapio  # noqa: E402
 from jetcorr import weights as jw  # noqa: E402
-from jetcorr.jetmap import (ALL, GHOST_AREA, JET_NAMES, R_JET, Clusterer, cone,  # noqa: E402
+from jetcorr.jetmap import (ALL, GHOST_AREA, R_JET, Clusterer, cone,  # noqa: E402
                             rap_phi)
 
 PT_REF, ETA_RC = 10.0, 1.6
@@ -95,6 +97,9 @@ def main():
     ap.add_argument("--R", type=float, default=R_JET, help="the anti-k_T radius (0.3)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--samples", type=int, default=1 << 30)
+    ap.add_argument("--rho-m", type=int, nargs="?", const=1, default=0,
+                    help="also rho_m of every jet's strip (jet_rho_m; ~1.5x the time); "
+                         "zjets: --rho-m 1")
     ap.add_argument("--emb-samples", type=int, default=1 << 30,
                     help="the embedded event (emb, nw, zcone_nw) only for the first N oversamples")
     ap.add_argument("--cones", type=int, default=4)
@@ -119,11 +124,12 @@ def main():
     loc = np.array([(i.file_index, i.bg_unit if bulk else i.local_event) for i in infos])
     _, bgid = np.unique(loc, axis=0, return_inverse=True)
     bgid = bgid.ravel()
-    c = Clusterer(fj, a.R)
+    c = Clusterer(fj, a.R, rho_m=a.rho_m)
     dr_match = c.R / 2
     run_info = {"R": c.R, "ghost_area": GHOST_AREA, "ptmin": a.ptmin, "cones": a.cones,
                 "seed": a.seed, "qa_samples": a.qa_samples, "samples": a.samples,
-                "emb_samples": a.emb_samples, "version": MAP_VERSION}
+                "emb_samples": a.emb_samples, "rho_m": int(bool(a.rho_m)),
+                "version": MAP_VERSION}
     os.makedirs(a.out, exist_ok=True)
     lo, hi = 0, len(r.stems)
     if a.files:
@@ -287,7 +293,7 @@ def main():
                             qbj[key].append(v)
                         qa_bg_rows.append(every)
 
-        def jet_record(lists, names=JET_NAMES):
+        def jet_record(lists, names=c.names):
             counts = np.array([len(row) for row in lists], np.int64)
             return ak.zip({nm: ak.unflatten(np.array([x[i] for row in lists for x in row],
                                                      np.float64), counts)
@@ -311,8 +317,8 @@ def main():
                    "sample": np.asarray(rows["sample"], np.int32),
                    "frag_sample": np.asarray(rows["frag_sample"], np.int32)}
             for gname, lists, names in (
-                    ("jet", jet, JET_NAMES),
-                    ("nw", nw, JET_NAMES),
+                    ("jet", jet, c.names),
+                    ("nw", nw, c.names),
                     ("emb", emb, ("ref_pt", "ref_eta", "ref_phi", "pt", "dr")),
                     ("rc", rc, ("eta", "phi", "sum", "rho", "dpt"))):
                 out[gname] = jet_record(lists, names)
