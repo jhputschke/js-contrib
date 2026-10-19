@@ -601,7 +601,7 @@ def job_xml(a, out_h5: str):
 #: pair-writer diag/ values copied into the particlize file's events/ (energy bookkeeping
 #: for the hadron-level balance, and the flags that make an event suspect)
 PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_early",
-                   "tau0_music", "ntau_jet", "ntau_jet_music", "ntau_bg", "frames_identical",
+                   "tau0_music", "eloss_tstart", "ntau_jet", "ntau_jet_music", "ntau_bg", "frames_identical",
                    "jet_hit_boundary", "bg_hit_boundary", "jet_hit_edge", "bg_hit_edge",
                    "jet_edge_e_max", "bg_edge_e_max", "jet_edge_e_max_eta",
                    "bg_edge_e_max_eta", "pthat_bin", "pthat",
@@ -747,6 +747,18 @@ def geometry_diag(ini) -> dict:
 
     n = core.initial_state_info(ini)["n_coll"]
     return {"n_coll": int(n)} if n >= 0 else {}
+
+
+def eloss_diag(bg) -> dict:
+    """Where Matter's and LBT's medium interaction started, for diag/ (and events/, units/):
+    they replace their <Eloss><tStart> by the background hydro's start time
+    (FluidDynamics::GetHydroStartTime via GetHydroTau0Signal), which X-SCAPE's MpiMusic sets to
+    MUSIC's tau0 of the run since branch tstart_hydro_tau0 (2026-10-19); before, it was left
+    uninitialised (0 where it was read, so no cut: the medium began with the stored evolution
+    anyway).  Recorded so that every file shows the value its energy loss used."""
+    if bg is None or not hasattr(bg, "GetHydroStartTime"):
+        return {}
+    return {"eloss_tstart": float(bg.GetHydroStartTime())}
 
 
 #: |pid| of the leptons PythiaGun hands over (a Z's decay; Parton::isLepton)
@@ -1281,11 +1293,12 @@ def main() -> int:
     windows = None
     try:
         jetscape.ExecInit()
+        bg_hydro = {t.GetId(): t for t in jetscape.GetTaskList()}.get(BG_ID)
         for i in range(jetscape.GetNumberOfEvents()):
             t0 = time.time()
             jetscape.ExecPerEvent()
             idx = writer.Exec(**pthat_diag(gun, a.trigger_kind),   # both legs are live
-                              **geometry_diag(ini))
+                              **geometry_diag(ini), **eloss_diag(bg_hydro))
             if idx is not None and pwriter is not None:
                 d = writer.last_event_diag
                 pwriter.Exec(idx, bg_id=d["bg_id"], bg_key=writer.last_bg_key,
@@ -1307,7 +1320,9 @@ def main() -> int:
             frames = (f"jet/bg frames {d['ntau_jet']}/{d['ntau_bg']}" if "ntau_jet" in d
                       else f"jet {d['ntau_jet_music']} MUSIC steps, bg {d['ntau_bg']} frames")
             msg = (f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} done in {wall:.1f} s, "
-                   f"MUSIC tau0 = {d['tau0_music']:.3f} fm/c, {frames}, {d['n_droplets']} "
+                   f"MUSIC tau0 = {d['tau0_music']:.3f} fm/c"
+                   + (f" (eloss tStart {d['eloss_tstart']:.3f})" if "eloss_tstart" in d else "")
+                   + f", {frames}, {d['n_droplets']} "
                    f"droplets ({d['E_droplets']:.1f} GeV, {d['E_droplets_late']:.1f} after "
                    f"freeze-out), "
                    + (f"{d['frames_identical']} leading frames identical, "

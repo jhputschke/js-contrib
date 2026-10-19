@@ -353,6 +353,10 @@
   <Eloss>
     <deltaT> 0.1 </deltaT>
     <maxT> 20 </maxT>
+    <!-- With a hydro (MUSIC) Matter and LBT replace tStart by the hydro's start time,
+         MUSIC's tau0 of the run (X-SCAPE tstart_hydro_tau0; recorded per event as
+         eloss_tstart): the medium interaction begins with the stored evolution, before it
+         the lookup is vacuum.  This value applies only without a hydro. -->
     <tStart> 0.5 </tStart>
     <mutex> ON </mutex>
     <AddLiquefier> true </AddLiquefier>
