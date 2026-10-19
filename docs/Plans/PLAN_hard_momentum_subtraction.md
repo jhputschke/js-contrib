@@ -13,6 +13,113 @@ Written against the code of the campaign image `jhputschke/xscape-prod:cu124-zje
 (X-SCAPE `38cd11cf`, 3dMCGlauber `b99d680`, js-contrib `f242174`). Items marked **verify** were
 inferred from reading the code and have not been run.
 
+## 0. As implemented (2026-10-18, branches `zjet_LO_sub`)
+
+X-SCAPE `zjet_LO_sub` (from `zjet` 38cd11cf), 3dMCGlauber fork `zjet_LO_sub` (from b99d680,
+pinned in `get_3dglauber.sh`), js-contrib `zjet_LO_sub` (from `zjet`); local commits, not
+pushed. Built on the GB10 in a separate worktree (`X-SCAPE-losub/build_gpu_losub`), so
+`build_gpu` stays the `zjet` build. Where the implementation differs from §§3–6 below:
+
+- **No regeneration of the strings (§3.2, §3.3, §3.4 replaced).** Reading 3dMCGlauber showed
+  that a second `generate_strings` on the same event is not possible: the first one consumes
+  the collision schedule and changes the nucleons' and quarks' rapidities and flags (a second
+  call gives no QCD strings), and the ISR path's `Pick_and_subtract` changes more than the hard
+  pair (it erases the quark, gives the hard pair zero strings and an extra connection, and the
+  changed draw counts, the global baryon shuffles and the recentring on the strings' mean
+  position move every other string). It also does not reduce the quark's momentum:
+  `get_a_valence_quark_sub_mom` only selects, the subtraction comes off the remnant. And in the
+  Z+jet XML `<Hard>` runs before MUSIC_1, so strings regenerated after PythiaGun would reach
+  MUSIC_1 too. Instead 3dMCGlauber returns a **modified copy** of the event's strings
+  (`Glauber::get_QCD_strings_output_list_hard_subtracted`, read-only, no random numbers, the
+  event's centre of mass): the exact twin by construction.
+- **Mode 1 (variant (a), "the quark keeps its strings with less momentum").** Each side's
+  energy is taken from one valence quark of the hard collision's nucleon that made strings
+  (picked by a hash of the candidates' rapidities), or, if none can give it all, from several,
+  highest E_q first. A quark gives at most 90 % of its energy above m_q and no more than keeps
+  every one of its strings' formation time (see τ₀ below); the rest is a shortfall. The
+  quark's rapidity drops to acosh((E_q − E)/m_q) and all its strings move with it, re-evolved
+  as produced (`evolve_QCD_string`); the chain telescopes (the quark's last string carries its
+  remnant), so the strings deposit exactly E less.
+- **Mode 2 (variant (b), 3dMCGlauber's ISR picture without iColored).** The hard pair's strings
+  with each other and every string of one valence quark per side are removed; every other quark
+  that loses a string keeps its energy (its later strings start higher by the removed ones'
+  rapidity loss, its remnant moves to its last string kept, or its energy goes to its nucleon's
+  remnant); the hard quarks' energy goes to their nucleons' remnants, from which the hard
+  process's energy is taken (at most all of it). A remnant keeps its rapidity and only its mass
+  scales, in MUSIC's measure of a remnant (mass cosh y), so the strings deposit exactly what is
+  taken less. Not emulated: the extra connection the ISR path gives the hard nucleons (it would
+  change their string counts with everyone).
+- **MUSIC's τ₀ must stay the event's.** MUSIC starts at the strings' earliest start minus one
+  step (`init.cpp`, profile 13), and the pair writer drops an event whose legs are on different τ
+  grids. The first run C (mode 1 without the limit) lost 33 of 384 events: a shift that caps a
+  string's rapidity loss shortens its formation time, so MUSIC_2 started at 0.12–0.34 instead of
+  0.40 fm/c (a different hydro start, so no twin either). Now mode 1 limits each quark's shift
+  (no capped rapidity loss, no end crossing its production point, no start before the event's
+  earliest) and mode 2 keeps removed strings as placeholders without energy (no rapidity loss,
+  remnant or baryon number) and rescales remnants at fixed rapidity. The record has the earliest
+  start before and after (`losub_tau_start_min_*`, by MUSIC's rule).
+- **The momentum (§3.1).** PythiaGun hands over beam minus remnants (status ±63) per side, as
+  planned, through a new `InitialState::SubtractHardMomentumJetLeg` (not
+  `OutputHardPartonMomentum`, whose ISR bookkeeping it would disturb); the hard system's own
+  incoming energies (`partonSystems` 0) and the MPI count are recorded. MCGlauberWrapper keeps
+  the binary collision `SampleABinaryCollisionPoint` returned (no position lookup).
+- **MUSIC_2 reads the copy (§3.4, §4.1).** `MusicWrapper` gives every hydro but the framework's
+  first the jet leg's strings (`GetQCDStringListJetLeg`); no task-list change. MUSIC_2's restart
+  falls back to τ₀ by itself (the sources' fingerprints differ); `run_prod_jet.py` switches it
+  off explicitly.
+- **Driver (§4).** `run_prod_jet.py --lo-hard-subtraction 1|2` sets
+  `<IS><MCGlauber><LO_hard_subtraction>` in the job XML (default 0 in `jetscape_main.xml`), no
+  second user XML. Every event records `losub_*` (energies requested and taken, the hard
+  system's, quarks, rapidity shifts, the strings' E and P_z before and after, checks) in diag/,
+  the particlize file's events/ and the hadron files' units/; `core.lo_hard_subtraction(task)`.
+- **Tests (§5), passed on the GB10** (Pb+Pb Z+jet, 2 events on one background):
+  T1: with the setting 0 the pair and particlize files are identical to `zjet`'s build
+  (`source/flux` to 1 ulp, as between two runs of one build). T2–T4: with 1 and `--no-deposit`
+  the background leg, partons and Z are identical to the run without it; without it the jet
+  leg's surface equals the background's; with it the strings' energy drops by exactly the
+  energy taken (MUSIC: 768060 → 766397 and 764737 GeV), P_z by the P_z taken (18.2 vs 18.1 GeV);
+  no capped rapidity loss, every string reproduced by `evolve_QCD_string`. With the final code,
+  on the first background of run C's seed 9102 (24 events, 3 of them dropped before): both
+  modes write all events, the earliest start unchanged in every one, the strings' energy drops
+  by the energy taken to 3e-10 GeV (mode 1) and 0.002 GeV (mode 2).
+- **The size of the momentum.** Beam minus remnants is 0.8–1.8 TeV per side at 5.02 TeV (6 and
+  12 MPI), of which the hard system with its ISR is 160–550 GeV: the MPI dominate, an order of
+  magnitude above §2's estimate. On run C (383 events): 2.5 TeV for both sides (median), the hard
+  system 0.6 TeV. No single valence quark carries that much, so mode 1 uses ~2 quarks per side
+  and takes 96 % (a shortfall in 20 % of the events); mode 2 takes ~81 % (the hard pair's
+  remnants plus their hard quarks often hold less).
+- **§6: no run A.** c00 + c01 are the reference (T1 shows the code with the setting 0 is
+  theirs); an unpaired A on new seeds would only add its own noise. Run C first; B only if C
+  shows something.
+
+### Run C, variant (a) (mode 1): no effect
+
+`analysis/zjet_test/data-losub-Ca/` (git-ignored): 4 jobs × 96 Pb+Pb 0–30 % Z+jet events, seeds
+9101–9104, the campaign's arguments with `--no-deposit --lo-hard-subtraction 1`, ~1 h on the
+GB10 (4 jobs at once); 383 events written. Analysis: `accumulate.py` → `losub_effect.py` (the
+paired ⟨bulk_jet⟩ − ⟨bulk_bg⟩ in CMS's S − B, against CMS − model of the c00 + c01 step 1);
+numbers in the git-ignored `analysis/zjet_test/figures-losub-Ca/RESULTS_losub.md` (results not
+public yet). Taking even the whole energy Pythia took (MPI included) from the hard pair's
+valence quarks leaves nothing visible at |η| < 2.4, well below what the model misses: the
+quarks' strings lose it at their forward ends. Variant (a) does not explain the missing
+Z-side depletion.
+
+### Run C, variant (b) (mode 2): no effect either; why
+
+`analysis/zjet_test/data-losub-Cb/`, the same seeds (the same events: 384 written, all on the
+background's τ grid), `--lo-hard-subtraction 2`; ~78 % of the request taken (the hard pair's
+remnants plus their hard quarks often hold less than the MPI-inclusive energy), ~6 strings
+removed per event. Nothing visible in Δy or Δφ either. Before S − B, (b) does change the bulk:
+it removes about as many 1–2 GeV hadrons per Z in |η| < 2.4 as the wake adds, but nearly flat
+in η and without azimuthal relation to the Z, since the removed strings span the whole rapidity
+range between the colliding nucleons. CMS's S − B removes such a change by construction (Δφ
+around its mean; in Δy the mixed events carry the same η density). Energy–momentum
+conservation between the hard process and the strings, in either picture, therefore cannot
+produce a Z-side depletion in the measured observable; per §6, run B is not needed. (Numbers in
+the git-ignored `figures-losub-Ca/RESULTS_losub.md`.) The ISR/iMATTER version (§7) removes the
+same kind of strings (the hard quark's and the pair's) and would be expected to give the same
+flat change.
+
 ## 1. How the switch works today, and why it needs the ISR chain
 
 - `Subtract_hard_momentum` is a 3dMCGlauber parameter. The subtraction is done in
