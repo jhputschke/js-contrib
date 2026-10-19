@@ -137,9 +137,10 @@ import argparse, json, os, sys
 p = argparse.ArgumentParser()
 p.add_argument("--events", type=int); p.add_argument("--seed", type=int)
 p.add_argument("--campaign"); p.add_argument("--index", type=int, default=1)
-p.add_argument("--outdir"); p.add_argument("--fail", action="store_true")
+p.add_argument("--outdir"); p.add_argument("--out"); p.add_argument("--fail", action="store_true")
 a, extra = p.parse_known_args()
-name = (f"AuAu_0_10_{a.campaign}_{a.index:04d}" if a.seed == 0 else
+name = (a.out[:-3] if a.out else                                             # run_jobs.sh's name
+        f"AuAu_0_10_{a.campaign}_{a.index:04d}" if a.seed == 0 else
         f"AuAu_0_10{'_' + a.campaign if a.campaign else ''}_seed{a.seed:04d}")   # as run_prod.py
 with open(os.path.join(a.outdir, "calls.txt"), "a") as fh:
     fh.write(json.dumps({"name": name, "seed": a.seed, "extra": extra}) + "\n")
