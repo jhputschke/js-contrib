@@ -7,7 +7,7 @@
 // is the same map step in Python (check_cxx.py jets compares the two).
 //
 //   ./zjets <root dir> <out dir> [--R 0.3] [--seed 1] [--files i:j] [--samples N]
-//           [--cones 4] [--ptmin 5] [--qa-samples 1]
+//           [--emb-samples N] [--cones 4] [--ptmin 5] [--qa-samples 1]
 //
 // Events: a Z with 60 < m < 120 GeV and p_T^Z > 30 GeV (the final stage applies the paper's
 // cuts).  Samples: k = 0 .. min(n, --samples) - 1, n the oversamples (vacuum: the
@@ -29,7 +29,9 @@
 // |eta| < 2) and embedded in bulk_bg sample k (no wake), clustered and subtracted as above;
 // each reference jet with the embedded jet nearest in Delta R (NaN beyond R / 2).  The
 // embedded event's jets above --ptmin are also stored (nw_*): the Z event without its wake,
-// for the final stage's "no wake" variant.
+// for the final stage's "no wake" variant.  --emb-samples N: the embedded event (emb_*, nw_*,
+// zcone_nw_*) only for the first N oversamples, about half the time of the others; the jets,
+// the Z cone and the random cones of every oversample are unchanged (default: all).
 // Random cones (Pb+Pb): --cones cones per sample in bulk_bg k at |eta| < 1.6, positions
 // from zjet_wake.key_uniform; delta p_T = sum p_T within Delta R < R - rho pi R^2.
 // The Z cone (zcone_*): the same at (y_Z, phi_Z) in the full event (rho its own) and in the
@@ -84,7 +86,8 @@ void to_pseudojets(const Hadrons &hs, const ZRecord &z, std::vector<fj::PseudoJe
 int run(int argc, char **argv) {
   if (argc < 3) {
     std::fprintf(stderr, "usage: %s <root dir> <out dir> [--R 0.3] [--seed 1] [--files i:j] "
-                         "[--samples N] [--cones 4] [--ptmin 5] [--qa-samples 1]\n", argv[0]);
+                         "[--samples N] [--emb-samples N] [--cones 4] [--ptmin 5] "
+                         "[--qa-samples 1]\n", argv[0]);
     return 2;
   }
   const std::string in = argv[1], out = argv[2];
@@ -95,6 +98,7 @@ int run(int argc, char **argv) {
   const double ptmin = o.count("--ptmin") ? std::stod(o.at("--ptmin")) : 5.0;
   const int qa_samples = o.count("--qa-samples") ? std::stoi(o.at("--qa-samples")) : 1;
   const double R = o.count("--R") ? std::stod(o.at("--R")) : R_JET;
+  const int emb_samples = o.count("--emb-samples") ? std::stoi(o.at("--emb-samples")) : 1 << 30;
   const double dr_match = R / 2;
   const double ALL = -std::numeric_limits<double>::infinity();
   gSystem->mkdir(out.c_str(), true);
@@ -231,29 +235,31 @@ int run(int argc, char **argv) {
         if (!info.vacuum) {
           // embedding: the fragments alone, and in the background without the wake
           std::vector<fj::PseudoJet> frag, emb;
-          to_pseudojets(r.frag(e, frag_sample), z, frag);
           const Hadrons bkg = r.bkg(e, k);
           to_pseudojets(bkg, z, emb);
           const std::size_t n_kept = emb.size();
           std::size_t n_all = 0;
           for (const Hadron &h : bkg) n_all += keep(h, no_z);
-          emb.insert(emb.end(), frag.begin(), frag.end());
-          const auto ref = jets_of(frag, false, PT_REF, c);
-          StripRho nwb(emb, c);
-          const auto ej = jets_of(emb, true, 1.0, c, &nwb);
-          const Cone znw = cone(emb, &nwb, z.y, z.phi, R);
-          zc[3] = znw.sum; zc[4] = znw.rho; zc[5] = znw.dpt;
-          for (const Jet &x : ej)                 // the same event without the wake
-            if (x.pt > ptmin) nwc.push(x);
-          for (const Jet &rj : ref) {
-            double best = NaN, dr_best = std::numeric_limits<double>::infinity();
-            for (const Jet &x : ej) {
-              const double dr = std::hypot(x.eta - rj.eta, wrap_dphi(x.phi - rj.phi, -M_PI));
-              if (dr < dr_best) { dr_best = dr; best = x.pt; }
+          if (k < emb_samples) {                  // the embedded event (--emb-samples)
+            to_pseudojets(r.frag(e, frag_sample), z, frag);
+            emb.insert(emb.end(), frag.begin(), frag.end());
+            const auto ref = jets_of(frag, false, PT_REF, c);
+            StripRho nwb(emb, c);
+            const auto ej = jets_of(emb, true, 1.0, c, &nwb);
+            const Cone znw = cone(emb, &nwb, z.y, z.phi, R);
+            zc[3] = znw.sum; zc[4] = znw.rho; zc[5] = znw.dpt;
+            for (const Jet &x : ej)               // the same event without the wake
+              if (x.pt > ptmin) nwc.push(x);
+            for (const Jet &rj : ref) {
+              double best = NaN, dr_best = std::numeric_limits<double>::infinity();
+              for (const Jet &x : ej) {
+                const double dr = std::hypot(x.eta - rj.eta, wrap_dphi(x.phi - rj.phi, -M_PI));
+                if (dr < dr_best) { dr_best = dr; best = x.pt; }
+              }
+              e_rpt.push_back(rj.pt); e_reta.push_back(rj.eta); e_rphi.push_back(rj.phi);
+              e_pt.push_back(dr_best < dr_match ? best : NaN);
+              e_dr.push_back(std::isfinite(dr_best) ? dr_best : NaN);
             }
-            e_rpt.push_back(rj.pt); e_reta.push_back(rj.eta); e_rphi.push_back(rj.phi);
-            e_pt.push_back(dr_best < dr_match ? best : NaN);
-            e_dr.push_back(std::isfinite(dr_best) ? dr_best : NaN);
           }
           // random cones in the background: its particles (the event's Z leptons removed)
           // and their rho, shared by the background's events if no Z lepton is among them
@@ -336,7 +342,8 @@ int run(int argc, char **argv) {
     write_file_info(fo, file_record(r, f));
     write_run_info(fo, {{"R", R}, {"ghost_area", GHOST_AREA}, {"ptmin", ptmin}},
                    {{"cones", n_cones}, {"seed", seed}, {"qa_samples", qa_samples},
-                    {"samples", max_samples}, {"version", MAP_VERSION}});
+                    {"samples", max_samples}, {"emb_samples", emb_samples},
+                    {"version", MAP_VERSION}});
     fo.Close();
     gSystem->Rename((path + ".part").c_str(), path.c_str());
     const double dt =

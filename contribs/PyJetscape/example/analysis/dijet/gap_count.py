@@ -33,13 +33,16 @@ def leading(J, prefix="jet"):
     return f("pt"), f("eta"), f("phi"), has
 
 
-def count(E, J, ncoll, label, prefix="jet"):
+def count(E, J, ncoll, label, prefix="jet", max_sample=1 << 30):
+    """max_sample: only the oversamples below it (nw: the map step's --emb-samples)."""
     base = (E["z_m"] > 70) & (E["z_m"] < 110) \
         & zj.lep_ok(E["lep1_pid"], E["lep1_eta"]) & zj.lep_ok(E["lep2_pid"], E["lep2_eta"])
     idx = {g: i for i, g in enumerate(E["event"])}
+    keep = np.asarray(J["sample"]) < max_sample
     ev = np.array([idx[g] for g in J["event"]])
     pt, eta, phi, has = leading(J, prefix)
-    ns = E["n_samples"][ev].astype(float)
+    has = has & keep
+    ns = np.minimum(E["n_samples"][ev], max_sample).astype(float)
     w0 = E["weight_mb"].astype(float) * (E["n_coll"] if ncoll else 1.0)
     print(f"\n== {label}: {len(E['event'])} Z events, {len(J['event'])} oversample rows "
           f"(n_samples {np.unique(E['n_samples'])})")
@@ -64,4 +67,5 @@ Ep, Jp, _ = zj.load_jets(sys.argv[2].split(","))
 count(Ep, Jp, False, f"pp {sys.argv[2]}")
 Eb, Jb, _ = zj.load_jets(sys.argv[1].split(","))
 count(Eb, Jb, True, f"Pb+Pb {sys.argv[1]} (full event, rhoA)")
-count(Eb, Jb, True, f"Pb+Pb {sys.argv[1]} (no-wake twin nw)", prefix="nw")
+count(Eb, Jb, True, f"Pb+Pb {sys.argv[1]} (no-wake twin nw)", prefix="nw",
+      max_sample=zj.map_run_info(sys.argv[1].split(",")).get("emb_samples", 1 << 30))

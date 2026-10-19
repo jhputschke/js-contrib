@@ -6,7 +6,8 @@ The same algorithm and output as the C++ map step, example/analysis_root/zjet/zj
 final stage of both.
 
     python zjet_jets_map.py <h5 dir or quoted glob> <out dir> [--R 0.3] [--seed 1]
-                            [--samples N] [--cones 4] [--ptmin 5] [--qa-samples 1] [--files i:j]
+                            [--samples N] [--emb-samples N] [--cones 4] [--ptmin 5]
+                            [--qa-samples 1] [--files i:j]
 
 --files i:j maps only production files i .. j-1 (in the reader's order), for several processes
 at once.  Every output stands alone: its ``file_info`` tree (the production file's name,
@@ -27,7 +28,10 @@ dijet proxy, PLAN_dijet_deta_wake A2); the jets of every background's bulk_bg sa
 stage's B); per jet also its mass, the number of its (non-ghost) constituents and the leading
 one's p_T.  The jet QA (trees qa_jets, qa_bg_jets): the first --qa-samples samples of every Z
 event and background with all their jets (p_T,raw > 1 GeV, no cut on the subtracted p_T), for
-zjet_jets_qa.py.  Slow in Python (~0.3 s per Pb+Pb oversample): use --samples for checks.
+zjet_jets_qa.py.  --emb-samples N: the embedded event (the fragments alone and in bulk_bg: emb,
+nw, zcone_nw) only for the first N oversamples, about half the time of the others; the jets,
+the Z cone and the random cones of every oversample are unchanged (default: all).  Slow in
+Python (~0.2 s per Pb+Pb oversample): use --samples for checks.
 Exact shortcuts, the outputs unchanged: rho(jet) once per strip content (StripRho), no rho for
 jets that cannot pass the p_T cut, the background's particles and estimator kept per hydro
 background and sample, the random cones' particles preselected in numpy."""
@@ -91,6 +95,8 @@ def main():
     ap.add_argument("--R", type=float, default=R_JET, help="the anti-k_T radius (0.3)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--samples", type=int, default=1 << 30)
+    ap.add_argument("--emb-samples", type=int, default=1 << 30,
+                    help="the embedded event (emb, nw, zcone_nw) only for the first N oversamples")
     ap.add_argument("--cones", type=int, default=4)
     ap.add_argument("--ptmin", type=float, default=5.0)
     ap.add_argument("--qa-samples", type=int, default=1,
@@ -117,7 +123,7 @@ def main():
     dr_match = c.R / 2
     run_info = {"R": c.R, "ghost_area": GHOST_AREA, "ptmin": a.ptmin, "cones": a.cones,
                 "seed": a.seed, "qa_samples": a.qa_samples, "samples": a.samples,
-                "version": MAP_VERSION}
+                "emb_samples": a.emb_samples, "version": MAP_VERSION}
     os.makedirs(a.out, exist_ok=True)
     lo, hi = 0, len(r.stems)
     if a.files:
@@ -216,28 +222,34 @@ def main():
                     for col in ("zcone_nw_sum", "zcone_nw_rho", "zcone_nw_dpt"):
                         zcone[col].append(math.nan)
                     continue
-                fp, fy, fphi = with_rap_phi(fj, frag, info)
                 bp, b, by, bphi = background(info, k)
-                ref = c.jets(fp, False, PT_REF)
-                nwp = bp + fp
-                nwb = c.bge(nwp)
-                ej = c.jets(nwp, True, 1.0, bge=nwb)
-                nw.append([x for x in ej if x[1] > a.ptmin])    # the event without the wake
-                _, zs, zr, zd = cone(fj, nwp, np.concatenate([by, fy]),
-                                     np.concatenate([bphi, fphi]), nwb, z["z_y"], z["z_phi"],
-                                     c.R)
+                if k < a.emb_samples:
+                    fp, fy, fphi = with_rap_phi(fj, frag, info)
+                    ref = c.jets(fp, False, PT_REF)
+                    nwp = bp + fp
+                    nwb = c.bge(nwp)
+                    ej = c.jets(nwp, True, 1.0, bge=nwb)
+                    nw.append([x for x in ej if x[1] > a.ptmin])    # the event without the wake
+                    _, zs, zr, zd = cone(fj, nwp, np.concatenate([by, fy]),
+                                         np.concatenate([bphi, fphi]), nwb, z["z_y"],
+                                         z["z_phi"], c.R)
+                    pairs = []
+                    for rj in ref:
+                        best, dr_best = math.nan, math.inf
+                        for x in ej:
+                            dr = math.hypot(x[2] - rj[2], zw.wrap_dphi(x[3] - rj[3], -math.pi))
+                            if dr < dr_best:
+                                dr_best, best = dr, x[1]
+                        pairs.append((rj[1], rj[2], rj[3],
+                                      best if dr_best < dr_match else math.nan,
+                                      dr_best if math.isfinite(dr_best) else math.nan))
+                else:                                   # not embedded (--emb-samples)
+                    nw.append([])
+                    zs = zr = zd = math.nan
+                    pairs = []
                 for col, v in (("zcone_nw_sum", zs), ("zcone_nw_rho", zr),
                                ("zcone_nw_dpt", zd)):
                     zcone[col].append(v)
-                pairs = []
-                for rj in ref:
-                    best, dr_best = math.nan, math.inf
-                    for x in ej:
-                        dr = math.hypot(x[2] - rj[2], zw.wrap_dphi(x[3] - rj[3], -math.pi))
-                        if dr < dr_best:
-                            dr_best, best = dr, x[1]
-                    pairs.append((rj[1], rj[2], rj[3], best if dr_best < dr_match else math.nan,
-                                  dr_best if math.isfinite(dr_best) else math.nan))
                 emb.append(pairs)
                 cones = []
                 for q in range(a.cones):

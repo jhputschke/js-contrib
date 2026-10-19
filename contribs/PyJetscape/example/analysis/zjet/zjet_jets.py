@@ -525,9 +525,20 @@ def main():
     rows = np.arange(len(Jb["event"]))
     w_row = wb[ev] / Eb["n_samples"][ev]
     S_flat = flatten_rows(Eb, Jb, "jet", rows, w_row, ev)
-    NW_flat = (flatten_rows(Eb, Jb, "nw", rows, w_row, ev)          # the event without the wake
+    # the embedded event (step 1's fragment jets emb_ref, the no-wake nw) exists for the first
+    # emb_samples oversamples only (zjet_jets_map.py / zjets --emb-samples): those rows, each
+    # weighing 1 / min(n_samples, emb_samples) of its event
+    emb_n = map_run_info(a.pbpb).get("emb_samples", 1 << 30)
+    rows_e, ev_e, w_row_e = rows, ev, w_row
+    if np.any(Jb["sample"] >= emb_n):
+        rows_e = rows[Jb["sample"] < emb_n]
+        ev_e = ev[rows_e]
+        w_row_e = wb[ev_e] / np.minimum(Eb["n_samples"][ev_e], emb_n)
+        lines.append(f"embedded event (step 1, no wake): the first {emb_n} oversamples of each "
+                     "event (--emb-samples)")
+    NW_flat = (flatten_rows(Eb, Jb, "nw", rows_e, w_row_e, ev_e)    # the event without the wake
                if "nw_pt" in Jb else None)
-    F_flat = flatten_rows(Eb, Jb, "emb_ref", rows, w_row, ev)
+    F_flat = flatten_rows(Eb, Jb, "emb_ref", rows_e, w_row_e, ev_e)
     rc = ak.to_numpy(ak.flatten(Jb["rc_dpt"])) if "rc_dpt" in Jb else np.zeros(0)
     sig_rc = float(np.std(rc)) if len(rc) else 0.0
     lines.append(f"Pb+Pb: {int(selb.sum())} Z's of {len(selb)} on {n_bg} hydro background(s) in "
