@@ -37,8 +37,16 @@ of hydro backgrounds (pp: of events).
 
 Closure (B4): (1) the classes summed give the Z-side Delta y of S_full; (2) N and (3) B flat;
 (4) F = T; (5) the sideband's share of T; (6) pp flat.  The noise per event (R4): the errors
-scaled to one effective Z.  -> runs/<run>/figures/deta_{asym,closure,yw,integrated}<tag>.png
-(+ .npz/.root), deta_summary<tag>.txt."""
+scaled to one effective Z.
+
+CMS (cms25012.py, HEPData ins3123406 in --hepdata; ../zjet/get_hepdata.sh 25012): the model in
+CMS's 0.2 bins and convention (--cms-norm per-bin: CMS's tables as yields per bin of 0.2, the
+reading its Table 4 implies; per-unit: per unit Delta eta) against Tables 1-3 (pp, PbPb 0-30 %
+and PbPb - pp) and Table 4 (the integral), chi^2 with both errors.  With --trigger z this is
+the Z with p_T^Z > --zpt against CMS's dijets with jet1 > 130 GeV: not like for like, a shape
+reference and the comparison in place for the dijet productions.
+-> runs/<run>/figures/deta_{asym,closure,yw,integrated,cms}<tag>.png (+ .npz/.root),
+deta_summary<tag>.txt."""
 import argparse
 import glob
 import os
@@ -56,6 +64,8 @@ except ImportError:
     sys.path.insert(0, os.path.join(ANALYSIS, "..", "..", "python"))
 from jetcorr import deta_asym as da  # noqa: E402
 from jetcorr import figdata, mapio, runs  # noqa: E402
+
+import cms25012  # noqa: E402
 
 PT_LABELS = ("1-2 GeV", "2-4 GeV", "4-10 GeV")
 NCOLL_10 = 1210.0          # the model's 0-10 %: 200k min-bias 3dMCGlauber events (zjet/test)
@@ -253,6 +263,11 @@ def main():
     ap.add_argument("--central", action="store_true", help="only N_coll > --ncoll-min")
     ap.add_argument("--ncoll-min", type=float, default=NCOLL_10)
     ap.add_argument("--blocks", type=int, default=100)
+    ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins3123406-v1-yaml"),
+                    help="CMS HIN-25-012's HEPData record (../zjet/get_hepdata.sh 25012)")
+    ap.add_argument("--cms-norm", default="per-bin", choices=tuple(cms25012.NORMS),
+                    help="CMS's tables as yields per 0.2 bin (Table 4's reading) or per unit "
+                         "Delta eta")
     ap.add_argument("--run", default="zjet_test")
     ap.add_argument("--outdir", default=None)
     ap.add_argument("--tag", default="")
@@ -510,10 +525,101 @@ def main():
     figdata.savefig(fig, os.path.join(a.outdir, f"deta_integrated{a.tag}.png"), dpi=100)
     plt.close(fig)
 
+    cms_comparison(a, lines, sub, res, plt, gaps)
     text = "\n".join(lines) + "\n"
     with open(os.path.join(a.outdir, f"deta_summary{a.tag}.txt"), "w") as fo:
         fo.write(text)
     print(text, end="")
+
+
+def cms_comparison(a, lines, sub, res, plt, gaps):
+    """The model against CMS HIN-25-012's HEPData (Tables 1-4) -> deta_cms<tag>.png and the
+    summary's chi^2 lines; skipped with a note without the record."""
+    if not os.path.isdir(a.hepdata):
+        lines.append(f"CMS HIN-25-012: no HEPData record in {a.hepdata} (../zjet/get_hepdata.sh "
+                     "25012): not compared")
+        return
+    t12, t3, t4 = (cms25012.table12(a.hepdata), cms25012.table3(a.hepdata),
+                   cms25012.table4(a.hepdata))
+    norm = a.cms_norm
+    pts = {"1-2": 0, "2-4": 1}
+    gi = {g: i for i, g in enumerate(gaps)}
+
+    def model(d, de):
+        """-> (values, errors, centres) in CMS's 0.2 bins and convention."""
+        v, c = da.rebin(d)
+        e = np.sqrt(da.rebin(de ** 2)[0] / 2)
+        return cms25012.to_cms(v, norm), cms25012.to_cms(e, norm), c
+
+    lines.append("")
+    lines.append(f"CMS HIN-25-012 (HEPData ins3123406), the model in CMS's 0.2 bins, CMS's tables "
+                 f"read as {norm} (Table 4 = the sum of Table 3's 10 bins):"
+                 + ("  [--trigger z: the Z as jet1 against CMS's dijets, not like for like]"
+                    if a.trigger == "z" else ""))
+    fig, ax = figdata.subplots(3, 4, figsize=(21, 12))
+    # Table 3: PbPb 0-30 % - pp
+    for j, (key, data) in enumerate(sorted(t3.items(), key=lambda kv: (kv[0][0], kv[0][1]))):
+        pt, gap = key
+        axr = ax[0, j]
+        axr.errorbar(data["x"], data["value"], data["total"], fmt="o", color="k", ms=4,
+                     label="CMS PbPb 0–30 % − pp")
+        for c, col in (("F", "C3"), ("T", "C1")):
+            v, e, x = model(*(arr[gi[gap], pts[pt]] for arr in sub[c]))
+            axr.errorbar(x + 0.02, v, e, fmt="s", ms=3.5, mfc="none", color=col,
+                         label=f"model Pb+Pb {c} − pp")
+            ch, nb = cms25012.chi2(v, e, data)
+            lines.append(f"  Table 3 PbPb-pp {pt} GeV, {gap}: model {c} chi2 {ch:6.1f}/{nb}")
+        axr.axhline(0, color="0.5", lw=0.8)
+        axr.set_title(f"PbPb − pp, R_asym ({gap}) − R_sym, {pt} GeV")
+        axr.set_xlabel("Δη (model: Δy)")
+        axr.legend(fontsize=7)
+    # Tables 1-2: pp and PbPb 0-30 %, R_asym 1.0-1.5
+    for j, (pt, system) in enumerate((("1-2", "pp"), ("1-2", "0-30"), ("2-4", "pp"),
+                                      ("2-4", "0-30"))):
+        data = t12[(pt, system)]
+        axr = ax[1, j]
+        axr.errorbar(data["x"], data["value"], data["total"], fmt="o", color="k", ms=4,
+                     label=f"CMS {'pp' if system == 'pp' else 'PbPb ' + system + ' %'}")
+        keys = [("pp", "F")] if system == "pp" else [("Pb+Pb", "F"), ("Pb+Pb", "T")]
+        for key, col in zip(keys, ("C0", "C3", "C1") if system == "pp" else ("C3", "C1")):
+            (d, _, _), (de, _, _) = res[key]
+            v, e, x = model(d[gi["1.0-1.5"], pts[pt]], de[gi["1.0-1.5"], pts[pt]])
+            axr.errorbar(x + 0.02, v, e, fmt="s", ms=3.5, mfc="none", color=col,
+                         label=f"model {key[0]} {key[1]}")
+            ch, nb = cms25012.chi2(v, e, data)
+            lines.append(f"  Table {1 if pt == '1-2' else 2} {system:5s} {pt} GeV, 1.0-1.5: "
+                         f"model {key[0]} {key[1]} chi2 {ch:6.1f}/{nb}")
+        axr.axhline(0, color="0.5", lw=0.8)
+        axr.set_title(f"{'pp' if system == 'pp' else 'PbPb ' + system + ' %'}: R_asym (1.0–1.5) − "
+                      f"R_sym, {pt} GeV")
+        axr.set_xlabel("Δη (model: Δy)")
+        axr.legend(fontsize=7)
+    # Table 4: the integral against centrality; the model at 0-30 %
+    for j, (key, data) in enumerate(sorted(t4.items(), key=lambda kv: (kv[0][1], kv[0][0]))):
+        pt, gap = key
+        axr = ax[2, j]
+        axr.errorbar(data["x"], data["value"], data["total"], fmt="o", color="k", ms=4,
+                     label="CMS PbPb − pp")
+        for k_, (c, col) in enumerate((("F", "C3"), ("T", "C1"))):
+            v, e, x = model(*(arr[gi[gap], pts[pt]] for arr in sub[c]))
+            m = (x > -2.45) & (x < -0.55)
+            iv, ie = np.nansum(v[m]), np.sqrt(np.nansum(e[m] ** 2))
+            axr.errorbar([15 + 3 * (k_ - 0.5)], [iv], [ie], fmt="s", ms=5, mfc="none",
+                         color=col, label=f"model Pb+Pb {c} − pp (0–30 %)")
+            i30 = int(np.argmin(np.abs(data["x"] - 15)))
+            pull = (iv - data["value"][i30]) / np.hypot(ie, data["total"][i30])
+            lines.append(f"  Table 4 {pt} GeV, {gap}, 0-30 %: CMS {data['value'][i30]:+.3f} ± "
+                         f"{data['total'][i30]:.3f}, model {c} {iv:+.3f} ± {ie:.3f} "
+                         f"(pull {pull:+.1f})")
+        axr.axhline(0, color="0.5", lw=0.8)
+        axr.set_title(f"∫ over −2.4…−0.6, R_asym ({gap}), {pt} GeV")
+        axr.set_xlabel("centrality [%]")
+        axr.legend(fontsize=7)
+    fig.suptitle(f"CMS HIN-25-012 against the model ({'the Z as jet1' if a.trigger == 'z' else 'jet1'};"
+                 f" CMS's tables read as {norm})", y=0.995)
+    fig.tight_layout()
+    figdata.savefig(fig, os.path.join(a.outdir, f"deta_cms{a.tag}.png"), dpi=100)
+    plt.close(fig)
 
 
 if __name__ == "__main__":

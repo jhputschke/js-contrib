@@ -250,7 +250,7 @@ def main():
     if a.pools_only:
         for given, src, sub in ((a.pbpb_pools, a.pbpb, "pbpb"),
                                 (a.vacuum_pools, a.vacuum, "vacuum")):
-            if not given and os.path.exists(src):
+            if not given and (os.path.exists(src) or glob.glob(src)):   # a directory or a glob
                 pool_files(None, src, sub)
         return
     pb = zm.Pool.load(pool_files(a.pbpb_pools, a.pbpb, "pbpb"))

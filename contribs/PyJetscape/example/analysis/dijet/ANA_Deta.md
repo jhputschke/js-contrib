@@ -33,19 +33,24 @@ event the fraction of its 40 oversamples in each class weighs its contents:
 | B | the bulk alone | closure: what the bulk leaks |
 | pp | the vacuum events | the baseline (F, O) |
 
-## 0. Set-up (once)
+## 0. Set-up (once, on the RTX box)
+
+Only js-contrib changes (branch `dijet_deta`); X-SCAPE and its build stay as they are.
 
 ```bash
-EX=<repo>/contribs/PyJetscape/example        # conda env js_fno (rhicML: the analysis env)
+cd <X-SCAPE>/external_packages/js-contrib && git fetch && git checkout dijet_deta
+EX=$PWD/contribs/PyJetscape/example          # the analysis env (python with fastjet, uproot, ROOT)
 A=$EX/analysis; RUNS=$A/runs
 C=00                                         # the campaign, then 01, ...
-PB=/data/zjet_c$C                            # its hadron files (the GPU subdirectories: a glob)
+PB="/data/zjet_c$C/gpu*/*_hadrons_jet_frag.h5"   # its files in gpu0/, gpu1/ (quoted glob)
 PP=/data/zjet_pp                             # GB10: $RUNS/zjet_test/data/vacuum_all
-cd $EX/analysis_root/zjet && make FASTJET_PY=$(python -c 'import fastjet, os; print(os.path.dirname(fastjet.__file__))')
+cd $EX/analysis_root/zjet && make clean && make FASTJET_PY=$(python -c 'import fastjet, os; print(os.path.dirname(fastjet.__file__))')
+bash $A/zjet/get_hepdata.sh                  # CMS's records, now with HIN-25-012 (ins3123406)
 ```
 
 The C++ map steps against the Python wheel's FastJet (plan A4: one FastJet for both routes).
-Old c00 outputs from before the layout move: `runs/zjet_c00/{data,figures}` (`zjet/README.md`).
+Old outputs from before the layout move (`analysis/zjet_test/data/*_c00`, `figures/`) go to
+`runs/zjet_c00/{data,figures}` first (`zjet/README.md`, js-contrib PR #63).
 
 ## 1. The map step at R = 0.4, once per campaign (plan A5)
 
@@ -54,7 +59,7 @@ campaign maps only itself, and combinations are lists of runs at load time.
 
 ```bash
 # Python on the HDF5 files, one process per --files slice (~0.3 s per Pb+Pb oversample)
-N=$(ls $PB/*_hadrons_jet_frag.h5 | wc -l)
+N=$(ls $PB | wc -l)                          # 100 files
 for i in $(seq 0 $((N - 1))); do
   python $A/zjet/zjet_jets_map.py "$PB" $RUNS/zjet_c$C/data/jets_r04 --R 0.4 --files $i:$((i + 1)) &
 done; wait
@@ -68,17 +73,25 @@ python $A/zjet/zjet_jets_map.py $PP $RUNS/zjet_pp/data/jets_r04 --R 0.4
 ## 2. The pools (version 4), once per campaign
 
 ```bash
-python $A/zjet/mix.py --pbpb "$PB" --pools $RUNS/zjet_c$C/data/mix --vacuum $PP --jobs 16 --pools-only
-#   -> runs/zjet_c$C/data/mix/pbpb/*.npz (and mix/vacuum for the pp, once)
+python $A/zjet/mix.py --pbpb "$PB" --vacuum none --pools $RUNS/zjet_c$C/data/mix --jobs 16 --pools-only
+#   -> runs/zjet_c$C/data/mix/pbpb/*.npz
+python $A/zjet/mix.py --pbpb none --vacuum $PP --pools $RUNS/zjet_pp/data/mix --jobs 16 --pools-only
+#   -> runs/zjet_pp/data/mix/vacuum/*.npz (the pp, once)
 # C++: $EX/analysis_root/zjet/zhadron_pools $RUNS/zjet_c$C/data/root $RUNS/zjet_c$C/data/mix_cxx/pbpb
 ```
 
 ## 3. Checks (plan A4)
 
 ```bash
+# the map step at R = 0.3 unchanged: one c00 file mapped again (all samples, ~20 min in
+# Python; the old map step's options, its log), against the old output of the same file
+python $A/zjet/zjet_jets_map.py "$PB" <scratch>/r03 --files 0:1
+python $A/zjet/test/cmp_outputs.py $RUNS/zjet_c00/data/jets <scratch>/r03     # -> IDENTICAL
 # campaigns mapped apart and loaded together = one mapping (the first files of c00 and c01)
-python $A/zjet/test/combine_check.py --campaign "/data/zjet_c00/gpu0/*seed000[12]_*" \
-    --campaign "/data/zjet_c01/gpu0/*seed010[12]_*" --out <scratch>/combine --samples 2
+python $A/zjet/test/combine_check.py \
+    --campaign "/data/zjet_c00/gpu0/*_seed000[12]_hadrons_jet_frag.h5" \
+    --campaign "/data/zjet_c01/gpu0/*_seed100[12]_hadrons_jet_frag.h5" \
+    --out <scratch>/combine --samples 2       # campaign C's seeds start at 1 + 1000 C
 # the C++ map steps against the Python ones at R = 0.4 (one file, --samples 2)
 python $A/zjet/zjet_jets_map.py "$PB" <scratch>/py --R 0.4 --samples 2 --files 0:1
 $EX/analysis_root/zjet/zjets $RUNS/zjet_c$C/data/root <scratch>/cxx --R 0.4 --samples 2 --files 0:1
@@ -99,7 +112,7 @@ oversample) relative to the full events' jet2: the input of D2's revisit (60/30 
 ## 5. The analysis
 
 ```bash
-D="--pools $RUNS/zjet_c$C/data/mix/pbpb --vacuum-pools $RUNS/zjet_c$C/data/mix/vacuum \
+D="--pools $RUNS/zjet_c$C/data/mix/pbpb --vacuum-pools $RUNS/zjet_pp/data/mix/vacuum \
    --jets $RUNS/zjet_c$C/data/jets_r04 --pp-jets $RUNS/zjet_pp/data/jets_r04 --run zjet_c$C"
 python $A/dijet/deta.py $D --tag _c$C                          # the baseline
 python $A/dijet/deta.py $D --tag _c${C}_noxcut --no-xcut       # the variants (B4.7)
@@ -115,7 +128,7 @@ combination's run:
 
 ```bash
 python $A/dijet/deta.py --pools $RUNS/zjet_c00/data/mix/pbpb $RUNS/zjet_c01/data/mix/pbpb \
-    --vacuum-pools $RUNS/zjet_c00/data/mix/vacuum --jets $RUNS/zjet_c00/data/jets_r04 \
+    --vacuum-pools $RUNS/zjet_pp/data/mix/vacuum --jets $RUNS/zjet_c00/data/jets_r04 \
     $RUNS/zjet_c01/data/jets_r04 --pp-jets $RUNS/zjet_pp/data/jets_r04 --run zjet_c00-01 --tag _c00-01
 ```
 
@@ -129,7 +142,20 @@ python $A/dijet/deta.py --pools $RUNS/zjet_c00/data/mix/pbpb $RUNS/zjet_c01/data
 | `deta_closure<tag>.png` | N, B, W, O and F − T |
 | `deta_yw<tag>.png` | the Yang–Wang form: the Z-side dN/dη, \|η_jet2\| 0.8–1.6 minus < 0.8, and other minus same hemisphere |
 | `deta_integrated<tag>.png` | the integral over −2.5 < Δy < −0.5 per class (CMS's Fig. 3 quantity) |
+| `deta_cms<tag>.png` | against CMS HIN-25-012's HEPData (`cms25012.py`): Table 3 (PbPb 0–30 % − pp, four panels), Tables 1–2 (pp and PbPb 0–30 %, 1.0–1.5), Table 4 (the integral against centrality, the model at 0–30 %); χ² in the summary |
 | `deta_summary<tag>.txt` | the selection, the effective Z's per class, the fake jet2, the integrals of every content, the closure χ², the noise per effective Z (R4), the Yang–Wang differences |
+
+## Against CMS
+
+`deta.py` reads CMS HIN-25-012's record (`--hepdata`, default `runs/hepdata/HEPData-ins3123406-v1-yaml`)
+and puts the model into CMS's 23 bins of 0.2 (−2.5 … 2.1) and CMS's convention. The record
+gives no unit; its Table 4 is exactly the sum of Table 3's 10 bins centred −2.4 … −0.6 (values
+and both errors), so `--cms-norm per-bin` (the default) reads Tables 1–3 as yields per bin of
+0.2: the model's per-unit-Δy values × 0.2. `--cms-norm per-unit` is the other reading (×1; then
+Table 4 would be 5× an integral). With the Z as jet1 (p_T^Z > 60 GeV against jet1 > 130 GeV)
+the comparison is a shape reference, not like for like; it is the comparison of the dijet
+productions (plan Phase C). CMS's own pp is not flat at 1–2 GeV either (Table 1: about −0.05
+per bin at negative Δη).
 
 ## Reading the closure (plan B4)
 
@@ -145,6 +171,14 @@ python $A/dijet/deta.py --pools $RUNS/zjet_c00/data/mix/pbpb $RUNS/zjet_c01/data
 
 The jackknife needs many backgrounds: with a few (the GB10's mini campaign: 8) the errors and
 χ² are not meaningful, only the mechanics.
+
+## What to bring back from the RTX box
+
+The summaries `runs/zjet_c00/figures/deta_summary_c00*.txt`, `runs/zjet_c00-01/…`, the jet QA
+summary at R = 0.4 (`qa_jets_summary_c00_r04.txt`), `gap_count.py`'s table, the logs' times
+of the R = 0.4 map steps and the pools, and the check outputs of step 3: they decide D2 (the
+fake jet2), give R4 (the noise per effective Z: the size of the dijet production) and close
+plan A4/A5.
 
 ## The GB10 test (the mini campaign, 2026-10-18)
 
