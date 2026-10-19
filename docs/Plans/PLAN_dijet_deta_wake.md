@@ -70,7 +70,7 @@ What it misses:
 ## 2. Statistics
 
 Counted on c00 at **R = 0.3** (the existing map step; to be redone at R = 0.4, A5) with
-`gap_count.py` (2026-10-18, so far outside the repo; it goes to `analysis/zjet_test/` with A5)
+`analysis/zjet_test/gap_count.py`
 (Z: mass 70–110 GeV and the leptons of `zjet_jets.z_selection`, |y_Z| < 1; jet2:
 the leading jet, |η| < 2, Δφ > 5π/6, per oversample). Effective events = N_eff of the Z's (window
 and N_coll weights) × the class's weighted fraction:
