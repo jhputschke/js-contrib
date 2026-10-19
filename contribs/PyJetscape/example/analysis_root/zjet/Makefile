@@ -23,13 +23,13 @@ RPATH          := -Wl,-rpath,$(shell $(ROOT_CONFIG) --libdir)
 
 all: zhadron_pools zjets zqa
 
-zhadron_pools: zhadron_pools.cxx ZJetCommon.h ../HadronFileReader.h
+zhadron_pools: zhadron_pools.cxx ZJetCommon.h ../common/AnaCommon.h ../HadronFileReader.h
 	$(CXX) $(CXXFLAGS) -o $@ $< $(ROOTLIBS) $(RPATH)
 
-zjets: zjets.cxx ZJetCommon.h ../HadronFileReader.h
+zjets: zjets.cxx ZJetCommon.h ../common/AnaCommon.h ../HadronFileReader.h ../common/JetMap.h
 	$(CXX) $(CXXFLAGS) $(FJFLAGS) -o $@ $< $(ROOTLIBS) $(FJLIBS) $(RPATH)
 
-zqa: zqa.cxx ZJetCommon.h ../HadronFileReader.h
+zqa: zqa.cxx ZJetCommon.h ../common/AnaCommon.h ../HadronFileReader.h
 	$(CXX) $(CXXFLAGS) -o $@ $< $(ROOTLIBS) $(RPATH)
 
 clean:

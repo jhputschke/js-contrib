@@ -27,14 +27,26 @@ Weights
 -------
 Every event weighs ``sigma_k / N_k`` (its pTHat window's cross section over the events in
 that window) times its ``n_coll``: the geometry is drawn with P(b) ~ b and every event gets
-one Z, while Z production scales with N_coll.  :func:`event_weights` normalizes them to
-mean 1 over the selected events, so ``HadronFileReader``'s event averages become weighted
-averages (it divides by the number of events).
+one Z, while Z production scales with N_coll.  :func:`event_weights` (``jetcorr.weights``)
+normalizes them to mean 1 over the selected events, so ``HadronFileReader``'s event averages
+become weighted averages (it divides by the number of events).  The angles and the portable
+random choices are ``jetcorr.keys``'; both are re-exported here.
 """
 
 from __future__ import annotations
 
+import os
+import sys
+
 import numpy as np
+
+try:
+    import jetcorr  # noqa: F401
+except ImportError:                                   # example/analysis not on sys.path
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from jetcorr.keys import (event_key, fnv1a64, key_index, key_uniform,  # noqa: E402,F401
+                          splitmix64, wrap_dphi)
+from jetcorr.weights import effective_events, event_weights, weight_fn  # noqa: E402,F401
 
 #: |pid| of a Z's decay leptons
 LEPTON_PIDS = (11, 13)
@@ -43,47 +55,6 @@ LEPTON_PIDS = (11, 13)
 CMS_2507 = dict(pt=(40.0, 350.0), ymax=2.4, mass=(60.0, 120.0), lep_pt=20.0, lep_eta=2.4)
 #: CMS 2103.04377 (Z-hadron, p_T^Z > 30)
 CMS_2103 = dict(pt=(30.0, np.inf), ymax=None, mass=(60.0, 120.0), lep_pt=20.0, lep_eta=2.4)
-
-
-def wrap_dphi(dphi, lo=-np.pi / 2):
-    """Angles into [lo, lo + 2 pi)."""
-    return np.mod(np.asarray(dphi) - lo, 2 * np.pi) + lo
-
-
-# ── portable random choices (the same in analysis_root/zjet/ZJetCommon.h) ─────────────
-_M64 = (1 << 64) - 1
-
-
-def splitmix64(x):
-    """SplitMix64's output function of a 64-bit integer."""
-    x = (int(x) + 0x9E3779B97F4A7C15) & _M64
-    x = ((x ^ (x >> 30)) * 0xBF58476D1CE4E5B9) & _M64
-    x = ((x ^ (x >> 27)) * 0x94D049BB133111EB) & _M64
-    return x ^ (x >> 31)
-
-
-def fnv1a64(text):
-    """FNV-1a 64-bit hash of a string's UTF-8 bytes."""
-    h = 0xCBF29CE484222325
-    for b in text.encode():
-        h = ((h ^ b) * 0x100000001B3) & _M64
-    return h
-
-
-def event_key(seed, name, event):
-    """A 64-bit key of (seed, the production file's name, the event in the file): the same
-    whatever other files a campaign holds, and in C++ and Python alike."""
-    return splitmix64(splitmix64(fnv1a64(name) ^ (int(seed) & _M64)) ^ (int(event) & _M64))
-
-
-def key_index(key, n, salt=0):
-    """An index in [0, n) from a key (and a salt for several choices per key)."""
-    return splitmix64(key ^ (int(salt) & _M64)) % int(n)
-
-
-def key_uniform(key, salt=0):
-    """A uniform number in [0, 1) from a key and a salt (53 bits)."""
-    return (splitmix64(key ^ (int(salt) & _M64)) >> 11) * 2.0 ** -53
 
 
 # ── the event record ──────────────────────────────────────────────────────────────
@@ -137,29 +108,6 @@ def select(table, pt=(40.0, 350.0), ymax=2.4, mass=(60.0, 120.0), lep_pt=20.0, l
     return ok
 
 
-def event_weights(table, sel, ncoll=True):
-    """Per-event weights sigma_k / N_k (x n_coll), normalized to mean 1 over ``sel``; 0
-    outside it.  N_k counts all events of window k (the selection is physics, not
-    sampling).  Without windows every event has sigma 1; without n_coll it is left out."""
-    t = table
-    w = np.ones(len(sel))
-    if np.any(t["pthat_bin"] >= 0):
-        nk = np.bincount(np.clip(t["pthat_bin"], 0, None), minlength=1).astype(float)
-        w = t["sigma_bin"] / nk[np.clip(t["pthat_bin"], 0, None)]
-    if ncoll and np.all(np.isfinite(t["n_coll"][sel])):
-        w = w * t["n_coll"]
-    w = np.where(sel, w, 0.0)
-    if sel.any():
-        w = w / w[sel].mean()
-    return w
-
-
-def effective_events(w, sel):
-    """Kish's effective number of events of weights ``w`` over ``sel``."""
-    x = w[sel]
-    return float(x.sum() ** 2 / np.sum(x ** 2)) if len(x) else 0.0
-
-
 # ── per-hadron callables for HadronFileReader ─────────────────────────────────────
 def z_frame(ev, info):
     """(deta, dphi) of every hadron in its event's Z frame."""
@@ -191,11 +139,6 @@ def track_mask(eta_max=2.4, charged=True):
             m &= ev.charged
         return m & not_z_lepton(ev, info)
     return mask
-
-
-def weight_fn(w):
-    """weights(ev, info): every hadron of an event gets the event's weight ``w[event]``."""
-    return lambda ev, info: np.full(len(ev), w[info.event])
 
 
 # ── the binned Z-frame yields ─────────────────────────────────────────────────────

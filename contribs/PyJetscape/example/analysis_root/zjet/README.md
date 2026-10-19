@@ -17,7 +17,8 @@ CMS smearing, HEPData, χ², jackknife, figures). Every map step has a Python tw
 
 | file | |
 |---|---|
-| `ZJetCommon.h` | the C++ mirror of `zjet_wake.py`: Z selection, event weights, track mask, Z frame, numpy's binning conventions, the portable random choices (`event_key`, `key_index`, `key_uniform`) |
+| `ZJetCommon.h` | the C++ mirror of `zjet_wake.py`: Z selection, track mask, Z frame and its grid |
+| `../common/AnaCommon.h`, `../common/JetMap.h` | shared with later analyses (the mirror of `../../analysis/jetcorr`): numpy's binning conventions, the portable random choices (`event_key`, `key_index`, `key_uniform`), event weights and background ids, the command line; the jet finding (anti-k_T, ρA with `StripRho`, the jet columns) |
 | `zhadron_pools.cxx` | the Z–hadron map step → `<out>/<stem>_pool.root` |
 | `zjets.cxx` | the Z+jet map step → `<out>/<stem>_jets.root` |
 | `zqa.cxx` | the QA map step (the twin of `zjet/qa.py map`) → `<out>/<stem>_qa.root`: a table per Z event (the Z, weights, N_coll, the total charged multiplicity per source) and per-source hadron histograms; drawn by `qa.py plot` |

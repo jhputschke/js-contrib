@@ -11,12 +11,13 @@ step: [`ANA_Zhadron.md`](ANA_Zhadron.md) (QA, the pools, event mixing, the ROOT 
 
 ```
 example/analysis/
-  jetcorr/            what zjet/ and dijet/ share: run paths (runs.py), figure data (figdata.py, replot.py)
+  jetcorr/            what zjet/ and dijet/ share: run paths, keys, weights, jets, figure data
   zjet/               this folder: the workflow
     setup/            the first 96-event test and the campaign set-up checks (setup/README.md)
   dijet/              the η-separated dijet analysis, first with the Z as jet1 (gap_count.py)
   runs/<run>/         data/ and figures/ of one campaign or test set (git-ignored)
 example/analysis_root/zjet/   the C++ map steps (zqa, zhadron_pools, zjets; README.md there)
+example/analysis_root/common/ what they share with later analyses (AnaCommon.h, JetMap.h)
 ```
 
 ## The workflow
