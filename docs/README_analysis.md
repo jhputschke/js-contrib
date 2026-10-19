@@ -293,7 +293,7 @@ and keep processes × threads at or below the cores:
 | `tau_freezeout`, `tau_freezeout_bg` | `(nevents,)` | when each leg's hydro ended [fm/c] |
 | `source/droplets`, `source/offsets` | `(M, 8)`, `(nevents + 1,)` | the droplets MUSIC_2 received: `tau, x, y, eta, E, px, py, pz`; event i is rows `offsets[i]:offsets[i+1]` |
 | `shower/` | | the shower graphs (partons, vertices, initiators), read with `jetscape.showers` |
-| `diag/` | `(nevents,)` each | `E_droplets`, `n_droplets`, `bg_id`, `frames_identical`, `{bg,jet}_hit_edge`, `{bg,jet}_hit_boundary`, `tau0_music`, `wall_s`, with pT̂ windows `pthat_bin`, `pthat`, `event_weight` |
+| `diag/` | `(nevents,)` each | `E_droplets`, `n_droplets`, `bg_id`, `frames_identical`, `{bg,jet}_hit_edge`, `{bg,jet}_hit_boundary`, `tau0_music`, `eloss_tstart` (where the jets' medium interaction started), `wall_s`, with pT̂ windows `pthat_bin`, `pthat`, `event_weight` |
 
 - **The grid** is in the attributes: `x_min`, `dx`, `nx` (and `y_*`, `eta_*`), `tau_min`,
   `dtau`. Production default (`grid_fno.yaml`): 64 × 64 × 32 cells, x, y −12.2 … 12.2 fm at

@@ -915,7 +915,7 @@ On top of the single-leg schema (`arr`, `ntau_freezeout`, `tau_freezeout`, grid 
 | `arr_bg`, `ntau_freezeout_bg`, `tau_freezeout_bg` | the background leg (MUSIC_1). Always the same shape as `arr`; the τ axis grows to the longer leg, and each leg is exactly 0 after its own freeze-out. |
 | `source/droplets` (M, 8), `source/offsets` | the droplets MUSIC_2 was given: `tau, x, y, eta, E, px, py, pz`. Event `i` is rows `offsets[i]:offsets[i+1]`. No `source/S` (`has_source = false`): MUSIC keeps no gridded source. |
 | `shower/` | partons, vertices and initiators per event (`jetscape.showers`, as in FastHydro) |
-| `diag/` | `n_droplets`, `E_droplets`, `n/E_droplets_late` (deposit after the jet leg froze out), `n/E_droplets_early`, `n_showers`, `n_partons`, `tau0_music`, `ntau_jet`, `ntau_bg`, `bg_id`, `frames_identical`, `bg_hit_boundary`, `jet_hit_boundary`, `{bg,jet}_edge_e_max`, `{bg,jet}_edge_e_max_eta`, with `edge_e_threshold` also `{bg,jet}_hit_edge` |
+| `diag/` | `n_droplets`, `E_droplets`, `n/E_droplets_late` (deposit after the jet leg froze out), `n/E_droplets_early`, `n_showers`, `n_partons`, `tau0_music`, `eloss_tstart` (the start of Matter's and LBT's medium interaction, = MUSIC_1's tau0), `ntau_jet`, `ntau_bg`, `bg_id`, `frames_identical`, `bg_hit_boundary`, `jet_hit_boundary`, `{bg,jet}_edge_e_max`, `{bg,jet}_edge_e_max_eta`, with `edge_e_threshold` also `{bg,jet}_hit_edge` |
 | attributes | `pairing = "bg_jet"`, `arr_is`, `arr_bg_is`, `deposition`, `source_model`, `hard_vertex`, `liquefier_*`, `freezeout_convention_id = "frames_written"` |
 
 The ragged tables (`source/`, `shower/`) and `diag/` are written as each event arrives, so a
