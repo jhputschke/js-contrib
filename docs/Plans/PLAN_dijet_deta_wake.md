@@ -277,15 +277,23 @@ conversion is bit-exact (`prod_AuAu_0_10_jet/root_export/check_h5_vs_root.py`). 
 (`load_jets`, `Pool.load`: `*_jets.root` of both, `*_pool.root` or `.npz`). What it gains,
 measured on the GB10 with one process alone on that file:
 
-| | time | memory (max RSS) |
+| | C++ `zjets` (ROOT) | Python `zjet_jets_map.py` (HDF5) |
 |---|---|---|
-| C++ `zjets` (ROOT) | 180 s | 0.99 GB |
-| Python `zjet_jets_map.py` (HDF5) | 203 s | 2.56 GB |
+| as first measured (FastJet's ρ_m computed, unused) | 180 s | 203 s |
+| ρ without ρ_m (2026-10-19, d420b20; outputs bit-identical) | 121 s | 142 s |
+| `--emb-samples 4` (f8e547c) | **65 s** | 94 s |
+| memory (max RSS) | 0.98 GB | 2.55 GB |
 
-C++ is only ~1.1× faster per process (on rhicML at R = 0.3 with 2 samples 19.5 s against
-29 s), but needs 2.6× less memory, which sets how many processes run side by side on the box.
-Per campaign (100 files of 96 events) about 10 CPU-hours in C++ (6 min per file on the GB10),
-so ~15–20 min with 30–40 processes if the box's cores are as fast (**verify** there). The cost
+C++ is 1.2–1.5× faster per process (on rhicML at R = 0.3 with 2 samples 19.5 s against 29 s)
+and needs 2.6× less memory, which sets how many processes run side by side on the box. Two
+speed-ups since the first measurement: FastJet's background estimator computed ρ_m by default
+from every k_T jet's constituents, a quarter of the time, for nothing the map steps use (now
+off, `--rho-m 1` / `--rho-m` turns it back on and stores ρ_m per jet); and `--emb-samples N`
+embeds only the first N oversamples (the embedded event is half of what is left; the dijet
+proxy needs only the full event's jets, the Z cone and `bg_jets`, which every oversample keeps;
+4 are plenty for the embedding's JES/JER and Z+jet's step 1). With `--emb-samples 4`, per
+campaign (100 files of 96 events) about 3.6 CPU-hours in C++, ~6 min with 40 processes if the
+box's cores are as fast (**verify** there). The cost
 is one conversion per campaign, reused by every later map step (any R, the pools, `zqa`): 2
 files of 48 events in 9 s with one process, the ROOT files ~0.8× the HDF5's; c00 may already
 have one from `ANA_Zjet.md` route B (B1). One route per campaign keeps a campaign's outputs
@@ -301,8 +309,8 @@ the commands in `analysis/dijet/ANA_Deta.md` §1–2):
    runs/zjet_cNN/data/root --campaign …` → 0 differences; the pp alike (`runs/zjet_pp/data/root`).
 3. Map, one process per file, as many in parallel as memory allows (~1 GB each):
    `seq 0 99 | xargs -P 40 -I{} sh -c 'zjets runs/zjet_cNN/data/root runs/zjet_cNN/data/jets_r04
-   --R 0.4 --files {}:$(({} + 1)) > runs/zjet_cNN/data/logs/zjets_r04_{}.log 2>&1'`; the pp in
-   one process (seconds).
+   --R 0.4 --emb-samples 4 --files {}:$(({} + 1)) > runs/zjet_cNN/data/logs/zjets_r04_{}.log
+   2>&1'`; the pp in one process (seconds).
 4. Pools (v4) in C++: `zhadron_pools runs/zjet_cNN/data/root runs/zjet_cNN/data/mix/pbpb`
    (`--files` slices in parallel likewise); the pp into `runs/zjet_pp/data/mix/vacuum`.
 5. Check (A4): the jets on one file, `zjet_jets_map.py "$PB" … --R 0.4 --samples 2 --files 0:1`
@@ -441,7 +449,7 @@ in the form of `zjet/ANA_Zjet.md`; the result note `runs/zjet_c00/figures/ANALYS
 | A1–A2 | R in `Clusterer`, `--R`, `run_info`, `zcone` in both map steps; QA and final stage read R | – |
 | A3 | per-event `S_zc`, `S_frag`, `L_*` in both pool writers | – |
 | A4 | regressions, `check_cxx.py jets` / `pools` | minutes |
-| A5 | map step at R = 0.4 (c00, then c01), pools rebuilt, counts again | C++ route (A5's remark): ~10 CPU-hours per campaign, ~15–20 min with 30–40 processes of ~1 GB (**verify** on the box); pools seconds per file; one conversion per campaign |
+| A5 | map step at R = 0.4 (c00, then c01), pools rebuilt, counts again | C++ route with `--emb-samples 4` (A5's remark): ~3.6 CPU-hours per campaign, ~6 min with 40 processes of ~1 GB (**verify** on the box); pools seconds per file; one conversion per campaign |
 | B1–B4 | `jetcorr/deta_asym.py`, `dijet/deta.py --trigger z`, the closure tests on c00 | seconds to minutes per run |
 | B5–B6 | results on c00 + c01, comparisons, documents; again with each new campaign | minutes |
 | C | dijet production: windows, `dijet/` map step, pools in jet1's frame (`jetcorr/`), HEPData | after B5's R4 |

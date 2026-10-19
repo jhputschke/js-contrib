@@ -47,8 +47,8 @@ python $P/root_export/check_h5_vs_root.py $D/pbpb_campaign $D/root/pbpb_campaign
     --campaign $D/root/pbpb_campaign/pbpb_campaign.root      # every hadron, column, sigma
 # 2. the map steps (--files i:j for one slice of the files; the weights read all of them)
 ./zhadron_pools $D/root/pbpb_campaign $D/mix_cxx/pbpb [--seed 1] [--eta-max 2.4]
-./zjets $D/root/pbpb_campaign $D/jets_cxx/pbpb_campaign [--samples N] [--cones 4] [--ptmin 5] \
-    [--qa-samples 1]
+./zjets $D/root/pbpb_campaign $D/jets_cxx/pbpb_campaign [--R 0.3] [--samples N] [--cones 4] \
+    [--ptmin 5] [--qa-samples 1] [--emb-samples N] [--rho-m 1]
 # 3. the final stage (Python)
 cd ../../analysis/zjet
 python mix.py --pbpb-pools data/mix_cxx/pbpb --vacuum-pools data/mix_cxx/vacuum --tag _cxx
@@ -100,6 +100,14 @@ fragmentation k in vacuum; all final particles but neutrinos and the Z's two lep
 - **Jets**: anti-k_T R = `--R` (0.3), p_T,raw > 1 GeV, p_T > `--ptmin` (5 GeV) after the
   subtraction, |η| < 2; per jet also its mass, the number of its real (non-ghost) constituents
   and the leading one's p_T.
+- **Speed** (2026-10-19): FastJet's background estimator no longer computes ρ_m, which it
+  does by default from every k_T jet's constituents (a quarter of the time; ρ unchanged bit for
+  bit); `--rho-m 1` turns it back on and stores ρ_m per jet (`<prefix>_rho_m`, for jet-mass
+  subtraction; ρ unchanged, ~1.6× the time with `--emb-samples 4`). `--emb-samples N` embeds only the first N oversamples (`emb_*`, `nw_*`,
+  `zcone_nw_*`; the jets, the Z cone and the random cones of every oversample unchanged): one
+  48-event Pb+Pb file at R = 0.4, 40 oversamples, 180 s before, 121 s now, 65 s with
+  `--emb-samples 4`. `zjet_jets.py` takes step 1 and the no-wake rows from the embedded
+  oversamples only.
 - **Records** (2026-10-18): `file_info` (the production file's name, events, hydro backgrounds
   and pTHat windows) and `run_info` (R, ghost area, `--ptmin`, `--cones`, `--seed`, ...): every
   output stands alone, and `zjet_jets.load_jets` rebuilds the ids and `weight_mb` of any set of

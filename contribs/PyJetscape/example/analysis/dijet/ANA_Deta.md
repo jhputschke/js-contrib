@@ -59,10 +59,26 @@ campaign maps only itself, and combinations are lists of runs at load time.
 
 **Route: C++ on the converted files (recommended).** The same outputs as the Python map step
 on the HDF5 files (`check_cxx.py jets` / `pools`: 0 differences, floats within 3·10⁻¹³; the
-conversion bit-exact), 1.1× faster per process and 2.6× less memory (GB10, one 48-event file,
-40 oversamples, R = 0.4: 180 s and 0.99 GB against 203 s and 2.56 GB), so more processes
-side by side; about 10 CPU-hours per campaign (plan A5, its remark). The conversion is done
-once per campaign and serves every later map step (an existing one from `ANA_Zjet.md` B1 too).
+conversion bit-exact), faster and with 2.6× less memory (0.98 against 2.55 GB), so more
+processes side by side. The conversion is done once per campaign and serves every later map
+step (an existing one from `ANA_Zjet.md` B1 too).
+
+**Speed** (GB10, one 48-event campaign file, 40 oversamples, R = 0.4, one process alone):
+
+| | C++ `zjets` | Python `zjet_jets_map.py` |
+|---|---|---|
+| before 2026-10-19 (FastJet's ρ_m computed and unused) | 180 s | 203 s |
+| ρ without ρ_m (now always; outputs bit-identical) | 121 s | 142 s |
+| `--emb-samples 4` | **65 s** | 94 s |
+
+`--emb-samples 4` embeds (fragments alone and in `bulk_bg`: `emb_*`, `nw_*`, `zcone_nw_*`)
+only the first 4 oversamples: enough for the embedding's JES/JER at R = 0.4 (D4) and Z+jet's
+step 1 / no-wake rows (`zjet_jets.py` uses only those rows); the jets, the Z cone and the
+random cones of every oversample, all the dijet proxy uses, are unchanged. About 3.6
+CPU-hours per campaign in C++ (100 files of 96 events), ~6 min with 40 processes.
+`--rho-m 1` (C++; Python `--rho-m`) adds ρ_m per jet (`*_rho_m`, for jet-mass subtraction;
+ρ unchanged bit for bit): 108 s instead of 65 s in C++ with `--emb-samples 4`, 134 instead of
+90 s in Python.
 
 ```bash
 P=$EX/prod_AuAu_0_10_jet; Z=$EX/analysis_root/zjet; D=$RUNS/zjet_c$C/data
@@ -73,7 +89,7 @@ python $P/root_export/check_h5_vs_root.py "$PB" $D/root --campaign $D/root/zjet_
 # the map step, one process per file, 40 at a time (~1 GB each; 100 files)
 N=$(ls $PB | wc -l)
 seq 0 $((N - 1)) | xargs -P 40 -I{} sh -c \
-  "$Z/zjets $D/root $D/jets_r04 --R 0.4 --files {}:\$(({} + 1)) > $D/logs/zjets_r04_{}.log 2>&1"
+  "$Z/zjets $D/root $D/jets_r04 --R 0.4 --emb-samples 4 --files {}:\$(({} + 1)) > $D/logs/zjets_r04_{}.log 2>&1"
 grep -h " Z events" $D/logs/zjets_r04_*.log | wc -l            # N files done
 # the pp, once
 python $P/run_h5toROOT.py $PP --out-dir $RUNS/zjet_pp/data/root --campaign-file $RUNS/zjet_pp/data/root/zjet_pp_campaign.root
@@ -84,7 +100,7 @@ $Z/zjets $RUNS/zjet_pp/data/root $RUNS/zjet_pp/data/jets_r04 --R 0.4
 
 ```bash
 seq 0 $((N - 1)) | xargs -P 16 -I{} sh -c \
-  "python $A/zjet/zjet_jets_map.py '$PB' $D/jets_r04 --R 0.4 --files {}:\$(({} + 1)) > $D/logs/jets_r04_{}.log 2>&1"
+  "python $A/zjet/zjet_jets_map.py '$PB' $D/jets_r04 --R 0.4 --emb-samples 4 --files {}:\$(({} + 1)) > $D/logs/jets_r04_{}.log 2>&1"
 python $A/zjet/zjet_jets_map.py $PP $RUNS/zjet_pp/data/jets_r04 --R 0.4
 ```
 
