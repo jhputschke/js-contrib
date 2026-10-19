@@ -50,7 +50,7 @@ def count(E, J, ncoll, label, prefix="jet"):
         f_rows = []
         for lo, hi in [(0.0, np.inf)] + GAPS:
             r = ok & (gap >= lo) & (gap < hi)
-            p = np.bincount(ev, weights=r / ns, minlength=len(E))    # per-event fraction
+            p = np.bincount(ev, weights=r / ns, minlength=len(E["event"]))   # per-event fraction
             f_rows.append((w * p).sum() / w.sum())
         cells = " | ".join(f"{f:10.3f} {neff * f:6.0f}" for f in f_rows[1:])
         print(f"{zpt:5d} {jpt:5d} | {sel.sum():5d} {neff:7.0f} | {f_rows[0]:6.3f} | {cells}")
