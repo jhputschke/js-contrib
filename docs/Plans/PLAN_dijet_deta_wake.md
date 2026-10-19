@@ -9,10 +9,31 @@ exist, with the Z standing in for jet1. That is more than a prototype: Yang & Wa
 γ/Z+jet and computed it with CoLBT-hydro, so the Z version is a result in its own right. The Z
 test also measures the noise per event that sets the size of the later dijet production.
 
-Written against js-contrib `zjet` 72cb15e. Data in hand: campaigns `zjet_c00` and `zjet_c01`
-(19,200 Pb+Pb 0–30 % events on 800 hydro backgrounds, `/data/zjet_c0*`), the c00 jet map step at
-R = 0.3 (`analysis/runs/zjet_setup/data/jets_c00/`), the c00 and c00+c01 Z–hadron pools, and the pp
-reference. Items marked **verify** were inferred from reading the code and have not been run.
+Written against js-contrib `zjet` 72cb15e; paths and line numbers follow the layout of branch
+`analysis_layout` (43981bd, below). Data in hand: campaigns `zjet_c00` and `zjet_c01` (19,200
+Pb+Pb 0–30 % events on 800 hydro backgrounds, `/data/zjet_c0*`), the c00 jet map step at R = 0.3,
+the c00 and c00+c01 Z–hadron pools, and the pp reference. Items marked **verify** were inferred
+from reading the code and have not been run.
+
+**Where the code and the data are** (`analysis/` and `analysis_root/` are
+`contribs/PyJetscape/example/…`; `analysis/zjet/README.md` has the layout):
+
+| what | where |
+|---|---|
+| shared and trigger-free: run paths, portable random choices, event weights, jet finding (`Clusterer`, `StripRho`), figure data | `analysis/jetcorr/` (`runs.py`, `keys.py`, `weights.py`, `jetmap.py`, `figdata.py`); C++ `analysis_root/common/` (`AnaCommon.h`, `JetMap.h`) |
+| the Z+jet workflow: QA, Z–hadron pools and mixing, the jet map step and final stages | `analysis/zjet/` (`zjet_jets_map.py`, `zjet_jets.py`, `zjet_jets_qa.py`, `mix.py`, `zjet_mixing.py`, `check_cxx.py`); C++ `analysis_root/zjet/` (`zjets`, `zhadron_pools`) |
+| this analysis | `analysis/dijet/` (`gap_count.py`; new: `deta.py`, `ANA_Deta.md`), its library `analysis/jetcorr/deta_asym.py` (new) |
+| data and figures | `analysis/runs/<run>/{data,figures}/`, git-ignored, one run per campaign; scripts take `--run` |
+
+The runs of this plan. The c00 outputs move on the analysis host from the old `zjet_test/` place
+(`mv`, git-ignored):
+
+| run | holds | formerly |
+|---|---|---|
+| `runs/zjet_c00/` | `data/jets/` (the map step at R = 0.3), `data/mix/` (pools), `data/logs/`, `figures/` (`ANALYSIS_c00.md`, `mixing_summary_c00.txt`, …) | `zjet_test/data/jets_c00/`, `data/mix_c00/`, `data/logs/`, `figures/` |
+| `runs/zjet_c01/` | c01, mapped on its own (A0) | – |
+| `runs/zjet_c00-01/` | the combination's figures (on the GB10 also its pools and QA) | `zjet_test/data-c00-01/`, `figures-c00-01/` |
+| `runs/zjet_setup/` | the 96-event test, the set-up samples, the pp reference `vacuum_all`, the HEPData records | `zjet_test/data/`, `figures/` |
 
 ## 0. The measurement and the proxy
 
@@ -62,7 +83,7 @@ What it misses:
   overpredicts the 1–2 GeV depletion and predicts an enhancement near Δη ≈ 0 from jet2's wake in
   R_sym) and CoLBT-hydro (0–10 % only; overpredicts both). Both media models get the dip's mean
   position. These are for the dijet stage (Phase C).
-- **Our own Z–hadron result** (`analysis/runs/zjet_setup/figures/ANALYSIS_c00.md` §6): the model's
+- **Our own Z–hadron result** (`analysis/runs/zjet_c00/figures/ANALYSIS_c00.md` §6): the model's
   Z-side depletion at 1–2 GeV is about half as deep as CMS 2507.09307's and absent at 2–4 GeV.
   The proxy resolves the same wake by jet rapidity, so it shows whether that deficit depends on
   where the jet goes.
@@ -87,7 +108,7 @@ pp (9,667 vacuum events) has a jet2 in 79 % at 60/30. c00 + c01 doubles the coun
 multiply them by 10.
 
 Precision (rough, factor 2: scaled from the per-Z noise of the c00 Z–hadron Δy at 1–2 GeV in
-`figures/mixing_summary_c00.txt`, × √2 for the unfolded near side): the error of R_asym − R_sym
+`runs/zjet_c00/figures/mixing_summary_c00.txt`, × √2 for the unfolded near side): the error of R_asym − R_sym
 (1.0–1.5 minus < 0.5) per 0.4-wide Δη bin at 60/30 is ±0.12 (c00) / ±0.04 (ten campaigns) on the
 truth path, ±0.5 / ±0.16 experiment-like with all 40 oversamples, ±1.5 / ±0.5 for the strict
 one-oversample emulation. CMS's dip is a few tenths per unit Δη; the model's may be about half.
@@ -103,13 +124,13 @@ depend on the set: clustering, embedding and random cones work file by file, and
 and the pools' `k_one` are keyed by (seed, file name, local event). Only bookkeeping computed over
 the whole reader is written into every file's output:
 
-- map step (`zjet_jets_map.py:183–191`, `:237–241`): `event` = the event's index over all files,
+- map step (`zjet/zjet_jets_map.py:86–94`, `:140–144`): `event` = the event's index over all files,
   `file` = the file's index, `bg` = an index from `np.unique` over (file, `bg_unit`), and
   `weight_mb` = σ_k / N_k, with σ_k the files' Pythia cross sections weighted by their accepted
   events (`HadronFileReader.pthat_bin_sigma`) and N_k the stored events of window k, both over
   all files;
-- pools (`mix.py:76–106`): the same weights, event ids and background ids are passed into
-  `zjet_mixing.file_pool`; the per-background sums (`SW`, `T`, `R`, `zjet_mixing.py:230–239`)
+- pools (`zjet/mix.py:76–106`): the same weights, event ids and background ids are passed into
+  `zjet_mixing.file_pool`; the per-background sums (`SW`, `T`, `R`, `zjet/zjet_mixing.py:230–239`)
   carry the weights; and the cache manifest is keyed by the whole source, so a new campaign
   rebuilds every pool.
 
@@ -120,10 +141,12 @@ The fix: every output self-contained, ids and weights at load time.
   `file_info` tree: per p̂_T window the file's stored events (before any cut), σ_gen, σ_err and
   accepted events. `weight_mb` stays for older readers.
 - **Loader** (`zjet_jets.load_jets`, also used by `zjet_jets_qa.py`): takes several directories
-  or globs; event ids from (file name, local event), background ids from (file name, `bg_unit`),
+  or globs (or several `--run`s); event ids from (file name, local event), background ids from (file name, `bg_unit`),
   both ordered by file name as the reader orders files; σ_k = Σ n_acc σ_gen / Σ n_acc,
   N_k = Σ n_stored, `weight_mb` = σ_k / N_k: the rule of `HadronFileReader`, so the numbers of a
-  combined run.
+  combined run. The combination rule and the key-based ids know no trigger: they go into
+  `jetcorr/weights.py` (C++ `common/AnaCommon.h`, next to `event_weights` and `background_ids`),
+  so that Phase C's dijet map step and loader take them over.
 - **Pools:** the same keys and `file_info` in every per-file pool; the per-background sums stored
   **per window and unweighted** (Σ S and the lab density over the background's events of window
   k, with their count). An event's weight factorizes as (σ_k / N_k) × N_coll with N_coll the same
@@ -131,26 +154,29 @@ The fix: every output self-contained, ids and weights at load time.
   `W`, `W2` exactly; the per-background arrays grow ×3 (six windows instead of the two weighted
   sums). One manifest per campaign directory.
 - **C++ twins:** `zjets.cxx`, `zhadron_pools.cxx` and `read_root_pool` the same.
-- **Layout:** one directory per campaign (`data/jets_r04/c00/`, `c01/`, …; `data/mix/c00/`, …);
-  a combination is a list of directories at load time, and a new campaign maps only itself.
+- **Layout:** one run per campaign (`runs/zjet_c00/data/jets_r04/`, `runs/zjet_c01/data/jets_r04/`,
+  …; `runs/zjet_cNN/data/mix/`); a combination is a list of runs at load time with its own run
+  for the figures (`runs/zjet_c00-01/figures/`), and a new campaign maps only itself.
 
 ### A1. The jet radius as an option (map steps, QA, final stage)
 
-R is a constant today: `R_JET = 0.3` in `zjet_jets_map.py:42`, `zjets.cxx:63`,
-`zjet_jets_qa.py:39`. The k_T R = 0.4 of the ρ estimate (`zjet_jets_map.py:119`, `zjets.cxx:80`)
-is a separate setting and stays.
+R is a constant today: `R_JET = 0.3` in `jetcorr/jetmap.py:10` and `common/JetMap.h:32` (the
+shared jet finding of both map steps), and in `zjet/zjet_jets_qa.py:41`. The k_T R = 0.4 of the ρ
+estimate (`jetcorr/jetmap.py:64`, `common/JetMap.h:36`) is a separate setting and stays.
 
-- `--R` in both map steps, **default 0.3** so that the existing outputs stay bit for bit. It sets
-  the anti-k_T radius, the random cones' radius and their ρπR² term (`zjet_jets_map.py:301–313`,
-  `zjets.cxx:371–374`), and the embedding's match radius `DR_MATCH` = R/2 (0.15 at 0.3).
+- R a parameter of `Clusterer` (`jetcorr/jetmap.py`, `common/JetMap.h`, default 0.3), so the
+  dijet map step of Phase C has it too; `--R` in both Z+jet map steps, **default 0.3** so that the
+  existing outputs stay bit for bit. It sets the anti-k_T radius, the random cones' radius and
+  their ρπR² term (`zjet/zjet_jets_map.py:204–216`, `zjets.cxx:263–266`), and the embedding's match
+  radius `DR_MATCH` = R/2 (0.15 at 0.3).
 - The map step writes R (and `--ptmin`, `--cones`, `--seed`) into a one-entry `run_info` tree;
   `zjet_jets.py` and `zjet_jets_qa.py` read it (the area normalization A/πR², the labels) and fall
   back to 0.3 for older files.
-- `zjet_jets.py`'s CMS 1702.01060 comparison (the resolution `RES`, N = 8.08 GeV, `:56`, and the
+- `zjet_jets.py`'s CMS 1702.01060 comparison (the resolution `RES`, N = 8.08 GeV, `zjet/zjet_jets.py:57`, and the
   HEPData χ²) is for R = 0.3: at another R it is skipped with a note, not silently applied.
 - Coverage at R = 0.4 holds: jets to |η| < 2 reach 2.4, the ghosts go to 2.6
-  (`GhostedAreaSpec(2.6, …)`, `:121`) and the particles are stored to |η| < 2.6.
-- The ghost area **stays 0.01** on the fixed grid (`zjet_jets_map.py:121`, `zjets.cxx:82`;
+  (`GhostedAreaSpec(2.6, …)`, `jetcorr/jetmap.py:66`) and the particles are stored to |η| < 2.6.
+- The ghost area **stays 0.01** on the fixed grid (`jetcorr/jetmap.py:66`, `common/JetMap.h:38`;
   decided 2026-10-18, D8) and is not made an option; `run_info` records it. Why, from the test of
   0.05 on one c00 file (4 oversamples, R = 0.3, both settings run side by side): 0.05 runs
   ~15 % faster (45 s against 53 s), but the hard jets' areas spread 3× more (A/πR² of the jets
@@ -172,7 +198,8 @@ and the same to first order; the random cones in `bulk_bg` stay as the cross-che
 
 ### A3. Per-event contents in the pools
 
-The pools (`zjet_mixing.file_pool`, `:145`; `zhadron_pools.cxx`) contain no jets and no R. Per
+The pools (`zjet_mixing.file_pool`, `zjet/zjet_mixing.py:145`; `zhadron_pools.cxx`) contain no jets
+and no R. Per
 event they hold `S_full` (40-sample mean) and `S_one` (one oversample) in the Z frame
 (p_T × Δy = η − y_Z, 0.4 wide × Δφ, π/10), the one oversample's tracks, and **per background
 only** the Z-correlated yield. To split the truth by gap class, add per event:
@@ -184,16 +211,18 @@ only** the Z-correlated yield. To split the truth by gap class, add per event:
 
 About 13 kB more per event (~100 MB for c00, ~1 GB for ten campaigns). `Pool`, `_pack`,
 `read_root_pool` and the C++ writer get the same layout; pools without the new arrays still load,
-so the Z–hadron analysis is unaffected.
+so the Z–hadron analysis is unaffected. The pools stay in `zjet/` here, tied to the Z frame;
+Phase C's pools in jet1's frame are the point to move them into `jetcorr/` with the frame as an
+input.
 
 ### A4. Regression and the C++ twins
 
-- Map step at R = 0.3 and ghost area 0.01: identical outputs to `data/jets_c00` on a few files.
+- Map step at R = 0.3 and ghost area 0.01: identical outputs to `runs/zjet_c00/data/jets/` on a few files.
 - A0: on c00, the load-time event ids, background ids and `weight_mb` equal today's columns
   exactly (map step and pools); the first files of c00 and c01 mapped separately and loaded
   together give bit for bit what the same files mapped in one run give, through the final stages
   (`zjet_jets.py`, `mix.py`).
-- `check_cxx.py jets` at R = 0.3 and R = 0.4 (Python against `zjets`), including `zcone`.
+- `zjet/check_cxx.py jets` at R = 0.3 and R = 0.4 (Python against `zjets`), including `zcone`.
 - **One FastJet for both routes.** On rhicML the `fastjet-config` on `PATH` is `/usr/local`'s
   FastJet 3.4.2, while the Python map step uses the pip wheel's 3.5.2. `make FASTJET_PY=<the
   wheel's package directory>` (Makefile, 2026-10-18) builds the C++ map steps against the
@@ -201,25 +230,27 @@ so the Z–hadron analysis is unaffected.
   contribs; the wheel's own `fastjet-config` carries its build paths, so the Makefile sets the
   flags). Checked on one c00 file (`--samples 2`, converted with `run_h5toROOT.py`):
   `check_cxx.py jets` 0 differences in every tree; C++ 19.5 s against Python 29 s.
-- Pools: the existing arrays identical to `data/mix_c00`'s; `check_cxx.py pools` covers the new
+- Pools: the existing arrays identical to `runs/zjet_c00/data/mix/`'s; `check_cxx.py pools` covers the new
   arrays; `S_full − S_zc + S_frag` and `S_zc − S_frag` are checked against the per-background
   sums.
 
 ### A5. Reruns
 
-- Map step at R = 0.4 on c00 (Pb+Pb and pp) → `data/jets_r04/c00/`; then c01 →
-  `data/jets_r04/c01/`, each once (A0). The last c00 map step took 6,335 s wall with 16 Python
-  processes (24 CPU-hours, `data/logs/jets_c00_nw_map_done.log`); the box has 48 cores, so more
+- Map step at R = 0.4 on c00 (Pb+Pb and pp) → `runs/zjet_c00/data/jets_r04/`; then c01 →
+  `runs/zjet_c01/data/jets_r04/`, each once (A0). The last c00 map step took 6,335 s wall with 16
+  Python processes (24 CPU-hours, `runs/zjet_c00/data/logs/jets_c00_nw_map_done.log`); the box has 48 cores, so more
   `--files` slices should bring it to ~40 min if memory allows (**verify**).
 - The pools with the new arrays, c00 and c00+c01 (time **verify**; the mixing alone took 514 s on
   c00).
-- `gap_count.py` again at R = 0.4 (the §2 table).
+- `dijet/gap_count.py` again at R = 0.4 (the §2 table).
 
 ## 4. Phase B — the Z-proxy analysis
 
 New: a trigger-independent library `analysis/jetcorr/deta_asym.py` (classes, reflection, contents,
 observables; the dijet stage reuses it) and the final stage `analysis/dijet/deta.py`
-(pools + R = 0.4 jet trees, Pb+Pb and pp → figures and summary). Seconds to minutes per run.
+(pools + R = 0.4 jet trees, Pb+Pb and pp → figures and summary). `deta.py --trigger z` is the Z
+proxy on the Z+jet runs (the Z from the pools and the `jet_events` tree); Phase C adds
+`--trigger jet1` on the dijet runs, the rest unchanged. Seconds to minutes per run.
 
 ### B1. Selection and classes
 
@@ -293,24 +324,29 @@ observables; the dijet stage reuses it) and the final stage `analysis/dijet/deta
 
 ### B6. Outputs and documents
 
-`figures/zjet_deta_{asym,closure,yw,integrated}_<tag>.png` with their `.npz`/`.root`
-(`figdata.py`), `zjet_deta_summary_<tag>.txt`; the step-by-step `analysis/dijet/ANA_Deta.md` in
-the form of `ANA_Zjet.md`; the result note `figures/ANALYSIS_c00_deta_proxy.md` (git-ignored with
-the figures).
+`runs/<run>/figures/deta_{asym,closure,yw,integrated}_<tag>.png` with their `.npz`/`.root`
+(`jetcorr/figdata.py`), `deta_summary_<tag>.txt`; the step-by-step `analysis/dijet/ANA_Deta.md`
+in the form of `zjet/ANA_Zjet.md`; the result note `runs/zjet_c00/figures/ANALYSIS_c00_deta_proxy.md`
+(`runs/zjet_c00-01/…` for the combination; git-ignored with the figures).
 
 ## 5. Phase C — the dijet production (outline, after B)
 
 1. **Generator:** PythiaGun hard QCD (the jet productions' settings, **verify**) with p̂_T
-   windows chosen, as `window_layout.py` did for the Z, so that most events have jet1 > 130 GeV at
+   windows chosen, as `zjet/setup/window_layout.py` did for the Z, so that most events have jet1 > 130 GeV at
    R = 0.4 after quenching; the same Pb+Pb 0–30 % chain, the correlated `bulk_bg` twin kept (the
    truth path needs ~20× fewer events than the experiment-like one), all particles to
    |η| < 2.6.
-2. **Map step without a Z:** jet1 and jet2 from the clustering (the lepton removal already skips
-   events without a Z, `keep_mask`; the `jet_events` tree without Z columns, **verify**).
-3. **Pools in jet1's frame:** the frame from the jet trees instead of `info.z`, per oversample,
-   since jet1's axis moves with the sample in Pb+Pb; the pool map then reads the jet trees.
-4. **Comparison with data:** CMS-HIN-25-012's HEPData record (the paper's ref. [31]; a reader as
-   for `hepdata_zjet`), the model bands of CMS's Fig. 2, and 2501.03419.
+2. **Map step without a Z:** `dijet/dijet_jets_map.py` and a C++ twin in `analysis_root/dijet/`,
+   on `jetcorr/jetmap.py` / `common/JetMap.h` (R from A1) and the keys, weights and `file_info`
+   of A0: jet1 and jet2 from the clustering, all particles but neutrinos (the Z map step's lepton
+   removal, `keep_mask`, stays in `zjet/`), the embedding and random cones as there, the
+   `jet_events` tree without Z columns.
+3. **Pools in jet1's frame:** `zjet_mixing`'s pools moved into `jetcorr/` with the frame as an
+   input: from the jet trees instead of `info.z`, per oversample, since jet1's axis moves with the
+   sample in Pb+Pb; the pool map then reads the jet trees.
+4. **Comparison with data:** CMS-HIN-25-012's HEPData record (the paper's ref. [31]; a reader in
+   `dijet/` as `zjet/cms2507.py` is for 2507.09307), the model bands of CMS's Fig. 2, and
+   2501.03419.
 5. **Size:** from R4. Today's rough estimate for ±0.03 per 0.4 bin in the 1.0–1.5 class: ~10⁴
    selected dijets on the truth path, ~2 × 10⁵ experiment-like.
 6. **Settings:** the same physics settings as the final Z+jet campaigns, in particular the
@@ -333,14 +369,14 @@ the figures).
 
 | step | what | compute |
 |---|---|---|
-| A0 | keys, `file_info`, load-time ids and weights; per-window background sums in the pools; one directory per campaign | – |
-| A1–A2 | `--R`, `run_info`, `zcone` in both map steps; QA and final stage read R | – |
+| A0 | keys, `file_info`, load-time ids and weights (`jetcorr/weights.py`, `common/AnaCommon.h`); per-window background sums in the pools; one run per campaign | – |
+| A1–A2 | R in `Clusterer`, `--R`, `run_info`, `zcone` in both map steps; QA and final stage read R | – |
 | A3 | per-event `S_zc`, `S_frag`, `L_*` in both pool writers | – |
 | A4 | regressions, `check_cxx.py jets` / `pools` | minutes |
 | A5 | map step at R = 0.4 (c00, then c01), pools rebuilt, counts again | ~1.8 h per campaign for the map step; pools **verify** |
-| B1–B4 | `deta_asym.py`, `dijet/deta.py`, the closure tests on c00 | seconds to minutes per run |
+| B1–B4 | `jetcorr/deta_asym.py`, `dijet/deta.py --trigger z`, the closure tests on c00 | seconds to minutes per run |
 | B5–B6 | results on c00 + c01, comparisons, documents; again with each new campaign | minutes |
-| C | dijet production: windows, map step without Z, pools in jet1's frame, HEPData | after B5's R4 |
+| C | dijet production: windows, `dijet/` map step, pools in jet1's frame (`jetcorr/`), HEPData | after B5's R4 |
 
 ## 8. Summary
 
@@ -348,7 +384,10 @@ The Z+jet campaigns carry the η-separated analysis with the Z as jet1: the same
 observable, CMS's cuts on jet2 at R = 0.4, and the model's truth, no-wake twin and bulk next to
 the experiment-like result for closure. Three code changes: map outputs and pools that combine
 across campaigns (ids and weights at load time, so each campaign is mapped once), the jet radius
-as an option in the map steps (R is used only there, the QA and the final stage's labels; the
-ghost area stays 0.01), and the truth yield per event in the pools (which have no R). c00 + c01 build and close the chain;
+as an option in the shared jet finding and the map steps (R is used only there, the QA and the
+final stage's labels; the ghost area stays 0.01), and the truth yield per event in the pools (which
+have no R). The shared parts go into `jetcorr/` and `analysis_root/common/`, the Z-specific ones
+stay in `zjet/`, and the analysis itself is `dijet/`, so the dijet stage reuses all of it. c00 +
+c01 build and close the chain;
 the full campaigns give a result to set against Yang & Wang's CoLBT-hydro γ-jet, and the noise
 measured on the way sizes the dijet production.
