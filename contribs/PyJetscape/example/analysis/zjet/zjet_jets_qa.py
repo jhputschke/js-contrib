@@ -108,8 +108,10 @@ def per_row_mean(T, rows, field, eta_max):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pbpb", required=True, help="the map step's Pb+Pb *_jets.root")
-    ap.add_argument("--pp", required=True, help="the map step's vacuum *_jets.root")
+    ap.add_argument("--pbpb", nargs="+", required=True,
+                    help="the map step's Pb+Pb outputs: directories or globs (several: "
+                         "campaigns mapped apart)")
+    ap.add_argument("--pp", nargs="+", required=True, help="the map step's vacuum outputs")
     ap.add_argument("--hadron-qa", default=None,
                     help="qa.py map's / zqa's output of the same Pb+Pb sample: rho against "
                          "dN_ch/deta of the background")

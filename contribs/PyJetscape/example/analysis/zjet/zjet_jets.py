@@ -96,7 +96,10 @@ def map_files(src):
         if os.path.isdir(x):
             found = sorted(glob.glob(os.path.join(x, "*_jets.root")))
         elif any(c in x for c in "*?["):
-            found = sorted(glob.glob(x))
+            found = []
+            for m in sorted(glob.glob(x)):                # files, or directories of them
+                found += (sorted(glob.glob(os.path.join(m, "*_jets.root")))
+                          if os.path.isdir(m) else [m])
         else:
             found = [x] if os.path.exists(x) else []
         if not found:
@@ -147,6 +150,7 @@ def _read(src, trees):
                              "directories: their ids clash; rerun the map step")
         for q in parts:
             q["jet_events"] = {k: ak.to_numpy(v) for k, v in q["jet_events"].items()}
+            _emb_column(q)
         return parts
     order, per, wmb = ids
     for i, q in enumerate(parts):
@@ -161,6 +165,7 @@ def _read(src, trees):
         E["weight_mb"] = (np.where(k >= 0, wmb[np.clip(k, 0, None)], np.nan) if len(wmb)
                           else np.full(len(k), np.nan))
         q["jet_events"] = E
+        _emb_column(q)
         new_of = dict(zip(old.tolist(), E["event"].tolist()))
         for t in trees:
             if t not in q:
@@ -174,13 +179,37 @@ def _read(src, trees):
     return [parts[i] for i in order]
 
 
+def _emb_column(q):
+    """Every event's emb_samples, its file's (the map step's --emb-samples; all before it
+    existed): which of its oversamples have the embedded event (emb_*, nw_*, zcone_nw_*), so
+    that outputs mapped with different settings combine."""
+    E = q["jet_events"]
+    E["emb_samples"] = np.full(len(E["event"]), int(q["run"].get("emb_samples", 1 << 30)),
+                               np.int64)
+
+
+def embedded_rows(E, J, ev):
+    """The jets tree's rows that have the embedded event (sample < its file's emb_samples) and
+    their weight factor 1 / min(n_samples, emb_samples) of the event -> (rows, factor per
+    row); ev: each row's event index into E."""
+    emb = E["emb_samples"][ev] if "emb_samples" in E else np.full(len(ev), 1 << 30)
+    rows = np.flatnonzero(np.asarray(J["sample"]) < emb)
+    return rows, 1.0 / np.minimum(E["n_samples"][ev[rows]], emb[rows])
+
+
 def _concat(parts, tree, ints):
     import awkward as ak
+    import warnings
     got = [q[tree] for q in parts if tree in q]
     if not got:
         return {}
+    keys = [k for k in got[0] if all(k in g for g in got)]
+    dropped = sorted(set().union(*[set(g) for g in got]) - set(keys))
+    if dropped:
+        warnings.warn(f"{tree}: columns not in every map output, left out: {dropped} "
+                      "(e.g. --rho-m in some campaigns only)", RuntimeWarning, stacklevel=3)
     out = {}
-    for k in got[0]:
+    for k in keys:
         vals = [g[k] for g in got]
         out[k] = (np.concatenate([np.asarray(ak.to_numpy(v)) for v in vals]) if k in ints
                   else ak.concatenate(vals))
@@ -462,8 +491,10 @@ def pp_figure(a, res, xs, lines, plt):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pbpb", required=True, help="the map step's Pb+Pb *_jets.root")
-    ap.add_argument("--pp", required=True, help="the map step's vacuum *_jets.root")
+    ap.add_argument("--pbpb", nargs="+", required=True,
+                    help="the map step's Pb+Pb outputs: directories or globs (several: "
+                         "campaigns mapped apart)")
+    ap.add_argument("--pp", nargs="+", required=True, help="the map step's vacuum outputs")
     ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins1512112-v1-yaml"))
     ap.add_argument("--run", default="zjet_test", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
     ap.add_argument("--outdir", default=None)
@@ -512,7 +543,7 @@ def main():
         ptx = pt if sn is None else smear(pt, *sn, rng)
         c = {**z_counts(Ep, selp, wp), **pair_sums(Ep, selp, e, ptx, eta, phi, wj)}
         res[key] = with_errors(c, Ep["event"], a.blocks)
-    lines.append(f"pp: {int(selp.sum())} Z's (CMS 1702.01060's cuts) of {len(selp)} in {a.pp}")
+    lines.append(f"pp: {int(selp.sum())} Z's (CMS 1702.01060's cuts) of {len(selp)} in {" ".join(a.pp)}")
 
     # ── Pb+Pb
     Eb, Jb, Bb = load_jets(a.pbpb)
@@ -526,23 +557,24 @@ def main():
     w_row = wb[ev] / Eb["n_samples"][ev]
     S_flat = flatten_rows(Eb, Jb, "jet", rows, w_row, ev)
     # the embedded event (step 1's fragment jets emb_ref, the no-wake nw) exists for the first
-    # emb_samples oversamples only (zjet_jets_map.py / zjets --emb-samples): those rows, each
-    # weighing 1 / min(n_samples, emb_samples) of its event
-    emb_n = map_run_info(a.pbpb).get("emb_samples", 1 << 30)
+    # emb_samples oversamples of each event only (its map output's --emb-samples; outputs with
+    # different settings combine): those rows, each 1 / min(n_samples, emb_samples) of its event
     rows_e, ev_e, w_row_e = rows, ev, w_row
-    if np.any(Jb["sample"] >= emb_n):
-        rows_e = rows[Jb["sample"] < emb_n]
+    if np.any(Jb["sample"] >= Eb["emb_samples"][ev]):
+        rows_e, f_e = embedded_rows(Eb, Jb, ev)
         ev_e = ev[rows_e]
-        w_row_e = wb[ev_e] / np.minimum(Eb["n_samples"][ev_e], emb_n)
-        lines.append(f"embedded event (step 1, no wake): the first {emb_n} oversamples of each "
-                     "event (--emb-samples)")
+        w_row_e = wb[ev_e] * f_e
+        lines.append("embedded event (step 1, no wake): the first "
+                     + "/".join("all" if n >= 1 << 30 else str(n)
+                                for n in np.unique(Eb["emb_samples"][selb]))
+                     + " oversamples of each event (--emb-samples)")
     NW_flat = (flatten_rows(Eb, Jb, "nw", rows_e, w_row_e, ev_e)    # the event without the wake
                if "nw_pt" in Jb else None)
     F_flat = flatten_rows(Eb, Jb, "emb_ref", rows_e, w_row_e, ev_e)
     rc = ak.to_numpy(ak.flatten(Jb["rc_dpt"])) if "rc_dpt" in Jb else np.zeros(0)
     sig_rc = float(np.std(rc)) if len(rc) else 0.0
     lines.append(f"Pb+Pb: {int(selb.sum())} Z's of {len(selb)} on {n_bg} hydro background(s) in "
-                 f"{a.pbpb}" + ("" if n_bg >= 2 else
+                 f"{" ".join(a.pbpb)}" + ("" if n_bg >= 2 else
                                 " (jackknife over events: errors underestimated)"))
     # B_own: the Z's own background, sample k of bulk_bg against sample k of the event
     B_own = B_mix = None
