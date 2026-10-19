@@ -624,15 +624,15 @@ cons = cs.constituent_index(min_pt=10.0)                                  # indi
 
 | notebook | what |
 |---|---|
-| [`jet_fastjet.ipynb`](../contribs/PyJetscape/example/analysis/jet_fastjet.ipynb) | classic interface: the jet spectrum and fragmentation function of the jet hadrons alone; is the area right (tiling, πR², ghost size); ρ with and without the two hardest kT jets, random cones; the spectrum with and without ρA; embedding δpT for bkg + jet and bkg + wake + jet |
-| [`jet_fastjet_awkward.ipynb`](../contribs/PyJetscape/example/analysis/jet_fastjet_awkward.ipynb) | the same with the array interface, plus exclusive jets, SoftDrop, Lund planes, energy correlators, N-subjettiness, and areas with hand-made ghosts |
+| [`jet_fastjet.ipynb`](../contribs/PyJetscape/example/analysis/tutorials/jet_fastjet.ipynb) | classic interface: the jet spectrum and fragmentation function of the jet hadrons alone; is the area right (tiling, πR², ghost size); ρ with and without the two hardest kT jets, random cones; the spectrum with and without ρA; embedding δpT for bkg + jet and bkg + wake + jet |
+| [`jet_fastjet_awkward.ipynb`](../contribs/PyJetscape/example/analysis/tutorials/jet_fastjet_awkward.ipynb) | the same with the array interface, plus exclusive jets, SoftDrop, Lund planes, energy correlators, N-subjettiness, and areas with hand-made ghosts |
 
 Both take `HADRON_DIR`, `MAX_EVENTS`, `MAX_OVERSAMPLES` and `PARTICLES` (`charged` or `full`)
 from the environment:
 
 ```bash
 HADRON_DIR=/path/to/campaign MAX_EVENTS=200 MAX_OVERSAMPLES=100 \
-  jupyter nbconvert --to notebook --execute contribs/PyJetscape/example/analysis/jet_fastjet.ipynb
+  jupyter nbconvert --to notebook --execute contribs/PyJetscape/example/analysis/tutorials/jet_fastjet.ipynb
 ```
 
 The ghosts are placed with random jitter at every clustering (the Python bindings cannot set
@@ -651,8 +651,8 @@ Everything here runs in the analysis venv. Paths are under
 | [`prod_AuAu_0_10_jet/jet_wake.ipynb`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/jet_wake.ipynb) | a pair file + its hadron files | one event from the energy density, the deposit and the freeze-out to hadrons and the energy balance | `WAKE_H5`, `MUSIC_EOS_TABLE` |
 | [`analysis/wake_observables.py`](../contribs/PyJetscape/example/analysis/README.md#6-wake-observables-script-then-notebook) + [`.ipynb`](../contribs/PyJetscape/example/analysis/wake_observables.ipynb) | a campaign's pair files | P^μ, S of both legs vs τ, the jet-frame wake, showers and path lengths → `wake_observables.h5`; the figures from it | `-j`, `-o`; notebook `WAKE_OBS` |
 | [`analysis/wake_hadrons.py`](../contribs/PyJetscape/example/analysis/README.md#7-the-wake-at-hadron-level-script-then-notebook) + [`.ipynb`](../contribs/PyJetscape/example/analysis/wake_hadrons.ipynb) | the hadron files | the wake at hadron level per event: jet frame, ΔR profiles, identified spectra, totals; batch errors for correlated files → `wake_hadrons.h5` | `-j`, `--batches`; notebook `WAKE_HAD`, `WAKE_OBS` |
-| [`analysis/hadron_distributions.ipynb`](../contribs/PyJetscape/example/analysis/hadron_distributions.ipynb) | the hadron files | η, φ, pT of background, background + deposition, fragments and the wake | `HADRON_DIR`, `MAX_EVENTS`, `PAIRED` |
-| [`analysis/jet_fastjet.ipynb`](../contribs/PyJetscape/example/analysis/jet_fastjet.ipynb), [`jet_fastjet_awkward.ipynb`](../contribs/PyJetscape/example/analysis/jet_fastjet_awkward.ipynb) | the hadron files | jets (§6) | `HADRON_DIR`, `MAX_EVENTS`, `MAX_OVERSAMPLES`, `PARTICLES` |
+| [`analysis/tutorials/hadron_distributions.ipynb`](../contribs/PyJetscape/example/analysis/tutorials/hadron_distributions.ipynb) | the hadron files | η, φ, pT of background, background + deposition, fragments and the wake | `HADRON_DIR`, `MAX_EVENTS`, `PAIRED` |
+| [`analysis/tutorials/jet_fastjet.ipynb`](../contribs/PyJetscape/example/analysis/tutorials/jet_fastjet.ipynb), [`jet_fastjet_awkward.ipynb`](../contribs/PyJetscape/example/analysis/tutorials/jet_fastjet_awkward.ipynb) | the hadron files | jets (§6) | `HADRON_DIR`, `MAX_EVENTS`, `MAX_OVERSAMPLES`, `PARTICLES` |
 | [`analysis/jet_edep_balance_check.py`](../contribs/PyJetscape/example/analysis/README.md#4-the-two-scripts) | pair files | the energy balance per event; finds doubly counted partons | |
 | [`analysis/fix_lbt_double_counting.py`](../contribs/PyJetscape/example/analysis/README.md#4-the-two-scripts) | pair + particlize files | repairs productions made before X-SCAPE #154 (writes, reversibly) | `--apply`, `--revert` |
 | [`analysis_root/read_hadrons.ipynb`](../contribs/PyJetscape/example/analysis_root/read_hadrons.ipynb) | the ROOT files | `read_hadrons.C` cell by cell, in ROOT's C++ kernel (§8) | `HADRON_DIR`, `HADRON_OUT`, `MAX_SAMPLES` |

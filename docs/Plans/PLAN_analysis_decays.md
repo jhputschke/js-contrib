@@ -123,7 +123,7 @@ products.
    charged-hadron count by what the branching ratios predict (e.g. 63.9% of Λ give a p and a
    π⁻).
 6. **Bit-identical without decays.** `decays=None` and no `--decays` give today's results,
-   checked against the stored outputs of `analysis/hadron_distributions.ipynb` and
+   checked against the stored outputs of `analysis/tutorials/hadron_distributions.ipynb` and
    `analysis_root/read_hadrons.ipynb`.
 7. **Python vs ROOT.** `HadronFileReader(decays=m)` and `run_h5toROOT.py --decays m` +
    `HadronFileReader.h` give the same hadrons, in the same way `tests/test_analysis_root_reader.py`

@@ -130,7 +130,7 @@ fi
 # CMakeLists.txt required: Boost, ZLIB, Pythia8, HDF5
 # CMakeLists.txt optional: HepMC3, FastJet, GSL, OpenMPI, ROOT, cmake
 # fastjet is scikit-hep's conda package: the FastJet C++ library and its Python API
-# (example/analysis/jet_fastjet*.ipynb)
+# (example/analysis/tutorials/jet_fastjet*.ipynb)
 # ---------------------------------------------------------------------------
 echo "==> Installing JETSCAPE C++ build dependencies (conda-forge)"
 ${SOLVER} install -n "${ENV_NAME}" \

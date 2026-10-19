@@ -30,7 +30,7 @@ python utils/analysis_env/check_env.py /path/to/out  # opens every file in a pro
 | [`run_h5toROOT.py`](../../contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_h5toROOT.py): hadron files → RNTuple or TTree, written with uproot, or with ROOT if PyROOT imports ([With ROOT](#with-root)) | the hadron files |
 | the ROOT files, read with uproot (`uproot.open(...)["bulk_jet"].arrays()`) | `*_hadrons.root`, `campaign_*.root` |
 | [`jet_wake.ipynb`](../../contribs/PyJetscape/example/prod_AuAu_0_10_jet/jet_wake.ipynb) | a pair file and its hadron files |
-| [`PyJetscape/example/analysis`](../../contribs/PyJetscape/example/analysis/README.md): `jet_edep_balance_check.py`, `wake_observables.py`, `wake_hadrons.py`, their notebooks, `hadron_distributions.ipynb`, `jet_fastjet*.ipynb` | a production directory |
+| [`PyJetscape/example/analysis`](../../contribs/PyJetscape/example/analysis/README.md): `jet_edep_balance_check.py`, `wake_observables.py`, `wake_hadrons.py`, their notebooks, `tutorials/hadron_distributions.ipynb`, `tutorials/jet_fastjet*.ipynb` | a production directory |
 | [`Visualization`](../../contribs/Visualization/README.md): `hydro_jet_particles_pyvista.py`, `wake_pyvista.py` (`--movie`, `--vtk-dir`) | a pair file (+ its hadron files) |
 
 **What doesn't work in it:** anything that runs X-SCAPE, i.e. `run_prod_jet.py`,
@@ -39,7 +39,7 @@ python utils/analysis_env/check_env.py /path/to/out  # opens every file in a pro
 evolve a live event. The ROOT macros and the C++ reader in
 [`analysis_root`](../../contribs/PyJetscape/example/analysis_root/README.md) need ROOT itself
 ([With ROOT](#with-root)); the distributions of `hadron_distributions.C` are also in
-`hadron_distributions.ipynb`.
+`analysis/tutorials/hadron_distributions.ipynb`.
 
 ## Options
 
@@ -272,7 +272,7 @@ again on the updated venvs.
 - `setup_analysis_env.sh --check` on the seed-1 `out/` made a 1.6 GB venv. The `--uv` install took 10 s from
   a warm uv cache.
 - `run_h5toROOT.py` converted the seed-1 production.
-- `jet_wake.ipynb`, `analysis/hadron_distributions.ipynb`, `jet_fastjet.ipynb` and
+- `jet_wake.ipynb`, `analysis/tutorials/hadron_distributions.ipynb`, `jet_fastjet.ipynb` and
   `jet_fastjet_awkward.ipynb` ran through with `jupyter nbconvert --execute`.
 - `analysis/jet_edep_balance_check.py` and `wake_observables.py` ran.
 - `hydro_jet_particles_pyvista.py --movie` and `wake_pyvista.py --movie` wrote their movies
