@@ -20,7 +20,7 @@ import zjet_wake as zw
 from jetcorr import runs
 from jetscape.hadrons_h5 import HadronFileReader
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-ap.add_argument("--vacuum", default=runs.data("zjet_setup", "vacuum_nocut"),
+ap.add_argument("--vacuum", default=runs.data("zjet_test", "vacuum_nocut"),
                 help="a vacuum reference whose windows cover 20-200 GeV (make_data.sh vacuum_nocut)")
 a = ap.parse_args()
 r = HadronFileReader(a.vacuum); t = zw.event_table(r)

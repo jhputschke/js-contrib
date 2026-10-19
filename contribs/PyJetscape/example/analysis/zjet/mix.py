@@ -3,7 +3,7 @@
 directory (the map step, one job per production file, cached), then the mixing modes ->
 runs/<run>/figures/mixing_dphi.png, mixing_dy.png, mixing_errors.png and mixing_summary.txt.
 
-  python mix.py                                     # the test: runs/zjet_setup/data/{pbpb,vacuum}
+  python mix.py                                     # the test: runs/zjet_test/data/{pbpb,vacuum}
   python mix.py --pbpb <dir> --vacuum <dir> --pools <dir> --jobs 8 --tag <name>  # a campaign
   python mix.py --pbpb-pools <dir> --vacuum-pools <dir> --tag _cxx   # the C++ map step's pools
                                     # (example/analysis_root/zjet/zhadron_pools, *_pool.root)
@@ -178,7 +178,7 @@ def chi2(m, e, y, t):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--run", default="zjet_setup",
+    ap.add_argument("--run", default="zjet_test",
                     help="the defaults of --pbpb, --vacuum, --pools, --hists (runs/<run>/data/...) "
                          "and --outdir (runs/<run>/figures); jetcorr.runs")
     ap.add_argument("--pbpb", default=None, help="default runs/<run>/data/pbpb")
@@ -190,10 +190,9 @@ def main():
                          "building them from --pbpb")
     ap.add_argument("--vacuum-pools", default=None, help="the same for --vacuum")
     ap.add_argument("--hists", default=None,
-                    help="setup/accumulate.py's output, for the check against setup/compare.py "
+                    help="test/accumulate.py's output, for the check against test/compare.py "
                          "(default runs/<run>/data/hists.npz; '' none)")
-    ap.add_argument("--hepdata", default=runs.data("zjet_setup", "hepdata",
-                                                   "HEPData-ins2945894-v1-yaml"))
+    ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins2945894-v1-yaml"))
     ap.add_argument("--outdir", default=None)
     ap.add_argument("--tag", default="", help="suffix of the output names")
     ap.add_argument("--jobs", type=int, default=2)

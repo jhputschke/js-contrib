@@ -19,9 +19,9 @@ import cms2507 as cmp
 from jetcorr import runs
 from jetscape.hadrons_h5 import HadronFileReader
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-ap.add_argument("--with-cut", default=runs.data("zjet_setup", "vacuum"), help="with --parton-ymax 1.9")
-ap.add_argument("--without", default=runs.data("zjet_setup", "vacuum_zh"), help="without it (make_data.sh vacuum_zh / vacuum_nocut)")
-ap.add_argument("--hepdata", default=runs.data("zjet_setup", "hepdata", "HEPData-ins2945894-v1-yaml"))
+ap.add_argument("--with-cut", default=runs.data("zjet_test", "vacuum"), help="with --parton-ymax 1.9")
+ap.add_argument("--without", default=runs.data("zjet_test", "vacuum_zh"), help="without it (make_data.sh vacuum_zh / vacuum_nocut)")
+ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins2945894-v1-yaml"))
 a = ap.parse_args()
 CUT, NOCUT, HEP = a.with_cut, a.without, a.hepdata
 def sample(path):

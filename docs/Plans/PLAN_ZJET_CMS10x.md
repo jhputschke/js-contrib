@@ -90,7 +90,7 @@ campaigns not yet. What changed against the plan below, found while implementing
 - **0–30 %, the CMS class** (all three CMS papers, checked 2026-10-15; only ATLAS has 0–10 %):
   `example/config/PbPb_0_30_ZJet.xml` (`b_max` 8.57 fm, π b² = 0.3 × 7.7 b) replaces the 0–10 %
   Z+jet XML. Checked 2026-10-16 with 200,000 minimum-bias 3dMCGlauber events
-  (`analysis/zjet/setup/centrality_check.py`): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm); X-SCAPE ignores `cenMin`/`cenMax`,
+  (`analysis/zjet/test/centrality_check.py`): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm); X-SCAPE ignores `cenMin`/`cenMax`,
   so b is the only cut. The geometry is drawn with P(b) ∝ b and every event gets one Z, but Z production
   scales with N_coll, so every event is weighted by its `n_coll`, which `run_prod_jet.py` now
   records per event (`diag/`, `events/`, `units/n_coll`; `HadronFileReader`'s
@@ -165,7 +165,7 @@ reference with these settings (1,000 events per window, 2026-10-16):
 Events weigh σ_window / N_window × N_coll; a weighted sample counts as N_eff = (Σw)² / Σw². The
 2507.09307 sample is spread evenly over the windows, so the window weights cost only 13 %; the
 N_coll weights another 15 % (Kish factor 0.85 for P(b) ∝ b, b < 8.57 fm; minimum-bias 3dMCGlauber,
-`analysis/zjet/setup/centrality_check.py`). Each paper's cuts offline (mass window, |y_Z|, lepton
+`analysis/zjet/test/centrality_check.py`). Each paper's cuts offline (mass window, |y_Z|, lepton
 |η| < 2.4 for CMS), 96k events:
 
 | selection | Z's selected | N_eff (window weights) | N_eff (× N_coll) | CMS, 0–30 % | √(N_eff / N_CMS) |
@@ -190,7 +190,7 @@ outside |η| < 1.6, as in data.)
   independent samples of it, worth up to √40 more where the bulk dominates, down to the
   event-by-event fluid fluctuation (not measured; `zjet/mix.py`'s strict emulation will,
   on the first campaign).
-- **Z–hadron truth** (the paired wake, correlated sampling): the GB10 test (`analysis/zjet/setup/`,
+- **Z–hadron truth** (the paired wake, correlated sampling): the GB10 test (`analysis/zjet/test/`,
   34 effective events, errors incl. a jackknife over its 4 backgrounds) already had half of CMS's
   errors at Δφ ≈ 0 for 1–2 GeV; scaled to 42k effective events, ~50× (extrapolated).
 - **Jet observables** (Δφ_jZ, x_jZ, ⟨x_jZ⟩, R_jZ): ~√(N_eff / N_CMS), 9.9× for p_T^Z > 60, 9–12×
@@ -238,7 +238,7 @@ outside |η| < 1.6, as in data.)
   10 fragmentations; 1.7× Au+Au); with these arguments (|η| < 2.6, no positions, 12-bit momenta,
   40 fragmentations) **2.7 MB per event with all particles, 1.6 MB charged only** (10.3 bytes per
   hadron; measured on the GB10, 2026-10-16: one 24-event job, a background with N_coll 443, the
-  same 14 s per event and 10.6 GB alone either way; `analysis/runs/zjet_setup/data/pbpb_campaign*`) →
+  same 14 s per event and 10.6 GB alone either way; `analysis/runs/zjet_test/data/pbpb_campaign*`) →
   ~3.5 MB per event over 0–30 % → **~0.35 TB** for the 96k events (3.84 M sampled full events).
   A 5k-event subset with `--write-particlize both` if hydro-level Z-jet wakes are wanted (~2 TB).
 - **pp reference** (for I_AA, x_jZ^pp, R_jZ^pp): the same Pythia Z+jet with vacuum showers and
@@ -258,7 +258,7 @@ fragmentation k, with the Z four-momentum from the event record.
 1. anti-k_T R = 0.3 on all particles of the sample except neutrinos and the Z's leptons (|η| < 2.6
    stored, all particles since 2026-10-16; CMS uses calorimeter jets corrected to particle level, and
    compares models after its jet-resolution smearing, Appendix A of the paper). The pp side is in
-   place: `analysis/zjet/setup/zjet_pp_jets.py` on the vacuum reference with all particles (results
+   place: `analysis/zjet/test/zjet_pp_jets.py` on the vacuum reference with all particles (results
    git-ignored). **UE subtraction**: the ρA-median k_T method of `README_analysis` §6 adapted to
    R = 0.3, or CMS's iterative subtraction; validate ⟨δp_T⟩ = 0 by embedding into untouched `bulk_bg`
    samples (the existing embedding test).

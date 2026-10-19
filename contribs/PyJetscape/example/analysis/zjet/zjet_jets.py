@@ -365,9 +365,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pbpb", required=True, help="the map step's Pb+Pb *_jets.root")
     ap.add_argument("--pp", required=True, help="the map step's vacuum *_jets.root")
-    ap.add_argument("--hepdata", default=runs.data("zjet_setup", "hepdata_zjet",
-                                                   "HEPData-ins1512112-v1-yaml"))
-    ap.add_argument("--run", default="zjet_setup", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
+    ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins1512112-v1-yaml"))
+    ap.add_argument("--run", default="zjet_test", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
     ap.add_argument("--outdir", default=None)
     ap.add_argument("--tag", default="")
     ap.add_argument("--blocks", type=int, default=100)

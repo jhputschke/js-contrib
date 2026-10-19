@@ -88,16 +88,16 @@ As in [ANA_Zhadron.md](ANA_Zhadron.md) §0–2, with these variables:
 REPO=~/js-contrib-zjet; EX=$REPO/contribs/PyJetscape/example
 DATA=/data/zjet_c00     # gpu0/ (seeds 1-50), gpu1/ (51-100): PbPb_0_30_zjet_c00_seedNNNN_hadrons_*.h5
 PP=/data/zjet_pp        # vacuum_jet_zjet_pp_seed900001_hadrons_jet_frag.h5 (12,000 events, 40 fragmentations)
-# PP=$EX/analysis/runs/zjet_setup/data/vacuum_all   # on the GB10: 12,000 events, 10 fragmentations (ANA_Zhadron §0)
+# PP=$EX/analysis/runs/zjet_test/data/vacuum_all   # on the GB10: 12,000 events, 10 fragmentations (ANA_Zhadron §0)
 ANA=/data/ana_c00; mkdir -p $ANA/logs
-cd $EX/analysis/zjet/setup && ./make_data.sh hepdata_zjet      # CMS 1702.01060's HEPData, once
+cd $EX/analysis/zjet && ./get_hepdata.sh                       # CMS's HEPData records, once
 ```
 
 In addition to ANA_Zhadron's Python packages: **FastJet** for Python (`pip install fastjet`,
 3.5) for route A, uproot and awkward for the final stage, and for route B the C++ FastJet
 (`fastjet-config` on `PATH`, e.g. conda-forge `fastjet`) with ROOT ≥ 6.34. The jets use all
 particles: the campaign files store them all (|η| < 2.6), the 96-event test set of
-`../runs/zjet_setup/data/pbpb` holds charged ones only.
+`../runs/zjet_test/data/pbpb` holds charged ones only.
 
 ## QA first
 
@@ -315,7 +315,7 @@ number from the paper to compare with (CMS's N); the rest are the model's own ch
 
 ## The final figures and how they compare with data
 
-Against CMS 1702.01060's HEPData (ins1512112, `../runs/zjet_setup/data/hepdata_zjet/`), errors: CMS's
+Against CMS 1702.01060's HEPData (ins1512112, `../runs/hepdata/`), errors: CMS's
 stat ⊕ syst (black) and the model's jackknife.
 
 **`zjet_jets_pp_c00.png`, pp** — 2 rows × 4 columns: Δφ_jZ (log scale), x_jZ, ⟨x_jZ⟩ vs p_T^Z,
@@ -324,7 +324,7 @@ three ways: smeared with PbPb's resolution against the smeared-pp tables `data1`
 `data5`, `data7`; smeared with pp's resolution (S 0.95, N 0.001) against `data9` (x_jZ, pp
 unsmeared by CMS's definition: at pp's own resolution); unsmeared, for reference. The pp
 selection, jets, weights and errors (a jackknife over blocks of events) are those of the Pb+Pb
-steps. `setup/zjet_pp_jets.py` makes the same comparison from the HDF5 files with its own
+steps. `test/zjet_pp_jets.py` makes the same comparison from the HDF5 files with its own
 jet finding (`figures/zjet_pp_vs_cms1702.png`): an independent cross-check, agreeing within the
 smearing's random numbers.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """The Z+jet test against CMS 2507.09307 (HEPData ins2945894), from accumulate.py's
-runs/zjet_setup/data/hists.npz -> runs/zjet_setup/figures/zjet_vs_cms2507_dphi.png,
+runs/zjet_test/data/hists.npz -> runs/zjet_test/figures/zjet_vs_cms2507_dphi.png,
 zjet_vs_cms2507_dy.png and summary.txt; the observables are ../cms2507.py's.
 
 CMS's observable: Delta<N_ch> = S - B, B the mixed-event yield (the Z of one event with the
@@ -33,10 +33,9 @@ from cms2507 import PT_LABELS, PT_TAGS, Model, cms, rebin_y  # noqa: E402,F401
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--hists", default=runs.data("zjet_setup", "hists.npz"))
-    ap.add_argument("--hepdata", default=runs.data("zjet_setup", "hepdata",
-                                                "HEPData-ins2945894-v1-yaml"))
-    ap.add_argument("--outdir", default=runs.figures("zjet_setup"))
+    ap.add_argument("--hists", default=runs.data("zjet_test", "hists.npz"))
+    ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins2945894-v1-yaml"))
+    ap.add_argument("--outdir", default=runs.figures("zjet_test"))
     a = ap.parse_args()
     os.makedirs(a.outdir, exist_ok=True)
     d = np.load(a.hists)

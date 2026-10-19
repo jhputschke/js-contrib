@@ -40,7 +40,7 @@ cd example/analysis_root/zjet && make
 #   The wheel's fastjet-config has its build paths, so the Makefile sets the flags itself.
 #   Checked 2026-10-18 on one c00 file, --samples 2: check_cxx.py jets, 0 differences.
 # 1. HDF5 -> ROOT (vacuum files: jet_frag only, found by themselves)
-P=../../prod_AuAu_0_10_jet; D=../../analysis/runs/zjet_setup/data
+P=../../prod_AuAu_0_10_jet; D=../../analysis/runs/zjet_test/data
 python $P/run_h5toROOT.py $D/pbpb_campaign -j 4 --out-dir $D/root/pbpb_campaign \
     --campaign-file $D/root/pbpb_campaign/pbpb_campaign.root
 python $P/root_export/check_h5_vs_root.py $D/pbpb_campaign $D/root/pbpb_campaign \

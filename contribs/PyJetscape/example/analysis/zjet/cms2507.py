@@ -10,7 +10,7 @@ and is left out of both.
 * Delta phi (all Delta y): B is flat in Delta phi -> S minus its Delta phi average.
 * Delta y (|Delta phi| < pi/2): B = half (the Z side) of the y_Z of event i folded with
   the lab-frame eta distribution of event j != i.
-Used by mix.py and setup/compare.py (the first test), setup/parton_cut_check.py."""
+Used by mix.py and test/compare.py (the first test), test/parton_cut_check.py."""
 import os
 
 import numpy as np

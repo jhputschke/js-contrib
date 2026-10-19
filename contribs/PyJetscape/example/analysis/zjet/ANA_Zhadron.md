@@ -11,7 +11,7 @@ a one-to-one emulation of the measurement (step 4). The Z+jet analysis of the sa
 [`../analysis_root/zjet/README.md`](../../analysis_root/zjet/README.md).
 
 **Results are not public yet:** write the outputs (`--outdir`) outside the repository, as
-below; the repository's `../runs/zjet_setup/figures/` is git-ignored for the same reason.
+below; the repository's `../runs/zjet_test/figures/` is git-ignored for the same reason.
 
 ## 0. What you have
 
@@ -30,11 +30,11 @@ minutes on any CPU. What the stored hadrons are (η and Σ⁰ stable in the bulk
 the "Read first" note of [`docs/Plans/PLAN_ZJET_CMS10x.md`](../../../../../docs/Plans/PLAN_ZJET_CMS10x.md).
 
 **No `/data/zjet_pp` yet (on the GB10): `vacuum_all/`.** Until the 40-fragmentation pp reference
-is made, `../runs/zjet_setup/data/vacuum_all/` (`cd setup && ./make_data.sh vacuum_all`, ~8 min on
+is made, `../runs/zjet_test/data/vacuum_all/` (`cd test && ./make_data.sh vacuum_all`, ~8 min on
 the CPU) serves as `PP` for both analyses: 12,000 vacuum events (seed 902, 2,000 per window), the
 campaign's p̂T windows, no parton cut, all particles, |η| < 2.6, no positions, as above, but
 **10 fragmentations** instead of 40 (the pp statistics of the fragments are 4× lower, the Z's
-the same). Set `PP=$EX/analysis/runs/zjet_setup/data/vacuum_all` in §1; every command below takes the
+the same). Set `PP=$EX/analysis/runs/zjet_test/data/vacuum_all` in §1; every command below takes the
 directory unchanged.
 
 **The two subdirectories.** The readers do not look below the directory they are given
@@ -191,7 +191,7 @@ per campaign file and ~100 MB per campaign (estimated), against the campaign's ~
 git clone -b zjet https://github.com/jhputschke/js-contrib ~/js-contrib-zjet
 REPO=~/js-contrib-zjet; EX=$REPO/contribs/PyJetscape/example
 DATA=/data/zjet_c00; PP=/data/zjet_pp; ANA=/data/ana_c00       # ANA: outputs, private
-# PP=$EX/analysis/runs/zjet_setup/data/vacuum_all                      # on the GB10, see §0
+# PP=$EX/analysis/runs/zjet_test/data/vacuum_all                      # on the GB10, see §0
 mkdir -p $ANA/logs
 ```
 
@@ -199,8 +199,8 @@ mkdir -p $ANA/logs
   route B uproot and awkward: the venv of [`utils/analysis_env`](../../../../../utils/analysis_env/README.md),
   or the conda env `js_fno` on the GB10. The scripts find `jetscape` in the checkout.
 - **ROOT ≥ 6.34** (route B; RNTuple) with `root-config` on `PATH`.
-- **CMS's HEPData record** (once, into `../runs/zjet_setup/data/hepdata/`, git-ignored):
-  `cd $EX/analysis/zjet/setup && ./make_data.sh hepdata`.
+- **CMS's HEPData record** (once, into `../runs/hepdata/`, git-ignored, shared by every run):
+  `cd $EX/analysis/zjet && ./get_hepdata.sh`.
 
 ## 2. Check the data
 
@@ -385,7 +385,7 @@ saw the files in another order (`../README.md`, *Multi-GPU output*).
 | B4 | `mixing_summary_c00_cxx.txt` | the six figures with `_c00_cxx`: equal to A1's |
 | B5 | stdout | – |
 
-(`setup/compare.py`'s `zjet_vs_cms2507_*.png` are step 1 on the 96-event test set; on a
+(`test/compare.py`'s `zjet_vs_cms2507_*.png` are step 1 on the 96-event test set; on a
 campaign `mix.py`'s `mixing_reference_d*` are the same figure, check (1) shows the equality.)
 
 **Every figure's data.** Next to each `<figure>.png` the plotting step writes `<figure>.npz` and
@@ -399,7 +399,7 @@ named after the curves' labels. The PNGs themselves are unchanged by this.
 
 ## The final figures and how they compare with data
 
-All against CMS 2507.09307's HEPData (ins2945894, in `../runs/zjet_setup/data/hepdata/`): the Pb+Pb
+All against CMS 2507.09307's HEPData (ins2945894, in `../runs/hepdata/`): the Pb+Pb
 0–30 % and pp tables per track p_T class ("Δφ_ch,Z in PbPb 0-30%", "Δφ_ch,Z spectra in pp",
 "Δy_ch,Z in PbPb 0-30%", "Δy_ch,Z spectra in pp"), with their statistical and systematic errors,
 drawn as stat ⊕ syst (black). In every figure the columns are the track p_T classes 1–2, 2–4,
@@ -441,7 +441,7 @@ noise budget per Z.
 - With more campaigns: one glob over all of them (`"/data/zjet_c0*/gpu*/*_hadrons_jet_frag.h5"`),
   a fresh `--pools` directory (the weights change), `--blocks 100` still.
 - The plan for the campaigns' results, and what to look at in which order:
-  `../runs/zjet_setup/figures/MIXING.md` §8 in the GB10's checkout (git-ignored), in short: closure,
+  `../runs/zjet_test/figures/MIXING.md` §8 in the GB10's checkout (git-ignored), in short: closure,
   exclusion bias and strict pulls on the first campaign; the strict error comparison and the
   error definition with all ten.
 

@@ -26,10 +26,10 @@ import matplotlib.pyplot as plt
 from jetcorr import figdata, runs
 
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-ap.add_argument("--vacuum", default=runs.data("zjet_setup", "vacuum_all"),
+ap.add_argument("--vacuum", default=runs.data("zjet_test", "vacuum_all"),
                 help="run_prod_vacuum.py output with all particles (make_data.sh vacuum_all)")
-ap.add_argument("--hepdata", default=runs.data("zjet_setup", "hepdata_zjet", "HEPData-ins1512112-v1-yaml"))
-ap.add_argument("--outdir", default=runs.figures("zjet_setup"))
+ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins1512112-v1-yaml"))
+ap.add_argument("--outdir", default=runs.figures("zjet_test"))
 ap.add_argument("--limit", type=int, default=None, help="only the first N selected Z's (a test)")
 a = ap.parse_args()
 VAC, HEP, OUT = a.vacuum, a.hepdata, a.outdir

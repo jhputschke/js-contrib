@@ -1,4 +1,4 @@
-# Z+jet set-up: the 96-event test and the campaign set-up checks
+# Z+jet test: the 96-event test and the campaign set-up checks
 
 A small end-to-end test of the Z+jet production chain (PythiaGun's Z trigger → 3dMCGlauber
 → MUSIC → Matter/LBT → liquefier → `--hadrons-only` iSS, correlated sampling), compared with
@@ -9,9 +9,10 @@ GB10 with X-SCAPE `zjet` 38cd11cf and js-contrib `zjet` 3f85274 (the Pb+Pb jobs 
 its then-uncommitted state; the vacuum on 417d991). Nothing in the model is tuned to these
 data.
 
-The campaign workflow (QA, map steps, mixing, jets) is in [`../README.md`](../README.md); this
-folder keeps how the campaigns were set up. Data and figures live in
-`../../runs/zjet_setup/` (`data/` and `figures/` below; `make_data.sh` writes there).
+The campaign workflow (QA, map steps, mixing, jets) is in [`../README.md`](../README.md) and
+needs nothing from this folder; this folder keeps how the campaigns were set up. Data and figures
+live in
+`../../runs/zjet_test/` (`data/` and `figures/` below; `make_data.sh` writes there).
 
 | file | |
 |---|---|
@@ -23,7 +24,7 @@ folder keeps how the campaigns were set up. Data and figures live in
 | `figures/MIXING.md` (`.html`) | the event-mixing document: modes and settings, the small-sample checks and comparisons, the plan for the campaigns (git-ignored with the figures) |
 | `data/pbpb/` | 2 jobs × 48 Pb+Pb 0–30 % Z+jet events, hadrons only (833 MB) |
 | `data/vacuum/` | 6,000 pp (vacuum) Z+jet events (63 MB) |
-| `data/hepdata/` | CMS's HEPData record (YAML, 31 tables) |
+| `../../runs/hepdata/HEPData-ins2945894-v1-yaml/` | CMS's HEPData record (YAML, 31 tables; `../get_hepdata.sh`, shared with the campaign analyses) |
 | `data/movie/` | one Z+jet event with its hydro evolution, its hadrons and two movies (1.7 GB) |
 | `data/logs/` | the production and render logs |
 
@@ -37,7 +38,7 @@ folder keeps how the campaigns were set up. Data and figures live in
 | `zjet_pp_jets.py` | pp Z+jet against CMS 1702.01060: anti-k_T R = 0.3 jets from all particles except neutrinos and the Z's leptons, smeared with CMS's jet resolution (pp, and Pb+Pb 0–30 % for the "smeared pp" tables), Δφ_jZ, x_jZ, ⟨x_jZ⟩, R_jZ (`data/vacuum_all` → `figures/zjet_pp_vs_cms1702.png`, `zjet_pp_summary.txt`; ~2 min); its own jet finding on the HDF5, an independent cross-check of `zjet_jets.py`'s pp figure |
 | `data/vacuum_nocut/`, `vacuum_zh/` | 6,000 vacuum events each, no parton cut, charged, \|η\| < 4: the test's windows / the campaign's (20–30, 30–35, 35–45, 45–55, 55–70, 70–200) |
 | `data/vacuum_all/` | 12,000 vacuum events, the campaign's windows and storage with all particles (\|η\| < 2.6, no positions): the pp reference of the Z+jet analysis (174 MB) |
-| `data/hepdata_zjet/` | CMS 1702.01060's HEPData record (ins1512112: Δφ_jZ, x_jZ, ⟨x_jZ⟩, R_jZ, pp and Pb+Pb) |
+| `../../runs/hepdata/HEPData-ins1512112-v1-yaml/` | CMS 1702.01060's HEPData record (ins1512112: Δφ_jZ, x_jZ, ⟨x_jZ⟩, R_jZ, pp and Pb+Pb) |
 | `data/pbpb_campaign/`, `pbpb_campaign_charged/` | one 24-event Pb+Pb job (seed 101, one background, N_coll 443) with the campaign's arguments, all particles / `--charged`: 2.7 / 1.6 MB per event, ~14 s per event and 10.6 GB alone on the GB10; the seed-101 reference of `utils/zjet/zjet_3090_test.sh report` |
 
 **The ROOT path** (2026-10-16; [`../../../analysis_root/zjet`](../../../analysis_root/zjet/README.md)):
@@ -85,7 +86,7 @@ The same data run all of `../zjet_wake.ipynb` (maps, profiles, p_T^Z dependence,
 hydro wake of the movie event and a movie frame), from `example/analysis/zjet/`:
 
 ```bash
-D=../runs/zjet_setup/data
+D=../runs/zjet_test/data
 ZJET_HADRONS=$D/pbpb ZJET_VACUUM=$D/vacuum ZJET_PAIR=$D/movie/AuAu_0_10_jet_seed0201.h5 \
   ZJET_PAIR_EVENT=1 ZJET_MOVIE=$D/movie/zjet_wake_event1_frame.png jupyter lab zjet_wake.ipynb
 ```

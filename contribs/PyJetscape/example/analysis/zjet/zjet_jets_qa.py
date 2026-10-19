@@ -120,7 +120,7 @@ def main():
                          "phi = 0) instead of zjet_jets.py's random rotations (the default)")
     ap.add_argument("--rotate-seed", type=int, default=None,
                     help="seed of the rotations (default: zjet_jets.py's, from its --seed 7)")
-    ap.add_argument("--run", default="zjet_setup", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
+    ap.add_argument("--run", default="zjet_test", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
     ap.add_argument("--outdir", default=None)
     ap.add_argument("--tag", default="")
     a = ap.parse_args()

@@ -46,8 +46,8 @@ def pt_deta(ev, info):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--data", default=runs.data("zjet_setup"),
-                    help="directory with pbpb/ and vacuum/ (default: runs/zjet_setup/data)")
+    ap.add_argument("--data", default=runs.data("zjet_test"),
+                    help="directory with pbpb/ and vacuum/ (default: runs/zjet_test/data)")
     ap.add_argument("--out", default=None, help="default: <data>/hists.npz")
     a = ap.parse_args()
     out_path = a.out or os.path.join(a.data, "hists.npz")

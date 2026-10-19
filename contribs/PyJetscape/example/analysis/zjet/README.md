@@ -13,9 +13,11 @@ step: [`ANA_Zhadron.md`](ANA_Zhadron.md) (QA, the pools, event mixing, the ROOT 
 example/analysis/
   jetcorr/            what zjet/ and dijet/ share: run paths, keys, weights, jets, figure data
   zjet/               this folder: the workflow
-    setup/            the first 96-event test and the campaign set-up checks (setup/README.md)
+    test/             the first 96-event test and the campaign set-up checks (test/README.md);
+                      not needed to run the workflow
   dijet/              the η-separated dijet analysis, first with the Z as jet1 (gap_count.py)
   runs/<run>/         data/ and figures/ of one campaign or test set (git-ignored)
+  runs/hepdata/       the CMS HEPData records every run compares with (get_hepdata.sh)
 example/analysis_root/zjet/   the C++ map steps (zqa, zhadron_pools, zjets; README.md there)
 example/analysis_root/common/ what they share with later analyses (AnaCommon.h, JetMap.h)
 ```
@@ -38,11 +40,12 @@ Route B converts the hadron files once (`../../prod_AuAu_0_10_jet/run_h5toROOT.p
 | `qa.py` | QA of a Z+jet production (step 0 of both ANA documents): `map` (per file: a table per Z event, per-source hadron histograms; the twin of `../../analysis_root/zjet/zqa`) and `plot` → `figures/qa_z_*`, `qa_weights_*`, `qa_hadrons*`, `qa_multiplicity*` (the total charged multiplicity), `qa_species*`, `qa_summary*.txt` |
 | `zjet_jets_map.py`, `zjet_jets.py` | Z+jet against CMS 1702.01060: the map step in Python (anti-k_T R = 0.3, ρA-subtracted in Pb+Pb, embedding, random cones, the backgrounds' `bulk_bg` jets, per jet mass, constituents and leading p_T, the QA trees with all jets of one oversample; the twin of `../../analysis_root/zjet/zjets`) and the shared final stage, three steps: the fragments' jets (the reference), S − B with the own background's jets, S − B mixed as CMS (Z and jet cuts, the optional CMS smearing in four variants, HEPData, χ², jackknife), and pp against CMS's pp tables at pp's and at PbPb's resolution → `figures/zjet_jets_pp*.png`, `zjet_jets_step{1,2,3}*.png`, `zjet_jets_embedding*.png`, `zjet_jets_summary*.txt` |
 | `zjet_jets_qa.py` | the jet QA of the Z+jet analysis, from either map step's QA trees: the ρA subtraction (p_T,raw, ρA, the negative tail, the fake fraction B/S), area and ρ (vs N_coll, η, dN_ch/dη; ρ of the Z event against its background), random cones and the embedding's JES/JER, geometry and the lepton cut, constituents, B_mixed against B_own → `figures/qa_jets_{subtraction,area_rho,response,geometry,constituents,mixing}*.png`, `qa_jets_summary*.txt` |
-| `mix.py` | event mixing (`zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `runs/<run>/data/pbpb` and `vacuum` (cached in `data/mix/`) → step 1, the reference (factorized, with pp; `setup/compare.py`'s figure): `figures/mixing_reference_d{phi,y}.png`; all four steps: `mixing_dphi.png`, `mixing_dy.png`; the errors: `mixing_errors_d{phi,y}.png`; `mixing_summary.txt` (~10 s on the test) |
+| `mix.py` | event mixing (`zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `runs/<run>/data/pbpb` and `vacuum` (cached in `data/mix/`) → step 1, the reference (factorized, with pp; `test/compare.py`'s figure): `figures/mixing_reference_d{phi,y}.png`; all four steps: `mixing_dphi.png`, `mixing_dy.png`; the errors: `mixing_errors_d{phi,y}.png`; `mixing_summary.txt` (~10 s on the test) |
 | `check_cxx.py` | the C++ map steps (`../../analysis_root/zjet`) against the Python ones: `pools`, `jets` (with the jet QA trees) and `qa` |
 | `README_zjet_2507.09307.md` | every cut of CMS 2507.09307 (Z–hadron Δφ / Δy) and its setting in the production and the analysis |
+| `get_hepdata.sh` | CMS 2507.09307's and 1702.01060's HEPData records → `../runs/hepdata/` (once, before the final stages) |
 | `zjet_wake.py`, `zjet_mixing.py`, `cms2507.py` | the library: the Z record, selection, weights and Z frame; the pools and the mixing modes; CMS 2507.09307's HEPData and observables (the factorized result) |
-| `zjet_wake.ipynb` | the Z–hadron wake notebook (stored without outputs; runs on `setup/`'s test data) |
+| `zjet_wake.ipynb` | the Z–hadron wake notebook (stored without outputs; runs on `test/`'s test data) |
 
 ## Runs: where the data and figures go
 
@@ -50,12 +53,13 @@ Every analysis writes outside the code, into `../runs/<run>/` (git-ignored: the 
 large and the results not public yet). `--run <name>` sets the defaults of `qa.py plot`,
 `mix.py`, `zjet_jets.py` and `zjet_jets_qa.py`: figures to `runs/<name>/figures/`, and for
 `mix.py` its inputs and pool cache under `runs/<name>/data/` (`pbpb/`, `vacuum/`, `mix/`).
-The default run is `zjet_setup`; explicit `--outdir`, `--pools`, `--pbpb`, … still win. The ANA
+The default run is `zjet_test`; explicit `--outdir`, `--pools`, `--pbpb`, … still win. The ANA
 documents keep their outputs in `$ANA` (e.g. `ANA=$EX/analysis/runs/zjet_c00`).
 
 | run | |
 |---|---|
-| `zjet_setup` | the test's and the set-up checks' data (`setup/make_data.sh`), HEPData records, figures, `MIXING.md`, `RESULTS.md` |
+| `zjet_test` | the test's and the set-up checks' data (`test/make_data.sh`), figures, `MIXING.md`, `RESULTS.md`; on the GB10 `data/vacuum_all/`, the stand-in pp reference |
+| `hepdata` | not a run: the HEPData records (`get_hepdata.sh`), the default `--hepdata` of `mix.py` and `zjet_jets.py` |
 | `zjet_c00-01` | campaigns c00 + c01 on the GB10: pools, QA, figures |
 
 ## Figure data
@@ -69,7 +73,7 @@ PyROOT, else uproot with the graphs as small TTrees).
 ## Event mixing (`mix.py`)
 
 `mix.py` (with `zjet_mixing.py`, 2026-10-16; all details, the numbers and the plan for the
-campaigns in the git-ignored `runs/zjet_setup/figures/MIXING.md`) forms S − B the experiment's way, from the full
+campaigns in the git-ignored `runs/zjet_test/figures/MIXING.md`) forms S − B the experiment's way, from the full
 events (`bulk_jet` + fragments, the bulk included), next to the factorized result above. One
 mixed pair is exactly the factorized pair plus the bulk term (bulk_bg_i − bulk_bg_j) seen from
 Z_i, which averages to zero here (the bulk does not know the Z: `Subtract_hard_momentum` 0) and
@@ -96,7 +100,7 @@ pools on disk are not rotated. Details: [`ANA_Zhadron.md`](ANA_Zhadron.md#the-me
 
 The checks, first in `runs/<run>/figures/mixing_summary.txt`:
 
-1. **factorized = setup/compare.py** to 10⁻¹⁵ (Pb+Pb) and 2 × 10⁻¹⁴ (pp) relative: the pools, the
+1. **factorized = test/compare.py** to 10⁻¹⁵ (Pb+Pb) and 2 × 10⁻¹⁴ (pp) relative: the pools, the
    shifts and the weights.
 2. **The own-background rule with the bulk off** agrees with (1) within its errors.
 3. **Closure**: the bulk term (all − all with the bulk off) against 0. On the test only a rough
@@ -133,6 +137,6 @@ density): [`ANA_Zhadron.md`](ANA_Zhadron.md#appendix-the-pools-and-the-naive-mix
 On a campaign (the vacuum reference with the campaign's windows and storage):
 
 ```bash
-python mix.py --pbpb <campaign dir> --vacuum ../runs/zjet_setup/data/vacuum_all --pools <pool dir> \
+python mix.py --pbpb <campaign dir> --vacuum ../runs/zjet_test/data/vacuum_all --pools <pool dir> \
   --hists '' --jobs 8 --tag _c01
 ```

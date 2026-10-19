@@ -25,15 +25,16 @@ from reading the code and have not been run.
 | this analysis | `analysis/dijet/` (`gap_count.py`; new: `deta.py`, `ANA_Deta.md`), its library `analysis/jetcorr/deta_asym.py` (new) |
 | data and figures | `analysis/runs/<run>/{data,figures}/`, git-ignored, one run per campaign; scripts take `--run` |
 
-The runs of this plan. The c00 outputs move on the analysis host from the old `zjet_test/` place
-(`mv`, git-ignored):
+The runs of this plan. The c00 outputs move on the analysis host from the old code folder
+`analysis/zjet_test/` (the "formerly" column is relative to it; `mv`, git-ignored):
 
 | run | holds | formerly |
 |---|---|---|
-| `runs/zjet_c00/` | `data/jets/` (the map step at R = 0.3), `data/mix/` (pools), `data/logs/`, `figures/` (`ANALYSIS_c00.md`, `mixing_summary_c00.txt`, …) | `zjet_test/data/jets_c00/`, `data/mix_c00/`, `data/logs/`, `figures/` |
+| `runs/zjet_c00/` | `data/jets/` (the map step at R = 0.3), `data/mix/` (pools), `data/logs/`, `figures/` (`ANALYSIS_c00.md`, `mixing_summary_c00.txt`, …) | `data/jets_c00/`, `data/mix_c00/`, `data/logs/`, `figures/` (the c00 files) |
 | `runs/zjet_c01/` | c01, mapped on its own (A0) | – |
-| `runs/zjet_c00-01/` | the combination's figures (on the GB10 also its pools and QA) | `zjet_test/data-c00-01/`, `figures-c00-01/` |
-| `runs/zjet_setup/` | the 96-event test, the set-up samples, the pp reference `vacuum_all`, the HEPData records | `zjet_test/data/`, `figures/` |
+| `runs/zjet_c00-01/` | the combination's figures (on the GB10 also its pools and QA) | `data-c00-01/`, `figures-c00-01/` |
+| `runs/zjet_test/` | the 96-event test (`zjet/test/`), the set-up samples, the GB10's stand-in pp reference `vacuum_all` | `data/`, `figures/` (the rest) |
+| `runs/hepdata/` | CMS's HEPData records (`zjet/get_hepdata.sh`), the final stages' default `--hepdata` | `data/hepdata/`, `data/hepdata_zjet/` |
 
 ## 0. The measurement and the proxy
 
@@ -332,7 +333,7 @@ in the form of `zjet/ANA_Zjet.md`; the result note `runs/zjet_c00/figures/ANALYS
 ## 5. Phase C — the dijet production (outline, after B)
 
 1. **Generator:** PythiaGun hard QCD (the jet productions' settings, **verify**) with p̂_T
-   windows chosen, as `zjet/setup/window_layout.py` did for the Z, so that most events have jet1 > 130 GeV at
+   windows chosen, as `zjet/test/window_layout.py` did for the Z, so that most events have jet1 > 130 GeV at
    R = 0.4 after quenching; the same Pb+Pb 0–30 % chain, the correlated `bulk_bg` twin kept (the
    truth path needs ~20× fewer events than the experiment-like one), all particles to
    |η| < 2.6.

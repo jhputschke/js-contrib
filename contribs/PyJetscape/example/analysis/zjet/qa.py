@@ -467,7 +467,7 @@ def main():
     p = sub.add_parser("plot", help="the figures and the summary")
     p.add_argument("--pbpb", required=True, help="the map step's Pb+Pb outputs (.npz or .root)")
     p.add_argument("--pp", default=None, help="the same for the vacuum reference")
-    p.add_argument("--run", default="zjet_setup", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
+    p.add_argument("--run", default="zjet_test", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
     p.add_argument("--outdir", default=None)
     p.add_argument("--tag", default="")
     a = ap.parse_args()

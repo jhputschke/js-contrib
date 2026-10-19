@@ -1,14 +1,15 @@
 #!/bin/bash
 # The data of the Z+jet test (README.md): 96 Pb+Pb 5.02 TeV 0-30 % Z+jet events at hadron
-# level, the pp (vacuum) reference, CMS 2507.09307's HEPData record and one event's movies,
-# into ../../runs/zjet_setup/data/; and (2026-10-16) the samples of the campaign set-up checks: the vacuum references
-# without the parton cut and with the campaign's windows, with all particles for the Z+jet
-# analysis, CMS 1702.01060's HEPData, and Pb+Pb jobs with the campaign's arguments.
+# level, the pp (vacuum) reference and one event's movies, into ../../runs/zjet_test/data/; and
+# (2026-10-16) the samples of the campaign set-up checks: the vacuum references without the
+# parton cut and with the campaign's windows, with all particles for the Z+jet analysis, and
+# Pb+Pb jobs with the campaign's arguments.  The targets hepdata and hepdata_zjet call
+# ../get_hepdata.sh (CMS's records into ../../runs/hepdata/, shared with the campaign analyses).
 #
 #   ./make_data.sh [pbpb|vacuum|hepdata|movie|all]   the test (default all)
 #   ./make_data.sh [vacuum_nocut|vacuum_zh|vacuum_all|hepdata_zjet|pbpb_campaign|checks]
 #                                                    the checks (checks = all five)
-#   OUT=<dir> writes elsewhere than runs/zjet_setup/data/.
+#   OUT=<dir> writes elsewhere than runs/zjet_test/data/.
 #
 # These are the commands of 2026-10-15 on the GB10 (conda env js_fno, X-SCAPE built in
 # build_gpu with the PyJetscape bindings), with the paths made relative.  Pb+Pb: two jobs
@@ -19,7 +20,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 PROD=$HERE/../../../prod_AuAu_0_10_jet         # run_prod_jet.py, run_prod_vacuum.py, hadronize.py
 CONFIG=$HERE/../../../config                   # PbPb_0_30_ZJet.xml, grid_PbPb.yaml
 VIS=$HERE/../../../../../Visualization         # wake_pyvista.py, hydro_jet_particles_pyvista.py
-OUT=${OUT:-$HERE/../../runs/zjet_setup/data}
+OUT=${OUT:-$HERE/../../runs/zjet_test/data}
 WHAT=${1:-all}
 WINDOWS=20-30,30-40,40-60,60-80,80-120,120-200        # the test's (the campaigns' until 2026-10-16)
 ZH_WINDOWS=20-30,30-35,35-45,45-55,55-70,70-200      # the campaigns' since 2026-10-16
@@ -51,12 +52,8 @@ if [[ $WHAT == vacuum || $WHAT == all ]]; then
 fi
 
 if [[ $WHAT == hepdata || $WHAT == all ]]; then
-  # CMS 2507.09307 (CMS-HIN-23-006), HEPData ins2945894 v1 (doi:10.17182/hepdata.156186)
-  mkdir -p "$OUT/hepdata" && cd "$OUT/hepdata"
-  curl -sL "https://www.hepdata.net/record/156186?format=json&light=true" -o record.json
-  curl -sL "https://www.hepdata.net/download/submission/ins2945894/1/yaml" \
-    -o HEPData-ins2945894-v1-yaml.tar.gz
-  tar xzf HEPData-ins2945894-v1-yaml.tar.gz       # -> HEPData-ins2945894-v1-yaml/
+  # CMS 2507.09307's HEPData record: ../get_hepdata.sh, into ../../runs/hepdata/ (every run's)
+  "$HERE/../get_hepdata.sh" 2507
 fi
 
 if [[ $WHAT == movie || $WHAT == all ]]; then
@@ -111,11 +108,7 @@ if [[ $WHAT == vacuum_all || $WHAT == checks ]]; then
   vac vacuum_all 902 12000 "$ZH_WINDOWS" --eta-max 2.6 --no-x
 fi
 if [[ $WHAT == hepdata_zjet || $WHAT == checks ]]; then
-  # CMS 1702.01060 (CMS-HIN-15-013, Z+jet), HEPData ins1512112 v1
-  mkdir -p "$OUT/hepdata_zjet" && cd "$OUT/hepdata_zjet"
-  curl -sL "https://www.hepdata.net/download/submission/ins1512112/1/yaml" \
-    -o HEPData-ins1512112-v1-yaml.tar.gz
-  tar xzf HEPData-ins1512112-v1-yaml.tar.gz       # -> HEPData-ins1512112-v1-yaml/
+  "$HERE/../get_hepdata.sh" 1702                  # CMS 1702.01060's, as above
 fi
 if [[ $WHAT == pbpb_campaign || $WHAT == checks ]]; then
   # one 24-event Pb+Pb job (one background) with the campaign's arguments, all particles and
