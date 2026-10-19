@@ -28,6 +28,9 @@ class StripRho:
         self.cs = cs                             # the estimator's jets refer to it
         jets = cs.inclusive_jets()
         self.b = fj.JetMedianBackgroundEstimator(sel)
+        # rho alone: FastJet also computes rho_m by default, from every k_T jet's constituents
+        # (a quarter of the map step's time); rho is the median of p_T / area either way
+        self.b.set_compute_rho_m(False)
         self.b.set_jets(jets)
         self.ys = np.sort(np.array([j.rap() for j in jets]))
         self.cache = {}

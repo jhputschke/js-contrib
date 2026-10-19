@@ -59,6 +59,9 @@ struct StripRho {
   StripRho(const std::vector<fj::PseudoJet> &parts, const Clusterer &c)
       : cs(parts, c.kt, c.area), bge(c.rho_sel) {
     const auto jets = cs.inclusive_jets();
+    // rho alone: FastJet also computes rho_m by default, from every k_T jet's constituents
+    // (a quarter of the map step's time); rho is the median of p_T / area either way
+    bge.set_compute_rho_m(false);
     bge.set_jets(jets);
     for (const auto &j : jets) ys.push_back(j.rap());
     std::sort(ys.begin(), ys.end());
