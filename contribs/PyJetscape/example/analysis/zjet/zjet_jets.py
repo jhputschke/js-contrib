@@ -4,6 +4,12 @@ pp sample, from either map step (example/analysis_root/zjet/zjets or zjet_jets_m
 
     python zjet_jets.py --pbpb data/jets_cxx/pbpb_campaign --pp data/jets_cxx/vacuum_all
     python zjet_jets.py ... --tag _c00 --blocks 100 [--n-mixed 40] [--n-nearest 20]
+    python zjet_jets.py --pbpb runs/zjet_c00/jets runs/zjet_c01/jets --pp ...   # combined
+
+--pbpb / --pp: directories, quoted globs or files, several of them for campaigns mapped apart
+(load_jets: the ids and weights of the combination, rebuilt from every output's file_info).
+Outputs of different map-step settings combine: --emb-samples per event (embedded_rows), and
+columns not in every output (jet_rho_m of --rho-m) left out with a warning.
 
 Z: an opposite-sign lepton pair with 70 < m < 110 GeV, p_T^Z > 40 GeV, muons |eta| < 2.4,
 electrons |eta| < 2.5 outside 1.44-1.57 (both p_T > 20 from the generator; CMS: muons from
@@ -31,7 +37,9 @@ The wake's effect: the map step also stores the jets of the embedded event, bulk
 same fragments (the Z event without its wake: the same fluid sample, random numbers and
 subtraction), and steps 2 and 3 are repeated on it ('no wake', unsmeared); step 2 - step 2
 without the wake is what the wake does to the observables, with the jackknife of the
-difference (the two share their events) -> figures/zjet_jets_wake{tag}.png.
+difference (the two share their events) -> figures/zjet_jets_wake{tag}.png.  Step 1 and the
+'no wake' rows use the oversamples that have the embedded event (the map step's --emb-samples
+N: the first N; default all), each 1 / min(n_samples, N) of its event.
 Steps 2 and 3 in four smearing variants (CMS's smearing being optional): none; detector (C, S
 of PbPb: the model's own fluctuations stand for N); full (C, S, N: counts them twice); match
 (C, S and sqrt(N^2 - sigma_RC^2), sigma_RC the random cones' width).  pp (every step's top

@@ -142,31 +142,47 @@ route B:  *_hadrons_*.h5  --run_h5toROOT.py-->  *_hadrons.root  --zhadron_pools-
 | pools made by | format | read by |
 |---|---|---|
 | `mix.py`'s own map step (route A, Python, from the HDF5 files; `zjet_mixing.file_pool`) | compressed `.npz` in `--pools/<sample>/`, with a manifest | `mix.py` (cached; rebuilt when the files, the selection or the seed change) |
-| `zhadron_pools` (route B, C++, from the ROOT hadron files) | `.root` (TTrees `pool_events`, `pool_bg`) | `mix.py --pbpb-pools / --vacuum-pools` (`zjet_mixing.read_root_pool`) |
+| `zhadron_pools` (route B, C++, from the ROOT hadron files) | `.root` (TTrees `pool_events`, `pool_bgw`, `pool_bgr`, `file_info`) | `mix.py --pbpb-pools / --vacuum-pools` (`zjet_mixing.read_root_pool`) |
 
 The content is the same (`check_cxx.py pools`, array by array); `mix.py` never reads the ROOT
 hadron files itself. Pb+Pb and pp can come from different routes, but the checks assume one.
+
+The pools are of **version 4** (2026-10-19): each carries its production file's record
+(`fi_*` / `file_info`: name, events, hydro backgrounds, pTHat windows) and keeps its sums
+unweighted per hydro background and pTHat window, so the pools of any set of files, of one
+campaign or of several built apart, are weighted for that set when they are loaded
+(`zjet_mixing.assemble`: the ids and weights of `HadronFileReader` over the whole set, the same
+to rounding as one build of all files; `test/combine_check.py`). Pools of version 3 (before)
+load as stored, one directory at a time, and do not mix with version 4.
 
 **Per selected Z** (CMS 2507.09307's Z selection):
 
 | field | shape | what |
 |---|---|---|
-| `event`, `bg` | – | the global event index, its hydro background (dense id over the campaign) |
-| `w` | – | the weight: window σ / events × N_coll, mean 1 over the selected Z's |
+| `local_event`, `pthat_bin`, `n_coll`, `bg_unit` | – | the keys: the event in its file, its pTHat window, N_coll, its hydro background in the file |
+| `event`, `bg`, `w` | – | made at load time for the set loaded: the global event index, its hydro background (dense id), the weight window σ / events × N_coll, mean 1 over the selected Z's |
 | `y`, `phi` | – | the Z's y_Z and φ_Z |
 | `k_one`, `n_samples` | – | the event's one "recorded" oversample (`zjet_wake.key_index(event_key(seed, file name, event in the file), n)`), the number of oversamples |
 | `S_full` | 3 × 24 × 20 | the full event's tracks (`bulk_jet` + fragments) in the Z frame: p_T class × Δy (0.4) × Δφ (π/10), mean over all oversamples |
 | `S_one` | 3 × 24 × 20 | the same for oversample `k_one` alone: one collision |
 | `trk_pt`, `trk_eta`, `trk_phi` | n tracks | that oversample's tracks in the lab frame (p_T class, η, φ): what this event contributes as a mixing partner |
+| `Y_full`, `Y_one`, `Y_zc`, `Y_frag` | 3 × 2 × 96 | the dijet proxy's contents ([`../dijet/ANA_Deta.md`](../dijet/ANA_Deta.md)): Δy = η − y_Z in 0.1 per side of the Z (\|Δφ\| < π/2, the away side); the full event, one oversample, the Z-correlated yield, the fragments |
+| `L_full`, `L_zc`, `L_frag` | 3 × 2 × 48 | the same in lab η (0.1) |
 
-**Per hydro background** (summed over its selected Z's):
+**Per hydro background and pTHat window** (unweighted sums over its selected Z's; `pool_bgw`):
 
 | field | shape | what |
 |---|---|---|
-| `W`, `W2` | – | Σw, Σw² |
-| `SW_full`, `SW_zc` | 3 × 24 × 20 | Σ w·S in the Z frame: the full event; the Z-correlated yield (`bulk_jet` − `bulk_bg` sample by sample, + fragments) |
-| `T_full`, `T_zc` | 3 × 24 × 20 | Σ w²·S, the self pairs' terms |
-| `R_full`, `R_zc` | 3 × 48 × 60 | Σ w·ρ, the lab-frame track density: p_T class × η (0.1) × φ (6°) |
+| `unit`, `k` | – | the hydro background in the file, the window |
+| `n`, `ncoll` | – | the number of selected Z's, the background's N_coll |
+| `S_full`, `S_zc` | 3 × 24 × 20 | Σ S in the Z frame: the full event; the Z-correlated yield (`bulk_jet` − `bulk_bg` sample by sample, + fragments) |
+| `R_full` | 3 × 48 × 60 | Σ ρ, the lab-frame track density of the full event: p_T class × η (0.1) × φ (6°) |
+
+Per hydro background (`pool_bgr`, Pb+Pb): `RB`, its `bulk_bg` lab density per sample. Every
+event's weight factorizes into its window's (σ / events) and its background's (N_coll), so at
+load time `assemble` makes the per-background sums the steps use: W = Σw, W2 = Σw², SW = Σ w·S
+and T = Σ w²·S (the self pairs' terms) for both contents, R_full = Σ w·ρ and R_zc = R_full −
+W·RB.
 
 Tracks are always charged, |η| < 2.4, p_T 1–10 GeV, without the Z's two leptons. Vacuum pools
 store one content (full = Z-correlated).
@@ -272,7 +288,16 @@ python mix.py --pbpb "$DATA/gpu*/*_hadrons_jet_frag.h5" --vacuum "$PP/*_hadrons_
 
 - The pools land in `$ANA/pools/pbpb` and `$ANA/pools/vacuum` (compressed `.npz`, a manifest);
   the second command reuses them. They are rebuilt by themselves when the files, the selection
-  or the seed change (add a campaign: everything is rebuilt, the weights change).
+  or the seed change (files added to the same `--pbpb`: all of that directory's pools are
+  rebuilt). A new campaign is better built on its own (`--pools-only`: build and stop) and
+  combined with the others when they are read:
+  ```bash
+  python mix.py --pbpb "/data/zjet_c01/gpu*/*_hadrons_jet_frag.h5" --vacuum none \
+      --pools /data/ana_c01/pools --pools-only --jobs 8
+  python mix.py --pbpb-pools /data/ana_c00/pools/pbpb /data/ana_c01/pools/pbpb \
+      --vacuum-pools /data/ana_c00/pools/vacuum --hists '' --outdir ... --tag _c00-01
+  ```
+  ([README](README.md#combining-campaigns); `--pools-only` with `--vacuum none` skips the pp).
 - `--hists ''`: check (1) compares with the 96-event test's `compare.py` and is skipped here.
 - Cost (estimated from the test): the map a few seconds per file and ~2–3 GB per process, so
   `--jobs 8` takes minutes and ~20 GB; the reduce a few minutes.

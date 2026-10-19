@@ -130,6 +130,15 @@ oversample k (all 40 by default, `--samples N` fewer): the whole event, `bulk_je
   subtracted p_T (the negative tail; a few hundred kB per file);
 - pp: the fragmentation k alone, no subtraction, no embedding, cones or background jets.
 
+The options (both routes; stored in each output's `run_info`): `--R` (0.3), `--samples N`
+(the first N oversamples), `--emb-samples N` (the embedded event, i.e. the fragments alone and
+in `bulk_bg`, `emb_*`, `nw_*`, `zcone_nw_*`, for the first N oversamples only; the jets, the
+random cones and the Z cone of every oversample are unchanged; default all), `--rho-m`
+(`zjets --rho-m 1`: every jet also gets ρ_m of its strip, `jet_rho_m`, for mass subtraction;
+off by default, 1.6× the time), `--qa-samples N`, `--files i:j`. Outputs of different
+`--samples`, `--emb-samples` and `--rho-m` combine in the final stage; R, the ghost area and
+`--ptmin` must agree ([README](README.md#combining-campaigns)).
+
 ## A. Python on the HDF5 files
 
 **A1. The map step**, in 8 slices of the 100 files (`--files i:j`; the weights come from all
@@ -149,8 +158,11 @@ python zjet_jets_map.py "$PP/*_hadrons_jet_frag.h5" $ANA/jets_py/pp > $ANA/logs/
   per file and 2.8 h for the 100 files, 92 GB at peak (~5.3 GB per process). Since 2026-10-17
   ~1.5× faster with the same outputs, bit for bit (both map steps): ρ(jet) once per strip
   content, no ρ for jets that cannot pass the p_T cut, the background's particles and ρ kept
-  per background and sample, the random cones' particles preselected. `--samples 10` makes it
-  another 4× faster.
+  per background and sample, the random cones' particles preselected. Since 2026-10-19 ρ
+  without FastJet's ρ_m (the median of p_T / area either way): another 1.4× (Python) to 1.5×
+  (C++), bit for bit (one 48-event file at R = 0.4 on the GB10: 203 → 142 s, C++ 180 → 121 s).
+  `--samples 10` makes it another 4× faster; `--emb-samples 4` 1.5× (C++ 1.9×; 94 s, C++
+  65 s), at the cost of step 1's and the "no wake" variant's statistics only.
 - pp: ~4 min for 12,000 events × 40 fragmentations (`zjet_pp`).
 
 **A2. The final stage**:
@@ -160,8 +172,12 @@ python zjet_jets.py --pbpb $ANA/jets_py/pbpb --pp $ANA/jets_py/pp \
     --outdir $ANA/figures --tag _c00 --blocks 100
 ```
 
-Weights: window cross section / events × N_coll (Pb+Pb), every oversample 1/40. Errors: a
-jackknife over 100 blocks of the 400 hydro backgrounds (pp: of events). Seconds to a minute.
+Weights: window cross section / events × N_coll (Pb+Pb), every oversample 1/40 (step 1 and
+the "no wake" rows: 1 / the event's oversamples with the embedded event, `--emb-samples`).
+Errors: a jackknife over 100 blocks of the 400 hydro backgrounds (pp: of events). Seconds to a
+minute. Several campaigns, each mapped on its own: `--pbpb /data/ana_c00/jets_py/pbpb
+/data/ana_c01/jets_py/pbpb ...` (directories or quoted globs; [README](README.md#combining-campaigns)),
+the same for `--pp` and `zjet_jets_qa.py`.
 
 Then read `$ANA/figures/zjet_jets_summary_c00.txt` and the figures **in the order of the steps**:
 
@@ -203,6 +219,8 @@ p_T), not the medium's, and carries over into every Pb+Pb step.
 `zjet_jets_step1_c00.png`, the summary's "Step 1" block: the fragments' jets with CMS's theory
 smearing (and unsmeared) against CMS's PbPb tables (bottom row): the jet's energy loss alone,
 without background or medium response. The top row repeats A4's pp at PbPb's resolution.
+Its jets come from the oversamples with the embedded event (all by default; with the map step's
+`--emb-samples N` the first N of each event, each 1/N of it: the same mean, larger errors).
 
 **A6. Step 2** — `zjet_jets_step2_c00.png`: S − B_own in the four smearing variants. Against step 1:
 what the background, its subtraction and the medium response (the wake's hadrons inside the
@@ -221,7 +239,9 @@ sampling), the ρA subtraction, B, the fluctuations' threshold feed. So **step 2
 without the wake is what the wake does to Δφ_jZ, x_jZ, ⟨x_jZ⟩ and R_jZ**, with the jackknife of
 the difference (the two share their events: far smaller errors than either). Step 2 − step 1
 is not: it also contains the background's fluctuations and the subtraction. Top row: CMS,
-step 2, step 2 without the wake, step 1 (all unsmeared); bottom row: the difference.
+step 2, step 2 without the wake, step 1 (all unsmeared); bottom row: the difference. With the
+map step's `--emb-samples N` the "no wake" steps use the first N oversamples of each event
+(as step 1), step 2 all of them.
 
 ## B. ROOT: the C++ map step, the same final stage
 
@@ -250,7 +270,9 @@ done; wait
 ```
 
 0.12 s per Pb+Pb oversample (measured on the test), ~0.35 GB per process; about as fast as the
-Python route (FastJet clusters in both), the pp in seconds.
+Python route (FastJet clusters in both: 1.1–1.4×, 2.6× less memory), the pp in seconds. The
+options are A1's (`--R`, `--samples N`, `--emb-samples N`, `--rho-m 1`, `--qa-samples N`,
+`--files i:j`; [`../../analysis_root/zjet/README.md`](../../analysis_root/zjet/README.md)).
 
 **B4. The final stage on the C++ jets** (pp and all three steps, read as in A3–A7):
 

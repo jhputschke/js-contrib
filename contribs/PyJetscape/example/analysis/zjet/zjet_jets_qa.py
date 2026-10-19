@@ -7,6 +7,9 @@ subtracted p_T) and its jets tree (embedding, random cones), from either map ste
     python zjet_jets_qa.py --pbpb data/jets_cxx/pbpb_campaign --pp data/jets_cxx/vacuum_all
     python zjet_jets_qa.py ... [--hadron-qa data/qa_py/pbpb_campaign] [--n-nearest 20] --tag _c00
 
+--pbpb / --pp take several directories or globs (campaigns mapped apart: zjet_jets.load_jets);
+the embedding's panels use the oversamples with the embedded event (--emb-samples).
+
 The Z events: CMS 1702.01060's selection and weights (zjet_jets.py: window cross section /
 events x N_coll for Pb+Pb, normalised per Z).  Jets per Z: S the Z events' jets (bulk_jet +
 fragments), B_own the jets of the Z's own background (bulk_bg, the same oversample index),

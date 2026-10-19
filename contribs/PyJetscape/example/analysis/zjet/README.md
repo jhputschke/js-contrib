@@ -39,12 +39,12 @@ Route B converts the hadron files once (`../../prod_AuAu_0_10_jet/run_h5toROOT.p
 | file | |
 |---|---|
 | `qa.py` | QA of a Z+jet production (step 0 of both ANA documents): `map` (per file: a table per Z event, per-source hadron histograms; the twin of `../../analysis_root/zjet/zqa`) and `plot` → `figures/qa_z_*`, `qa_weights_*`, `qa_hadrons*`, `qa_multiplicity*` (the total charged multiplicity), `qa_species*`, `qa_summary*.txt` |
-| `zjet_jets_map.py`, `zjet_jets.py` | Z+jet against CMS 1702.01060: the map step in Python (anti-k_T R = `--R`, 0.3; ρA-subtracted in Pb+Pb, embedding, random cones, the Z cone, the backgrounds' `bulk_bg` jets, the outputs' records `file_info`/`run_info`, so that `load_jets` combines campaigns mapped apart, per jet mass, constituents and leading p_T, the QA trees with all jets of one oversample; the twin of `../../analysis_root/zjet/zjets`) and the shared final stage, three steps: the fragments' jets (the reference), S − B with the own background's jets, S − B mixed as CMS (Z and jet cuts, the optional CMS smearing in four variants, HEPData, χ², jackknife), and pp against CMS's pp tables at pp's and at PbPb's resolution → `figures/zjet_jets_pp*.png`, `zjet_jets_step{1,2,3}*.png`, `zjet_jets_embedding*.png`, `zjet_jets_summary*.txt` |
-| `zjet_jets_qa.py` | the jet QA of the Z+jet analysis, from either map step's QA trees: the ρA subtraction (p_T,raw, ρA, the negative tail, the fake fraction B/S), area and ρ (vs N_coll, η, dN_ch/dη; ρ of the Z event against its background), random cones and the embedding's JES/JER, geometry and the lepton cut, constituents, B_mixed against B_own → `figures/qa_jets_{subtraction,area_rho,response,geometry,constituents,mixing}*.png`, `qa_jets_summary*.txt` |
-| `mix.py` | event mixing (`zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `runs/<run>/data/pbpb` and `vacuum` (cached in `data/mix/`) → step 1, the reference (factorized, with pp; `test/compare.py`'s figure): `figures/mixing_reference_d{phi,y}.png`; all four steps: `mixing_dphi.png`, `mixing_dy.png`; the errors: `mixing_errors_d{phi,y}.png`; `mixing_summary.txt` (~10 s on the test) |
+| `zjet_jets_map.py`, `zjet_jets.py` | Z+jet against CMS 1702.01060: the map step in Python (anti-k_T R = `--R`, 0.3; ρA-subtracted in Pb+Pb, embedding, random cones, the Z cone, the backgrounds' `bulk_bg` jets, the outputs' records `file_info`/`run_info`, so that `load_jets` combines campaigns mapped apart, per jet mass, constituents and leading p_T, the QA trees with all jets of one oversample; `--emb-samples N` the embedded event for the first N oversamples only, `--rho-m` ρ_m per jet; the twin of `../../analysis_root/zjet/zjets`; [combining](#combining-campaigns)) and the shared final stage, three steps: the fragments' jets (the reference), S − B with the own background's jets, S − B mixed as CMS (Z and jet cuts, the optional CMS smearing in four variants, HEPData, χ², jackknife), and pp against CMS's pp tables at pp's and at PbPb's resolution → `figures/zjet_jets_pp*.png`, `zjet_jets_step{1,2,3}*.png`, `zjet_jets_embedding*.png`, `zjet_jets_summary*.txt` |
+| `zjet_jets_qa.py` | the jet QA of the Z+jet analysis, from either map step's QA trees (`--pbpb`/`--pp` several directories, as `zjet_jets.py`): the ρA subtraction (p_T,raw, ρA, the negative tail, the fake fraction B/S), area and ρ (vs N_coll, η, dN_ch/dη; ρ of the Z event against its background), random cones and the embedding's JES/JER, geometry and the lepton cut, constituents, B_mixed against B_own → `figures/qa_jets_{subtraction,area_rho,response,geometry,constituents,mixing}*.png`, `qa_jets_summary*.txt` |
+| `mix.py` | event mixing (`zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `runs/<run>/data/pbpb` and `vacuum` (cached in `data/mix/`) → step 1, the reference (factorized, with pp; `test/compare.py`'s figure): `figures/mixing_reference_d{phi,y}.png`; all four steps: `mixing_dphi.png`, `mixing_dy.png`; the errors: `mixing_errors_d{phi,y}.png`; `mixing_summary.txt` (~10 s on the test); `--pbpb-pools`/`--vacuum-pools` read existing pools, of several directories (campaigns built apart), `--pools-only` builds them and stops |
 | `check_cxx.py` | the C++ map steps (`../../analysis_root/zjet`) against the Python ones: `pools`, `jets` (with the jet QA trees) and `qa` |
 | `README_zjet_2507.09307.md` | every cut of CMS 2507.09307 (Z–hadron Δφ / Δy) and its setting in the production and the analysis |
-| `get_hepdata.sh` | CMS 2507.09307's and 1702.01060's HEPData records → `../runs/hepdata/` (once, before the final stages) |
+| `get_hepdata.sh` | CMS 2507.09307's, 1702.01060's and HIN-25-012's (`25012`, ins3123406: the dijet Δη of `../dijet/deta.py`) HEPData records → `../runs/hepdata/` (once, before the final stages) |
 | `zjet_wake.py`, `zjet_mixing.py`, `cms2507.py` | the library: the Z record, selection, weights and Z frame; the pools and the mixing modes; CMS 2507.09307's HEPData and observables (the factorized result) |
 | `zjet_wake.ipynb` | the Z–hadron wake notebook (stored without outputs; runs on `test/`'s test data) |
 
@@ -62,6 +62,42 @@ documents keep their outputs in `$ANA` (e.g. `ANA=$EX/analysis/runs/zjet_c00`).
 | `zjet_test` | the test's and the set-up checks' data (`test/make_data.sh`), figures, `MIXING.md`, `RESULTS.md`; on the GB10 `data/vacuum_all/`, the stand-in pp reference |
 | `hepdata` | not a run: the HEPData records (`get_hepdata.sh`), the default `--hepdata` of `mix.py` and `zjet_jets.py` |
 | `zjet_c00-01` | campaigns c00 + c01 on the GB10: pools, QA, figures |
+
+## Combining campaigns
+
+Each campaign is mapped once, on its own (in slices with `--files i:j`, on any machine), and
+the final stages combine any set of them at load time (since 2026-10-19). Every map output
+carries its production file's record (`file_info`: name, events, hydro backgrounds, pTHat
+windows; `../jetcorr/mapio.py`), so the event and background ids and the weights (window cross
+section / events × N_coll) of the combination are rebuilt from the records
+(`../jetcorr/weights.py`: `campaign_ids`, `combine_windows`): the same as one mapping of all
+files, bit for bit (`test/combine_check.py`).
+
+```bash
+python zjet_jets.py    --pbpb $RUNS/zjet_c00/data/jets $RUNS/zjet_c01/data/jets \
+                       --pp $RUNS/zjet_pp/data/jets ...
+python zjet_jets_qa.py --pbpb "$RUNS/zjet_c0*/data/jets" --pp $RUNS/zjet_pp/data/jets ...
+python mix.py --pbpb-pools $RUNS/zjet_c00/data/mix/pbpb $RUNS/zjet_c01/data/mix/pbpb \
+              --vacuum-pools $RUNS/zjet_pp/data/mix/vacuum --run zjet_c00-01
+```
+
+(`$RUNS` = `../runs`; directories, quoted globs or files; `../dijet/deta.py`'s `--jets`,
+`--pp-jets`, `--pools`, `--vacuum-pools` likewise.)
+
+- **Jets** (`*_jets.root`, either map step): R, the ghost area and `--ptmin` must agree
+  (`zjet_jets.map_run_info` stops otherwise). Different `--samples` combine (every event is
+  weighted 1 / its own number of oversamples), and so do different `--emb-samples`: step 1 and
+  the "no wake" rows use the oversamples that have the embedded event, per event
+  (`zjet_jets.embedded_rows`, 1 / min(n_samples, emb_samples) each). Columns not in every
+  output (`jet_rho_m` of `--rho-m`) are left out with a warning.
+- **Pools** (version 4: `.npz` of `mix.py`, `*_pool.root` of `zhadron_pools`): per event its
+  keys and contents, per hydro background and window the unweighted sums;
+  `zjet_mixing.assemble` weights them for the set loaded. `--emb-samples` and `--rho-m` are
+  jet options and do not touch the pools. `mix.py --pools-only` builds a campaign's pools and
+  stops.
+- **Older outputs** (before 2026-10-19: no `file_info`, pools of version 3): one directory at a
+  time, with the ids and weights as stored; version 3 and 4 pools do not mix (rebuild the
+  older ones).
 
 ## Figure data
 
@@ -81,7 +117,9 @@ Z_i, which averages to zero here (the bulk does not know the Z: `Subtract_hard_m
 carries the bulk's fluctuations. The map step writes one pool per production file
 (`runs/<run>/data/mix/<sample>/<stem>.npz`, compressed, cached and rebuilt when the files change; per event its S in
 its Z frame for the 40-sample mean and for one oversample, and that oversample's tracks; per
-background the summed lab-frame densities), ~2 s per test file; the modes take seconds.
+hydro background and pTHat window the unweighted sums, which `zjet_mixing.assemble` weights at
+load time: pools of version 4, see [combining](#combining-campaigns)), ~2 s per test file; the
+modes take seconds.
 
 | mode | S | B | error |
 |---|---|---|---|
