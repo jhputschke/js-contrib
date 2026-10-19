@@ -46,9 +46,9 @@ is needed to redo the O+O jet hadronization later (positions left for later), op
 **MUSIC.** EOS 9 and 91 use the same code (`EOS_hotQCD`, `music4gpu/src/eos_hotQCD.cpp:44–49`),
 only the table differs. Both are in the image (`get_music4gpu.sh` downloads `binary` and
 `SMASH_binary`). All production XMLs run 9:
-`prod_AuAu_0_10_jet/AuAu_MCGlauber_MUSIC_0_10_jet.xml:207`,
-`prod_AuAu_0_10/AuAu_MCGlauber_MUSIC_0_10_fast.xml:176`,
-`prod_OO_isr/OO_MCGlauber_MUSIC_isr.xml:182`, `docs/PbPb_5020/PbPb_0_10_jet.xml:213`.
+`config/AuAu_MCGlauber_MUSIC_0_10_jet.xml:207`,
+`config/AuAu_MCGlauber_MUSIC_0_10_fast.xml:176`,
+`config/OO_MCGlauber_MUSIC_isr.xml:182`, `config/PbPb_0_10_jet.xml:213` (all in `example/config/` since 2026-10-15).
 
 The two tables, from the build:
 

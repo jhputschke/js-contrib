@@ -174,6 +174,7 @@ Environment overrides:
 | `IMAGE` | `jhputschke/xscape-prod:cu124` | |
 | `WORKDIR` | `$HOME/prod_test` | mounted as `/work` |
 | `MUSIC_CUDA_SYNC` | unset (the image's `auto`) | passed to the jobs if set; `block`: ~30 % less CPU per event, same output |
+| `TAG_PREFIX` | unset (the production's: `AuAu_0_10_jet_seed`, `OO_isr_seed`) | the file names: `<prefix><seed>.*`, or `<prefix without _seed>_<campaign>_…` with `--campaign`; e.g. `PbPb_0_30_seed` for Pb+Pb jobs (`PbPb_0_30_zjet_c00_seed0001.*`). Letters, digits, `.`, `_`, `-`, ending in `_seed`; one per OUTDIR. Needs an image of js-contrib 2026-10-16 or later (checked before the jobs start); `slurm_prod_array.sh` takes it too |
 
 ## More examples
 

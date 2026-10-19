@@ -1,4 +1,19 @@
 <?xml version="1.0"?>
+<!-- Pb+Pb 5.02 TeV, 0-30 %, Z+jet (the class of the CMS Z+jet and Z-hadron measurements):
+     PbPb_0_10_jet.xml with b_max 8.57 fm and the Z+jet <Hard><PythiaGun> block
+     (PLAN_ZJET_CMS10x.md section 5a step 7; X-SCAPE PythiaGun with <trigger>, branch zjet).
+     b_max: 8.57 fm = the 0-30 % of the experiments' sigma_inel (pi b^2 = 0.3 x 7.7 b), used
+     now; 8.68 fm = the 0-30 % of this model's own sigma_inel (7.89 b, minimum-bias
+     3dMCGlauber, analysis/zjet_test/centrality_check.py, 2026-10-16), of which 8.57 fm is
+     0-29.3 %.  Not switched yet (see <MCGlauber>).
+     Everything else is PbPb_0_10_jet.xml's.  The geometry is sampled with P(b) ~ b and every
+     event gets one Z, while Z production scales with N_coll (CMS: 78 % of the Zs are in
+     0-30 %): weight each event by its n_coll (run_prod_jet.py records it per event) to
+     compare with data, or select a narrower class by n_coll.
+     Use: run_prod_jet.py ... user-xml ../config/PbPb_0_30_ZJet.xml grid
+     ../config/grid_PbPb.yaml pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200
+     lepton-ptmin 20 lepton-etamax 2.5 (utils/zjet/)
+     (hadronization: ../config/hadronize.xml, eCMforHadronization from <eCM> below) -->
 
 <!-- Copyright (c) The JETSCAPE Collaboration, 2018 -->
 <!-- Modular, task-based framework for simulating all aspects of heavy-ion collisions -->
@@ -17,9 +32,10 @@
        -> Liquefier + Eloss (Matter + LBT)              droplets from the jet's energy loss
        -> MUSIC_2 (same strings + the droplets)         the jet leg
 
-  Derived from ../prod_AuAu_0_10/AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
-  grid, <Preequilibrium> and MUSIC physics settings are unchanged (b_max = 4.7 fm for 0-10%,
-  T_fo = 0.15 GeV), except EOS 91 (the tunes' EOS; was 9 before 2026-10).  Changes:
+  Derived from AuAu_MCGlauber_MUSIC_0_10_fast.xml.  The <MCGlauber>, <IS>
+  grid, <Preequilibrium> and MUSIC physics settings are unchanged (T_fo = 0.15 GeV), except
+  EOS 91 (the tunes' EOS; was 9 before 2026-10).  In this Pb+Pb copy the nuclei, sqrts, b_max
+  and the <IS> grid are Pb+Pb's (the header above and <MCGlauber> below).  Changes:
 
     <name> MUSIC_1           the background leg.  Every MUSIC instance reads the FIRST
                              <Hydro><MUSIC> block, so all MUSIC settings live here and apply
@@ -103,20 +119,26 @@
       <!--1: PythiaISR setup (needs 2 step MCGlauber initialization)-->
       <generateOnlyPositions>0</generateOnlyPositions>
       <!--Collision system definitions-->
-      <projectile>Au</projectile> <!--Projectile name-->
-      <target>Au</target> <!--Target name-->
-      <sqrts>200</sqrts> <!--Center of mass energy in GeV-->
-      <!--0-10% IS SELECTED HERE, ON b.  Inside X-SCAPE the centrality cut below does nothing:
-          MCGlauberWrapper::ExecuteTask calls EventGenerator::generate_pre_events(), which samples
-          b on [b_min, b_max] (P(b) ~ b) and requires only Npart > 1.  The cut on cenMin/cenMax
-          (generateMinBiasEventList, a cut on the string count) runs only in the standalone
-          3dMCGlauber main.cpp.  With b_max = 20 this file gave MINIMUM-BIAS events.
-          4.7 fm is the geometric 0-10% (pi b^2 = 0.1 sigma_AuAu, ~690 fm^2), the same range
-          make_bulk_comparison_data.py gives FastHydro.-->
+      <projectile>Pb</projectile> <!--Projectile name-->
+      <target>Pb</target> <!--Target name-->
+      <sqrts>5020</sqrts> <!--Center of mass energy in GeV-->
+      <!--0-30 % IS SELECTED HERE, ON b (b_max below).  Inside X-SCAPE the centrality cut (cenMin/cenMax) does
+          nothing: MCGlauberWrapper::ExecuteTask calls EventGenerator::generate_pre_events(),
+          which samples b on [b_min, b_max] (P(b) ~ b) and requires only Npart > 1.  The cut on
+          cenMin/cenMax (generateMinBiasEventList: 50,000 minimum-bias events ranked by their
+          string count) runs only in the standalone 3dMCGlauber main.cpp.  With b_max = 20 this
+          file gives MINIMUM-BIAS events.
+          b_max: pi b^2 = 0.3 x 7.7 b (the experiments' sigma_inel) = 8.57 fm.  Checked with
+          200,000 minimum-bias events of this <MCGlauber> block (standalone 3dMCGlb.e,
+          2026-10-16): this model's own sigma_inel is 7.89 b (sigma_NN 67.6 mb), so 8.57 fm is
+          its 0-29.3 % (8.68 fm would be 0-30 %).  Its 0-30 % by string count (the standalone
+          cut), by N_part or by a two-component N_part/N_coll mix has 96-97 % of its events at
+          b < 8.57 fm, the same <N_coll> (1,030) and N_coll-weighted <b> (4.9 fm).-->
       <b_min>0.0</b_min> <!--Minimum impact parameter in fm-->
-      <b_max>4.7</b_max> <!--Maximum impact parameter in fm-->
+      <b_max>8.57</b_max> <!--Maximum impact parameter in fm: the geometric 0-30 % of Pb+Pb,
+          pi b^2 = 0.3 x 7.7 b (README_2stage section 9: 4.95 fm for 0-10 %)-->
       <cenMin>0.0</cenMin> <!--Minimum centrality in %  (ignored inside X-SCAPE, see above)-->
-      <cenMax>10.0</cenMax> <!--Maximum centrality in % (ignored inside X-SCAPE, see above)-->
+      <cenMax>30.0</cenMax> <!--Maximum centrality in % (ignored inside X-SCAPE, see above)-->
       <nucleon_configuration_from_file>0</nucleon_configuration_from_file> <!--0: generate nucleon configuration, 1: read from file-->
       <useQuarks>1</useQuarks> <!--Switch to use valence quarks-->
       <Q2>1.0</Q2> <!--Scale when evaluating the PDF-->
@@ -151,9 +173,9 @@
       <tau_form_fluct_gamma_beta>1.0</tau_form_fluct_gamma_beta> <!--Fluctuation parameter for the gamma distribution-->
     </MCGlauber>
 
-    <grid_max_x> 15 </grid_max_x>
-    <grid_max_y> 15 </grid_max_y>
-    <grid_max_z> 6  </grid_max_z>
+    <grid_max_x> 20 </grid_max_x>
+    <grid_max_y> 20 </grid_max_y>
+    <grid_max_z> 8  </grid_max_z>
     <grid_step_x> 0.3 </grid_step_x>
     <grid_step_y> 0.3 </grid_step_y>
     <grid_step_z> 0.2 </grid_step_z>
@@ -162,16 +184,37 @@
   <!-- Hard process.  PythiaGun uses the hard-scattering vertex sampled from 3dMCGlauber's
        binary collisions (x, y; z = t = 0).  PGun would zero it (PGun.cc:117-120), so every
        shower would start at the origin. -->
+  <!-- Z+jet (PLAN_ZJET_CMS10x.md): Pythia's Z + parton processes, the Z decaying to e+e- or
+       mu+mu- only (pure Z, no gamma*).  PythiaGun's settings stay: ISR and MPI on, FSR off
+       (Matter showers), hadron level off.  It hands over the status-62 partons above
+       softMomentumCutoff and the Z's two leptons (final, status 23), at the Glauber vertex;
+       the leptons pass through Matter, LBT, the liquefier and Colorless like photons, into
+       jet_frag.  <trigger>Z: an event needs the lepton pair; run_prod_jet.py's
+       trigger-ymax / lepton-ptmin / lepton-etamax add the acceptance cuts and records the Z per
+       event.  <minPartons>1: the hard process gives one parton next to the Z (the default 2
+       would bias events without an MPI/ISR parton above 2 GeV toward hard ISR).  pTHatMin/Max
+       are overwritten per window by pthat-bins; no PhaseSpace:pTHat lines here (PythiaGun
+       refuses them with several windows). -->
   <Hard>
     <PythiaGun>
       <name>PythiaGun</name>
       <FSR_on>0</FSR_on>
-      <pTHatMin>50</pTHatMin>
-      <pTHatMax>70</pTHatMax>
-      <eCM>200</eCM>
+      <pTHatMin>60</pTHatMin>
+      <pTHatMax>80</pTHatMax>
+      <eCM>5020</eCM>
       <softMomentumCutoff>2.0</softMomentumCutoff>
+      <minPartons>1</minPartons>
+      <trigger>Z</trigger>
       <LinesToRead>
-        HardQCD:all = on
+        HardQCD:all = off
+        PromptPhoton:all = off
+        WeakBosonAndParton:qqbar2gmZg = on
+        WeakBosonAndParton:qg2gmZq = on
+        WeakZ0:gmZmode = 2
+        23:onMode = off
+        23:onIfAny = 11 13
+        PartonLevel:ISR = on
+        PartonLevel:MPI = on
       </LinesToRead>
     </PythiaGun>
   </Hard>

@@ -42,8 +42,8 @@ the automatic task list to it.
 
 | file | purpose |
 |---|---|
-| `OO_MCGlauber_MUSIC_isr.xml` | user XML: tuned 3dMCGlauber + MUSIC for O+O, `<Hard>` with `<PythiaGun>` + `<ISR>`, Matter, iColored |
-| `grid_oo.yaml` | output grid of the hydro file: 64 × 64 × 32 at 0.3125 fm × 0.3125 fm × 0.3125 (x, y ±9.84 fm) |
+| `../config/OO_MCGlauber_MUSIC_isr.xml` | user XML: tuned 3dMCGlauber + MUSIC for O+O, `<Hard>` with `<PythiaGun>` + `<ISR>`, Matter, iColored |
+| `../config/grid_oo.yaml` | output grid of the hydro file: 64 × 64 × 32 at 0.3125 fm × 0.3125 fm × 0.3125 (x, y ±9.84 fm) |
 | `run_prod_oo_isr.py` | one job: one seed, N events |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `rehadronize_jets.py` | hadronize a `--store-hadronization-input` job's jets again from the stored Pythia input: `--check` against the job, or decays off / new seeds ([Redoing the jet hadronization](#redoing-the-jet-hadronization)) |
@@ -232,7 +232,7 @@ Options for the hadrons made in the job:
 | option | effect |
 |---|---|
 | `--bulk-hadrons N` | run iSS in the job, N oversamples per event → `<stem>_hadrons_bulk_bg.h5` (default 0: no bulk hadrons in the job) |
-| `--hadronize-xml FILE` | iSS settings for `--bulk-hadrons` (default `../prod_AuAu_0_10_jet/hadronize.xml`, the settings `hadronize.py` runs, so in-job and offline bulk are sampled alike) |
+| `--hadronize-xml FILE` | iSS settings for `--bulk-hadrons` (default `../config/hadronize.xml`, the settings `hadronize.py` runs, so in-job and offline bulk are sampled alike) |
 | `--no-particlize` | no `<stem>_particlize.h5`: no surfaces, partons or initiators stored |
 | `--no-hydro-file` | no `<stem>.h5`: the hydro evolution is not stored (`hydro_row` is then -1 for every event) |
 | `--no-jet-hadrons` | no iColoredHadronization, no `<stem>_hadrons_jet_frag.h5` |

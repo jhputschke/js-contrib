@@ -20,6 +20,12 @@ grid YAMLs, grid checks and environment checks this reuses.
                                      # one background per 3 jets, one in each pTHat window
     python run_prod_jet.py --events 30 --seed 1 --pthat-bins 10-20,20-30,30-40 --parton-ymax 0.6
                                      # only events whose hardest parton has |y| < 0.6
+    python run_prod_jet.py --events 24 --seed 1 --user-xml ../config/PbPb_0_30_ZJet.xml \
+        --grid ../config/grid_PbPb.yaml --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 \
+        --jets-per-bin 4 --lepton-ptmin 20 --lepton-etamax 2.5 --hadrons-only
+                                     # Pb+Pb Z+jet (the XML's PythiaGun has <trigger>Z): the
+                                     #   Z's leptons pass through like photons, the Z per
+                                     #   event
     python run_prod_jet.py --events 10 --seed 1 --surface jet    # surface for the jet leg only
     python run_prod_jet.py --events 10 --seed 1 --write-particlize both
                                      # + <stem>_particlize.h5: both surfaces and the final
@@ -62,8 +68,9 @@ _spec = importlib.util.spec_from_file_location("_run_prod", os.path.join(PROD, "
 rp = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(rp)
 
-USER_XML = os.path.join(HERE, "AuAu_MCGlauber_MUSIC_0_10_jet.xml")
-GRID_YAML = os.path.join(PROD, "grid_fno.yaml")
+USER_XML = os.path.join(rp.CONFIG, "AuAu_MCGlauber_MUSIC_0_10_jet.xml")
+GRID_YAML = os.path.join(rp.CONFIG, "grid_fno.yaml")
+HADRONIZE_XML = os.path.join(rp.CONFIG, "hadronize.xml")
 BG_ID, JET_ID = "MUSIC_1", "MUSIC_2"
 
 HARD_VERTEX = {
@@ -78,7 +85,7 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", type=int, default=10, help="events in this job (default 10)")
     p.add_argument("--grid", default=GRID_YAML,
-                   help="output grid YAML (default: ../prod_AuAu_0_10/grid_fno.yaml)")
+                   help="output grid YAML (default: ../config/grid_fno.yaml)")
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
                    help="output directory (default: ./out next to this script)")
     p.add_argument("--out", default=None,
@@ -89,7 +96,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
-                   help="template user XML (default: the one in this folder)")
+                   help="template user XML (default: ../config/"
+                        "AuAu_MCGlauber_MUSIC_0_10_jet.xml)")
     p.add_argument("--native", action="store_true",
                    help="write MUSIC's own grid for both legs instead of the YAML's")
     p.add_argument("--edge-e-threshold", type=float, default=None, dest="edge_e_threshold",
@@ -123,15 +131,32 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--parton-ymax", type=float, default=None, dest="parton_ymax",
                    help="PythiaGun: keep only events whose partons handed to the framework "
                         "(status 62 after ISR/MPI; final partons with FSR_on) pass |y| < YMAX "
-                        "on their two hardest (see --parton-y-mode). Rejected events are "
-                        "regenerated before any shower or hydro; the cross sections are "
-                        "Pythia's x kept/tried per window. Records the acceptance and the "
-                        "partons' rapidity per event. Needs X-SCAPE's PythiaGun with "
-                        "<partonYMax>")
+                        "on their two hardest (see --parton-y-mode; leptons do not count). "
+                        "Rejected events are regenerated before any shower or hydro; the "
+                        "cross sections are Pythia's x kept/tried per window. Records the "
+                        "acceptance and the partons' rapidity per event. Needs X-SCAPE's "
+                        "PythiaGun with <partonYMax>")
     p.add_argument("--parton-y-mode", choices=("leading", "both", "any"), default="leading",
                    dest="parton_y_mode",
                    help="with --parton-ymax: 'leading' the hardest parton (default), "
                         "'both' the two hardest, 'any' either of the two hardest")
+    p.add_argument("--trigger", choices=("none", "Z"), default=None,
+                   help="PythiaGun's trigger (<trigger>; default: the XML's, else none). 'Z': "
+                        "an event needs an e+e- or mu+mu- pair among the particles handed "
+                        "over (the Z's decay leptons, which pass through the energy loss like "
+                        "photons), and the Z and its leptons are recorded per event (z_pt, "
+                        "z_y, z_phi, z_m, lep{1,2}_{pid,pt,eta,phi}). The process is the XML's "
+                        "<LinesToRead>. Needs X-SCAPE's PythiaGun with <trigger>")
+    p.add_argument("--trigger-ymax", type=float, default=None, dest="trigger_ymax",
+                   metavar="Y",
+                   help="trigger Z: keep only events with |y_Z| < Y. As all the trigger cuts, "
+                        "rejected events are regenerated before any shower or hydro and the "
+                        "cross sections are Pythia's x kept/tried (of every cut, with "
+                        "--parton-ymax)")
+    p.add_argument("--lepton-ptmin", type=float, default=None, dest="lepton_ptmin",
+                   metavar="PT", help="trigger Z: both leptons with pT > PT [GeV]")
+    p.add_argument("--lepton-etamax", type=float, default=None, dest="lepton_etamax",
+                   metavar="ETA", help="trigger Z: both leptons with |eta| < ETA")
     p.add_argument("--bg-layout", choices=("auto", "full", "shared"), default="auto",
                    dest="bg_layout",
                    help="how arr_bg is stored: 'full' one copy per event; 'shared' each "
@@ -195,10 +220,11 @@ def parse_args() -> argparse.Namespace:
                         "Pythia reseeded per event) and store their hadrons and seeds in "
                         "<stem>_inline_{bulk_jet,jet_frag}.h5, to compare with hadronize.py "
                         "--use-stored-seeds. Needs --write-particlize")
-    p.add_argument("--hadronize-xml", default=os.path.join(HERE, "hadronize.xml"),
+    p.add_argument("--hadronize-xml", default=HADRONIZE_XML,
                    dest="hadronize_xml",
-                   help="iSS / JetHadronization settings for --validate-inline (default: "
-                        "hadronize.xml next to this script)")
+                   help="iSS / JetHadronization settings for --validate-inline and "
+                        "--hadrons-only (default: ../config/hadronize.xml; "
+                        "eCMforHadronization is always the job's collision energy)")
     h = p.add_argument_group(
         "hadrons only", "--hadrons-only: iSS on both legs and Colorless on the final partons "
         "in this job, exactly as hadronize.py would from this job's particlize file (the same "
@@ -215,7 +241,9 @@ def parse_args() -> argparse.Namespace:
     h.add_argument("--oversample-bg", default=None, dest="oversample_bg",
                    help="iSS samples per background: N, 'auto' (--oversample x the events "
                         "using it) or 'per-pthat-bin' (--oversample x --jets-per-bin). "
-                        "Default: per-pthat-bin with --pthat-bins, else auto")
+                        "Default: per-pthat-bin with --pthat-bins, else auto; with "
+                        "--correlated always --oversample (correlated sampling pairs the "
+                        "legs only for equal counts)")
     h.add_argument("--oversample-bg-max", type=int, default=None, dest="oversample_bg_max",
                    help="cap for --oversample-bg auto / per-pthat-bin (default 2000)")
     h.add_argument("--n-frag", type=int, default=None, dest="n_frag",
@@ -384,6 +412,22 @@ def check_parton_ycut(a) -> None:
         raise ValueError(f"--parton-ymax must be > 0, got {a.parton_ymax:g}")
 
 
+#: --trigger-ymax / --lepton-ptmin / --lepton-etamax -> PythiaGun's XML element
+TRIGGER_CUTS = {"trigger_ymax": "triggerYMax", "lepton_ptmin": "leptonPtMin",
+                "lepton_etamax": "leptonEtaMax"}
+
+
+def check_trigger(a) -> None:
+    """--trigger and its cuts against the other options (that a cut has trigger Z is
+    checked in job_xml, where the template's <trigger> is known)."""
+    given = [k for k in TRIGGER_CUTS if getattr(a, k) is not None]
+    if a.hard != "pythia" and (given or a.trigger == "Z"):
+        raise ValueError("--trigger Z and its cuts are for --hard pythia")
+    for k in given:
+        if not getattr(a, k) > 0:
+            raise ValueError(f"--{k.replace('_', '-')} must be > 0, got {getattr(a, k):g}")
+
+
 def pthat_bins_text(windows) -> str:
     """The <pTHatBins> text: 'min max min max ...'."""
     return " ".join(f"{lo:g} {hi:g}" for lo, hi in windows)
@@ -407,12 +451,19 @@ def add_inline_hadronization(root, hadronize_xml):
     same settings.  iSS samples the jet leg (hydro_id MUSIC_2) and reads the job's own
     music_input (iSS_working_path "."); Pythia is reseeded every event so each event's jet
     fragments can be reproduced alone.  '../' paths are made absolute with the main XML's.
+    eCMforHadronization is the job's collision energy (jetscape.hadronizer.collision_ecm), as
+    hadronize.py sets it from the stored job XML.
     """
+    from jetscape import hadronizer as hz
+
     src = ET.parse(hadronize_xml).getroot()
     soft, had = src.find("SoftParticlization"), src.find("JetHadronization")
     if soft is None or had is None:
         sys.exit(f"run_prod_jet.py: {hadronize_xml} needs <SoftParticlization> and "
                  "<JetHadronization>")
+    ecm = hz.collision_ecm(root)
+    if ecm:
+        hz.set_hadronization_ecm(src, ecm)
     soft, had = copy.deepcopy(soft), copy.deepcopy(had)
     _set_text(soft, "hydro_id", JET_ID)          # compared verbatim with the module id
     _set_text(soft.find("iSS"), "iSS_working_path", ".")
@@ -421,11 +472,50 @@ def add_inline_hadronization(root, hadronize_xml):
     root.append(soft)
 
 
+def configure_pythia_gun(a, pg) -> list:
+    """This job's settings in a <PythiaGun> block, in place: the pTHat range or windows, the
+    parton rapidity cut, the trigger and its cuts (a template's windows and cuts only with
+    the options).  Sets ``a.trigger_kind`` and ``a.min_partons`` (the block's <trigger>,
+    <minPartons>) -> the problems found.  Also run_prod_vacuum.py's."""
+    problems = []
+    if a.pthat_min is not None:
+        _set(pg, "pTHatMin", a.pthat_min)
+    if a.pthat_max is not None:
+        _set(pg, "pTHatMax", a.pthat_max)
+    if a.pthat_windows:
+        _set(pg, "pTHatBins", pthat_bins_text(a.pthat_windows))
+    elif pg.find("pTHatBins") is not None:
+        pg.remove(pg.find("pTHatBins"))          # a template's windows: only with --pthat-bins
+    if a.parton_ymax is not None:
+        _set(pg, "partonYMax", f"{a.parton_ymax:g}")
+        _set(pg, "partonYMode", a.parton_y_mode)
+    else:                                        # a template's cut: only with --parton-ymax
+        for tag in ("partonYMax", "partonYMode"):
+            if pg.find(tag) is not None:
+                pg.remove(pg.find(tag))
+    if a.trigger is not None:
+        _set_text(pg, "trigger", a.trigger)
+    for k, tag in TRIGGER_CUTS.items():
+        if getattr(a, k) is not None:
+            _set(pg, tag, f"{getattr(a, k):g}")
+        elif pg.find(tag) is not None:           # a template's cut: only with the option
+            pg.remove(pg.find(tag))
+    a.trigger_kind = _text(pg, "trigger") or "none"
+    a.min_partons = _text(pg, "minPartons")
+    if a.trigger_kind not in ("none", "Z"):
+        problems.append(f"<PythiaGun><trigger> is none or Z, not {a.trigger_kind!r}")
+    elif a.trigger_kind != "Z" and any(getattr(a, k) is not None for k in TRIGGER_CUTS):
+        problems.append("--trigger-ymax / --lepton-ptmin / --lepton-etamax need trigger Z "
+                        "(<trigger>Z</trigger> in <PythiaGun>, or --trigger Z)")
+    return problems
+
+
 def job_xml(a, out_h5: str):
     """Check the template, apply this job's settings, write it next to the output."""
     tree = ET.parse(a.user_xml)
     root = tree.getroot()
     problems = []
+    a.trigger_kind, a.min_partons = "none", None     # PythiaGun's <trigger>, <minPartons>
 
     _set(root, "nEvents", a.events)
     root.find("Random/seed").text = str(a.seed)
@@ -444,21 +534,7 @@ def job_xml(a, out_h5: str):
         if pg is None:
             sys.exit(f"run_prod_jet.py: {a.user_xml} has no <Hard><PythiaGun>")
         hard.append(pg)
-        if a.pthat_min is not None:
-            _set(pg, "pTHatMin", a.pthat_min)
-        if a.pthat_max is not None:
-            _set(pg, "pTHatMax", a.pthat_max)
-        if a.pthat_windows:
-            _set(pg, "pTHatBins", pthat_bins_text(a.pthat_windows))
-        elif pg.find("pTHatBins") is not None:
-            pg.remove(pg.find("pTHatBins"))      # a template's windows: only with --pthat-bins
-        if a.parton_ymax is not None:
-            _set(pg, "partonYMax", f"{a.parton_ymax:g}")
-            _set(pg, "partonYMode", a.parton_y_mode)
-        else:                                    # a template's cut: only with --parton-ymax
-            for tag in ("partonYMax", "partonYMode"):
-                if pg.find(tag) is not None:
-                    pg.remove(pg.find(tag))
+        problems += configure_pythia_gun(a, pg)
     else:
         pgun = ET.SubElement(hard, "PGun")
         _set(pgun, "name", "PGun")
@@ -530,7 +606,7 @@ PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_ea
                    "jet_edge_e_max", "bg_edge_e_max", "jet_edge_e_max_eta",
                    "bg_edge_e_max_eta", "pthat_bin", "pthat",
                    "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
-                   "parton_pt_sub")
+                   "parton_pt_sub", "n_coll")
 
 
 def check_bulk_info(a, jetscape):
@@ -552,14 +628,15 @@ def check_bulk_info(a, jetscape):
 
 
 def open_pthat_bins(a, jetscape):
-    """--pthat-bins / --parton-ymax: the PythiaGun task, after checking that it runs
-    exactly these windows and this cut.
+    """--pthat-bins / --parton-ymax / trigger Z / <minPartons>: the PythiaGun task, after
+    checking that it runs exactly these windows, cuts and trigger.
 
-    A PythiaGun without <pTHatBins> or <partonYMax> would refuse the XML (no default in its
-    main XML) or, built otherwise, ignore it, so the build is checked here rather than
-    trusted.
+    A PythiaGun without <pTHatBins>, <partonYMax> or <trigger> would refuse the XML (no
+    default in its main XML) or, built otherwise, ignore it, so the build is checked here
+    rather than trusted.
     """
-    if not a.pthat_windows and a.parton_ymax is None:
+    z_gun = a.trigger_kind != "none" or a.min_partons is not None
+    if not a.pthat_windows and a.parton_ymax is None and not z_gun:
         return None
     from jetscape import pyjetscape_core as core
 
@@ -569,6 +646,9 @@ def open_pthat_bins(a, jetscape):
     if a.parton_ymax is not None and not getattr(core, "PYTHIA_GUN_HAS_PARTON_Y_CUT", False):
         sys.exit("run_prod_jet.py: --parton-ymax needs X-SCAPE's PythiaGun with <partonYMax> "
                  "(branch pyGun_eta_cut) and PyJetscape built against it")
+    if z_gun and not getattr(core, "PYTHIA_GUN_HAS_Z_TRIGGER", False):
+        sys.exit("run_prod_jet.py: <trigger> / <minPartons> need X-SCAPE's PythiaGun with "
+                 "the Z trigger (branch zjet) and PyJetscape built against it")
     tasks = {t.GetId(): t for t in jetscape.GetTaskList()}
     gun = tasks.get("PythiaGun")
     if gun is None:
@@ -583,19 +663,44 @@ def open_pthat_bins(a, jetscape):
                                       or info["y_mode"] != a.parton_y_mode):
         sys.exit(f"run_prod_jet.py: PythiaGun cuts |y| < {info['y_max']:g} "
                  f"({info['y_mode']}), not {a.parton_ymax:g} ({a.parton_y_mode})")
+    if z_gun:
+        want = {"trigger": a.trigger_kind,
+                "min_partons": int(a.min_partons) if a.min_partons is not None else 2,
+                **{f: getattr(a, k) or 0.0 for k, f in (("trigger_ymax", "trigger_y_max"),
+                                                        ("lepton_ptmin", "lepton_pt_min"),
+                                                        ("lepton_etamax", "lepton_eta_max"))}}
+        got_z = {k: info.get(k) for k in want}
+        if any(got_z[k] != v if isinstance(v, (str, int)) else abs(got_z[k] - v) > 1e-12
+               for k, v in want.items()):
+            sys.exit(f"run_prod_jet.py: PythiaGun runs {got_z}, not {want}")
     print("  pTHat    " + ", ".join(f"window {k}: {lo:g}-{hi:g} GeV (Pythia seed {s})"
                                     for k, ((lo, hi), s) in enumerate(zip(got,
                                                                           info["seeds"]))))
     if a.parton_ymax is not None:
         print(f"  cut      handed-over partons, two hardest, |y| < {a.parton_ymax:g} "
               f"({a.parton_y_mode})")
+    if z_gun:
+        print(f"  trigger  {trigger_desc(a)}; events need "
+              f"{info['min_partons']} parton(s) (leptons do not count)")
     return gun
 
 
-def pthat_diag(gun) -> dict:
-    """The current event's window, pTHat and weight, for diag/ (and events/)."""
+def trigger_desc(a) -> str:
+    """'Z (|y_Z| < 2.4, lepton pT > 20 GeV, |eta| < 2.4)', or 'none'."""
+    if a.trigger_kind != "Z":
+        return a.trigger_kind
+    cuts = ([f"|y_Z| < {a.trigger_ymax:g}"] if a.trigger_ymax is not None else []) \
+        + ([f"lepton pT > {a.lepton_ptmin:g} GeV"] if a.lepton_ptmin is not None else []) \
+        + ([f"lepton |eta| < {a.lepton_etamax:g}"] if a.lepton_etamax is not None else [])
+    return "Z" + (f" ({', '.join(cuts)})" if cuts else "")
+
+
+def pthat_diag(gun, trigger="none") -> dict:
+    """The current event's window, pTHat and weight (and with trigger Z the Z), for diag/
+    (and events/)."""
     if gun is None:
         return {}
+    import numpy as np
     from jetscape import pyjetscape_core as core
 
     h = core.hard_process_info(gun)
@@ -603,13 +708,49 @@ def pthat_diag(gun) -> dict:
          "pthat": float(h["pthat"]), "event_weight": float(h["event_weight"])}
     if hasattr(core, "hard_partons_numpy"):
         # the partons handed to the framework (what --parton-ymax cuts on), hardest first:
-        # pid, px, py, pz, E, pT, y
+        # pid, px, py, pz, E, pT, y; leptons (a trigger's) are not partons
         hp = core.hard_partons_numpy(gun)
+        hp = hp[~np.isin(np.abs(hp[:, 0]), LEPTON_PIDS)]
         if len(hp):
             d.update(parton_y_lead=float(hp[0, 6]), parton_pt_lead=float(hp[0, 5]))
             if len(hp) > 1:
                 d.update(parton_y_sub=float(hp[1, 6]), parton_pt_sub=float(hp[1, 5]))
+    if trigger == "Z":
+        from jetscape.hadrons_h5 import z_record
+        d.update(z_record(core.pythia_gun_trigger(gun)["leptons"]))
     return d
+
+
+def open_initial_state(jetscape):
+    """The initial-state task (3dMCGlauber) whose n_coll goes into the event record, or None
+    (a build without initial_state_info, or no such task)."""
+    from jetscape import pyjetscape_core as core
+
+    if not hasattr(core, "initial_state_info"):
+        return None
+    for task in jetscape.GetTaskList():
+        try:
+            core.initial_state_info(task)
+        except (ValueError, TypeError):
+            continue
+        return task
+    return None
+
+
+def geometry_diag(ini) -> dict:
+    """The event's n_coll, for diag/ (and events/, units/): a hard process scales with it, so
+    it weights the events of a wide centrality class (sampled with P(b) ~ b, one hard process
+    each) like the data.  Shared by the jets of a reused background."""
+    if ini is None:
+        return {}
+    from jetscape import pyjetscape_core as core
+
+    n = core.initial_state_info(ini)["n_coll"]
+    return {"n_coll": int(n)} if n >= 0 else {}
+
+
+#: |pid| of the leptons PythiaGun hands over (a Z's decay; Parton::isLepton)
+LEPTON_PIDS = (11, 13)
 
 
 def pthat_windows_final(gun) -> dict:
@@ -623,7 +764,7 @@ def pthat_windows_final(gun) -> dict:
            "pthat_bin_sigma_err": np.asarray(info["sigma_err"], dtype=np.float64),
            "pthat_bin_n_accepted": np.asarray(info["n_accepted"], dtype=np.int64),
            "pthat_bin_seeds": np.asarray(info["seeds"], dtype=np.int64)}
-    if info.get("y_max", 0) > 0:
+    if info.get("y_max", 0) > 0 or info.get("trigger", "none") != "none":
         # sigma_gen is Pythia's x kept/tried; the raw values count the rejected events
         out.update(pthat_bin_n_tried=np.asarray(info["n_tried"], dtype=np.int64),
                    pthat_bin_n_kept=np.asarray(info["n_kept"], dtype=np.int64),
@@ -706,7 +847,16 @@ def check_hadrons_only(a) -> None:
     a.oversample = 1 if a.oversample is None else a.oversample
     a.n_frag = 1 if a.n_frag is None else a.n_frag
     a.oversample_bg_max = 2000 if a.oversample_bg_max is None else a.oversample_bg_max
-    if a.oversample_bg is None:
+    if a.correlated:
+        # iSS's correlated sampling pairs sample k of a jet leg with sample k of its
+        # background only when both draw the same number of samples: with more background
+        # samples the legs come out uncorrelated (hadronize.py refuses it too)
+        if a.oversample_bg is not None and str(a.oversample_bg) != str(a.oversample):
+            sys.exit(f"run_prod_jet.py: --correlated needs as many background samples as jet "
+                     f"samples (--oversample {a.oversample}): drop --oversample-bg "
+                     f"{a.oversample_bg}")
+        a.oversample_bg = str(a.oversample)
+    elif a.oversample_bg is None:
         a.oversample_bg = "per-pthat-bin" if a.pthat_windows else "auto"
     if str(a.oversample_bg).lower() == "per-pthat-bin" and not a.pthat_windows:
         sys.exit("run_prod_jet.py: --oversample-bg per-pthat-bin needs --pthat-bins")
@@ -735,9 +885,10 @@ def check_hadrons_only(a) -> None:
 
 
 def hadronize_xml_for_job(a):
-    """--hadrons-only: hadronize.xml with this job's settings -> (its text, recorded as the
-    hadron files' hadronize_xml, and the <SoftParticlization> + <JetHadronization> blocks
-    the modules read, as a <jetscape> document)."""
+    """--hadrons-only: hadronize.xml with this job's settings, eCMforHadronization the job's
+    collision energy (``a.ecm``) -> (its text, recorded as the hadron files' hadronize_xml,
+    and the <SoftParticlization> + <JetHadronization> blocks the modules read, as a
+    <jetscape> document)."""
     from jetscape import hadronizer as hz
 
     root = ET.parse(a.hadronize_xml).getroot()
@@ -752,6 +903,8 @@ def hadronize_xml_for_job(a):
                                    correlated_block=a.correlated_block)
     except ValueError as err:
         sys.exit(f"run_prod_jet.py: {err}")
+    if a.ecm:
+        hz.set_hadronization_ecm(root, a.ecm)
     blocks = ("<jetscape>" + ET.tostring(soft, encoding="unicode")
               + ET.tostring(had, encoding="unicode") + "</jetscape>")
     return ET.tostring(root, encoding="unicode"), blocks
@@ -941,6 +1094,7 @@ def main() -> int:
     try:
         check_pthat_bins(a)
         check_parton_ycut(a)
+        check_trigger(a)
     except ValueError as exc:
         sys.exit(f"run_prod_jet.py: {exc}")
     check_hadrons_only(a)          # --hadrons-only: both surfaces, no pair file, a sink
@@ -951,7 +1105,6 @@ def main() -> int:
         sys.exit("run_prod_jet.py: --particlize-only keeps only the particlize file; add "
                  "--write-particlize jet (or both)")
     a.hadronize_xml = os.path.abspath(a.hadronize_xml)
-    hxml = hadronize_xml_for_job(a) if a.hadrons_only else None
     unused = sorted(surface_legs(a) - set(particlize_legs(a)))
     if unused:
         print(f"run_prod_jet.py: WARNING -- --surface {a.surface} builds the freeze-out surface "
@@ -967,6 +1120,9 @@ def main() -> int:
     out_h5 = os.path.join(a.outdir, rp.output_name(a, "AuAu_0_10_jet"))
     rp.resolve_seed(a, out_h5, record=not a.dry_run)
     xml, root = job_xml(a, out_h5)
+    from jetscape import hadronizer as hz
+    a.ecm = hz.collision_ecm(root)     # Colorless's eCMforHadronization: this collision's
+    hxml = hadronize_xml_for_job(a) if a.hadrons_only else None
     box = rp.music_box(root, a.main_xml)
     grid_mode = "native" if a.native else "grid"
     if not a.native:
@@ -990,6 +1146,8 @@ def main() -> int:
         hard_desc = f"PGun pT {a.pgun_pt:g} GeV"
     if a.parton_ymax is not None:
         hard_desc += f", partons |y| < {a.parton_ymax:g} ({a.parton_y_mode})"
+    if a.trigger_kind != "none":
+        hard_desc += f", trigger {trigger_desc(a)}"
     print(f"prod_AuAu_0_10_jet: {a.events} event(s), seed {a.seed}"
           + (" (from OS entropy)" if a.seed_source == "os_entropy" else "")
           + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
@@ -1022,13 +1180,19 @@ def main() -> int:
     if a.hadrons_only:
         print(f"  output   {stem}_hadrons_{{bulk_jet,bulk_bg,jet_frag}}.h5"
               + (" + *_primary.h5" if a.keep_primaries_n > 0 else ""))
+    if a.hadrons_only or a.validate_inline:
+        print(f"  hadrons  {a.hadronize_xml}"
+              + (f", eCMforHadronization {a.ecm:g} (the collision's)" if a.ecm else ""))
     if a.dry_run:
         return 0
 
     import h5py
     import numpy as np
     import jetscape as js
+    from jetscape.hadrons_h5 import Z_COLUMNS
     from jetscape.pair_h5 import PairH5Writer
+    # diag/ values the particlize file's events/ (and the hadron files' units/) get
+    particlize_diag = PARTICLIZE_DIAG + (Z_COLUMNS if a.trigger_kind == "Z" else ())
     a.restart_on, a.restart_why = restart_plan(a)
 
     provenance = {
@@ -1052,6 +1216,10 @@ def main() -> int:
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
            if a.parton_ymax is not None else {}),
+        **({"trigger": a.trigger_kind,
+            **{k: getattr(a, k) for k in TRIGGER_CUTS if getattr(a, k) is not None}}
+           if a.trigger_kind != "none" else {}),
+        **({"min_partons": int(a.min_partons)} if a.min_partons is not None else {}),
         "system": rp.collision_system(root, a.main_xml),
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
@@ -1100,6 +1268,7 @@ def main() -> int:
     jet_leg = restart_legs(a, jetscape, writer)  # after both: their surface settings
     inline = open_inline(a, jetscape, stem) if a.validate_inline else None
     gun = open_pthat_bins(a, jetscape)
+    ini = open_initial_state(jetscape)
     hadr = None
     if a.hadrons_only:
         hadr = HadronsOnly(a, stem, pwriter, provenance, *hxml)
@@ -1115,11 +1284,12 @@ def main() -> int:
         for i in range(jetscape.GetNumberOfEvents()):
             t0 = time.time()
             jetscape.ExecPerEvent()
-            idx = writer.Exec(**pthat_diag(gun))    # both legs are live here
+            idx = writer.Exec(**pthat_diag(gun, a.trigger_kind),   # both legs are live
+                              **geometry_diag(ini))
             if idx is not None and pwriter is not None:
                 d = writer.last_event_diag
                 pwriter.Exec(idx, bg_id=d["bg_id"], bg_key=writer.last_bg_key,
-                             **{k: d[k] for k in PARTICLIZE_DIAG if k in d})
+                             **{k: d[k] for k in particlize_diag if k in d})
                 if inline is not None:
                     pwriter.write_events(idx, **inline.capture(idx))
             jetscape.ClearPerEvent()
@@ -1142,7 +1312,8 @@ def main() -> int:
                    f"freeze-out), "
                    + (f"{d['frames_identical']} leading frames identical, "
                       if "frames_identical" in d else "")
-                   + f"bg {d['bg_id']}")
+                   + f"bg {d['bg_id']}"
+                   + (f", N_coll {d['n_coll']}" if "n_coll" in d else ""))
             if not a.native and d["tau0_music"] > grid.tau_min + rp._TOL:
                 late += 1
                 msg += (f"  WARNING: tau0 after tau.min = {grid.tau_min:g}, so the first "
@@ -1153,6 +1324,8 @@ def main() -> int:
                 msg += f", pTHat {d['pthat']:.1f} GeV (window {d['pthat_bin']})"
                 if "parton_y_lead" in d:
                     msg += f", hardest parton y {d['parton_y_lead']:+.2f}"
+                if "z_pt" in d:
+                    msg += f", Z pT {d['z_pt']:.1f} GeV y {d['z_y']:+.2f}"
             print(msg)
             if hmsg:
                 print(f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} hadrons: {hmsg}")
@@ -1217,11 +1390,19 @@ def main() -> int:
                        backgrounds_capped=hadr.n_capped)
     if writer.bg_layout == "shared":
         summary["bg_layout"] = "shared"
+    if a.trigger_kind != "none":
+        summary.update(trigger=a.trigger_kind,
+                       **{k: getattr(a, k) for k in TRIGGER_CUTS if getattr(a, k) is not None})
+    if a.min_partons is not None:
+        summary["min_partons"] = int(a.min_partons)
     if windows is not None:
         if a.parton_ymax is not None:
-            summary.update(parton_ymax=a.parton_ymax, parton_y_mode=a.parton_y_mode,
-                           pthat_bin_acceptance=[round(float(x), 4) for x in
-                                                 windows["pthat_bin_acceptance"]])
+            summary.update(parton_ymax=a.parton_ymax, parton_y_mode=a.parton_y_mode)
+        if "pthat_bin_acceptance" in windows:
+            # of every cut (--parton-ymax, the trigger): kept / tried per window
+            summary.update(pthat_bin_acceptance=[round(float(x), 4) for x in
+                                                 windows["pthat_bin_acceptance"]],
+                           pthat_bin_n_tried=[int(x) for x in windows["pthat_bin_n_tried"]])
         summary.update(pthat_bins=windows["pthat_bins"].tolist(), jets_per_bin=a.jets_per_bin,
                        pthat_bin_sigma_gen_mb=list(windows["pthat_bin_sigma_gen"]),
                        pthat_bin_seeds=[int(x) for x in windows["pthat_bin_seeds"]])

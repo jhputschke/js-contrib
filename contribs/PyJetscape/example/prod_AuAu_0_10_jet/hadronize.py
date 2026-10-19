@@ -123,10 +123,13 @@ first N oversamples of every unit: full precision, with positions and without --
 --charged / --no-x, whatever those are for the decayed files (SMASH needs every hadron, its
 position and its mass).  The decayed hadrons are the same with and without it.
 
-Settings come from hadronize.xml (the file --validate-inline also uses); the iSS paths are
-made absolute and the job's own music_input -- stored in the particlize file -- is written
-to iSS's working directory, so iSS reads the same EoS id and flags as it would have in the
-job.  Empty surfaces (MUSIC stopped at the grid boundary) give a unit with zero samples,
+Settings come from hadronize.xml (../config/hadronize.xml, the file --validate-inline and
+--hadrons-only also use); the iSS paths are made absolute and the job's own music_input --
+stored in the particlize file -- is written to iSS's working directory, so iSS reads the same
+EoS id and flags as it would have in the job.  Colorless's eCMforHadronization (a beam
+remnant that closes a string carries 1/6 of it) is the collision's energy, from the job XML
+the production file stores (prod_user_xml: <PythiaGun><eCM>, else <MCGlauber><sqrts>), so
+the one hadronize.xml serves every system; --check replays the recorded XML as it is.  Empty surfaces (MUSIC stopped at the grid boundary) give a unit with zero samples,
 which drops out of every sample average.
 """
 
@@ -259,7 +262,7 @@ def parse_args(argv=None):
                         "(no hadronization; --force replaces an existing group)")
     p.add_argument("--out-dir", default=None, dest="out_dir",
                    help="output directory (default: next to the input)")
-    p.add_argument("--hadronize-xml", default=os.path.join(HERE, "hadronize.xml"),
+    p.add_argument("--hadronize-xml", default=os.path.join(rp.CONFIG, "hadronize.xml"),
                    dest="hadronize_xml")
     p.add_argument("--build", default=os.path.join(rp.XSCAPE, "build_gpu"),
                    help="X-SCAPE build tree (default: build_gpu)")
@@ -322,8 +325,9 @@ def background_samples(pf, oversample, spec, cap):
     return out, capped
 
 
-def write_job_xml(a, path, n_exec, oversample):
-    """hadronize.xml with this run's iSS paths, oversample count, seed and event count."""
+def write_job_xml(a, path, n_exec, oversample, ecm=None):
+    """hadronize.xml with this run's iSS paths, oversample count, seed and event count (and
+    with ``ecm`` the collision's eCMforHadronization)."""
     tree = ET.parse(a.hadronize_xml)
     root = tree.getroot()
     try:
@@ -333,6 +337,8 @@ def write_job_xml(a, path, n_exec, oversample):
                                    correlated_block=a.correlated_block)
     except ValueError as err:
         sys.exit(f"hadronize.py: {err}")
+    if ecm:
+        hz.set_hadronization_ecm(root, ecm)
     tree.write(path)
     return ET.tostring(root, encoding="unicode")
 
@@ -769,8 +775,14 @@ def main(argv=None):
               "does NOT decay that list (core.ISS_DECAYS_SMASH_LIST False, or "
               "<decay_smash_list> 0): rho, omega, K*, Delta ... stay in the bulk hadrons.",
               file=sys.stderr)
+    # Colorless's beam remnant: the collision's energy, from the job XML the production file
+    # stored; --check replays the hadronize XML the jet file recorded as it is
+    ecm = None if check_xml else hz.collision_ecm(str(pf.attrs.get("prod_user_xml", "")))
+    if ecm is None and "jet_frag" in tags and not check_xml:
+        print(f"hadronize.py: note -- {os.path.basename(a.particlize)} records no job XML "
+              f"(prod_user_xml): eCMforHadronization as in {a.hadronize_xml}", file=sys.stderr)
     job_xml = os.path.join(workdir, "hadronize_job.xml")
-    xml_text = write_job_xml(a, job_xml, n_exec, oversample)
+    xml_text = write_job_xml(a, job_xml, n_exec, oversample, ecm)
     main_xml = os.path.join(workdir, "jetscape_main.xml")
     rp._absolute_parent_paths(a.main_xml, main_xml, a.build)
     cwd = os.getcwd()
@@ -791,6 +803,7 @@ def main(argv=None):
              if pouts else "")
           + f", EOS {eos or '?'} ({decay_attrs['hadron_list']} list, decays: "
           f"{decay_attrs['iss_decays']})"
+          + (f", eCMforHadronization {ecm:g}" if ecm and "jet_frag" in tags else "")
           + f"\n  workdir {workdir}")
 
     # no framework events: the instance only reads the XML; iSS samples the given cells

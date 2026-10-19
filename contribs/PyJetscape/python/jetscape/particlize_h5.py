@@ -112,7 +112,8 @@ PARTON_UNITS = ("E, px, py, pz [GeV]; t [fm/c], x, y, z [fm] (Cartesian lab); ma
 PSTAT_NOTE = ("pstat as the liquefier left it: 0 shower parton, 1 recoil, -1 hole (not "
               "absorbed), -11 absorbed into the medium below threshold, -17 hole absorbed, "
               "-13 the four-momentum a vertex did not conserve (LiquefierBase::"
-              "check_energy_momentum_conservation; it goes into the droplet), 22 photon. "
+              "check_energy_momentum_conservation; it goes into the droplet), 22 photon or "
+              "lepton (a Z's decay; passed through untouched). "
               "ColorlessHadronization takes 0, 1 (take_recoil), 22 and -1, so energy that "
               "went into MUSIC_2 is never hadronized twice.")
 

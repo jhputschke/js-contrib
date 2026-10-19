@@ -843,7 +843,7 @@ IS (e.g. 3dMCGlauber) -> Hard (PythiaGun | PGun) -> NullPreDynamics
   * with NullPreDynamics and strings, `<Preequilibrium><evolutionInMemory>0`.
   * optionally `<freeze_out_surface>0`, the fast setting for training data (next section).
 
-`example/prod_AuAu_0_10_jet/AuAu_MCGlauber_MUSIC_0_10_jet.xml` is a complete example.
+`example/config/AuAu_MCGlauber_MUSIC_0_10_jet.xml` is a complete example.
 `run_prod_jet.py` checks the XML before it runs: the MUSIC_1/MUSIC_2 names and order,
 `output_evolution_to_memory`, `dump_hydro_only`, `evolutionInMemory`, `<Eloss><AddLiquefier>`
 and the liquefier's `dtau`. It sets MUSIC_2's `AddLiquefier`, both `freeze_out_surface`

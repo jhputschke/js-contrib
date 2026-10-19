@@ -1405,7 +1405,7 @@ def test_hadronize_keep_primaries_option_and_decay_attributes():
     Core.ISS_DECAYS_SMASH_LIST = True
     assert hz.iss_decay_attrs(Core, "91", xml)["iss_decays"] == "none"
     # hadronize.xml decays the SMASH list
-    ref = ET.parse(Path(hz.__file__).with_name("hadronize.xml")).getroot()
+    ref = ET.parse(Path(hz.__file__).parent.parent / "config" / "hadronize.xml").getroot()
     assert ref.findtext("SoftParticlization/iSS/decay_smash_list").strip() == "1"
 
 

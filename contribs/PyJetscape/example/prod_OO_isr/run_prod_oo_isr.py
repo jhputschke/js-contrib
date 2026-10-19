@@ -97,8 +97,8 @@ _spec_jet = importlib.util.spec_from_file_location("_run_prod_jet",
 rj = importlib.util.module_from_spec(_spec_jet)
 _spec_jet.loader.exec_module(rj)
 
-USER_XML = os.path.join(HERE, "OO_MCGlauber_MUSIC_isr.xml")
-GRID_YAML = os.path.join(HERE, "grid_oo.yaml")
+USER_XML = os.path.join(rp.CONFIG, "OO_MCGlauber_MUSIC_isr.xml")
+GRID_YAML = os.path.join(rp.CONFIG, "grid_oo.yaml")
 NAME_BASE = "OO_isr"
 HYDRO_ID = "MUSIC"
 GUN_ID = "PythiaGun"          # PythiaIsrGun takes its id from <Hard><PythiaGun><name>
@@ -118,7 +118,7 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", type=int, default=10, help="events in this job (default 10)")
     p.add_argument("--grid", default=GRID_YAML,
-                   help="output grid YAML of the hydro file (default: grid_oo.yaml here)")
+                   help="output grid YAML of the hydro file (default: ../config/grid_oo.yaml)")
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
                    help="output directory (default: ./out next to this script)")
     p.add_argument("--out", default=None,
@@ -129,7 +129,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
-                   help="template user XML (default: the one in this folder)")
+                   help="template user XML (default: ../config/OO_MCGlauber_MUSIC_isr.xml)")
     p.add_argument("--pthat-min", type=float, default=None, dest="pthat_min",
                    help="PythiaGun pTHatMin [GeV] (default: the XML's, 20)")
     p.add_argument("--pthat-max", type=float, default=None, dest="pthat_max",
@@ -199,10 +199,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--eos", choices=("9", "91"), default=None,
                    help="MUSIC's EOS (default: the XML's, 91: hotQCD + the SMASH hadron "
                         "list, the tunes' EOS; 9: the UrQMD list, older campaigns)")
-    p.add_argument("--hadronize-xml", default=os.path.join(JET_PROD, "hadronize.xml"),
+    p.add_argument("--hadronize-xml", default=os.path.join(rp.CONFIG, "hadronize.xml"),
                    dest="hadronize_xml",
                    help="iSS settings for --bulk-hadrons (default: "
-                        "../prod_AuAu_0_10_jet/hadronize.xml, those of hadronize.py)")
+                        "../config/hadronize.xml, those of hadronize.py)")
     p.add_argument("--keep-bits-p", type=int, default=None, dest="keep_bits_p", metavar="B",
                    help="in-job hadron files: round p to B float32 mantissa bits (1..23; "
                         "default: exact), as hadronize.py --keep-bits-p")

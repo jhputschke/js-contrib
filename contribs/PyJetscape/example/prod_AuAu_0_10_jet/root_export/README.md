@@ -126,6 +126,15 @@ bits, GB10, 2026-09-29), with the defaults (RNTuple, ROOT writer, positions kept
   converter copies what is there. `events.ntau_bg`, `ntau_jet` and the `*_hit_boundary`
   and `*_hit_edge` flags let an analysis find and drop such events, as `wake_observables.ipynb` does.
 
+### Checking a conversion: `check_h5_vs_root.py`
+
+`python check_h5_vs_root.py <h5 dir> <root dir> [--campaign <file>_campaign.root]` compares a
+converted campaign with its HDF5 files: every sample's entry and hadron bit for bit, every
+column of the event record, the windows and the campaign cross sections; exit 1 on a
+difference. 2026-10-16: identical on a Z+jet campaign job (all particles, 12-bit momenta,
+`--no-x`) and on a `run_prod_vacuum.py` sample. Vacuum files (jet_frag only, flagged
+`vacuum`) are converted with that tag alone unless `--tags` is given.
+
 ## Converter usage
 
 ```bash

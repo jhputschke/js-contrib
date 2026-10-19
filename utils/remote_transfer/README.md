@@ -48,7 +48,7 @@ the files. `--what` takes one kind or a comma list (`pair,root`); the default is
 | `pair` | `<stem>.h5`, the hydro pair file, with the run's `<stem>.json`, `.xml`, `.log` |
 | `h5` | `<stem>_particlize.h5`, `<stem>_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5`, `<stem>_hadronize.log` |
 | `root` | `<stem>_hadrons.root`, `<campaign>_campaign.root` |
-| `all` | the three, plus every other file of the directory (`run_jobs.campaign`, `wake_observables.h5`, …) |
+| `all` | the three, plus every other file of the directory (`run_jobs.campaign`, `run_jobs.prefix`, `wake_observables.h5`, …) |
 
 - **`h5` brings the particlize files along.** `HadronFileReader` needs them next to the
   hadron files.

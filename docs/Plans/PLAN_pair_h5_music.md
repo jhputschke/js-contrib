@@ -222,7 +222,7 @@ IS grid, PreEq (NullPreDynamics, `evolutionInMemory 0`) and MUSIC physics.
   the origin), `--reuse N`, and `--no-deposit` (sets MUSIC_2 `AddLiquefier false`, for the null test).
 - It imports `load_grid_yaml`, `music_box`, `check_inside`, `describe` and `check_env` from
   `contribs/PyJetscape/example/prod_AuAu_0_10/run_prod.py` rather than copying them. The default grid is
-  `contribs/PyJetscape/example/prod_AuAu_0_10/grid_fno.yaml`.
+  `contribs/PyJetscape/example/config/grid_fno.yaml`.
 - **XML guard:**
   - exactly two `<Hydro>` blocks, named MUSIC_1 and MUSIC_2.
   - the first MUSIC has `dump_hydro_only 0`, and `evolutionInMemory` is 0.

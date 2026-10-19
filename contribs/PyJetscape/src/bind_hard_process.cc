@@ -22,6 +22,11 @@
  *   PYTHIA_GUN_HAS_PARTON_Y_CUT True if it has <partonYMax> / <partonYMode>; then
  *                             pythia_gun_bins also gives the cut, per window the events
  *                             tried / kept, the acceptance and Pythia's raw sigma.
+ *   PYTHIA_GUN_HAS_Z_TRIGGER  True if it hands over final-state leptons and has
+ *                             <minPartons> and <trigger>Z (+ <triggerYMax>, <leptonPtMin>,
+ *                             <leptonEtaMax>); then pythia_gun_bins also gives these
+ *   pythia_gun_trigger(task)  PythiaGun's trigger and the current event's trigger
+ *                             leptons (the Z's pair): pid, px, py, pz, E, hardest first
  ******************************************************************************/
 
 #include <pybind11/numpy.h>
@@ -68,6 +73,11 @@ void bind_hard_process(py::module_ &m) {
   m.attr("PYTHIA_GUN_HAS_PARTON_Y_CUT") = true;
 #else
   m.attr("PYTHIA_GUN_HAS_PARTON_Y_CUT") = false;
+#endif
+#ifdef PYTHIAGUN_HAS_Z_TRIGGER
+  m.attr("PYTHIA_GUN_HAS_Z_TRIGGER") = true;
+#else
+  m.attr("PYTHIA_GUN_HAS_Z_TRIGGER") = false;
 #endif
 #ifdef PYTHIAISRGUN_HAS_PTHAT_BINS
   m.attr("PYTHIA_ISR_GUN_HAS_PTHAT_BINS") = true;
@@ -184,6 +194,15 @@ void bind_hard_process(py::module_ &m) {
         d["sigma_gen_raw"] = raw;                // Pythia's, incl. the rejected events
         d["sigma_err_raw"] = raw_err;
 #endif
+#ifdef PYTHIAGUN_HAS_Z_TRIGGER
+        d["min_partons"] = gun->GetMinPartons();
+        d["trigger"] = gun->GetTrigger();        // none | Z
+        d["trigger_y_max"] = gun->GetTriggerYMax();    // 0: no cut
+        d["lepton_pt_min"] = gun->GetLeptonPtMin();
+        d["lepton_eta_max"] = gun->GetLeptonEtaMax();
+#else
+        d["trigger"] = std::string("none");     // no trigger in this PythiaGun
+#endif
         return d;
 #else
         throw std::runtime_error(
@@ -201,7 +220,49 @@ void bind_hard_process(py::module_ &m) {
         also ``y_max`` (0 = no cut), ``y_mode`` and per window ``n_tried`` /
         ``n_kept`` (events reaching / passing the cut), ``acceptance`` and
         ``sigma_gen_raw`` / ``sigma_err_raw`` (Pythia's own, which counts the rejected
-        events; ``sigma_gen`` is it times the acceptance).
+        events; ``sigma_gen`` is it times the acceptance).  With
+        PYTHIA_GUN_HAS_Z_TRIGGER also ``min_partons``, ``trigger`` ('none' or 'Z') and
+        the Z acceptance ``trigger_y_max``, ``lepton_pt_min``, ``lepton_eta_max`` (0 =
+        no cut); with a trigger the per-window counts and the acceptance are those of
+        both cuts.
+      )pbdoc",
+      py::arg("task"));
+
+  m.def(
+      "pythia_gun_trigger",
+      [](std::shared_ptr<JetScapeTask> task) {
+        auto gun = std::dynamic_pointer_cast<PythiaGun>(task);
+        if (!gun)
+          throw std::invalid_argument("not a PythiaGun: " +
+                                      (task ? task->GetId() : std::string("None")));
+#ifdef PYTHIAGUN_HAS_Z_TRIGGER
+        const auto &leptons = gun->GetTriggerLeptons();
+        py::array_t<double> out({py::ssize_t(leptons.size()), py::ssize_t(5)});
+        auto r = out.mutable_unchecked<2>();
+        for (size_t i = 0; i < leptons.size(); ++i) {
+          const auto &l = leptons[i];
+          r(i, 0) = l.id();
+          r(i, 1) = l.px();
+          r(i, 2) = l.py();
+          r(i, 3) = l.pz();
+          r(i, 4) = l.e();
+        }
+        py::dict d;
+        d["trigger"] = gun->GetTrigger();
+        d["leptons"] = out;
+        return d;
+#else
+        throw std::runtime_error(
+            "pythia_gun_trigger: X-SCAPE's PythiaGun has no <trigger> (branch zjet or "
+            "later needed)");
+#endif
+      },
+      R"pbdoc(
+        PythiaGun's ``trigger`` ('none' or 'Z') and the current event's trigger
+        ``leptons``: the Z's opposite-charge, same-flavour pair as handed to the
+        framework (the pair with the largest invariant mass if there are several), an
+        (n, 5) array pid, px, py, pz, E, hardest first; n = 2 with trigger Z, else 0.
+        Call between ExecPerEvent() and ClearPerEvent().
       )pbdoc",
       py::arg("task"));
 

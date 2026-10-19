@@ -10,6 +10,8 @@ name: Build & push production images
 #   gh workflow run docker-prod.yml -f variants=cu124                   # CUDA 12.4, amd64 only
 #   gh workflow run docker-prod.yml -f xscape_ref=<40-char hash> -f release_tag=2026.10
 #   gh workflow run docker-prod.yml -f with_gcs=true                    # + GCS, tags cu126-gcs, ...
+#   gh workflow run docker-prod.yml --ref zjet -f xscape_ref=zjet -f js_contrib_ref=zjet \
+#       -f variants=cu124 -f release_tag=zjet -f moving_tag=false     # a branch's test image
 #   gh run watch                                                        # follow the run
 #
 # Which versions are built:
@@ -36,7 +38,9 @@ name: Build & push production images
 # after the variant in every tag, so the images without it keep theirs.
 #
 # Tags pushed to Docker Hub as <DOCKERHUB_USERNAME>/xscape-prod (with_gcs: cu126-gcs, ...):
-#   cu126, cu130, cu124             moving: the latest build of each variant
+#   cu126, cu130, cu124             moving: the latest build of each variant (not with
+#                                   moving_tag=false: test images of a branch leave it, since
+#                                   launch_2gpu.sh and the docs default to it)
 #   cu126-<YYYYMMDD>-<xscape7>      immutable-ish: date + X-SCAPE commit of this run
 #   cu126-<release_tag>             only with the release_tag input; use one per campaign
 # Each tag is a multi-arch manifest (amd64 + arm64; cu124: amd64 only): docker/apptainer
@@ -83,6 +87,10 @@ on:
         default: ""
         required: false
         type: string
+      moving_tag:
+        description: "Also move the variant's moving tag (cu126, cu130, cu124) to this build; off for a branch's test image"
+        default: true
+        type: boolean
       push:
         description: "Push to Docker Hub (off: build only, to test the Dockerfile)"
         default: true
@@ -298,16 +306,19 @@ jobs:
           XS: ${{ needs.setup.outputs.xscape_sha }}
           DATE: ${{ needs.setup.outputs.date }}
           RELEASE: ${{ inputs.release_tag }}
+          MOVING: ${{ inputs.moving_tag }}
         run: |
           set -euo pipefail
-          tags=(-t "$IMAGE:$V" -t "$IMAGE:$V-$DATE-${XS:0:7}")
-          [ -n "$RELEASE" ] && tags+=(-t "$IMAGE:$V-$RELEASE")
+          names=("$IMAGE:$V-$DATE-${XS:0:7}")
+          [ "$MOVING" = true ] && names+=("$IMAGE:$V")
+          [ -n "$RELEASE" ] && names+=("$IMAGE:$V-$RELEASE")
+          tags=(); for n in "${names[@]}"; do tags+=(-t "$n"); done
           srcs=$(cd /tmp/digests && printf "$IMAGE@sha256:%s " *)
           docker buildx imagetools create "${tags[@]}" $srcs
           docker buildx imagetools inspect "$IMAGE:$V-$DATE-${XS:0:7}"
           {
             echo "### $V"
-            echo "Pushed: \`$IMAGE:$V\`, \`$IMAGE:$V-$DATE-${XS:0:7}\`${RELEASE:+, \`$IMAGE:$V-$RELEASE\`}"
+            echo "Pushed: $(printf '`%s` ' "${names[@]}")"
             echo '```bash'
             echo "apptainer pull xscape_prod_$V.sif docker://$IMAGE:$V-$DATE-${XS:0:7}"
             echo "docker pull $IMAGE:$V-$DATE-${XS:0:7}"

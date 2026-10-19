@@ -97,7 +97,7 @@ def test_helpers_are_hadronize_py_s():
 
 
 def test_configure_hadronize_xml():
-    root = ET.parse(EXAMPLE / "hadronize.xml").getroot()
+    root = ET.parse(EXAMPLE.parent / "config" / "hadronize.xml").getroot()
     hz.configure_hadronize_xml(root, xscape="/xs", seed=7, n_events=0, oversample=3,
                                keep_primaries=hz.KEEP_ALL_PRIMARIES, correlated=True,
                                correlated_block="0.25,0.5,0.75")
@@ -257,6 +257,15 @@ def test_run_prod_jet_hadrons_only_defaults_and_refusals():
     a = _args(pthat_windows=[(20, 40), (40, 60)], keep_primaries="0")
     rpj.check_hadrons_only(a)
     assert a.oversample_bg == "per-pthat-bin" and a.keep_primaries_n == 0
+    # --correlated pairs the legs only for equal counts: the background gets --oversample
+    a = _args(pthat_windows=[(20, 40), (40, 60)], oversample=40, correlated=True)
+    rpj.check_hadrons_only(a)
+    assert a.oversample_bg == "40"
+    rpj.check_hadrons_only(_args(oversample=40, oversample_bg="40", correlated=True))
+    for bg in ("per-pthat-bin", "auto", "160"):
+        with pytest.raises(SystemExit, match="as many background samples"):
+            rpj.check_hadrons_only(_args(pthat_windows=[(20, 40), (40, 60)], oversample=40,
+                                         oversample_bg=bg, correlated=True))
     for bad in (dict(particlize_only=True), dict(write_particlize="jet"),
                 dict(validate_inline=True), dict(oversample_bg="per-pthat-bin"),
                 dict(keep_primaries="some"), dict(correlated_block="1,1,1"),

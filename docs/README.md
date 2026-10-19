@@ -18,7 +18,8 @@ CPUs; analysis and ROOT export): [`README_2stage.md`](README_2stage.md).
 Python and in ROOT, the ROOT export, the notebooks): [`README_analysis.md`](README_analysis.md);
 for the O+O production, [`README_OO.md`](README_OO.md). The scripts behind their tested code:
 [`analysis_snippets/`](analysis_snippets/README.md); the Pb+Pb 5.02 TeV input files of
-README_2stage §9: [`PbPb_5020/`](PbPb_5020/).
+README_2stage §9 are with all the productions' XMLs and grid YAMLs in
+[`contribs/PyJetscape/example/config/`](../contribs/PyJetscape/example/config/).
 
 The plans (`PLAN_*.md`, `PlanContainer*.md`) are in [`Plans/`](Plans/); the user guide,
 the HDF5 study and the benchmarks stay here.
@@ -37,6 +38,8 @@ the HDF5 study and the benchmarks stay here.
 | [`PLAN_smash_ready_hadrons.md`](Plans/PLAN_smash_ready_hadrons.md) | EOS 91 with iSS decaying the SMASH list, undecayed bulk and jet primaries for a later SMASH run, space-time positions for the jet hadrons, and SMASH as a separate CPU step on the primaries (Au+Au and O+O; Part 1 and the O+O jet-input record done on `smash_ready`, 2026-10-15) |
 | [`PLAN_AuAu_hadrons_only.md`](Plans/PLAN_AuAu_hadrons_only.md) | Au+Au jet jobs that write hadron files only, in one job like O+O: `hadronize.py`'s per-unit work on the particlize writer's in-memory data, one iSS called on given cells (a small X-SCAPE wrapper method), little or no oversampling, primaries and partons kept for SMASH and a later jet hadronization (`run_prod_jet.py --hadrons-only`, implemented on `auau_hadrons_only` and bit-identical to two stages, 2026-10-15) |
 | [`PLAN_slim_bulk_info.md`](Plans/PLAN_slim_bulk_info.md) | the jet job's memory: three fixes and a 6-field background copy (`bulk_info`, `--bulk-info slim`): ~20 → 8.7 GB peak per job, bit-identical; `-j 4` in 29 GB instead of 66–69 (done) |
+| [`PLAN_hard_momentum_subtraction.md`](Plans/PLAN_hard_momentum_subtraction.md) | energy–momentum conservation between the Z + parton and the two nucleons' strings (`Subtract_hard_momentum` 1) for the Pb+Pb Z+jet production: why the switch needs the ISR chain today, an LO emulation with the twin kept exact (PythiaGun reports the taken momentum, strings regenerated for MUSIC_2), the GB10 tests and a 3 × 400-event physics test (2026-10-18, not started) |
+| [`PLAN_dijet_deta_wake.md`](Plans/PLAN_dijet_deta_wake.md) | CMS's η-separated dijet wake analysis (HIN-25-012) on the Z+jet campaigns first, the Z as jet1: the jet radius as a map-step option, per-event truth yields in the pools, the closure ladder (truth, no-wake twin, bulk), the comparison with Yang & Wang's CoLBT-hydro γ-jet, then the dijet production |
 | [`README_h5_optim.md`](README_h5_optim.md) | HDF5 compression of `arr` / `arr_bg`: Blosc-zstd default, `keep_bits` |
 | [`Wake_grid_comparison.md`](Wake_grid_comparison.md) | the jet's wake on the 0.3875 fm output grid vs. the old 0.3125 fm and MUSIC's 0.3 fm: integrated wake within 1–4%, shape at ≥ 0.5 fm within ~10% on every grid; the coarser grid lowers the peaks |
 | [`SOURCE_NORMALIZATION.md`](SOURCE_NORMALIZATION.md) | the jet source in MUSIC4GPU: the liquefier kernel's continuum normalisation and why the production grid breaks it (0.004–6× per droplet), how the wake analysis found it, the per-droplet normalisation on MUSIC's grid (X-SCAPE #155), its validation, the late-step follow-up, and a proposed fine-grid test of the current source against the original |
@@ -50,6 +53,7 @@ the HDF5 study and the benchmarks stay here.
 | [`BENCHMARK_GB10.md`](BENCHMARK_GB10.md) | GB10 (CUDA): per-event profile, speed-ups, concurrent jobs, MPS, thread settings |
 | [`BENCHMARK_M3MAX.md`](BENCHMARK_M3MAX.md) | Apple M3 Max (Metal): the same measurements, `run_jobs.sh` on macOS |
 | [`BENCHMARK_2x3090.md`](BENCHMARK_2x3090.md) | 2 × RTX 3090 (Docker): jobs per GPU, threads, MPS, memory, the campaign default, `final_optim` |
+| [`BENCHMARK_PbPb_vs_AuAu.md`](BENCHMARK_PbPb_vs_AuAu.md) | GB10: Pb+Pb 5.02 TeV Z+jet against Au+Au 200 GeV jets: time, memory, disk; the MUSIC box as the memory's cause |
 | [`REPORT_FINAL_OPTIM.md`](REPORT_FINAL_OPTIM.md) | `cu124-final_optim` on 2 × RTX 3090: throughput, and the physics check of C4 and the late time step (D1) |
 | [`REPORT_SUMMARY_CLUSTER.md`](REPORT_SUMMARY_CLUSTER.md) | throughput per machine, and the per-GPU settings extrapolated to cluster GPUs (V100, A40, A100, L40S) |
 | [`REPORT_CLUSTER_ACCESS.md`](REPORT_CLUSTER_ACCESS.md) | which NSF ACCESS GPU resource to request: ACCESS exchange rates, estimated events/h and events per credit per resource, the DeltaAI (first) and Delta A40 (second) settings, request sizing, scratch space and the upload to OSDF; Lambda 8 × A100 and A10 for comparison (2026-10-13) |

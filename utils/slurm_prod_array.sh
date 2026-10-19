@@ -59,6 +59,11 @@ SIF=${SIF:-$HOME/xscape_prod.sif}           # apptainer pull xscape_prod.sif doc
 WORK=${WORK:-${SCRATCH:-$HOME}/xscape_prod} # bound to /work; writable, shared by the tasks
 PROD=${PROD:-auau}                          # auau: prod_AuAu_0_10_jet, oo: prod_OO_isr
 CAMPAIGN=${CAMPAIGN:-}                      # letters, digits, . _ - (default: per PROD below)
+TAG_PREFIX=${TAG_PREFIX:-}                  # file names <prefix without _seed>_<campaign>_...
+                                            # (default: the production's, AuAu_0_10_jet_seed /
+                                            # OO_isr_seed), e.g. PbPb_0_30_seed; letters,
+                                            # digits, . _ -, ending in _seed; needs an image of
+                                            # js-contrib 2026-10-16 or later (checked)
 P=${P:-10}                                  # production jobs at once per GPU (table above)
 NJOBS=${NJOBS:-40}                          # jobs (= output files) per array task
 EVENTS=${EVENTS:-}                          # events per job (default: 45 Au+Au, a multiple
@@ -98,6 +103,15 @@ CPUS=${SLURM_CPUS_PER_TASK:-$(nproc)}
 CT=$(command -v apptainer || command -v singularity) || die "neither apptainer nor singularity found"
 [ -f "$SIF" ] || die "SIF=$SIF not found (apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-final_optim)"
 case $CAMPAIGN in .*|-*|*[!A-Za-z0-9._-]*|'') die "CAMPAIGN '$CAMPAIGN': use letters, digits, '.', '_', '-'" ;; esac
+case $TAG_PREFIX in
+  '') ;;
+  .*|-*|*[!A-Za-z0-9._-]*) die "TAG_PREFIX '$TAG_PREFIX': use letters, digits, '.', '_', '-'" ;;
+  ?*_seed) "$CT" exec "$SIF" grep -qF 'TAG_PREFIX:-' "$PROD_DIR/run_jobs.sh" ||
+             die "TAG_PREFIX: run_jobs.sh in $SIF replaces it with its own (needs js-contrib of" \
+                 "2026-10-16 or later); unset it or use a newer image" ;;
+  *) die "TAG_PREFIX '$TAG_PREFIX': must end in _seed, e.g. PbPb_0_30_seed" ;;
+esac
+tp_env=${TAG_PREFIX:+,TAG_PREFIX=$TAG_PREFIX}
 for v in P NJOBS EVENTS SEED_BASE; do
   case ${!v} in ''|*[!0-9]*|0) die "$v must be a positive integer, got '${!v}'" ;; esac
 done
@@ -163,11 +177,12 @@ lbt_show=${lbt_env:+$LBT_CACHE}
 echo "  MUSIC_CUDA_SYNC=$MUSIC_CUDA_SYNC, LBT cache: ${lbt_show:-off}," \
      "stagger ${STAGGER} s, MPS $([ "$USE_MPS" = 1 ] && echo on || echo off)"
 echo "  run_prod options: ${EXTRA_ARGS:-(none)}"
+[ -n "$TAG_PREFIX" ] && echo "  TAG_PREFIX $TAG_PREFIX"
 command -v nvidia-smi > /dev/null && nvidia-smi -L | sed 's/^/  /'
 
 # shellcheck disable=SC2086  # EXTRA_ARGS: split into the driver's arguments
 "$CT" exec --nv \
-  --env "OMP_NUM_THREADS=$OMP,OMP_WAIT_POLICY=passive,MPS_DIR=$MPS_DIR,MUSIC_CUDA_SYNC=$MUSIC_CUDA_SYNC$lbt_env" \
+  --env "OMP_NUM_THREADS=$OMP,OMP_WAIT_POLICY=passive,MPS_DIR=$MPS_DIR,MUSIC_CUDA_SYNC=$MUSIC_CUDA_SYNC$lbt_env$tp_env" \
   --pwd "$PROD_DIR" --bind "$binds" "$SIF" \
   ./run_jobs.sh -j "$P" ${opts[@]+"${opts[@]}"} --campaign "${CAMPAIGN}_$TAG" \
     "$NJOBS" "$EVENTS" "$FIRST_SEED" "$OUTDIR" $EXTRA_ARGS

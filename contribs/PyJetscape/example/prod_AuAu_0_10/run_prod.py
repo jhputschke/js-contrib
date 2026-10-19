@@ -9,20 +9,22 @@ in-memory store.  No ROOT file, no framework copy of the evolution, no root2hdf5
 One call = one job = one seed = one .h5 file.  --seed 0 draws a unique seed from OS entropy
 (recorded in the file, the .json and the seed registry, so the job stays reproducible) and
 names the file by campaign and job number instead of by seed; see add_seed_args().  The output grid (x/y/eta range and cell
-counts, tau start, spacing and max frames) comes from a YAML file, grid_fno.yaml by default.
+counts, tau start, spacing and max frames) comes from a YAML file, ../config/grid_fno.yaml by
+default.
 Files from jobs with different seeds and the same grid YAML can be trained on together
 (FNO4d MultiH5Array / read_3d_data_hdf5).
 
     conda activate js_fno
     python run_prod.py --events 10 --seed 1                 # -> out/AuAu_0_10_seed0001.h5
-    python run_prod.py --events 10 --seed 1 --grid grid_x10_eta2p5.yaml
+    python run_prod.py --events 10 --seed 1 --grid ../config/grid_x10_eta2p5.yaml
     python run_prod.py --events 50 --seed 7 --outdir /data/AuAu_0_10
     python run_prod.py --events 1 --seed 1 --dry-run        # check the grid, print the plan
     python run_prod.py --events 10 --seed 0 --campaign test # -> out/AuAu_0_10_test_0001.h5
     ./run_jobs.sh 20 25 0                                   # 20 jobs x 25 events, unique seeds
     ./run_jobs.sh 20 25 1                                   # the same with seeds 1..20
 
-Everything this needs is in this folder, and it can be launched from anywhere.  Each job
+Everything this needs is in this folder and ../config (the user XML, the grid YAMLs), and it
+can be launched from anywhere.  Each job
 runs in its own working directory (OUTDIR/work/<tag>, see enter_workdir()) with a private
 copy of music_input, reading the shared assets from the build tree, so concurrent jobs never
 touch the same file.  See README.md.
@@ -43,6 +45,8 @@ import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PYJETSCAPE = os.path.dirname(os.path.dirname(HERE))          # contribs/PyJetscape
+#: the productions' inputs: one user XML per setup, the shared hadronize.xml, the grid YAMLs
+CONFIG = os.path.join(os.path.dirname(HERE), "config")
 XSCAPE = os.path.abspath(os.path.join(PYJETSCAPE, "..", "..", "..", ".."))
 sys.path.insert(0, os.path.join(PYJETSCAPE, "python"))
 
@@ -55,8 +59,8 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 from jetscape.bulk_sources import Grid, ntau_to_end         # noqa: E402  (pure Python)
 
-USER_XML = os.path.join(HERE, "AuAu_MCGlauber_MUSIC_0_10_fast.xml")
-GRID_YAML = os.path.join(HERE, "grid_fno.yaml")
+USER_XML = os.path.join(CONFIG, "AuAu_MCGlauber_MUSIC_0_10_fast.xml")
+GRID_YAML = os.path.join(CONFIG, "grid_fno.yaml")
 
 #: slack for comparing grid edges; the MUSIC grid is float32
 _TOL = 1e-4
@@ -68,7 +72,7 @@ def parse_args() -> argparse.Namespace:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", type=int, default=10, help="events in this job (default 10)")
     p.add_argument("--grid", default=GRID_YAML,
-                   help="output grid YAML (default: grid_fno.yaml next to this script)")
+                   help="output grid YAML (default: ../config/grid_fno.yaml)")
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
                    help="output directory (default: ./out next to this script)")
     p.add_argument("--out", default=None,
@@ -80,7 +84,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--main-xml", default=os.path.join(XSCAPE, "config", "jetscape_main.xml"),
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
-                   help="template user XML (default: the one in this folder)")
+                   help="template user XML (default: ../config/AuAu_MCGlauber_MUSIC_0_10_fast.xml)")
     p.add_argument("--native", action="store_true",
                    help="ignore the YAML's grid and tau min/dtau and write MUSIC's own grid "
                         "(100x100x60 here, ~10 MB per frame); max_ntau still applies")

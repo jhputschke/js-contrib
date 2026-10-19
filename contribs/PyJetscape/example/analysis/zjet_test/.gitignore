@@ -1,0 +1,7 @@
+# the hadron files are 1-525 MB each (make_data.sh remakes everything)
+data/
+# the result is not public yet (compare.py remakes the figures and summary.txt)
+figures/
+# the campaigns' outputs, e.g. data-c00-01/, figures-c00-01/ (ANA_Zhadron.md)
+data-*/
+figures-*/

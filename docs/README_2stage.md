@@ -192,7 +192,7 @@ SIF=$PWD/xscape_prod.sif CAMPAIGN=pth3_v100 P=8 EXTRA_ARGS="…" \
 
 ### Output grid
 
-The hydro pair is stored on the output grid of `../prod_AuAu_0_10/grid_fno.yaml`
+The hydro pair is stored on the output grid of `../config/grid_fno.yaml`
 (`run_prod_jet.py --grid` for another one). Since js-contrib `c8b682d` (2026-10-06) the default
 is **64 × 64 × 32 cells**: x, y −12.2 … 12.2 fm at 0.3875 fm, η_s −4.84 … 4.84 at 0.3125.
 Before, it was 65 × 65 × 33 (x, y −10 … 10 fm, all steps 0.3125), as in `fastdata_AuAu200_tune_0_10.h5`.
@@ -204,7 +204,7 @@ Before, it was 65 × 65 × 33 (x, y −10 … 10 fm, all steps 0.3125), as in `f
   [`Wake_grid_comparison.md`](Wake_grid_comparison.md).
 - **With an image that predates the change** (the published `cu126`, `cu130` and the older
   `cu124-*` tags, see above), bind the new
-  YAML from a js-contrib checkout (`contribs/PyJetscape/example/prod_AuAu_0_10/grid_fno.yaml`)
+  YAML from a js-contrib checkout (`contribs/PyJetscape/example/config/grid_fno.yaml`)
   and pass it after OUTDIR: Docker `-v "$PWD/grid_fno.yaml:/grid/grid_fno.yaml:ro"`, Apptainer
   `--bind "$PWD/grid_fno.yaml:/grid/grid_fno.yaml"`, then `… --grid /grid/grid_fno.yaml`.
 
@@ -1131,7 +1131,8 @@ container, and give the drivers the path **as the container sees it**:
 | SLURM (`slurm_prod_array.sh`, `slurm_hadronize.sh`) | `BINDS="$PWD/xml:/xml"` | in `EXTRA_ARGS` (stage 1) or `HAD_ARGS` (stage 2) |
 
 - **The same for every input file:** `--grid` (the output-grid YAML), `--main-xml` (in place of
-  X-SCAPE's `jetscape_main.xml`) and, in stage 2, `--hadronize-xml`.
+  X-SCAPE's `jetscape_main.xml`) and `--hadronize-xml` (rarely needed: one `hadronize.xml` serves
+  every system, its `eCMforHadronization` follows the collision, see below).
 - **Absolute paths.** The drivers resolve a relative path against their working directory
   inside the container, the production folder of the image, not against the host's.
 - **The file is read once, when a job starts.** Each job writes the XML it ran next to its
@@ -1174,7 +1175,7 @@ versions always wrote the Au+Au string).
 | `<IS><grid_max_x>`, `<grid_max_y>` | `15` | `20` | MUSIC's grid (134 × 134 cells at 0.3 fm): the fireball is larger and lives longer |
 | `<IS><grid_max_z>` | `6` | `8` | MUSIC's η_s range (80 cells at 0.2): the beam rapidity is 8.5 instead of 5.4 |
 | `<Hard><PythiaGun><eCM>` | `200` | `5020` | |
-| stage 2: `<JetHadronization><eCMforHadronization>` in a copy of `hadronize.xml` | `200` | `5020` | Colorless closes an open string with a remnant of √s/6 along the beam: with 200 it would carry 33 GeV instead of 837 GeV. Pass it with `--hadronize-xml` |
+| `<JetHadronization><eCMforHadronization>` (`hadronize.xml`) | `200` | `5020` | Colorless closes an open string with a remnant of √s/6 along the beam: with 200 it would carry 33 GeV instead of 837 GeV. **Automatic** since 2026-10-15: `--hadrons-only`, `--validate-inline` and `hadronize.py` (from the files' `prod_user_xml`) take the job's `<PythiaGun><eCM>`, so the one `hadronize.xml` serves every system |
 | the pT̂ windows (`--pthat-bins`) | 10–40 GeV | your choice | the cross section falls more slowly at the LHC |
 
 Made from a js-contrib checkout (the image has the same files under
@@ -1182,7 +1183,7 @@ Made from a js-contrib checkout (the image has the same files under
 
 ```bash
 mkdir -p xml
-T=contribs/PyJetscape/example/prod_AuAu_0_10_jet
+T=contribs/PyJetscape/example/config
 sed -e 's#<projectile>Au</projectile>#<projectile>Pb</projectile>#' \
     -e 's#<target>Au</target>#<target>Pb</target>#' \
     -e 's#<sqrts>200</sqrts>#<sqrts>5020</sqrts>#' \
@@ -1192,15 +1193,17 @@ sed -e 's#<projectile>Au</projectile>#<projectile>Pb</projectile>#' \
     -e 's#<grid_max_z> 6  </grid_max_z>#<grid_max_z> 8  </grid_max_z>#' \
     -e 's#<eCM>200</eCM>#<eCM>5020</eCM>#' \
     $T/AuAu_MCGlauber_MUSIC_0_10_jet.xml > xml/PbPb_0_10_jet.xml
-sed 's#<eCMforHadronization>200</eCMforHadronization>#<eCMforHadronization>5020</eCMforHadronization>#' \
-    $T/hadronize.xml > xml/hadronize_5020.xml
 diff $T/AuAu_MCGlauber_MUSIC_0_10_jet.xml xml/PbPb_0_10_jet.xml     # 8 lines must differ
 ```
 
-**The files as tested** are in [`docs/PbPb_5020/`](PbPb_5020/): `PbPb_0_10_jet.xml` (the
-output of this recipe, with a header comment that says so), `hadronize_5020.xml` and the
-larger output grid `grid_PbPb.yaml` (below). Bind that directory (`-v "$PWD/docs/PbPb_5020:/xml:ro"`)
-and use them as they are, or copy them as a start for another system.
+**The files as tested** are with all the productions' inputs in
+[`contribs/PyJetscape/example/config/`](../contribs/PyJetscape/example/config/) (in the image:
+`/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config/`, no bind
+needed): `PbPb_0_10_jet.xml` (the output of this recipe, with a header comment that says so;
+EOS 91 since 2026-10-15), the larger output grid `grid_PbPb.yaml` (below) and
+`PbPb_0_30_ZJet.xml`, the jet XML at 0–30 % (`b_max` 8.57 fm) with a Z+jet `<PythiaGun>` (Z → ee/μμ, `<trigger>Z`;
+[`Plans/PLAN_ZJET_CMS10x.md`](Plans/PLAN_ZJET_CMS10x.md), launchers in `utils/zjet/`). Use them
+as they are, or copy them as a start for another system.
 
 **Choices to make, not made here:**
 
@@ -1224,7 +1227,7 @@ and use them as they are, or copy them as a start for another system.
   instead of 2.0 MB per frame; files of the two grids don't go into one training set):
 
   ```yaml
-  # xml/grid_PbPb.yaml (docs/PbPb_5020/grid_PbPb.yaml)
+  # xml/grid_PbPb.yaml (example/config/grid_PbPb.yaml)
   grid:
     x:   {min: -15.30625, max: 15.30625, n: 80}    # 0.3875 fm, as grid_fno.yaml
     y:   {min: -15.30625, max: 15.30625, n: 80}
@@ -1250,10 +1253,9 @@ apptainer exec --nv --env MUSIC_CUDA_SYNC=block --pwd "$PROD" \
   --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xscape_prod.sif \
   python run_prod_jet.py --user-xml /xml/PbPb_0_10_jet.xml --events 3 --seed 1 \
     --write-particlize both --outdir /work/PbPb_test --out PbPb_0_10_jet_seed0001.h5 --dry-run
-# ... the same without --dry-run, then stage 2 at 5.02 TeV
+# ... the same without --dry-run, then stage 2 (eCMforHadronization 5020 from the files)
 apptainer exec --pwd "$PROD" --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xscape_prod.sif \
-  ./run_hadronize.py /work/PbPb_test -j 3 --oversample 100 --n-frag 20 \
-    --hadronize-xml /xml/hadronize_5020.xml
+  ./run_hadronize.py /work/PbPb_test -j 3 --oversample 100 --n-frag 20
 ```
 
 Measured on the GB10 with these files and, for comparison, the Au+Au XML: X-SCAPE and
@@ -1297,9 +1299,9 @@ docker run -d --gpus all --user "$(id -u):$(id -g)" \
 SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb_c1 P=5 BINDS="$PWD/xml:/xml" \
   EXTRA_ARGS="--user-xml /xml/PbPb_0_10_jet.xml --grid /xml/grid_PbPb.yaml --pthat-bins 40-60,60-80,80-100 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both" \
   sbatch --array=0-19 --cpus-per-task=20 --mem=96G utils/slurm_prod_array.sh
-# SLURM, stage 2: the 5.02 TeV hadronization settings
-SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb_c1 BINDS="$PWD/xml:/xml" \
-  HAD_ARGS="--oversample 200 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8 --hadronize-xml /xml/hadronize_5020.xml" \
+# SLURM, stage 2 (eCMforHadronization 5020 from the files' job XML)
+SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb_c1 \
+  HAD_ARGS="--oversample 200 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8" \
   sbatch --array=0-19 --mem=48G utils/slurm_hadronize.sh
 ```
 
