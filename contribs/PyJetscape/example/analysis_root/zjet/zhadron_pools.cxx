@@ -9,11 +9,16 @@
 //
 // Per selected event (CMS 2507.09307's Z selection, zjet_wake.CMS_2507): S in its Z frame,
 // the per-sample mean of the full event (bulk_jet + jet_frag) and one oversample k_one
-// (zjet_wake.key_index(event_key(seed, stem, event), n)), that oversample's tracks; per
-// hydro background the sums of w S, w^2 S and w rho (lab frame) for the full event and the
-// Z-correlated yield (bulk_jet - bulk_bg + jet_frag).  Vacuum files: the fragments, one
-// content.  The weights (window cross section / events x N_coll) need every file, so the
-// whole directory is read even with --files.
+// (zjet_wake.key_index(event_key(seed, stem, event), n)), that oversample's tracks; the dijet
+// proxy's contents on the fine Delta y grid per side of the Z (Y_full, Y_one, Y_zc, Y_frag)
+// and in lab eta per side (L_full, L_zc, L_frag); its keys (local_event, pthat_bin, n_coll,
+// bg_unit).  Per hydro background and pTHat window, unweighted (tree pool_bgw): the number
+// of selected events, N_coll, the sums of S (full event and Z-correlated yield, bulk_jet -
+// bulk_bg + jet_frag) and of the full event's lab density; per background its bulk_bg lab
+// density per sample (pool_bgr); the production file's record (file_info).  Pool version 4:
+// zjet_mixing.assemble rebuilds the weights and the weighted sums of any set of pools, from
+// several campaigns.  Vacuum files: the fragments, one content.  The stored w (window cross
+// section / events x N_coll) is that of the input directory, for the record.
 
 #include "ZJetCommon.h"
 
@@ -28,11 +33,11 @@ using namespace zjet;
 
 namespace {
 
-struct BgSums {
-  double W = 0, W2 = 0;
-  std::vector<double> SW_full = std::vector<double>(N_Z), T_full = std::vector<double>(N_Z),
-                      SW_zc = std::vector<double>(N_Z), T_zc = std::vector<double>(N_Z),
-                      R_full = std::vector<double>(N_LAB), R_zc = std::vector<double>(N_LAB);
+struct BgSums {                   // per (background, window), unweighted
+  long n = 0;
+  double ncoll = 0;
+  std::vector<double> S_full = std::vector<double>(N_Z), S_zc = std::vector<double>(N_Z),
+                      R_full = std::vector<double>(N_LAB);
 };
 
 struct BgCache {
@@ -68,7 +73,10 @@ int run(int argc, char **argv) {
     Long64_t ev_event = 0, ev_bg = 0;
     double ev_w = 0, ev_y = 0, ev_phi = 0;
     int ev_k = 0, ev_ns = 0;
-    std::vector<float> S_full(N_Z), S_one(N_Z);
+    std::vector<float> S_full(N_Z), S_one(N_Z), Y_full(N_Y), Y_one(N_Y), Y_zc(N_Y), Y_frag(N_Y),
+        L_full(N_LS), L_zc(N_LS), L_frag(N_LS);
+    int ev_local = 0, ev_bin = -1, ev_unit = -1;
+    double ev_ncoll = 0;
     std::vector<int> trk_pt;
     std::vector<float> trk_eta, trk_phi;
     const std::string path = out + "/" + name + "_pool.root";
@@ -84,19 +92,36 @@ int run(int argc, char **argv) {
     te.Branch("n_samples", &ev_ns);
     te.Branch("S_full", S_full.data(), Form("S_full[%d]/F", N_Z));
     te.Branch("S_one", S_one.data(), Form("S_one[%d]/F", N_Z));
+    te.Branch("local_event", &ev_local);
+    te.Branch("pthat_bin", &ev_bin);
+    te.Branch("n_coll", &ev_ncoll);
+    te.Branch("bg_unit", &ev_unit);
     te.Branch("trk_pt", &trk_pt);
     te.Branch("trk_eta", &trk_eta);
     te.Branch("trk_phi", &trk_phi);
 
-    std::map<long, BgSums> sums;
+    std::map<std::pair<long, int>, BgSums> sums;     // (unit, window)
+    std::map<long, std::vector<double>> bg_rb;       // unit -> bulk_bg lab density per sample
     std::map<int, BgCache> bg_cache;
-    bool vacuum_file = false;
+    bool vacuum_file = false, branched = false;
     long n_ev = 0;
     for (long e = r.event_offset(f); e < n && r.info(e).file_index == f; ++e) {
       if (!sel[e]) continue;
       const EventInfo &info = r.info(e);
       const ZRecord &z = info.z;
       vacuum_file = info.vacuum;
+      if (!branched) {               // the contents a vacuum file has (one) or Pb+Pb's
+        branched = true;
+        te.Branch("Y_full", Y_full.data(), Form("Y_full[%d]/F", N_Y));
+        te.Branch("Y_one", Y_one.data(), Form("Y_one[%d]/F", N_Y));
+        te.Branch("L_full", L_full.data(), Form("L_full[%d]/F", N_LS));
+        if (!info.vacuum) {
+          te.Branch("Y_zc", Y_zc.data(), Form("Y_zc[%d]/F", N_Y));
+          te.Branch("Y_frag", Y_frag.data(), Form("Y_frag[%d]/F", N_Y));
+          te.Branch("L_zc", L_zc.data(), Form("L_zc[%d]/F", N_LS));
+          te.Branch("L_frag", L_frag.data(), Form("L_frag[%d]/F", N_LS));
+        }
+      }
       const int nf = info.n_samples_frag;
       std::vector<Track> tf, tj;
       for (int j = 0; j < nf; ++j) add_tracks(r.frag(e, j), z, eta_max, j, tf);
@@ -128,10 +153,15 @@ int run(int argc, char **argv) {
       const int k_one = int(key_index(event_key(seed, name, info.local_event), ns));
       // S and rho, the per-sample means; the order of the operations as in file_pool
       std::vector<double> SF(N_Z, 0), RF(N_LAB, 0), Sf(N_Z), Szc(N_Z), Rf(N_LAB), Rzc(N_LAB);
+      std::vector<double> YF(N_Y, 0), LF(N_LS, 0), Yf(N_Y), Yz(N_Y), Lf(N_LS), Lz(N_LS);
       z_hist(tf, z.y, z.phi, SF);
       lab_hist(tf, RF);
+      side_hist(tf, z.y, z.phi, YF);
+      lab_side_hist(tf, z.phi, LF);
       for (auto &x : SF) x /= nf;
       for (auto &x : RF) x /= nf;
+      for (auto &x : YF) x /= nf;
+      for (auto &x : LF) x /= nf;
       std::vector<Track> one;
       if (!info.vacuum) {
         std::vector<double> SJ(N_Z, 0), RJ(N_LAB, 0), SB(N_Z, 0);
@@ -148,18 +178,46 @@ int run(int argc, char **argv) {
           Rf[i] = rj + RF[i];
           Rzc[i] = rj - rb + RF[i];
         }
+        std::vector<double> YJ(N_Y, 0), YB(N_Y, 0), LJ(N_LS, 0), LB(N_LS, 0);
+        side_hist(tj, z.y, z.phi, YJ);
+        side_hist(bc->tracks, z.y, z.phi, YB);
+        lab_side_hist(tj, z.phi, LJ);
+        lab_side_hist(bc->tracks, z.phi, LB);
+        for (int i = 0; i < N_Y; ++i) {
+          const double yj = YJ[i] / K, yb = YB[i] / K;
+          Yf[i] = yj + YF[i];
+          Yz[i] = yj - yb + YF[i];
+        }
+        for (int i = 0; i < N_LS; ++i) {
+          const double lj = LJ[i] / K, lb = LB[i] / K;
+          Lf[i] = lj + LF[i];
+          Lz[i] = lj - lb + LF[i];
+        }
         for (const Track &x : tj) if (x.sample == k_one) one.push_back(x);
         for (const Track &x : tf) if (x.sample == k_one % nf) one.push_back(x);
       } else {
         Sf = SF; Szc = SF; Rf = RF; Rzc = RF;
+        Yf = YF; Yz = YF; Lf = LF; Lz = LF;
         for (const Track &x : tf) if (x.sample == k_one) one.push_back(x);
       }
-      std::vector<double> So(N_Z, 0);
+      std::vector<double> So(N_Z, 0), Yo(N_Y, 0);
       z_hist(one, z.y, z.phi, So);
+      side_hist(one, z.y, z.phi, Yo);
       // the event's entry
       ev_event = e; ev_bg = bgid[e]; ev_w = w[e]; ev_y = z.y; ev_phi = z.phi;
       ev_k = k_one; ev_ns = ns;
+      ev_local = info.local_event; ev_bin = info.pthat_bin;
+      ev_ncoll = info.n_coll >= 0 ? double(info.n_coll) : std::nan("");
+      const long unit = info.vacuum ? info.local_event : info.bg_unit;
+      ev_unit = int(unit);
       for (int i = 0; i < N_Z; ++i) { S_full[i] = float(Sf[i]); S_one[i] = float(So[i]); }
+      for (int i = 0; i < N_Y; ++i) {
+        Y_full[i] = float(Yf[i]); Y_one[i] = float(Yo[i]);
+        Y_zc[i] = float(Yz[i]); Y_frag[i] = float(YF[i]);
+      }
+      for (int i = 0; i < N_LS; ++i) {
+        L_full[i] = float(Lf[i]); L_zc[i] = float(Lz[i]); L_frag[i] = float(LF[i]);
+      }
       trk_pt.clear(); trk_eta.clear(); trk_phi.clear();
       for (const Track &x : one) {
         trk_pt.push_back(x.ipt);
@@ -168,59 +226,64 @@ int run(int argc, char **argv) {
       }
       te.Fill();
       ++n_ev;
-      // the background's sums
-      BgSums &s = sums[bgid[e]];
-      const double we = w[e];
-      s.W += we;
-      s.W2 += we * we;
+      // the background's unweighted sums in the event's window
+      BgSums &s = sums[{unit, info.pthat_bin}];
+      if (s.n == 0) s.ncoll = ev_ncoll;
+      ++s.n;
       for (int i = 0; i < N_Z; ++i) {
-        s.SW_full[i] += we * Sf[i];
-        s.T_full[i] += we * we * Sf[i];
-        s.SW_zc[i] += we * Szc[i];
-        s.T_zc[i] += we * we * Szc[i];
+        s.S_full[i] += Sf[i];
+        s.S_zc[i] += Szc[i];
       }
-      for (int i = 0; i < N_LAB; ++i) {
-        s.R_full[i] += we * Rf[i];
-        s.R_zc[i] += we * Rzc[i];
+      for (int i = 0; i < N_LAB; ++i) s.R_full[i] += Rf[i];
+      if (!info.vacuum && !bg_rb.count(unit)) {
+        std::vector<double> rb(N_LAB);
+        for (int i = 0; i < N_LAB; ++i) rb[i] = bc->R[i] / K;
+        bg_rb[unit] = rb;
       }
     }
-    // per background
-    Long64_t bg_id = 0;
-    double W = 0, W2 = 0;
-    std::vector<double> SWf(N_Z), Tf(N_Z), SWz(N_Z), Tz(N_Z), Rfb(N_LAB), Rzb(N_LAB);
-    TTree tb("pool_bg", "zjet_mixing pool: per hydro background");
+    // per background and window, and per background
+    Long64_t b_unit = 0, b_n = 0;
+    int b_k = 0;
+    double b_ncoll = 0;
+    std::vector<double> Sfb(N_Z), Szb(N_Z), Rfb(N_LAB), RBb(N_LAB);
+    TTree tb("pool_bgw", "zjet_mixing pool: per hydro background and pTHat window, unweighted");
     tb.SetDirectory(&fo);
-    tb.Branch("bg_id", &bg_id);
-    tb.Branch("W", &W);
-    tb.Branch("W2", &W2);
-    tb.Branch("SW_full", SWf.data(), Form("SW_full[%d]/D", N_Z));
-    tb.Branch("T_full", Tf.data(), Form("T_full[%d]/D", N_Z));
+    tb.Branch("unit", &b_unit);
+    tb.Branch("k", &b_k);
+    tb.Branch("n", &b_n);
+    tb.Branch("ncoll", &b_ncoll);
+    tb.Branch("S_full", Sfb.data(), Form("S_full[%d]/D", N_Z));
+    if (!vacuum_file) tb.Branch("S_zc", Szb.data(), Form("S_zc[%d]/D", N_Z));
     tb.Branch("R_full", Rfb.data(), Form("R_full[%d]/D", N_LAB));
-    if (!vacuum_file) {
-      tb.Branch("SW_zc", SWz.data(), Form("SW_zc[%d]/D", N_Z));
-      tb.Branch("T_zc", Tz.data(), Form("T_zc[%d]/D", N_Z));
-      tb.Branch("R_zc", Rzb.data(), Form("R_zc[%d]/D", N_LAB));
-    }
     for (auto &p : sums) {
-      bg_id = p.first; W = p.second.W; W2 = p.second.W2;
+      b_unit = p.first.first; b_k = p.first.second;
+      b_n = p.second.n; b_ncoll = p.second.ncoll;
       // into the branches' buffers (the vectors keep their storage)
-      std::copy(p.second.SW_full.begin(), p.second.SW_full.end(), SWf.begin());
-      std::copy(p.second.T_full.begin(), p.second.T_full.end(), Tf.begin());
+      std::copy(p.second.S_full.begin(), p.second.S_full.end(), Sfb.begin());
+      std::copy(p.second.S_zc.begin(), p.second.S_zc.end(), Szb.begin());
       std::copy(p.second.R_full.begin(), p.second.R_full.end(), Rfb.begin());
-      std::copy(p.second.SW_zc.begin(), p.second.SW_zc.end(), SWz.begin());
-      std::copy(p.second.T_zc.begin(), p.second.T_zc.end(), Tz.begin());
-      std::copy(p.second.R_zc.begin(), p.second.R_zc.end(), Rzb.begin());
       tb.Fill();
+    }
+    TTree tr("pool_bgr", "zjet_mixing pool: per hydro background, bulk_bg's lab density");
+    tr.SetDirectory(&fo);
+    tr.Branch("unit", &b_unit);
+    tr.Branch("RB", RBb.data(), Form("RB[%d]/D", N_LAB));
+    for (auto &p : bg_rb) {
+      b_unit = p.first;
+      std::copy(p.second.begin(), p.second.end(), RBb.begin());
+      tr.Fill();
     }
     fo.cd();
     te.Write();
     tb.Write();
+    if (!vacuum_file) tr.Write();
+    write_file_info(fo, file_record(r, f));
     fo.Close();
     gSystem->Rename((path + ".part").c_str(), path.c_str());
     const double dt =
         std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
-    std::printf("%s: %ld events, %zu backgrounds, %.1f s -> %s\n", name.c_str(), n_ev,
-                sums.size(), dt, path.c_str());
+    std::printf("%s: %ld events, %zu (background, window) sums, %.1f s -> %s\n", name.c_str(),
+                n_ev, sums.size(), dt, path.c_str());
   }
   return 0;
 }

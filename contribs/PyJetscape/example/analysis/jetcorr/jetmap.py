@@ -1,5 +1,6 @@
 """Jets on hadron lists with FastJet, the Python twin of analysis_root/common/JetMap.h: anti-k_T
-R = 0.3, E scheme; Pb+Pb with explicit ghosts on a fixed grid (|y| < 2.6, area 0.01) and
+(R = 0.3 by default, ``Clusterer(fj, R)``), E scheme; Pb+Pb with explicit ghosts on a fixed
+grid (|y| < 2.6, area 0.01) and
 rho(jet) from the k_T R = 0.4 median in a strip |y - y_jet| < 1 (|y| < 2.2), p_T = p_T,raw -
 rho A; per jet also its mass, the number of its (non-ghost) constituents and the leading
 one's p_T.  Nothing here knows the trigger: the caller chooses the particles."""
@@ -7,7 +8,8 @@ import math
 
 import numpy as np
 
-R_JET, ETA_JET = 0.3, 2.0
+R_JET, ETA_JET = 0.3, 2.0     # R_JET: the default anti-k_T radius (Clusterer's R)
+GHOST_AREA = 0.01            # the fixed ghost grid's cell (kept at 0.01, PLAN_dijet_deta_wake D8)
 ALL = -math.inf      # Clusterer.jets' ptmin that keeps every jet
 JET_NAMES = ("pt_raw", "pt", "eta", "phi", "area", "rho", "m", "nconst", "lead_pt")
 STRIP = 1.0          # the rho strip's half width in rapidity (Clusterer.rho_sel)
@@ -58,12 +60,15 @@ def rap_phi(ev, keep):
 
 
 class Clusterer:
-    def __init__(self, fj):
+    """anti-k_T jets of radius ``R`` (the rho estimate's k_T R = 0.4 does not change with it)."""
+
+    def __init__(self, fj, R=R_JET):
         self.fj = fj
-        self.akt = fj.JetDefinition(fj.antikt_algorithm, R_JET)
+        self.R = float(R)
+        self.akt = fj.JetDefinition(fj.antikt_algorithm, self.R)
         self.kt = fj.JetDefinition(fj.kt_algorithm, 0.4)
         self.area = fj.AreaDefinition(fj.active_area_explicit_ghosts,
-                                      fj.GhostedAreaSpec(2.6, 1, 0.01, 0.0, 0.0))
+                                      fj.GhostedAreaSpec(2.6, 1, GHOST_AREA, 0.0, 0.0))
         self.rho_sel = fj.SelectorAbsRapMax(2.2) * fj.SelectorStrip(1.0)
 
     def bge(self, parts):
@@ -81,9 +86,10 @@ class Clusterer:
                 lead = max(lead, q.pt())
         return (j.pt(), pt, j.eta(), j.phi_std(), a, rho, j.m(), float(n), lead)
 
-    def jets(self, parts, subtract, ptmin):
+    def jets(self, parts, subtract, ptmin, bge=None):
         """-> list of (pt_raw, pt, eta, phi, area, rho, m, nconst, lead_pt), as zjets.cxx's
-        jets_of: p_T,raw > 1 GeV, |eta| < 2, p_T > ptmin (ALL: no cut)."""
+        jets_of: p_T,raw > 1 GeV, |eta| < 2, p_T > ptmin (ALL: no cut).  ``bge``: the
+        particles' StripRho if the caller has it (``bge(parts)``), else made here."""
         fj = self.fj
         out = []
         if not subtract:
@@ -92,7 +98,7 @@ class Clusterer:
                 if abs(j.eta()) < ETA_JET and j.pt() >= ptmin:
                     out.append(self._jet(j, j.pt(), 0.0, 0.0, False))
             return out
-        b = self.bge(parts)
+        b = self.bge(parts) if bge is None else bge
         cs = fj.ClusterSequenceArea(parts, self.akt, self.area)
         for j in fj.sorted_by_pt(cs.inclusive_jets(1.0)):
             if not abs(j.eta()) < ETA_JET:
@@ -104,3 +110,20 @@ class Clusterer:
             if pt > ptmin:
                 out.append(self._jet(j, pt, a, rho, True))
         return out
+
+
+def cone(fj, parts, y, phi, rho_est, eta, phi0, R):
+    """A cone of radius R around (eta, phi0) (taken as a rapidity): the p_T sum of ``parts``
+    (their rapidities ``y`` and phis ``phi``, from rap_phi) within Delta R < R, rho there
+    (``rho_est``'s, a StripRho; None: 0) and sum - rho pi R^2 -> (axis, sum, rho, delta p_T).
+    The particles are preselected in numpy (0.01 margin), then FastJet's delta_R in their
+    order: the same particles and the same sum as over all of them (the random cones, the Z
+    cone; zjets.cxx's cone_sum)."""
+    axis = fj.PseudoJet()
+    axis.reset_PtYPhiM(1.0, eta, phi0, 0.0)
+    dphi = np.abs(phi - axis.phi())
+    dphi = np.minimum(dphi, 2 * np.pi - dphi)
+    near = np.flatnonzero((y - axis.rap()) ** 2 + dphi ** 2 < (R + 0.01) ** 2)
+    tot = sum(parts[i].pt() for i in near if parts[i].delta_R(axis) < R)
+    rho = rho_est.rho(axis) if rho_est is not None else 0.0
+    return axis, tot, rho, tot - rho * math.pi * R ** 2

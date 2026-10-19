@@ -36,9 +36,9 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))                        # jetcorr
 from jetcorr import runs  # noqa: E402
 from zjet_jets import (SEED, background_angles, dphi, load_jets,  # noqa: E402
-                       load_qa_jets, rotation_seed, weights, z_selection)
+                       load_qa_jets, map_run_info, rotation_seed, weights, z_selection)
 
-R_JET = 0.3
+R_JET = 0.3                         # the default; main() takes the map step's (run_info)
 AREA = np.pi * R_JET ** 2
 ETA_CUT, PT_CUT, DR_LEP = 1.6, 30.0, 0.4
 PT_SUB = np.linspace(-40, 120, 81)
@@ -133,6 +133,11 @@ def main():
 
     os.makedirs(a.outdir, exist_ok=True)
     lines = []
+    global R_JET, AREA
+    R_JET = map_run_info(a.pbpb)["R"]
+    AREA = np.pi * R_JET ** 2
+    if abs(R_JET - 0.3) > 1e-9:
+        lines.append(f"jets of R = {R_JET:g} (the map step's run_info)")
     # ── the Z events and their QA jets
     Eb, Jb, Bb = load_jets(a.pbpb)
     Qb, QB = load_qa_jets(a.pbpb)

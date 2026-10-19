@@ -1,7 +1,7 @@
 // example/analysis_root/common/JetMap.h
 //
 // Jets on hadron lists with fastjet, the C++ twin of example/analysis/jetcorr/jetmap.py:
-// anti-k_T R = 0.3, E scheme, p_T,raw > 1 GeV, |eta| < 2.  Pb+Pb: active areas with explicit
+// anti-k_T (R = 0.3 by default, Clusterer(R)), E scheme, p_T,raw > 1 GeV, |eta| < 2.  Pb+Pb: active areas with explicit
 // ghosts on a fixed grid (|y| < 2.6, area 0.01, no scatter: the same jets as the Python map
 // step) and rho(jet) the median p_T / area of the k_T R = 0.4 jets with |y| < 2.2 in a strip
 // |y - y_jet| < 1; p_T = p_T,raw - rho A.  Vacuum: no subtraction.  Per jet also its mass,
@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -29,14 +30,18 @@ namespace jetcorr {
 
 namespace fj = fastjet;
 
-constexpr double R_JET = 0.3, ETA_JET = 2.0;
+constexpr double R_JET = 0.3, ETA_JET = 2.0;   // R_JET: the default anti-k_T radius
+constexpr double GHOST_AREA = 0.01;            // the fixed ghost grid's cell (PLAN D8: kept)
 constexpr double STRIP = 1.0;                  // the rho strip's half width (Clusterer::rho_sel)
 
+// anti-k_T jets of radius R (the rho estimate's k_T R = 0.4 does not change with it)
 struct Clusterer {
-  fj::JetDefinition akt{fj::antikt_algorithm, R_JET}, kt{fj::kt_algorithm, 0.4};
+  double R;
+  fj::JetDefinition akt, kt{fj::kt_algorithm, 0.4};
   fj::AreaDefinition area{fj::active_area_explicit_ghosts,
-                          fj::GhostedAreaSpec(2.6, 1, 0.01, 0.0, 0.0)};
+                          fj::GhostedAreaSpec(2.6, 1, GHOST_AREA, 0.0, 0.0)};
   fj::Selector rho_sel = fj::SelectorAbsRapMax(2.2) * fj::SelectorStrip(1.0);
+  explicit Clusterer(double r = R_JET) : R(r), akt(fj::antikt_algorithm, r) {}
 };
 
 // rho(jet) of JetMedianBackgroundEstimator(SelectorAbsRapMax(2.2) * SelectorStrip(1.0)),
@@ -94,9 +99,9 @@ Jet make_jet(const fj::PseudoJet &j, double pt, double area, double rho, bool gh
 }
 
 // every jet with p_T,raw > 1 GeV and |eta| < 2; ptmin cuts on p_T (subtracted in Pb+Pb), -inf
-// keeps them all
+// keeps them all; bge: the particles' StripRho if the caller has it, else made here
 std::vector<Jet> jets_of(const std::vector<fj::PseudoJet> &parts, bool subtract,
-                         double ptmin, Clusterer &c) {
+                         double ptmin, Clusterer &c, StripRho *bge = nullptr) {
   std::vector<Jet> out;
   if (!subtract) {
     fj::ClusterSequence cs(parts, c.akt);
@@ -105,15 +110,37 @@ std::vector<Jet> jets_of(const std::vector<fj::PseudoJet> &parts, bool subtract,
         out.push_back(make_jet(j, j.pt(), 0, 0, false));
     return out;
   }
-  StripRho bge(parts, c);
+  std::unique_ptr<StripRho> own;
+  if (!bge) {
+    own = std::make_unique<StripRho>(parts, c);
+    bge = own.get();
+  }
   fj::ClusterSequenceArea cs(parts, c.akt, c.area);
   for (const auto &j : fj::sorted_by_pt(cs.inclusive_jets(1.0))) {
     if (!(std::fabs(j.eta()) < ETA_JET)) continue;
     if (j.pt() <= ptmin) continue;              // rho >= 0: p_T <= p_T,raw cannot pass
-    const double rho = bge.rho(j), a = j.area(), pt = j.pt() - rho * a;
+    const double rho = bge->rho(j), a = j.area(), pt = j.pt() - rho * a;
     if (pt > ptmin) out.push_back(make_jet(j, pt, a, rho, true));
   }
   return out;
+}
+
+// a cone of radius R around (eta, phi) (taken as a rapidity): the p_T sum of the particles
+// within Delta R < R, rho there (bge's; nullptr: 0) and sum - rho pi R^2 (the random cones,
+// the Z cone; jetcorr.jetmap.cone)
+struct Cone {
+  fj::PseudoJet axis;
+  double sum, rho, dpt;
+};
+inline Cone cone(const std::vector<fj::PseudoJet> &parts, StripRho *bge, double eta, double phi,
+                 double R) {
+  fj::PseudoJet axis;
+  axis.reset_PtYPhiM(1.0, eta, phi, 0.0);
+  double sum = 0;
+  for (const auto &p : parts)
+    if (p.delta_R(axis) < R) sum += p.pt();
+  const double rho = bge ? bge->rho(axis) : 0.0;
+  return {axis, sum, rho, sum - rho * M_PI * R * R};
 }
 
 // the jet columns of a tree: <prefix>_pt_raw, <prefix>_pt, ... (one vector each, refilled per

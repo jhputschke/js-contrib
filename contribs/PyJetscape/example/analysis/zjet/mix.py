@@ -7,6 +7,12 @@ runs/<run>/figures/mixing_dphi.png, mixing_dy.png, mixing_errors.png and mixing_
   python mix.py --pbpb <dir> --vacuum <dir> --pools <dir> --jobs 8 --tag <name>  # a campaign
   python mix.py --pbpb-pools <dir> --vacuum-pools <dir> --tag _cxx   # the C++ map step's pools
                                     # (example/analysis_root/zjet/zhadron_pools, *_pool.root)
+  python mix.py --pbpb-pools runs/zjet_c00/data/mix/pbpb runs/zjet_c01/data/mix/pbpb \
+                --vacuum-pools <dir> --run zjet_c00-01      # campaigns built apart, combined
+
+The pools (version 4) carry their production file's record, so the pools of several
+campaigns, each built once on its own, combine at load time with the ids and weights of the
+combination (zjet_mixing.assemble).
 
 Pb+Pb, CMS 2507.09307's selection (zjet_wake.CMS_2507), every event weighted w (window cross
 section / events x N_coll):
@@ -54,23 +60,25 @@ import zjet_mixing as zm                                         # noqa: E402
 import zjet_wake as zw                                           # noqa: E402
 from jetcorr import runs                                         # noqa: E402
 
-POOL_VERSION = 3
+POOL_VERSION = zm.POOL_VERSION
 MODES = ("factorized", "all", "cms10", "strict")
 COLORS = {"factorized": "C3", "all": "C0", "cms10": "C2", "strict": "C1"}
 
 
 # ── the map step ─────────────────────────────────────────────────────────────────
-def _pool_job(stem, local, glob_, w, bg, seed, path):
+def _pool_job(stem, local, glob_, w, bg, seed, path, rec):
     t0 = time.time()
-    d = zm.file_pool(stem, local, glob_, w, bg, seed=seed)
+    d = zm.file_pool(stem, local, glob_, w, bg, seed=seed, record=rec)
     np.savez_compressed(path, **d)
     return os.path.basename(stem), len(d["event"]), time.time() - t0
 
 
 def build_pools(src, outdir, jobs, seed, rebuild):
     """The pools of every production file of ``src`` in ``outdir`` (rebuilt when the
-    files, the selection or the seed changed) -> their paths."""
+    files, the selection or the seed changed) -> their paths.  One campaign per ``src``:
+    the pools of several combine at load time (zjet_mixing.Pool.load)."""
     from jetscape.hadrons_h5 import HadronFileReader
+    from jetcorr import weights as jw
 
     r = HadronFileReader(src)
     t = zw.event_table(r)
@@ -103,7 +111,8 @@ def build_pools(src, outdir, jobs, seed, rebuild):
         futs = []
         for i, (stem, path) in enumerate(zip(stems, paths)):
             g = np.flatnonzero(sel & (loc[:, 0] == i))
-            futs.append(ex.submit(_pool_job, stem, loc[g, 1], g, w[g], bgid[g], seed, path))
+            futs.append(ex.submit(_pool_job, stem, loc[g, 1], g, w[g], bgid[g], seed, path,
+                                  jw.file_record(r, i)))
         for f in futs:
             name, n, dt = f.result()
             print(f"  {name}: {n} events, {dt:.0f} s", flush=True)
@@ -185,10 +194,11 @@ def main():
     ap.add_argument("--vacuum", default=None, help="default runs/<run>/data/vacuum")
     ap.add_argument("--pools", default=None,
                     help="pool cache (default runs/<run>/data/mix/{pbpb,vacuum})")
-    ap.add_argument("--pbpb-pools", default=None,
-                    help="read these pools (*_pool.root of zhadron_pools, or *.npz) instead of "
-                         "building them from --pbpb")
-    ap.add_argument("--vacuum-pools", default=None, help="the same for --vacuum")
+    ap.add_argument("--pbpb-pools", nargs="+", default=None,
+                    help="read the pools of these directories (*_pool.root of zhadron_pools, or "
+                         "*.npz; several: campaigns built apart) instead of building them from "
+                         "--pbpb")
+    ap.add_argument("--vacuum-pools", nargs="+", default=None, help="the same for --vacuum")
     ap.add_argument("--hists", default=None,
                     help="test/accumulate.py's output, for the check against test/compare.py "
                          "(default runs/<run>/data/hists.npz; '' none)")
@@ -223,11 +233,14 @@ def main():
     t0 = time.time()
     def pool_files(given, src, sub):
         if given:
-            paths = sorted(glob.glob(os.path.join(given, "*_pool.root"))
-                           or glob.glob(os.path.join(given, "*.npz")))
-            if not paths:
-                raise FileNotFoundError(f"no *_pool.root or *.npz in {given}")
-            print(f"pools: {len(paths)} files from {given}", flush=True)
+            paths = []
+            for g in given:
+                found = sorted(glob.glob(os.path.join(g, "*_pool.root"))
+                               or glob.glob(os.path.join(g, "*.npz")))
+                if not found:
+                    raise FileNotFoundError(f"no *_pool.root or *.npz in {g}")
+                print(f"pools: {len(found)} files from {g}", flush=True)
+                paths += found
             return paths
         return build_pools(src, os.path.join(a.pools, sub), a.jobs, a.seed, a.rebuild)
 
