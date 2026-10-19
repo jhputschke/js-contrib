@@ -4,7 +4,7 @@
      (PLAN_ZJET_CMS10x.md section 5a step 7; X-SCAPE PythiaGun with <trigger>, branch zjet).
      b_max: 8.57 fm = the 0-30 % of the experiments' sigma_inel (pi b^2 = 0.3 x 7.7 b), used
      now; 8.68 fm = the 0-30 % of this model's own sigma_inel (7.89 b, minimum-bias
-     3dMCGlauber, analysis/zjet_test/centrality_check.py, 2026-10-16), of which 8.57 fm is
+     3dMCGlauber, analysis/zjet/setup/centrality_check.py, 2026-10-16), of which 8.57 fm is
      0-29.3 %.  Not switched yet (see <MCGlauber>).
      Everything else is PbPb_0_10_jet.xml's.  The geometry is sampled with P(b) ~ b and every
      event gets one Z, while Z production scales with N_coll (CMS: 78 % of the Zs are in

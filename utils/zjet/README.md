@@ -14,7 +14,7 @@ The selection (decided 2026-10-15, windows and parton cut changed 2026-10-16; do
   by its `n_coll` (below). Centrality is selected on b only: X-SCAPE ignores `cenMin`/`cenMax`
   (3dMCGlauber applies them only in its standalone program). Checked with 200,000 minimum-bias
   events of the same `<MCGlauber>` settings (2026-10-16,
-  `contribs/PyJetscape/example/analysis/zjet_test/centrality_check.py`): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm). The
+  `contribs/PyJetscape/example/analysis/zjet/setup/centrality_check.py`): this model's own σ_inel is 7.89 b (3dMCGlauber, σ_NN 67.6 mb), not the 7.7 b behind b_max, so b < 8.57 fm is its 0–29.3 % (exactly 0–30 %: 8.68 fm); classes defined by event activity (the string count, which is 3dMCGlauber's own centrality cut, N_part, or a two-component N_part/N_coll mix) agree with the b class for 96–97 % of their events, with the same ⟨N_coll⟩ (1,030) and N_coll-weighted ⟨b⟩ (4.9 fm). The
   cut is a good stand-in for an activity-based class; CMS's HF-energy class is not modelled
   beyond that.
 - **Both decay leptons p_T > 20 GeV, |η| < 2.5** (`--lepton-ptmin 20 --lepton-etamax 2.5`): the
@@ -173,12 +173,12 @@ detector sees): the "Read first" note at the top of PLAN_ZJET_CMS10x.md.
 
 ## Analysis and movies
 
-- `contribs/PyJetscape/example/analysis/zjet_wake.ipynb` (helpers in `zjet_wake.py`): the
+- `contribs/PyJetscape/example/analysis/zjet/zjet_wake.ipynb` (helpers in `zjet_wake.py`): the
   Z–hadron wake in the Z frame (Δη = η_h − y_Z, Δφ = φ_h − φ_Z) as CMS 2507.09307 measures it:
   (Δη, Δφ) maps, Δφ and Z-side Δη distributions per track p_T class, Pb+Pb − pp with the vacuum
   reference, the p_T^Z dependence, one event's hydro wake. Events are weighted by window
   cross section × N_coll; the Z's leptons are removed from the tracks.
-- `contribs/PyJetscape/example/analysis/zjet_test/`: a small test set to run the notebook and
+- `contribs/PyJetscape/example/analysis/zjet/setup/`: a small test set to run the notebook and
   the movies on (96 Pb+Pb events, the pp reference, one movie event) and the commands that
   make it (`make_data.sh`); data and figures are git-ignored.
 - Movies of single events need a pair file, so a few events run without `--hadrons-only`

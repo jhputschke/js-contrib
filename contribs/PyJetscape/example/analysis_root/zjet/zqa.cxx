@@ -1,6 +1,6 @@
 // example/analysis_root/zjet/zqa.cxx
 //
-// The QA map step in C++ (the twin of example/analysis/zjet_test/qa.py map): per production
+// The QA map step in C++ (the twin of example/analysis/zjet/qa.py map): per production
 // file, from run_h5toROOT.py's ROOT files, <out>/<stem>_qa.root with
 //
 //   qa_events   per event with a Z: event, file, bg, pthat_bin, n_coll, w_s (window cross

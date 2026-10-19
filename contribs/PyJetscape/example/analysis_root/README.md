@@ -12,7 +12,7 @@ The Python analyses of the HDF5 files are in [`../analysis`](../analysis/README.
 | [`read_hadrons.C`](read_hadrons.C) | the reader by example: pT spectra and Δφ to the leading parton, per source and for the wake (§2) | a new `.root` |
 | [`read_hadrons.ipynb`](read_hadrons.ipynb) | `read_hadrons.C` as a ROOT C++ notebook, one step per cell, with the histograms drawn (§2) | a new `.root` |
 | [`hadron_distributions.C`](hadron_distributions.C) | RDataFrame macro: η, φ, pT of background, background + deposition, jet fragments and the wake (§3) | a new `.root` + `.pdf`/`.png` |
-| [`zjet/`](zjet/README.md) | the Z+jet analyses' map steps in C++: the Z–hadron pools (CMS 2507.09307) and the jets with FastJet, ρA-subtracted in Pb+Pb, with embedding and random cones (CMS 1702.01060); the final stage is the Python of `../analysis/zjet_test`, and both map steps agree with their Python twins value for value | per production file `.root` |
+| [`zjet/`](zjet/README.md) | the Z+jet analyses' map steps in C++: the Z–hadron pools (CMS 2507.09307) and the jets with FastJet, ρA-subtracted in Pb+Pb, with embedding and random cones (CMS 1702.01060); the final stage is the Python of `../analysis/zjet`, and both map steps agree with their Python twins value for value | per production file `.root` |
 
 Everything here needs ROOT itself, **≥ 6.34** for the RNTuple files that `run_h5toROOT.py`
 writes by default (TTree files, `--format ttree`, read with any recent ROOT). Set up as in

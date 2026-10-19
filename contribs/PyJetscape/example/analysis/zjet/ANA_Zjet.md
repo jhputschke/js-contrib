@@ -4,10 +4,10 @@ CMS 1702.01060 (Z+jet in Pb+Pb 5.02 TeV 0–30 % and pp: Δφ_jZ, x_jZ, ⟨x_jZ�
 ins1512112) on the first campaign, `zjet_c00`: 9,600 Pb+Pb events from the 2 × RTX 3090 box, in
 two GPU subdirectories. Two routes to the same final stage: **A**, the Python map step on the
 HDF5 files; **B**, the C++ map step (FastJet) on the converted files. Both find the same jets
-(*B5*); the final stage `zjet_test/zjet_jets.py` is shared. The Pb+Pb analysis is a ladder of
+(*B5*); the final stage `zjet_jets.py` is shared. The Pb+Pb analysis is a ladder of
 three steps, from the model-only ideal (step 1) to CMS's procedure (step 3). The Z–hadron
 analysis of the same events, and the shared steps 0–2 in detail: [ANA_Zhadron.md](ANA_Zhadron.md);
-the jet map step in detail: [`../analysis_root/zjet/README.md`](../analysis_root/zjet/README.md).
+the jet map step in detail: [`../analysis_root/zjet/README.md`](../../analysis_root/zjet/README.md).
 
 **Results are not public yet:** write the outputs (`--outdir`) outside the repository.
 
@@ -88,16 +88,16 @@ As in [ANA_Zhadron.md](ANA_Zhadron.md) §0–2, with these variables:
 REPO=~/js-contrib-zjet; EX=$REPO/contribs/PyJetscape/example
 DATA=/data/zjet_c00     # gpu0/ (seeds 1-50), gpu1/ (51-100): PbPb_0_30_zjet_c00_seedNNNN_hadrons_*.h5
 PP=/data/zjet_pp        # vacuum_jet_zjet_pp_seed900001_hadrons_jet_frag.h5 (12,000 events, 40 fragmentations)
-# PP=$EX/analysis/zjet_test/data/vacuum_all   # on the GB10: 12,000 events, 10 fragmentations (ANA_Zhadron §0)
+# PP=$EX/analysis/runs/zjet_setup/data/vacuum_all   # on the GB10: 12,000 events, 10 fragmentations (ANA_Zhadron §0)
 ANA=/data/ana_c00; mkdir -p $ANA/logs
-cd $EX/analysis/zjet_test && ./make_data.sh hepdata_zjet      # CMS 1702.01060's HEPData, once
+cd $EX/analysis/zjet/setup && ./make_data.sh hepdata_zjet      # CMS 1702.01060's HEPData, once
 ```
 
 In addition to ANA_Zhadron's Python packages: **FastJet** for Python (`pip install fastjet`,
 3.5) for route A, uproot and awkward for the final stage, and for route B the C++ FastJet
 (`fastjet-config` on `PATH`, e.g. conda-forge `fastjet`) with ROOT ≥ 6.34. The jets use all
 particles: the campaign files store them all (|η| < 2.6), the 96-event test set of
-`zjet_test/data/pbpb` holds charged ones only.
+`../runs/zjet_setup/data/pbpb` holds charged ones only.
 
 ## QA first
 
@@ -136,7 +136,7 @@ oversample k (all 40 by default, `--samples N` fewer): the whole event, `bulk_je
 files, so the slices combine):
 
 ```bash
-cd $EX/analysis/zjet_test
+cd $EX/analysis/zjet
 for i in 0 13 26 39 52 65 78 91; do
   python zjet_jets_map.py "$DATA/gpu*/*_hadrons_jet_frag.h5" $ANA/jets_py/pbpb \
       --files $i:$((i + 13)) > $ANA/logs/jets_py_$i.log 2>&1 &
@@ -255,7 +255,7 @@ Python route (FastJet clusters in both), the pp in seconds.
 **B4. The final stage on the C++ jets** (pp and all three steps, read as in A3–A7):
 
 ```bash
-cd $EX/analysis/zjet_test
+cd $EX/analysis/zjet
 python zjet_jets_qa.py --pbpb $ANA/jets_cxx/pbpb --pp $ANA/jets_cxx/pp \
     --hadron-qa $ANA/qa_cxx/pbpb --outdir $ANA/figures --tag _c00_cxx
 python zjet_jets.py --pbpb $ANA/jets_cxx/pbpb --pp $ANA/jets_cxx/pp \
@@ -288,7 +288,7 @@ and B4 agree too: the smearing's and the draws' random numbers come in the same 
 | B5 | stdout | – |
 
 Every figure also comes with its `.npz` and `.root` figure data (ANA_Zhadron.md, *Outputs*:
-restyle with `zjet_test/replot.py` without rerunning anything).
+restyle with `../jetcorr/replot.py` without rerunning anything).
 
 ## The jet QA figures
 
@@ -315,7 +315,7 @@ number from the paper to compare with (CMS's N); the rest are the model's own ch
 
 ## The final figures and how they compare with data
 
-Against CMS 1702.01060's HEPData (ins1512112, `zjet_test/data/hepdata_zjet/`), errors: CMS's
+Against CMS 1702.01060's HEPData (ins1512112, `../runs/zjet_setup/data/hepdata_zjet/`), errors: CMS's
 stat ⊕ syst (black) and the model's jackknife.
 
 **`zjet_jets_pp_c00.png`, pp** — 2 rows × 4 columns: Δφ_jZ (log scale), x_jZ, ⟨x_jZ⟩ vs p_T^Z,
@@ -324,7 +324,7 @@ three ways: smeared with PbPb's resolution against the smeared-pp tables `data1`
 `data5`, `data7`; smeared with pp's resolution (S 0.95, N 0.001) against `data9` (x_jZ, pp
 unsmeared by CMS's definition: at pp's own resolution); unsmeared, for reference. The pp
 selection, jets, weights and errors (a jackknife over blocks of events) are those of the Pb+Pb
-steps. `zjet_test/zjet_pp_jets.py` makes the same comparison from the HDF5 files with its own
+steps. `setup/zjet_pp_jets.py` makes the same comparison from the HDF5 files with its own
 jet finding (`figures/zjet_pp_vs_cms1702.png`): an independent cross-check, agreeing within the
 smearing's random numbers.
 
@@ -372,4 +372,4 @@ step the χ² lines of Pb+Pb. All χ² use the model's jackknife and CMS's error
   campaigns converted into one ROOT directory for route B.
 - Open in the method: a CMS-like iterative subtraction next to ρA; the model's minijet-less
   background (the random cones tell how much it matters for R = 0.3);
-  [`docs/Plans/PLAN_ZJET_CMS10x.md`](../../../../docs/Plans/PLAN_ZJET_CMS10x.md) §5c.
+  [`docs/Plans/PLAN_ZJET_CMS10x.md`](../../../../../docs/Plans/PLAN_ZJET_CMS10x.md) §5c.

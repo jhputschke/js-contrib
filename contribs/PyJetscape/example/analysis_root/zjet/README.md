@@ -4,15 +4,15 @@ The map steps of the two Z+jet analyses in C++, on the ROOT files of
 [`run_h5toROOT.py`](../../prod_AuAu_0_10_jet/run_h5toROOT.py):
 
 - **Z–hadron** (CMS 2507.09307): `zhadron_pools` writes, per production file, the pool of
-  [`zjet_mixing.file_pool`](../../analysis/zjet_mixing.py) (per Z its same-event yield in the Z
+  [`zjet_mixing.file_pool`](../../analysis/zjet/zjet_mixing.py) (per Z its same-event yield in the Z
   frame and one oversample's tracks; per hydro background the summed densities).
 - **Z+jet** (CMS 1702.01060): `zjets` clusters every oversample of every Z event with FastJet,
   ρA-subtracted in Pb+Pb, with an embedding check and random cones.
 
-The **final stage is shared** with the Python map steps: `../../analysis/zjet_test/mix.py`
+The **final stage is shared** with the Python map steps: `../../analysis/zjet/mix.py`
 (event mixing, HEPData, χ², jackknife, figures) and `zjet_jets.py` (selection, the optional
 CMS smearing, HEPData, χ², jackknife, figures). Every map step has a Python twin
-(`zjet_mixing.file_pool`, `zjet_test/zjet_jets_map.py`), and the two agree value for value
+(`zjet_mixing.file_pool`, `zjet/zjet_jets_map.py`), and the two agree value for value
 (*Checked*, below).
 
 | file | |
@@ -20,12 +20,12 @@ CMS smearing, HEPData, χ², jackknife, figures). Every map step has a Python tw
 | `ZJetCommon.h` | the C++ mirror of `zjet_wake.py`: Z selection, event weights, track mask, Z frame, numpy's binning conventions, the portable random choices (`event_key`, `key_index`, `key_uniform`) |
 | `zhadron_pools.cxx` | the Z–hadron map step → `<out>/<stem>_pool.root` |
 | `zjets.cxx` | the Z+jet map step → `<out>/<stem>_jets.root` |
-| `zqa.cxx` | the QA map step (the twin of `zjet_test/qa.py map`) → `<out>/<stem>_qa.root`: a table per Z event (the Z, weights, N_coll, the total charged multiplicity per source) and per-source hadron histograms; drawn by `qa.py plot` |
+| `zqa.cxx` | the QA map step (the twin of `zjet/qa.py map`) → `<out>/<stem>_qa.root`: a table per Z event (the Z, weights, N_coll, the total charged multiplicity per source) and per-source hadron histograms; drawn by `qa.py plot` |
 | `Makefile` | `make` with `root-config` and `fastjet-config` on `PATH`; `make FASTJET_PY=<the fastjet wheel's package directory>` builds against a pip `fastjet` wheel instead (below) |
 
 A campaign from the RTX box (`gpu0/`, `gpu1/`), step by step in Python and in ROOT:
-[`../../analysis/ANA_Zhadron.md`](../../analysis/ANA_Zhadron.md),
-[`../../analysis/ANA_Zjet.md`](../../analysis/ANA_Zjet.md).
+[`../../analysis/zjet/ANA_Zhadron.md`](../../analysis/zjet/ANA_Zhadron.md),
+[`../../analysis/zjet/ANA_Zjet.md`](../../analysis/zjet/ANA_Zjet.md).
 
 ## The chain
 
@@ -39,7 +39,7 @@ cd example/analysis_root/zjet && make
 #   The wheel's fastjet-config has its build paths, so the Makefile sets the flags itself.
 #   Checked 2026-10-18 on one c00 file, --samples 2: check_cxx.py jets, 0 differences.
 # 1. HDF5 -> ROOT (vacuum files: jet_frag only, found by themselves)
-P=../../prod_AuAu_0_10_jet; D=../../analysis/zjet_test/data
+P=../../prod_AuAu_0_10_jet; D=../../analysis/runs/zjet_setup/data
 python $P/run_h5toROOT.py $D/pbpb_campaign -j 4 --out-dir $D/root/pbpb_campaign \
     --campaign-file $D/root/pbpb_campaign/pbpb_campaign.root
 python $P/root_export/check_h5_vs_root.py $D/pbpb_campaign $D/root/pbpb_campaign \
@@ -49,7 +49,7 @@ python $P/root_export/check_h5_vs_root.py $D/pbpb_campaign $D/root/pbpb_campaign
 ./zjets $D/root/pbpb_campaign $D/jets_cxx/pbpb_campaign [--samples N] [--cones 4] [--ptmin 5] \
     [--qa-samples 1]
 # 3. the final stage (Python)
-cd ../../analysis/zjet_test
+cd ../../analysis/zjet
 python mix.py --pbpb-pools data/mix_cxx/pbpb --vacuum-pools data/mix_cxx/vacuum --tag _cxx
 python zjet_jets_qa.py --pbpb data/jets_cxx/pbpb_campaign --pp data/jets_cxx/vacuum_all
 python zjet_jets.py --pbpb data/jets_cxx/pbpb_campaign --pp data/jets_cxx/vacuum_all
@@ -60,7 +60,7 @@ python check_cxx.py jets data/jets_py/vacuum_all data/jets_cxx/vacuum_all
 
 The final stage's figures come with `<figure>.root` (one directory per panel: TH1D, TH2D,
 TGraphAsymmErrors, TGraph, named after the curves) and `<figure>.npz`, so the plotted numbers
-can be restyled in ROOT or Python without rerunning (`../../analysis/zjet_test/figdata.py`,
+can be restyled in ROOT or Python without rerunning (`../../analysis/jetcorr/figdata.py`,
 `replot.py`).
 
 ## `zhadron_pools`
@@ -105,7 +105,7 @@ fragmentation k in vacuum; all final particles but neutrinos and the Z's two lep
   closest in N_coll (step 3, as CMS's 40 minimum-bias events).
 - **Jet QA**: the first `--qa-samples` (1) oversamples of every Z event and background again,
   with all their jets (no cut on the subtracted p_T: its negative tail), for
-  `zjet_test/zjet_jets_qa.py`; a few hundred kB per campaign file.
+  `zjet/zjet_jets_qa.py`; a few hundred kB per campaign file.
 
 Output: `jet_events` (per event: `event`, `local_event`, `file`, `bg`, `pthat_bin`, `weight_mb`
 = σ_k / N_k, `n_coll`, `n_samples`, the Z and its leptons) and `jets` (per event and oversample:
@@ -113,7 +113,7 @@ Output: `jet_events` (per event: `event`, `local_event`, `file`, `bg`, `pthat_bi
 event (no wake), `emb_{ref_pt, ref_eta, ref_phi,
 pt, dr}`, `rc_{eta, phi, sum, rho, dpt}`), `bg_jets` (per background and `bulk_bg` sample:
 `bg`, `bg_unit`, `sample`, `n_coll`, the same `jet_*`), and for the QA `qa_jets` (`event`,
-`sample`, `jet_*`) and `qa_bg_jets` (as `bg_jets`). `zjet_test/zjet_jets.py`
+`sample`, `jet_*`) and `qa_bg_jets` (as `bg_jets`). `zjet/zjet_jets.py`
 reads both layouts (the Python map
 step's groups come back from uproot as records).
 
@@ -122,7 +122,7 @@ smearing (the model-only reference); (2) S − B with the Z's own background's j
 twin); (3) S − B mixed from other backgrounds of similar N_coll (CMS's procedure). The CMS
 smearing is optional: `none`, `detector` (C and S of PbPb), `full` (C, S, N) and `match` (C, S
 and √(N² − σ_RC²), σ_RC the random cones' width), all four shown in steps 2 and 3
-([`../../analysis/ANA_Zjet.md`](../../analysis/ANA_Zjet.md)).
+([`../../analysis/zjet/ANA_Zjet.md`](../../analysis/zjet/ANA_Zjet.md)).
 
 ## Checked (2026-10-16, the GB10)
 
@@ -138,7 +138,7 @@ and √(N² − σ_RC²), σ_RC the random cones' width), all four shown in step
   the Python ones, apart from the last digit of check (1). 0.5–0.8 s per test file.
   The pools of both map steps are as produced; `mix.py` rotates every Pb+Pb background's event
   plane when it loads them (the default since 2026-10-17, `--no-rotate` to keep them:
-  [`ANA_Zhadron.md`](../../analysis/ANA_Zhadron.md#the-measurement-s-b-and-the-ladder), *The
+  [`ANA_Zhadron.md`](../../analysis/zjet/ANA_Zhadron.md#the-measurement-s-b-and-the-ladder), *The
   backgrounds' event planes*), the same angles for both, so `check_cxx.py pools` and the
   summaries' comparison are unaffected.
 - **`zjets`** against `zjet_jets_map.py`: pp (`vacuum_all`, 96,980 oversamples, 213,682

@@ -19,12 +19,14 @@ import time
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))       # jetcorr
 sys.path.insert(0, os.path.dirname(HERE))                        # zjet_wake.py
 try:
     import jetscape  # noqa: F401
 except ImportError:                                              # the source tree
-    sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "python"))
+    sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "python"))
 import zjet_wake as zw                                           # noqa: E402
+from jetcorr import runs                                         # noqa: E402
 from jetscape.hadrons_h5 import HadronFileReader                 # noqa: E402
 
 PT = np.asarray(zw.PT_CLASSES)                    # 1-2, 2-4, 4-10 GeV
@@ -44,8 +46,8 @@ def pt_deta(ev, info):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--data", default=os.path.join(HERE, "data"),
-                    help="directory with pbpb/ and vacuum/ (default: data/)")
+    ap.add_argument("--data", default=runs.data("zjet_setup"),
+                    help="directory with pbpb/ and vacuum/ (default: runs/zjet_setup/data)")
     ap.add_argument("--out", default=None, help="default: <data>/hists.npz")
     a = ap.parse_args()
     out_path = a.out or os.path.join(a.data, "hists.npz")

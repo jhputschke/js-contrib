@@ -33,6 +33,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.dirname(HERE))                        # jetcorr
+from jetcorr import runs  # noqa: E402
 from zjet_jets import (SEED, background_angles, dphi, load_jets,  # noqa: E402
                        load_qa_jets, rotation_seed, weights, z_selection)
 
@@ -118,14 +120,16 @@ def main():
                          "phi = 0) instead of zjet_jets.py's random rotations (the default)")
     ap.add_argument("--rotate-seed", type=int, default=None,
                     help="seed of the rotations (default: zjet_jets.py's, from its --seed 7)")
-    ap.add_argument("--outdir", default=os.path.join(HERE, "figures"))
+    ap.add_argument("--run", default="zjet_setup", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
+    ap.add_argument("--outdir", default=None)
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
+    a.outdir = a.outdir or runs.figures(a.run)
     import awkward as ak
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import figdata
+    from jetcorr import figdata
 
     os.makedirs(a.outdir, exist_ok=True)
     lines = []

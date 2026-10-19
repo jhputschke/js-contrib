@@ -38,12 +38,13 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(HERE))                        # jetcorr
 try:
     import jetscape  # noqa: F401
 except ImportError:
     sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "python"))
 import zjet_wake as zw  # noqa: E402
+from jetcorr import runs  # noqa: E402
 
 SOURCES = ("bulk_jet", "bulk_bg", "jet_frag")
 VARS = ("pt", "eta", "phi")
@@ -283,7 +284,7 @@ def cmd_plot(a):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import figdata
+    from jetcorr import figdata
 
     os.makedirs(a.outdir, exist_ok=True)
     samples = [("Pb+Pb", a.pbpb)] + ([("pp", a.pp)] if a.pp else [])
@@ -466,9 +467,12 @@ def main():
     p = sub.add_parser("plot", help="the figures and the summary")
     p.add_argument("--pbpb", required=True, help="the map step's Pb+Pb outputs (.npz or .root)")
     p.add_argument("--pp", default=None, help="the same for the vacuum reference")
-    p.add_argument("--outdir", default=os.path.join(HERE, "figures"))
+    p.add_argument("--run", default="zjet_setup", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
+    p.add_argument("--outdir", default=None)
     p.add_argument("--tag", default="")
     a = ap.parse_args()
+    if a.cmd == "plot":
+        a.outdir = a.outdir or runs.figures(a.run)
     (cmd_map if a.cmd == "map" else cmd_plot)(a)
 
 

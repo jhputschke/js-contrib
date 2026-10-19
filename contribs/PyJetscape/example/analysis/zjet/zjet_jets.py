@@ -45,12 +45,13 @@ hydro backgrounds (pp: of events).
 import argparse
 import glob
 import os
+import sys
 
 import numpy as np
 
-import figdata
-
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))                        # jetcorr
+from jetcorr import figdata, runs  # noqa: E402
 
 C = 0.061
 RES = {"pp": (0.95, 0.001), "PbPb": (1.24, 8.08)}
@@ -364,9 +365,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--pbpb", required=True, help="the map step's Pb+Pb *_jets.root")
     ap.add_argument("--pp", required=True, help="the map step's vacuum *_jets.root")
-    ap.add_argument("--hepdata", default=os.path.join(HERE, "data", "hepdata_zjet",
-                                                      "HEPData-ins1512112-v1-yaml"))
-    ap.add_argument("--outdir", default=os.path.join(HERE, "figures"))
+    ap.add_argument("--hepdata", default=runs.data("zjet_setup", "hepdata_zjet",
+                                                   "HEPData-ins1512112-v1-yaml"))
+    ap.add_argument("--run", default="zjet_setup", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
+    ap.add_argument("--outdir", default=None)
     ap.add_argument("--tag", default="")
     ap.add_argument("--blocks", type=int, default=100)
     ap.add_argument("--n-mixed", type=int, default=40,
@@ -381,6 +383,7 @@ def main():
     ap.add_argument("--rotate-seed", type=int, default=None,
                     help="seed of the background rotations (default: derived from --seed)")
     a = ap.parse_args()
+    a.outdir = a.outdir or runs.figures(a.run)
     import awkward as ak
     import matplotlib
     matplotlib.use("Agg")

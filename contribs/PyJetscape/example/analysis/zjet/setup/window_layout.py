@@ -9,17 +9,18 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))                        # zjet_wake.py
-sys.path.insert(0, HERE)                                         # compare.py
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))       # jetcorr
+sys.path.insert(0, os.path.dirname(HERE))                        # zjet_wake.py, cms2507.py
 try:
     import jetscape  # noqa: F401
 except ImportError:                                              # the source tree
-    sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "python"))
+    sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "python"))
 import numpy as np
 import zjet_wake as zw
+from jetcorr import runs
 from jetscape.hadrons_h5 import HadronFileReader
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-ap.add_argument("--vacuum", default=os.path.join(HERE, "data", "vacuum_nocut"),
+ap.add_argument("--vacuum", default=runs.data("zjet_setup", "vacuum_nocut"),
                 help="a vacuum reference whose windows cover 20-200 GeV (make_data.sh vacuum_nocut)")
 a = ap.parse_args()
 r = HadronFileReader(a.vacuum); t = zw.event_table(r)

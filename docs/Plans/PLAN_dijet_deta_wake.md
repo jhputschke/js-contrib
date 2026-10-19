@@ -11,7 +11,7 @@ test also measures the noise per event that sets the size of the later dijet pro
 
 Written against js-contrib `zjet` 72cb15e. Data in hand: campaigns `zjet_c00` and `zjet_c01`
 (19,200 Pb+Pb 0–30 % events on 800 hydro backgrounds, `/data/zjet_c0*`), the c00 jet map step at
-R = 0.3 (`analysis/zjet_test/data/jets_c00/`), the c00 and c00+c01 Z–hadron pools, and the pp
+R = 0.3 (`analysis/runs/zjet_setup/data/jets_c00/`), the c00 and c00+c01 Z–hadron pools, and the pp
 reference. Items marked **verify** were inferred from reading the code and have not been run.
 
 ## 0. The measurement and the proxy
@@ -62,7 +62,7 @@ What it misses:
   overpredicts the 1–2 GeV depletion and predicts an enhancement near Δη ≈ 0 from jet2's wake in
   R_sym) and CoLBT-hydro (0–10 % only; overpredicts both). Both media models get the dip's mean
   position. These are for the dijet stage (Phase C).
-- **Our own Z–hadron result** (`analysis/zjet_test/figures/ANALYSIS_c00.md` §6): the model's
+- **Our own Z–hadron result** (`analysis/runs/zjet_setup/figures/ANALYSIS_c00.md` §6): the model's
   Z-side depletion at 1–2 GeV is about half as deep as CMS 2507.09307's and absent at 2–4 GeV.
   The proxy resolves the same wake by jet rapidity, so it shows whether that deficit depends on
   where the jet goes.
@@ -70,7 +70,7 @@ What it misses:
 ## 2. Statistics
 
 Counted on c00 at **R = 0.3** (the existing map step; to be redone at R = 0.4, A5) with
-`analysis/zjet_test/gap_count.py`
+`analysis/dijet/gap_count.py`
 (Z: mass 70–110 GeV and the leptons of `zjet_jets.z_selection`, |y_Z| < 1; jet2:
 the leading jet, |η| < 2, Δφ > 5π/6, per oversample). Effective events = N_eff of the Z's (window
 and N_coll weights) × the class's weighted fraction:
@@ -217,8 +217,8 @@ so the Z–hadron analysis is unaffected.
 
 ## 4. Phase B — the Z-proxy analysis
 
-New: a trigger-independent library `analysis/deta_asym.py` (classes, reflection, contents,
-observables; the dijet stage reuses it) and the final stage `analysis/zjet_test/zjet_deta.py`
+New: a trigger-independent library `analysis/jetcorr/deta_asym.py` (classes, reflection, contents,
+observables; the dijet stage reuses it) and the final stage `analysis/dijet/deta.py`
 (pools + R = 0.4 jet trees, Pb+Pb and pp → figures and summary). Seconds to minutes per run.
 
 ### B1. Selection and classes
@@ -294,7 +294,7 @@ observables; the dijet stage reuses it) and the final stage `analysis/zjet_test/
 ### B6. Outputs and documents
 
 `figures/zjet_deta_{asym,closure,yw,integrated}_<tag>.png` with their `.npz`/`.root`
-(`figdata.py`), `zjet_deta_summary_<tag>.txt`; the step-by-step `analysis/ANA_ZjetDeta.md` in
+(`figdata.py`), `zjet_deta_summary_<tag>.txt`; the step-by-step `analysis/dijet/ANA_Deta.md` in
 the form of `ANA_Zjet.md`; the result note `figures/ANALYSIS_c00_deta_proxy.md` (git-ignored with
 the figures).
 
@@ -338,7 +338,7 @@ the figures).
 | A3 | per-event `S_zc`, `S_frag`, `L_*` in both pool writers | – |
 | A4 | regressions, `check_cxx.py jets` / `pools` | minutes |
 | A5 | map step at R = 0.4 (c00, then c01), pools rebuilt, counts again | ~1.8 h per campaign for the map step; pools **verify** |
-| B1–B4 | `deta_asym.py`, `zjet_deta.py`, the closure tests on c00 | seconds to minutes per run |
+| B1–B4 | `deta_asym.py`, `dijet/deta.py`, the closure tests on c00 | seconds to minutes per run |
 | B5–B6 | results on c00 + c01, comparisons, documents; again with each new campaign | minutes |
 | C | dijet production: windows, map step without Z, pools in jet1's frame, HEPData | after B5's R4 |
 

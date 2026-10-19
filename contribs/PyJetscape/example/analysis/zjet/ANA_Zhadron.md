@@ -7,11 +7,11 @@ subdirectories. Two routes to the same final stage: **A**, Python on the HDF5 fi
 analysis itself is a ladder of four steps, from the model-only ideal (step 1, the reference) to
 a one-to-one emulation of the measurement (step 4). The Z+jet analysis of the same events is
 [ANA_Zjet.md](ANA_Zjet.md); the method in detail:
-[`zjet_test/README.md`](zjet_test/README.md#event-mixing-mixpy), `zjet_mixing.py`,
-[`../analysis_root/zjet/README.md`](../analysis_root/zjet/README.md).
+[`README.md`](README.md#event-mixing-mixpy), `zjet_mixing.py`,
+[`../analysis_root/zjet/README.md`](../../analysis_root/zjet/README.md).
 
 **Results are not public yet:** write the outputs (`--outdir`) outside the repository, as
-below; the repository's `zjet_test/figures/` is git-ignored for the same reason.
+below; the repository's `../runs/zjet_setup/figures/` is git-ignored for the same reason.
 
 ## 0. What you have
 
@@ -25,16 +25,16 @@ below; the repository's `zjet_test/figures/` is git-ignored for the same reason.
 
 100 jobs × 96 events = 4 hydro backgrounds × 6 p̂T windows × 4 Z's per job, 400 backgrounds;
 ~35 GB. The pp reference is `run_prod_vacuum.py --events 12000 --seed 900001 --campaign zjet_pp
-… --n-frag 40 --eta-max 2.6 --no-x` (the command in [`utils/zjet/README.md`](../../../../utils/zjet/README.md#pp-reference)),
+… --n-frag 40 --eta-max 2.6 --no-x` (the command in [`utils/zjet/README.md`](../../../../../utils/zjet/README.md#pp-reference)),
 minutes on any CPU. What the stored hadrons are (η and Σ⁰ stable in the bulk, no weak decays):
-the "Read first" note of [`docs/Plans/PLAN_ZJET_CMS10x.md`](../../../../docs/Plans/PLAN_ZJET_CMS10x.md).
+the "Read first" note of [`docs/Plans/PLAN_ZJET_CMS10x.md`](../../../../../docs/Plans/PLAN_ZJET_CMS10x.md).
 
 **No `/data/zjet_pp` yet (on the GB10): `vacuum_all/`.** Until the 40-fragmentation pp reference
-is made, `zjet_test/data/vacuum_all/` (`cd zjet_test && ./make_data.sh vacuum_all`, ~8 min on
+is made, `../runs/zjet_setup/data/vacuum_all/` (`cd setup && ./make_data.sh vacuum_all`, ~8 min on
 the CPU) serves as `PP` for both analyses: 12,000 vacuum events (seed 902, 2,000 per window), the
 campaign's p̂T windows, no parton cut, all particles, |η| < 2.6, no positions, as above, but
 **10 fragmentations** instead of 40 (the pp statistics of the fragments are 4× lower, the Z's
-the same). Set `PP=$EX/analysis/zjet_test/data/vacuum_all` in §1; every command below takes the
+the same). Set `PP=$EX/analysis/runs/zjet_setup/data/vacuum_all` in §1; every command below takes the
 directory unchanged.
 
 **The two subdirectories.** The readers do not look below the directory they are given
@@ -191,16 +191,16 @@ per campaign file and ~100 MB per campaign (estimated), against the campaign's ~
 git clone -b zjet https://github.com/jhputschke/js-contrib ~/js-contrib-zjet
 REPO=~/js-contrib-zjet; EX=$REPO/contribs/PyJetscape/example
 DATA=/data/zjet_c00; PP=/data/zjet_pp; ANA=/data/ana_c00       # ANA: outputs, private
-# PP=$EX/analysis/zjet_test/data/vacuum_all                      # on the GB10, see §0
+# PP=$EX/analysis/runs/zjet_setup/data/vacuum_all                      # on the GB10, see §0
 mkdir -p $ANA/logs
 ```
 
 - **Python**: numpy, h5py, PyYAML, matplotlib, hdf5plugin (the files' Blosc filter), and for
-  route B uproot and awkward: the venv of [`utils/analysis_env`](../../../../utils/analysis_env/README.md),
+  route B uproot and awkward: the venv of [`utils/analysis_env`](../../../../../utils/analysis_env/README.md),
   or the conda env `js_fno` on the GB10. The scripts find `jetscape` in the checkout.
 - **ROOT ≥ 6.34** (route B; RNTuple) with `root-config` on `PATH`.
-- **CMS's HEPData record** (once, into `zjet_test/data/hepdata/`, git-ignored):
-  `cd $EX/analysis/zjet_test && ./make_data.sh hepdata`.
+- **CMS's HEPData record** (once, into `../runs/zjet_setup/data/hepdata/`, git-ignored):
+  `cd $EX/analysis/zjet/setup && ./make_data.sh hepdata`.
 
 ## 2. Check the data
 
@@ -228,7 +228,7 @@ the plot step draws them. Route A (HDF5) and route B (ROOT) give the same number
 (`check_cxx.py qa`).
 
 ```bash
-cd $EX/analysis/zjet_test
+cd $EX/analysis/zjet
 # route A
 python qa.py map "$DATA/gpu*/*_hadrons_jet_frag.h5" $ANA/qa_py/pbpb --jobs 8
 python qa.py map "$PP/*_hadrons_jet_frag.h5" $ANA/qa_py/pp
@@ -261,7 +261,7 @@ them.
 **A1. The pools and the four steps** (map: one process per production file; reduce: every step):
 
 ```bash
-cd $EX/analysis/zjet_test
+cd $EX/analysis/zjet
 python mix.py --pbpb "$DATA/gpu*/*_hadrons_jet_frag.h5" --vacuum "$PP/*_hadrons_jet_frag.h5" \
     --pools $ANA/pools --hists '' --jobs 8 --outdir $ANA/figures --tag _c00 \
     > $ANA/logs/mix_c00.log 2>&1
@@ -353,7 +353,7 @@ done; wait
 **B4. The final stage on the C++ pools** (all four steps, read as in A2–A5):
 
 ```bash
-cd $EX/analysis/zjet_test
+cd $EX/analysis/zjet
 python mix.py --pbpb-pools $ANA/pools_cxx/pbpb --vacuum-pools $ANA/pools_cxx/pp --hists '' \
     --outdir $ANA/figures --tag _c00_cxx
 ```
@@ -385,21 +385,21 @@ saw the files in another order (`../README.md`, *Multi-GPU output*).
 | B4 | `mixing_summary_c00_cxx.txt` | the six figures with `_c00_cxx`: equal to A1's |
 | B5 | stdout | – |
 
-(`zjet_test/compare.py`'s `zjet_vs_cms2507_*.png` are step 1 on the 96-event test set; on a
+(`setup/compare.py`'s `zjet_vs_cms2507_*.png` are step 1 on the 96-event test set; on a
 campaign `mix.py`'s `mixing_reference_d*` are the same figure, check (1) shows the equality.)
 
 **Every figure's data.** Next to each `<figure>.png` the plotting step writes `<figure>.npz` and
-`<figure>.root` with exactly what is drawn (`zjet_test/figdata.py`): every curve, histogram, band
+`<figure>.root` with exactly what is drawn (`../jetcorr/figdata.py`): every curve, histogram, band
 and data point with its errors, the labels, scales and limits. To restyle a figure, or to plot
 its numbers in a notebook or a ROOT macro, without running any analysis step again:
-`python zjet_test/replot.py $ANA/figures/<figure>.npz [--style my.mplstyle]` (or `replot.draw`
+`python ../jetcorr/replot.py $ANA/figures/<figure>.npz [--style my.mplstyle]` (or `replot.draw`
 with an edit function, see its header), `figdata.load(<figure>.npz)` for the arrays, and in
 ROOT one directory per panel (`ax0`, `ax1`, …) with TH1D / TH2D / TGraphAsymmErrors / TGraph
 named after the curves' labels. The PNGs themselves are unchanged by this.
 
 ## The final figures and how they compare with data
 
-All against CMS 2507.09307's HEPData (ins2945894, in `zjet_test/data/hepdata/`): the Pb+Pb
+All against CMS 2507.09307's HEPData (ins2945894, in `../runs/zjet_setup/data/hepdata/`): the Pb+Pb
 0–30 % and pp tables per track p_T class ("Δφ_ch,Z in PbPb 0-30%", "Δφ_ch,Z spectra in pp",
 "Δy_ch,Z in PbPb 0-30%", "Δy_ch,Z spectra in pp"), with their statistical and systematic errors,
 drawn as stat ⊕ syst (black). In every figure the columns are the track p_T classes 1–2, 2–4,
@@ -441,7 +441,7 @@ noise budget per Z.
 - With more campaigns: one glob over all of them (`"/data/zjet_c0*/gpu*/*_hadrons_jet_frag.h5"`),
   a fresh `--pools` directory (the weights change), `--blocks 100` still.
 - The plan for the campaigns' results, and what to look at in which order:
-  `zjet_test/figures/MIXING.md` §8 in the GB10's checkout (git-ignored), in short: closure,
+  `../runs/zjet_setup/figures/MIXING.md` §8 in the GB10's checkout (git-ignored), in short: closure,
   exclusion bias and strict pulls on the first campaign; the strict error comparison and the
   error definition with all ten.
 

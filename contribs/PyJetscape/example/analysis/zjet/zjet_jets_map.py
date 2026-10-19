@@ -32,7 +32,7 @@ import time
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, os.path.dirname(HERE))                        # jetcorr
 try:
     import jetscape  # noqa: F401
 except ImportError:

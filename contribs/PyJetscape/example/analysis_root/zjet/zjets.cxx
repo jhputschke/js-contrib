@@ -3,7 +3,7 @@
 // The map step of the Z+jet analysis (CMS 1702.01060) in C++ with fastjet: per production
 // file the jets of every oversample of the Z events, from run_h5toROOT.py's ROOT files, into
 // <out>/<stem>_jets.root.  The final stage (selection, the optional CMS smearing, HEPData,
-// chi^2, jackknife, figures) is example/analysis/zjet_test/zjet_jets.py; zjet_jets_map.py
+// chi^2, jackknife, figures) is example/analysis/zjet/zjet_jets.py; zjet_jets_map.py
 // is the same map step in Python (check_cxx.py jets compares the two).
 //
 //   ./zjets <root dir> <out dir> [--seed 1] [--files i:j] [--samples N] [--cones 4]

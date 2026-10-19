@@ -2,7 +2,7 @@
 //
 // The map step of the Z-hadron analysis (CMS 2507.09307) in C++: per production file the
 // pool of zjet_mixing.file_pool, from run_h5toROOT.py's ROOT files, into
-// <out>/<stem>_pool.root.  The final stage is example/analysis/zjet_test/mix.py
+// <out>/<stem>_pool.root.  The final stage is example/analysis/zjet/mix.py
 // (--pbpb-pools / --vacuum-pools), which reads these with zjet_mixing.read_root_pool.
 //
 //   ./zhadron_pools <root dir> <out dir> [--seed 1] [--eta-max 2.4] [--files i:j]

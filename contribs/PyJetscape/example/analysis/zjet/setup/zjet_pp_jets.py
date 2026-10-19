@@ -12,24 +12,24 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))                        # zjet_wake.py
-sys.path.insert(0, HERE)                                         # compare.py
+sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))       # jetcorr
+sys.path.insert(0, os.path.dirname(HERE))                        # zjet_wake.py, cms2507.py
 try:
     import jetscape  # noqa: F401
 except ImportError:                                              # the source tree
-    sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "python"))
+    sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "..", "python"))
 import numpy as np, yaml, fastjet
 import jetscape.h5_compression  # noqa: F401
 import h5py
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import figdata
+from jetcorr import figdata, runs
 
 ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-ap.add_argument("--vacuum", default=os.path.join(HERE, "data", "vacuum_all"),
+ap.add_argument("--vacuum", default=runs.data("zjet_setup", "vacuum_all"),
                 help="run_prod_vacuum.py output with all particles (make_data.sh vacuum_all)")
-ap.add_argument("--hepdata", default=os.path.join(HERE, "data", "hepdata_zjet", "HEPData-ins1512112-v1-yaml"))
-ap.add_argument("--outdir", default=os.path.join(HERE, "figures"))
+ap.add_argument("--hepdata", default=runs.data("zjet_setup", "hepdata_zjet", "HEPData-ins1512112-v1-yaml"))
+ap.add_argument("--outdir", default=runs.figures("zjet_setup"))
 ap.add_argument("--limit", type=int, default=None, help="only the first N selected Z's (a test)")
 a = ap.parse_args()
 VAC, HEP, OUT = a.vacuum, a.hepdata, a.outdir

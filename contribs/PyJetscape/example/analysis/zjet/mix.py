@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Event mixing (../zjet_mixing.py) against CMS 2507.09307: the pools of a Pb+Pb and a vacuum
+"""Event mixing (zjet_mixing.py) against CMS 2507.09307: the pools of a Pb+Pb and a vacuum
 directory (the map step, one job per production file, cached), then the mixing modes ->
-figures/mixing_dphi.png, mixing_dy.png, mixing_errors.png and mixing_summary.txt.
+runs/<run>/figures/mixing_dphi.png, mixing_dy.png, mixing_errors.png and mixing_summary.txt.
 
-  python mix.py                                     # the test: data/pbpb, data/vacuum
+  python mix.py                                     # the test: runs/zjet_setup/data/{pbpb,vacuum}
   python mix.py --pbpb <dir> --vacuum <dir> --pools <dir> --jobs 8 --tag <name>  # a campaign
   python mix.py --pbpb-pools <dir> --vacuum-pools <dir> --tag _cxx   # the C++ map step's pools
                                     # (example/analysis_root/zjet/zhadron_pools, *_pool.root)
@@ -45,14 +45,14 @@ from concurrent.futures import ProcessPoolExecutor
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))                        # zjet_wake, zjet_mixing
-sys.path.insert(0, HERE)                                         # compare
+sys.path.insert(0, os.path.dirname(HERE))                        # jetcorr
 try:
     import jetscape  # noqa: F401
 except ImportError:                                              # the source tree
     sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "python"))
 import zjet_mixing as zm                                         # noqa: E402
 import zjet_wake as zw                                           # noqa: E402
+from jetcorr import runs                                         # noqa: E402
 
 POOL_VERSION = 3
 MODES = ("factorized", "all", "cms10", "strict")
@@ -115,8 +115,8 @@ def build_pools(src, outdir, jobs, seed, rebuild):
 
 # ── the modes ───────────────────────────────────────────────────────────────────
 def rebin(h, k):
-    """compare.rebin_y on values: |Delta y| < 4 in bins of 0.4 k."""
-    from compare import rebin_y
+    """cms2507.rebin_y on values: |Delta y| < 4 in bins of 0.4 k."""
+    from cms2507 import rebin_y
 
     return rebin_y(h, np.zeros_like(h), k)[0]
 
@@ -178,19 +178,23 @@ def chi2(m, e, y, t):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pbpb", default=os.path.join(HERE, "data", "pbpb"))
-    ap.add_argument("--vacuum", default=os.path.join(HERE, "data", "vacuum"))
-    ap.add_argument("--pools", default=os.path.join(HERE, "data", "mix"),
-                    help="pool cache (default data/mix/{pbpb,vacuum})")
+    ap.add_argument("--run", default="zjet_setup",
+                    help="the defaults of --pbpb, --vacuum, --pools, --hists (runs/<run>/data/...) "
+                         "and --outdir (runs/<run>/figures); jetcorr.runs")
+    ap.add_argument("--pbpb", default=None, help="default runs/<run>/data/pbpb")
+    ap.add_argument("--vacuum", default=None, help="default runs/<run>/data/vacuum")
+    ap.add_argument("--pools", default=None,
+                    help="pool cache (default runs/<run>/data/mix/{pbpb,vacuum})")
     ap.add_argument("--pbpb-pools", default=None,
                     help="read these pools (*_pool.root of zhadron_pools, or *.npz) instead of "
                          "building them from --pbpb")
     ap.add_argument("--vacuum-pools", default=None, help="the same for --vacuum")
-    ap.add_argument("--hists", default=os.path.join(HERE, "data", "hists.npz"),
-                    help="accumulate.py's output, for the check against compare.py ('' none)")
-    ap.add_argument("--hepdata", default=os.path.join(HERE, "data", "hepdata",
-                                                      "HEPData-ins2945894-v1-yaml"))
-    ap.add_argument("--outdir", default=os.path.join(HERE, "figures"))
+    ap.add_argument("--hists", default=None,
+                    help="setup/accumulate.py's output, for the check against setup/compare.py "
+                         "(default runs/<run>/data/hists.npz; '' none)")
+    ap.add_argument("--hepdata", default=runs.data("zjet_setup", "hepdata",
+                                                   "HEPData-ins2945894-v1-yaml"))
+    ap.add_argument("--outdir", default=None)
     ap.add_argument("--tag", default="", help="suffix of the output names")
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--rebuild", action="store_true", help="remake the pools")
@@ -210,7 +214,12 @@ def main():
                     help="tracking efficiency for the Poisson part of the predicted strict "
                          "errors (CMS's tracks are efficiency-corrected; 1: perfect)")
     a = ap.parse_args()
-    from compare import PT_LABELS, PT_TAGS, Model, cms
+    a.pbpb = a.pbpb or runs.data(a.run, "pbpb")
+    a.vacuum = a.vacuum or runs.data(a.run, "vacuum")
+    a.pools = a.pools or runs.data(a.run, "mix")
+    a.hists = runs.data(a.run, "hists.npz") if a.hists is None else a.hists
+    a.outdir = a.outdir or runs.figures(a.run)
+    from cms2507 import PT_LABELS, PT_TAGS, Model, cms
 
     t0 = time.time()
     def pool_files(given, src, sub):
@@ -361,7 +370,7 @@ def main():
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import figdata
+    from jetcorr import figdata
 
     scale = np.sqrt(neff_strict / a.n_cms)
     for var in ("phi", "y"):

@@ -43,7 +43,7 @@ ROOT export, the notebooks) is [`docs/README_analysis.md`](../../../docs/README_
 
 | folder | what | needs |
 |---|---|---|
-| [`analysis/`](analysis/README.md) | Python analyses of a jet production: the jet energy balance and the fix for the LBT/liquefier double counting; wake observables at parton/hydro and at hadron level (`wake_observables.py`, `wake_hadrons.py` + notebooks); hadron η, φ, pT distributions; jets with FastJet. The Z+jet campaigns, step by step: [`ANA_Zhadron.md`](analysis/ANA_Zhadron.md) (Z–hadron wake, CMS 2507.09307, event mixing) and [`ANA_Zjet.md`](analysis/ANA_Zjet.md) (Z+jet, CMS 1702.01060), each in Python and in ROOT | the venv |
+| [`analysis/`](analysis/README.md) | Python analyses of a jet production: the jet energy balance and the fix for the LBT/liquefier double counting; wake observables at parton/hydro and at hadron level (`wake_observables.py`, `wake_hadrons.py` + notebooks); hadron η, φ, pT distributions; jets with FastJet. The Z+jet campaigns, step by step: [`ANA_Zhadron.md`](analysis/zjet/ANA_Zhadron.md) (Z–hadron wake, CMS 2507.09307, event mixing) and [`ANA_Zjet.md`](analysis/zjet/ANA_Zjet.md) (Z+jet, CMS 1702.01060), each in Python and in ROOT | the venv |
 | [`analysis_root/`](analysis_root/README.md) | ROOT analyses of the files of `run_h5toROOT.py`: `HadronFileReader.h` (an event's background, background + deposition and whole jet event as `std::vector<Hadron>`), `read_hadrons.C`, `hadron_distributions.C` | ROOT ≥ 6.34 |
 | [`hydro_hist_vs_surface/`](hydro_hist_vs_surface/README.md) | a study: hadrons from a freeze-out surface found in the saved hydro history (what an FNO prediction can be hadronized with), against iSS on MUSIC's own surface with viscous corrections | X-SCAPE build with iSS |
 

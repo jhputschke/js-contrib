@@ -204,7 +204,7 @@ python hydro_jet_particles_pyvista.py --file <pair>.h5 --event 1   # after hadro
 Options: `--no-z` (no Z overlay), `--z-color` (default lime), `--z-arrow` (arrow length in fm,
 default 6; 0: none). Files without a Z are drawn exactly as before. The hadron-level Z–hadron
 wake (angles to the Z, as CMS and ATLAS measure it) is in
-`PyJetscape/example/analysis/zjet_wake.ipynb`.
+`PyJetscape/example/analysis/zjet/zjet_wake.ipynb`.
 
 ## Hadrons after freeze-out
 

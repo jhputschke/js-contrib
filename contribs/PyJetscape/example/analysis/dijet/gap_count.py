@@ -14,7 +14,9 @@ import sys
 import awkward as ak
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+ANALYSIS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ANALYSIS)                                     # jetcorr
+sys.path.insert(0, os.path.join(ANALYSIS, "zjet"))                # zjet_jets
 import zjet_jets as zj  # noqa: E402
 
 GAPS = [(0.0, 0.5), (0.5, 1.0), (1.0, 1.5), (1.5, 2.0)]

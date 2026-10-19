@@ -9,7 +9,7 @@ The calls are made again in their order on axes at the recorded positions, hist 
 stairs and pcolormesh of their stored contents.  To restyle: a matplotlib style file
 (--style), or in Python
 
-    import replot
+    from jetcorr import replot
     fig, axes = replot.draw("figures/zjet_jets_pp_test.npz", edit=my_edit)
 
 with ``my_edit(call, args, kwargs) -> (args, kwargs)`` (or None to drop the call) changing any
@@ -21,8 +21,8 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import figdata  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # example/analysis
+from jetcorr import figdata  # noqa: E402
 
 # keyword arguments of hist that stairs takes over
 _STAIRS_KW = ("color", "label", "linestyle", "ls", "linewidth", "lw", "alpha", "zorder", "hatch",

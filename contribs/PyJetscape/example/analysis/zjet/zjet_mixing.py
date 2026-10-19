@@ -1,10 +1,10 @@
 """Event mixing for the Z-hadron correlations: CMS 2507.09307's S - B on the hadron files of
-a Z+jet production (``zjet_test/mix.py`` runs it on the test and on campaign directories).
+a Z+jet production (``mix.py`` runs it on the test and on campaign directories).
 
 CMS measures Delta<N_ch> = S - B per Z: S the pairs of the Z with the tracks of its own
 event, B those with the tracks of other Z events (mixed events).  The model also knows every
 event's Z-correlated yield exactly, the paired wake <bulk_jet> - <bulk_bg> plus the jet
-fragments (``zjet_wake``, ``zjet_test/compare.py``: the "factorized" result).  Mixing the
+fragments (``zjet_wake``, ``setup/compare.py``: the "factorized" result).  Mixing the
 full events instead is the experiment's way: a closure test of it, and experiment-like
 errors.  One mixed pair is exactly
 
@@ -69,7 +69,7 @@ import numpy as np
 
 import zjet_wake as zw
 
-#: the grid (zjet_test/accumulate.py's): track p_T classes, the Z frame, the lab frame
+#: the grid (setup/accumulate.py's): track p_T classes, the Z frame, the lab frame
 PT = np.asarray(zw.PT_CLASSES, float)
 DETA = np.linspace(-4.8, 4.8, 25)                 # Delta y = eta - y_Z, 0.4
 DPHI = np.linspace(-np.pi / 2, 3 * np.pi / 2, 21)  # CMS: pi / 10
@@ -83,7 +83,7 @@ CPHI = 0.5 * (PHI[1:] + PHI[:-1])
 CONTENTS = ("full", "zc")
 
 _CD = 0.5 * (DPHI[1:] + DPHI[:-1])
-#: the Delta phi bin at -Delta phi, and the Z side |Delta phi| < pi/2 (compare.Model's)
+#: the Delta phi bin at -Delta phi, and the Z side |Delta phi| < pi/2 (cms2507.Model's)
 MIRROR = np.array([int(np.argmin(np.abs(x - _CD)))
                    for x in (-_CD + np.pi / 2) % (2 * np.pi) - np.pi / 2])
 ZSIDE = np.abs(_CD) < np.pi / 2

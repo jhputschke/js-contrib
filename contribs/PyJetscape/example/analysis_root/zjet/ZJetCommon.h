@@ -1,12 +1,12 @@
 // example/analysis_root/zjet/ZJetCommon.h
 //
-// What the Z+jet analyses share, the C++ mirror of example/analysis/zjet_wake.py and
+// What the Z+jet analyses share, the C++ mirror of example/analysis/zjet/zjet_wake.py and
 // zjet_mixing.py: the Z selection and event weights, the track mask, the Z frame, the
 // binning (numpy's conventions, so that the C++ and Python map steps bin every track alike),
 // and the portable random choices (zjet_wake.event_key / key_index / key_uniform).
 //
 // The map steps here (zhadron_pools.cxx, zjets.cxx) write ROOT files; the final stage
-// (HEPData, chi^2, jackknife, figures) is the Python of example/analysis/zjet_test, shared
+// (HEPData, chi^2, jackknife, figures) is the Python of example/analysis/zjet, shared
 // with the Python map steps (README.md).
 
 #pragma once

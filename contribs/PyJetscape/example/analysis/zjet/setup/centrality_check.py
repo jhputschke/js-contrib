@@ -26,7 +26,8 @@ import subprocess
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-XSCAPE = os.environ.get("XSCAPE", os.path.normpath(os.path.join(HERE, *[".."] * 7)))
+XSCAPE = os.environ.get("XSCAPE", os.path.normpath(os.path.join(HERE, *[".."] * 8)))
+RUNS = os.path.join(HERE, "..", "..", "runs")   # jetcorr.runs.RUNS
 
 
 def make_input(xml, base, path):
@@ -56,12 +57,12 @@ def make_input(xml, base, path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--xml", default=os.path.join(HERE, "..", "..", "config", "PbPb_0_30_ZJet.xml"))
+    ap.add_argument("--xml", default=os.path.join(HERE, "..", "..", "..", "config", "PbPb_0_30_ZJet.xml"))
     ap.add_argument("--percent", type=float, default=30.0, help="the class the XML's b_max means")
     ap.add_argument("--build", default=os.path.join(XSCAPE, "build_gpu"))
     ap.add_argument("--events", type=int, default=50000, help="per seed")
     ap.add_argument("--seeds", type=int, nargs="+", default=[11, 12, 13, 14])
-    ap.add_argument("--out", default=os.path.join(HERE, "data", "glauber_mb"))
+    ap.add_argument("--out", default=os.path.join(RUNS, "zjet_setup", "data", "glauber_mb"))
     ap.add_argument("--sigma-assumed", type=float, default=7.7, help="b, behind the XML's b_max")
     a = ap.parse_args()
     exe = os.path.join(a.build, "external_packages", "3dMCGlauber", "src", "3dMCGlb.e")
