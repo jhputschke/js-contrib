@@ -9,6 +9,21 @@ exist, with the Z standing in for jet1. That is more than a prototype: Yang & Wa
 γ/Z+jet and computed it with CoLBT-hydro, so the Z version is a result in its own right. The Z
 test also measures the noise per event that sets the size of the later dijet production.
 
+> **Status 2026-10-18** (js-contrib branch `dijet_deta`): Phase A (A0–A3) and Phase B's code
+> are implemented in Python and C++ (`jetcorr/{weights,mapio,deta_asym}.py`, `dijet/deta.py`,
+> `dijet/ANA_Deta.md`, the map steps' `--R`, `file_info`/`run_info` and Z cone, pools version
+> 4); the decisions of §6 are taken (D1–D8). Checked on the GB10 (A4): both map steps at R = 0.3
+> unchanged in every old column, `zjet_jets.py`'s summary identical, `mix.py`'s identical but
+> for rounding (10⁻¹⁵), `check_cxx.py` jets / pools / qa 0 differences (jets also at R = 0.4),
+> and on a four-job mini campaign (two pseudo-campaigns) campaigns mapped and pooled apart =
+> together (`zjet/test/combine_check.py`). **To do on rhicML:** A5 (the R = 0.4 map steps and
+> v4 pools of c00, c01 and the pp), A4's checks on c00/c01, then B5 (`ANA_Deta.md`), and D2's
+> revisit with the fake jet2 at R = 0.4. Seen on the GB10's stand-in pp (`vacuum_all`, ~3,800
+> Z's with |y_Z| < 1): a near-uniform offset of R_asym − R_sym at 1–2 GeV in some classes
+> after the sideband subtraction (a class-dependent η shape of the pp underlying event; a bulk
+> the events share comes out exactly flat, `tests/test_deta_asym.py`); to be looked at with the
+> campaigns' pp reference (CMS assigns 0.01–0.04 for "residual UE levels").
+
 Written against js-contrib `zjet` 72cb15e; paths and line numbers follow the layout of branch
 `analysis_layout` (43981bd, below). Data in hand: campaigns `zjet_c00` and `zjet_c01` (19,200
 Pb+Pb 0–30 % events on 800 hydro backgrounds, `/data/zjet_c0*`), the c00 jet map step at R = 0.3,
@@ -151,7 +166,8 @@ The fix: every output self-contained, ids and weights at load time.
 - **Pools:** the same keys and `file_info` in every per-file pool; the per-background sums stored
   **per window and unweighted** (Σ S and the lab density over the background's events of window
   k, with their count). An event's weight factorizes as (σ_k / N_k) × N_coll with N_coll the same
-  for all events of a background (**verify**), so `Pool.load` rebuilds `SW` (w), `T` (w²), `R`,
+  for all events of a background (verified on the test: one value per background; the pool
+  writers raise otherwise), so `Pool.load` rebuilds `SW` (w), `T` (w²), `R`,
   `W`, `W2` exactly; the per-background arrays grow ×3 (six windows instead of the two weighted
   sums). One manifest per campaign directory.
 - **C++ twins:** `zjets.cxx`, `zhadron_pools.cxx` and `read_root_pool` the same.
@@ -212,7 +228,14 @@ only** the Z-correlated yield. To split the truth by gap class, add per event:
 
 About 13 kB more per event (~100 MB for c00, ~1 GB for ten campaigns). `Pool`, `_pack`,
 `read_root_pool` and the C++ writer get the same layout; pools without the new arrays still load,
-so the Z–hadron analysis is unaffected. The pools stay in `zjet/` here, tied to the Z frame;
+so the Z–hadron analysis is unaffected.
+
+**As implemented (2026-10-18, pool version 4; D5):** the new per-event contents are on a 0.1
+grid in Δy per side of the Z (side 0 the Z side |Δφ| < π/2, the DPHI bins of `ZSIDE`), not on
+the 0.4 × π/10 Z frame: `Y_full`, `Y_one`, `Y_zc`, `Y_frag` (`zjet_mixing.side_hist`, shape
+(3, 2, 96)), and `L_full`, `L_zc`, `L_frag` (`lab_side_hist`, (3, 2, 48)); the old `S_full`,
+`S_one` stay. Compressed, the v4 pools are about as large as v3's per background (the mini
+campaign: ~210 kB per background and file). The pools stay in `zjet/` here, tied to the Z frame;
 Phase C's pools in jet1's frame are the point to move them into `jetcorr/` with the frame as an
 input.
 
@@ -268,13 +291,15 @@ proxy on the Z+jet runs (the Z from the pools and the `jet_events` tree); Phase 
 
 | | content | per event | role |
 |---|---|---|---|
-| T | truth: wake + fragments | `S_zc` | the reference; the bulk cancels exactly, no sideband needed |
-| W | wake only | `S_zc − S_frag` | what is wake |
-| F | full event, 40 samples | `S_full` | experiment-like, with acceptance and sideband |
-| O | one oversample | `S_one` | strict emulation, the experiment's errors |
-| N | no-wake twin (`bulk_bg` + the same fragments) | `S_full − S_zc + S_frag` | must give a flat R_asym − R_sym |
-| B | bulk only | `S_full − S_zc` | what the bulk leaks into the difference |
-| pp | fragments (vacuum) | `S_full` | the baseline |
+| T | truth: wake + fragments | `Y_zc` | the reference; the bulk cancels exactly, no sideband needed |
+| W | wake only | `Y_zc − Y_frag` | what is wake |
+| F | full event, 40 samples | `Y_full` | experiment-like, with acceptance and sideband |
+| O | one oversample | `Y_one` | strict emulation, the experiment's errors |
+| N | no-wake twin (`bulk_bg` + the same fragments) | `Y_full − Y_zc + Y_frag` | must give a flat R_asym − R_sym |
+| B | bulk only | `Y_full − Y_zc` | what the bulk leaks into the difference |
+| pp | fragments (vacuum) | `Y_full` | the baseline |
+
+(The `Y_*` of A3 as implemented; the lab-η `L_*` alike for the Yang–Wang form.)
 
 ### B3. Observables
 
@@ -357,13 +382,13 @@ in the form of `zjet/ANA_Zjet.md`; the result note `runs/zjet_c00/figures/ANALYS
 
 | | question | proposal |
 |---|---|---|
-| D1 | Z definition | the pools' (2507.09307), so pools and jets select the same Z's |
-| D2 | thresholds | p_T^Z > 60, jet2 > 30 GeV as the baseline; 40/30, 80/50, 100/50 and CMS's 130/50 as variants |
-| D3 | jet1's p_T | bare p_T^Z; p_T^Z + δp_T (A2) as the variant |
-| D4 | jet2's subtraction | ρA (in hand); constituent subtraction (CMS's: Berta et al., arXiv:1403.3108; settings not in the paper) only if the R = 0.4 embedding shows a JES bias that moves the class fractions. Then in C++ first: `ConstituentSubtractor` from the wheel's fjcontrib (`make FASTJET_PY=…`, A4; event-wide subtraction tested in a toy, 2026-10-18). The Python `fastjet` has no contrib binding (only SoftDrop, Lund and EnergyCorrelator through its awkward interface), so Python would need a small pybind11 module on the same library, or the subtraction stays C++-only. The campaign image has no fjcontrib, FastJet headers, ROOT or Python `fastjet`: the analyses run on the host |
-| D5 | Δη binning | the pools' 0.4; check CMS's binning in its HEPData record, and add a finer per-event grid only if needed |
-| D6 | classes | CMS's four; Yang–Wang's |η_jet| ≷ 0.8 and hemispheres |
-| D7 | centrality | 0–30 % (CMS's central bin); a 0–10 %-like N_coll subset for the CoLBT comparisons |
+| D1 | Z definition | **decided 2026-10-18:** the pools' (2507.09307), so pools and jets select the same Z's; then \|y_Z\| < 1 |
+| D2 | thresholds | **decided 2026-10-18:** p_T^Z > 60, jet2 > 30 GeV as the baseline, **to revisit against 60/40 once A5 gives the fake fraction at R = 0.4** (`deta.py` prints the fake jet2 per class: the cuts on the Z's own `bulk_bg`); 40/30, 60/40, 80/50, 100/50 and CMS's 130/50 as variants. **Added: jet2 < jet1 (x_jZ < 1) in the baseline** (CMS's jet1 is the leading jet), no x_jZ cut as the variant |
+| D3 | jet1's p_T | **decided 2026-10-18:** bare p_T^Z; p_T^Z + δp_T (A2) as the variant |
+| D4 | jet2's subtraction | **decided 2026-10-18:** ρA (in hand); constituent subtraction (CMS's: Berta et al., arXiv:1403.3108; settings not in the paper) only if the R = 0.4 embedding shows a JES bias that moves the class fractions. Then in C++ first: `ConstituentSubtractor` from the wheel's fjcontrib (`make FASTJET_PY=…`, A4; event-wide subtraction tested in a toy, 2026-10-18). The Python `fastjet` has no contrib binding (only SoftDrop, Lund and EnergyCorrelator through its awkward interface), so Python would need a small pybind11 module on the same library, or the subtraction stays C++-only. The campaign image has no fjcontrib, FastJet headers, ROOT or Python `fastjet`: the analyses run on the host |
+| D5 | Δη binning | **decided 2026-10-18: a 0.1 grid in Δy, near and away side only**, for the new per-event contents (`Y_*`, and `L_*` in lab η). The pools' 0.4 came from CMS 2507.09307's Z–hadron tables (pp 0.4, Pb+Pb 0.8). CMS HIN-25-012's HEPData record (ins3123406, public: Tables 1–4) bins Δη in **0.2 with edges at odd tenths** (−2.5, −2.3, …, 2.1; centred on 0), which the 0.4 grid cannot form, nor the sideband 1.5–2.5 or the signal edge −0.6; the 0.1 grid rebins exactly to all of them and to 0.4/0.8. CMS's Fig. 3 values are the **plain sums** of Fig. 2's over the 10 bins centred −2.4 … −0.6 (edges −2.5 … −0.5; checked on all four 0–30 % entries, e.g. −1.29): either Fig. 2 is per 0.2 bin or Fig. 3 omits the width (a factor 5), open; it matters only for magnitudes against CMS and the models |
+| D6 | classes | **decided 2026-10-18:** CMS's four; Yang–Wang's \|η_jet\| ≷ 0.8 (their jets \|η\| < 1.6) and hemispheres |
+| D7 | centrality | **decided 2026-10-18:** 0–30 % (CMS's central bin); a 0–10 %-like subset N_coll > 1210 for the CoLBT comparisons (the model's 10 % boundary from the 200k min-bias 3dMCGlauber events of `zjet/test/centrality_check.py`, b < 4.99 fm; 34 % of the 0–30 % backgrounds, 51 % of the N_coll-weighted Z yield) |
 | D8 | ghost area | **decided 2026-10-18: 0.01.** 0.05 was tested (A1): ~15 % faster, but JER 0.24 → 0.38 at 30–50 GeV and 73 % more jets above 30 GeV; more processes give the speed instead |
 
 ## 7. Order of work and compute

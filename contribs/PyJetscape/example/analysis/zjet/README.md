@@ -15,7 +15,8 @@ example/analysis/
   zjet/               this folder: the workflow
     test/             the first 96-event test and the campaign set-up checks (test/README.md);
                       not needed to run the workflow
-  dijet/              the η-separated dijet analysis, first with the Z as jet1 (gap_count.py)
+  dijet/              the η-separated dijet analysis, first with the Z as jet1 (deta.py,
+                      ANA_Deta.md, gap_count.py)
   runs/<run>/         data/ and figures/ of one campaign or test set (git-ignored)
   runs/hepdata/       the CMS HEPData records every run compares with (get_hepdata.sh)
 example/analysis_root/zjet/   the C++ map steps (zqa, zhadron_pools, zjets; README.md there)
@@ -38,7 +39,7 @@ Route B converts the hadron files once (`../../prod_AuAu_0_10_jet/run_h5toROOT.p
 | file | |
 |---|---|
 | `qa.py` | QA of a Z+jet production (step 0 of both ANA documents): `map` (per file: a table per Z event, per-source hadron histograms; the twin of `../../analysis_root/zjet/zqa`) and `plot` → `figures/qa_z_*`, `qa_weights_*`, `qa_hadrons*`, `qa_multiplicity*` (the total charged multiplicity), `qa_species*`, `qa_summary*.txt` |
-| `zjet_jets_map.py`, `zjet_jets.py` | Z+jet against CMS 1702.01060: the map step in Python (anti-k_T R = 0.3, ρA-subtracted in Pb+Pb, embedding, random cones, the backgrounds' `bulk_bg` jets, per jet mass, constituents and leading p_T, the QA trees with all jets of one oversample; the twin of `../../analysis_root/zjet/zjets`) and the shared final stage, three steps: the fragments' jets (the reference), S − B with the own background's jets, S − B mixed as CMS (Z and jet cuts, the optional CMS smearing in four variants, HEPData, χ², jackknife), and pp against CMS's pp tables at pp's and at PbPb's resolution → `figures/zjet_jets_pp*.png`, `zjet_jets_step{1,2,3}*.png`, `zjet_jets_embedding*.png`, `zjet_jets_summary*.txt` |
+| `zjet_jets_map.py`, `zjet_jets.py` | Z+jet against CMS 1702.01060: the map step in Python (anti-k_T R = `--R`, 0.3; ρA-subtracted in Pb+Pb, embedding, random cones, the Z cone, the backgrounds' `bulk_bg` jets, the outputs' records `file_info`/`run_info`, so that `load_jets` combines campaigns mapped apart, per jet mass, constituents and leading p_T, the QA trees with all jets of one oversample; the twin of `../../analysis_root/zjet/zjets`) and the shared final stage, three steps: the fragments' jets (the reference), S − B with the own background's jets, S − B mixed as CMS (Z and jet cuts, the optional CMS smearing in four variants, HEPData, χ², jackknife), and pp against CMS's pp tables at pp's and at PbPb's resolution → `figures/zjet_jets_pp*.png`, `zjet_jets_step{1,2,3}*.png`, `zjet_jets_embedding*.png`, `zjet_jets_summary*.txt` |
 | `zjet_jets_qa.py` | the jet QA of the Z+jet analysis, from either map step's QA trees: the ρA subtraction (p_T,raw, ρA, the negative tail, the fake fraction B/S), area and ρ (vs N_coll, η, dN_ch/dη; ρ of the Z event against its background), random cones and the embedding's JES/JER, geometry and the lepton cut, constituents, B_mixed against B_own → `figures/qa_jets_{subtraction,area_rho,response,geometry,constituents,mixing}*.png`, `qa_jets_summary*.txt` |
 | `mix.py` | event mixing (`zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `runs/<run>/data/pbpb` and `vacuum` (cached in `data/mix/`) → step 1, the reference (factorized, with pp; `test/compare.py`'s figure): `figures/mixing_reference_d{phi,y}.png`; all four steps: `mixing_dphi.png`, `mixing_dy.png`; the errors: `mixing_errors_d{phi,y}.png`; `mixing_summary.txt` (~10 s on the test) |
 | `check_cxx.py` | the C++ map steps (`../../analysis_root/zjet`) against the Python ones: `pools`, `jets` (with the jet QA trees) and `qa` |
