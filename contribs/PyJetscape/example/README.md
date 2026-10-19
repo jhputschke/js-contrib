@@ -43,7 +43,7 @@ ROOT export, the notebooks) is [`docs/README_analysis.md`](../../../docs/README_
 
 | folder | what | needs |
 |---|---|---|
-| [`analysis/`](analysis/README.md) | Python analyses of a jet production: the jet energy balance and the fix for the LBT/liquefier double counting; wake observables at parton/hydro and at hadron level (`wake_observables.py`, `wake_hadrons.py` + notebooks); hadron η, φ, pT distributions; jets with FastJet. The Z+jet campaigns, step by step: [`ANA_Zhadron.md`](analysis/ANA_Zhadron.md) (Z–hadron wake, CMS 2507.09307, event mixing) and [`ANA_Zjet.md`](analysis/ANA_Zjet.md) (Z+jet, CMS 1702.01060), each in Python and in ROOT | the venv |
+| [`analysis/`](analysis/README.md) | Python analyses of a jet production: the jet energy balance and the fix for the LBT/liquefier double counting; wake observables at parton/hydro and at hadron level (`wake_observables.py`, `wake_hadrons.py` + notebooks); hadron η, φ, pT distributions; jets with FastJet. The Z+jet campaigns, step by step: [`ANA_Zhadron.md`](analysis/zjet/ANA_Zhadron.md) (Z–hadron wake, CMS 2507.09307, event mixing) and [`ANA_Zjet.md`](analysis/zjet/ANA_Zjet.md) (Z+jet, CMS 1702.01060), each in Python and in ROOT | the venv |
 | [`analysis_root/`](analysis_root/README.md) | ROOT analyses of the files of `run_h5toROOT.py`: `HadronFileReader.h` (an event's background, background + deposition and whole jet event as `std::vector<Hadron>`), `read_hadrons.C`, `hadron_distributions.C` | ROOT ≥ 6.34 |
 | [`hydro_hist_vs_surface/`](hydro_hist_vs_surface/README.md) | a study: hadrons from a freeze-out surface found in the saved hydro history (what an FNO prediction can be hadronized with), against iSS on MUSIC's own surface with viscous corrections | X-SCAPE build with iSS |
 
@@ -58,6 +58,33 @@ seeds (GPU0 the first block, GPU1 the next; zero-padded in the names) the orders
 `FIRST_SEED 0` (random seeds) they can differ, which changes no physics but the global event
 numbers, and with them the jackknife blocks and the strict-mixing draws of the Z analyses. More
 in [`analysis/README.md`](analysis/README.md) and [`analysis_root/README.md`](analysis_root/README.md).
+
+## Notebooks
+
+Every notebook sits next to the code or the production it belongs to; this is the index.
+Inputs come from environment variables (defaults in each notebook's first code cell); "stored"
+says whether the notebook is committed with its outputs.
+
+| notebook | what it shows | input | needs | stored |
+|---|---|---|---|---|
+| **Productions** | | | | |
+| [`prod_AuAu_0_10/check_output.ipynb`](prod_AuAu_0_10/check_output.ipynb) | checks the hydro files of `run_prod.py`: summary, sanity scan (finite, ε ≥ 0, \|v\| < 1), the frames past freeze-out | the folder's `out/*.h5` | h5py, pandas | no |
+| [`prod_AuAu_0_10_jet/jet_wake.ipynb`](prod_AuAu_0_10_jet/jet_wake.ipynb) | Δe = jet leg − background of one pair in MUSIC, the shower and its droplets; §11 is where the jet energy balance was first checked | a pair file and its hadron files | `jetscape`, scipy (`MUSIC_EOS_TABLE`) | yes |
+| [`prod_OO_isr/oo_isr_overview.ipynb`](prod_OO_isr/oo_isr_overview.ipynb) | one O+O ISR job: the medium at three proper times with the hard scattering, and the hadrons | `OO_STEM`, `XSCAPE_BUILD` | h5py | yes |
+| [`prod_OO_isr/hard_sub_compare/hard_sub_compare.ipynb`](prod_OO_isr/hard_sub_compare/hard_sub_compare.ipynb) | two O+O campaigns that differ only in 3dMCGlauber's `Subtract_hard_momentum` | `HSC_DIR` (`run_compare.sh`'s output) | h5py | yes |
+| **Analyses** | | | | |
+| [`analysis/wake_observables.ipynb`](analysis/wake_observables.ipynb) | jet energy loss and the wake at parton and hydro level | `WAKE_OBS`: `wake_observables.h5` of `wake_observables.py` | pandas | yes |
+| [`analysis/wake_hadrons.ipynb`](analysis/wake_hadrons.ipynb) | the same at hadron level | `WAKE_HAD`: `wake_hadrons.h5` of `wake_hadrons.py` (+ `WAKE_OBS`) | pandas | yes |
+| [`analysis/zjet/zjet_wake.ipynb`](analysis/zjet/zjet_wake.ipynb) | the Z–hadron wake (paired truth) in Δφ and Δη, Pb+Pb − pp, one event's hydro wake and movie frame | `ZJET_HADRONS`, `ZJET_VACUUM`, `ZJET_PAIR`, `ZJET_MOVIE`; test data in `analysis/runs/zjet_test/` ([`zjet/test/README.md`](analysis/zjet/test/README.md)) | `jetscape`, `zjet_wake.py` | no |
+| [`analysis_root/read_hadrons.ipynb`](analysis_root/read_hadrons.ipynb) | `read_hadrons.C` one step per cell: the C++ reader by example, with the histograms drawn | a campaign converted by `run_h5toROOT.py` | the ROOT C++ kernel, `HadronFileReader.h` | yes |
+| [`hydro_hist_vs_surface/hydro_hist_vs_surface.ipynb`](hydro_hist_vs_surface/hydro_hist_vs_surface.ipynb) | hadrons from a surface found in the saved hydro history (what an FNO prediction can give) against MUSIC's full surface | the study's outputs ([README](hydro_hist_vs_surface/README.md)) | numpy, matplotlib | yes |
+| **Tutorials** (reading the hadron files) | | | | |
+| [`analysis/tutorials/hadron_distributions.ipynb`](analysis/tutorials/hadron_distributions.ipynb) | η, φ, p_T of background, background + wake and jet hadrons; the correlated-sampling flags checked | `HADRON_DIR`: hadron files of `hadronize.py` or `--hadrons-only` | `jetscape` | yes |
+| [`analysis/tutorials/jet_fastjet.ipynb`](analysis/tutorials/jet_fastjet.ipynb) | FastJet's classic interface: jet spectrum, fragmentation function, jet areas, ρ subtraction | `HADRON_DIR` | `fastjet` | yes |
+| [`analysis/tutorials/jet_fastjet_awkward.ipynb`](analysis/tutorials/jet_fastjet_awkward.ipynb) | the same with the array interface (awkward), every event clustered in one call; §6 substructure | `HADRON_DIR` | `fastjet`, awkward, vector | yes |
+
+FastHydro's notebooks (`jet_wake`, `hadron_wake`, `bulk_vs_music`) are in
+[`../../FastHydro/notebooks/`](../../FastHydro/notebooks/).
 
 ## Single-feature scripts
 

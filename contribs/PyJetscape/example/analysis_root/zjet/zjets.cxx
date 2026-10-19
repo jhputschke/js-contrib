@@ -3,7 +3,7 @@
 // The map step of the Z+jet analysis (CMS 1702.01060) in C++ with fastjet: per production
 // file the jets of every oversample of the Z events, from run_h5toROOT.py's ROOT files, into
 // <out>/<stem>_jets.root.  The final stage (selection, the optional CMS smearing, HEPData,
-// chi^2, jackknife, figures) is example/analysis/zjet_test/zjet_jets.py; zjet_jets_map.py
+// chi^2, jackknife, figures) is example/analysis/zjet/zjet_jets.py; zjet_jets_map.py
 // is the same map step in Python (check_cxx.py jets compares the two).
 //
 //   ./zjets <root dir> <out dir> [--seed 1] [--files i:j] [--samples N] [--cones 4]
@@ -33,20 +33,16 @@
 // The jet QA (trees qa_jets, qa_bg_jets): the first --qa-samples samples of every Z event and
 // of every background with all their jets (p_T,raw > 1 GeV, no cut on p_T = p_T,raw - rho A),
 // for the subtraction's negative tail; zjet_jets_qa.py makes the figures.
-// Exact shortcuts, the outputs unchanged (as zjet_jets_map.py): rho(jet) once per strip
-// content (StripRho), no rho for jets that cannot pass the p_T cut, the background's particles
-// and estimator kept per hydro background and sample.
+// The clustering is ../common/JetMap.h's.  Exact shortcuts, the outputs unchanged (as
+// zjet_jets_map.py): rho(jet) once per strip content (StripRho), no rho for jets that cannot
+// pass the p_T cut, the background's particles and estimator kept per hydro background and
+// sample.
 
 #include "ZJetCommon.h"
+#include "../common/JetMap.h"
 
 #include <TFile.h>
 #include <TTree.h>
-
-#include <fastjet/AreaDefinition.hh>
-#include <fastjet/ClusterSequence.hh>
-#include <fastjet/ClusterSequenceArea.hh>
-#include <fastjet/Selector.hh>
-#include <fastjet/tools/JetMedianBackgroundEstimator.hh>
 
 #include <algorithm>
 #include <chrono>
@@ -60,9 +56,8 @@ namespace fj = fastjet;
 
 namespace {
 
-constexpr double R_JET = 0.3, ETA_JET = 2.0, PT_REF = 10.0, DR_MATCH = 0.15;
+constexpr double PT_REF = 10.0, DR_MATCH = 0.15;
 constexpr double ETA_RC = 1.6;
-constexpr double STRIP = 1.0;                  // the rho strip's half width (Clusterer::rho_sel)
 constexpr std::uint64_t RC_SALT = 0x5243000000000000ULL;     // "RC": away from k_one's salt 0
 const double NaN = std::numeric_limits<double>::quiet_NaN();
 
@@ -75,109 +70,6 @@ void to_pseudojets(const Hadrons &hs, const ZRecord &z, std::vector<fj::PseudoJe
   for (const Hadron &h : hs)
     if (keep(h, z)) out.emplace_back(double(h.px), double(h.py), double(h.pz), double(h.E));
 }
-
-struct Clusterer {
-  fj::JetDefinition akt{fj::antikt_algorithm, R_JET}, kt{fj::kt_algorithm, 0.4};
-  fj::AreaDefinition area{fj::active_area_explicit_ghosts,
-                          fj::GhostedAreaSpec(2.6, 1, 0.01, 0.0, 0.0)};
-  fj::Selector rho_sel = fj::SelectorAbsRapMax(2.2) * fj::SelectorStrip(1.0);
-};
-
-// rho(jet) of JetMedianBackgroundEstimator(SelectorAbsRapMax(2.2) * SelectorStrip(1.0)),
-// computed once per strip content.  With explicit ghosts the median depends only on which k_T
-// jets lie in the strip |y - y_jet| < 1, and that set changes only where y_jet +- 1 crosses a
-// k_T jet's rapidity: each distinct content (the number of k_T jets below y_jet - 1 and below
-// y_jet + 1) is computed once.  A k_T jet within 1e-9 of a strip edge (where the selector's
-// comparison decides) is never cached.  The same values as the estimator's, bit for bit
-// (zjet_jets_map.py's StripRho).
-struct StripRho {
-  fj::ClusterSequenceArea cs;                  // the estimator's jets refer to it
-  fj::JetMedianBackgroundEstimator bge;
-  std::vector<double> ys;
-  std::map<std::pair<long, long>, double> cache;
-  StripRho(const std::vector<fj::PseudoJet> &parts, const Clusterer &c)
-      : cs(parts, c.kt, c.area), bge(c.rho_sel) {
-    const auto jets = cs.inclusive_jets();
-    bge.set_jets(jets);
-    for (const auto &j : jets) ys.push_back(j.rap());
-    std::sort(ys.begin(), ys.end());
-  }
-  double rho(const fj::PseudoJet &jet) {
-    const double y = jet.rap();
-    long key[2];
-    for (int s = 0; s < 2; ++s) {
-      const double edge = y + (s ? STRIP : -STRIP);
-      const long i = std::lower_bound(ys.begin(), ys.end(), edge) - ys.begin();
-      if ((i < long(ys.size()) && std::fabs(ys[i] - edge) < 1e-9) ||
-          (i > 0 && std::fabs(ys[i - 1] - edge) < 1e-9))
-        return bge.rho(jet);
-      key[s] = i;
-    }
-    const auto k = std::make_pair(key[0], key[1]);
-    const auto it = cache.find(k);
-    if (it != cache.end()) return it->second;
-    return cache[k] = bge.rho(jet);
-  }
-};
-
-// the jets of a particle list: raw p_T, subtracted p_T, eta, phi, area, rho, mass, the number
-// of real (non-ghost) constituents, the leading one's p_T
-struct Jet {
-  double pt_raw, pt, eta, phi, area, rho, m, nconst, lead;
-};
-
-Jet make_jet(const fj::PseudoJet &j, double pt, double area, double rho, bool ghosts) {
-  int n = 0;
-  double lead = 0;
-  for (const auto &q : j.constituents())
-    if (!ghosts || !q.is_pure_ghost()) {
-      ++n;
-      lead = std::max(lead, q.pt());
-    }
-  return {j.pt(), pt, j.eta(), j.phi_std(), area, rho, j.m(), double(n), lead};
-}
-
-// every jet with p_T,raw > 1 GeV and |eta| < 2; ptmin cuts on p_T (subtracted in Pb+Pb), -inf
-// keeps them all
-std::vector<Jet> jets_of(const std::vector<fj::PseudoJet> &parts, bool subtract,
-                         double ptmin, Clusterer &c) {
-  std::vector<Jet> out;
-  if (!subtract) {
-    fj::ClusterSequence cs(parts, c.akt);
-    for (const auto &j : fj::sorted_by_pt(cs.inclusive_jets(1.0)))
-      if (std::fabs(j.eta()) < ETA_JET && j.pt() >= ptmin)
-        out.push_back(make_jet(j, j.pt(), 0, 0, false));
-    return out;
-  }
-  StripRho bge(parts, c);
-  fj::ClusterSequenceArea cs(parts, c.akt, c.area);
-  for (const auto &j : fj::sorted_by_pt(cs.inclusive_jets(1.0))) {
-    if (!(std::fabs(j.eta()) < ETA_JET)) continue;
-    if (j.pt() <= ptmin) continue;              // rho >= 0: p_T <= p_T,raw cannot pass
-    const double rho = bge.rho(j), a = j.area(), pt = j.pt() - rho * a;
-    if (pt > ptmin) out.push_back(make_jet(j, pt, a, rho, true));
-  }
-  return out;
-}
-
-// the jet columns of a tree: <prefix>_pt_raw, <prefix>_pt, ... (one vector each, refilled per
-// row; prefix "jet", or "nw" for the embedded event's jets)
-struct JetColumns {
-  std::vector<double> v[9];
-  static constexpr const char *names[9] = {"pt_raw", "pt", "eta", "phi", "area", "rho", "m",
-                                           "nconst", "lead_pt"};
-  void branch(TTree &t, const std::string &prefix = "jet") {
-    for (int i = 0; i < 9; ++i) t.Branch((prefix + "_" + names[i]).c_str(), &v[i]);
-  }
-  void clear() {
-    for (auto &x : v) x.clear();
-  }
-  void push(const Jet &j) {
-    const double x[9] = {j.pt_raw, j.pt, j.eta, j.phi, j.area, j.rho, j.m, j.nconst, j.lead};
-    for (int i = 0; i < 9; ++i) v[i].push_back(x[i]);
-  }
-  size_t size() const { return v[0].size(); }
-};
 
 int run(int argc, char **argv) {
   if (argc < 3) {

@@ -36,7 +36,7 @@ in all), and the same hadron settings: `--hadrons-only --oversample 40 --n-frag 
 | backgrounds' N_coll (3dMCGlauber) | 848, 878, 892, 893 | 443, 487, 772, 835 |
 
 The Pb+Pb jobs are the Z+jet test of
-`contribs/PyJetscape/example/analysis/zjet_test/` (`make_data.sh pbpb`); the Au+Au jobs:
+`contribs/PyJetscape/example/analysis/zjet/test/` (`make_data.sh pbpb`); the Au+Au jobs:
 
 ```bash
 cd contribs/PyJetscape/example/prod_AuAu_0_10_jet

@@ -15,8 +15,16 @@ same at hadron level, §8 points to the ROOT analyses in [`../analysis_root`](..
 | [`wake_hadrons.ipynb`](wake_hadrons.ipynb) | hadron-level figures from `wake_hadrons.h5` + `wake_observables.h5` | no |
 
 **The Z+jet campaigns, step by step** (from the RTX box's `gpu0/`, `gpu1/` output to the
-figures, in Python on the HDF5 files and in ROOT): [`ANA_Zhadron.md`](ANA_Zhadron.md) (the
-Z–hadron wake, CMS 2507.09307) and [`ANA_Zjet.md`](ANA_Zjet.md) (Z+jet, CMS 1702.01060).
+figures, in Python on the HDF5 files and in ROOT): [`ANA_Zhadron.md`](zjet/ANA_Zhadron.md) (the
+Z–hadron wake, CMS 2507.09307) and [`ANA_Zjet.md`](zjet/ANA_Zjet.md) (Z+jet, CMS 1702.01060).
+
+| folder | |
+|---|---|
+| [`zjet/`](zjet/README.md) | the Z+jet campaign workflow (QA, map steps, event mixing, jets); `zjet/test/` the first test and the campaign set-up checks |
+| [`dijet/`](dijet/gap_count.py) | the η-separated dijet analysis ([`PLAN_dijet_deta_wake.md`](../../../../docs/Plans/PLAN_dijet_deta_wake.md)), first with the Z as jet1 |
+| [`tutorials/`](tutorials/hadron_distributions.ipynb) | reading the hadron files by example: `hadron_distributions.ipynb`, `jet_fastjet.ipynb`, `jet_fastjet_awkward.ipynb` (all notebooks: [`../README.md`](../README.md#notebooks)) |
+| [`jetcorr/`](jetcorr/__init__.py) | what `zjet/` and `dijet/` share: run paths, portable random choices, event weights, jet finding, figure data (C++: `../analysis_root/common`) |
+| `runs/<run>/` | `data/` and `figures/` of each campaign or test set (git-ignored) |
 
 Everything here runs without X-SCAPE, in the venv of
 [`utils/analysis_env`](../../../../utils/analysis_env/README.md).
@@ -29,13 +37,13 @@ script also reads the `<stem>_particlize.h5` next to each one.
 > its subdirectories, and a list must name files or stems, not directories (2026-10-16). For
 > the whole output pass a glob: `HadronFileReader("OUTBASE/gpu*/*_hadrons_jet_frag.h5")`
 > (`--hadrons-only` jobs; else `"OUTBASE/gpu*/*_particlize.h5"`). The same glob goes to the
-> scripts that take a source (`zjet_test/mix.py --pbpb`, `zjet_test/zjet_jets_map.py`; quote
+> scripts that take a source (`zjet/mix.py --pbpb`, `zjet/zjet_jets_map.py`; quote
 > it). Events are numbered in the order of the sorted paths, `gpu0/` before `gpu1/`. The C++
 > reader of [`../analysis_root`](../analysis_root/README.md) sorts by file name instead: with
 > the launchers' fixed, zero-padded seeds (GPU0 the first block) the two orders agree, with
 > `FIRST_SEED 0` (random seeds) they can differ. That changes no physics (an event's
 > oversample choice depends only on its file name and place in the file), but the global event
-> numbers, the jackknife blocks and the strict-mixing draws, so `zjet_test/check_cxx.py`
+> numbers, the jackknife blocks and the strict-mixing draws, so `zjet/check_cxx.py`
 > would report differences.
 
 The balance was first checked in §11 of

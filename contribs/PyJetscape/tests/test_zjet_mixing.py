@@ -11,7 +11,8 @@ import pytest
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "python"))
-sys.path.insert(0, str(HERE.parent / "example" / "analysis"))
+sys.path.insert(0, str(HERE.parent / "example" / "analysis"))           # jetcorr
+sys.path.insert(0, str(HERE.parent / "example" / "analysis" / "zjet"))
 
 import zjet_mixing as zm  # noqa: E402
 

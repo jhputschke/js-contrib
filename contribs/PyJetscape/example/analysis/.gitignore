@@ -1,0 +1,3 @@
+# every analysis's data and figures: one folder per campaign or test set (zjet/README.md).
+# The hadron files are 1-525 MB each, and the results are not public yet.
+runs/

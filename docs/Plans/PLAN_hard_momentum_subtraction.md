@@ -2,7 +2,7 @@
 
 2026-10-18. Why: on the first two campaigns (`zjet_c00`, `zjet_c01`) the model's Z-side depletion
 in Δy is about half as deep and narrower than CMS 2507.09307's at 1–2 GeV and absent at 2–4 GeV
-(`analysis/zjet_test/figures/ANALYSIS_c00.md` §6, `ANALYSIS_c00_deta.md`). The first candidate
+(`analysis/runs/zjet_test/figures/ANALYSIS_c00.md` §6, `ANALYSIS_c00_deta.md`). The first candidate
 reason is that the Pb+Pb production does not take the Z + parton's momentum out of the two
 nucleons' strings (`<Subtract_hard_momentum>0`): in reality those strings carry less, so the bulk
 is depleted at rapidities tied to y_Z and y_jet, in every p_T class, without any wake. This plan
@@ -261,7 +261,7 @@ events/h for this set-up, expect ~1.5× slower with MUSIC_2 from τ₀):
 | B | on | on | wake + conservation |
 | C | off (`--no-deposit`) | on | conservation alone |
 
-Analysis as for c00 (`analysis/zjet_test/qa.py`, `mix.py` step 1; `ANA_Zhadron.md`): B − A and
+Analysis as for c00 (`analysis/zjet/qa.py`, `mix.py` step 1; `ANA_Zhadron.md`): B − A and
 C in Δy on the Z side at 1–2 and 2–4 GeV, and in Δφ. Step-1 errors with 400 events are ~0.05
 per unit Δy at 1–2 GeV, enough to see the expected ~0.1. Note that with the subtraction the
 "Z-correlated yield" of step 1 contains a term that CMS's mixed-event S − B also contains but
