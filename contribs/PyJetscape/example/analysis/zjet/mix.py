@@ -207,6 +207,9 @@ def main():
     ap.add_argument("--tag", default="", help="suffix of the output names")
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--rebuild", action="store_true", help="remake the pools")
+    ap.add_argument("--pools-only", action="store_true",
+                    help="build the pools of --pbpb and --vacuum and stop (a campaign's map "
+                         "step, e.g. for dijet/deta.py)")
     ap.add_argument("--n-mix", type=int, default=10, help="partners per Z (CMS: 10)")
     ap.add_argument("--blocks", type=int, default=100, help="jackknife blocks of backgrounds")
     ap.add_argument("--seed", type=int, default=1)
@@ -244,6 +247,12 @@ def main():
             return paths
         return build_pools(src, os.path.join(a.pools, sub), a.jobs, a.seed, a.rebuild)
 
+    if a.pools_only:
+        for given, src, sub in ((a.pbpb_pools, a.pbpb, "pbpb"),
+                                (a.vacuum_pools, a.vacuum, "vacuum")):
+            if not given and os.path.exists(src):
+                pool_files(None, src, sub)
+        return
     pb = zm.Pool.load(pool_files(a.pbpb_pools, a.pbpb, "pbpb"))
     if a.rotate:
         pb.rotate_backgrounds(a.rotate_seed if a.rotate_seed is not None
