@@ -21,7 +21,7 @@ CMS smearing, HEPData, χ², jackknife, figures). Every map step has a Python tw
 | `zhadron_pools.cxx` | the Z–hadron map step → `<out>/<stem>_pool.root` |
 | `zjets.cxx` | the Z+jet map step → `<out>/<stem>_jets.root` |
 | `zqa.cxx` | the QA map step (the twin of `zjet_test/qa.py map`) → `<out>/<stem>_qa.root`: a table per Z event (the Z, weights, N_coll, the total charged multiplicity per source) and per-source hadron histograms; drawn by `qa.py plot` |
-| `Makefile` | `make` with `root-config` and `fastjet-config` on `PATH` |
+| `Makefile` | `make` with `root-config` and `fastjet-config` on `PATH`; `make FASTJET_PY=<the fastjet wheel's package directory>` builds against a pip `fastjet` wheel instead (below) |
 
 A campaign from the RTX box (`gpu0/`, `gpu1/`), step by step in Python and in ROOT:
 [`../../analysis/ANA_Zhadron.md`](../../analysis/ANA_Zhadron.md),
@@ -32,6 +32,12 @@ A campaign from the RTX box (`gpu0/`, `gpu1/`), step by step in Python and in RO
 ```bash
 conda activate js_fno                         # ROOT 6.36, FastJet 3.5.1 (headers and python)
 cd example/analysis_root/zjet && make
+# or, with ROOT and a venv with the pip fastjet wheel (rhicML: ~/root, js_analysis):
+#   make FASTJET_PY=$(python -c 'import fastjet, os; print(os.path.dirname(fastjet.__file__))')
+#   the C++ map steps then use the Python map steps' own FastJet (3.5.2 there, against the
+#   system's 3.4.2 in /usr/local) and can link fjcontrib (the wheel's libfastjetcontribfragile).
+#   The wheel's fastjet-config has its build paths, so the Makefile sets the flags itself.
+#   Checked 2026-10-18 on one c00 file, --samples 2: check_cxx.py jets, 0 differences.
 # 1. HDF5 -> ROOT (vacuum files: jet_frag only, found by themselves)
 P=../../prod_AuAu_0_10_jet; D=../../analysis/zjet_test/data
 python $P/run_h5toROOT.py $D/pbpb_campaign -j 4 --out-dir $D/root/pbpb_campaign \
