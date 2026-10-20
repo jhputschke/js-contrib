@@ -120,6 +120,13 @@ python $A/zjet/mix.py --pbpb none --vacuum $PP --pools $RUNS/zjet_pp/data/mix --
 ```
 
 `deta.py` and `mix.py` read a directory's `*_pool.root` (C++) if it has any, else its `*.npz`.
+The same pools give the Z-side Δy of Pb+Pb − pp split into fragments and wake, each into its
+Z-side yield and its level (`../zjet/wake_decomp.py`, ANA_Zhadron §A2):
+
+```bash
+python $A/zjet/wake_decomp.py --pbpb $RUNS/zjet_c00/data/mix/pbpb $RUNS/zjet_c01/data/mix/pbpb \
+    --pp $RUNS/zjet_pp/data/mix/vacuum --run zjet_c00-01 --tag _c00-01
+```
 
 ## 3. Checks (plan A4)
 
@@ -219,7 +226,8 @@ The jackknife needs many backgrounds: with a few (the GB10's mini campaign: 8) t
 ## What to bring back from the RTX box
 
 The summaries `runs/zjet_c00/figures/deta_summary_c00*.txt`, `runs/zjet_c00-01/…`, the jet QA
-summary at R = 0.4 (`qa_jets_summary_c00_r04.txt`), `gap_count.py`'s table, the logs' times
+summary at R = 0.4 (`qa_jets_summary_c00_r04.txt`), `gap_count.py`'s table,
+`wake_decomp_c00-01.txt`, the logs' times
 of the R = 0.4 map steps and the pools, and the check outputs of step 3: they decide D2 (the
 fake jet2), give R4 (the noise per effective Z: the size of the dijet production) and close
 plan A4/A5.
