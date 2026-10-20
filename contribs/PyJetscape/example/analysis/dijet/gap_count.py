@@ -1,6 +1,8 @@
 """Z as jet1 of CMS HIN-25-012 (2602.19431): Z+jet events per dijet eta-gap class.
 
-    python gap_count.py <pbpb jets dir> <pp jets dir>
+    python gap_count.py <pbpb jets dir[,dir...]> <pp jets dir[,dir...]>
+
+(several directories, comma-separated: campaigns mapped apart, combined by zjet_jets.load_jets)
 
 Z: zjet_jets.z_selection's mass and lepton cuts, |y_Z| < 1, p_T^Z > a threshold.
 jet2: the leading map-step jet (|eta| < 2; Pb+Pb rhoA-subtracted, the map step's R) of each
@@ -31,15 +33,19 @@ def leading(J, prefix="jet"):
     return f("pt"), f("eta"), f("phi"), has
 
 
-def count(E, J, ncoll, label, prefix="jet"):
+def count(E, J, ncoll, label, prefix="jet", embedded=False):
+    """embedded: only the oversamples with the embedded event (nw: the map step's
+    --emb-samples, per map output)."""
     base = (E["z_m"] > 70) & (E["z_m"] < 110) \
         & zj.lep_ok(E["lep1_pid"], E["lep1_eta"]) & zj.lep_ok(E["lep2_pid"], E["lep2_eta"])
     idx = {g: i for i, g in enumerate(E["event"])}
     ev = np.array([idx[g] for g in J["event"]])
+    lim = E["emb_samples"][ev] if embedded else np.full(len(ev), 1 << 30)
     pt, eta, phi, has = leading(J, prefix)
-    ns = E["n_samples"][ev].astype(float)
+    has = has & (np.asarray(J["sample"]) < lim)
+    ns = np.minimum(E["n_samples"][ev], lim).astype(float)
     w0 = E["weight_mb"].astype(float) * (E["n_coll"] if ncoll else 1.0)
-    print(f"\n== {label}: {len(E["event"])} Z events, {len(J['event'])} oversample rows "
+    print(f"\n== {label}: {len(E['event'])} Z events, {len(J['event'])} oversample rows "
           f"(n_samples {np.unique(E['n_samples'])})")
     print(f"{'pTZ>':>5} {'jet>':>5} | {'N_Z':>5} {'Neff_Z':>7} | {'f_jet2':>6} | "
           + " | ".join(f"{lo:.1f}-{hi:.1f}: frac  Neff " for lo, hi in GAPS))
@@ -58,8 +64,8 @@ def count(E, J, ncoll, label, prefix="jet"):
         print(f"{zpt:5d} {jpt:5d} | {sel.sum():5d} {neff:7.0f} | {f_rows[0]:6.3f} | {cells}")
 
 
-Ep, Jp, _ = zj.load_jets(sys.argv[2])
+Ep, Jp, _ = zj.load_jets(sys.argv[2].split(","))
 count(Ep, Jp, False, f"pp {sys.argv[2]}")
-Eb, Jb, _ = zj.load_jets(sys.argv[1])
+Eb, Jb, _ = zj.load_jets(sys.argv[1].split(","))
 count(Eb, Jb, True, f"Pb+Pb {sys.argv[1]} (full event, rhoA)")
-count(Eb, Jb, True, f"Pb+Pb {sys.argv[1]} (no-wake twin nw)", prefix="nw")
+count(Eb, Jb, True, f"Pb+Pb {sys.argv[1]} (no-wake twin nw)", prefix="nw", embedded=True)

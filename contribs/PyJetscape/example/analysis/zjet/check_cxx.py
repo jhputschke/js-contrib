@@ -6,9 +6,12 @@
     python check_cxx.py qa    <python qa dir> <C++ qa dir>         # qa.py map's / zqa's
 
 pools: every array of zjet_mixing's pool (per event S_full, S_one, the one oversample's
-tracks, weights, Z, k_one; per background W, W2, SW, T, rho for both contents).  jets: every
-(event, sample) entry's jets, embedding pairs and random cones, and every background
-sample's jets (bg_jets), and the jet QA trees (qa_jets, qa_bg_jets).  Integers and the events
+tracks, weights, Z, k_one, the keys and the dijet proxy's Y_*, L_*; per background and window
+the unweighted sums, per background bulk_bg's density, the file record; version 3: per
+background W, W2, SW, T, rho for both contents).  jets: every
+(event, sample) entry's jets, embedding pairs, random cones and Z cone, every background
+sample's jets (bg_jets), the jet QA trees (qa_jets, qa_bg_jets), and the outputs' records
+(file_info, run_info).  Integers and the events
 must be equal; floats agree to float32 / float64 rounding (the C++ and numpy logarithms can
 differ in the last bit, which can move a track across a bin edge: such moves are counted).
 Exits 1 on a difference beyond that."""
@@ -60,20 +63,58 @@ def pools(py_dir, cxx_dir):
         b = zm.read_root_pool(cx)
         report(set(a) == set(b), f"same arrays ({len(a)})"
                + ("" if set(a) == set(b) else f": {sorted(set(a) ^ set(b))}"))
-        for k in ("event", "bg", "k_one", "n_samples", "trk_n", "trk_pt", "bg_id"):
-            report(np.array_equal(a[k], b[k]), f"{k} equal")
+        ints = ("event", "bg", "k_one", "n_samples", "trk_n", "trk_pt", "bg_id", "local_event",
+                "pthat_bin", "bg_unit", "bgw_unit", "bgw_k", "bgw_n", "bgr_unit", "fi_n_events",
+                "fi_vacuum", "fi_units", "fi_n_stored", "pool_version")
+        for k in ints:
+            if k in a:
+                report(np.array_equal(a[k], b[k]), f"{k} equal")
+        for k in ("fi_name", "fi_pthat_lo", "fi_pthat_hi", "fi_sigma_gen", "fi_sigma_err",
+                  "fi_n_accepted"):
+            if k in a:
+                report(np.array_equal(a[k], b[k]), f"{k} equal")
+        for k in ("n_coll", "bgw_ncoll"):
+            if k in a:
+                report(np.array_equal(a[k], b[k], equal_nan=True), f"{k} equal")
         for k in ("w", "y", "phi", "bg_W", "bg_W2"):
-            close(a[k], b[k], k, 1e-12)
-        for k in ("S_full", "S_one", "trk_eta", "trk_phi"):
+            if k in a:
+                close(a[k], b[k], k, 1e-12)
+        for k in sorted(x for x in a if x.startswith(("S_", "Y_", "L_")) or x in ("trk_eta",
+                                                                                  "trk_phi")):
             close(a[k], b[k], k, 2e-7)
-        for k in sorted(x for x in a if x.startswith(("bg_SW", "bg_T", "bg_R"))):
+        for k in sorted(x for x in a if x.startswith(("bg_SW", "bg_T", "bg_R", "bgw_S",
+                                                      "bgw_R", "bgr_RB"))):
             if k in b:
                 close(a[k], b[k], k, 1e-12)
+
+
+def records(py_dir, cxx_dir, suffix):
+    """The file_info and run_info records of every output pair (jetcorr.mapio)."""
+    import uproot
+    sys.path.insert(0, os.path.dirname(HERE))
+    from jetcorr import mapio
+    for pa in sorted(glob.glob(os.path.join(py_dir, f"*{suffix}"))):
+        pb = os.path.join(cxx_dir, os.path.basename(pa))
+        if not os.path.exists(pb):
+            report(False, f"{os.path.basename(pa)}: no C++ output")
+            continue
+        with uproot.open(pa) as fa, uproot.open(pb) as fb:
+            ra, rb = mapio.read_file_info(fa), mapio.read_file_info(fb)
+            ia, ib = mapio.read_run_info(fa), mapio.read_run_info(fb)
+        if ra is None or rb is None:
+            report(ra is None and rb is None, f"{os.path.basename(pa)}: file_info in both")
+            continue
+        same = all(np.array_equal(np.asarray(ra[k]), np.asarray(rb[k])) for k in ra)
+        report(same, f"{os.path.basename(pa)}: file_info equal ({ra['name']}, "
+                     f"{ra['n_events']} events, {len(ra['units'])} units)")
+        report(ia == ib, f"{os.path.basename(pa)}: run_info equal {ia}"
+               + ("" if ia == ib else f" / {ib}"))
 
 
 def jets(py_dir, cxx_dir):
     import awkward as ak
     from zjet_jets import load_jets, load_qa_jets
+    records(py_dir, cxx_dir, "_jets.root")
     Ea, Ja, Ba = load_jets(py_dir)
     Eb, Jb, Bb = load_jets(cxx_dir)
     Qa, QBa = load_qa_jets(py_dir)

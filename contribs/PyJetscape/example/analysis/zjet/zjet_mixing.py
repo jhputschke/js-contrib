@@ -63,12 +63,17 @@ partners' tracks themselves.
 from __future__ import annotations
 
 import os
+import sys
 import warnings
 
 import numpy as np
 
 import zjet_wake as zw
 
+#: the pools' layout: 4 adds the per-event keys, the dijet proxy's contents (Y_*, L_*), the
+#: file record (fi_*) and the unweighted per-(background, window) sums (bgw_*, bgr_*) in
+#: place of the weighted per-background sums of 3
+POOL_VERSION = 4
 #: the grid (test/accumulate.py's): track p_T classes, the Z frame, the lab frame
 PT = np.asarray(zw.PT_CLASSES, float)
 DETA = np.linspace(-4.8, 4.8, 25)                 # Delta y = eta - y_Z, 0.4
@@ -81,6 +86,15 @@ CETA = 0.5 * (ETA[1:] + ETA[:-1])
 CPHI = 0.5 * (PHI[1:] + PHI[:-1])
 #: what an event contributes: the full event, or its Z-correlated yield ("bulk off")
 CONTENTS = ("full", "zc")
+#: the dijet proxy's per-event grid (docs/Plans/PLAN_dijet_deta_wake.md A3, D5): Delta y =
+#: eta - y_Z in 0.1, from which CMS HIN-25-012's 0.2 bins (edges at odd tenths), its sideband
+#: and signal ranges and the 0.4 grid above all rebin exactly; per side of the Z (0: the Z
+#: side |Delta phi| < pi/2, the DPHI bins of ZSIDE; 1: the away side)
+DY_FINE = np.linspace(-4.8, 4.8, 97)
+N_DYF, N_SIDE = len(DY_FINE) - 1, 2
+#: the per-event contents of the dijet proxy (Y_*: Z frame, DY_FINE; L_*: lab eta, ETA)
+Y_CONTENTS = ("full", "one", "zc", "frag")
+L_CONTENTS = ("full", "zc", "frag")
 
 _CD = 0.5 * (DPHI[1:] + DPHI[:-1])
 #: the Delta phi bin at -Delta phi, and the Z side |Delta phi| < pi/2 (cms2507.Model's)
@@ -113,6 +127,34 @@ def z_hist(ipt, eta, phi, y_z, phi_z, sample=None, n_samples=1):
     return h.reshape(n_samples, N_PT, N_DY, N_DPHI).astype(float)
 
 
+def _side(phi, phi_z):
+    """0 on the Z side (|Delta phi| < pi/2: the DPHI bins of ZSIDE), 1 on the away side."""
+    idp = _index(zw.wrap_dphi(np.asarray(phi, float) - phi_z), DPHI)
+    return (idp >= N_DPHI // 2).astype(np.int64)
+
+
+def side_hist(ipt, eta, phi, y_z, phi_z):
+    """Tracks in a Z's frame -> counts (N_PT, N_SIDE, N_DYF): Delta y = eta - y_Z in 0.1, per
+    side of the Z (the dijet proxy's per-event grid)."""
+    idy = _index(np.asarray(eta, float) - y_z, DY_FINE)
+    ok = idy >= 0
+    flat = ((np.asarray(ipt, np.int64)[ok] * N_SIDE + _side(np.asarray(phi)[ok], phi_z))
+            * N_DYF + idy[ok])
+    return np.bincount(flat, minlength=N_PT * N_SIDE * N_DYF).reshape(
+        N_PT, N_SIDE, N_DYF).astype(float)
+
+
+def lab_side_hist(ipt, eta, phi, phi_z):
+    """Tracks -> counts (N_PT, N_SIDE, N_ETA): lab eta (0.1) per side of the Z (the Yang-Wang
+    form of the dijet proxy)."""
+    ie = _index(eta, ETA)
+    ok = ie >= 0
+    flat = ((np.asarray(ipt, np.int64)[ok] * N_SIDE + _side(np.asarray(phi)[ok], phi_z))
+            * N_ETA + ie[ok])
+    return np.bincount(flat, minlength=N_PT * N_SIDE * N_ETA).reshape(
+        N_PT, N_SIDE, N_ETA).astype(float)
+
+
 def lab_hist(ipt, eta, phi):
     """Tracks in the lab frame -> counts (N_PT, N_ETA, N_PHI)."""
     ie, ip = _index(eta, ETA), _index(phi, PHI)
@@ -143,21 +185,34 @@ def _tracks(ev, info, mask):
 
 
 def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0,
-              eta_max=2.4):
+              eta_max=2.4, record=None):
     """The pool of one production file (the map step), for its selected events
     ``local_events`` (their campaign indices ``global_events``, weights ``weights``,
-    background ids ``backgrounds``) -> dict of arrays, :meth:`Pool.from_parts` merges them.
+    background ids ``backgrounds``: those of the directory it was built from, kept for the
+    record) -> dict of arrays; :meth:`Pool.load` combines the pools of any set of files.
 
     Per event: S in its Z frame for the full event (the per-sample mean, ``S_full``; its
     number of samples ``n_samples``) and one oversample ``k_one`` (``S_one``; the
     fragmentation ``k_one mod n_frag`` as ``JetEvents.jet_event``), and that oversample's
     tracks (the partner content of the explicit modes).  ``k_one`` is
     ``zjet_wake.key_index(event_key(seed, the file's name, the event in the file), n)``: the
-    same when files are added to a campaign, and in analysis_root/zjet's C++ pools.  Per
-    background, summed over its selected events: w S, w^2 S and the lab-frame density w rho, for the full event and the Z-correlated yield (bulk_jet -
-    bulk_bg, per sample, + fragments).  Vacuum files (jet_frag only): the event is its own
-    background and the two contents are the same, stored once (``Pool`` aliases them)."""
+    same when files are added to a campaign, and in analysis_root/zjet's C++ pools.  The dijet
+    proxy's contents (PLAN_dijet_deta_wake A3) on the fine grid, per side of the Z: ``Y_full``,
+    ``Y_one``, ``Y_zc`` (the Z-correlated yield, bulk_jet - bulk_bg per sample + fragments),
+    ``Y_frag`` (the fragments), and the lab-eta densities ``L_full``, ``L_zc``, ``L_frag``.
+    Its keys: ``local_event``, ``pthat_bin``, ``n_coll``, ``bg_unit``, and the file's record
+    (``fi_*``, ``jetcorr.mapio``; ``record``: ``jetcorr.weights.file_record``'s, else made
+    here).  Per (hydro background, pTHat window), unweighted, over its selected events
+    (``bgw_*``): their number, N_coll, the sums of S and of the lab density for the full event
+    and of S for the Z-correlated yield; per background its bulk_bg lab density per sample
+    (``bgr_*``).  The weights (window cross section / events x N_coll) factorize per window and
+    background, so :meth:`Pool.load` rebuilds the weighted sums of any combination exactly
+    (to rounding).  Vacuum files (jet_frag only): the event is its own background and the
+    contents are the same, stored once (``Pool`` aliases them)."""
     from jetscape.hadrons_h5 import EventHadrons, HadronFile, HadronFileReader, Hadrons
+
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from jetcorr import weights as jw
 
     r = HadronFileReader([stem])
     tags = r.tags(0)
@@ -165,6 +220,7 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
     mask = zw.track_mask(eta_max)
     local_events = np.asarray(local_events, np.int64)
     infos = [r.event_info(int(e)) for e in local_events]
+    rec = record if record is not None else jw.file_record(r, 0)
 
     def load(tag, units):
         path = f"{stem}_hadrons_{tag}.h5"
@@ -172,14 +228,20 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
             pos = sorted({hf.unit_index(int(u)) for u in units})
         return Hadrons.from_h5(path, units=np.array(pos, dtype=np.int64))
 
-    shp_z, shp_l = (N_PT, N_DY, N_DPHI), (N_PT, N_ETA, N_PHI)
     out = {k: [] for k in ("event", "bg", "w", "y", "phi", "k_one", "n_samples", "S_full",
-                           "S_one", "trk_n", "trk_pt", "trk_eta", "trk_phi")}
-    per_bg = {}
+                           "S_one", "trk_n", "trk_pt", "trk_eta", "trk_phi", "local_event",
+                           "pthat_bin", "n_coll", "bg_unit")}
+    ycont = Y_CONTENTS if bulk else ("full", "one")
+    lcont = L_CONTENTS if bulk else ("full",)
+    for c in ycont:
+        out[f"Y_{c}"] = []
+    for c in lcont:
+        out[f"L_{c}"] = []
+    per_bgw, per_bgr = {}, {}
     contents = CONTENTS if bulk else ("full",)
     name = os.path.basename(stem)
     if len(local_events) == 0:
-        return _pack(out, per_bg, contents)
+        return _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec)
     hfr = load("jet_frag", local_events)
     if bulk:
         hj = load("bulk_jet", local_events)
@@ -209,38 +271,57 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
         n_s = K if bulk else nf
         k = zw.key_index(zw.event_key(seed, name, int(e)), n_s)
         SF, RF = z_hist(*tf[:3], y, ph) / nf, lab_hist(*tf[:3]) / nf
+        YF, LF = side_hist(*tf[:3], y, ph) / nf, lab_side_hist(*tf[:3], ph) / nf
         fk = tf[3] == (k % nf)
         if bulk:
             SJ, RJ = z_hist(*tj[:3], y, ph) / K, lab_hist(*tj[:3]) / K
             SB, RB = z_hist(*tb[:3], y, ph) / K, Rb / K
             S_full, S_zc = SJ + SF, SJ - SB + SF
-            R_full, R_zc = RJ + RF, RJ - RB + RF
+            R_full = RJ + RF
+            YJ, YB = side_hist(*tj[:3], y, ph) / K, side_hist(*tb[:3], y, ph) / K
+            LJ, LB = lab_side_hist(*tj[:3], ph) / K, lab_side_hist(*tb[:3], ph) / K
+            Y = {"full": YJ + YF, "zc": YJ - YB + YF, "frag": YF}
+            L = {"full": LJ + LF, "zc": LJ - LB + LF, "frag": LF}
             jk = tj[3] == k
             one = tuple(np.concatenate([a[jk], c[fk]]) for a, c in zip(tj[:3], tf[:3]))
+            unit = info.bg_unit
         else:
             S_full = S_zc = SF
-            R_full = R_zc = RF
+            R_full = RF
+            Y, L = {"full": YF}, {"full": LF}
             one = tuple(a[fk] for a in tf[:3])
+            unit = int(e)
         S_one = z_hist(*one, y, ph)
+        Y["one"] = side_hist(*one, y, ph)
+        kw = -1 if info.pthat_bin is None else int(info.pthat_bin)
+        nc = np.nan if info.n_coll is None else float(info.n_coll)
         for key, v in (("event", g), ("bg", b), ("w", w), ("y", y), ("phi", ph),
                        ("k_one", k), ("n_samples", n_s), ("S_full", S_full), ("S_one", S_one),
                        ("trk_n", len(one[0])), ("trk_pt", one[0]), ("trk_eta", one[1]),
-                       ("trk_phi", one[2])):
+                       ("trk_phi", one[2]), ("local_event", int(e)), ("pthat_bin", kw),
+                       ("n_coll", nc), ("bg_unit", unit)):
             out[key].append(v)
-        s = per_bg.setdefault(int(b), {"W": 0.0, "W2": 0.0,
-                                       **{f"{q}_{c}": np.zeros(shp_z) for q in ("SW", "T")
-                                          for c in contents},
-                                       **{f"R_{c}": np.zeros(shp_l) for c in contents}})
-        s["W"] += w
-        s["W2"] += w * w
-        for c, S_, R_ in (("full", S_full, R_full), ("zc", S_zc, R_zc))[:len(contents)]:
-            s[f"SW_{c}"] += w * S_
-            s[f"T_{c}"] += w * w * S_
-            s[f"R_{c}"] += w * R_
-    return _pack(out, per_bg, contents)
+        for c in ycont:
+            out[f"Y_{c}"].append(Y[c])
+        for c in lcont:
+            out[f"L_{c}"].append(L[c])
+        s = per_bgw.setdefault((int(unit), kw), {
+            "n": 0, "ncoll": nc, **{f"S_{c}": np.zeros((N_PT, N_DY, N_DPHI)) for c in contents},
+            "R_full": np.zeros((N_PT, N_ETA, N_PHI))})
+        if not (s["ncoll"] == nc or (np.isnan(s["ncoll"]) and np.isnan(nc))):
+            raise ValueError(f"{stem}: N_coll differs inside background {unit}")
+        s["n"] += 1
+        s["S_full"] += S_full
+        if bulk:
+            s["S_zc"] += S_zc
+            per_bgr.setdefault(int(unit), RB)
+        s["R_full"] += R_full
+    return _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec)
 
 
-def _pack(out, per_bg, contents):
+def _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec):
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from jetcorr import mapio
     shp_z, shp_l = (N_PT, N_DY, N_DPHI), (N_PT, N_ETA, N_PHI)
     n = len(out["event"])
     d = {"event": np.asarray(out["event"], np.int64), "bg": np.asarray(out["bg"], np.int64),
@@ -254,30 +335,53 @@ def _pack(out, per_bg, contents):
          "trk_eta": (np.concatenate(out["trk_eta"]).astype(np.float32) if n
                      else np.zeros(0, np.float32)),
          "trk_phi": (np.concatenate(out["trk_phi"]).astype(np.float32) if n
-                     else np.zeros(0, np.float32))}
-    ids = sorted(per_bg)
-    d["bg_id"] = np.asarray(ids, np.int64)
-    d["bg_W"] = np.array([per_bg[b]["W"] for b in ids], float)
-    d["bg_W2"] = np.array([per_bg[b]["W2"] for b in ids], float)
+                     else np.zeros(0, np.float32)),
+         "local_event": np.asarray(out["local_event"], np.int64),
+         "pthat_bin": np.asarray(out["pthat_bin"], np.int64),
+         "n_coll": np.asarray(out["n_coll"], float),
+         "bg_unit": np.asarray(out["bg_unit"], np.int64)}
+    for c in ycont:
+        d[f"Y_{c}"] = np.asarray(out[f"Y_{c}"], np.float32).reshape(n, N_PT, N_SIDE, N_DYF)
+    for c in lcont:
+        d[f"L_{c}"] = np.asarray(out[f"L_{c}"], np.float32).reshape(n, N_PT, N_SIDE, N_ETA)
+    keys = sorted(per_bgw)
+    d["bgw_unit"] = np.asarray([u for u, _ in keys], np.int64)
+    d["bgw_k"] = np.asarray([k for _, k in keys], np.int64)
+    d["bgw_n"] = np.asarray([per_bgw[x]["n"] for x in keys], np.int64)
+    d["bgw_ncoll"] = np.asarray([per_bgw[x]["ncoll"] for x in keys], float)
     for c in contents:
-        for q, shp in (("SW", shp_z), ("T", shp_z), ("R", shp_l)):
-            d[f"bg_{q}_{c}"] = (np.array([per_bg[b][f"{q}_{c}"] for b in ids]) if ids
-                                else np.zeros((0, *shp)))
+        d[f"bgw_S_{c}"] = (np.array([per_bgw[x][f"S_{c}"] for x in keys]) if keys
+                           else np.zeros((0, *shp_z)))
+    d["bgw_R_full"] = (np.array([per_bgw[x]["R_full"] for x in keys]) if keys
+                       else np.zeros((0, *shp_l)))
+    if "zc" in contents:
+        units = sorted(per_bgr)
+        d["bgr_unit"] = np.asarray(units, np.int64)
+        d["bgr_RB"] = (np.array([per_bgr[u] for u in units]) if units
+                       else np.zeros((0, *shp_l)))
+    d.update(mapio.file_info_npz(rec))
+    d["pool_version"] = np.array(POOL_VERSION, np.int64)
     return d
 
 
 def read_root_pool(path):
     """A pool written by analysis_root/zjet/zhadron_pools (one ROOT file per production file)
-    -> the dict of :func:`file_pool`.  Trees ``pool_events`` (event, bg, w, y, phi, k_one,
-    n_samples, S_full[N_PT*N_DY*N_DPHI], S_one[...], trk_pt/eta/phi[n]) and ``pool_bg``
-    (bg_id, W, W2, SW_<c>, T_<c>, R_<c> for the contents it has)."""
+    -> the dict of :func:`file_pool`.  Trees ``pool_events`` (per event the arrays of
+    file_pool, S_*/Y_*/L_* flattened), ``pool_bgw`` (per background and window: unit, k, n,
+    ncoll, S_<c>, R_full), ``pool_bgr`` (unit, RB; Pb+Pb), ``file_info``; pools of version 3
+    have ``pool_bg`` (bg_id, W, W2, SW_<c>, T_<c>, R_<c>) instead."""
     import awkward as ak
     import uproot
 
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from jetcorr import mapio
     shp_z, shp_l = (N_PT, N_DY, N_DPHI), (N_PT, N_ETA, N_PHI)
     with uproot.open(path) as f:
         ev = f["pool_events"].arrays(library="ak")
-        bg = f["pool_bg"].arrays(library="ak")
+        v4 = "pool_bgw" in f
+        bg = f["pool_bgw" if v4 else "pool_bg"].arrays(library="ak")
+        bgr = f["pool_bgr"].arrays(library="ak") if "pool_bgr" in f else None
+        rec = mapio.read_file_info(f)
     n = len(ev)
 
     def col(a, k, dt):
@@ -291,14 +395,121 @@ def read_root_pool(path):
          "trk_n": np.asarray(ak.to_numpy(ak.num(ev["trk_pt"])), np.int64),
          "trk_pt": np.asarray(ak.to_numpy(ak.flatten(ev["trk_pt"])), np.int8),
          "trk_eta": np.asarray(ak.to_numpy(ak.flatten(ev["trk_eta"])), np.float32),
-         "trk_phi": np.asarray(ak.to_numpy(ak.flatten(ev["trk_phi"])), np.float32),
-         "bg_id": col(bg, "bg_id", np.int64), "bg_W": col(bg, "W", float),
-         "bg_W2": col(bg, "W2", float)}
+         "trk_phi": np.asarray(ak.to_numpy(ak.flatten(ev["trk_phi"])), np.float32)}
     nb = len(bg)
+    if not v4:
+        d.update({"bg_id": col(bg, "bg_id", np.int64), "bg_W": col(bg, "W", float),
+                  "bg_W2": col(bg, "W2", float)})
+        for c in CONTENTS:
+            if f"SW_{c}" in bg.fields:
+                for q, shp in (("SW", shp_z), ("T", shp_z), ("R", shp_l)):
+                    d[f"bg_{q}_{c}"] = col(bg, f"{q}_{c}", float).reshape(nb, *shp)
+        return d
+    for k, dt in (("local_event", np.int64), ("pthat_bin", np.int64), ("n_coll", float),
+                  ("bg_unit", np.int64)):
+        d[k] = col(ev, k, dt)
+    for c in Y_CONTENTS:
+        if f"Y_{c}" in ev.fields:
+            d[f"Y_{c}"] = col(ev, f"Y_{c}", np.float32).reshape(n, N_PT, N_SIDE, N_DYF)
+    for c in L_CONTENTS:
+        if f"L_{c}" in ev.fields:
+            d[f"L_{c}"] = col(ev, f"L_{c}", np.float32).reshape(n, N_PT, N_SIDE, N_ETA)
+    for k, dt in (("unit", np.int64), ("k", np.int64), ("n", np.int64), ("ncoll", float)):
+        d[f"bgw_{k}"] = col(bg, k, dt)
     for c in CONTENTS:
-        if f"SW_{c}" in bg.fields:
-            for q, shp in (("SW", shp_z), ("T", shp_z), ("R", shp_l)):
-                d[f"bg_{q}_{c}"] = col(bg, f"{q}_{c}", float).reshape(nb, *shp)
+        if f"S_{c}" in bg.fields:
+            d[f"bgw_S_{c}"] = col(bg, f"S_{c}", float).reshape(nb, *shp_z)
+    d["bgw_R_full"] = col(bg, "R_full", float).reshape(nb, *shp_l)
+    if bgr is not None:
+        d["bgr_unit"] = col(bgr, "unit", np.int64)
+        d["bgr_RB"] = col(bgr, "RB", float).reshape(len(bgr), *shp_l)
+    d.update(mapio.file_info_npz(rec))
+    d["pool_version"] = np.array(POOL_VERSION, np.int64)
+    return d
+
+
+def assemble(parts):
+    """Pool parts of version 4 (one per production file, from one or several campaigns, built
+    together or apart) -> the dict :class:`Pool` takes, for the whole set: per event its
+    global ``event``, background ``bg``, ``file`` (index into ``file_names``) and weight ``w``
+    (window cross section / events x N_coll, normalized to mean 1), all from the parts' file
+    records (``jetcorr.weights.campaign_ids``, ``window_weights``: the rules of
+    ``HadronFileReader``, so a campaign alone gets the ids and weights of mix.py's direct
+    build); per background W, W2 and the weighted sums SW, T, R rebuilt from the unweighted
+    per-(background, window) sums (the same to rounding)."""
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from jetcorr import mapio
+    from jetcorr import weights as jw
+
+    recs = [mapio.read_file_info_npz(p) for p in parts]
+    ids = jw.campaign_ids(recs)
+    wmb = jw.window_weights(recs)
+    order = ids["order"]
+    parts = [parts[i] for i in order]
+    recs = [recs[i] for i in order]
+    per = [(int(ids["event_offset"][i]), ids["units"][i]) for i in order]
+    keys = set(parts[0])
+    if any(set(p) != keys for p in parts):
+        raise ValueError("pool parts with different contents (vacuum and Pb+Pb mixed?)")
+    bulk = "bgw_S_zc" in keys
+
+    def base(k):
+        k = np.asarray(k, np.int64)
+        if not len(wmb):
+            return np.ones(len(k))
+        return np.where(k >= 0, wmb[np.clip(k, 0, None)], np.nan)
+
+    nc_all = np.concatenate([p["n_coll"] for p in parts])
+    use_nc = bool(len(nc_all)) and bool(np.all(np.isfinite(nc_all)))
+    w0 = [base(p["pthat_bin"]) * (p["n_coll"] if use_nc else 1.0) for p in parts]
+    w0_all = np.concatenate(w0)
+    norm = w0_all.mean() if len(w0_all) else 1.0
+    per_event = [k for k in parts[0] if not k.startswith(("bgw_", "bgr_", "fi_", "pool_"))
+                 and k not in ("trk_pt", "trk_eta", "trk_phi")]
+    d = {k: np.concatenate([p[k] for p in parts]) for k in per_event}
+    for k in ("trk_pt", "trk_eta", "trk_phi"):
+        d[k] = np.concatenate([p[k] for p in parts])
+    d["event"] = np.concatenate([off + p["local_event"] for (off, _), p in zip(per, parts)])
+    d["bg"] = np.concatenate([np.array([u[int(x)] for x in p["bg_unit"]], np.int64)
+                              for (_, u), p in zip(per, parts)])
+    d["file"] = np.concatenate([np.full(len(p["local_event"]), f, np.int64)
+                                for f, p in enumerate(parts)])
+    d["w"] = w0_all / norm
+    d["file_names"] = np.array([r["name"] for r in recs])
+    # per background, from the per-(background, window) rows
+    contents = CONTENTS if bulk else ("full",)
+    sums = {}
+    for (_, u), p in zip(per, parts):
+        rb = dict(zip(p["bgr_unit"].tolist(), p["bgr_RB"])) if bulk else {}
+        for r_ in range(len(p["bgw_unit"])):
+            b = u[int(p["bgw_unit"][r_])]
+            nc = p["bgw_ncoll"][r_] if use_nc else 1.0
+            wk = base([p["bgw_k"][r_]])[0] * nc / norm
+            n = float(p["bgw_n"][r_])
+            s = sums.setdefault(b, {"W": 0.0, "W2": 0.0, "RB": rb.get(int(p["bgw_unit"][r_])),
+                                    **{f"{q}_{c}": 0.0 for q in ("SW", "T") for c in contents},
+                                    "R_full": 0.0})
+            s["W"] += n * wk
+            s["W2"] += n * wk * wk
+            for c in contents:
+                S_ = p[f"bgw_S_{c}"][r_]
+                s[f"SW_{c}"] = s[f"SW_{c}"] + wk * S_
+                s[f"T_{c}"] = s[f"T_{c}"] + wk * wk * S_
+            s["R_full"] = s["R_full"] + wk * p["bgw_R_full"][r_]
+    bids = sorted(sums)
+    d["bg_id"] = np.asarray(bids, np.int64)
+    d["bg_W"] = np.array([sums[b]["W"] for b in bids], float)
+    d["bg_W2"] = np.array([sums[b]["W2"] for b in bids], float)
+    shp = {"SW": (N_PT, N_DY, N_DPHI), "T": (N_PT, N_DY, N_DPHI), "R": (N_PT, N_ETA, N_PHI)}
+    for c in contents:
+        for q in ("SW", "T"):
+            d[f"bg_{q}_{c}"] = (np.array([sums[b][f"{q}_{c}"] for b in bids]) if bids
+                                else np.zeros((0, *shp[q])))
+    d["bg_R_full"] = (np.array([sums[b]["R_full"] for b in bids]) if bids
+                      else np.zeros((0, *shp["R"])))
+    if bulk:
+        d["bg_R_zc"] = (np.array([sums[b]["R_full"] - sums[b]["W"] * sums[b]["RB"]
+                                  for b in bids]) if bids else np.zeros((0, *shp["R"])))
     return d
 
 
@@ -312,6 +523,11 @@ class Pool:
 
     def __init__(self, d):
         self.__dict__.update({k: v for k, v in d.items() if not k.startswith("bg_")})
+        for pre, conts in (("Y", Y_CONTENTS), ("L", L_CONTENTS)):    # vacuum: one content
+            if f"{pre}_full" in d:
+                for c in conts:
+                    if f"{pre}_{c}" not in d:
+                        setattr(self, f"{pre}_{c}", d[f"{pre}_full"])
         order = np.argsort(d["bg_id"], kind="stable")
         self.bg_id = d["bg_id"][order]
         if len(np.unique(self.bg_id)) != len(self.bg_id):
@@ -337,8 +553,10 @@ class Pool:
 
     @classmethod
     def load(cls, paths):
-        """The pools of ``paths``: ``.npz`` (``file_pool``) or ``.root``
-        (analysis_root/zjet's ``zhadron_pools``, :func:`read_root_pool`)."""
+        """The pools of ``paths`` (several campaigns' alike): ``.npz`` (``file_pool``) or
+        ``.root`` (analysis_root/zjet's ``zhadron_pools``, :func:`read_root_pool`).  Version 4
+        (the file records): the ids and weights of the whole set (:func:`assemble`); version
+        3: as stored, which holds only for the set it was built on."""
         parts = []
         for p in paths:
             if str(p).endswith(".root"):
@@ -346,6 +564,11 @@ class Pool:
                 continue
             with np.load(p) as f:
                 parts.append({k: f[k] for k in f.files})
+        v4 = ["fi_name" in p for p in parts]
+        if all(v4):
+            return cls(assemble(parts))
+        if any(v4):
+            raise ValueError("pools of version 3 and 4 mixed: rebuild the older ones")
         return cls.from_parts(parts)
 
     @property

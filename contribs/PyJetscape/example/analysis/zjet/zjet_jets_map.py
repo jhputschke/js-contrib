@@ -5,21 +5,35 @@ The same algorithm and output as the C++ map step, example/analysis_root/zjet/zj
 (its header has the definitions); check_cxx.py jets compares the two, zjet_jets.py is the
 final stage of both.
 
-    python zjet_jets_map.py <h5 dir or quoted glob> <out dir> [--seed 1] [--samples N]
-                            [--cones 4] [--ptmin 5] [--qa-samples 1] [--files i:j]
+    python zjet_jets_map.py <h5 dir or quoted glob> <out dir> [--R 0.3] [--seed 1]
+                            [--samples N] [--emb-samples N] [--cones 4] [--ptmin 5]
+                            [--qa-samples 1] [--rho-m [1]] [--files i:j]
 
 --files i:j maps only production files i .. j-1 (in the reader's order), for several processes
-at once; the weights still come from all files, so the slices combine.
+at once.  Every output stands alone: its ``file_info`` tree (the production file's name,
+events, hydro backgrounds, pTHat windows: ``jetcorr.mapio``) lets zjet_jets.load_jets rebuild
+the event and background ids and weight_mb of any set of outputs, from one or several
+campaigns (``jetcorr.weights.campaign_ids``, ``combine_windows``); the stored columns event,
+file, bg and weight_mb are those of the mapped directory (for older readers).  ``run_info``:
+the settings (R, ghost area, --ptmin, --cones, --seed, ...).
 
-Jets (``jetcorr.jetmap``): anti-k_T R = 0.3 from all final particles but neutrinos and the Z's
-leptons; Pb+Pb with explicit ghosts on a fixed grid and rho(jet) from the k_T R = 0.4 median in a strip
+Jets (``jetcorr.jetmap``): anti-k_T R = --R (0.3) from all final particles but neutrinos and
+the Z's leptons; Pb+Pb with explicit ghosts on a fixed grid and rho(jet) from the k_T R = 0.4 median in a strip
 |y - y_jet| < 1 (|y| < 2.2), p_T = p_T,raw - rho A; the fragments embedded in bulk_bg (the
-matched reference jets, and all its jets above --ptmin as `nw`: the same event without the
-wake, the final stage's "no wake" variant); random cones in bulk_bg; the jets of every background's bulk_bg samples (tree bg_jets, the final
+matched reference jets within R / 2, and all its jets above --ptmin as `nw`: the same event
+without the wake, the final stage's "no wake" variant); random cones of radius R in bulk_bg;
+the Z cone (zcone_*: the p_T sum within R of (y_Z, phi_Z), rho there and sum - rho pi R^2, in
+the full event and in the event without the wake, zcone_nw_*: jet1's p_T variant of the
+dijet proxy, PLAN_dijet_deta_wake A2); the jets of every background's bulk_bg samples (tree bg_jets, the final
 stage's B); per jet also its mass, the number of its (non-ghost) constituents and the leading
 one's p_T.  The jet QA (trees qa_jets, qa_bg_jets): the first --qa-samples samples of every Z
 event and background with all their jets (p_T,raw > 1 GeV, no cut on the subtracted p_T), for
-zjet_jets_qa.py.  Slow in Python (~0.3 s per Pb+Pb oversample): use --samples for checks.
+zjet_jets_qa.py.  --emb-samples N: the embedded event (the fragments alone and in bulk_bg: emb,
+nw, zcone_nw) only for the first N oversamples, about half the time of the others; the jets,
+the Z cone and the random cones of every oversample are unchanged (default: all).  Slow in
+Python (~0.2 s per Pb+Pb oversample): use --samples for checks.  --rho-m: every jet also gets
+rho_m of its strip (jet_rho_m, for mass subtraction; off by default: with --emb-samples 4 it
+takes 1.5x the time).
 Exact shortcuts, the outputs unchanged: rho(jet) once per strip content (StripRho), no rho for
 jets that cannot pass the p_T cut, the background's particles and estimator kept per hydro
 background and sample, the random cones' particles preselected in numpy."""
@@ -38,9 +52,13 @@ try:
 except ImportError:
     sys.path.insert(0, os.path.join(HERE, "..", "..", "..", "python"))
 import zjet_wake as zw  # noqa: E402
-from jetcorr.jetmap import ALL, JET_NAMES, R_JET, Clusterer, rap_phi  # noqa: E402
+from jetcorr import mapio  # noqa: E402
+from jetcorr import weights as jw  # noqa: E402
+from jetcorr.jetmap import (ALL, GHOST_AREA, R_JET, Clusterer, cone,  # noqa: E402
+                            rap_phi)
 
-PT_REF, DR_MATCH, ETA_RC = 10.0, 0.15, 1.6
+PT_REF, ETA_RC = 10.0, 1.6
+MAP_VERSION = 2                     # 2: file_info, run_info, bg_unit, zcone_*, --R
 RC_SALT = 0x5243000000000000
 NU = (12, 14, 16)
 
@@ -64,12 +82,26 @@ def pseudojets(fj, ev, info):
     return [fj.PseudoJet(float(q[1]), float(q[2]), float(q[3]), float(q[0])) for q in p[m]]
 
 
+def with_rap_phi(fj, ev, info):
+    """pseudojets() and the kept particles' rapidities and phis (for the cones)."""
+    p, pid = np.asarray(ev["p"]), np.asarray(ev["pid"])
+    m = keep_mask(pid, p, info)
+    parts = [fj.PseudoJet(float(q[1]), float(q[2]), float(q[3]), float(q[0])) for q in p[m]]
+    return (parts,) + rap_phi(ev, m)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("h5")
     ap.add_argument("out")
+    ap.add_argument("--R", type=float, default=R_JET, help="the anti-k_T radius (0.3)")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--samples", type=int, default=1 << 30)
+    ap.add_argument("--rho-m", type=int, nargs="?", const=1, default=0,
+                    help="also rho_m of every jet's strip (jet_rho_m; ~1.5x the time); "
+                         "zjets: --rho-m 1")
+    ap.add_argument("--emb-samples", type=int, default=1 << 30,
+                    help="the embedded event (emb, nw, zcone_nw) only for the first N oversamples")
     ap.add_argument("--cones", type=int, default=4)
     ap.add_argument("--ptmin", type=float, default=5.0)
     ap.add_argument("--qa-samples", type=int, default=1,
@@ -92,7 +124,12 @@ def main():
     loc = np.array([(i.file_index, i.bg_unit if bulk else i.local_event) for i in infos])
     _, bgid = np.unique(loc, axis=0, return_inverse=True)
     bgid = bgid.ravel()
-    c = Clusterer(fj)
+    c = Clusterer(fj, a.R, rho_m=a.rho_m)
+    dr_match = c.R / 2
+    run_info = {"R": c.R, "ghost_area": GHOST_AREA, "ptmin": a.ptmin, "cones": a.cones,
+                "seed": a.seed, "qa_samples": a.qa_samples, "samples": a.samples,
+                "emb_samples": a.emb_samples, "rho_m": int(bool(a.rho_m)),
+                "version": MAP_VERSION}
     os.makedirs(a.out, exist_ok=True)
     lo, hi = 0, len(r.stems)
     if a.files:
@@ -111,12 +148,14 @@ def main():
             s = ev.sample == k
             return {"pid": ev.pid[s], "p": ev.p[s]}
 
-        evs = {k: [] for k in ("event", "local_event", "file", "bg", "pthat_bin", "weight_mb",
-                               "n_coll", "n_samples", "z_pt", "z_y", "z_phi", "z_m",
+        evs = {k: [] for k in ("event", "local_event", "file", "bg", "bg_unit", "pthat_bin",
+                               "weight_mb", "n_coll", "n_samples", "z_pt", "z_y", "z_phi", "z_m",
                                "lep1_pid", "lep1_pt", "lep1_eta", "lep1_phi", "lep2_pid",
                                "lep2_pt", "lep2_eta", "lep2_phi")}
         rows = {k: [] for k in ("event", "sample", "frag_sample")}
         jet, nw, emb, rc = [], [], [], []
+        zcone = {k: [] for k in ("zcone_sum", "zcone_rho", "zcone_dpt", "zcone_nw_sum",
+                                 "zcone_nw_rho", "zcone_nw_dpt")}
         qa_rows, qa_jet = {"event": [], "sample": []}, []
         bg_cache = {}            # (bg_unit, k) -> the background's particles, rho, rap, phi
 
@@ -151,12 +190,12 @@ def main():
             n_used = min(ns, a.samples)
             k_ = info.pthat_bin if info.pthat_bin is not None else -1
             for key, v in (("event", g), ("local_event", le), ("file", fi), ("bg", bgid[g]),
-                           ("pthat_bin", k_),
+                           ("bg_unit", info.bg_unit if bulk else le), ("pthat_bin", k_),
                            ("weight_mb", sig[k_] / nk[k_] if k_ >= 0 and sig else math.nan),
                            ("n_coll", info.n_coll if info.n_coll is not None else -1),
                            ("n_samples", n_used)):
                 evs[key].append(v)
-            for key in list(evs)[8:]:
+            for key in list(evs)[9:]:
                 evs[key].append(z[key])
             key = zw.event_key(a.seed, name, le)
             for k in range(n_used):
@@ -171,8 +210,12 @@ def main():
                             "p": np.concatenate([bj["p"], frag["p"]])}
                 else:
                     full = frag
-                every = c.jets(pseudojets(fj, full, info), bulk,
-                               ALL if k < a.qa_samples else a.ptmin)
+                parts, py, pphi = with_rap_phi(fj, full, info)
+                pb = c.bge(parts) if bulk else None
+                every = c.jets(parts, bulk, ALL if k < a.qa_samples else a.ptmin, bge=pb)
+                _, zs, zr, zd = cone(fj, parts, py, pphi, pb, z["z_y"], z["z_phi"], c.R)
+                for col, v in (("zcone_sum", zs), ("zcone_rho", zr), ("zcone_dpt", zd)):
+                    zcone[col].append(v)
                 jet.append([x for x in every if (x[1] > a.ptmin if bulk else x[1] >= a.ptmin)])
                 if k < a.qa_samples:
                     qa_rows["event"].append(g)
@@ -182,38 +225,45 @@ def main():
                     nw.append([])
                     emb.append([])
                     rc.append([])
+                    for col in ("zcone_nw_sum", "zcone_nw_rho", "zcone_nw_dpt"):
+                        zcone[col].append(math.nan)
                     continue
-                fp = pseudojets(fj, frag, info)
                 bp, b, by, bphi = background(info, k)
-                ref = c.jets(fp, False, PT_REF)
-                ej = c.jets(bp + fp, True, 1.0)
-                nw.append([x for x in ej if x[1] > a.ptmin])    # the event without the wake
-                pairs = []
-                for rj in ref:
-                    best, dr_best = math.nan, math.inf
-                    for x in ej:
-                        dr = math.hypot(x[2] - rj[2], zw.wrap_dphi(x[3] - rj[3], -math.pi))
-                        if dr < dr_best:
-                            dr_best, best = dr, x[1]
-                    pairs.append((rj[1], rj[2], rj[3], best if dr_best < DR_MATCH else math.nan,
-                                  dr_best if math.isfinite(dr_best) else math.nan))
+                if k < a.emb_samples:
+                    fp, fy, fphi = with_rap_phi(fj, frag, info)
+                    ref = c.jets(fp, False, PT_REF)
+                    nwp = bp + fp
+                    nwb = c.bge(nwp)
+                    ej = c.jets(nwp, True, 1.0, bge=nwb)
+                    nw.append([x for x in ej if x[1] > a.ptmin])    # the event without the wake
+                    _, zs, zr, zd = cone(fj, nwp, np.concatenate([by, fy]),
+                                         np.concatenate([bphi, fphi]), nwb, z["z_y"],
+                                         z["z_phi"], c.R)
+                    pairs = []
+                    for rj in ref:
+                        best, dr_best = math.nan, math.inf
+                        for x in ej:
+                            dr = math.hypot(x[2] - rj[2], zw.wrap_dphi(x[3] - rj[3], -math.pi))
+                            if dr < dr_best:
+                                dr_best, best = dr, x[1]
+                        pairs.append((rj[1], rj[2], rj[3],
+                                      best if dr_best < dr_match else math.nan,
+                                      dr_best if math.isfinite(dr_best) else math.nan))
+                else:                                   # not embedded (--emb-samples)
+                    nw.append([])
+                    zs = zr = zd = math.nan
+                    pairs = []
+                for col, v in (("zcone_nw_sum", zs), ("zcone_nw_rho", zr),
+                               ("zcone_nw_dpt", zd)):
+                    zcone[col].append(v)
                 emb.append(pairs)
                 cones = []
                 for q in range(a.cones):
                     s = RC_SALT | (k << 16) | q
                     eta = -ETA_RC + 2 * ETA_RC * zw.key_uniform(key, 2 * s)
                     phi = -math.pi + 2 * math.pi * zw.key_uniform(key, 2 * s + 1)
-                    axis = fj.PseudoJet()
-                    axis.reset_PtYPhiM(1.0, eta, phi, 0.0)
-                    # preselect in numpy (0.01 margin), then FastJet's delta_R in the same
-                    # order: the same particles and the same sum as over all of bp
-                    dphi = np.abs(bphi - axis.phi())
-                    dphi = np.minimum(dphi, 2 * np.pi - dphi)
-                    near = np.flatnonzero((by - axis.rap()) ** 2 + dphi ** 2
-                                          < (R_JET + 0.01) ** 2)
-                    tot = sum(bp[i].pt() for i in near if bp[i].delta_R(axis) < R_JET)
-                    rho = b.rho(axis)
-                    cones.append((eta, axis.phi_std(), tot, rho, tot - rho * math.pi * R_JET ** 2))
+                    axis, tot, rho, dpt = cone(fj, bp, by, bphi, b, eta, phi, c.R)
+                    cones.append((eta, axis.phi_std(), tot, rho, dpt))
                 rc.append(cones)
 
         # the background jets: every hydro background's bulk_bg samples, as zjets.cxx
@@ -243,7 +293,7 @@ def main():
                             qbj[key].append(v)
                         qa_bg_rows.append(every)
 
-        def jet_record(lists, names=JET_NAMES):
+        def jet_record(lists, names=c.names):
             counts = np.array([len(row) for row in lists], np.int64)
             return ak.zip({nm: ak.unflatten(np.array([x[i] for row in lists for x in row],
                                                      np.float64), counts)
@@ -259,7 +309,7 @@ def main():
         with uproot.recreate(os.path.join(a.out, f"{name}_jets.root")) as fo:
             fo["jet_events"] = {k: np.asarray(v, np.int64 if k in ("event", "bg") else
                                               np.int32 if k in ("local_event", "file",
-                                                                "pthat_bin", "n_coll",
+                                                                "bg_unit", "pthat_bin", "n_coll",
                                                                 "n_samples", "lep1_pid",
                                                                 "lep2_pid") else np.float64)
                                 for k, v in evs.items()}
@@ -267,11 +317,13 @@ def main():
                    "sample": np.asarray(rows["sample"], np.int32),
                    "frag_sample": np.asarray(rows["frag_sample"], np.int32)}
             for gname, lists, names in (
-                    ("jet", jet, JET_NAMES),
-                    ("nw", nw, JET_NAMES),
+                    ("jet", jet, c.names),
+                    ("nw", nw, c.names),
                     ("emb", emb, ("ref_pt", "ref_eta", "ref_phi", "pt", "dr")),
                     ("rc", rc, ("eta", "phi", "sum", "rho", "dpt"))):
                 out[gname] = jet_record(lists, names)
+            for k, v in zcone.items():
+                out[k] = np.asarray(v, np.float64)
             fo["jets"] = out
             fo["qa_jets"] = {"event": np.asarray(qa_rows["event"], np.int64),
                              "sample": np.asarray(qa_rows["sample"], np.int32),
@@ -279,6 +331,8 @@ def main():
             if bg_rows:
                 fo["bg_jets"] = bg_tree(bgj, bg_rows)
                 fo["qa_bg_jets"] = bg_tree(qbj, qa_bg_rows)
+            fo["file_info"] = mapio.file_info_tree(jw.file_record(r, fi))
+            fo["run_info"] = mapio.run_info_tree(run_info)
         print(f"{name}: {len(evs['event'])} Z events, {sum(len(j) for j in jet)} jets, "
               f"{time.time() - t0:.0f} s", flush=True)
 

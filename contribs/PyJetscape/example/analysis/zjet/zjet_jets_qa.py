@@ -7,6 +7,9 @@ subtracted p_T) and its jets tree (embedding, random cones), from either map ste
     python zjet_jets_qa.py --pbpb data/jets_cxx/pbpb_campaign --pp data/jets_cxx/vacuum_all
     python zjet_jets_qa.py ... [--hadron-qa data/qa_py/pbpb_campaign] [--n-nearest 20] --tag _c00
 
+--pbpb / --pp take several directories or globs (campaigns mapped apart: zjet_jets.load_jets);
+the embedding's panels use the oversamples with the embedded event (--emb-samples).
+
 The Z events: CMS 1702.01060's selection and weights (zjet_jets.py: window cross section /
 events x N_coll for Pb+Pb, normalised per Z).  Jets per Z: S the Z events' jets (bulk_jet +
 fragments), B_own the jets of the Z's own background (bulk_bg, the same oversample index),
@@ -36,9 +39,9 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, os.path.dirname(HERE))                        # jetcorr
 from jetcorr import runs  # noqa: E402
 from zjet_jets import (SEED, background_angles, dphi, load_jets,  # noqa: E402
-                       load_qa_jets, rotation_seed, weights, z_selection)
+                       load_qa_jets, map_run_info, rotation_seed, weights, z_selection)
 
-R_JET = 0.3
+R_JET = 0.3                         # the default; main() takes the map step's (run_info)
 AREA = np.pi * R_JET ** 2
 ETA_CUT, PT_CUT, DR_LEP = 1.6, 30.0, 0.4
 PT_SUB = np.linspace(-40, 120, 81)
@@ -108,8 +111,10 @@ def per_row_mean(T, rows, field, eta_max):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pbpb", required=True, help="the map step's Pb+Pb *_jets.root")
-    ap.add_argument("--pp", required=True, help="the map step's vacuum *_jets.root")
+    ap.add_argument("--pbpb", nargs="+", required=True,
+                    help="the map step's Pb+Pb outputs: directories or globs (several: "
+                         "campaigns mapped apart)")
+    ap.add_argument("--pp", nargs="+", required=True, help="the map step's vacuum outputs")
     ap.add_argument("--hadron-qa", default=None,
                     help="qa.py map's / zqa's output of the same Pb+Pb sample: rho against "
                          "dN_ch/deta of the background")
@@ -133,6 +138,11 @@ def main():
 
     os.makedirs(a.outdir, exist_ok=True)
     lines = []
+    global R_JET, AREA
+    R_JET = map_run_info(a.pbpb)["R"]
+    AREA = np.pi * R_JET ** 2
+    if abs(R_JET - 0.3) > 1e-9:
+        lines.append(f"jets of R = {R_JET:g} (the map step's run_info)")
     # ── the Z events and their QA jets
     Eb, Jb, Bb = load_jets(a.pbpb)
     Qb, QB = load_qa_jets(a.pbpb)

@@ -46,6 +46,14 @@ live in
 `data/jets_cxx/` the C++ map steps' outputs, `data/jets_py/` the Python Z+jet map step's
 (`*_s4`: 4 oversamples, for the jet-by-jet check).
 
+**The combination and regression checks** (2026-10-19; [`../README.md`](../README.md#combining-campaigns),
+`docs/Plans/PLAN_dijet_deta_wake.md` A0/A4):
+
+| file | |
+|---|---|
+| `combine_check.py` | campaigns mapped apart and combined at load time against one mapping of all their files: the Python jet map step and the pools run on every campaign alone and on all together, then `zjet_jets.load_jets` / `load_qa_jets` and `zjet_mixing.Pool.load` compared bit for bit (ids, weights, every column and array); `--campaign <dir or glob>` once per campaign, `--out <scratch>`, `--samples 4` by default; exits 1 on a difference |
+| `cmp_outputs.py` | two directories of map outputs or pools (`*.root`) tree by tree and column by column, for the files in both: every column of the old one equal in the new one bit for bit (NaN = NaN), new columns and trees allowed; for regressions of a changed map step against older outputs (`python cmp_outputs.py <old dir> <new dir> [--files '*.root']`) |
+
 `runs/` is git-ignored (`../../.gitignore`): the hadron files are 1–525 MB each,
 the movie's pair and particlize files 930 and 770 MB; the figures are not public yet.
 

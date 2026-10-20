@@ -3,14 +3,17 @@
 // What the C++ map steps of every hadron-correlation analysis share (zjet/, later dijet/), the
 // C++ mirror of example/analysis/jetcorr: the binning (numpy's conventions, so that the C++
 // and Python map steps bin every track alike), angles, the portable random choices
-// (jetcorr.keys), the event weights and background ids (jetcorr.weights), and the command
-// line.  Nothing here knows the trigger.
+// (jetcorr.keys), the event weights and background ids (jetcorr.weights), the outputs'
+// bookkeeping records (jetcorr.mapio: file_info, run_info), and the command line.  Nothing
+// here knows the trigger.
 
 #pragma once
 
 #include "../HadronFileReader.h"
 
+#include <TFile.h>
 #include <TSystem.h>
+#include <TTree.h>
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +27,7 @@ namespace jetcorr {
 
 using hadrons_root::EventInfo;
 using hadrons_root::HadronFileReader;
+using hadrons_root::Windows;
 
 // ── binning: numpy.linspace edges, numpy.searchsorted(side="right") - 1, the last edge
 // inclusive (zjet_mixing._index, the reader's histograms)
@@ -127,6 +131,76 @@ inline std::vector<long> background_ids(const HadronFileReader &r) {
   std::vector<long> out(r.n_events());
   for (long e = 0; e < r.n_events(); ++e) out[e] = ids[key[e]];
   return out;
+}
+
+// ── the bookkeeping records (jetcorr.weights.file_record, jetcorr.mapio): every output of
+// a map step carries its production file's record, so that the event and background ids and
+// the weights of any set of outputs, from several campaigns, follow at load time
+struct FileRecord {
+  std::string name;                          // the production file's stem
+  long long n_events = 0;                    // all its events
+  int vacuum = 0;
+  std::vector<long long> units;              // its hydro backgrounds (vacuum: its events)
+  std::vector<double> pthat_lo, pthat_hi, sigma_gen, sigma_err, n_accepted;   // per window
+  std::vector<long long> n_stored;           // its events per window, before any cut
+};
+
+inline FileRecord file_record(const HadronFileReader &r, int f) {
+  FileRecord rec;
+  rec.name = stem_of(r.file(f));
+  std::vector<long long> units;
+  std::vector<long long> nk(std::max(r.n_windows(), 0), 0);
+  for (long e = r.event_offset(f); e < r.n_events() && r.info(e).file_index == f; ++e) {
+    const EventInfo &i = r.info(e);
+    ++rec.n_events;
+    rec.vacuum = i.vacuum;
+    units.push_back(i.vacuum ? i.local_event : i.bg_unit);
+    if (i.pthat_bin >= 0 && i.pthat_bin < long(nk.size())) ++nk[i.pthat_bin];
+  }
+  std::sort(units.begin(), units.end());
+  units.erase(std::unique(units.begin(), units.end()), units.end());
+  rec.units = units;
+  if (const auto w = hadrons_root::read_windows(r.file(f))) {
+    rec.pthat_lo = w->pthat_lo;
+    rec.pthat_hi = w->pthat_hi;
+    rec.sigma_gen = w->sigma_mb;
+    rec.sigma_err = w->sigma_err_mb;
+    rec.n_accepted = w->n_accepted;
+    rec.n_stored.assign(w->size(), 0);
+    for (size_t k = 0; k < w->size() && k < nk.size(); ++k) rec.n_stored[k] = nk[k];
+  }
+  return rec;
+}
+
+// the one-entry tree file_info (jetcorr.mapio.file_info_tree's names) into the current file
+inline void write_file_info(TFile &fo, FileRecord rec) {
+  TTree t("file_info", "the production file's record (jetcorr.mapio)");
+  t.SetDirectory(&fo);
+  t.Branch("name", &rec.name);
+  t.Branch("n_events", &rec.n_events);
+  t.Branch("vacuum", &rec.vacuum);
+  t.Branch("units", &rec.units);
+  t.Branch("win_pthat_lo", &rec.pthat_lo);
+  t.Branch("win_pthat_hi", &rec.pthat_hi);
+  t.Branch("win_sigma_gen", &rec.sigma_gen);
+  t.Branch("win_sigma_err", &rec.sigma_err);
+  t.Branch("win_n_accepted", &rec.n_accepted);
+  t.Branch("win_n_stored", &rec.n_stored);
+  t.Fill();
+  fo.cd();
+  t.Write();
+}
+
+// the one-entry tree run_info: the map step's settings (doubles and integers)
+inline void write_run_info(TFile &fo, std::vector<std::pair<std::string, double>> dbl,
+                           std::vector<std::pair<std::string, long long>> ints) {
+  TTree t("run_info", "the map step's settings (jetcorr.mapio)");
+  t.SetDirectory(&fo);
+  for (auto &p : dbl) t.Branch(p.first.c_str(), &p.second);
+  for (auto &p : ints) t.Branch(p.first.c_str(), &p.second);
+  t.Fill();
+  fo.cd();
+  t.Write();
 }
 
 // ── command line: --name value pairs after the positional arguments

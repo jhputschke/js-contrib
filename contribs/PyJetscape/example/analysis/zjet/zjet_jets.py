@@ -4,11 +4,19 @@ pp sample, from either map step (example/analysis_root/zjet/zjets or zjet_jets_m
 
     python zjet_jets.py --pbpb data/jets_cxx/pbpb_campaign --pp data/jets_cxx/vacuum_all
     python zjet_jets.py ... --tag _c00 --blocks 100 [--n-mixed 40] [--n-nearest 20]
+    python zjet_jets.py --pbpb runs/zjet_c00/jets runs/zjet_c01/jets --pp ...   # combined
+
+--pbpb / --pp: directories, quoted globs or files, several of them for campaigns mapped apart
+(load_jets: the ids and weights of the combination, rebuilt from every output's file_info).
+Outputs of different map-step settings combine: --emb-samples per event (embedded_rows), and
+columns not in every output (jet_rho_m of --rho-m) left out with a warning.
 
 Z: an opposite-sign lepton pair with 70 < m < 110 GeV, p_T^Z > 40 GeV, muons |eta| < 2.4,
 electrons |eta| < 2.5 outside 1.44-1.57 (both p_T > 20 from the generator; CMS: muons from
 10 GeV).  Jets: anti-k_T R = 0.3, |eta| < 1.6, Delta R > 0.4 from the Z's leptons, p_T > 30 GeV
-after the smearing.  Weights: window cross section / events (x N_coll for Pb+Pb), every
+after the smearing.  The jet radius is the map step's (its run_info, --R); CMS 1702.01060's
+comparison (its resolution, the HEPData tables and chi^2) is for R = 0.3 and is skipped at any
+other R (with a note): the model's own results only, unsmeared.  Weights: window cross section / events (x N_coll for Pb+Pb), every
 oversample 1 / n_samples.  Observables per Z: Delta phi_jZ and x_jZ (p_T^Z > 60), <x_jZ> and
 R_jZ in p_T^Z classes (Delta phi > 7 pi / 8).
 
@@ -29,7 +37,9 @@ The wake's effect: the map step also stores the jets of the embedded event, bulk
 same fragments (the Z event without its wake: the same fluid sample, random numbers and
 subtraction), and steps 2 and 3 are repeated on it ('no wake', unsmeared); step 2 - step 2
 without the wake is what the wake does to the observables, with the jackknife of the
-difference (the two share their events) -> figures/zjet_jets_wake{tag}.png.
+difference (the two share their events) -> figures/zjet_jets_wake{tag}.png.  Step 1 and the
+'no wake' rows use the oversamples that have the embedded event (the map step's --emb-samples
+N: the first N; default all), each 1 / min(n_samples, N) of its event.
 Steps 2 and 3 in four smearing variants (CMS's smearing being optional): none; detector (C, S
 of PbPb: the model's own fluctuations stand for N); full (C, S, N: counts them twice); match
 (C, S and sqrt(N^2 - sigma_RC^2), sigma_RC the random cones' width).  pp (every step's top
@@ -52,6 +62,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))                        # jetcorr
 from jetcorr import figdata, runs  # noqa: E402
+from jetcorr import weights as jw  # noqa: E402
 
 C = 0.061
 RES = {"pp": (0.95, 0.001), "PbPb": (1.24, 8.08)}
@@ -83,58 +94,183 @@ def _flat_tree(t):
     return out
 
 
-def load_jets(directory):
-    """The map step's files of a directory -> (events, jets, background jets), each a dict of
-    flat names (jet_pt, emb_ref_pt, rc_dpt, ...), concatenated over the files; from either map
-    step.  Background jets: {} without (vacuum)."""
+def map_files(src):
+    """The map step's ``*_jets.root`` of a source: a directory, a quoted glob, one file, or a
+    list of these (several campaigns: one directory each) -> their paths."""
+    srcs = [src] if isinstance(src, (str, os.PathLike)) else list(src)
+    paths = []
+    for x in srcs:
+        x = str(x)
+        if os.path.isdir(x):
+            found = sorted(glob.glob(os.path.join(x, "*_jets.root")))
+        elif any(c in x for c in "*?["):
+            found = []
+            for m in sorted(glob.glob(x)):                # files, or directories of them
+                found += (sorted(glob.glob(os.path.join(m, "*_jets.root")))
+                          if os.path.isdir(m) else [m])
+        else:
+            found = [x] if os.path.exists(x) else []
+        if not found:
+            raise FileNotFoundError(f"no *_jets.root in {x}")
+        paths += found
+    return paths
+
+
+def _ids(parts):
+    """The global ids of a set of map outputs (``parts``: per file a dict with its file record
+    ``rec``, or None for outputs made before 2026-10-19): with every record, from the records
+    (jetcorr.weights.campaign_ids: the outputs of one or several campaigns, mapped together or
+    apart, get the ids of their combination) -> (order, per file (event offset, file index,
+    {unit: bg id}), weight_mb per window); without, None (the stored ids, of one mapping)."""
+    recs = [q["rec"] for q in parts]
+    if all(r is None for r in recs):
+        return None
+    if any(r is None for r in recs):
+        raise ValueError("map outputs with and without file_info: rerun the map step on the "
+                         "older ones (before 2026-10-19) to combine them")
+    ids = jw.campaign_ids(recs)
+    per = [(int(ids["event_offset"][i]), int(ids["file"][i]), ids["units"][i])
+           for i in range(len(parts))]
+    return ids["order"], per, jw.window_weights(recs)
+
+
+def _read(src, trees):
+    """Per map output of ``src`` (map_files), in the combination's order: the flat arrays of
+    ``trees`` (jet_events always), with the ids rebuilt from the file records (_ids):
+    jet_events' event, file, bg, weight_mb; the other trees' event (by the event's local
+    index) and bg (by its bg_unit)."""
     import awkward as ak
     import uproot
-    paths = sorted(glob.glob(os.path.join(directory, "*_jets.root")))
-    if not paths:
-        raise FileNotFoundError(f"no *_jets.root in {directory}")
-    evs, jets, bgs = [], [], []
+    from jetcorr import mapio
+    paths = map_files(src)
+    parts = []
     for p in paths:
         with uproot.open(p) as f:
-            evs.append(f["jet_events"].arrays())
-            jets.append(f["jets"].arrays())
-            if "bg_jets" in f:
-                bgs.append(f["bg_jets"].arrays())
-    E = {k: ak.to_numpy(v) for k, v in _flat_tree(ak.concatenate(evs)).items()}
-    J = _flat_tree(ak.concatenate(jets))
-    for k in ("event", "sample", "frag_sample"):
-        J[k] = ak.to_numpy(J[k])
-    B = _flat_tree(ak.concatenate(bgs)) if bgs else {}
-    for k in ("bg", "bg_unit", "sample", "n_coll"):
-        if k in B:
-            B[k] = ak.to_numpy(B[k])
+            q = {"path": p, "rec": mapio.read_file_info(f), "run": mapio.read_run_info(f)}
+            for t in ("jet_events",) + tuple(trees):
+                if t in f:
+                    q[t] = _flat_tree(f[t].arrays())
+            parts.append(q)
+    ids = _ids(parts)
+    if ids is None:
+        if len({os.path.dirname(os.path.abspath(p)) for p in paths}) > 1:
+            raise ValueError("map outputs without file_info (before 2026-10-19) from several "
+                             "directories: their ids clash; rerun the map step")
+        for q in parts:
+            q["jet_events"] = {k: ak.to_numpy(v) for k, v in q["jet_events"].items()}
+            _emb_column(q)
+        return parts
+    order, per, wmb = ids
+    for i, q in enumerate(parts):
+        off, fidx, units = per[i]
+        E = {k: ak.to_numpy(v) for k, v in q["jet_events"].items()}
+        old = E["event"].astype(np.int64)
+        E["event"] = off + E["local_event"].astype(np.int64)
+        E["file"] = np.full(len(old), fidx, E["file"].dtype if len(old) else np.int32)
+        unit = E["bg_unit"] if "bg_unit" in E else E["local_event"]
+        E["bg"] = np.array([units[int(u)] for u in unit], np.int64)
+        k = E["pthat_bin"].astype(np.int64)
+        E["weight_mb"] = (np.where(k >= 0, wmb[np.clip(k, 0, None)], np.nan) if len(wmb)
+                          else np.full(len(k), np.nan))
+        q["jet_events"] = E
+        _emb_column(q)
+        new_of = dict(zip(old.tolist(), E["event"].tolist()))
+        for t in trees:
+            if t not in q:
+                continue
+            T = q[t]
+            if "event" in T:
+                T["event"] = np.array([new_of[int(g)] for g in ak.to_numpy(T["event"])],
+                                      np.int64)
+            if "bg_unit" in T:
+                T["bg"] = np.array([units[int(u)] for u in ak.to_numpy(T["bg_unit"])], np.int64)
+    return [parts[i] for i in order]
+
+
+def _emb_column(q):
+    """Every event's emb_samples, its file's (the map step's --emb-samples; all before it
+    existed): which of its oversamples have the embedded event (emb_*, nw_*, zcone_nw_*), so
+    that outputs mapped with different settings combine."""
+    E = q["jet_events"]
+    E["emb_samples"] = np.full(len(E["event"]), int(q["run"].get("emb_samples", 1 << 30)),
+                               np.int64)
+
+
+def embedded_rows(E, J, ev):
+    """The jets tree's rows that have the embedded event (sample < its file's emb_samples) and
+    their weight factor 1 / min(n_samples, emb_samples) of the event -> (rows, factor per
+    row); ev: each row's event index into E."""
+    emb = E["emb_samples"][ev] if "emb_samples" in E else np.full(len(ev), 1 << 30)
+    rows = np.flatnonzero(np.asarray(J["sample"]) < emb)
+    return rows, 1.0 / np.minimum(E["n_samples"][ev[rows]], emb[rows])
+
+
+def _concat(parts, tree, ints):
+    import awkward as ak
+    import warnings
+    got = [q[tree] for q in parts if tree in q]
+    if not got:
+        return {}
+    keys = [k for k in got[0] if all(k in g for g in got)]
+    dropped = sorted(set().union(*[set(g) for g in got]) - set(keys))
+    if dropped:
+        warnings.warn(f"{tree}: columns not in every map output, left out: {dropped} "
+                      "(e.g. --rho-m in some campaigns only)", RuntimeWarning, stacklevel=3)
+    out = {}
+    for k in keys:
+        vals = [g[k] for g in got]
+        out[k] = (np.concatenate([np.asarray(ak.to_numpy(v)) for v in vals]) if k in ints
+                  else ak.concatenate(vals))
+    return out
+
+
+def load_jets(src):
+    """The map step's outputs of ``src`` (a directory, a glob, or a list of them: several
+    campaigns, mapped apart) -> (events, jets, background jets), each a dict of flat names
+    (jet_pt, emb_ref_pt, rc_dpt, ...), concatenated over the files; from either map step.
+    The event and background ids and weight_mb are those of the whole set, rebuilt from the
+    outputs' file records (outputs before 2026-10-19: as stored, one directory only).
+    Background jets: {} without (vacuum)."""
+    import awkward as ak
+    parts = _read(src, ("jets", "bg_jets"))
+    E = {k: np.concatenate([q["jet_events"][k] for q in parts]) for k in parts[0]["jet_events"]}
+    J = _concat(parts, "jets", ("event", "sample", "frag_sample"))
+    B = _concat(parts, "bg_jets", ("bg", "bg_unit", "sample", "n_coll"))
+    for k in [k for k in J if not isinstance(J[k], np.ndarray)]:
+        if J[k].ndim == 1:                                       # scalar columns (zcone_*)
+            J[k] = ak.to_numpy(J[k])
     return E, J, B
 
 
-def load_qa_jets(directory):
-    """The jet QA trees of a directory's map-step files -> (qa_jets, qa_bg_jets), dicts of flat
-    names as load_jets; qa_bg_jets {} without (vacuum).  Files from before the QA trees:
+def load_qa_jets(src):
+    """The jet QA trees of ``src``'s map outputs (as load_jets) -> (qa_jets, qa_bg_jets),
+    dicts of flat names; qa_bg_jets {} without (vacuum).  Outputs from before the QA trees:
     KeyError."""
-    import awkward as ak
-    import uproot
-    paths = sorted(glob.glob(os.path.join(directory, "*_jets.root")))
-    if not paths:
-        raise FileNotFoundError(f"no *_jets.root in {directory}")
-    qs, qbs = [], []
-    for p in paths:
-        with uproot.open(p) as f:
-            if "qa_jets" not in f:
-                raise KeyError(f"{p}: no qa_jets tree (made before the jet QA: rerun the map step)")
-            qs.append(f["qa_jets"].arrays())
-            if "qa_bg_jets" in f:
-                qbs.append(f["qa_bg_jets"].arrays())
-    Q = _flat_tree(ak.concatenate(qs))
-    for k in ("event", "sample"):
-        Q[k] = ak.to_numpy(Q[k])
-    QB = _flat_tree(ak.concatenate(qbs)) if qbs else {}
-    for k in ("bg", "bg_unit", "sample", "n_coll"):
-        if k in QB:
-            QB[k] = ak.to_numpy(QB[k])
+    parts = _read(src, ("qa_jets", "qa_bg_jets"))
+    for q in parts:
+        if "qa_jets" not in q:
+            raise KeyError(f"{q['path']}: no qa_jets tree (made before the jet QA: rerun the "
+                           "map step)")
+    Q = _concat(parts, "qa_jets", ("event", "sample"))
+    QB = _concat(parts, "qa_bg_jets", ("bg", "bg_unit", "sample", "n_coll"))
     return Q, QB
+
+
+def map_run_info(src):
+    """The map step's settings of ``src``'s outputs (their run_info: R, ghost_area, ptmin,
+    ...), which must agree; outputs before 2026-10-19 have none: R = 0.3."""
+    import uproot
+    from jetcorr import mapio
+    infos = []
+    for p in map_files(src):
+        with uproot.open(p) as f:
+            infos.append(mapio.read_run_info(f))
+    out = dict(infos[0]) if infos[0] else {"R": 0.3}
+    for x in infos[1:]:
+        x = x or {"R": 0.3}
+        if any(x.get(k) != out.get(k) for k in ("R", "ghost_area", "ptmin")):
+            raise ValueError(f"map outputs with different settings: {out} / {x}")
+    return out
 
 
 def lep_ok(pid, eta):
@@ -363,8 +499,10 @@ def pp_figure(a, res, xs, lines, plt):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pbpb", required=True, help="the map step's Pb+Pb *_jets.root")
-    ap.add_argument("--pp", required=True, help="the map step's vacuum *_jets.root")
+    ap.add_argument("--pbpb", nargs="+", required=True,
+                    help="the map step's Pb+Pb outputs: directories or globs (several: "
+                         "campaigns mapped apart)")
+    ap.add_argument("--pp", nargs="+", required=True, help="the map step's vacuum outputs")
     ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins1512112-v1-yaml"))
     ap.add_argument("--run", default="zjet_test", help="runs/<run>/figures is the default --outdir (jetcorr.runs)")
     ap.add_argument("--outdir", default=None)
@@ -391,6 +529,13 @@ def main():
     rng = np.random.default_rng(a.seed)
     lines = []
     S, N = RES["PbPb"]
+    R = map_run_info(a.pbpb)["R"]
+    if map_run_info(a.pp)["R"] != R:
+        raise SystemExit(f"--pbpb and --pp were mapped with different R")
+    cms_ok = abs(R - 0.3) < 1e-9          # CMS 1702.01060: R = 0.3
+    if not cms_ok:
+        lines.append(f"R = {R:g}: CMS 1702.01060 (R = 0.3) not compared (its resolution, tables "
+                     "and chi^2 are for R = 0.3): the model unsmeared only")
     # ── pp: one result, every step's top row
     Ep, Jp, _ = load_jets(a.pp)
     selp = z_selection(Ep)
@@ -400,13 +545,13 @@ def main():
     rows = np.arange(len(Jp["event"]))
     pp_flat = flatten_rows(Ep, Jp, "jet", rows, wp[evp] / Ep["n_samples"][evp], evp)
     res = {}
-    for key, sn in (("pp, pp-smeared", RES["pp"]), ("pp, PbPb-smeared", RES["PbPb"]),
-                    ("pp, unsmeared", None)):
+    for key, sn in ((("pp, pp-smeared", RES["pp"]), ("pp, PbPb-smeared", RES["PbPb"]))
+                    if cms_ok else ()) + (("pp, unsmeared", None),):
         e, pt, eta, phi, wj = pp_flat
         ptx = pt if sn is None else smear(pt, *sn, rng)
         c = {**z_counts(Ep, selp, wp), **pair_sums(Ep, selp, e, ptx, eta, phi, wj)}
         res[key] = with_errors(c, Ep["event"], a.blocks)
-    lines.append(f"pp: {int(selp.sum())} Z's (CMS 1702.01060's cuts) of {len(selp)} in {a.pp}")
+    lines.append(f"pp: {int(selp.sum())} Z's (CMS 1702.01060's cuts) of {len(selp)} in {" ".join(a.pp)}")
 
     # ── Pb+Pb
     Eb, Jb, Bb = load_jets(a.pbpb)
@@ -419,13 +564,25 @@ def main():
     rows = np.arange(len(Jb["event"]))
     w_row = wb[ev] / Eb["n_samples"][ev]
     S_flat = flatten_rows(Eb, Jb, "jet", rows, w_row, ev)
-    NW_flat = (flatten_rows(Eb, Jb, "nw", rows, w_row, ev)          # the event without the wake
+    # the embedded event (step 1's fragment jets emb_ref, the no-wake nw) exists for the first
+    # emb_samples oversamples of each event only (its map output's --emb-samples; outputs with
+    # different settings combine): those rows, each 1 / min(n_samples, emb_samples) of its event
+    rows_e, ev_e, w_row_e = rows, ev, w_row
+    if np.any(Jb["sample"] >= Eb["emb_samples"][ev]):
+        rows_e, f_e = embedded_rows(Eb, Jb, ev)
+        ev_e = ev[rows_e]
+        w_row_e = wb[ev_e] * f_e
+        lines.append("embedded event (step 1, no wake): the first "
+                     + "/".join("all" if n >= 1 << 30 else str(n)
+                                for n in np.unique(Eb["emb_samples"][selb]))
+                     + " oversamples of each event (--emb-samples)")
+    NW_flat = (flatten_rows(Eb, Jb, "nw", rows_e, w_row_e, ev_e)    # the event without the wake
                if "nw_pt" in Jb else None)
-    F_flat = flatten_rows(Eb, Jb, "emb_ref", rows, w_row, ev)
+    F_flat = flatten_rows(Eb, Jb, "emb_ref", rows_e, w_row_e, ev_e)
     rc = ak.to_numpy(ak.flatten(Jb["rc_dpt"])) if "rc_dpt" in Jb else np.zeros(0)
     sig_rc = float(np.std(rc)) if len(rc) else 0.0
     lines.append(f"Pb+Pb: {int(selb.sum())} Z's of {len(selb)} on {n_bg} hydro background(s) in "
-                 f"{a.pbpb}" + ("" if n_bg >= 2 else
+                 f"{" ".join(a.pbpb)}" + ("" if n_bg >= 2 else
                                 " (jackknife over events: errors underestimated)"))
     # B_own: the Z's own background, sample k of bulk_bg against sample k of the event
     B_own = B_mix = None
@@ -485,30 +642,33 @@ def main():
 
     n_extra = {"none": "none", "detector": 0.0, "full": None,
                "match": np.sqrt(max(N ** 2 - sig_rc ** 2, 0.0))}
-    steps = {1: {"fragments, theory (full σ_PbPb)": result(F_flat, None, None),
-                 "fragments, none": result(F_flat, None, "none")}}
+    smears = PBPB_SMEAR if cms_ok else ("none",)
+    steps = {1: ({"fragments, theory (full σ_PbPb)": result(F_flat, None, None)} if cms_ok
+                 else {})}
+    steps[1]["fragments, none"] = result(F_flat, None, "none")
     if B_own is not None:
-        steps[2] = {f"S − B_own, {v}": result(S_flat, B_own, n_extra[v]) for v in PBPB_SMEAR}
+        steps[2] = {f"S − B_own, {v}": result(S_flat, B_own, n_extra[v]) for v in smears}
         if B_mix is not None:
             steps[3] = {f"S − B_mixed, {v}": result(S_flat, B_mix, n_extra[v])
-                        for v in PBPB_SMEAR}
+                        for v in smears}
         else:
             lines.append("step 3 skipped: no other hydro background to mix with")
-        s_only = result(S_flat, None, n_extra["match"])
+        s_only = result(S_flat, None, n_extra["match" if cms_ok else "none"])
     # the jets not from the Z's interaction, per Z (R_jZ of B, 'match' smearing)
     if B_own is not None:
         for lab, bf in (("B_own", B_own), ("B_mixed", B_mix)):
             if bf is None:
                 continue
             e, pt, eta, phi, wj = bf
-            b = pair_sums(Eb, selb, e, smear(pt, S, N, rng, n_extra=n_extra["match"]), eta, phi, wj)
+            b = pair_sums(Eb, selb, e, smear(pt, S, N, rng, n_extra=n_extra["match"])
+                          if cms_ok else pt, eta, phi, wj)
             with np.errstate(invalid="ignore", divide="ignore"):
                 r = b["pairs"].sum(0) / zc["nzb"].sum(0)
             lines.append(f"{lab}: background jets per Z (Δφ > 7π/8, R_jZ of B, 'match') in the "
                          f"p_T^Z classes: {np.round(r, 3).tolist()}; S alone R_jZ "
                          f"{np.round(s_only[0]['rjz'], 3).tolist()}")
     # the embedding and the random cones
-    lines.append(f"random cones (bulk_bg, R = 0.3, |eta| < 1.6): {len(rc)}, delta p_T mean "
+    lines.append(f"random cones (bulk_bg, R = {R:g}, |eta| < 1.6): {len(rc)}, delta p_T mean "
                  f"{np.mean(rc) if len(rc) else np.nan:+.2f} GeV, sigma_RC {sig_rc:.2f} GeV "
                  f"(CMS's PbPb N {N:.2f} GeV; 'match' smears with sqrt(N^2 - sigma_RC^2) = "
                  f"{np.sqrt(max(N ** 2 - sig_rc ** 2, 0)):.2f} GeV)")
@@ -533,23 +693,30 @@ def main():
               2: "step 2: S − B_own (the Z's own background, the model's twin)",
               3: "step 3: S − B_mixed (bulk_bg of the backgrounds closest in N_coll, as CMS)"}
     os.makedirs(a.outdir, exist_ok=True)
-    pp_figure(a, res, xs, lines, plt)
+    if cms_ok:
+        pp_figure(a, res, xs, lines, plt)
     for st, variants in steps.items():
         lines.append(f"Step {st}: {titles[st].split(': ', 1)[1]}")
         fig, ax = figdata.subplots(2, 4, figsize=(20, 8.5))
         for col, obs in enumerate(OBS):
             ipp, ipb = TABLES[obs]
             for row, (ti, keys, lab) in enumerate((
-                    (ipp, ["pp, PbPb-smeared"], "CMS pp, smeared to PbPb"),
+                    (ipp, ["pp, PbPb-smeared" if cms_ok else "pp, unsmeared"],
+                     "CMS pp, smeared to PbPb"),
                     (ipb, list(variants), "CMS PbPb 0–30 %"))):
-                y, e = cms(a.hepdata, ti)
                 axr = ax[row, col]
-                axr.errorbar(xs[obs], y, e, fmt="o", color="k", ms=4, label=lab)
+                if cms_ok:
+                    y, e = cms(a.hepdata, ti)
+                    axr.errorbar(xs[obs], y, e, fmt="o", color="k", ms=4, label=lab)
                 for j, k in enumerate(keys):
                     m, me = (res[k] if row == 0 else variants[k])
                     m, me = m[obs], me[obs]
                     axr.errorbar(xs[obs] * (1 + 0.008 * (j - 1.5)), m, me, fmt="s--", ms=3.5,
                                  mfc="none", lw=0.8, label=f"model {k}")
+                    if not cms_ok:
+                        if row == 1:
+                            lines.append(f"  {obs:4s} {k:32s} model {fmt(m)}")
+                        continue
                     chi, nb = chi2(m, me, y, e)
                     if row == 1:
                         lines.append(f"  {obs:4s} {k:32s} vs data{ti}: chi2 {chi:6.1f}/{nb}"
@@ -559,7 +726,9 @@ def main():
                     axr.set_yscale("log")
                 axr.legend(fontsize=6)
         fig.suptitle(f"Z+jet, CMS 1702.01060: pp (top, smeared to PbPb's resolution) and "
-                     f"Pb+Pb 0–30 % (bottom), {titles[st]}", y=0.995)
+                     f"Pb+Pb 0–30 % (bottom), {titles[st]}" if cms_ok else
+                     f"Z+jet, R = {R:g} (no CMS comparison): pp (top) and Pb+Pb 0–30 % (bottom), "
+                     f"{titles[st]}", y=0.995)
         fig.tight_layout()
         figdata.savefig(fig, os.path.join(a.outdir, f"zjet_jets_step{st}{a.tag}.png"), dpi=100)
         plt.close(fig)
@@ -575,9 +744,10 @@ def main():
         fw, aw = figdata.subplots(2, 4, figsize=(20, 8.5))
         for col, obs in enumerate(OBS):
             ti = TABLES[obs][1]
-            y, e = cms(a.hepdata, ti)
             top = aw[0, col]
-            top.errorbar(xs[obs], y, e, fmt="o", color="k", ms=4, label="CMS PbPb 0–30 %")
+            if cms_ok:
+                y, e = cms(a.hepdata, ti)
+                top.errorbar(xs[obs], y, e, fmt="o", color="k", ms=4, label="CMS PbPb 0–30 %")
             shown = [("step 2: S − B_own, none", steps[2]["S − B_own, none"], "C0"),
                      ("step 2 without the wake", nowake["S − B_own, none, no wake"], "C1"),
                      ("step 1: fragments, none", steps[1]["fragments, none"], "C2")]
@@ -585,6 +755,9 @@ def main():
                 top.errorbar(xs[obs] * (1 + 0.008 * (j - 1)), m[obs], me[obs], fmt="s--",
                              ms=3.5, mfc="none", lw=0.8, color=colr, label=f"model {lab}")
             for k, (m, me) in nowake.items():
+                if not cms_ok:
+                    lines.append(f"  {obs:4s} {k:32s} model {fmt(m[obs])}")
+                    continue
                 chi, nb = chi2(m[obs], me[obs], y, e)
                 lines.append(f"  {obs:4s} {k:32s} vs data{ti}: chi2 {chi:6.1f}/{nb}"
                              f"   model {fmt(m[obs])}")
@@ -612,9 +785,10 @@ def main():
     fe, ae = figdata.subplots(1, 2, figsize=(12, 4.2))
     if len(rc):
         ae[0].hist(rc, bins=60, histtype="step", density=True, label="random cones in bulk_bg")
-        xx = np.linspace(rc.min(), rc.max(), 200)
-        ae[0].plot(xx, np.exp(-xx ** 2 / (2 * N ** 2)) / np.sqrt(2 * np.pi) / N, "k--",
-                   label=f"Gauss, CMS N = {N} GeV")
+        if cms_ok:
+            xx = np.linspace(rc.min(), rc.max(), 200)
+            ae[0].plot(xx, np.exp(-xx ** 2 / (2 * N ** 2)) / np.sqrt(2 * np.pi) / N, "k--",
+                       label=f"Gauss, CMS N = {N} GeV")
         ae[0].set_xlabel("δp_T = Σp_T − ρπR² [GeV]")
         ae[0].legend(fontsize=8)
     if ref is not None:
