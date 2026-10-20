@@ -30,7 +30,9 @@ The contents (Pb+Pb; pp: F and O):  T  wake + fragments (Y_zc), the truth;  W  t
 no-wake twin, bulk_bg + the same fragments (Y_full - Y_zc + Y_frag);  B  the bulk alone
 (Y_full - Y_zc).  The observable (CMS): near side per trigger per unit Delta y, divided by the
 mixed event (the triggers' rapidities folded with the pooled lab density of the sample's full
-events; T and W with the geometric acceptance), normalized to 1 where the acceptance is full;
+events within --mix-classes classes of the backgrounds' N_coll, as CMS mixes within 0.5 % of
+centrality: the bulk's eta shape changes with centrality; T and W with the geometric
+acceptance), normalized to 1 where the acceptance is full;
 the 1.5-2.5 level (its bins weighted by the acceptance) subtracted per class; R_asym - R_sym; Pb+Pb - pp; the integral over
 -2.5 < Delta y < -0.5 (CMS's 10 bins centred -2.4 ... -0.6).  Errors: jackknife over blocks
 of hydro backgrounds (pp: of events).
@@ -119,6 +121,21 @@ def dphi(a, b):
     return np.where(d > np.pi, 2 * np.pi - d, d)
 
 
+def mixed_event_of(pool, y, n_classes):
+    """The mixed event of every pooled Z (n, N_PT, N_DY): its rapidity folded with the lab
+    density of the full events on the backgrounds of its own N_coll class (``n_classes``
+    classes of equal numbers of backgrounds; the density per unit event weight), as CMS mixes
+    within 0.5 % of centrality.  One class: the density pooled over all backgrounds."""
+    R = np.asarray(pool.bg_R["full"], float).sum(axis=-1)          # (n_bg, N_PT, N_ETA)
+    nc_bg = np.zeros(len(R))
+    nc_bg[pool.zb] = np.nan_to_num(np.asarray(pool.n_coll, float))
+    cls_bg = da.quantile_classes(nc_bg, n_classes)
+    W = np.asarray(pool.bg_W, float)
+    rho = np.stack([R[cls_bg == c].sum(0) / W[cls_bg == c].sum()
+                    for c in range(cls_bg.max() + 1)])
+    return da.mixed_event_matched(y, rho, cls_bg[pool.zb])
+
+
 class Sample:
     """One sample (Pb+Pb or pp): its pooled Z events, their weights, classes and contents."""
 
@@ -192,10 +209,10 @@ class Sample:
             self.L.update({"T": P.L_zc, "W": P.L_zc.astype(float) - P.L_frag,
                            "N": P.L_full.astype(float) - P.L_zc + P.L_frag,
                            "B": P.L_full.astype(float) - P.L_zc})
-        # the mixed events: the pooled lab density of the full events, and the geometric one
-        rho = pool.bg_R["full"].sum(axis=(0, 3))                   # (N_PT, N_ETA)
-        self.K = {"pooled": da.mixed_event(self.y, rho),
-                  "geometric": da.mixed_event(self.y, da.flat_density(rho.shape[0]))}
+        # the mixed events: the pooled lab density of the full events within the event's N_coll
+        # class (pp: one class), and the geometric one
+        self.K = {"pooled": mixed_event_of(pool, self.y, 1 if vacuum else a.mix_classes),
+                  "geometric": da.mixed_event(self.y, da.flat_density(pool.bg_R["full"].shape[1]))}
         self.norm_bins = da.full_acceptance(a.ymax)
 
     def n_eff(self, f):
@@ -263,6 +280,10 @@ def main():
     ap.add_argument("--central", action="store_true", help="only N_coll > --ncoll-min")
     ap.add_argument("--ncoll-min", type=float, default=NCOLL_10)
     ap.add_argument("--blocks", type=int, default=100)
+    ap.add_argument("--mix-classes", type=int, default=10,
+                    help="Pb+Pb's mixed event pooled within this many classes of the backgrounds' "
+                         "N_coll (equal numbers of backgrounds), as CMS mixes within 0.5 %% of "
+                         "centrality; 1: one density for all (before 2026-10-20)")
     ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins3123406-v1-yaml"),
                     help="CMS HIN-25-012's HEPData record (../zjet/get_hepdata.sh 25012)")
     ap.add_argument("--cms-norm", default="per-bin", choices=tuple(cms25012.NORMS),
@@ -296,7 +317,7 @@ def main():
             f"{a.ymax:g}, {'jet2 < jet1' if a.xcut else 'no x_jZ cut'}"
             + (f", N_coll > {a.ncoll_min:g}" if a.central else ""))
     lines.append(f"CMS HIN-25-012 with the Z as jet1: {cuts}; jets R = {R['Pb+Pb']:g} "
-                 f"(pp {R['pp']:g})")
+                 f"(pp {R['pp']:g}); Pb+Pb mixed event within {a.mix_classes} N_coll class(es)")
     if abs(R["Pb+Pb"] - 0.4) > 1e-9:
         lines.append(f"  note: CMS uses R = 0.4, these jets are R = {R['Pb+Pb']:g}")
     blk = {"Pb+Pb": da.blocks_of(pb.groups, a.blocks), "pp": da.blocks_of(pp.groups, a.blocks)}
