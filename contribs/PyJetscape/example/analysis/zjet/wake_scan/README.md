@@ -56,6 +56,7 @@ reduce it.
 | `compare_scan.py` | every value's pieces and the paired differences → `wake_scan_<setting>.png`, `wake_scan_<setting>.txt` |
 | `compare_iso.py` | the wake and the fragments on their own ([`PLAN_wake_isolated.md`](../../../../../../docs/Plans/PLAN_wake_isolated.md), step 1; maps of `../wake_iso.py`): the baseline's maps around the Z and around the recoil (`wake_iso_maps_{Z,J}.png`), every value's projections, harmonics and spectra, and the paired differences to the baseline, background by background → `wake_iso_{proj,diff,frag,harm,harmdiff,spectra,diffmap}_<setting>.png`, `wake_iso_<setting>.txt`; `--variant` for a `VARIANT`'s runs |
 | `compare_pythia.py` | the wake on its own per Pythia setting (the campaign's, MPI off, ISR + MPI off; each at `e_threshold` 2 and 3): the selected Z's, the wake's projections, harmonics and share toward the Z, what `e_threshold` 3 adds (paired within a setting), the fragments' Pb+Pb − pp against each setting's own pp → `pythia_{kin,proj,harm,e3,frag}.png`, `pythia_compare.txt` |
+| `compare_pythia_cms.py` | CMS 2507.09307's observable per Pythia setting (each against its own pp, from the version-4 pools of `make_data.sh pools`): the Z-side Δy of Pb+Pb − pp and its fragments' and wake's parts (`../wake_decomp.py`) with CMS's HEPData → `pythia_cms[_e3p0].png`, `.txt` |
 
 ```bash
 cd $EX/analysis/zjet/wake_scan
@@ -102,6 +103,8 @@ VARIANT=mpi_off LINES="PartonLevel:MPI = off" ./make_data.sh prod pp iso
 VARIANT=isr_mpi_off LINES="PartonLevel:ISR = off; PartonLevel:MPI = off" \
   WINDOWS=40-45,45-55,55-70,70-200 JPB=6 ./make_data.sh prod pp iso
 python compare_pythia.py          # against the campaign's tau_delay_1p0 / e_threshold_3p0
+VARIANT=mpi_off ./make_data.sh pools; VARIANT=isr_mpi_off ./make_data.sh pools   # (+ the env above)
+python compare_pythia_cms.py      # CMS's observable per setting
 ```
 
 The pp (Pb+Pb − pp; it cancels in the differences): the campaign's pp pools of `../pp_comp`

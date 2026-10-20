@@ -18,7 +18,8 @@
 #   check    per seed, every value against the baseline: the job XMLs differ in the setting
 #            alone (check_settings.py), the jet files share events, partons and droplets
 #            (check_pairing.py)
-#   pools    mix.py --pools-only per value -> data/mix/<name>/pbpb/ (version 4)
+#   pools    mix.py --pools-only per value -> data/mix/<name>/pbpb/ (version 4); a VARIANT's pp
+#            too (data/mix/pp_<VARIANT>/vacuum/)
 #   compare  compare_scan.py -> figures/wake_scan_<setting>.png, .txt
 #   pp       a VARIANT's own pp reference (run_prod_vacuum.py, the variant XML, pp_comp's
 #            arguments: PP_EVENTS, PP_SEED) -> data/pp_<VARIANT>/
@@ -164,6 +165,11 @@ pools() {
     python "$ZJET/mix.py" --pbpb "$DATA/$n" --vacuum none --pools "$DATA/mix/$n" --pools-only \
       --jobs 4 > "$LOGS/pools_$n.log" 2>&1
   done
+  if [[ -n $VARIANT ]] && ls "$PP_HADRONS"/*_hadrons_jet_frag.h5 > /dev/null 2>&1; then
+    echo "pools pp_$VARIANT -> $DATA/mix/pp_$VARIANT/vacuum"
+    python "$ZJET/mix.py" --pbpb none --vacuum "$PP_HADRONS" --pools "$DATA/mix/pp_$VARIANT" \
+      --pools-only --jobs 1 > "$LOGS/pools_pp_$VARIANT.log" 2>&1
+  fi
 }
 
 compare() {
