@@ -11,6 +11,8 @@ HEPData.  The companion of compare_pythia.py (the wake on its own).
 Inputs: version-4 pools (make_data.sh pools): data/mix/<run>/pbpb and the pp's vacuum pools.
 The settings have other hard events (the same hydro backgrounds): each is compared with CMS on
 its own; the errors are each setting's jackknife (Pb+Pb backgrounds and pp events).
+--pp-all: one pp for all settings (the campaign's, as the experiments use their best pp tune
+whatever the nucleus does to MPI and ISR).
 -> <outdir>/pythia_cms{tag}.png (with .npz/.root) and pythia_cms{tag}.txt."""
 import argparse
 import os
@@ -47,11 +49,18 @@ def main():
     ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins2945894-v1-yaml"))
     ap.add_argument("--blocks", type=int, default=100)
     ap.add_argument("--dy", type=float, default=0.8)
+    ap.add_argument("--pp-all", default=None, metavar="PP_POOL_DIR",
+                    help="one pp for every setting instead of each its own (e.g. the campaign's: "
+                         "the experiments' pp is the best tune, whatever the nucleus does)")
+    ap.add_argument("--tag", default=None, help="suffix of the output names (default: from --e "
+                    "and --pp-all)")
     a = ap.parse_args()
     a.outdir = a.outdir or runs.figures("wake_scan")
     tau = "tau_delay_1p0" if a.e == "2p0" else f"e_threshold_{a.e}"
     specs = [s.format(tau=tau, e=a.e, data=a.data).split(":", 3)
              for s in (a.setting or DEFAULT)]
+    if a.pp_all:
+        specs = [(n, r, a.pp_all, lab) for n, r, _, lab in specs]
     res = []
     for name, run, pp_dir, label in specs:
         pb = wd.load([os.path.join(a.data, "mix", run, "pbpb")])
@@ -68,7 +77,8 @@ def main():
         return sum(v[k] for k in keys), np.sqrt(sum(e[k] ** 2 for k in keys))
 
     L = [f"CMS 2507.09307's Z-side Delta y of Pb+Pb - pp per Pythia setting, e_threshold "
-         f"{a.e.replace('p', '.')} (compare_pythia_cms.py); per Z per unit Delta y, +-merged x 0.5",
+         f"{a.e.replace('p', '.')} (compare_pythia_cms.py); per Z per unit Delta y, +-merged x 0.5; "
+         f"pp: {a.pp_all or 'each setting its own'}",
          "chi2: the Pb+Pb - pp curve against CMS over 0 < Delta y < 4 (model and CMS errors "
          "in quadrature, CMS stat + syst; bins treated as independent)", ""]
     for name, label, run, pb, pp, v, e in res:
@@ -113,12 +123,15 @@ def main():
             aa.set(xlabel="Δy_ch,Z (Z side, |Δφ| < π/2)", ylabel="d⟨ΔN_ch⟩/dΔy")
             if c == 0:
                 aa.legend(fontsize=7)
-    fig.suptitle(f"CMS's Z-side Δy, Pb+Pb 0–30 % − pp, per Pythia setting (each with its own "
-                 f"pp), e_threshold {a.e.replace('p', '.')}: the total and its fragments' and "
+    which = (f"all against the pp {os.path.basename(os.path.dirname(a.pp_all.rstrip('/')))}"
+             if a.pp_all else "each with its own pp")
+    fig.suptitle(f"CMS's Z-side Δy, Pb+Pb 0–30 % − pp, per Pythia setting ({which}), "
+                 f"e_threshold {a.e.replace('p', '.')}: the total and its fragments' and "
                  "wake's parts", fontsize=10)
     fig.tight_layout()
     os.makedirs(a.outdir, exist_ok=True)
-    tag = "" if a.e == "2p0" else f"_e{a.e}"
+    tag = a.tag if a.tag is not None else (("" if a.e == "2p0" else f"_e{a.e}")
+                                            + ("_pp_all" if a.pp_all else ""))
     p = os.path.join(a.outdir, f"pythia_cms{tag}.png")
     figdata.savefig(fig, p, dpi=90)
     plt.close(fig)
