@@ -77,7 +77,7 @@ PARAM=Liquefier/e_threshold VALUES="1.0 2.0 3.0" BASE=2.0 REF=tau_delay_1p0 PAIR
   fragments' pieces of the differences then carry the setting's effect on the jets.
 
 The pp (Pb+Pb − pp; it cancels in the differences): the campaign's pp pools of `../pp_comp`
-(`../pp_comp/make_data.sh prod pools`; js-contrib branch `pp_comp` until it is merged), or any
+(`../pp_comp/make_data.sh prod pools`), or any
 version-4 pp pools of the campaign's settings via `PP_POOLS`.
 
 On the GB10: a job 16–21 min with two at a time, so ~40 min per value, ~2 h for three; ~210 MB

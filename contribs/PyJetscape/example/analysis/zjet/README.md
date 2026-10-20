@@ -15,6 +15,8 @@ example/analysis/
   zjet/               this folder: the workflow
     test/             the first 96-event test and the campaign set-up checks (test/README.md);
                       not needed to run the workflow
+    pp_comp/          the campaign's pp reference against JETSCAPE's PP19 tune (Matter Q0 2 vs
+                      1 GeV) in CMS's pp Z-hadron and Z+jet observables (pp_comp/README.md)
     wake_scan/        a paired scan of one liquefier setting (tau_delay first): the Z-side
                       Delta y of Pb+Pb - pp split by wake_decomp.py (wake_scan/README.md)
   dijet/              the η-separated dijet analysis, first with the Z as jet1 (deta.py,
