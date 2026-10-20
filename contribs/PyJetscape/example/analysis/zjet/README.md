@@ -44,6 +44,7 @@ Route B converts the hadron files once (`../../prod_AuAu_0_10_jet/run_h5toROOT.p
 | `mix.py` | event mixing (`zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `runs/<run>/data/pbpb` and `vacuum` (cached in `data/mix/`) → step 1, the reference (factorized, with pp; `test/compare.py`'s figure): `figures/mixing_reference_d{phi,y}.png`; all four steps: `mixing_dphi.png`, `mixing_dy.png`; the errors: `mixing_errors_d{phi,y}.png`; `mixing_summary.txt` (~10 s on the test); `--pbpb-pools`/`--vacuum-pools` read existing pools, of several directories (campaigns built apart), `--pools-only` builds them and stops |
 | `check_cxx.py` | the C++ map steps (`../../analysis_root/zjet`) against the Python ones: `pools`, `jets` (with the jet QA trees) and `qa` |
 | `README_zjet_2507.09307.md` | every cut of CMS 2507.09307 (Z–hadron Δφ / Δy) and its setting in the production and the analysis |
+| `MIXING_MODES.md` | the mixing modes in one notation: S and B from `bulk_jet`, `bulk_bg`, `jet_frag`, what is averaged over the oversamples, which partners and backgrounds, the weights; pp's factorized result and its relation to Pb+Pb; `strict` and `cms10` against CMS |
 | `get_hepdata.sh` | CMS 2507.09307's, 1702.01060's and HIN-25-012's (`25012`, ins3123406: the dijet Δη of `../dijet/deta.py`) HEPData records → `../runs/hepdata/` (once, before the final stages) |
 | `zjet_wake.py`, `zjet_mixing.py`, `cms2507.py` | the library: the Z record, selection, weights and Z frame; the pools and the mixing modes; CMS 2507.09307's HEPData and observables (the factorized result) |
 | `zjet_wake.ipynb` | the Z–hadron wake notebook (stored without outputs; runs on `test/`'s test data) |
@@ -169,7 +170,8 @@ with 3 partners each: the comparison is meaningless here and is meant for the ca
 per campaign, 4,000 for all ten). Caveats: CMS's tracks are efficiency-corrected (their Poisson
 part is larger than at perfect efficiency), and N_CMS is an estimate.
 
-How the pools relate to the usual loop over the other events' tracks (S as per-Z Δy/Δφ
+The modes' definitions in one notation (S, B, oversamples, partners, weights, pp, against CMS):
+[`MIXING_MODES.md`](MIXING_MODES.md). How the pools relate to the usual loop over the other events' tracks (S as per-Z Δy/Δφ
 histograms, B from a few partners as their tracks, B from all partners as their summed
 density): [`ANA_Zhadron.md`](ANA_Zhadron.md#appendix-the-pools-and-the-naive-mixing-loop).
 

@@ -87,6 +87,9 @@ ingredient, its difference to the step before is what that ingredient costs:
 | **4** | strict | one Z per background (drawn ∝ w, weighted by the background's Σw), **one** oversample | 10 partners from 10 other backgrounds **of that set**, one oversample each | an experiment's statistics: every Z its own fluid | the **errors**, compared with CMS's statistical errors (checks 5, 6); its central values are not the point |
 | (pp) | – | the fragments (Pythia's Z + jet with MPI, Matter in vacuum) | as step 1 (no fluid) | – | the reference for Pb+Pb − pp in every step |
 
+Every mode written out (S and B from `bulk_jet`, `bulk_bg`, `jet_frag`, the oversamples, the
+partners, the weights, pp, `strict` against CMS): [`MIXING_MODES.md`](MIXING_MODES.md).
+
 Why steps 3 and 4 never take a partner from the Z's own background: its 24 events share the
 fluid (and the random numbers), and such a partner would cancel part of S's fluctuations, which
 no experiment can do. The price, with weighted backgrounds, is a small flat bias of order
