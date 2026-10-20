@@ -13,9 +13,9 @@ same Z's and backgrounds (refused otherwise): a value minus the baseline is form
 background, with a jackknife over the same background blocks.  The pp is independent: its
 jackknife over blocks of its events adds in quadrature.
 
--> <outdir>/wake_iso_maps_{Z,J}.png (the baseline: the wake, the fragments, the fragments'
-   Pb+Pb - pp), wake_iso_{proj,diff,frag,harm,harmdiff,spectra,diffmap}_<setting>.png (with
-   .npz/.root) and wake_iso_<setting>.txt."""
+-> <outdir>/wake_iso_maps_{Z,J}[_<variant>].png (the baseline: the wake, the fragments, the
+   fragments' Pb+Pb - pp), wake_iso_{proj,diff,frag,harm,harmdiff,spectra,diffmap}_[<variant>_]
+   <setting>.png (with .npz/.root) and wake_iso_[<variant>_]<setting>.txt."""
 import argparse
 import os
 import sys
@@ -214,6 +214,9 @@ def main():
     ap.add_argument("--base", default="1.0")
     ap.add_argument("--base-name", default=None,
                     help="the baseline's run name if not <setting>_<value> (make_data.sh REF)")
+    ap.add_argument("--variant", default="",
+                    help="make_data.sh VARIANT: the runs <variant>_<setting>_<value> (other "
+                         "Pythia settings); the outputs get it in their names")
     ap.add_argument("--pp", default=None, help="the pp map (default <data>/iso/pp_campaign.npz)")
     ap.add_argument("--outdir", default=None, help="default runs/wake_scan/figures")
     ap.add_argument("--blocks", type=int, default=100)
@@ -223,8 +226,10 @@ def main():
     if a.base not in a.values:
         raise SystemExit("--base must be one of --values")
     tag = a.param.split("/")[-1]
-    names = {v: (a.base_name if (v == a.base and a.base_name) else name_of(a.param, v))
+    pre = f"{a.variant}_" if a.variant else ""
+    names = {v: (a.base_name if (v == a.base and a.base_name) else pre + name_of(a.param, v))
              for v in a.values}
+    tag = pre + tag
     maps = {v: wi.Maps(os.path.join(a.data, "iso", f"{names[v]}.npz")) for v in a.values}
     pp = wi.Maps(a.pp)
     base = maps[a.base]
@@ -240,8 +245,9 @@ def main():
     out = lambda s: os.path.join(a.outdir, s)                     # noqa: E731
     paths = []
     for frame in ("Z", "J"):
-        p = out(f"wake_iso_maps_{frame}.png")
-        draw_maps(base, pp, frame, p, f"{tag} = {a.base} (the campaign's)")
+        p = out(f"wake_iso_maps_{frame}{'_' + a.variant if a.variant else ''}.png")
+        draw_maps(base, pp, frame, p, f"{tag} = {a.base}" if a.variant else
+                  f"{tag} = {a.base} (the campaign's)")
         paths.append(p)
 
     # ── the projections, per value and as paired differences ──

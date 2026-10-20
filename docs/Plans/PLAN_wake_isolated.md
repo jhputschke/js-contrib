@@ -18,7 +18,9 @@ scan, and reads off what the source does to the wake's shape.
 > (`analysis/zjet/wake_iso.py`, `analysis/zjet/wake_scan/compare_iso.py`, `make_data.sh iso`,
 > `tests/test_wake_iso.py`), checked (`wake_iso.py check`: the Z frame = `zjet_wake`'s to
 > 10⁻¹⁵, Pb+Pb and pp) and run on the scan's hadron files on the GB10; results in
-> `runs/wake_scan/WAKE_ISO_SUMMARY.md` (git-ignored: not public). Steps 2 and 3 not started.
+> `runs/wake_scan/WAKE_ISO_SUMMARY.md` (git-ignored: not public). §1b (the Pythia variants,
+> MPI off and ISR + MPI off at `e_threshold` 2 and 3, with their pp) run on the GB10 the same
+> day: `runs/wake_scan/MPI_ISR_OFF_SUMMARY.md`. Steps 2 and 3 not started.
 
 **Decisions (user, 2026-10-20):** step 1 first, on the existing scan files, with the Z frame and
 the recoil-parton frame; no extra job to split the droplets by shower (the share of the wake
@@ -110,6 +112,28 @@ sampling noise). The jackknife has 8 backgrounds (7 degrees of freedom): errors 
 
 **Cost.** One pass over 20 jobs' hadron files (~4.7 GB) and the pp file: minutes on the GB10 with
 one process per file.
+
+## 1b. The Pythia variants: MPI off, ISR and MPI off (user, 2026-10-20)
+
+Which part of the wake, and of its part toward the Z, comes from the partons besides the Z's
+recoil (MPI, ISR), and whether `e_threshold` 3's extra wake, flat in azimuth, is the recoil's
+own: the scan's jobs again (seeds 102–105, the same arguments) with PythiaGun's
+`PartonLevel:MPI = off`, and with `PartonLevel:ISR = off` too (the recoil the only parton the
+energy loss gets; FSR is off in Pythia anyway, Matter showers), each at `e_threshold` 2 and 3,
+and each setting's own pp reference (`run_prod_vacuum.py`, 12,000 events, seed 900001).
+
+- ISR + MPI off: p_T^Z ≈ p̂T (primordial k_T only), so windows 40–45, 45–55, 55–70, 70–200 GeV
+  with 6 jets each (24 per background, two backgrounds per job as before); MPI off keeps the
+  campaign's windows.
+- The campaign's runs (`tau_delay_1p0`, `e_threshold_3p0`) are reused. A variant's two values
+  pair event by event (`check_pairing.py --level events`); a variant and the campaign share only
+  the hydro backgrounds (`--level backgrounds`), so they are compared per Z, with the jackknife
+  over the same background blocks.
+- Different recoil kinematics (no ISR: the recoil balances the Z alone) are part of the change;
+  `wake_iso.py map --zpt / --rec-pt` maps sub-samples for a matched cross-check.
+- Tools: `make_xml.py --line`, `make_data.sh` `VARIANT`, `LINES`, `WINDOWS`, `JPB` and step
+  `pp`, `compare_iso.py --variant`, `compare_pythia.py`. Results: `runs/wake_scan/
+  MPI_ISR_OFF_SUMMARY.md` (git-ignored).
 
 ## 2. Step 2: shared sampling seeds between the values of a scan
 

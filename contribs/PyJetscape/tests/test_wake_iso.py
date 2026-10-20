@@ -17,6 +17,9 @@ sys.path.insert(0, str(HERE.parent / "example" / "analysis" / "zjet"))
 
 import wake_iso as wi  # noqa: E402
 
+sys.path.insert(0, str(HERE.parent / "example" / "analysis" / "zjet" / "wake_scan"))
+import make_xml  # noqa: E402
+
 
 def test_bin_follows_histogramdd():
     rng = np.random.default_rng(0)
@@ -130,6 +133,31 @@ def test_means_paired_differences_and_jackknife():
         other = _pack(a, W)
         other["group"] = np.array([f"9:{g}" for g in range(G)])
         wi.jackknife(lambda V: 0.0, [[ma, _maps(other)]])
+
+
+XML = """<?xml version="1.0"?>
+<jetscape>
+  <Hard><PythiaGun>
+    <LinesToRead>
+      HardQCD:all = off
+      PartonLevel:ISR = on
+      PartonLevel:MPI = on
+    </LinesToRead>
+  </PythiaGun></Hard>
+  <Liquefier><e_threshold> 2.0 </e_threshold></Liquefier>
+</jetscape>
+"""
+
+
+def test_make_xml_lines_and_leaves():
+    text, d = make_xml.set_line(XML, "PartonLevel:MPI = off", "x.xml")
+    assert "PartonLevel:MPI = off" in text and "PartonLevel:ISR = on" in text
+    assert d == "PartonLevel:MPI = off (was on)"
+    assert text.replace("MPI = off", "MPI = on") == XML                # nothing else
+    text, d = make_xml.set_leaf(text, "Liquefier/e_threshold=3.0", "x.xml")
+    assert "<e_threshold> 3.0 </e_threshold>" in text and "was 2.0" in d
+    with pytest.raises(SystemExit):
+        make_xml.set_line(XML, "PartonLevel:FSR = off", "x.xml")      # not there
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────────

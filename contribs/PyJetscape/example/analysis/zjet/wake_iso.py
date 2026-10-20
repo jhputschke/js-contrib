@@ -4,6 +4,7 @@ the Z and around the recoiling parton: no mixed event, no mean subtraction
 (docs/Plans/PLAN_wake_isolated.md, step 1).
 
     python wake_iso.py map --src <dir> [<dir> ...] --out <run>.npz [--jobs 8] [--rec-eta 1.0]
+        [--zpt LO HI] [--rec-pt LO HI]
     python wake_iso.py check --src <dir> [--file 0]      # the Z frame against zjet_wake
 
 The contents, per Z (CMS 2507.09307's Z selection, zjet_wake.CMS_2507; every event weighted by
@@ -140,7 +141,7 @@ def _add(acc, key, x):
         acc[key] = np.array(x, dtype=float)
 
 
-def file_job(stem, local_events, weights, rec_eta, block):
+def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
     """The sums of one production file's selected events (the map step) -> dict: ``groups``
     (key -> dict of sums), ``events`` (per-event table), ``vacuum``."""
     import h5py
@@ -179,6 +180,8 @@ def file_job(stem, local_events, weights, rec_eta, block):
         if rec is None:
             warnings.warn(f"{stem} event {e}: no parton initiator: left out", RuntimeWarning,
                           stacklevel=2)
+            continue
+        if rec_pt is not None and not rec_pt[0] <= rec[0] < rec_pt[1]:
             continue
         in_j = abs(rec[1]) < rec_eta
         F = EventHadrons(hf_, hf_.unit_index(int(e)))
@@ -239,19 +242,22 @@ def stems_of(srcs):
     return out
 
 
-def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False):
+def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False, zpt=None, rec_pt=None):
     """The map step of the production files in ``srcs`` (directories or stems) -> ``out``
-    (.npz), cached: rebuilt when the files or the settings changed."""
+    (.npz), cached: rebuilt when the files or the settings changed.  ``zpt``: (lo, hi) of p_T^Z
+    instead of CMS 2507's 40-350 GeV; ``rec_pt``: (lo, hi) of the recoil's p_T (default any)."""
     from jetscape.hadrons_h5 import HadronFileReader
 
     stems = stems_of(srcs)
     r = HadronFileReader(stems)
     t = zw.event_table(r)
-    sel = zw.select(t, **zw.CMS_2507)
+    cuts = dict(zw.CMS_2507, **({"pt": tuple(zpt)} if zpt else {}))
+    sel = zw.select(t, **cuts)
     w = zw.event_weights(t, sel)
     loc = np.array([r.locate(g) for g in range(r.n_events)], np.int64).reshape(-1, 2)
     meta = {"version": VERSION, "sources": [os.path.abspath(s) for s in srcs],
-            "selection": "CMS_2507", "rec_eta": rec_eta, "block": block,
+            "selection": "CMS_2507", "zpt": list(cuts["pt"]),
+            "rec_pt": list(rec_pt) if rec_pt else None, "rec_eta": rec_eta, "block": block,
             "n_events": int(r.n_events), "n_selected": int(sel.sum()),
             "files": [[os.path.basename(s), os.path.getmtime(f"{s}_hadrons_jet_frag.h5")]
                       for s in r.stems],
@@ -271,7 +277,7 @@ def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False):
     args = []
     for i, stem in enumerate(r.stems):
         g = np.flatnonzero(sel & (loc[:, 0] == i))
-        args.append((stem, loc[g, 1], w[g], rec_eta, block))
+        args.append((stem, loc[g, 1], w[g], rec_eta, block, rec_pt))
     results = []
     with ProcessPoolExecutor(max_workers=jobs) as ex:
         for name, n, dt, res in ex.map(_job, args):
@@ -499,6 +505,10 @@ def main():
                         "the track acceptance)")
     m.add_argument("--block", type=int, default=60,
                    help="vacuum: events per group (the jackknife unit)")
+    m.add_argument("--zpt", type=float, nargs=2, default=None, metavar=("LO", "HI"),
+                   help="p_T^Z window instead of CMS 2507's 40-350 GeV")
+    m.add_argument("--rec-pt", type=float, nargs=2, default=None, metavar=("LO", "HI"),
+                   help="the recoil parton's p_T window (default any)")
     m.add_argument("--rebuild", action="store_true")
     c = sub.add_parser("check", help="the Z frame of one file against zjet_wake.z_frame_yields")
     c.add_argument("--src", required=True)
@@ -506,7 +516,7 @@ def main():
     c.add_argument("--tol", type=float, default=1e-9, help="relative to the largest bin")
     a = ap.parse_args()
     if a.cmd == "map":
-        build(a.src, a.out, a.jobs, a.rec_eta, a.block, a.rebuild)
+        build(a.src, a.out, a.jobs, a.rec_eta, a.block, a.rebuild, a.zpt, a.rec_pt)
     else:
         worst = check(a.src, a.file)
         print(f"check: {'OK' if worst <= a.tol else 'FAILED'} (worst {worst:.2g} of the largest "

@@ -13,6 +13,9 @@ each job's random file_uuid (units/seed).
   events  a setting that acts during the energy loss (the liquefier's e_threshold, alpha_s, ...):
           the same events, Z's, hydro backgrounds and shower initiators (Pythia's partons); the
           final partons, the droplets and the jet leg's fluid may change (ELOSS).
+  backgrounds  other Pythia settings (make_data.sh VARIANT): the same hydro backgrounds
+          (BACKGROUND, per event: its background and that background's record) and the same
+          number of events; the hard events, partons and droplets may all change.
 Prints what differs; exit 1 if anything outside the level's allowed changes does."""
 import argparse
 
@@ -25,7 +28,11 @@ MUSIC_2 = {"E_droplets_early", "E_droplets_late", "n_cells_jet", "ntau_jet_music
            "jet_hit_boundary", "jet_hit_edge", "wall_s", "seed"}
 #: and what the energy loss decides: the final partons and the droplets
 ELOSS = MUSIC_2 | {"n_partons", "n_droplets", "E_droplets"}
-LEVELS = {"jets": (MUSIC_2, ("initiators", "partons")), "events": (ELOSS, ("initiators",))}
+LEVELS = {"jets": (MUSIC_2, ("initiators", "partons")), "events": (ELOSS, ("initiators",)),
+          "backgrounds": (None, ())}
+#: what the hydro background decides (the backgrounds level compares these alone)
+BACKGROUND = {"bg_id", "bg_key", "bg_unit", "n_coll", "n_cells_bg", "ntau_bg", "bg_edge_e_max",
+              "bg_edge_e_max_eta", "bg_hit_boundary", "bg_hit_edge", "tau0_music"}
 
 
 def same(x, y):
@@ -52,10 +59,13 @@ def main():
                     (bad if grp in groups else changed).append(f"{grp}/{k}")
         for k in sorted(set(a["units"]) | set(b["units"])):
             if k not in a["units"] or k not in b["units"]:
-                bad.append(f"units/{k} (absent)")
+                # backgrounds: an event record one hard process lacks (no subleading parton)
+                (changed if allowed is None and k not in BACKGROUND else bad).append(
+                    f"units/{k} (absent)")
                 continue
+            ok_change = (k not in BACKGROUND) if allowed is None else (k in allowed)
             if not same(a["units"][k][()], b["units"][k][()]):
-                (changed if k in allowed else bad).append(f"units/{k}")
+                (changed if ok_change else bad).append(f"units/{k}")
     print(f"{x.a.split('/')[-1]} / {x.b.split('/')[-1]} ({x.level}): "
           + (f"allowed changes: {', '.join(changed)}; " if changed else "")
           + ("paired" if not bad else f"NOT PAIRED, differences: {bad}"))
