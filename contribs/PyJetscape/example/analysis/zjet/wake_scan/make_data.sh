@@ -5,7 +5,7 @@
 # 102-105, 48 events, two hydro backgrounds each): the same events, backgrounds, jets and
 # droplets in every value, only the jet leg's fluid (MUSIC_2) differs.
 #
-#   ./make_data.sh [all | xml | prod | check | pools | compare]       (default: all)
+#   ./make_data.sh [all | xml | prod | check | pools | compare | iso] (default: all)
 #
 #   PARAM=Liquefier/e_threshold VALUES="1.0 2.0 3.0" BASE=2.0 REF=tau_delay_1p0 PAIRING=events \
 #     ./make_data.sh                  # the campaign's value from an earlier scan, not rerun
@@ -18,6 +18,9 @@
 #            (check_pairing.py)
 #   pools    mix.py --pools-only per value -> data/mix/<name>/pbpb/ (version 4)
 #   compare  compare_scan.py -> figures/wake_scan_<setting>.png, .txt
+#   iso      the wake and the fragments on their own (docs/Plans/PLAN_wake_isolated.md, step 1):
+#            ../wake_iso.py map per value and for the pp (PP_HADRONS) -> data/iso/<name>.npz
+#            (cached), then compare_iso.py -> figures/wake_iso_*.png, wake_iso_<setting>.txt
 #
 # Environment: OUT (../../runs/wake_scan), PARAM (Liquefier/CausalLiquefier/tau_delay),
 # VALUES ("0.5 1.0 2.0"), BASE (1.0), SEEDS ("102 103 104 105"), EVENTS (48), PAR (2),
@@ -26,7 +29,8 @@
 # from the other values' in PARAM alone), PAIRING (jets: the setting acts after the energy
 # loss, the jets must be identical; events: it acts during it, e_threshold, alpha_s, ...),
 # PP_POOLS (the campaign's pp pools, ../../runs/pp_comp/data/mix/campaign/vacuum: made by
-# ../pp_comp/make_data.sh prod pools).  Outputs are git-ignored (runs/).
+# ../pp_comp/make_data.sh prod pools), PP_HADRONS (the campaign's pp hadron files for iso,
+# ../../runs/pp_comp/data/campaign).  Outputs are git-ignored (runs/).
 set -euo pipefail
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -47,6 +51,7 @@ PAIRING=${PAIRING:-jets}
 EVENTS=${EVENTS:-48}
 PAR=${PAR:-2}
 PP_POOLS=${PP_POOLS:-$ANA/runs/pp_comp/data/mix/campaign/vacuum}
+PP_HADRONS=${PP_HADRONS:-$ANA/runs/pp_comp/data/campaign}
 WINDOWS=20-30,30-35,35-45,45-55,55-70,70-200
 CAMPAIGN_XML=$CONFIG/PbPb_0_30_ZJet.xml
 TAG=${PARAM##*/}
@@ -147,9 +152,29 @@ compare() {
     --values $VALUES --base "$BASE" ${REF:+--base-name "$REF"} --outdir "$OUT/figures"
 }
 
+iso() {
+  if ! ls "$PP_HADRONS"/*_hadrons_jet_frag.h5 > /dev/null 2>&1; then
+    echo "no pp hadron files in $PP_HADRONS: run ../pp_comp/make_data.sh prod, or set PP_HADRONS" >&2
+    return 1
+  fi
+  mkdir -p "$DATA/iso" "$LOGS"
+  for v in $VALUES; do
+    local n; n=$(name_of "$v")
+    echo "iso map $n -> $DATA/iso/$n.npz"
+    python "$ZJET/wake_iso.py" map --src "$DATA/$n" --out "$DATA/iso/$n.npz" --jobs 4 \
+      > "$LOGS/iso_$n.log" 2>&1
+  done
+  echo "iso map pp -> $DATA/iso/pp_campaign.npz"
+  python "$ZJET/wake_iso.py" map --src "$PP_HADRONS" --out "$DATA/iso/pp_campaign.npz" \
+    --jobs 1 > "$LOGS/iso_pp_campaign.log" 2>&1
+  # shellcheck disable=SC2086
+  python "$HERE/compare_iso.py" --data "$DATA" --param "$PARAM" --values $VALUES \
+    --base "$BASE" ${REF:+--base-name "$REF"} --outdir "$OUT/figures"
+}
+
 step=${1:-all}
 case $step in
-  all) prod; pools; compare ;;
-  xml | prod | check | pools | compare) $step ;;
-  *) echo "usage: $0 [all | xml | prod | check | pools | compare]" >&2; exit 2 ;;
+  all) prod; pools; compare; iso ;;
+  xml | prod | check | pools | compare | iso) $step ;;
+  *) echo "usage: $0 [all | xml | prod | check | pools | compare | iso]" >&2; exit 2 ;;
 esac

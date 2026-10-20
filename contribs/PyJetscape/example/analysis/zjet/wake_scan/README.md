@@ -52,8 +52,9 @@ reduce it.
 | `make_xml.py` | a variant of the campaign XML (`../../../config/PbPb_0_30_ZJet.xml`) with one leaf changed in the text (comments and layout kept); the leaf's tag must occur once (`tau_delay`, `e_threshold`; not `alphas`) |
 | `check_settings.py` | two XMLs differ in the allowed setting(s) alone: the variant XMLs against the campaign's, the job XMLs value against baseline |
 | `check_pairing.py` | two same-seed jet files share events, partons and droplets |
-| `make_data.sh` | `xml`, `prod` (then `check`), `check`, `pools`, `compare`, or `all` |
+| `make_data.sh` | `xml`, `prod` (then `check`), `check`, `pools`, `compare`, `iso`, or `all` |
 | `compare_scan.py` | every value's pieces and the paired differences → `wake_scan_<setting>.png`, `wake_scan_<setting>.txt` |
+| `compare_iso.py` | the wake and the fragments on their own ([`PLAN_wake_isolated.md`](../../../../../../docs/Plans/PLAN_wake_isolated.md), step 1; maps of `../wake_iso.py`): the baseline's maps around the Z and around the recoil (`wake_iso_maps_{Z,J}.png`), every value's projections, harmonics and spectra, and the paired differences to the baseline, background by background → `wake_iso_{proj,diff,frag,harm,harmdiff,spectra,diffmap}_<setting>.png`, `wake_iso_<setting>.txt` |
 
 ```bash
 cd $EX/analysis/zjet/wake_scan
@@ -75,6 +76,13 @@ PARAM=Liquefier/e_threshold VALUES="1.0 2.0 3.0" BASE=2.0 REF=tau_delay_1p0 PAIR
   below it leave LBT for the fluid; α_s): the events, Z's, backgrounds and shower initiators
   must be identical, while the final partons, the droplets and so the fragments change, and the
   fragments' pieces of the differences then carry the setting's effect on the jets.
+
+`iso` maps every value's hadron files and the pp's (`PP_HADRONS`, default
+`../../runs/pp_comp/data/campaign`) with `../wake_iso.py map` into `data/iso/` (cached; seconds
+per job) and runs `compare_iso.py`: the wake (`bulk_jet` − `bulk_bg`, paired) and the fragments
+on their own, per Z, in the Z frame and around the recoiling parton (the hardest initiator
+that is a quark or gluon; the Z's with |η_rec| < 1), with no mixed event and no mean
+subtraction. The same `PARAM`, `VALUES`, `BASE`, `REF` as the scan.
 
 The pp (Pb+Pb − pp; it cancels in the differences): the campaign's pp pools of `../pp_comp`
 (`../pp_comp/make_data.sh prod pools`), or any
