@@ -14,7 +14,9 @@ backgrounds), but other hard events: two settings are compared per Z, with a jac
 same background blocks (the backgrounds are the independent units of both), not event by event.
 e_threshold 3 against 2 within one setting is paired event by event.  Each setting has its own
 pp reference (the same Pythia settings in vacuum).
--> <outdir>/pythia_{kin,proj,harm,e3,frag}.png (with .npz/.root) and pythia_compare.txt."""
+-> <outdir>/pythia_{kin,proj,harm,e3,frag,deta}.png (with .npz/.root) and pythia_compare.txt;
+pythia_deta: the Delta eta-wake proxy (around jet2, the recoil, on the Z's half in Delta phi:
+where jet2's near-side diffusion wake sits in PLAN_dijet_deta_wake's measurement)."""
 import argparse
 import os
 import sys
@@ -44,6 +46,29 @@ def zshare(v, content, frame):
     m = v.mean(f"map_{content}_{frame}")
     zs = wi.zside_phi(frame)
     return m[:, :, zs].sum((1, 2)) / m.sum((1, 2))
+
+
+#: the Delta eta proxy around jet2 (PLAN_dijet_deta_wake's signal: jet2's diffusion wake on the
+#: Z's near side, at jet2's rapidity): J frame, the Z's half, core |d_eta| < 0.4, ring 0.8-1.4
+DETA_CORE, DETA_RING = 0.4, (0.8, 1.4)
+
+
+def deta_profile(v, content, pp=None):
+    """The J frame's Z half (|d_phi - pi| < pi/2) per Z per unit d_eta, (N_PT, N_ETA); with a pp
+    View the fragments minus pp's."""
+    m = v.mean(f"map_{content}_J")
+    if pp is not None:
+        m = m - pp.mean("map_frag_J")
+    return m[:, :, wi.zside_phi("J")].sum(-1) / wi.D_ETA
+
+
+def deta_proxy(prof):
+    """core, ring and core - ring of a deta_profile -> (3, N_PT); a negative difference is a
+    dip at jet2's rapidity."""
+    a = np.abs(wi.ETA_C)
+    core, ring = a < DETA_CORE, (a > DETA_RING[0]) & (a < DETA_RING[1])
+    c, r = prof[:, core].mean(1), prof[:, ring].mean(1)
+    return np.stack([c, r, c - r])
 
 
 def zyield(v, content, frame):
@@ -310,6 +335,50 @@ def main():
     plt.close(fig)
     paths.append(p)
 
+    # ── the Delta eta proxy around jet2 ──
+    DP = {}
+    fig, ax = figdata.subplots(2, N_CLS, figsize=(5.2 * N_CLS, 8.0), squeeze=False)
+    for i, s in enumerate(S):
+        for r_, (content, sets, fn) in enumerate((
+                ("wake", [[s["e2"]]], lambda V: deta_profile(V[0], "wake")),
+                ("frag-pp", [[s["e2"]], [s["pp"]]],
+                 lambda V: deta_profile(V[0], "frag", V[1])))):
+            prof, perr = wi.jackknife(fn, sets, a.blocks)
+            DP[(s["name"], content)] = wi.jackknife(lambda V, fn=fn: deta_proxy(fn(V)), sets,
+                                                    a.blocks)
+            x, y = ci.rebin1(wi.ETA_C, prof, 2)
+            _, ye = ci.rebin1(wi.ETA_C, perr ** 2, 2)
+            ye = np.sqrt(ye / 2)
+            keep = np.abs(x) < 2.4
+            for c in range(N_CLS):
+                ax[r_, c].errorbar(x[keep] + 0.02 * i, y[c][keep], ye[c][keep], fmt="o-", ms=3,
+                                   lw=0.9, color=col[s["name"]], label=s["label"])
+    for r_, title in enumerate(("wake", "fragments, Pb+Pb − pp")):
+        for c in range(N_CLS):
+            aa = ax[r_, c]
+            aa.axhline(0, color="0.6", lw=0.6)
+            for xx in (DETA_CORE, -DETA_CORE):
+                aa.axvline(xx, color="0.5", ls=":", lw=0.6)
+            for xx in DETA_RING + tuple(-d for d in DETA_RING):
+                aa.axvline(xx, color="0.8", ls="--", lw=0.6)
+            aa.set(xlabel="Δη = η − η_rec (jet2)", ylabel="dN/dΔη per Z, the Z's half",
+                   title=f"{title}, around jet2, toward the Z\n{wi.PT_LABELS[c]}")
+            if c == 0:
+                aa.legend(fontsize=7)
+    fig.suptitle("The Δη-wake proxy: around the recoil (jet2), on the Z's half in Δφ (where the "
+                 "near-side diffusion wake of jet2 sits), per Pythia setting (fragments against "
+                 "each setting's own pp), e_threshold 2; "
+                 f"core |Δη| < {DETA_CORE:g} (dotted), ring {DETA_RING[0]:g}–{DETA_RING[1]:g} "
+                 "(dashed)", fontsize=10)
+    fig.tight_layout()
+    p = out("pythia_deta.png")
+    figdata.savefig(fig, p, dpi=90)
+    plt.close(fig)
+    paths.append(p)
+    extra = wi.jackknife(lambda V: deta_proxy(deta_profile(V[0], "wake"))
+                         - deta_proxy(deta_profile(V[1], "wake")), sets_of(ref["e2"], S[-1]["e2"]),
+                         a.blocks)
+
     # ── the text ──
     def fe(v, e, k, c=None, p=3):
         x = np.atleast_1d(v[k])[0 if c is None else c]
@@ -371,6 +440,19 @@ def main():
             block(f"wake increment (3 - 2), {s['label']} - {ref['label']}", r["inc_vs_ref"],
                   ("c0 Z", "c1 Z", "v1 Z", "zshare Z", "c0 J", "v1 J", "core J", "wings J"))
         L.append("")
+    L.append(f"The Delta eta proxy around jet2 (J frame, the Z's half; per Z per unit d_eta; "
+             f"core |d_eta| < {DETA_CORE:g}, ring {DETA_RING[0]:g}-{DETA_RING[1]:g}; D = core - "
+             "ring, negative: a dip at jet2's rapidity), e_threshold 2:")
+    for content in ("wake", "frag-pp"):
+        for s in S:
+            v, e = DP[(s["name"], content)]
+            L.append(f"  {content:7s} {s['label']:24s} " + " | ".join(
+                f"{wi.PT_LABELS[c][:-4]}: core {v[0, c]:+.3f}±{e[0, c]:.3f} ring "
+                f"{v[1, c]:+.3f}±{e[1, c]:.3f} D {v[2, c]:+.3f}±{e[2, c]:.3f}" for c in range(N_CLS)))
+    v, e = extra
+    L.append(f"  the extra wake ({ref['label']} - {S[-1]['label']}): " + " | ".join(
+        f"{wi.PT_LABELS[c][:-4]}: core {v[0, c]:+.3f}±{e[0, c]:.3f} ring {v[1, c]:+.3f}±"
+        f"{e[1, c]:.3f} D {v[2, c]:+.3f}±{e[2, c]:.3f}" for c in range(N_CLS)))
     txt = out("pythia_compare.txt")
     with open(txt, "w") as f:
         f.write("\n".join(L) + "\n")
