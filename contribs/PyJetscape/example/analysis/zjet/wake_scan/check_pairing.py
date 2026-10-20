@@ -6,17 +6,19 @@ events, Z's, hydro backgrounds, partons and droplets.
 
 Compares the jet files' parton lists (partons/, initiators/, exact) and their per-event
 records (units/, exact).  A liquefier setting acts after the energy loss, on MUSIC_2 alone, so
-only the jet leg's MUSIC record may change (CHANGES) and the hadrons (their iSS and
-fragmentation seeds include each job's random file_uuid: the same partons, other random
-numbers).  Prints what differs; exit 1 if anything outside CHANGES does."""
+only the jet leg's MUSIC record may change (CHANGES), and the hadrons with their per-event
+seeds (units/seed: the iSS and fragmentation seeds include each job's random file_uuid, the
+same partons, other random numbers).  Prints what differs; exit 1 if anything outside CHANGES
+does."""
 import sys
 
 import h5py
 import numpy as np
 
-#: per-event records the jet leg's MUSIC (MUSIC_2) writes: allowed to change
+#: per-event records allowed to change: the jet leg's MUSIC (MUSIC_2) record, and the event's
+#: hadronization seed (hadronizer.unit_seed, keyed by the job's random file_uuid)
 CHANGES = {"E_droplets_early", "E_droplets_late", "n_cells_jet", "ntau_jet_music",
-           "jet_hit_boundary", "jet_hit_edge", "wall_s"}
+           "jet_hit_boundary", "jet_hit_edge", "wall_s", "seed"}
 
 
 def same(x, y):
@@ -45,7 +47,7 @@ def main():
             if not same(a["units"][k][()], b["units"][k][()]):
                 (changed if k in CHANGES else bad).append(f"units/{k}")
     print(f"{pa.split('/')[-1]} / {pb.split('/')[-1]}: "
-          + (f"MUSIC_2 records changed: {', '.join(changed)}; " if changed else "")
+          + (f"allowed changes: {', '.join(changed)}; " if changed else "")
           + ("paired" if not bad else f"NOT PAIRED, differences: {bad}"))
     sys.exit(1 if bad else 0)
 

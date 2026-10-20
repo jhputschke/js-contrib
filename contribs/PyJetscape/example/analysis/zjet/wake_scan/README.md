@@ -33,7 +33,17 @@ its correlated sampling, `bulk_jet` and `bulk_bg` with common seeds).
 `make_data.sh check` verifies the pairing seed by seed: the job XMLs differ in the scanned
 setting alone (`check_settings.py`), and the jet files have identical events, partons,
 initiators and per-event records except the jet leg's MUSIC record (`check_pairing.py`:
-`E_droplets_early`/`late`, `n_cells_jet`, `ntau_jet_music`, `jet_hit_*`).
+`E_droplets_early`/`late`, `n_cells_jet`, `ntau_jet_music`, `jet_hit_*`) and the events'
+hadronization seeds (`seed`, keyed by each job's `file_uuid`).
+
+The cost of the unshared samples, measured on the mini campaign (108 Z's, the per-sample spread
+of the Z-side count in the first Δy bin): `bulk_jet` and `bulk_bg` with common seeds cut the
+wake's particlization variance by 10 (1–2 GeV: 41 against 409 per sample; 2–4 GeV: 4.8 against
+56), so a paired difference carries √2 × the wake's own sampling noise, in the first Δy bin
+±0.09 at 1–2 GeV, ±0.03 at 2–4 GeV, ±0.004 at 4–10 GeV (four jobs), plus the event-to-event
+spread of the setting's effect. Sharing the samples between values (the seeds keyed by the job
+seed instead of `file_uuid`), more oversamples (particlization is ~20 % of a job) or more seeds
+reduce it.
 
 ## Files
 
