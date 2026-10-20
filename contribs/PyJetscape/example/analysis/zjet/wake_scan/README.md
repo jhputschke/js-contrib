@@ -58,10 +58,23 @@ reduce it.
 ```bash
 cd $EX/analysis/zjet/wake_scan
 ./make_data.sh            # or: xml | prod | check | pools | compare
-# another setting or values (a tag that occurs once in the XML):
-PARAM=Liquefier/e_threshold VALUES="2.0 3.0 4.0" BASE=2.0 ./make_data.sh
+# another setting (a tag that occurs once in the XML), the campaign's value taken from the
+# tau_delay scan's baseline instead of rerun:
+PARAM=Liquefier/e_threshold VALUES="1.0 2.0 3.0" BASE=2.0 REF=tau_delay_1p0 PAIRING=events \
+  ./make_data.sh
 # OUT, SEEDS ("102 103 104 105"), EVENTS (48), PAR (2 jobs at a time), PP_POOLS
 ```
+
+- `REF`: the run whose jobs and pools are the baseline, when an earlier scan already ran the
+  campaign's settings with the same seeds (`tau_delay_1p0` is the campaign XML unchanged, so it
+  is the baseline of every setting's campaign value). `check` compares its job XMLs with the
+  other values': they must differ in `PARAM` alone, which also proves the reference's settings.
+- `PAIRING`: what the setting may change. `jets` (default) for settings that act after the
+  energy loss, on MUSIC_2 alone (`tau_delay`): the jets, partons and droplets must be
+  identical. `events` for settings that act during the energy loss (`e_threshold`: partons
+  below it leave LBT for the fluid; α_s): the events, Z's, backgrounds and shower initiators
+  must be identical, while the final partons, the droplets and so the fragments change, and the
+  fragments' pieces of the differences then carry the setting's effect on the jets.
 
 The pp (Pb+Pb − pp; it cancels in the differences): the campaign's pp pools of `../pp_comp`
 (`../pp_comp/make_data.sh prod pools`; js-contrib branch `pp_comp` until it is merged), or any

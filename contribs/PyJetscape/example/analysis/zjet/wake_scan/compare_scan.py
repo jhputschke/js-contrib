@@ -72,6 +72,9 @@ def main():
     ap.add_argument("--param", default="Liquefier/CausalLiquefier/tau_delay")
     ap.add_argument("--values", nargs="+", default=["0.5", "1.0", "2.0"])
     ap.add_argument("--base", default="1.0")
+    ap.add_argument("--base-name", default=None,
+                    help="the baseline's run name if not <setting>_<value> (make_data.sh REF: "
+                         "an earlier scan's campaign-setting jobs)")
     ap.add_argument("--outdir", default=None, help="default runs/wake_scan/figures")
     ap.add_argument("--hepdata", default=runs.hepdata("HEPData-ins2945894-v1-yaml"))
     ap.add_argument("--blocks", type=int, default=100)
@@ -81,8 +84,9 @@ def main():
     if a.base not in a.values:
         raise SystemExit("--base must be one of --values")
     tag = a.param.split("/")[-1]
-    pools = {v: wd.load([os.path.join(a.data, "mix", name_of(a.param, v), "pbpb")])
+    names = {v: (a.base_name if (v == a.base and a.base_name) else name_of(a.param, v))
              for v in a.values}
+    pools = {v: wd.load([os.path.join(a.data, "mix", names[v], "pbpb")]) for v in a.values}
     pp = wd.load(a.pp)
     p0 = pools[a.base]
     for v, p in pools.items():
@@ -97,7 +101,8 @@ def main():
     diff, derr = paired(pools, pp, a.base, a.dy, a.blocks)
     ref = [wd.cms_difference(a.hepdata, c, a.dy) for c in range(len(PT_TAGS))]
 
-    lines = [f"Scan of {a.param}: {' '.join(a.values)} (baseline {a.base}); {p0.n} Pb+Pb Z's on "
+    lines = [f"Scan of {a.param}: {' '.join(a.values)} (baseline {a.base}, run {names[a.base]}); "
+             f"{p0.n} Pb+Pb Z's on "
              f"{p0.n_bg} hydro backgrounds (N_eff {zm.n_eff(p0.w):.0f}), the same in every value; "
              f"pp {pp.n} Z's from {' '.join(a.pp)}",
              "Z side, per Z per unit Delta y, +-merged x 0.5; the pieces of ../wake_decomp.py", ""]

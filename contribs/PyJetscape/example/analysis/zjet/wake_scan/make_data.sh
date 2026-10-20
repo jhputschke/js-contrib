@@ -7,6 +7,9 @@
 #
 #   ./make_data.sh [all | xml | prod | check | pools | compare]       (default: all)
 #
+#   PARAM=Liquefier/e_threshold VALUES="1.0 2.0 3.0" BASE=2.0 REF=tau_delay_1p0 PAIRING=events \
+#     ./make_data.sh                  # the campaign's value from an earlier scan, not rerun
+#
 #   xml      the variant XMLs from the campaign's (make_xml.py), each checked against it
 #   prod     run_prod_jet.py for every value and seed, PAR jobs at a time (GPU), then check;
 #            jobs whose <stem>.json exists are skipped (a rerun resumes)
@@ -18,6 +21,10 @@
 #
 # Environment: OUT (../../runs/wake_scan), PARAM (Liquefier/CausalLiquefier/tau_delay),
 # VALUES ("0.5 1.0 2.0"), BASE (1.0), SEEDS ("102 103 104 105"), EVENTS (48), PAR (2),
+# REF (the run name whose jobs and pools are the baseline, e.g. tau_delay_1p0: an earlier
+# scan's campaign-setting jobs with the same seeds; check verifies that its job XMLs differ
+# from the other values' in PARAM alone), PAIRING (jets: the setting acts after the energy
+# loss, the jets must be identical; events: it acts during it, e_threshold, alpha_s, ...),
 # PP_POOLS (the campaign's pp pools, ../../runs/pp_comp/data/mix/campaign/vacuum: made by
 # ../pp_comp/make_data.sh prod pools).  Outputs are git-ignored (runs/).
 set -euo pipefail
@@ -35,6 +42,8 @@ PARAM=${PARAM:-Liquefier/CausalLiquefier/tau_delay}
 VALUES=${VALUES:-"0.5 1.0 2.0"}
 BASE=${BASE:-1.0}
 SEEDS=${SEEDS:-"102 103 104 105"}
+REF=${REF:-}
+PAIRING=${PAIRING:-jets}
 EVENTS=${EVENTS:-48}
 PAR=${PAR:-2}
 PP_POOLS=${PP_POOLS:-$ANA/runs/pp_comp/data/mix/campaign/vacuum}
@@ -42,12 +51,16 @@ WINDOWS=20-30,30-35,35-45,45-55,55-70,70-200
 CAMPAIGN_XML=$CONFIG/PbPb_0_30_ZJet.xml
 TAG=${PARAM##*/}
 
-name_of() { echo "${TAG}_${1//./p}"; }
+name_of() {        # a value's run name; the baseline's is REF when given
+  if [[ -n $REF && $1 == "$BASE" ]]; then echo "$REF"; else echo "${TAG}_${1//./p}"; fi
+}
+skip_base() { [[ -n $REF && $1 == "$BASE" ]]; }
 stem_of() { printf 'PbPb_0_30_zjet_%s_seed%04d' "$1" "$2"; }
 
 xml() {
   mkdir -p "$DATA/xml"
   for v in $VALUES; do
+    skip_base "$v" && continue
     local n; n=$(name_of "$v")
     python "$HERE/make_xml.py" "$CAMPAIGN_XML" "$DATA/xml/$n.xml" --set "$PARAM=$v"
     python "$HERE/check_settings.py" "$CAMPAIGN_XML" "$DATA/xml/$n.xml" --allow "$PARAM" \
@@ -80,6 +93,7 @@ prod() {
   echo "prod: $PARAM = $VALUES, seeds $SEEDS, $EVENTS events each, $PAR at a time"
   for s in $SEEDS; do              # seed by seed: each round gives same-seed pairs early
     for v in $VALUES; do
+      skip_base "$v" && continue
       run_job "$v" "$s" &
       i=$((i + 1))
       if ((i % PAR == 0)); then wait; fi
@@ -102,7 +116,7 @@ check() {
       python "$HERE/check_settings.py" "$DATA/$bn/$b.xml" "$DATA/$n/$c.xml" --allow "$PARAM" \
         || fail=1
       python "$HERE/check_pairing.py" "$DATA/$bn/${b}_hadrons_jet_frag.h5" \
-        "$DATA/$n/${c}_hadrons_jet_frag.h5" || fail=1
+        "$DATA/$n/${c}_hadrons_jet_frag.h5" --level "$PAIRING" || fail=1
     done
   done
   if ((fail)); then echo "check: FAILED"; return 1; fi
@@ -113,6 +127,10 @@ pools() {
   mkdir -p "$LOGS"
   for v in $VALUES; do
     local n; n=$(name_of "$v")
+    if skip_base "$v" && ls "$DATA/mix/$n/pbpb"/*.npz > /dev/null 2>&1; then
+      echo "pools $n: there (REF)"
+      continue
+    fi
     echo "pools $n -> $DATA/mix/$n/pbpb"
     python "$ZJET/mix.py" --pbpb "$DATA/$n" --vacuum none --pools "$DATA/mix/$n" --pools-only \
       --jobs 4 > "$LOGS/pools_$n.log" 2>&1
@@ -126,7 +144,7 @@ compare() {
   fi
   # shellcheck disable=SC2086
   python "$HERE/compare_scan.py" --data "$DATA" --pp "$PP_POOLS" --param "$PARAM" \
-    --values $VALUES --base "$BASE" --outdir "$OUT/figures"
+    --values $VALUES --base "$BASE" ${REF:+--base-name "$REF"} --outdir "$OUT/figures"
 }
 
 step=${1:-all}
