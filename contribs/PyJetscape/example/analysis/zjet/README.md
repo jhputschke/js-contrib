@@ -17,6 +17,8 @@ example/analysis/
                       not needed to run the workflow
     pp_comp/          the campaign's pp reference against JETSCAPE's PP19 tune (Matter Q0 2 vs
                       1 GeV) in CMS's pp Z-hadron and Z+jet observables (pp_comp/README.md)
+    wake_scan/        a paired scan of one liquefier setting (tau_delay first): the Z-side
+                      Delta y of Pb+Pb - pp split by wake_decomp.py (wake_scan/README.md)
   dijet/              the η-separated dijet analysis, first with the Z as jet1 (deta.py,
                       ANA_Deta.md, gap_count.py)
   runs/<run>/         data/ and figures/ of one campaign or test set (git-ignored)
@@ -46,6 +48,7 @@ Route B converts the hadron files once (`../../prod_AuAu_0_10_jet/run_h5toROOT.p
 | `mix.py` | event mixing (`zjet_mixing.py`, [below](#event-mixing-mixpy)): pools of `runs/<run>/data/pbpb` and `vacuum` (cached in `data/mix/`) → step 1, the reference (factorized, with pp; `test/compare.py`'s figure): `figures/mixing_reference_d{phi,y}.png`; all four steps: `mixing_dphi.png`, `mixing_dy.png`; the errors: `mixing_errors_d{phi,y}.png`; `mixing_summary.txt` (~10 s on the test); `--pbpb-pools`/`--vacuum-pools` read existing pools, of several directories (campaigns built apart), `--pools-only` builds them and stops |
 | `check_cxx.py` | the C++ map steps (`../../analysis_root/zjet`) against the Python ones: `pools`, `jets` (with the jet QA trees) and `qa` |
 | `README_zjet_2507.09307.md` | every cut of CMS 2507.09307 (Z–hadron Δφ / Δy) and its setting in the production and the analysis |
+| `wake_decomp.py` | the Z-side Δy of Pb+Pb − pp (step 1) split into the fragments' and the wake's parts, each into its Z-side yield and its level (the mean subtraction of CMS's observable), per track p_T class, with CMS's Pb+Pb − pp; from version-4 pools → `figures/wake_decomp*.png`, `wake_decomp*.txt` |
 | `MIXING_MODES.md` | the mixing modes in one notation: S and B from `bulk_jet`, `bulk_bg`, `jet_frag`, what is averaged over the oversamples, which partners and backgrounds, the weights; pp's factorized result and its relation to Pb+Pb; `strict` and `cms10` against CMS |
 | `get_hepdata.sh` | CMS 2507.09307's, 1702.01060's and HIN-25-012's (`25012`, ins3123406: the dijet Δη of `../dijet/deta.py`) HEPData records → `../runs/hepdata/` (once, before the final stages) |
 | `zjet_wake.py`, `zjet_mixing.py`, `cms2507.py` | the library: the Z record, selection, weights and Z frame; the pools and the mixing modes; CMS 2507.09307's HEPData and observables (the factorized result) |

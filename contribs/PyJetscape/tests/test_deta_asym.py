@@ -78,6 +78,42 @@ def test_a_shared_bulk_is_flat_after_the_mixed_event():
     assert np.allclose(np.nan_to_num(dif2[..., inside]), 0.0, atol=1e-12)
 
 
+def test_a_centrality_dependent_bulk_needs_the_matched_mixed_event():
+    # two centrality classes with different multiplicities and eta shapes; the central events
+    # sit preferentially in the large-gap classes: one pooled density leaves a residual in
+    # R_asym - R_sym, the density of each event's own class removes it exactly
+    rng = np.random.default_rng(4)
+    rho = np.stack([np.stack([1.0 + 0.0 * da.ETAC]),                      # flat, peripheral
+                    np.stack([3.0 * (1.0 - 0.05 * da.ETAC ** 2)])])         # narrower, central
+    n = 800
+    y = rng.uniform(-1, 1, n)
+    cent = rng.uniform(0, 1, n) < 0.5
+    gap = np.where(cent, rng.uniform(1.0, 2.0, n), rng.uniform(0.0, 1.0, n))
+    eta2 = y + np.where(rng.uniform(0, 1, n) < 0.5, -gap, gap)
+    k = cent.astype(np.int64)
+    C = np.zeros((n, 1, 2, da.N_DY))
+    for c in (0, 1):
+        C[k == c, :, 0] = da.shift_density(rho[c], y[k == c])
+    cls, refl = da.gap_class(y, eta2)
+    f, r = da.event_classes(np.arange(n), n, np.ones(n), cls, refl, len(da.GAPS))
+    w = np.ones(n)
+    num, den = da.class_sums(C, w, f, r)
+    inside = np.abs(da.DYC) < 3.3
+
+    def dif(K):
+        me, _ = da.class_sums(K, w, f, r)
+        yc, acc = da.corrected(num, den, me, da.full_acceptance(1.0), with_acceptance=True)
+        return da.asym_minus_sym(yc, acceptance=acc)[0][..., inside]
+    pooled = rho[0] * (k == 0).sum() + rho[1] * (k == 1).sum()
+    assert np.nanmax(np.abs(dif(da.mixed_event(y, pooled)))) > 1e-3       # the mismatch
+    assert np.allclose(np.nan_to_num(dif(da.mixed_event_matched(y, rho, k))), 0.0, atol=1e-12)
+    assert np.allclose(da.mixed_event_matched(y, rho[:1], np.zeros(n, np.int64)),
+                       da.mixed_event(y, rho[0]))                         # one class
+    q = da.quantile_classes(np.arange(100.0), 4)
+    assert np.bincount(q).tolist() == [25, 25, 25, 25]
+    assert not da.quantile_classes([3.0, 1.0], 1).any()
+
+
 def test_a_wake_survives_and_the_geometric_acceptance_is_exact():
     rng = np.random.default_rng(3)
     y = rng.uniform(-1, 1, 200)

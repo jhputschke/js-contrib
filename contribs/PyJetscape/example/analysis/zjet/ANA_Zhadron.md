@@ -317,6 +317,17 @@ step 2's closure (A3), which decides whether it is the comparison with data.
    and the Z side (Δφ ≈ 0, Δy ≈ 0: the wake's depletion at 1–2 GeV).
 3. **Pb+Pb − pp** (bottom row): the medium's modification, the paper's headline observable.
 
+What makes the Z side's Pb+Pb − pp (with version-4 pools): `wake_decomp.py` splits its Δy into
+the fragments' and the wake's parts, each into its own Z-side yield and its level. CMS's
+observable subtracts the mean (S − B integrates to zero), so tracks added on the jet side lower
+the Z side and tracks removed there raise it: a Z-side depletion can come from the wake's
+Z-side yield or from its jet-side excess, and the quenched fragments' jet-side deficit works
+against it.
+
+```bash
+python wake_decomp.py --pbpb $ANA/pools/pbpb --pp $ANA/pools/vacuum --outdir $ANA/figures --tag _c00
+```
+
 **A3. Step 2, the closure** — `mixing_dphi_c00.png`, `mixing_dy_c00.png`: blue (all) against red
 (factorized); the summary's checks (2) and (3). Expect the bulk term (all − all with the bulk
 off) consistent with zero (χ²/ndf ≈ 1 with 100 blocks) and blue's errors larger than red's at

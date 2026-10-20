@@ -17,7 +17,9 @@ CMS's steps (2602.19431): reflect so that eta_jet1 > eta_jet2 (jet2 and its wake
 Delta eta); per trigger and unit Delta eta on the near side; the pair acceptance corrected
 with mixed events (jet1 of one event with the tracks of others, normalized to unity where the
 acceptance is full: here the triggers' rapidities folded with a pooled lab density,
-``mixed_event``, reflected with their contents); the level of 1.5 < Delta eta < 2.5 subtracted per class; R_asym - R_sym for
+``mixed_event``, or with the density of their own centrality class, ``mixed_event_matched``,
+as CMS mixes within 0.5 % of centrality; reflected with their contents); the level of
+1.5 < Delta eta < 2.5 subtracted per class; R_asym - R_sym for
 the large-gap classes; their integral over -2.4 < Delta eta < -0.6.  CMS's HEPData record
 (ins3123406) bins Delta eta in 0.2 with edges at odd tenths, and its Fig. 3 values are the
 plain sums of Fig. 2's over the 10 bins centred -2.4 ... -0.6 (edges -2.5 ... -0.5):
@@ -142,6 +144,32 @@ def mixed_event(y1, rho):
 def flat_density(n_pt):
     """Ones in every lab-eta bin (|eta| < 2.4): the geometric pair acceptance."""
     return np.ones((n_pt, len(ETAC)))
+
+
+def quantile_classes(x, n_classes):
+    """Classes of (nearly) equal population by the quantiles of x -> per entry its class 0 ..
+    n_classes - 1 (all 0 for n_classes <= 1)."""
+    x = np.asarray(x, float)
+    if n_classes <= 1:
+        return np.zeros(len(x), np.int64)
+    edges = np.quantile(x, np.linspace(0, 1, n_classes + 1)[1:-1])
+    return np.searchsorted(edges, x, side="right").astype(np.int64)
+
+
+def mixed_event_matched(y1, rho, event_class):
+    """``mixed_event`` with a density per class: every trigger folded with the lab density of
+    its own class (rho (n_classes, N_PT, N_ETA), each per trigger, e.g. per unit event weight)
+    -> (n, N_PT, N_DY).  CMS mixes within 0.5 % of centrality (and 0.5 cm of vertex): the
+    bulk's eta shape changes with centrality, and one density for all leaves the shape mismatch
+    in R_asym - R_sym.  One class is ``mixed_event``."""
+    y1 = np.asarray(y1, float)
+    event_class = np.asarray(event_class, np.int64)
+    out = np.zeros((len(y1), rho.shape[1], N_DY))
+    for c in range(rho.shape[0]):
+        m = event_class == c
+        if m.any():
+            out[m] = shift_density(rho[c], y1[m])
+    return out
 
 
 def full_acceptance(ymax):

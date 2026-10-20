@@ -120,6 +120,13 @@ python $A/zjet/mix.py --pbpb none --vacuum $PP --pools $RUNS/zjet_pp/data/mix --
 ```
 
 `deta.py` and `mix.py` read a directory's `*_pool.root` (C++) if it has any, else its `*.npz`.
+The same pools give the Z-side Δy of Pb+Pb − pp split into fragments and wake, each into its
+Z-side yield and its level (`../zjet/wake_decomp.py`, ANA_Zhadron §A2):
+
+```bash
+python $A/zjet/wake_decomp.py --pbpb $RUNS/zjet_c00/data/mix/pbpb $RUNS/zjet_c01/data/mix/pbpb \
+    --pp $RUNS/zjet_pp/data/mix/vacuum --run zjet_c00-01 --tag _c00-01
+```
 
 ## 3. Checks (plan A4)
 
@@ -216,10 +223,51 @@ per bin at negative Δη).
 The jackknife needs many backgrounds: with a few (the GB10's mini campaign: 8) the errors and
 χ² are not meaningful, only the mechanics.
 
+**The mixed event within centrality (`--mix-classes`, since 2026-10-20).** CMS mixes "only
+between events with similar primary vertex positions … (within 0.5 cm) and collision centrality
+(within 0.5%)" (2602.19431). `deta.py` folds each Z's rapidity with the lab density of the full
+events on the backgrounds of its own N_coll class: 10 classes of equal numbers of backgrounds by
+default (`deta.mixed_event_of`, `jetcorr.deta_asym.mixed_event_matched`); pp has one.
+- **Why:** the bulk's dN/dη narrows with centrality. On c00 + c01 at 1–2 GeV, relative to
+  |η| < 0.5 it is 0.95 at |η| 2.0–2.4 in the most central third and 0.99 in the least central.
+  One density for all centralities (`--mix-classes 1`, `deta.py` before 2026-10-20) leaves that
+  shape mismatch in R_asym − R_sym, largest in 1.5–2.0, where the sideband reaches the
+  acceptance edge.
+- **The effect** (c00 + c01, B at 1–2 GeV, 0.5–1.0 / 1.0–1.5 / 1.5–2.0):
+  - one density: −5.8 / −0.4 / −14.5, ± 4.4–6.1 (jackknifed as a whole);
+  - 10 classes: −1.4 / −0.0 / −3.2, ± 1.3–1.7;
+  - the noise of F per effective Z halves (27 → 13).
+  - T and W use the geometric acceptance and do not change.
+- **`--mix-classes 1` reproduces the earlier outputs exactly.**
+- **Caveat:** `deta.py`'s integral errors and closure χ² still treat the 0.2 bins as
+  independent. B's bins are ~90 % correlated, so `deta_cov.py` (below) is the reliable test.
+
+**Diagnostics** (`dijet/`; each takes `deta.py`'s directory options and `--mix-classes`):
+
+| script | what |
+|---|---|
+| `deta_cov.py` | the integrals jackknifed as a whole and χ² against 0 with the full covariance of the 10 signal bins, for every content, F − T and Pb+Pb − pp (`--ref-jets`: jet2 from the bulk-free reference jets, `emb.ref_*`) |
+| `deta_null.py` | B against a permutation null: each background's bulk (lab η) handed to another background's Z's. Its mean tests the method, its spread is B's true noise |
+| `deta_classes.py` | per gap class, the Z-side yields of W, T and pp before R_asym − R_sym and the sideband: where the wake sits for each jet2 rapidity |
+| `deta_bias.py` | does jet2 select its own medium's thinner side (bulk contrast at ±η_jet2 against a null)? B with one mixed event and with the matched one, against a null that keeps each Z's centrality; the bulk's η shape against N_coll |
+
+```bash
+DIRS="--pools $RUNS/zjet_c$C/data/mix/pbpb --vacuum-pools $RUNS/zjet_pp/data/mix/vacuum \
+   --jets $RUNS/zjet_c$C/data/jets_r04 --pp-jets $RUNS/zjet_pp/data/jets_r04"
+F=$RUNS/zjet_c$C/figures
+python $A/dijet/deta_cov.py $DIRS --out $F/deta_cov_c$C.txt
+python $A/dijet/deta_null.py $DIRS --out $F/deta_null_c$C.txt --perms 100
+python $A/dijet/deta_classes.py $DIRS --out $F/deta_classes_c$C.png
+python $A/dijet/deta_bias.py --pools $RUNS/zjet_c$C/data/mix/pbpb --jets $RUNS/zjet_c$C/data/jets_r04 \
+   --out $F/deta_bias_c$C.txt --perms 100
+```
+They use all cores through BLAS: run them one at a time, not beside `deta.py`.
+
 ## What to bring back from the RTX box
 
 The summaries `runs/zjet_c00/figures/deta_summary_c00*.txt`, `runs/zjet_c00-01/…`, the jet QA
-summary at R = 0.4 (`qa_jets_summary_c00_r04.txt`), `gap_count.py`'s table, the logs' times
+summary at R = 0.4 (`qa_jets_summary_c00_r04.txt`), `gap_count.py`'s table,
+`wake_decomp_c00-01.txt`, the logs' times
 of the R = 0.4 map steps and the pools, and the check outputs of step 3: they decide D2 (the
 fake jet2), give R4 (the noise per effective Z: the size of the dijet production) and close
 plan A4/A5.
