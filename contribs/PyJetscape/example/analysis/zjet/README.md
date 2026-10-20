@@ -15,6 +15,8 @@ example/analysis/
   zjet/               this folder: the workflow
     test/             the first 96-event test and the campaign set-up checks (test/README.md);
                       not needed to run the workflow
+    wake_scan/        a paired scan of one liquefier setting (tau_delay first): the Z-side
+                      Delta y of Pb+Pb - pp split by wake_decomp.py (wake_scan/README.md)
   dijet/              the η-separated dijet analysis, first with the Z as jet1 (deta.py,
                       ANA_Deta.md, gap_count.py)
   runs/<run>/         data/ and figures/ of one campaign or test set (git-ignored)
