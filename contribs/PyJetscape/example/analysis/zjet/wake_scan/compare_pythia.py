@@ -14,7 +14,9 @@ backgrounds), but other hard events: two settings are compared per Z, with a jac
 same background blocks (the backgrounds are the independent units of both), not event by event.
 e_threshold 3 against 2 within one setting is paired event by event.  Each setting has its own
 pp reference (the same Pythia settings in vacuum).
--> <outdir>/pythia_{kin,proj,harm,e3,frag,deta}.png (with .npz/.root) and pythia_compare.txt;
+-> <outdir>/pythia_{kin,proj,harm,e3,frag,deta,rings}.png (with .npz/.root) and
+pythia_compare.txt; pythia_rings: the momentum balance in Delta R around the recoil (maps with
+wake_iso's rings);
 pythia_deta: the Delta eta-wake proxy (around jet2, the recoil, on the Z's half in Delta phi:
 where jet2's near-side diffusion wake sits in PLAN_dijet_deta_wake's measurement)."""
 import argparse
@@ -69,6 +71,28 @@ def deta_proxy(prof):
     core, ring = a < DETA_CORE, (a > DETA_RING[0]) & (a < DETA_RING[1])
     c, r = prof[:, core].mean(1), prof[:, ring].mean(1)
     return np.stack([c, r, c - r])
+
+
+#: Delta R regions around the recoil for the momentum balance (wake_iso's rings)
+RING_REGIONS = (("< 0.3", 0.0, 0.3), ("0.3–0.8", 0.3, 0.8), ("0.8–1.4", 0.8, 1.4),
+                ("> 1.4", 1.4, 99.0))
+
+
+def ring_p(v, content, pp=None, q=2):
+    """The rings' sum p_T cos(phi - phi_rec) per Z (q = 2; q = 1: sum p_T), (N_RPT, N_RING); with
+    a pp View the fragments minus pp's."""
+    r = v.mean(f"ring_{content}")[..., q]
+    if pp is not None:
+        r = r - pp.mean("ring_frag")[..., q]
+    return r
+
+
+def ring_regions(r):
+    """(N_RPT, N_RING) -> the RING_REGIONS sums over all p_T and the total, (len + 1,)."""
+    e = wi.RING_EDGES
+    tot = r.sum(0)
+    out = [tot[(e[:-1] >= lo - 1e-9) & (e[1:] <= hi + 1e-9)].sum() for _, lo, hi in RING_REGIONS]
+    return np.array(out + [tot.sum()])
 
 
 def zyield(v, content, frame):
@@ -379,6 +403,51 @@ def main():
                          - deta_proxy(deta_profile(V[1], "wake")), sets_of(ref["e2"], S[-1]["e2"]),
                          a.blocks)
 
+    # ── the momentum balance in Delta R around the recoil ──
+    RB = {}
+    redges = wi.RING_EDGES
+    rc, rw = 0.5 * (redges[1:] + redges[:-1]), np.diff(redges)
+    fig, ax = figdata.subplots(1, 4, figsize=(21, 4.8), squeeze=False)
+    for i, s in enumerate(S):
+        w_ = lambda V: ring_p(V[0], "wake")                                   # noqa: E731
+        f_ = lambda V: ring_p(V[0], "frag", V[1])                             # noqa: E731
+        sets_w, sets_f = [[s["e2"]]], [[s["e2"]], [s["pp"]]]
+        RB[(s["name"], "wake")] = wi.jackknife(lambda V: ring_regions(w_(V)), sets_w, a.blocks)
+        RB[(s["name"], "frag-pp")] = wi.jackknife(lambda V: ring_regions(f_(V)), sets_f,
+                                                  a.blocks)
+        RB[(s["name"], "total")] = wi.jackknife(lambda V: ring_regions(w_(V) + f_(V)), sets_f,
+                                                a.blocks)
+        RB[(s["name"], "classes")] = wi.jackknife(lambda V: w_(V).sum(1), sets_w, a.blocks)
+        for j, (fn, sets) in enumerate(((w_, sets_w), (f_, sets_f),
+                                        (lambda V: w_(V) + f_(V), sets_f))):
+            val, err = wi.jackknife(lambda V, fn=fn: fn(V).sum(0) / rw, sets, a.blocks)
+            ax[0, j].errorbar(rc + 0.01 * i, val, err, fmt="o-", ms=3, lw=0.9,
+                              color=col[s["name"]], label=s["label"])
+        val, err = RB[(s["name"], "classes")]
+        ax[0, 3].errorbar(np.arange(len(val)) + 0.1 * i, val, err, fmt="o", ms=5,
+                          color=col[s["name"]], label=s["label"])
+    for j, title in enumerate(("wake", "fragments, Pb+Pb − pp", "balance: wake + fragments − pp")):
+        ax[0, j].axhline(0, color="0.6", lw=0.6)
+        ax[0, j].axvline(0.3, color="0.5", ls=":", lw=0.7)
+        ax[0, j].set(xlabel="ΔR to the recoil (jet2)", ylabel="dP_∥/dΔR per Z [GeV]",
+                     title=f"{title}\n(P_∥ = Σ p_T cos Δφ_rec)", xlim=(0, 4.2))
+    labs = [f"{x:g}–{y:g}" if y < 100 else f"> {x:g}" for x, y in
+            zip(wi.RING_PT[:-1], wi.RING_PT[1:])]
+    ax[0, 3].axhline(0, color="0.6", lw=0.6)
+    ax[0, 3].set_xticks(np.arange(len(labs)))
+    ax[0, 3].set_xticklabels(labs, fontsize=8)
+    ax[0, 3].set(xlabel="hadron p_T [GeV]", ylabel="P_∥ per Z [GeV]",
+                 title="the wake's P_∥ per hadron p_T\n(all ΔR)")
+    ax[0, 0].legend(fontsize=7)
+    fig.suptitle("The momentum balance around the recoil (jet2), every stored hadron (|η| < 2.6), "
+                 "the Z's with |η_rec| < 1, e_threshold 2: where the recoil's lost momentum goes",
+                 fontsize=10)
+    fig.tight_layout()
+    p = out("pythia_rings.png")
+    figdata.savefig(fig, p, dpi=90)
+    plt.close(fig)
+    paths.append(p)
+
     # ── the text ──
     def fe(v, e, k, c=None, p=3):
         x = np.atleast_1d(v[k])[0 if c is None else c]
@@ -453,6 +522,18 @@ def main():
     L.append(f"  the extra wake ({ref['label']} - {S[-1]['label']}): " + " | ".join(
         f"{wi.PT_LABELS[c][:-4]}: core {v[0, c]:+.3f}±{e[0, c]:.3f} ring {v[1, c]:+.3f}±"
         f"{e[1, c]:.3f} D {v[2, c]:+.3f}±{e[2, c]:.3f}" for c in range(N_CLS)))
+    L.append("")
+    L.append("The momentum balance around the recoil (J frame's Z's, every stored hadron, |eta| < "
+             "2.6): sum p_T cos(phi - phi_rec) per Z [GeV] in Delta R " +
+             ", ".join(r[0] for r in RING_REGIONS) + ", all:")
+    for s in S:
+        for what in ("wake", "frag-pp", "total"):
+            v, e = RB[(s["name"], what)]
+            L.append(f"  {what:8s} {s['label']:24s} " + " | ".join(
+                f"{x:+.2f}±{y:.2f}" for x, y in zip(v, e)))
+        v, e = RB[(s["name"], "classes")]
+        L.append(f"  wake per hadron p_T {s['label']:24s} " + " | ".join(
+            f"{lab} {x:+.2f}±{y:.2f}" for lab, x, y in zip(labs, v, e)))
     txt = out("pythia_compare.txt")
     with open(txt, "w") as f:
         f.write("\n".join(L) + "\n")

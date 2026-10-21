@@ -28,6 +28,10 @@ class, d_eta bin), and the p_T spectra (SPEC_EDGES) toward the Z (d_phi on the Z
 toward the recoil.  Per content, over every stored hadron (the files' |eta| < eta_max, all
 species, any p_T): TOTALS.  Per event its deposited droplet energy (units/E_droplets).
 
+Around the recoil, for the momentum balance (the J frame's Z's): every stored hadron in Delta R
+rings (RING_EDGES), per p_T class RING_PT, its count, sum p_T and sum p_T cos(phi - phi_rec)
+(``ring_<content>``; maps made before them have none).
+
 Everything is stored as weighted sums per group: a hydro background in Pb+Pb, a block of
 --block events in vacuum.  The per-Z means are the summed contents over the summed weights, and
 a jackknife over groups follows from the stored sums (:class:`Maps`, :func:`jackknife`).  Runs
@@ -62,6 +66,12 @@ NH = 5                                                           # cos(n d_phi),
 SPEC_EDGES = np.concatenate([np.arange(0.0, 3.01, 0.25), [3.5, 4, 5, 6, 8, 10, 15, 20]])
 TOTALS = ("N", "E", "pT", "pT cos dphi_Z", "pT cos dphi_rec")
 FRAMES = ("Z", "ZJ", "J")
+#: rings in Delta R around the recoil (the J frame's Z's), for the momentum balance: every stored
+#: hadron (any species, |eta| < the files' eta_max), per p_T class RING_PT, RING_Q per ring
+RING_EDGES = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.4, 1.7, 2.0, 2.5, 3.0,
+                       3.5, 4.0, 6.0])
+RING_PT = np.array([0.0, 0.5, 1.0, 2.0, 4.0, 10.0, 1.0e4])
+RING_Q = ("N", "pT", "pT cos dphi_rec")
 TRACK_ETA = 2.4
 N_PT, N_ETA, N_PHI, N_SPEC = len(PT_EDGES) - 1, len(DETA) - 1, len(DPHI) - 1, len(SPEC_EDGES) - 1
 D_ETA, D_PHI = DETA[1] - DETA[0], DPHI[1] - DPHI[0]
@@ -109,11 +119,26 @@ def frame_sums(pt, deta, dphi, toward_z):
             s.reshape(2, N_SPEC).astype(float))
 
 
+def ring_sums(pt, eta, phi, rec):
+    """Every hadron in Delta R rings around the recoil -> (len(RING_PT) - 1, len(RING_EDGES) - 1,
+    len(RING_Q)): count, sum p_T, sum p_T cos(phi - phi_rec) per (p_T class, ring)."""
+    dphi = wrap_dphi(phi - rec[2], -np.pi)
+    dr = np.hypot(eta - rec[1], dphi)
+    ip, ir = _bin(pt, RING_PT), _bin(dr, RING_EDGES)
+    ok = (ip >= 0) & (ir >= 0)
+    n_p, n_r = len(RING_PT) - 1, len(RING_EDGES) - 1
+    cell = ip[ok] * n_r + ir[ok]
+    p, c = pt[ok], np.cos(dphi[ok])
+    return np.stack([np.bincount(cell, weights=x, minlength=n_p * n_r)
+                     for x in (np.ones(len(p)), p, p * c)], axis=-1).reshape(n_p, n_r, -1)
+
+
 def leg_sums(ev, z, rec, in_j, keep=None):
     """One leg (an EventHadrons) of one event, summed over its samples (not divided) -> dict
-    frame -> (map, harm, spec) (frames ZJ and J only if ``in_j``) and the totals (TOTALS).
-    ``z``: (y_Z, phi_Z); ``rec``: (pt, eta, phi) of the recoil; ``keep``: the hadrons that
-    count (default all; the fragments leave the Z's leptons out)."""
+    frame -> (map, harm, spec) (frames ZJ and J only if ``in_j``), the totals (TOTALS) and the
+    rings around the recoil (:func:`ring_sums`, None unless ``in_j``).  ``z``: (y_Z, phi_Z);
+    ``rec``: (pt, eta, phi) of the recoil; ``keep``: the hadrons that count (default all; the
+    fragments leave the Z's leptons out)."""
     keep = np.ones(len(ev), bool) if keep is None else keep
     pt, eta, phi = ev.pt[keep], ev.eta[keep], ev.phi[keep]
     trk = ev.charged[keep] & (np.abs(eta) < TRACK_ETA)
@@ -126,7 +151,7 @@ def leg_sums(ev, z, rec, in_j, keep=None):
         out["J"] = frame_sums(t_pt, t_eta - rec[1], dj, dj >= np.pi / 2)
     tot = np.array([len(pt), ev.E[keep].sum(), pt.sum(), (pt * np.cos(phi - z[1])).sum(),
                     (pt * np.cos(phi - rec[2])).sum()])
-    return out, tot
+    return out, tot, (ring_sums(pt, eta, phi, rec) if in_j else None)
 
 
 def _empty():
@@ -214,8 +239,10 @@ def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
         acc["edrop"] += w * de
         for content, parts in legs.items():
             for leg, scale, keep in parts:
-                fr, tot = leg_sums(leg, z, rec, in_j, keep)
+                fr, tot, ring = leg_sums(leg, z, rec, in_j, keep)
                 _add(acc, f"tot_{content}", w * scale * tot)
+                if ring is not None:
+                    _add(acc, f"ring_{content}", w * scale * ring)
                 for frame, (m, h, s) in fr.items():
                     _add(acc, f"map_{content}_{frame}", w * scale * m)
                     _add(acc, f"harm_{content}_{frame}", w * scale * h)
@@ -263,6 +290,7 @@ def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False, zpt=None, rec
                       for s in r.stems],
             "pt_edges": PT_EDGES.tolist(), "deta": DETA.tolist(), "dphi": DPHI.tolist(),
             "spec_edges": SPEC_EDGES.tolist(), "totals": list(TOTALS), "track_eta": TRACK_ETA,
+            "ring_edges": RING_EDGES.tolist(), "ring_pt": RING_PT.tolist(), "ring_q": list(RING_Q),
             "eta_max": r.eta_max()}
     if not rebuild and os.path.exists(out):
         with np.load(out) as d:
@@ -319,7 +347,7 @@ class Maps:
             self.meta = json.loads(str(d["meta"]))
             self.groups = d["group"].astype(str)
             self.sums = {k: d[k] for k in d.files
-                         if k.startswith(("map_", "harm_", "spec_", "tot_"))}
+                         if k.startswith(("map_", "harm_", "spec_", "tot_", "ring_"))}
             self.W = {"Z": d["W"], "ZJ": d["WJ"], "J": d["WJ"]}
             self.W2, self.edrop = d["W2"], d["edrop"]
             self.N, self.NJ = d["N"], d["NJ"]
@@ -363,7 +391,8 @@ class View:
     def mean(self, key):
         """Per-Z mean of a stored content: ``map_<content>_<frame>`` etc. (per Z per bin),
         ``tot_<content>``, ``edrop``."""
-        frame = key.rsplit("_", 1)[-1] if key.startswith(("map_", "harm_", "spec_")) else "Z"
+        frame = (key.rsplit("_", 1)[-1] if key.startswith(("map_", "harm_", "spec_")) else
+                 "J" if key.startswith("ring_") else "Z")
         S = self.m.edrop if key == "edrop" else self.m.sums[key]
         return self._sel(S).sum(0) / self._sel(self.m.W[frame]).sum()
 

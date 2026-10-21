@@ -78,7 +78,7 @@ def test_leg_sums_frames_and_totals():
     rec = (40.0, -0.5, 1.0 + np.pi + 0.1)                 # pt, eta, phi of the recoil
     ev = _Ev(pt=[1.5, 1.5, 3.0], eta=[0.35, -0.45, 2.5], phi=[1.05, 1.0 + np.pi + 0.05, 0.0],
              E=[2.0, 2.0, 20.0], charged=[True, True, True])
-    out, tot = wi.leg_sums(ev, z, rec, in_j=True)
+    out, tot, ring = wi.leg_sums(ev, z, rec, in_j=True)
     mz, hz, sz = out["Z"]
     mj, _, sj = out["J"]
     assert out["ZJ"] is out["Z"]
@@ -91,6 +91,13 @@ def test_leg_sums_frames_and_totals():
     pt = np.asarray(ev.pt)
     assert np.allclose(tot, [3, 24.0, 6.0, (pt * np.cos(phi - z[1])).sum(),
                              (pt * np.cos(phi - rec[2])).sum()])
+    # the rings hold every hadron (also |eta| > 2.4), and their sums are the totals'
+    assert ring.shape == (len(wi.RING_PT) - 1, len(wi.RING_EDGES) - 1, len(wi.RING_Q))
+    assert np.allclose(ring.sum((0, 1)), [tot[0], tot[2], tot[4]])
+    dr = np.hypot(np.asarray(ev.eta) - rec[1], wi.wrap_dphi(phi - rec[2], -np.pi))
+    ip = wi._bin(np.array([1.5]), wi.RING_PT)[0]
+    assert ring[ip, wi._bin(dr[:1], wi.RING_EDGES)[0], 0] == 1         # pt 1.5, its ring
+    assert wi.leg_sums(ev, z, rec, in_j=False)[2] is None
 
 
 def test_recoil_is_the_hardest_parton():
