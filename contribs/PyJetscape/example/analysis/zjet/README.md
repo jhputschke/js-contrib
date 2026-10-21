@@ -18,7 +18,8 @@ example/analysis/
     pp_comp/          the campaign's pp reference against JETSCAPE's PP19 tune (Matter Q0 2 vs
                       1 GeV) in CMS's pp Z-hadron and Z+jet observables (pp_comp/README.md)
     wake_scan/        a paired scan of one liquefier setting (tau_delay first): the Z-side
-                      Delta y of Pb+Pb - pp split by wake_decomp.py (wake_scan/README.md)
+                      Delta y of Pb+Pb - pp split by wake_decomp.py, and the wake on its own
+                      in (Delta eta, Delta phi) by wake_iso.py (wake_scan/README.md)
   dijet/              the η-separated dijet analysis, first with the Z as jet1 (deta.py,
                       ANA_Deta.md, gap_count.py)
   runs/<run>/         data/ and figures/ of one campaign or test set (git-ignored)
@@ -49,6 +50,7 @@ Route B converts the hadron files once (`../../prod_AuAu_0_10_jet/run_h5toROOT.p
 | `check_cxx.py` | the C++ map steps (`../../analysis_root/zjet`) against the Python ones: `pools`, `jets` (with the jet QA trees) and `qa` |
 | `README_zjet_2507.09307.md` | every cut of CMS 2507.09307 (Z–hadron Δφ / Δy) and its setting in the production and the analysis |
 | `wake_decomp.py` | the Z-side Δy of Pb+Pb − pp (step 1) split into the fragments' and the wake's parts, each into its Z-side yield and its level (the mean subtraction of CMS's observable), per track p_T class, with CMS's Pb+Pb − pp; from version-4 pools → `figures/wake_decomp*.png`, `wake_decomp*.txt` |
+| `wake_iso.py` | the wake (paired `bulk_jet` − `bulk_bg`) and the fragments on their own, per Z, in (Δη, Δφ) around the Z and around the recoiling parton, no mixed event ([`PLAN_wake_isolated.md`](../../../../../docs/Plans/PLAN_wake_isolated.md)): `map` (one `.npz` per run: maps, exact Δφ harmonics, p_T spectra, totals of every stored hadron, as weighted sums per hydro background, so runs with the same seeds pair background by background), `check` (the Z frame against `zjet_wake.z_frame_yields`, to rounding); the reading side (`Maps`, `View`, `jackknife`, harmonics, dip, core/wings) for `wake_scan/compare_iso.py` |
 | `MIXING_MODES.md` | the mixing modes in one notation: S and B from `bulk_jet`, `bulk_bg`, `jet_frag`, what is averaged over the oversamples, which partners and backgrounds, the weights; pp's factorized result and its relation to Pb+Pb; `strict` and `cms10` against CMS |
 | `get_hepdata.sh` | CMS 2507.09307's, 1702.01060's and HIN-25-012's (`25012`, ins3123406: the dijet Δη of `../dijet/deta.py`) HEPData records → `../runs/hepdata/` (once, before the final stages) |
 | `zjet_wake.py`, `zjet_mixing.py`, `cms2507.py` | the library: the Z record, selection, weights and Z frame; the pools and the mixing modes; CMS 2507.09307's HEPData and observables (the factorized result) |

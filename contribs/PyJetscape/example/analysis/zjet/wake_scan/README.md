@@ -49,11 +49,15 @@ reduce it.
 
 | file | |
 |---|---|
-| `make_xml.py` | a variant of the campaign XML (`../../../config/PbPb_0_30_ZJet.xml`) with one leaf changed in the text (comments and layout kept); the leaf's tag must occur once (`tau_delay`, `e_threshold`; not `alphas`) |
+| `make_xml.py` | a variant of the campaign XML (`../../../config/PbPb_0_30_ZJet.xml`) with one leaf changed in the text (comments and layout kept); the leaf's tag must occur once (`tau_delay`, `e_threshold`; not `alphas`); `--line "KEY = VALUE"` changes one line of PythiaGun's `<LinesToRead>` (`PartonLevel:MPI = off`) |
 | `check_settings.py` | two XMLs differ in the allowed setting(s) alone: the variant XMLs against the campaign's, the job XMLs value against baseline |
-| `check_pairing.py` | two same-seed jet files share events, partons and droplets |
-| `make_data.sh` | `xml`, `prod` (then `check`), `check`, `pools`, `compare`, or `all` |
+| `check_pairing.py` | two same-seed jet files share events, partons and droplets (`--level jets`), events and initiators (`events`), or only the hydro backgrounds (`backgrounds`: other Pythia settings) |
+| `make_data.sh` | `xml`, `prod` (then `check`), `check`, `pools`, `compare`, `pp` (a `VARIANT`'s pp reference), `iso`, or `all`; several steps in one call |
 | `compare_scan.py` | every value's pieces and the paired differences → `wake_scan_<setting>.png`, `wake_scan_<setting>.txt` |
+| `compare_iso.py` | the wake and the fragments on their own ([`PLAN_wake_isolated.md`](../../../../../../docs/Plans/PLAN_wake_isolated.md), step 1; maps of `../wake_iso.py`): the baseline's maps around the Z and around the recoil (`wake_iso_maps_{Z,J}.png`), every value's projections, harmonics and spectra, and the paired differences to the baseline, background by background → `wake_iso_{proj,diff,frag,harm,harmdiff,spectra,diffmap}_<setting>.png`, `wake_iso_<setting>.txt`; `--variant` for a `VARIANT`'s runs |
+| `compare_pythia.py` | the wake on its own per Pythia setting (the campaign's, MPI off, ISR + MPI off; each at `e_threshold` 2 and 3): the selected Z's, the wake's projections, harmonics and share toward the Z, what `e_threshold` 3 adds (paired within a setting), the fragments' Pb+Pb − pp against each setting's own pp → `pythia_{kin,proj,harm,e3,frag}.png`, `pythia_compare.txt` |
+| `compare_dipole.py` | the Z-axis dipole as a wake measurement (maps of `../wake_iso.py` with its `zring_*`, `zeta_*` and noise arrays): d = −Σ cos(φ − φ_Z) and P_∥ in ΔR annulus pairs around jet2 and its mirror on the Z's side (pedestal-free without mixed events), and its profile in η − η_jet2, Pb+Pb − pp per Pythia setting, with the statistical errors projected to CMS's Z count (`--n-cms`, `--n-pp`, `--axis-eff`) → `dipole_annuli[tag].png`, `dipole_eta[tag].png`, `dipole[tag].txt` |
+| `compare_pythia_cms.py` | CMS 2507.09307's observable per Pythia setting (each against its own pp, from the version-4 pools of `make_data.sh pools`): the Z-side Δy of Pb+Pb − pp and its fragments' and wake's parts (`../wake_decomp.py`) with CMS's HEPData → `pythia_cms[_e3p0].png`, `.txt` |
 
 ```bash
 cd $EX/analysis/zjet/wake_scan
@@ -75,6 +79,34 @@ PARAM=Liquefier/e_threshold VALUES="1.0 2.0 3.0" BASE=2.0 REF=tau_delay_1p0 PAIR
   below it leave LBT for the fluid; α_s): the events, Z's, backgrounds and shower initiators
   must be identical, while the final partons, the droplets and so the fragments change, and the
   fragments' pieces of the differences then carry the setting's effect on the jets.
+
+`iso` maps every value's hadron files and the pp's (`PP_HADRONS`, default
+`../../runs/pp_comp/data/campaign`) with `../wake_iso.py map` into `data/iso/` (cached; seconds
+per job) and runs `compare_iso.py`: the wake (`bulk_jet` − `bulk_bg`, paired) and the fragments
+on their own, per Z, in the Z frame and around the recoiling parton (the hardest initiator
+that is a quark or gluon; the Z's with |η_rec| < 1), with no mixed event and no mean
+subtraction. The same `PARAM`, `VALUES`, `BASE`, `REF` as the scan.
+
+**Other Pythia settings** (`VARIANT`): the same jobs (seeds, backgrounds, arguments) with lines
+of PythiaGun's `<LinesToRead>` changed (`LINES`, `;`-separated, `make_xml.py --line`), for
+example without MPI, or without ISR and MPI (the Z's recoil the only parton the energy loss
+gets). The run names get the prefix (`mpi_off_e_threshold_2p0`), a variant's values pair among
+themselves (the same Pythia events), not with the campaign's runs: those share only the hydro
+backgrounds (`check_pairing.py --level backgrounds`). Without ISR p_T^Z ≈ p̂T (up to the
+primordial k_T), so the windows below 40 GeV would give no selected Z: `WINDOWS`, `JPB` (jets
+per window per background; windows × JPB = 24 keeps two backgrounds per job). `pp` makes the
+variant's own pp reference (`run_prod_vacuum.py`, the variant XML, `pp_comp`'s arguments:
+`PP_EVENTS` 12,000, `PP_SEED` 900001) in `data/pp_<VARIANT>/`, which `iso` then uses.
+
+```bash
+export PARAM=Liquefier/e_threshold VALUES="2.0 3.0" BASE=2.0 PAIRING=events
+VARIANT=mpi_off LINES="PartonLevel:MPI = off" ./make_data.sh prod pp iso
+VARIANT=isr_mpi_off LINES="PartonLevel:ISR = off; PartonLevel:MPI = off" \
+  WINDOWS=40-45,45-55,55-70,70-200 JPB=6 ./make_data.sh prod pp iso
+python compare_pythia.py          # against the campaign's tau_delay_1p0 / e_threshold_3p0
+VARIANT=mpi_off ./make_data.sh pools; VARIANT=isr_mpi_off ./make_data.sh pools   # (+ the env above)
+python compare_pythia_cms.py      # CMS's observable per setting
+```
 
 The pp (Pb+Pb − pp; it cancels in the differences): the campaign's pp pools of `../pp_comp`
 (`../pp_comp/make_data.sh prod pools`), or any
