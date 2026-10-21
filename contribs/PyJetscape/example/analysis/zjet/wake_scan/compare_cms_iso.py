@@ -15,6 +15,9 @@ subtracts the mean: in Delta phi the yield's Delta phi average (B is flat in Del
 factorized result of mix.py), in Delta y the mixed event of the pools (../wake_decomp.py).
 Inputs: data/iso/<run>.npz (wake_iso.py map, with cphi_*) and data/mix/<run>/pbpb + the pp
 pools (make_data.sh pools).  Errors: the jackknife over hydro backgrounds and pp event blocks.
+The last two rows of each figure: every variation minus the family's campaign-setting run,
+paired (tau_delay, e_threshold: the same events; the Pythia settings: the same hydro
+backgrounds), the wake and the CMS-procedure result.
 -> <outdir>/cms_iso_<family>.png (with .npz/.root) and cms_iso.txt."""
 import argparse
 import os
@@ -50,6 +53,10 @@ FAMILIES = {
                   ("ISR + MPI off, e_threshold 3", "isr_mpi_off_e_threshold_3p0", "isr_mpi_off")],
 }
 COLS = ("C0", "k", "C3")
+#: each family's reference (its campaign-setting run) and how its runs pair with it
+FAMILY_REF = {"tau_delay": 1, "e_threshold": 1, "pythia_e2": 0, "pythia_e3": 0}
+FAMILY_PAIRING = {"tau_delay": "the same events", "e_threshold": "the same events",
+                  "pythia_e2": "the same hydro backgrounds", "pythia_e3": "the same hydro backgrounds"}
 #: the maps' p_T classes for CMS's three (wake_iso.PT_EDGES starts at 0.5 GeV)
 CLS = (1, 2, 3)
 DY_W = 0.8
@@ -105,6 +112,60 @@ def unpack(x):
     return out
 
 
+def summary(u, phi_keep, pos):
+    """Per CMS class: the wake's Delta phi at the first bin, at pi, integrated over 0-pi; its
+    Delta y first bin and 0-4 integral; the CMS-procedure Delta phi first bin and at pi."""
+    ip, iy = np.flatnonzero(phi_keep), np.flatnonzero(pos)
+    w = np.diff(wi.CMS_DPHI)[0]
+    return np.concatenate([[u["phi_wake"][c][ip[0]], u["phi_wake"][c][ip[-1]],
+                            u["phi_wake"][c][phi_keep].sum() * w, u["dy_wake"][c][iy[0]],
+                            DY_W * u["dy_wake"][c][pos].sum(), u["phi_cms"][c][ip[0]],
+                            u["phi_cms"][c][ip[-1]]] for c in range(3)])
+
+
+SUMMARY = ("wake dphi first", "wake dphi at pi", "wake dphi 0-pi", "wake dy first", "wake dy 0-4",
+           "CMS-proc dphi first", "CMS-proc dphi at pi")
+
+
+def paired_maps(mv, pv, mr, pr, blocks, phi_keep, pos):
+    """value - reference of the isolated pieces (unpacked) and of the summary, with the
+    jackknife over the shared hydro backgrounds (independent if they differ)."""
+    same_pp = pv is pr
+    if np.array_equal(mv.groups, mr.groups):
+        sets = [[mv, mr], [pv]] if same_pp else [[mv, mr], [pv], [pr]]
+    else:
+        sets = [[mv], [mr], [pv]] if same_pp else [[mv], [mr], [pv], [pr]]
+
+    def fn(V):
+        vv, vr = V[0], V[1]
+        qv = V[2]
+        qr = V[2] if same_pp else V[3]
+        dv = isolated(vv, qv) - isolated(vr, qr)
+        return np.concatenate([dv, summary(unpack(dv), phi_keep, pos)])
+    val, err = wi.jackknife(fn, sets, blocks)
+    n = sum(3 * k for _, k in SHAPES)
+    return unpack(val[:n]), unpack(err[:n]), val[n:], err[n:]
+
+
+def paired_dy(pbv, pqv, pbr, pqr, blocks):
+    """value - reference of CMS's procedure in Delta y (wake_decomp's Pb+Pb - pp), with the
+    jackknife over blocks of the reference's hydro backgrounds (paired when both pools have
+    the same background ids)."""
+    def total(pb, pq, keep):
+        return wd.pieces(pb, pq, keep, np.ones(pq.n, bool), DY_W)[wd.PIECES[0]]
+    full = total(pbv, pqv, np.ones(pbv.n, bool)) - total(pbr, pqr, np.ones(pbr.n, bool))
+    units = np.unique(pbr.zb)
+    if not np.array_equal(np.unique(pbv.zb), units):
+        _, ev = wd.with_errors(pbv, pqv, DY_W, blocks)
+        _, er = wd.with_errors(pbr, pqr, DY_W, blocks)
+        return full, np.hypot(ev[wd.PIECES[0]], er[wd.PIECES[0]])
+    bl = [b for b in np.array_split(units, min(blocks, len(units))) if len(b)]
+    reps = np.array([total(pbv, pqv, ~np.isin(pbv.zb, b)) - total(pbr, pqr, ~np.isin(pbr.zb, b))
+                     for b in bl])
+    G = len(bl)
+    return full, np.sqrt((G - 1) / G * ((reps - reps.mean(0)) ** 2).sum(0))
+
+
 def cms_data(hep):
     """CMS's Pb+Pb 0-30 % - pp: Delta phi (20 bins) and Delta y (pp merged to 0.8)."""
     phi, dy = [], []
@@ -134,7 +195,7 @@ def main():
          "x 0.5); isolated = absolute (no mean subtraction), CMS-proc = the model with CMS's "
          "mean subtraction; values at the first bin past 0, at Delta phi ~ pi (the last bin) and "
          "integrated over 0 < Delta y < 4", ""]
-    cache = {}
+    cache, objs = {}, {}
     paths = []
     for fam in a.family:
         rows = []
@@ -151,11 +212,24 @@ def main():
                 dv, de = wd.with_errors(pb, pq, DY_W, a.blocks)
                 cache[(run, ppk)] = (unpack(val), unpack(err), dv[wd.PIECES[0]],
                                      de[wd.PIECES[0]], m.n_z)
+                objs[(run, ppk)] = (m, p, pb, pq)
             rows.append((label, run) + cache[(run, ppk)])
-        fig, ax = figdata.subplots(4, 3, figsize=(16.5, 16.0), squeeze=False)
         phi_keep = (_PC > 0) & (_PC < np.pi)
         dyc = -YMAX + DY_W * (np.arange(int(2 * YMAX / DY_W)) + 0.5)
         pos = dyc > 0
+        # the paired differences to the family's reference
+        iref = FAMILY_REF[fam]
+        lref, rref, kref = FAMILIES[fam][iref]
+        mr, pr, pbr, pqr = objs[(rref, kref)]
+        diffs = []
+        for i, (label, run, ppk) in enumerate(FAMILIES[fam]):
+            if i == iref:
+                continue
+            mv, pv, pbv, pqv = objs[(run, ppk)]
+            du, de_, sv, se = paired_maps(mv, pv, mr, pr, a.blocks, phi_keep, pos)
+            yv, ye = paired_dy(pbv, pqv, pbr, pqr, a.blocks)
+            diffs.append((i, label, du, de_, sv, se, yv, ye))
+        fig, ax = figdata.subplots(6, 3, figsize=(16.5, 24.0), squeeze=False)
         for c in range(3):
             xp, yp, ep = cphi[c]
             hk = (xp > 0) & (xp < np.pi)
@@ -187,13 +261,33 @@ def main():
                                   label=f"{label}: wake + fragments − pp")
                 ax[3, c].plot(dyc[pos] + d, ydv[c][pos], ":", color=col, lw=1.3,
                               label=f"{label}: with CMS's mean subtraction")
+            for i, label, du, de_, sv, se, yv, ye in diffs:
+                col = COLS[i % len(COLS)]
+                d = 0.03 * (i - 1)
+                ax[4, c].errorbar(_PC[phi_keep] + d, du["phi_wake"][c][phi_keep],
+                                  de_["phi_wake"][c][phi_keep], fmt="o-", ms=3, lw=1.0,
+                                  color=col, label=f"{label} − {lref}: the wake")
+                ax[4, c].errorbar(_PC[phi_keep] + d + 0.015, du["phi_cms"][c][phi_keep],
+                                  de_["phi_cms"][c][phi_keep], fmt="s:", ms=3, lw=1.0,
+                                  color=col, mfc="none",
+                                  label=f"{label} − {lref}: with CMS's mean subtraction")
+                ax[5, c].errorbar(dyc[pos] + d, du["dy_wake"][c][pos], de_["dy_wake"][c][pos],
+                                  fmt="o-", ms=3, lw=1.0, color=col,
+                                  label=f"{label} − {lref}: the wake")
+                ax[5, c].errorbar(dyc[pos] + d + 0.015, yv[c][pos], ye[c][pos], fmt="s:", ms=3,
+                                  lw=1.0, color=col, mfc="none",
+                                  label=f"{label} − {lref}: with CMS's mean subtraction")
             for r_, (title, xl, yl) in enumerate((
                     ("Δφ: the wake on its own", "Δφ_ch,Z", "dN/dΔφ per Z"),
                     ("Δφ: wake + fragments − pp (solid), with CMS's subtraction (dotted)",
                      "Δφ_ch,Z", "dN/dΔφ per Z"),
                     ("Δy, Z side: the wake on its own", "Δy_ch,Z", "dN/dΔy per Z"),
                     ("Δy, Z side: wake + fragments − pp (solid), with CMS's subtraction "
-                     "(dotted)", "Δy_ch,Z", "dN/dΔy per Z"))):
+                     "(dotted)", "Δy_ch,Z", "dN/dΔy per Z"),
+                    ("Δφ, paired difference to the reference:\nthe wake (solid), CMS's "
+                     "procedure (dotted)", "Δφ_ch,Z", "Δ dN/dΔφ per Z"),
+                    ("Δy, Z side, paired difference to the reference:\nthe wake (solid), CMS's "
+                     "procedure (dotted)", "Δy_ch,Z", "Δ dN/dΔy per Z"))):
                 aa = ax[r_, c]
                 aa.axhline(0, color="0.6", lw=0.6)
                 aa.set(xlabel=xl, ylabel=yl)
@@ -202,8 +296,9 @@ def main():
                     aa.legend(fontsize=6)
         fig.suptitle(f"What CMS would see if the wake could be isolated: {fam.replace('_', ' ')} "
                      "variations against CMS 2507.09307 (Pb+Pb 0–30 % − pp); the model's "
-                     "isolated pieces are absolute, CMS's data mean-subtracted", fontsize=10)
-        fig.tight_layout()
+                     "isolated pieces are absolute, CMS's data mean-subtracted;\nlast two rows: "
+                     f"each variation minus {lref}, paired ({FAMILY_PAIRING[fam]})", fontsize=10)
+        fig.tight_layout(rect=(0, 0, 1, 0.975))
         os.makedirs(a.outdir, exist_ok=True)
         p = os.path.join(a.outdir, f"cms_iso_{fam}.png")
         figdata.savefig(fig, p, dpi=85)
@@ -234,6 +329,17 @@ def main():
                          f"{yde[c][iy[0]]:.3f} | dy integrated: wake {integ['dy_wake'][0]:+.3f}±"
                          f"{integ['dy_wake'][1]:.3f} total {integ['dy_total'][0]:+.3f}±"
                          f"{integ['dy_total'][1]:.3f} CMS-proc {DY_W * ydv[c][pos].sum():+.3f}")
+        L.append(f"  paired differences to {lref} ({FAMILY_PAIRING[fam]}); wake dphi 0-pi: "
+                 "integrated over 0 < Delta phi < pi; CMS-proc dy: wake_decomp's Pb+Pb - pp:")
+        for i, label, du, de_, sv, se, yv, ye in diffs:
+            for c in range(3):
+                iy = np.flatnonzero(pos)
+                k = len(SUMMARY) * c
+                ydiff = DY_W * yv[c][pos].sum()
+                L.append(f"    {label + ' − ref':34s} {PT_LABELS[c]:20s} " + " | ".join(
+                    f"{n} {sv[k + j]:+.3f}±{se[k + j]:.3f}" for j, n in enumerate(SUMMARY)) +
+                    f" | CMS-proc dy first {yv[c][iy[0]]:+.3f}±{ye[c][iy[0]]:.3f} | CMS-proc dy "
+                    f"0-4 {ydiff:+.3f}±{DY_W * np.sqrt((ye[c][pos] ** 2).sum()):.3f}")
         L.append("")
     txt = os.path.join(a.outdir, "cms_iso.txt")
     with open(txt, "w") as fh:
