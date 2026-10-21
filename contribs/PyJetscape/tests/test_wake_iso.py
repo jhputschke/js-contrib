@@ -100,6 +100,28 @@ def test_leg_sums_frames_and_totals():
     assert wi.leg_sums(ev, z, rec, in_j=False)[2] is None
 
 
+def test_z_dipole_per_sample():
+    """cos(phi - phi_Z) of charged |eta| < 2.4 tracks, per sample, in the annuli around the
+    recoil (side 0) and its mirror (side 1), and in eta - eta_rec; a uniform ring of tracks
+    around both axes cancels."""
+    z, rec = (0.0, 0.5), (40.0, 0.2, 0.5 + np.pi)
+    ev = _Ev(pt=[1.5, 3.0, 1.5, 1.5, 1.5], eta=[0.3, 0.6, -2.5, 0.25, 0.3],
+             phi=[0.5 + np.pi, 0.5 + np.pi + 0.6, 0.0, 0.5 + np.pi, 0.5],
+             charged=[True, True, True, False, True], sample=[0, 1, 0, 1, 0], E=[2, 4, 2, 2, 2])
+    ev.n_samples = 2
+    zr, ze = wi.z_dipole(ev, z, rec)
+    n_r = len(wi.ZR_EDGES) - 1
+    assert zr.shape == (2, wi.N_PT, n_r, 2, 2) and ze.shape == (2, wi.N_PT, wi.N_ETA)
+    i0 = wi._bin(np.array([0.1]), wi.ZR_EDGES)[0]                    # dR = 0.1 of either axis
+    i1 = wi._bin(np.array([np.hypot(0.4, 0.6)]), wi.ZR_EDGES)[0]
+    assert zr[0, 1, i0, 0, 0] == pytest.approx(-1.0) and zr[0, 1, i0, 0, 1] == pytest.approx(-1.5)
+    assert zr[0, 1, i0, 1, 0] == pytest.approx(+1.0)                 # the mirror track
+    assert zr[0, 1, i0].sum(0)[0] == pytest.approx(0.0)              # the two sides cancel
+    assert zr[1, 2, i1, 0, 0] == pytest.approx(np.cos(np.pi + 0.6))
+    assert np.count_nonzero(zr[..., 0]) == 3                         # |eta| > 2.4, neutral: out
+    assert ze[1, 2].sum() == pytest.approx(np.cos(np.pi + 0.6))
+
+
 def test_recoil_is_the_hardest_parton():
     ini = np.zeros((3, 11))
     ini[:, 1] = [13, 21, 2]                         # a muon (hardest), a gluon, a u quark

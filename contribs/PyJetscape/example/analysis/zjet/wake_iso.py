@@ -30,7 +30,13 @@ species, any p_T): TOTALS.  Per event its deposited droplet energy (units/E_drop
 
 Around the recoil, for the momentum balance (the J frame's Z's): every stored hadron in Delta R
 rings (RING_EDGES), per p_T class RING_PT, its count, sum p_T and sum p_T cos(phi - phi_rec)
-(``ring_<content>``; maps made before them have none).
+(``ring_<content>``; maps made before them have none).  The Z-axis dipole (the same Z's):
+``zring_<content>`` (charged tracks, cos(phi - phi_Z) and p_T cos(phi - phi_Z) in annuli
+ZR_EDGES around the recoil and around its mirror on the Z's side, per p_T class), ``zeta_<content>`` (cos(phi - phi_Z) against
+eta - eta_rec), and the full event's single-sample noise: ``nze_*`` per eta - eta_rec bin (the
+weighted sums of its per-event mean m, m^2 and sample variance v: the noise of one measured
+event is E[v] + Var[m]), ``nzr_*`` and ``nzc_*`` with full covariances (m, m m^T, the sample
+covariance C) for the annuli and for the core |eta - eta_rec| < DIP_CORE and ring DIP_RING.
 
 Everything is stored as weighted sums per group: a hydro background in Pb+Pb, a block of
 --block events in vacuum.  The per-Z means are the summed contents over the summed weights, and
@@ -72,6 +78,13 @@ RING_EDGES = np.array([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.4, 1.
                        3.5, 4.0, 6.0])
 RING_PT = np.array([0.0, 0.5, 1.0, 2.0, 4.0, 10.0, 1.0e4])
 RING_Q = ("N", "pT", "pT cos dphi_rec")
+#: the Z-axis dipole (the J frame's Z's): charged tracks |eta| < 2.4, cos(phi - phi_Z) and
+#: p_T cos(phi - phi_Z) in annuli in Delta R around the recoil (ZR_EDGES) per p_T class, and
+#: cos(phi - phi_Z) against d_eta = eta - eta_rec (DETA) per p_T class
+ZR_EDGES = np.array([0.0, 0.3, 0.5, 0.8, 1.2, 1.6, 2.4, 6.0])
+ZR_Q = ("cos dphi_Z", "pT cos dphi_Z")
+#: the dipole's localization around jet2: core |eta - eta_rec| < DIP_CORE, ring DIP_RING
+DIP_CORE, DIP_RING = 0.4, (0.8, 1.4)
 TRACK_ETA = 2.4
 N_PT, N_ETA, N_PHI, N_SPEC = len(PT_EDGES) - 1, len(DETA) - 1, len(DPHI) - 1, len(SPEC_EDGES) - 1
 D_ETA, D_PHI = DETA[1] - DETA[0], DPHI[1] - DPHI[0]
@@ -131,6 +144,36 @@ def ring_sums(pt, eta, phi, rec):
     p, c = pt[ok], np.cos(dphi[ok])
     return np.stack([np.bincount(cell, weights=x, minlength=n_p * n_r)
                      for x in (np.ones(len(p)), p, p * c)], axis=-1).reshape(n_p, n_r, -1)
+
+
+def z_dipole(ev, z, rec, keep=None):
+    """The Z-axis dipole of one leg, per sample -> (zring (K, N_PT, N_ZR, 2, len(ZR_Q)),
+    zeta (K, N_PT, N_ETA)): charged tracks with |eta| < 2.4, cos(phi - phi_Z) (and p_T times
+    it) in Delta R annuli around the recoil (side 0) and around its mirror at (eta_rec,
+    phi_rec + pi) on the Z's side (side 1), each track in the annulus of the nearer axis (the
+    two sides together are symmetric under phi -> phi + pi: the bulk drops out on average),
+    and cos(phi - phi_Z) against eta - eta_rec (the full azimuth)."""
+    keep = np.ones(len(ev), bool) if keep is None else keep
+    trk = keep & ev.charged & (np.abs(ev.eta) < TRACK_ETA)
+    pt, eta, phi, k = ev.pt[trk], ev.eta[trk], ev.phi[trk], ev.sample[trk]
+    K = max(int(ev.n_samples), 1)
+    c = np.cos(phi - z[1])
+    ip = _bin(pt, PT_EDGES)
+    de = eta - rec[1]
+    dr_j = np.hypot(de, wrap_dphi(phi - rec[2], -np.pi))            # around jet2
+    dr_m = np.hypot(de, wrap_dphi(phi - rec[2] - np.pi, -np.pi))    # its mirror, the Z side
+    side = (dr_m < dr_j).astype(np.int64)
+    ir, ie = _bin(np.minimum(dr_j, dr_m), ZR_EDGES), _bin(de, DETA)
+    n_r = len(ZR_EDGES) - 1
+    ok = (ip >= 0) & (ir >= 0)
+    cell = ((k[ok] * N_PT + ip[ok]) * n_r + ir[ok]) * 2 + side[ok]
+    zr = np.stack([np.bincount(cell, weights=x, minlength=K * N_PT * n_r * 2)
+                   for x in (c[ok], (pt * c)[ok])], axis=-1).reshape(K, N_PT, n_r, 2,
+                                                                     len(ZR_Q))
+    ok = (ip >= 0) & (ie >= 0)
+    cell = (k[ok] * N_PT + ip[ok]) * N_ETA + ie[ok]
+    ze = np.bincount(cell, weights=c[ok], minlength=K * N_PT * N_ETA).reshape(K, N_PT, N_ETA)
+    return zr, ze
 
 
 def leg_sums(ev, z, rec, in_j, keep=None):
@@ -247,6 +290,39 @@ def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
                     _add(acc, f"map_{content}_{frame}", w * scale * m)
                     _add(acc, f"harm_{content}_{frame}", w * scale * h)
                     _add(acc, f"spec_{content}_{frame}", w * scale * s)
+        if in_j:
+            # the Z-axis dipole: the contents' means, and the full event's single-sample mean
+            # and variance (the noise of one measured event: bulk_jet sample k with
+            # fragmentation k mod n_frag; vacuum: the fragmentation)
+            dip = {id(F): z_dipole(F, z, rec, legs["frag"][0][2])}
+            if not vacuum:
+                dip[id(J)], dip[id(B)] = z_dipole(J, z, rec), z_dipole(B, z, rec)
+            for content, parts in legs.items():
+                for leg, scale, _ in parts:
+                    d = dip[id(leg)]
+                    _add(acc, f"zring_{content}", w * scale * d[0].sum(0))
+                    _add(acc, f"zeta_{content}", w * scale * d[1].sum(0))
+            dF = dip[id(F)]
+            if vacuum:
+                full = dF
+            else:
+                dJ = dip[id(J)]
+                idx = np.arange(J.n_samples) % nf
+                full = (dJ[0] + dF[0][idx], dJ[1] + dF[1][idx])
+            m = full[1].mean(0)                      # per bin of eta - eta_rec: m, m^2, v
+            _add(acc, "nze_m", w * m)
+            _add(acc, "nze_m2", w * m * m)
+            _add(acc, "nze_v", w * (full[1].var(0, ddof=1) if len(full[1]) > 1 else 0 * m))
+            a = np.abs(ETA_C)
+            cr = np.stack([full[1][:, :, a < DIP_CORE].sum(-1),
+                           full[1][:, :, (a > DIP_RING[0]) & (a < DIP_RING[1])].sum(-1)], -1)
+            for name, x in (("nzr", full[0]), ("nzc", cr)):   # full covariances
+                x = x.reshape(len(x), -1)
+                m = x.mean(0)
+                C = np.cov(x, rowvar=False, ddof=1) if len(x) > 1 else np.zeros((len(m),) * 2)
+                _add(acc, f"{name}_m", w * m)
+                _add(acc, f"{name}_mm", w * np.outer(m, m))
+                _add(acc, f"{name}_C", w * C)
         for c, v in zip(cols, (info.seed, int(e), key, w, zr["z_pt"], z[0], z[1], rec[0],
                                rec[1], rec[2], in_j, de)):
             events[c].append(v)
@@ -291,6 +367,8 @@ def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False, zpt=None, rec
             "pt_edges": PT_EDGES.tolist(), "deta": DETA.tolist(), "dphi": DPHI.tolist(),
             "spec_edges": SPEC_EDGES.tolist(), "totals": list(TOTALS), "track_eta": TRACK_ETA,
             "ring_edges": RING_EDGES.tolist(), "ring_pt": RING_PT.tolist(), "ring_q": list(RING_Q),
+            "zr_edges": ZR_EDGES.tolist(), "zr_q": list(ZR_Q),
+            "dip_core": DIP_CORE, "dip_ring": list(DIP_RING), "zr_sides": ["jet2", "mirror"],
             "eta_max": r.eta_max()}
     if not rebuild and os.path.exists(out):
         with np.load(out) as d:
@@ -347,7 +425,8 @@ class Maps:
             self.meta = json.loads(str(d["meta"]))
             self.groups = d["group"].astype(str)
             self.sums = {k: d[k] for k in d.files
-                         if k.startswith(("map_", "harm_", "spec_", "tot_", "ring_"))}
+                         if k.startswith(("map_", "harm_", "spec_", "tot_", "ring_", "zring_",
+                                          "zeta_", "nzr_", "nze_", "nzc_"))}
             self.W = {"Z": d["W"], "ZJ": d["WJ"], "J": d["WJ"]}
             self.W2, self.edrop = d["W2"], d["edrop"]
             self.N, self.NJ = d["N"], d["NJ"]
@@ -392,7 +471,8 @@ class View:
         """Per-Z mean of a stored content: ``map_<content>_<frame>`` etc. (per Z per bin),
         ``tot_<content>``, ``edrop``."""
         frame = (key.rsplit("_", 1)[-1] if key.startswith(("map_", "harm_", "spec_")) else
-                 "J" if key.startswith("ring_") else "Z")
+                 "J" if key.startswith(("ring_", "zring_", "zeta_", "nzr_", "nze_", "nzc_"))
+                 else "Z")
         S = self.m.edrop if key == "edrop" else self.m.sums[key]
         return self._sel(S).sum(0) / self._sel(self.m.W[frame]).sum()
 
