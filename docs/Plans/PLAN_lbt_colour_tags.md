@@ -5,6 +5,21 @@
 
 # Plan: colour tags for LBT partons, so iColoredHadronization can hadronize Matter+LBT showers
 
+## Status
+
+- **Phase 1 done (2026-10-21)**, X-SCAPE and js-contrib `lbt_colored_hadro`:
+  `HardProcess::NextColorTag` (C1) used by Matter's splits; iColoredHadronization's pstat
+  policy, counting pass, `<colour_duplicates>` and checked `pythia.next()` (C2); the audit
+  (C3) as `core.jet_hadronization_colour_audit` and the jet file's `units/colour_*`.
+  Validated: the two 75-event O+O jobs have no duplicate and no unpaired tag (65–66 events
+  with duplicates each before), their partons' pid and four-momenta are bit-identical to the
+  run before the change; the Au+Au colorless regression job (`run_prod_jet.py --events 2
+  --seed 1 --reuse 2 --write-particlize both`) is identical except the partons' col/acol
+  and the 1-ulp noise of `source/flux`, and its Colorless jet hadrons (`hadronize.py --tags
+  jet_frag`, fixed seed) are identical; PyJetscape tests pass (`test_icolored_colour.py`
+  new).
+- Phases 2–5: open.
+
 ## Goal
 
 The O+O ISR job (`contribs/PyJetscape/example/prod_OO_isr/run_prod_oo_isr.py`) hadronizes the

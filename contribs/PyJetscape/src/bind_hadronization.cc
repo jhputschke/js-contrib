@@ -28,10 +28,12 @@
  *                                       iSS on given surface cells (SURFACE_CELL_COLUMNS)
  *                                       outside the event loop -> soft_hadrons_numpy's
  *                                       dict; the primaries then via soft_primaries_numpy
+ *   jet_hadronization_colour_audit(module)
+ *                                       iColoredHadronization: the last event's colour audit
  *
  * Capabilities: ISS_DECAYS_SMASH_LIST, SOFT_HAS_PRIMARIES, ICOLORED_HAS_INPUT_RECORD,
- * SOFT_HAS_SAMPLE_CELLS (False when this X-SCAPE predates them), PYTHIA_VERSION (e.g.
- * 8312).
+ * SOFT_HAS_SAMPLE_CELLS, ICOLORED_HAS_COLOUR_AUDIT (False when this X-SCAPE predates
+ * them), PYTHIA_VERSION (e.g. 8312).
  *
  * All are free functions taking a task: create_module() and GetTaskList() hand out
  * JetScapeTask / JetScapeModuleBase pointers whose dynamic types (iSpectraSamplerWrapper,
@@ -184,6 +186,11 @@ void bind_hadronization(py::module_ &m) {
   m.attr("ICOLORED_HAS_INPUT_RECORD") = true;
 #else
   m.attr("ICOLORED_HAS_INPUT_RECORD") = false;
+#endif
+#ifdef ICOLORED_HAS_COLOUR_AUDIT
+  m.attr("ICOLORED_HAS_COLOUR_AUDIT") = true;
+#else
+  m.attr("ICOLORED_HAS_COLOUR_AUDIT") = false;
 #endif
 #ifdef PYTHIA_VERSION_INTEGER
   m.attr("PYTHIA_VERSION") = static_cast<int>(PYTHIA_VERSION_INTEGER);
@@ -497,5 +504,34 @@ void bind_hadronization(py::module_ &m) {
       "the job. Returns the hadron dict plus the seed used.",
       py::arg("module"), py::arg("pid"), py::arg("col"), py::arg("acol"), py::arg("p"),
       py::arg("mass"), py::arg("seed") = py::none());
+#endif
+
+#ifdef ICOLORED_HAS_COLOUR_AUDIT
+  m.def(
+      "jet_hadronization_colour_audit",
+      [](std::shared_ptr<JetScapeTask> module) {
+        auto c = find_module<iColoredHadronization>(module);
+        if (!c)
+          throw std::invalid_argument("no iColoredHadronization found in " +
+                                      module->GetId());
+        const auto &a = c->GetLastColourAudit();
+        py::dict d;
+        d["partons"] = a.partons;
+        d["remnants"] = a.remnants;
+        d["holes"] = a.holes;
+        d["hole_energy"] = a.hole_energy;
+        d["skipped"] = a.skipped;
+        d["unpaired_col"] = a.unpaired_col;
+        d["unpaired_acol"] = a.unpaired_acol;
+        d["duplicate_tags"] = a.duplicate_tags;
+        d["relabelled_tags"] = a.relabelled_tags;
+        return d;
+      },
+      "iColoredHadronization: the colour audit of the last event (PLAN_lbt_colour_tags.md, "
+      "C3): partons and remnants handed to Pythia, holes (pstat -1, dropped) and their "
+      "energy, other negative pstat skipped, unpaired colour / anticolour tags, duplicate "
+      "tags and how many were relabelled. Accepts the module, its parent or the "
+      "HadronizationManager.",
+      py::arg("module"));
 #endif
 }

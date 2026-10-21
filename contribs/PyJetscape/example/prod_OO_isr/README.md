@@ -247,6 +247,24 @@ of the jet file and `jet_pythia_seed` in every event record. Before October 2026
 Pythia's default seed, the same stream in every job, so those jobs' jet hadrons cannot be
 reproduced event by event and differ from a rerun with this driver.
 
+**Jet hadronization colour checks** (X-SCAPE and js-contrib `lbt_colored_hadro`,
+[`PLAN_lbt_colour_tags.md`](../../../../docs/Plans/PLAN_lbt_colour_tags.md)):
+- **Colour tags were duplicated before.** Matter took its new tags from per-parton blocks
+  that overlap iMATTER's ISR blocks once there are MPI scatterings: in two 75-event test jobs
+  131 of 150 events had a tag used more than once, which Pythia strings silently. Matter
+  now draws its tags from one counter per event (`HardProcess::NextColorTag`), and those jobs
+  have none. The parton kinematics are unchanged (bit-identical), the jet hadrons are not:
+  **jobs before and after are not combinable.**
+- **A failed fragmentation fails the event.** Pythia's `next()` was not checked: when it gave
+  up ("junction topology inconsistent"), the input partons were written as jet hadrons. In
+  `hard_sub_compare/` that happened in `sub/` seed 0103 from event 46 and seed 0129 from event
+  3, to the end of each job (100 of 6031 events). Now the event throws and is skipped
+  (`skipped` in the job summary). Duplicate tags also fail the event unless
+  `<JetHadronization><colour_duplicates>relabel` (a counted repair).
+- **`units/colour_*`** of the jet file: the event's colour audit (partons and remnants
+  handed to Pythia, holes `colour_holes` and their energy, other negative statuses skipped,
+  unpaired colour / anticolour tags, duplicate and relabelled tags).
+
 ### Redoing the jet hadronization
 
 With `--store-hadronization-input` the jet file keeps, per event, the parton list

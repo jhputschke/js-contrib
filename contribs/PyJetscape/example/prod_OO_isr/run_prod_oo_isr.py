@@ -817,9 +817,14 @@ def main() -> int:
                 frag_n = len(frag["pid"])
                 hin = (core.hadronization_input_numpy(tasks["HadronizationManager"])
                        if a.store_hadronization_input else None)
+                # iColored's colour audit of the event (PLAN_lbt_colour_tags.md, C3)
+                audit = ({f"colour_{key}": val for key, val in
+                          core.jet_hadronization_colour_audit(
+                              tasks["HadronizationManager"]).items()}
+                         if getattr(core, "ICOLORED_HAS_COLOUR_AUDIT", False) else {})
                 hwriter.append_unit([frag], initiators=initiators_from_manager(mgr),
                                     hadronization_input=hin, unit=k, event=i, hydro_row=row,
-                                    seed=ev.get("jet_pythia_seed", 0), **ev)
+                                    seed=ev.get("jet_pythia_seed", 0), **ev, **audit)
             jetscape.ClearPerEvent()
             wall = time.time() - t0
             if pwriter is not None:
