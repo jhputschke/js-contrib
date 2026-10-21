@@ -78,7 +78,9 @@ def test_leg_sums_frames_and_totals():
     rec = (40.0, -0.5, 1.0 + np.pi + 0.1)                 # pt, eta, phi of the recoil
     ev = _Ev(pt=[1.5, 1.5, 3.0], eta=[0.35, -0.45, 2.5], phi=[1.05, 1.0 + np.pi + 0.05, 0.0],
              E=[2.0, 2.0, 20.0], charged=[True, True, True])
-    out, tot, ring = wi.leg_sums(ev, z, rec, in_j=True)
+    out, tot, ring, cphi = wi.leg_sums(ev, z, rec, in_j=True)
+    assert cphi.shape == (wi.N_PT, wi.N_CPHI) and cphi.sum() == 2          # |eta| < 2.4
+    assert np.allclose(cphi.sum(1), out["Z"][0].sum((1, 2)))
     mz, hz, sz = out["Z"]
     mj, _, sj = out["J"]
     assert out["ZJ"] is out["Z"]

@@ -30,7 +30,8 @@ species, any p_T): TOTALS.  Per event its deposited droplet energy (units/E_drop
 
 Around the recoil, for the momentum balance (the J frame's Z's): every stored hadron in Delta R
 rings (RING_EDGES), per p_T class RING_PT, its count, sum p_T and sum p_T cos(phi - phi_rec)
-(``ring_<content>``; maps made before them have none).  The Z-axis dipole (the same Z's):
+(``ring_<content>``; maps made before them have none).  In CMS's Delta phi bins (CMS_DPHI),
+the Z frame's tracks over all d_eta: ``cphi_<content>``.  The Z-axis dipole (the same Z's):
 ``zring_<content>`` (charged tracks, cos(phi - phi_Z) and p_T cos(phi - phi_Z) in annuli
 ZR_EDGES around the recoil and around its mirror on the Z's side, per p_T class), ``zeta_<content>`` (cos(phi - phi_Z) against
 eta - eta_rec), and the full event's single-sample noise: ``nze_*`` per eta - eta_rec bin (the
@@ -85,6 +86,9 @@ ZR_EDGES = np.array([0.0, 0.3, 0.5, 0.8, 1.2, 1.6, 2.4, 6.0])
 ZR_Q = ("cos dphi_Z", "pT cos dphi_Z")
 #: the dipole's localization around jet2: core |eta - eta_rec| < DIP_CORE, ring DIP_RING
 DIP_CORE, DIP_RING = 0.4, (0.8, 1.4)
+#: CMS 2507.09307's Delta phi bins (HEPData ins2945894): pi/10 over [-pi/2, 3pi/2)
+CMS_DPHI = np.linspace(-np.pi / 2, 3 * np.pi / 2, 21)
+N_CPHI = len(CMS_DPHI) - 1
 TRACK_ETA = 2.4
 N_PT, N_ETA, N_PHI, N_SPEC = len(PT_EDGES) - 1, len(DETA) - 1, len(DPHI) - 1, len(SPEC_EDGES) - 1
 D_ETA, D_PHI = DETA[1] - DETA[0], DPHI[1] - DPHI[0]
@@ -178,8 +182,9 @@ def z_dipole(ev, z, rec, keep=None):
 
 def leg_sums(ev, z, rec, in_j, keep=None):
     """One leg (an EventHadrons) of one event, summed over its samples (not divided) -> dict
-    frame -> (map, harm, spec) (frames ZJ and J only if ``in_j``), the totals (TOTALS) and the
-    rings around the recoil (:func:`ring_sums`, None unless ``in_j``).  ``z``: (y_Z, phi_Z);
+    frame -> (map, harm, spec) (frames ZJ and J only if ``in_j``), the totals (TOTALS), the
+    rings around the recoil (:func:`ring_sums`, None unless ``in_j``) and the Z frame's tracks
+    in CMS's Delta phi bins, all d_eta ((N_PT, N_CPHI)).  ``z``: (y_Z, phi_Z);
     ``rec``: (pt, eta, phi) of the recoil; ``keep``: the hadrons that count (default all; the
     fragments leave the Z's leptons out)."""
     keep = np.ones(len(ev), bool) if keep is None else keep
@@ -194,7 +199,10 @@ def leg_sums(ev, z, rec, in_j, keep=None):
         out["J"] = frame_sums(t_pt, t_eta - rec[1], dj, dj >= np.pi / 2)
     tot = np.array([len(pt), ev.E[keep].sum(), pt.sum(), (pt * np.cos(phi - z[1])).sum(),
                     (pt * np.cos(phi - rec[2])).sum()])
-    return out, tot, (ring_sums(pt, eta, phi, rec) if in_j else None)
+    ip, iq = _bin(t_pt, PT_EDGES), _bin(dz, CMS_DPHI)
+    ok = (ip >= 0) & (iq >= 0)
+    cphi = np.bincount(ip[ok] * N_CPHI + iq[ok], minlength=N_PT * N_CPHI).reshape(N_PT, N_CPHI)
+    return out, tot, (ring_sums(pt, eta, phi, rec) if in_j else None), cphi.astype(float)
 
 
 def _empty():
@@ -282,8 +290,9 @@ def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
         acc["edrop"] += w * de
         for content, parts in legs.items():
             for leg, scale, keep in parts:
-                fr, tot, ring = leg_sums(leg, z, rec, in_j, keep)
+                fr, tot, ring, cphi = leg_sums(leg, z, rec, in_j, keep)
                 _add(acc, f"tot_{content}", w * scale * tot)
+                _add(acc, f"cphi_{content}", w * scale * cphi)
                 if ring is not None:
                     _add(acc, f"ring_{content}", w * scale * ring)
                 for frame, (m, h, s) in fr.items():
@@ -369,6 +378,7 @@ def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False, zpt=None, rec
             "ring_edges": RING_EDGES.tolist(), "ring_pt": RING_PT.tolist(), "ring_q": list(RING_Q),
             "zr_edges": ZR_EDGES.tolist(), "zr_q": list(ZR_Q),
             "dip_core": DIP_CORE, "dip_ring": list(DIP_RING), "zr_sides": ["jet2", "mirror"],
+            "cms_dphi": CMS_DPHI.tolist(),
             "eta_max": r.eta_max()}
     if not rebuild and os.path.exists(out):
         with np.load(out) as d:
@@ -426,7 +436,7 @@ class Maps:
             self.groups = d["group"].astype(str)
             self.sums = {k: d[k] for k in d.files
                          if k.startswith(("map_", "harm_", "spec_", "tot_", "ring_", "zring_",
-                                          "zeta_", "nzr_", "nze_", "nzc_"))}
+                                          "zeta_", "nzr_", "nze_", "nzc_", "cphi_"))}
             self.W = {"Z": d["W"], "ZJ": d["WJ"], "J": d["WJ"]}
             self.W2, self.edrop = d["W2"], d["edrop"]
             self.N, self.NJ = d["N"], d["NJ"]
