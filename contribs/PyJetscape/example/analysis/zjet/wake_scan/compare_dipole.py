@@ -21,8 +21,9 @@ above a p_T threshold, loses the Z's whose jet fell below it: --axis-eff).  The 
 to zero against the Z's direction and enters only the noise.  Projected errors:
 sigma^2 = a^T Cov_PbPb a / N_PbPb + a^T Cov_pp a / N_pp with N_PbPb = n_cms x (the J
 fraction) x axis_eff.  n_cms = 1550: CMS 2507.09307's effective Pb+Pb Z count
-(ANALYSIS_c00_01.md); n_pp: an assumption (4x).  For comparison, CMS's own statistical error
-of the Z-side Delta y, first bin, 1-2 GeV, is 0.286 (model value -0.372: 1.3 sigma).
+(ANALYSIS_c00_01.md); n_pp: an assumption (4x).  For comparison: CMS's own statistical error
+of the Z-side Delta y in its first bin (HEPData ins2945894), 0.286 at 1-2 GeV and 0.123 at
+2-4 GeV, against the model's value there (mix.py / wake_decomp.py).
 -> <outdir>/dipole_annuli{tag}.png, dipole_eta{tag}.png (with .npz/.root), dipole{tag}.txt."""
 import argparse
 import os
@@ -199,8 +200,8 @@ def main():
         res[s["name"]] = dict(rows=rows, crows=crows, w_sym=sym(w_), t_sym=sym(t_),
                               t_err=terr.reshape(wi.N_PT, N_R, N_Q), cov_pb=cov_pb,
                               cov_pp=cov_pp, n_pb=n_pb)
-    L.append("For comparison: CMS 2507's Z-side Delta y, first bin, 1-2 GeV: model -0.372, CMS "
-             "stat 0.286 -> 1.3 sigma; 2-4 GeV: model -0.010, CMS stat 0.123 -> 0.1 sigma.")
+    L.append("For comparison: CMS 2507's Z-side Delta y, first bin: CMS stat 0.286 (1-2 GeV), "
+             "0.123 (2-4 GeV), against the model's value there (mix.py, wake_decomp.py).")
 
     import matplotlib
     matplotlib.use("Agg")

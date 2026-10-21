@@ -20,7 +20,11 @@ scan, and reads off what the source does to the wake's shape.
 > 10⁻¹⁵, Pb+Pb and pp) and run on the scan's hadron files on the GB10; results in
 > `runs/wake_scan/WAKE_ISO_SUMMARY.md` (git-ignored: not public). §1b (the Pythia variants,
 > MPI off and ISR + MPI off at `e_threshold` 2 and 3, with their pp) run on the GB10 the same
-> day: `runs/wake_scan/MPI_ISR_OFF_SUMMARY.md`. Steps 2 and 3 not started.
+> day: `runs/wake_scan/MPI_ISR_OFF_SUMMARY.md`. Then, also on the GB10: CMS 2507's observable per
+> setting (`compare_pythia_cms.py`, own pp and the campaign's), the Δη-wake proxy around jet2 and
+> the momentum balance in ΔR rings (`compare_pythia.py`, `wake_iso.py` rings), and the Z-axis
+> dipole around jet2 with errors projected to CMS's Z count (`compare_dipole.py`): the synthesis
+> `runs/wake_scan/WAKE_SYNTHESIS.md` (git-ignored). Steps 2 and 3 not started.
 
 **Decisions (user, 2026-10-20):** step 1 first, on the existing scan files, with the Z frame and
 the recoil-parton frame; no extra job to split the droplets by shower (the share of the wake
