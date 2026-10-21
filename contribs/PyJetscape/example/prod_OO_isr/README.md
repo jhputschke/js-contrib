@@ -261,9 +261,25 @@ reproduced event by event and differ from a rerun with this driver.
   3, to the end of each job (100 of 6031 events). Now the event throws and is skipped
   (`skipped` in the job summary). Duplicate tags also fail the event unless
   `<JetHadronization><colour_duplicates>relabel` (a counted repair).
+- **Lines that end in the medium** (a scattering's hole took the thermal parton's colour
+  with it: with LBT or Matter's recoils) are closed as `<JetHadronization><colour_closure>`
+  says:
+
+  | `<colour_closure>` | what it does |
+  |---|---|
+  | `reconnect` (default) | join the open ends within a shower, the shortest string first; the holes' medium partners (the conjugate parton with the hole's momentum) for the rest |
+  | `reconnect_global` | the same, joining across showers too |
+  | `thermal` | every open line gets its hole's medium partner |
+  | `fake` | a soft (1 GeV) light (anti)quark along the beam per open end |
+  | `none` | throw (an event with an open line is skipped) |
+
+  The holes themselves are not hadronized; their energy is recorded (`colour_hole_energy`).
+  A fragmentation that fails after a closure is redone once with `fake` (`colour_retries`).
 - **`units/colour_*`** of the jet file: the event's colour audit (partons and remnants
-  handed to Pythia, holes `colour_holes` and their energy, other negative statuses skipped,
-  unpaired colour / anticolour tags, duplicate and relabelled tags).
+  handed to Pythia, holes and their energy, other negative statuses skipped, open colour /
+  anticolour tags before the closure, duplicate and relabelled tags, `reconnected` pairs,
+  `reconnected_cross` (across showers, as a fallback), `partners` and their energy, `fakes`
+  and their energy, `retries`).
 
 ### Redoing the jet hadronization
 
@@ -476,10 +492,14 @@ python run_prod_oo_isr.py --events 20 --seed 1 --outdir out_nosub --bulk-hadrons
   there averages with 0); two runs of 100 events are then bit-identical, with no skip or
   crash. `cu124-final_optim` doesn't have it yet (see
   *Containers*). The Au+Au production has no ISR and is unchanged.
-- **Jet energy loss is Matter alone.** LBT gives its partons no colour, which iColored
-  hadronization cannot take: Matter + LBT stops with "Unpaired colors sent to Pythia"
-  (tested). `run_prod_oo_isr.py` refuses `<Eloss><Lbt>` unless `--no-jet-hadrons`. Colorless
-  hadronization, which would take LBT, does not work with ISR yet: see the next section.
+- **Jet energy loss: Matter, or Matter + LBT** (`lbt_colored_hadro`). LBT now gives its
+  partons the large-Nc colour flow (Matter's rules per channel), Matter's recoils keep theirs,
+  and iColored closes the colour lines that end in the medium (`<JetHadronization>
+  <colour_closure>`, above). The production XML stays Matter-only (`recoil_on` 0); add an
+  `<Eloss><Lbt>` block (and `recoil_on` 1, as in the Au+Au XML) for LBT. A build without the
+  closure still refuses `<Eloss><Lbt>` unless `--no-jet-hadrons`. Tested 2026-10-21 on two
+  75-event jobs: 632 holes, every line closed (no soft fallback, no failure), every tag paired
+  once, hadron energy = Pythia input energy.
 - **ISR range.** iMATTER runs from 0 to -`<Eloss><maxT>` (50 fm/c, as in X-SCAPE's ISR
   examples) and the final-state shower starts there; `<Hard><ISR><maxT>`/`<deltaT>` override.
 - **Not included:** X-SCAPE branch `Changing_iMatter_pTDefinition` (upstream, August 2025,

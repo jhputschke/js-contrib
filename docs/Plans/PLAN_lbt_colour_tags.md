@@ -18,7 +18,41 @@
   and the 1-ulp noise of `source/flux`, and its Colorless jet hadrons (`hadronize.py --tags
   jet_frag`, fixed seed) are identical; PyJetscape tests pass (`test_icolored_colour.py`
   new).
-- Phases 2–5: open.
+- **Phases 2–5 done (2026-10-21)**, same branches:
+  - Phase 2: Matter's recoil block keeps `Matter::flavor`'s flow (recoil, hole, the
+    continuing jet parton), its two new tags reserved from the event counter, the tags
+    swapped with the momenta.
+  - Phase 3: iColoredHadronization collects the partons into a list (`ShowerParton`,
+    `HadronizePartons`, bound through `core.hadronize_partons`), then the closure of
+    `<colour_closure>` (B2 within a shower → B1 partners → B2 across showers → B3, each
+    counted; `reconnect_global`, `thermal`, `fake`, `none`), and one retry with B3 when Pythia
+    fails after a closure. `core.jet_hadronization_set_colour_closure` sets it by hand.
+    The beam remnants always go to Pythia: they carry negative statuses, and a first version
+    that applied the pstat policy to them dropped them all (caught by the bit-identity check).
+  - Phase 4: LBT's colour arrays, the tags passed through every step, the flow per channel
+    (A1's table, channel 2 as corrected), the splitting rule for every radiated gluon, the
+    tags swapped wherever LBT swaps slots (identical flavours, the leading gluon of a gluon
+    jet).
+  - Phase 5: `run_prod_oo_isr.py` takes `<Eloss><Lbt>` when the build has the closure
+    (`ICOLORED_HAS_COLOUR_CLOSURE`); the audit columns grew accordingly.
+- Validation (GB10, two 75-event O+O jobs per setting, seeds 103 and 129):
+  - Matter only, recoils off: jet files identical to phase 1 (no open line, nothing changed).
+  - Matter with `recoil_on` 1: 77 holes; `reconnect` closes every line with 25 joins and 50
+    partners, `thermal` with partners alone, `reconnect_global` with more joins; never a
+    soft fallback, a cross-shower join, a retry or a failure.
+  - Matter + LBT: 632 holes in 150 events (up to 19 in one); `reconnect`: 234 joins and 286
+    partners, `thermal`: 568 partners; nothing else needed, no failure.
+  - In every setting: every tag paired exactly once in what went to Pythia, no parton among
+    the hadrons, hadron energy = Pythia input energy.
+  - `thermal` inserts fewer partners than there are holes when one parton scatters twice and
+    the second hole's line runs into the first through it: the two holes are connected inside
+    the medium, and only the net open end needs a partner (with the right triplet charge).
+  - Au+Au colorless regression (which has `recoil_on` 1 and LBT): identical except the
+    partons' col/acol (untagged final quarks and gluons 11 % → 0 % in that job) and the 1-ulp
+    noise of `source/flux`; its Colorless jet hadrons identical. PyJetscape tests: 279 passed.
+- Open: physics comparisons (iColored versus colorless on the same partons, the closure
+  variants), the jet-file notebook, A2, negative hadrons for the holes, the Au+Au liquefier
+  case (lines that leave with liquefied partons are closed by B2 across showers / B3).
 
 ## Goal
 

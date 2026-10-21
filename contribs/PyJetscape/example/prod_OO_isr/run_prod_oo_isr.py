@@ -328,9 +328,8 @@ def job_xml(a, out_h5: str):
     eloss = root.find("Eloss")
     if eloss is None:
         problems.append("need <Eloss>")
-    elif eloss.find("Lbt") is not None and not a.no_jet_hadrons:
-        problems.append("<Eloss><Lbt>: LBT's partons carry no colour, which "
-                        "iColoredHadronization cannot take; remove it (or --no-jet-hadrons)")
+    # <Eloss><Lbt> needs LBT's colour tags and iColored's <colour_closure>
+    # (PLAN_lbt_colour_tags.md); checked against the build in main()
     jh = root.find("JetHadronization")
     if a.no_jet_hadrons:
         if jh is not None:
@@ -565,6 +564,12 @@ def main() -> int:
               "<decay_smash_list> 0): rho, omega, K*, Delta ... stay in the bulk hadrons"
               + ("; with --no-particlize the surfaces are not kept to redo it."
                  if a.no_particlize else "."), file=sys.stderr)
+    eloss = root.find("Eloss")
+    if (eloss is not None and eloss.find("Lbt") is not None and not a.no_jet_hadrons
+            and not getattr(core, "ICOLORED_HAS_COLOUR_CLOSURE", False)):
+        sys.exit("run_prod_oo_isr.py: <Eloss><Lbt> needs X-SCAPE with LBT's colour tags and "
+                 "iColoredHadronization's <colour_closure> (lbt_colored_hadro), and "
+                 "PyJetscape built against it; or --no-jet-hadrons")
     if not a.no_jet_hadrons and not getattr(core, "ICOLORED_HAS_INPUT_RECORD", False):
         if a.store_hadronization_input:
             sys.exit("run_prod_oo_isr.py: --store-hadronization-input needs X-SCAPE's "
