@@ -1319,7 +1319,9 @@ for mode in ("reconnect", "reconnect_global", "thermal"):
 ```
 
 `tests/test_icolored_colour.py` runs every mode on hand-made scatterings (gluon and quark
-holes, joins within and across showers, partners, soft end partons). For runJetscape
+holes, joins within and across showers, partners, soft end partons). Related work (JEWEL,
+Pythia/Herwig colour reconnection, Hybrid Hadronization, Beraudo–Milhano–Wiedemann) and
+references: `docs/Plans/PLAN_lbt_colour_tags.md`, "Related work and references". For runJetscape
 (no Python) the same chain is X-SCAPE's `config/jetscape_user_OO_ISR_MatterLBT_iColored.xml`.
 
 ---

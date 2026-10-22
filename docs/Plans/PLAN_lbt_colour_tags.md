@@ -464,6 +464,75 @@ For a gluon hole B2 joins its two open ends directly, which is B1 without the in
 - The O+O hadrons made with iColored change in phase 1 (no duplicates any more): runs before
   and after are not combinable.
 
+## Related work and references
+
+The pieces of the scheme have counterparts in other generators; the combination used here
+(hole-based closure: join the open ends within a shower first, then the hole's own medium
+partner, then counted fallbacks) we did not find elsewhere. References checked against
+INSPIRE/arXiv on 2026-10-21.
+
+**Colour flow of scatterings off the medium.** [BMW12a] give the first colour-differential
+energy-loss calculation (large Nc, first order in opacity): in more than half of the
+medium-modified branchings colour flows from the leading parton directly to the medium
+("target") component, which makes colour-singlet clusters of parametrically larger
+invariant mass (∝ √(p⁺ E_th)) and softens the hadrons; [BMW12b] works it out. That is the
+line our holes carry, and our `thermal` closure is their "colour flows to the target" case.
+The kinematics we give colour to are Matter's recoils (`Matter::flavor`) and LBT's recoils and
+negative partons [HLWZ15].
+
+| closure | closest counterpart | reference |
+|---|---|---|
+| `reconnect` (the line stays in the jet, no medium parton added) | JEWEL: every recoil becomes a gluon inserted into the jet's string next to the parton it scattered with (its "colour neighbour"); the thermal momenta are subtracted afterwards | [KZ17], [MWZ18] |
+| B2, the shortest string first | the colour-reconnection models of Pythia (string length λ) and Herwig (cluster masses) | [AGS86], [SK94], [CS15], [GRS12] |
+| `reconnect_global` | Pythia/Angantyr global colour reconnection in heavy-ion events | [BGLS18], [BGLS24] |
+| `thermal` (a medium partner closes the line) | JETSCAPE Hybrid Hadronization: unpaired lines completed with thermal partons sampled on the hydro hypersurface (or beam partons), with recombination; POWLANG: heavy quarks string to thermal light partons of the freeze-out surface | [HFK16], [JS25], [BDMNP22] |
+| `fake` (soft partons along the beam) | JETSCAPE ColoredHadronization's fake beam partons; Hybrid Hadronization's zero-momentum antiquark for a lone jet | [JF19], [JS20], [JS25] |
+| holes not hadronized, energy recorded | LBT's negative partons, Hybrid Hadronization's negative hadrons, JEWEL's thermal-momentum subtraction | [HLWZ15], [JS25], [MWZ18] |
+
+What differs here: our `thermal` partner carries the hole's own momentum (the thermal parton
+where it scattered), not a parton sampled on the freeze-out surface as in [JS25] and
+[BDMNP22]; our `reconnect` keeps the recoil's flavour and the large-Nc flow, where [KZ17]
+turns every recoil into a gluon. The surrounding chain is X-SCAPE's ISR framework with
+iColoredHadronization [SZM25].
+
+- [AGS86] B. Andersson, G. Gustafson, B. Söderberg, "A probability measure on parton and
+  string states", Nucl. Phys. B 264 (1986) 29.
+- [BDMNP22] A. Beraudo, A. De Pace, M. Monteno, M. Nardi, F. Prino, "In-medium hadronization of
+  heavy quarks and its effect on charmed meson and baryon distributions in heavy-ion
+  collisions", Eur. Phys. J. C 82 (2022) 607, arXiv:2202.08732.
+- [BGLS18] C. Bierlich, G. Gustafson, L. Lönnblad, H. Shah, "The Angantyr model for heavy-ion
+  collisions in PYTHIA8", JHEP 10 (2018) 134, arXiv:1806.10820.
+- [BGLS24] C. Bierlich, G. Gustafson, L. Lönnblad, H. Shah, "The dynamic hadronization of charm
+  quarks in heavy-ion collisions", Eur. Phys. J. C 84 (2024) 231, arXiv:2309.12452.
+- [BMW12a] A. Beraudo, J. G. Milhano, U. A. Wiedemann, "Medium-induced color flow softens
+  hadronization", Phys. Rev. C 85 (2012) 031901, arXiv:1109.5025.
+- [BMW12b] A. Beraudo, J. G. Milhano, U. A. Wiedemann, "The contribution of medium-modified
+  color flow to jet quenching", JHEP 07 (2012) 144, arXiv:1204.4342.
+- [CS15] J. R. Christiansen, P. Z. Skands, "String formation beyond leading colour", JHEP 08
+  (2015) 003, arXiv:1505.01681.
+- [GRS12] S. Gieseke, C. Röhr, A. Siódmok, "Colour reconnections in Herwig++", Eur. Phys. J. C
+  72 (2012) 2225, arXiv:1206.0041.
+- [HFK16] K. C. Han, R. J. Fries, C. M. Ko, "Jet fragmentation via recombination of parton
+  showers", Phys. Rev. C 93 (2016) 045207, arXiv:1601.00708.
+- [HLWZ15] Y. He, T. Luo, X.-N. Wang, Y. Zhu, "Linear Boltzmann transport for jet propagation
+  in the quark-gluon plasma: Elastic processes and medium recoil", Phys. Rev. C 91 (2015)
+  054908, Erratum Phys. Rev. C 97 (2018) 019902, arXiv:1503.03313.
+- [JF19] J. H. Putschke, K. Kauder, E. Khalaj et al., "The JETSCAPE framework",
+  arXiv:1903.07706 (preprint).
+- [JS20] A. Kumar, Y. Tachibana, D. Pablos, C. Sirimanna, R. J. Fries et al. (JETSCAPE),
+  "JETSCAPE framework: p+p results", Phys. Rev. C 102 (2020) 054906, arXiv:1910.05481.
+- [JS25] A. Sengupta, R. J. Fries, M. Kordell II, B. Kim et al. (JETSCAPE), "Hybrid
+  Hadronization -- A Study of In-Medium Hadronization of Jets", arXiv:2501.16482 (preprint).
+- [KZ17] R. Kunnawalkam Elayavalli, K. C. Zapp, "Medium response in JEWEL and its impact on jet
+  shape observables in heavy ion collisions", JHEP 07 (2017) 141, arXiv:1707.01539.
+- [MWZ18] G. Milhano, U. A. Wiedemann, K. C. Zapp, "Sensitivity of jet substructure to
+  jet-induced medium response", Phys. Lett. B 779 (2018) 409, arXiv:1707.04142.
+- [SK94] T. Sjöstrand, V. A. Khoze, "On colour rearrangement in hadronic W+W− events", Z. Phys.
+  C 62 (1994) 281, arXiv:hep-ph/9310242.
+- [SZM25] I. Soudi, W. Zhao, A. Majumder, C. Shen, J. H. Putschke, B. Boudreaux et al.
+  (JETSCAPE), "Soft-hard framework with exact four-momentum conservation for small systems",
+  Phys. Rev. C 112 (2025) 014905, arXiv:2407.17443.
+
 ## Out of scope
 
 - Hybrid hadronization for O+O, Martini, a treatment beyond large-Nc colour flow.

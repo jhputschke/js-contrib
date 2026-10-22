@@ -65,3 +65,14 @@ jackknife over the jobs, the paired ratios keep the jobs together):
 
 Pythia's decays as in the job (iColored: decays on, cτ > 10 mm stable: K⁰S, Λ, Σ±, Ξ⁻, Ω⁻ are
 final).
+
+**Related work** (full references in
+[`PLAN_lbt_colour_tags.md`](../../../../../docs/Plans/PLAN_lbt_colour_tags.md), "Related work and
+references"):
+
+| closure | counterpart | reference |
+|---|---|---|
+| `reconnect` | JEWEL's recoils, inserted as gluons into the jet's string | Kunnawalkam Elayavalli, Zapp, JHEP 07 (2017) 141, arXiv:1707.01539 |
+| `thermal` | colour flowing from the jet to the medium ("target") component: heavier singlets, softer hadrons; thermal partners in Hybrid Hadronization | Beraudo, Milhano, Wiedemann, Phys. Rev. C 85 (2012) 031901, arXiv:1109.5025; JETSCAPE (Sengupta et al.), arXiv:2501.16482 |
+| `fake` | ColoredHadronization's fake beam partons | JETSCAPE (Kumar et al.), Phys. Rev. C 102 (2020) 054906, arXiv:1910.05481 |
+| before vs after | duplicate tags make wrong colour singlets, i.e. an uncontrolled colour reconnection across the event; compare the global reconnection of Pythia/Angantyr | Bierlich, Gustafson, Lönnblad, Shah, JHEP 10 (2018) 134, arXiv:1806.10820 |

@@ -286,6 +286,12 @@ reproduced event by event and differ from a rerun with this driver.
   and their energy, `retries`). The job summary (`<stem>.json`) has them added up over the
   job (`jet_colour_totals`, with `failed` = events thrown), as the log's colour summary at
   the end of the job.
+- **Related work.** The closures have counterparts in JEWEL (recoils inserted into the jet's
+  string), Pythia/Herwig colour reconnection (shortest strings), Hybrid Hadronization and
+  POWLANG (thermal partners) and ColoredHadronization (fake beam partons); the colour flow of
+  medium scatterings is that of Beraudo, Milhano, Wiedemann, Phys. Rev. C 85 (2012) 031901.
+  References and differences: [`PLAN_lbt_colour_tags.md`](../../../../docs/Plans/PLAN_lbt_colour_tags.md),
+  "Related work and references".
 
 ### Redoing the jet hadronization
 
