@@ -751,6 +751,7 @@ def main() -> int:
                                                     "eos")}})
 
     n = n_hydro = no_medium = 0
+    colour_totals = None          # iColored's colour audits added up (the log summary)
     skipped = []                  # (event, error) of events whose simulation threw
     t_job = time.time()
     try:
@@ -850,6 +851,8 @@ def main() -> int:
         sigma = core.hard_process_info(gun)
         if windows is not None:
             windows = core.pythia_gun_bins(gun)          # the final cross sections
+        if not a.no_jet_hadrons and getattr(core, "ICOLORED_HAS_COLOUR_CLOSURE", False):
+            colour_totals = core.jet_hadronization_colour_totals(tasks["HadronizationManager"])
         jetscape.Finish()
     finally:
         if writer is not None:
@@ -905,6 +908,8 @@ def main() -> int:
                        particlize_events_written=pwriter.GetNumberOfEventsWritten())
     if out_frag:
         summary["jet_frag"] = out_frag
+    if colour_totals is not None:
+        summary["jet_colour_totals"] = dict(colour_totals)
     if out_bulk:
         summary.update(bulk_bg=out_bulk, bulk_oversample=a.bulk_hadrons)
     if out_bulk_primary:

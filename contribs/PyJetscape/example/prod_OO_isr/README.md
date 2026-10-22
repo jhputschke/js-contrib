@@ -279,7 +279,9 @@ reproduced event by event and differ from a rerun with this driver.
   handed to Pythia, holes and their energy, other negative statuses skipped, open colour /
   anticolour tags before the closure, duplicate and relabelled tags, `reconnected` pairs,
   `reconnected_cross` (across showers, as a fallback), `partners` and their energy, `fakes`
-  and their energy, `retries`).
+  and their energy, `retries`). The job summary (`<stem>.json`) has them added up over the
+  job (`jet_colour_totals`, with `failed` = events thrown), as the log's colour summary at
+  the end of the job.
 
 ### Redoing the jet hadronization
 

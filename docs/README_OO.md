@@ -36,7 +36,7 @@ IS: 3dMCGlauber (O16, positions only)
           -> IsrManager / iMATTER                    ISR, backward in time
           -> MCGlauberGenString                      strings from what the hard pair left
  -> MUSIC                                            ONE hydro per event (no two-stage pair)
- -> Eloss: Matter in MUSIC's medium                  the final-state shower
+ -> Eloss: Matter in MUSIC's medium (or Matter + LBT) the final-state shower
  -> JetHadronization: iColored                       jet hadrons, in the job
  -> SoftParticlization: iSS                          bulk hadrons, in the job or later
 ```
@@ -57,6 +57,13 @@ Differences from the Au+Au jet production that matter for an analysis:
   emissions, Pythia's MPI partons and the pair's beam remnants, hadronized together by
   iColored. Their pstat is mostly 1000 (PythiaIsrGun's mark, which Matter's daughters keep);
   that is not "unshowered".
+- **With LBT (or Matter's recoils)** the partons carry the colour flow of every scattering
+  off the medium, the holes are not hadronized, and iColored closes the colour lines that
+  end in the medium (`<colour_closure>`, default `reconnect`); the jet file's
+  `units/colour_*` and the job summary's `jet_colour_totals` record it per event and per
+  job ([`prod_OO_isr/README.md`](../contribs/PyJetscape/example/prod_OO_isr/README.md),
+  "Jet hadronization colour checks"; X-SCAPE `README_ColourFlow.md`). The production XML is
+  Matter-only.
 - **Events without a medium:** when the hard collision is the only one, the pair makes no
   string. There is no evolution, Matter showers in vacuum, the bulk unit is empty
   (`has_medium` 0). In 0–80 % (b < 5.6 fm) that is ~5 % of the events, mostly with Ncoll = 1.
@@ -124,6 +131,8 @@ Npart √s_NN / 2` (with the subtraction; checked in §7).
 | Matter's lookup before t = 0 | X-SCAPE `8c975d37` (in the images of 2026-10-14, `cu1xx-20261013-9e84450`; not in `cu124-final_optim`): without it Matter read a garbage qhat for the ISR partons, which skipped events differently from run to run | the image or build; `events_skipped` in the attributes and `.json` |
 | pT̂ windows, parton rapidity cut | the cross section per window; `--parton-ymax` keeps events with both hard partons at \|y\| < Y (before the ISR) | `pthat_bins`, `pthat_bin_sigma_gen`, `pthat_bin_acceptance`, `parton_ymax` attributes |
 | bulk oversamples, hadron selection | `n_samples`; `--eta-max`, `--charged`, `--no-x`, `--keep-bits-*` | `n_samples`, `eta_max`, `charged_only`, `positions` attributes |
+| jet colour tags (X-SCAPE `lbt_colored_hadro`) | before it, most events had duplicate colour tags (strung silently) and a failed fragmentation wrote the partons out as hadrons (`hard_sub_compare/` `sub/` seeds 0103, 0129); since, the jet hadrons differ: don't combine jobs from before and after. The jobs since have `units/colour_*` in the jet file; `<colour_closure>` must be the same across a campaign | `units/colour_partons` present or not; `<colour_closure>` in the job XML (`jet_hadronization_xml` attribute) |
+| energy loss | Matter only, or Matter + LBT (`<Eloss><Lbt>` in the job XML) | the job XML |
 
 ```python
 # the settings of every job of a campaign

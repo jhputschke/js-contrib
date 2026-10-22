@@ -29,9 +29,10 @@
   momentum is taken from the colliding nucleons), generateOnlyPositions 1 for the ISR and
   b <= 3 fm.  (EOS 9 before 2026-10, when iSS could not decay the SMASH list.)
 
-  Jet energy loss is Matter alone: LBT gives its partons no colour, which the
-  iColored hadronization (Pythia strings through the ISR colour flow and the remnants)
-  cannot take ("Unpaired colors sent to Pythia").
+  Jet energy loss is Matter alone here.  With X-SCAPE lbt_colored_hadro, LBT's partons carry
+  colour and the iColored hadronization closes the colour lines that end in the medium
+  (<JetHadronization><colour_closure>), so an <Eloss><Lbt> block (with Matter's recoil_on 1)
+  can be added: X-SCAPE config/jetscape_user_OO_ISR_MatterLBT_iColored.xml, README_ColourFlow.md.
 
   No hydro reuse: with ISR the medium is made from what each event's hard scattering left,
   so <setReuseHydro> stays false (X-SCAPE refuses true with ISR), also with pTHat windows.

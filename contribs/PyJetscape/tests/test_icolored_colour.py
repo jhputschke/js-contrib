@@ -251,3 +251,16 @@ def test_remnants_go_to_pythia_whatever_their_status(icolored):
     assert (audit["partons"], audit["remnants"], audit["holes"], audit["skipped"]) == (1, 1, 0, 0)
     assert len(given["pid"]) == 2
     _check_hadrons(out, given)
+
+
+def test_totals_add_up_the_audits(icolored):
+    before = core.jet_hadronization_colour_totals(icolored)
+    _hadronize(icolored, "reconnect", QG)
+    with pytest.raises(RuntimeError):
+        _hadronize(icolored, "none", QG)
+    after = core.jet_hadronization_colour_totals(icolored)
+    assert after["events"] == before["events"] + 1
+    assert after["failed"] == before["failed"] + 1
+    assert after["holes"] == before["holes"] + 1
+    assert after["partners"] == before["partners"] + 1
+    assert after["open_ends"] == before["open_ends"] + 2

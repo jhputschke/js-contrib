@@ -62,7 +62,7 @@ Original development repository:
 | `python/jetscape/showers.py`, `liquefier_io.py` | Parton-shower graph and liquefier droplet/parameter readers (numpy only) |
 | [`example/`](example/README.md) | Index of the examples: productions, analyses (Python and ROOT), single-feature scripts |
 | `example/prod_AuAu_0_10/`, `example/prod_AuAu_0_10_jet/` | Productions: 0–10% Au+Au hydro-only, and the same with a jet as background/jet pairs |
-| `example/prod_OO_isr/` | Production: O+O with initial-state radiation (iMATTER) and Matter in one MUSIC medium, tuned O+O parameters; jet hadrons (iColored) and optionally the bulk (iSS) hadronized in the job |
+| `example/prod_OO_isr/` | Production: O+O with initial-state radiation (iMATTER) and Matter (optionally + LBT) in one MUSIC medium, tuned O+O parameters; jet hadrons (iColored) and optionally the bulk (iSS) hadronized in the job |
 | `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
 | `tests/` | pytest suites of the Python tooling; most run without an X-SCAPE build |
 | `CMakeLists.txt`, `pyproject.toml`, `setup.py` | The `pyjetscape_core` build; source-only Python package metadata (`name = "pyjetscape"`) |
@@ -1141,8 +1141,12 @@ X-SCAPE `contrib`: the seed hooks in `SoftParticlization` and `ColorlessHadroniz
 | `soft_set_number_of_samples(task, n)` | iSS oversamples from the next event on (e.g. more for a reused background) |
 | `soft_set_compact_output(task, on=True)` | from the next event on, iSS hands its hadrons over as flat arrays (~8× less memory); call `soft_hadrons_numpy` once per event |
 | `hadronization_hadrons_numpy(task)` | a HadronizationManager's output hadrons |
-| `hadronize_partons(module, partons, seed=None)` | run a jet hadronization module on stored partons; `seed` reseeds ColorlessHadronization first |
-| `jet_hadronization_last_random_seed(task)` | ColorlessHadronization's last seed (with `<reseed_per_event>1`) |
+| `hadronize_partons(module, partons, seed=None)` | run a jet hadronization module on stored partons; `seed` reseeds ColorlessHadronization (or iColoredHadronization) first; iColoredHadronization takes them through its pstat policy and `<colour_closure>` (below) |
+| `jet_hadronization_last_random_seed(task)` | ColorlessHadronization's or iColoredHadronization's last seed (with `<reseed_per_event>1`) |
+| `hadronization_input_numpy(task)`, `hadronize_input(module, pid, col, acol, p, mass, seed=None)` | iColoredHadronization with `<store_input>1`: the parton list the last event handed to Pythia; hadronize such a list again (`ICOLORED_HAS_INPUT_RECORD`) |
+| `jet_hadronization_colour_audit(task)` | iColoredHadronization: the last event's colour audit (`ICOLORED_HAS_COLOUR_AUDIT`) |
+| `jet_hadronization_colour_totals(task)` | iColoredHadronization: the audits added up over the run (the log summary) |
+| `jet_hadronization_set_colour_closure(task, mode)` | iColoredHadronization: `<colour_closure>` by hand (`ICOLORED_HAS_COLOUR_CLOSURE`) |
 
 These are free functions taking a task because `create_module()` returns modules whose
 concrete types are not registered with pybind11.
@@ -1248,6 +1252,75 @@ and their cross sections. Correlated jet/background sampling (`hadronize.py
 **ROOT:** `example/prod_AuAu_0_10_jet/run_h5toROOT.py` converts a hadronized campaign to
 ROOT files (layout in `example/prod_AuAu_0_10_jet/root_export/README.md`), and
 `example/analysis_root/HadronFileReader.h` reads them in C++.
+
+### Jet hadronization with colour (iColoredHadronization)
+
+X-SCAPE `lbt_colored_hadro` (X-SCAPE `README_ColourFlow.md`; design and validation in
+`docs/Plans/PLAN_lbt_colour_tags.md`): Matter and LBT give their partons the large-Nc
+colour flow, with one tag counter per event (`HardProcess::NextColorTag`), and
+iColoredHadronization closes the colour lines that scatterings off the medium leave open.
+So Matter + LBT showers (and Matter with `recoil_on` 1) can be hadronized through their
+colour flow. ColorlessHadronization does not read the tags and is unchanged.
+
+**What iColored does with the partons:** holes (pstat −1) and the liquefier's partons are
+not handed to Pythia (the holes' energy is recorded), the beam remnants always are;
+duplicate tags fail the event (`<colour_duplicates>relabel` repairs them, counted); the open
+lines are closed as `<JetHadronization><colour_closure>` says:
+
+| `<colour_closure>` | what it does |
+|---|---|
+| `reconnect` (default) | join open colour and anticolour ends within a shower, the shortest string first; the holes' medium partners (the conjugate parton, the hole's tags swapped, its momentum) for the rest |
+| `reconnect_global` | the same, joining across showers too |
+| `thermal` | every open line gets its hole's medium partner |
+| `fake` | a soft (1 GeV) light (anti)quark along the beam per open end |
+| `none` | throw on an open line |
+
+A fragmentation that Pythia gives up on is retried once with `fake` and otherwise throws
+(a `RuntimeError` in Python), never handing the input partons on as hadrons.
+
+**In a job** (between `ExecPerEvent()` and `ClearPerEvent()`): the event's audit, and at
+the end the run's totals (also printed by `jetscape.Finish()` as the colour summary):
+
+```python
+from jetscape import pyjetscape_core as core
+mgr = hadronization_manager   # the HadronizationManager task, or iColored itself
+for i in range(n):
+    try:
+        jetscape.ExecPerEvent()
+    except RuntimeError as exc:              # duplicate tags, an open line with none, Pythia
+        jetscape.ClearPerEvent(); continue   # (the O+O driver records these as skipped)
+    audit = core.jet_hadronization_colour_audit(mgr)
+    # partons, remnants, holes, hole_energy, skipped, unpaired_col, unpaired_acol,
+    # duplicate_tags, relabelled_tags, reconnected, reconnected_cross, partners,
+    # partner_energy, fakes, fake_energy, retries
+    ...
+    jetscape.ClearPerEvent()
+totals = core.jet_hadronization_colour_totals(mgr)   # events, failed, events_open, ...
+jetscape.Finish()
+```
+
+`example/prod_OO_isr/run_prod_oo_isr.py` writes the audit per event to the jet hadron
+file (`units/colour_*`) and the totals to the job summary (`jet_colour_totals`); it takes
+`<Eloss><Lbt>` in the user XML (`--user-xml`) when the build has the closure. See
+`example/prod_OO_isr/README.md`, "Jet hadronization colour checks".
+
+**Offline, on stored partons** (`FINAL_PARTON_COLUMNS`, e.g. a particlize file's
+`partons/`; no beam remnants), with the closure chosen by hand, e.g. to compare the modes on
+the same partons:
+
+```python
+js = core.JetScapePerEvent()                 # a user XML with only <JetHadronization>
+js.SetXMLMainFileName(main_xml); js.SetXMLUserFileName(user_xml); js.Init()
+ic = core.create_module("iColoredHadronization"); ic.Init()
+for mode in ("reconnect", "reconnect_global", "thermal"):
+    core.jet_hadronization_set_colour_closure(ic, mode)
+    had = core.hadronize_partons(ic, partons, seed=7)   # dict: pid, p, ... ; seed used
+    print(mode, core.jet_hadronization_colour_audit(ic))
+```
+
+`tests/test_icolored_colour.py` runs every mode on hand-made scatterings (gluon and quark
+holes, joins within and across showers, partners, soft end partons). For runJetscape
+(no Python) the same chain is X-SCAPE's `config/jetscape_user_OO_ISR_MatterLBT_iColored.xml`.
 
 ---
 

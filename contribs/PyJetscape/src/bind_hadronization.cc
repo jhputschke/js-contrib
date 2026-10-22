@@ -32,6 +32,8 @@
  *                                       iColoredHadronization: the last event's colour audit
  *   jet_hadronization_set_colour_closure(module, mode)
  *                                       iColoredHadronization: <colour_closure> by hand
+ *   jet_hadronization_colour_totals(module)
+ *                                       iColoredHadronization: the audits of the run added up
  *
  * Capabilities: ISS_DECAYS_SMASH_LIST, SOFT_HAS_PRIMARIES, ICOLORED_HAS_INPUT_RECORD,
  * SOFT_HAS_SAMPLE_CELLS, ICOLORED_HAS_COLOUR_AUDIT, ICOLORED_HAS_COLOUR_CLOSURE (False
@@ -576,6 +578,37 @@ void bind_hadronization(py::module_ &m) {
       py::arg("module"));
 
 #ifdef ICOLORED_HAS_COLOUR_CLOSURE
+  m.def(
+      "jet_hadronization_colour_totals",
+      [](std::shared_ptr<JetScapeTask> module) {
+        auto c = find_module<iColoredHadronization>(module);
+        if (!c)
+          throw std::invalid_argument("no iColoredHadronization found in " +
+                                      module->GetId());
+        const auto &t = c->GetColourTotals();
+        py::dict d;
+        d["events"] = t.events;
+        d["failed"] = t.failed;
+        d["events_open"] = t.events_open;
+        d["holes"] = t.holes;
+        d["hole_energy"] = t.hole_energy;
+        d["open_ends"] = t.open_ends;
+        d["skipped"] = t.skipped;
+        d["duplicate_tags"] = t.duplicate_tags;
+        d["reconnected"] = t.reconnected;
+        d["reconnected_cross"] = t.reconnected_cross;
+        d["partners"] = t.partners;
+        d["partner_energy"] = t.partner_energy;
+        d["fakes"] = t.fakes;
+        d["fake_energy"] = t.fake_energy;
+        d["retries"] = t.retries;
+        return d;
+      },
+      "iColoredHadronization: the colour audits added up over the run (events hadronized, "
+      "failed = thrown, events with open lines, holes and their energy, open ends, joins, "
+      "partners, soft end partons, retries, duplicates); what the run's log summary prints.",
+      py::arg("module"));
+
   m.def(
       "jet_hadronization_set_colour_closure",
       [](std::shared_ptr<JetScapeTask> module, const std::string &mode) {
