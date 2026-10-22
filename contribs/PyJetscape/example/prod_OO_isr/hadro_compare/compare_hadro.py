@@ -112,9 +112,14 @@ def load(data, n_jobs=None):
         files[c] = {}
         for path in glob.glob(os.path.join(data, c, "*_hadrons_jet_frag.h5")):
             m = re.search(r"seed(\d+)_hadrons", path)
-            with h5py.File(path, "r") as f:
-                if not bool(f.attrs.get("complete", False)):
-                    continue
+            if not os.path.exists(path.replace("_hadrons_jet_frag.h5", ".json")):
+                continue                       # the job is still running
+            try:
+                with h5py.File(path, "r") as f:
+                    if not bool(f.attrs.get("complete", False)):
+                        continue
+            except OSError:                    # open (locked) by a running job
+                continue
             files[c][int(m.group(1))] = path
     seeds = sorted(set.intersection(*(set(v) for v in files.values())))
     if n_jobs:
@@ -122,11 +127,22 @@ def load(data, n_jobs=None):
     if not seeds:
         sys.exit(f"compare_hadro.py: no seed complete in all of {CAMPAIGNS} under {data}")
     ev = {c: {s: _events_of(files[c][s], c) for s in seeds} for c in CAMPAIGNS}
+    # before the trimming: events per campaign, and those whose "hadrons" include partons
+    # (a failed fragmentation written out: the old code did not check pythia.next())
+    leaks = {}
+    for c in CAMPAIGNS:
+        n_all = n_leak = 0
+        for s in seeds:
+            for rec in ev[c][s].values():
+                n_all += 1
+                ap = np.abs(rec["pid"])
+                n_leak += bool(np.any((ap <= 6) | (ap == 21)))
+        leaks[c] = (n_all, n_leak)
     for s in seeds:                    # only the events every campaign has
         common = set.intersection(*(set(ev[c][s]) for c in CAMPAIGNS))
         for c in CAMPAIGNS:
             ev[c][s] = {e: ev[c][s][e] for e in sorted(common)}
-    return seeds, ev
+    return seeds, ev, leaks
 
 
 def weights(seeds, ev):
@@ -445,14 +461,19 @@ def main(argv=None):
     a = p.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
 
-    seeds, ev = load(a.data, a.jobs)
+    seeds, ev, leaks = load(a.data, a.jobs)
     w = weights(seeds, ev)
     acc = accumulate(seeds, ev, w)
     n_ev = sum(len(ev["after"][s]) for s in seeds)
 
     lines = [f"jobs {len(seeds)} (seeds {seeds[0]}-{seeds[-1]}), events {n_ev} common to "
              f"all five campaigns; weights Ncoll x sigma(window)/N(window); errors: "
-             f"jackknife over the jobs", ""]
+             f"jackknife over the jobs", "",
+             "events written per campaign, and those whose final particles include partons "
+             "(a failed fragmentation written out):"]
+    for c in CAMPAIGNS:
+        lines.append(f"  {c:10s} {leaks[c][0]} events, {leaks[c][1]} with partons")
+    lines.append("")
 
     def table(acc, pairs, title):
         head = f"{title:34s}" + "".join(f"{c:>13s}" for c in CAMPAIGNS) + \
