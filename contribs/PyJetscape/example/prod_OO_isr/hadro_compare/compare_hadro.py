@@ -203,6 +203,8 @@ def fill(rec, w, H):
         dr = np.hypot(eta - leta, dphi)
         sel = ch & np.isfinite(dr)
         H["shape"] += w * np.histogram(dr[sel], DR_BINS, weights=pt[sel] / lpt)[0]
+        H["core_pt"] += w * np.sum(pt[sel & (dr < 0.2)]) / lpt
+        H["wide_pt"] += w * np.sum(pt[sel & (dr >= 0.5) & (dr < 1.0)]) / lpt
         jet = sel & (dr < 0.4)
         H["z"] += w * np.histogram(pt[jet] / lpt, Z_BINS)[0]
         H["n_lead"] += w
@@ -501,6 +503,8 @@ def main(argv=None):
         keys.append((f"<pT> {name}, |y| < 1", "sumpt_mid/" + name, "yield_mid/" + name, None))
     for x_, y_ in RATIOS:
         keys.append((f"{x_} / {y_}, |y| < 1", "yield_mid/" + x_, "w", "yield_mid/" + y_))
+    keys.append(("ch. pT/pT,lead, DR < 0.2", "core_pt", "n_lead", None))
+    keys.append(("ch. pT/pT,lead, 0.5 <= DR < 1", "wide_pt", "n_lead", None))
     lines += table(acc, PAIRS, "per event, all events")
     sub = {}
     for ref, sel in affected(ev).items():
