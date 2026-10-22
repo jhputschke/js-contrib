@@ -11,7 +11,7 @@ X-SCAPE `README_ColourFlow.md` for what the fixes and the closures do.
 |---|---|
 | `run_hadro_compare.sh` | runs the five campaigns (resumable) |
 | `compare_hadro.py` | the comparison → `figures/*.png`, `figures/hadro_compare.txt` |
-| `SUMMARY.md` | the results (not in git) |
+| `SUMMARY_OO_Hadro.md`, `.html` | the results (not in git; the HTML with the figures inlined) |
 | `before/`, `after/`, `reconnect/`, `thermal/`, `fake/`, `xml/`, `figures/` | the campaigns' files, the generated XML, the figures (not in git, see `.gitignore`) |
 
 | campaign | code | Matter | closure | compared with |

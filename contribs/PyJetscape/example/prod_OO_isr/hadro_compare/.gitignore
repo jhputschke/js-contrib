@@ -6,6 +6,7 @@ thermal/
 fake/
 xml/
 figures/
-SUMMARY.md
+SUMMARY_OO_Hadro.md
+SUMMARY_OO_Hadro.html
 seeds_used.tsv
 *.log

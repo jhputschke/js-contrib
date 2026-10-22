@@ -17,7 +17,7 @@
 # GeV, both hard partons at |y| < 0.6, as hard_sub_compare/.
 #
 #   BASELINE=/path/to/X-SCAPE-baseline ./run_hadro_compare.sh > run_hadro_compare.log 2>&1 &
-#   python compare_hadro.py                        # -> figures/, numbers for SUMMARY.md
+#   python compare_hadro.py                        # -> figures/, numbers for SUMMARY_OO_Hadro.md
 # NJOBS, EVENTS, SEED0, P, BLOCK, BASELINE, BASE_BUILD, OUTROOT and OMP_NUM_THREADS
 # (environment) change the defaults.
 # Resumable: re-run the same command after an interruption (complete jobs are skipped).
