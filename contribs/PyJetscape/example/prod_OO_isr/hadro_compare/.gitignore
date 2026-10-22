@@ -1,0 +1,11 @@
+# the campaigns' data, the generated XML, the logs, and the results (not public) stay local
+before/
+after/
+reconnect/
+thermal/
+fake/
+xml/
+figures/
+SUMMARY.md
+seeds_used.tsv
+*.log

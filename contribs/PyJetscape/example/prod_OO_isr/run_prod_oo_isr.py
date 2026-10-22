@@ -203,6 +203,10 @@ def parse_args() -> argparse.Namespace:
                         "loss before 2026-10-21, when LBT's partons had no colour. For an "
                         "X-SCAPE without the colour closure, and to extend Matter-only "
                         "campaigns (their jet hadrons are not combinable with Matter + LBT)")
+    p.add_argument("--colour-closure", default=None, dest="colour_closure",
+                   choices=("reconnect", "reconnect_global", "thermal", "fake", "none"),
+                   help="iColored's <colour_closure> for this job (default: the XML's, "
+                        "reconnect): how the colour lines that end in the medium are closed")
     p.add_argument("--eos", choices=("9", "91"), default=None,
                    help="MUSIC's EOS (default: the XML's, 91: hotQCD + the SMASH hadron "
                         "list, the tunes' EOS; 9: the UrQMD list, older campaigns)")
@@ -353,6 +357,8 @@ def job_xml(a, out_h5: str):
         # every event reseeds Pythia from the job's seed and records the seed
         _set(jh, "reseed_per_event", 1)
         _set(jh, "store_input", int(a.store_hadronization_input))
+        if a.colour_closure:
+            _set(jh, "colour_closure", a.colour_closure)
     for tag in ("SoftParticlization", "Afterburner", "Liquefier", "RootBulkWriter",
                 "FastRootBulkWriter"):
         if root.find(tag) is not None:

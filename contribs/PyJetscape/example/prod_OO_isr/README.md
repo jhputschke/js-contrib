@@ -49,6 +49,7 @@ the automatic task list to it.
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `rehadronize_jets.py` | hadronize a `--store-hadronization-input` job's jets again from the stored Pythia input: `--check` against the job, or decays off / new seeds ([Redoing the jet hadronization](#redoing-the-jet-hadronization)) |
 | `hard_sub_compare/` | two campaigns with and without the hard-momentum subtraction, and a notebook comparing their hadrons ([README](hard_sub_compare/README.md)) |
+| `hadro_compare/` | the iColored jet hadrons (Matter only) before vs after the colour fixes, and with the closures reconnect / thermal / fake: five paired campaigns and `compare_hadro.py` ([README](hadro_compare/README.md)) |
 | `oo_isr_overview.ipynb` | one job's output: the medium's energy density at three τ (with the freeze-out contour and the dijet), and η, φ, pT and Δφ-to-the-leading-parton distributions of the bulk and jet hadrons |
 
 ## Run
@@ -237,6 +238,7 @@ Options for the hadrons made in the job:
 | `--no-particlize` | no `<stem>_particlize.h5`: no surfaces, partons or initiators stored |
 | `--no-hydro-file` | no `<stem>.h5`: the hydro evolution is not stored (`hydro_row` is then -1 for every event) |
 | `--no-jet-hadrons` | no iColoredHadronization, no `<stem>_hadrons_jet_frag.h5` |
+| `--colour-closure MODE` | iColored's `<colour_closure>` for the job (reconnect, reconnect_global, thermal, fake, none; default the XML's, reconnect) |
 | `--matter-only` | Matter alone (no `<Lbt>`, `recoil_on` 0), the energy loss before 2026-10-21: for an X-SCAPE without the colour closure and to extend Matter-only campaigns |
 | `--store-hadronization-input` | opt-in: also store each event's Pythia input of the jet hadronization in the jet file (`hadronization_input/`, ~2 kB per event), so `rehadronize_jets.py` can redo the jet hadrons later |
 | `--keep-primaries N` | with `--bulk-hadrons`: also write the undecayed bulk hadrons of the first N oversamples → `<stem>_hadrons_bulk_bg_primary.h5`, for SMASH later (full precision, positions, no selection; the decayed hadrons are the same with or without it) |
