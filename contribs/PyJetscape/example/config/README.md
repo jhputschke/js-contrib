@@ -11,7 +11,7 @@ drivers in `../prod_*` take their defaults from here (`run_prod.CONFIG`); pass a
 | `AuAu_MCGlauber_MUSIC_0_10_jet.xml` | Au+Au 200 GeV 0–10 % with a jet (PythiaGun, Matter + LBT, liquefier, two MUSIC legs) | `../prod_AuAu_0_10_jet/run_prod_jet.py`, `run_prod_vacuum.py` (its pp reference) |
 | `PbPb_0_10_jet.xml` | Pb+Pb 5.02 TeV 0–10 % with a jet: the Au+Au jet XML through [README_2stage §9](../../../../docs/README_2stage.md)'s recipe | `run_prod_jet.py` |
 | `PbPb_0_30_ZJet.xml` | Pb+Pb 5.02 TeV 0–30 % Z+jet (the CMS class): `PbPb_0_10_jet.xml` with `b_max` 8.57 fm and a Z+jet `<PythiaGun>` (`<trigger>Z`; [PLAN_ZJET_CMS10x.md](../../../../docs/Plans/PLAN_ZJET_CMS10x.md)) | `run_prod_jet.py`, `run_prod_vacuum.py`, `utils/zjet/` |
-| `OO_MCGlauber_MUSIC_isr.xml` | O+O with ISR (PythiaIsrGun + iMATTER, iColored) | `../prod_OO_isr/run_prod_oo_isr.py` |
+| `OO_MCGlauber_MUSIC_isr.xml` | O+O with ISR (PythiaIsrGun + iMATTER), Matter + LBT, iColored with the colour closure | `../prod_OO_isr/run_prod_oo_isr.py` |
 | `hadronize.xml` | iSS and Colorless settings of every system; `eCMforHadronization` is set to the job's collision energy (`<PythiaGun><eCM>`) by every driver | `hadronize.py`, `run_prod_jet.py --hadrons-only / --validate-inline`, `run_prod_vacuum.py`; O+O: its iSS block |
 | `grid_fno.yaml` | output grid, Au+Au (default of `run_prod.py`, `run_prod_jet.py`) | |
 | `grid_x10_eta2p5.yaml` | `grid_fno.yaml` cut to \|η_s\| ≤ 2.5 | |

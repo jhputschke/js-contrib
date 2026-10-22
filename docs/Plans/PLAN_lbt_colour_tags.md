@@ -50,6 +50,12 @@
   - Au+Au colorless regression (which has `recoil_on` 1 and LBT): identical except the
     partons' col/acol (untagged final quarks and gluons 11 % → 0 % in that job) and the 1-ulp
     noise of `source/flux`; its Colorless jet hadrons identical. PyJetscape tests: 279 passed.
+- **2026-10-21, later:** Matter + LBT (Matter `recoil_on` 1, `<mutex>` on, as in the Au+Au
+  and Pb+Pb jet XMLs) with iColored and `<colour_closure>reconnect` is the default of the O+O
+  XML (`OO_MCGlauber_MUSIC_isr.xml`); `run_prod_oo_isr.py --matter-only` gives the Matter-only
+  setting of before; the files carry an `eloss` attribute. X-SCAPE: `README_ColourFlow.md`,
+  `config/jetscape_user_OO_ISR_MatterLBT_iColored.xml` for runJetscape, the run's colour
+  summary in the log (`FinishTask`).
 - Open: physics comparisons (iColored versus colorless on the same partons, the closure
   variants), the jet-file notebook, A2, negative hadrons for the holes, the Au+Au liquefier
   case (lines that leave with liquefied partons are closed by B2 across showers / B3).

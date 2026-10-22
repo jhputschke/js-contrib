@@ -62,7 +62,7 @@ Original development repository:
 | `python/jetscape/showers.py`, `liquefier_io.py` | Parton-shower graph and liquefier droplet/parameter readers (numpy only) |
 | [`example/`](example/README.md) | Index of the examples: productions, analyses (Python and ROOT), single-feature scripts |
 | `example/prod_AuAu_0_10/`, `example/prod_AuAu_0_10_jet/` | Productions: 0–10% Au+Au hydro-only, and the same with a jet as background/jet pairs |
-| `example/prod_OO_isr/` | Production: O+O with initial-state radiation (iMATTER) and Matter (optionally + LBT) in one MUSIC medium, tuned O+O parameters; jet hadrons (iColored) and optionally the bulk (iSS) hadronized in the job |
+| `example/prod_OO_isr/` | Production: O+O with initial-state radiation (iMATTER) and Matter + LBT (`--matter-only`: Matter alone) in one MUSIC medium, tuned O+O parameters; jet hadrons (iColored) and optionally the bulk (iSS) hadronized in the job |
 | `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
 | `tests/` | pytest suites of the Python tooling; most run without an X-SCAPE build |
 | `CMakeLists.txt`, `pyproject.toml`, `setup.py` | The `pyjetscape_core` build; source-only Python package metadata (`name = "pyjetscape"`) |
@@ -1299,9 +1299,9 @@ totals = core.jet_hadronization_colour_totals(mgr)   # events, failed, events_op
 jetscape.Finish()
 ```
 
-`example/prod_OO_isr/run_prod_oo_isr.py` writes the audit per event to the jet hadron
-file (`units/colour_*`) and the totals to the job summary (`jet_colour_totals`); it takes
-`<Eloss><Lbt>` in the user XML (`--user-xml`) when the build has the closure. See
+`example/prod_OO_isr/run_prod_oo_isr.py` (Matter + LBT by default) writes the audit per
+event to the jet hadron file (`units/colour_*`) and the totals to the job summary
+(`jet_colour_totals`); a build without the closure needs `--matter-only`. See
 `example/prod_OO_isr/README.md`, "Jet hadronization colour checks".
 
 **Offline, on stored partons** (`FINAL_PARTON_COLUMNS`, e.g. a particlize file's

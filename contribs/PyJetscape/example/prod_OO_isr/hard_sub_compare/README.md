@@ -4,6 +4,13 @@ A quick estimate of what 3dMCGlauber's `Subtract_hard_momentum` does with ISR: t
 of [`../run_prod_oo_isr.py`](../run_prod_oo_isr.py) that differ only in that setting, and a
 notebook that compares their hadrons.
 
+Both campaigns ran with Matter alone, the O+O energy loss before 2026-10-21; `run_compare.sh`
+passes `--matter-only` so that jobs added to them stay so. Their jet hadrons were made before
+the colour fixes of X-SCAPE `lbt_colored_hadro` (duplicate colour tags in most events), and in
+`sub/` seeds 0103 (from event 46) and 0129 (from event 3) Pythia's failed fragmentation wrote
+the partons out as jet hadrons: leave those two jobs out of the jet-hadron comparisons, or
+rerun them ([`../README.md`](../README.md), "Jet hadronization colour checks").
+
 | file | purpose |
 |---|---|
 | `run_compare.sh` | runs both campaigns (resumable) |

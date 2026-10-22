@@ -3,7 +3,7 @@
 This folder runs O+O 200 GeV events with X-SCAPE's initial-state radiation (ISR) workflow:
 the hard scattering's initial-state partons are showered backward in time by iMATTER, the
 3D MC-Glauber strings are made from what the hard scattering left, MUSIC (music4gpu) evolves
-that medium, and Matter showers the jet through it. There is **one** MUSIC run per event (no
+that medium, and Matter + LBT shower the jet through it. There is **one** MUSIC run per event (no
 two-stage hydro, no jet deposition). The hadrons can be made in the same job, or the bulk
 later from stored freeze-out surfaces (see [Hadronization](#hadronization-in-the-job-or-afterwards)).
 
@@ -13,8 +13,9 @@ IS: 3dMCGlauber (O16, positions only)
           -> IsrManager / iMATTER       ISR, backward from 0 to -maxT
           -> MCGlauberGenString         strings, the hard partons' momentum subtracted
  -> NullPreDynamics -> MUSIC            the medium
- -> Eloss: Matter in MUSIC's medium     the final-state shower, from -maxT
- -> JetHadronization: iColored          jet hadrons (final partons + beam remnants)
+ -> Eloss: Matter + LBT in the medium  the final-state shower, from -maxT (Matter with recoils)
+ -> JetHadronization: iColored          jet hadrons (final partons + beam remnants), through the
+                                        colour flow; the lines that end in the medium closed
  -> SoftParticlization: iSS             bulk hadrons, only with --bulk-hadrons
 ```
 
@@ -42,7 +43,7 @@ the automatic task list to it.
 
 | file | purpose |
 |---|---|
-| `../config/OO_MCGlauber_MUSIC_isr.xml` | user XML: tuned 3dMCGlauber + MUSIC for O+O, `<Hard>` with `<PythiaGun>` + `<ISR>`, Matter, iColored |
+| `../config/OO_MCGlauber_MUSIC_isr.xml` | user XML: tuned 3dMCGlauber + MUSIC for O+O, `<Hard>` with `<PythiaGun>` + `<ISR>`, Matter (`recoil_on` 1) + LBT, iColored with `<colour_closure>` |
 | `../config/grid_oo.yaml` | output grid of the hydro file: 64 × 64 × 32 at 0.3125 fm × 0.3125 fm × 0.3125 (x, y ±9.84 fm) |
 | `run_prod_oo_isr.py` | one job: one seed, N events |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
@@ -236,6 +237,7 @@ Options for the hadrons made in the job:
 | `--no-particlize` | no `<stem>_particlize.h5`: no surfaces, partons or initiators stored |
 | `--no-hydro-file` | no `<stem>.h5`: the hydro evolution is not stored (`hydro_row` is then -1 for every event) |
 | `--no-jet-hadrons` | no iColoredHadronization, no `<stem>_hadrons_jet_frag.h5` |
+| `--matter-only` | Matter alone (no `<Lbt>`, `recoil_on` 0), the energy loss before 2026-10-21: for an X-SCAPE without the colour closure and to extend Matter-only campaigns |
 | `--store-hadronization-input` | opt-in: also store each event's Pythia input of the jet hadronization in the jet file (`hadronization_input/`, ~2 kB per event), so `rehadronize_jets.py` can redo the jet hadrons later |
 | `--keep-primaries N` | with `--bulk-hadrons`: also write the undecayed bulk hadrons of the first N oversamples → `<stem>_hadrons_bulk_bg_primary.h5`, for SMASH later (full precision, positions, no selection; the decayed hadrons are the same with or without it) |
 | `--eos 9\|91` | MUSIC's EOS (default: the XML's, 91); 9 only to rerun older campaigns |
@@ -494,14 +496,19 @@ python run_prod_oo_isr.py --events 20 --seed 1 --outdir out_nosub --bulk-hadrons
   there averages with 0); two runs of 100 events are then bit-identical, with no skip or
   crash. `cu124-final_optim` doesn't have it yet (see
   *Containers*). The Au+Au production has no ISR and is unchanged.
-- **Jet energy loss: Matter, or Matter + LBT** (`lbt_colored_hadro`). LBT now gives its
-  partons the large-Nc colour flow (Matter's rules per channel), Matter's recoils keep theirs,
-  and iColored closes the colour lines that end in the medium (`<JetHadronization>
-  <colour_closure>`, above). The production XML stays Matter-only (`recoil_on` 0); add an
-  `<Eloss><Lbt>` block (and `recoil_on` 1, as in the Au+Au XML) for LBT. A build without the
-  closure still refuses `<Eloss><Lbt>` unless `--no-jet-hadrons`. Tested 2026-10-21 on two
-  75-event jobs: 632 holes, every line closed (no soft fallback, no failure), every tag paired
-  once, hadron energy = Pythia input energy.
+- **Jet energy loss: Matter + LBT** (since 2026-10-21, X-SCAPE `lbt_colored_hadro`): Matter
+  above Q0 = 2 GeV with recoils (`recoil_on` 1), LBT below, `<mutex>` on, the settings of the
+  Au+Au and Pb+Pb jet productions. LBT gives its partons the large-Nc colour flow (Matter's
+  rules per channel), Matter's recoils keep theirs, and iColored closes the colour lines that
+  end in the medium (`<JetHadronization><colour_closure>`, above). Tested on two 75-event
+  jobs: 632 holes, every line closed (no soft fallback, no failure), every tag paired once,
+  hadron energy = Pythia input energy.
+  - **Before 2026-10-21 the energy loss was Matter alone** (`recoil_on` 0): LBT's partons
+    carried no colour, which iColored could not take. `--matter-only` runs that (it removes
+    `<Lbt>` and sets `recoil_on` 0): for an X-SCAPE without the colour closure (which refuses
+    `<Eloss><Lbt>` unless `--no-jet-hadrons`) and to extend Matter-only campaigns such as
+    `hard_sub_compare/`. Matter-only and Matter + LBT jet hadrons are different campaigns; the
+    files' `eloss` attribute says which (absent before 2026-10-21: Matter alone).
 - **ISR range.** iMATTER runs from 0 to -`<Eloss><maxT>` (50 fm/c, as in X-SCAPE's ISR
   examples) and the final-state shower starts there; `<Hard><ISR><maxT>`/`<deltaT>` override.
 - **Not included:** X-SCAPE branch `Changing_iMatter_pTDefinition` (upstream, August 2025,
