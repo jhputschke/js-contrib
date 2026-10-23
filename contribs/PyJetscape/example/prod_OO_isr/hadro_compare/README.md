@@ -11,8 +11,10 @@ X-SCAPE `README_ColourFlow.md` for what the fixes and the closures do.
 |---|---|
 | `run_hadro_compare.sh` | runs the five campaigns (resumable) |
 | `compare_hadro.py` | the comparison → `figures/*.png`, `figures/hadro_compare.txt` |
+| `compare_dupfix.py` | the duplicate-colour-tag fix on its own (`before` vs `after`): isolation checks, the paired ratios, dose and response → `figures_dupfix/` |
 | `SUMMARY_OO_Hadro.md`, `.html` | the results (not in git; the HTML with the figures inlined) |
-| `before/`, `after/`, `reconnect/`, `thermal/`, `fake/`, `xml/`, `figures/` | the campaigns' files, the generated XML, the figures (not in git, see `.gitignore`) |
+| `SUMMARY_OO_DupFix.md`, `.html` | the duplicate-tag fix alone, separated from the closures and LBT (not in git) |
+| `before/`, `after/`, `reconnect/`, `thermal/`, `fake/`, `xml/`, `figures/`, `figures_dupfix/` | the campaigns' files, the generated XML, the figures (not in git, see `.gitignore`) |
 
 | campaign | code | Matter | closure | compared with |
 |---|---|---|---|---|
@@ -39,6 +41,7 @@ X-SCAPE `README_ColourFlow.md` for what the fixes and the closures do.
 conda activate js_fno
 BASELINE=/path/to/X-SCAPE-baseline ./run_hadro_compare.sh > run_hadro_compare.log 2>&1 &
 python compare_hadro.py                  # figures/ and figures/hadro_compare.txt
+python compare_dupfix.py                 # figures_dupfix/ and figures_dupfix/dupfix.txt
 ```
 
 `BASELINE` is an X-SCAPE checkout at `contrib` 41bdf8c5 with js-contrib at `main` 03d14fa
