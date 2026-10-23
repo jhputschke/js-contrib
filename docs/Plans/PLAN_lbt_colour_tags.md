@@ -56,6 +56,10 @@
   setting of before; the files carry an `eloss` attribute. X-SCAPE: `README_ColourFlow.md`,
   `config/jetscape_user_OO_ISR_MatterLBT_iColored.xml` for runJetscape, the run's colour
   summary in the log (`FinishTask`).
+- **2026-10-23:** the cause of the duplicate tags re-traced from the stored inputs: Matter's
+  colour counter carried over from event to event in the persistent energy-loss task and was
+  copied into every shower's Matter, not the MPI block overlap first read from the code (see
+  "Where the duplicates came from"). A pp Z+jet run (PythiaGun + Matter) had the same bug.
 - Open: physics comparisons (iColored versus colorless on the same partons, the closure
   variants), the jet-file notebook, A2, negative hadrons for the holes, the Au+Au liquefier
   case (lines that leave with liquefied partons are closed by B2 across showers / B3).
@@ -100,20 +104,67 @@ Measured before any change, with the build of `contrib` 41bdf8c5:
   not checked (`iColoredHadronization.cc:296`), so the input partons were written out as jet
   hadrons. The 150 events above had no failure.
 
-Where the duplicates come from (read from the code; the audit of C3 will confirm it):
-- Matter makes new tags from the parton's `max_color` (`Matter.cc:1173-1179`); when it first
-  sees a parton it takes that parton's base (`:604`). The bases come from three schemes that
-  overlap: `PythiaIsrGun` gives parton np of its list (incoming and outgoing, MPI scatterings
-  included) the base 1000 × (np + 1) (`PythiaIsrGun.cc:610`); `iMATTER` tags the ISR shower of
-  the incoming parton with label −L from L × 1000 (`iMATTER.cc:381`). With an MPI scattering
-  the labels of its incoming partons (−3, −4, …) reuse the blocks of the first scattering's
-  outgoing partons (np = 2, 3 → 3000, 4000).
-- `HardProcess::NISRShower` is never reset (`HardProcess.cc:80-88`), so the bases of the ISR
-  siblings (`Hard->GetMax_Color() + NISRShower × 1000`, `iMATTER.cc:581-583`) grow over the
-  whole job: that is the growth of the largest tag. It does not by itself duplicate tags.
-- `ColoredHadronization` already "repairs" duplicates by relabelling the last occurrences
-  (`ColoredHadronization.cc:252-307`), which ignores which partons belong together; iColored has
-  no such step.
+### Where the duplicates came from (2026-10-23)
+
+Traced from the stored iColored inputs of the two jobs and from a pp run. The first reading of
+this note (iMATTER's blocks L × 1000 reused by the guns' blocks 1000 × (np + 1) once there are
+MPI scatterings) is not what happened: none of the duplicated tags is an iMATTER tag, and 26 of
+the 30 events without an MPI scattering have duplicates too.
+
+- **Matter's counter lives in the Matter object.** `MaxColor` (`Matter.h:103`) is set to 101
+  in `InitTask` and never reset. At every call Matter syncs it with the parton's `max_color`,
+  the larger wins (`Matter.cc:277-285`): a smaller parton value is raised to the counter, a
+  larger one becomes the counter. The assignment at a parton's first visit (`:604`) comes after
+  the sync, so it never lowers the counter. Each split takes `++MaxColor` (`:1176`).
+- **One Matter per shower, copied from a persistent one.** `JetEnergyLossManager` keeps task 0
+  (the configured `JetEnergyLoss` and its Matter) for the whole run and makes tasks 1 … N−1 for
+  each event as copies of task 0 (`JetEnergyLossManager.cc:110-145`; the copy clones Matter,
+  counter included, `JetEnergyLossModule.h:41`). `ClearTask` erases the copies after the event
+  (`:52-54`). So task 0's counter carries over from event to event and only grows, and every
+  copy starts the event with it.
+- **The blocks only separate the showers below that counter.** The guns give
+  shower-initiating parton np the base 1000 × (np + 1) (`PythiaGun.cc:689`,
+  `PythiaIsrGun.cc:610`). A shower numbers its tags from max(base, inherited counter) + 1. Once
+  task 0's counter C is above the bases, every shower of the event numbers from C + 1: two
+  showers that both split make the same tags C + 1, C + 2, … Each shower still pairs its own
+  tags, so the counts balance, iColored's check passed, and Pythia joined each end to whichever
+  matching end it found first, across showers.
+- **What pushed the counter above the blocks:**
+  - O+O: iMATTER gives each ISR sibling the base `Hard->GetMax_Color() + NISRShower × 1000`
+    (`iMATTER.cc:581-583`), and `HardProcess::NISRShower` is never reset (`HardProcess.cc:80-88`),
+    so the bases grow over the job (the largest tag from ~4,000 to ~130,000). When task 0
+    held such a sibling, its counter took the sibling's base; from the next event on, the
+    outgoing partons of every scattering (hard and MPI) numbered from the same value. The
+    event's own siblings had still larger bases and kept separate blocks.
+  - Any chain, through Matter's photon emission: `max_color` in `DoEnergyLoss` (`Matter.cc:245`)
+    is an uninitialized local. A q → q γ split does not assign it (`:1171`) but writes it into
+    both daughters (`:1486`, `:1585`), and the next call adopts the garbage as the counter
+    (larger wins).
+  - Without either, task 0's own splits make its counter creep through its block into the next
+    shower's block after ~1000 tags (inferred from the code; in the pp run below the photon came
+    first).
+- **Measured:**
+  - O+O, the two 75-event jobs: duplicates in 131 of 150 events. In every one the duplicated
+    tags are a contiguous run starting one above a tag of an earlier event or a 1000-block base,
+    i.e. above the inherited counter. Example: seed 103, event 7, three showers each carry 37001
+    and 37002.
+  - pp, the Z+jet vacuum campaign of `pp_comp` (`analysis/runs/pp_comp/data/campaign`,
+    PythiaGun + Matter, no iMATTER, 12,000 events in one job, partons stored with shower, col
+    and acol): tags of different showers coincide in 9,918 events (83 %), never within one
+    shower. Events 0–124 are clean: shower 0 (task 0) creeps from 1001 to 1140 while the others
+    start at 2001, 3001, … In event 125 shower 0 radiates a 127.5 GeV photon, the quark's next
+    splits carry 3,642,272,109 and 3,642,272,110, and from event 126 on every shower numbers
+    from there.
+- **Who read the tags.** iColored: no repair, the wrong strings were made silently.
+  `ColoredHadronization` relabels the extra occurrences pairwise from the end of its list
+  (`ColoredHadronization.cc:252-307`): the tags become consistent, but paired by list order,
+  not by shower. HybridHadronization reads the tags too (not checked). ColorlessHadronization
+  does not read them: the Colorless productions (Au+Au, Pb+Pb, Z+jet, pp) are not affected.
+- **What fixed it** is C1 below: one counter per event in the hard process, shared by all the
+  copies and starting above every block; Matter takes its split tags from it. The member counter
+  and the uninitialized `max_color` are still in Matter (`Matter.cc:258` on the branch), but no
+  tag is made from them while there is a hard process. The pp case is fixed by the same change
+  but was not re-run.
 
 So C1 (one allocator) and C2 (pstat policy, a checked `pythia.next()`) are needed for O+O as it
 runs today. They are now the first phase.
@@ -173,8 +224,9 @@ runs today. They are now the first phase.
 - Counter: a private `MaxColor`, set to 101 in `InitTask` (`:173`). Per parton it is synced
   with `pIn[0].max_color()` (`:277-284`, the larger wins), and set to the parton's base when
   Matter first sees a parton (`:604`); every split does `++MaxColor` (`:1176`) and writes the
-  new value back to the daughters' `max_color`. (2026-10-21: so the counter is not monotonic
-  over the run, as the first version of this note suspected; see the check above.)
+  new value back to the daughters' `max_color`. (2026-10-23: the sync runs first, so `:604`
+  never lowers the counter: each Matter object's counter only grows, and the per-event copies
+  inherit task 0's. That is the duplicate-tag bug, see "Where the duplicates came from".)
 - **(2026-10-21) Phase 2 is more than uncommenting.** The block must also (a) give the
   continuing jet parton `el_color0`/`el_anti_color0`, (b) write the advanced `el_max_color`
   back (today `flavor` advances a local copy only, so the next split would reuse the tags),
@@ -190,7 +242,10 @@ runs today. They are now the first phase.
   (`src/jet/iMATTER.cc:381`, `:578-600`; it uses `MAX_COLOR + 1` when it picks the flavours,
   `:1039-1133`, and commits it after the split, `:578`). `HardProcess` already has
   `GetMax_Color` / `SetMax_Color` (`HardProcess.h:277-283`).
-- See the check above for how these overlap.
+- (2026-10-23) With MPI scatterings iMATTER's blocks for labels −3, −4, … are the guns' blocks
+  of the first scattering's outgoing partons (3000, 4000), but Matter leaves those blocks as
+  soon as its inherited counter is above them, so the overlap was not seen in the 150 events;
+  the duplicates came from Matter's counter (see "Where the duplicates came from").
 
 ### iColoredHadronization
 
