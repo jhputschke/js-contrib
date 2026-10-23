@@ -59,7 +59,8 @@
 - **2026-10-23:** the cause of the duplicate tags re-traced from the stored inputs: Matter's
   colour counter carried over from event to event in the persistent energy-loss task and was
   copied into every shower's Matter, not the MPI block overlap first read from the code (see
-  "Where the duplicates came from"). A pp Z+jet run (PythiaGun + Matter) had the same bug.
+  "Where the duplicates came from"). The pp Z+jet runs (PythiaGun + Matter) had the same bug;
+  a pp re-run on the fixed build has none.
 - Open: physics comparisons (iColored versus colorless on the same partons, the closure
   variants), the jet-file notebook, A2, negative hadrons for the holes, the Au+Au liquefier
   case (lines that leave with liquefied partons are closed by B2 across showers / B3).
@@ -155,6 +156,10 @@ the 30 events without an MPI scattering have duplicates too.
     start at 2001, 3001, … In event 125 shower 0 radiates a 127.5 GeV photon, the quark's next
     splits carry 3,642,272,109 and 3,642,272,110, and from event 126 on every shower numbers
     from there.
+  - The other stored pp Z+jet runs (seed 900001, 12,000 events each): the PP19 setting (Q0 = 1)
+    in 8,183 events (68 %, from event 1,049), Pythia MPI off in 8,052 (67 %, from event 43),
+    Pythia ISR and MPI off in none: Z+jet then has one parton shower per event, so there is no
+    other shower to share tags with.
 - **Who read the tags.** iColored: no repair, the wrong strings were made silently.
   `ColoredHadronization` relabels the extra occurrences pairwise from the end of its list
   (`ColoredHadronization.cc:252-307`): the tags become consistent, but paired by list order,
@@ -163,8 +168,10 @@ the 30 events without an MPI scattering have duplicates too.
 - **What fixed it** is C1 below: one counter per event in the hard process, shared by all the
   copies and starting above every block; Matter takes its split tags from it. The member counter
   and the uninitialized `max_color` are still in Matter (`Matter.cc:258` on the branch), but no
-  tag is made from them while there is a hard process. The pp case is fixed by the same change
-  but was not re-run.
+  tag is made from them while there is a hard process. pp, re-run on the fixed build: the
+  campaign setting's first 3,000 events (`run_prod_vacuum.py`, seed 900001, the `pp_comp`
+  arguments with `--n-frag 1`) have no tag shared between showers (2,417 events before the
+  fix), with identical showers, flavours, momenta and positions; only col and acol change.
 
 So C1 (one allocator) and C2 (pstat policy, a checked `pythia.next()`) are needed for O+O as it
 runs today. They are now the first phase.
