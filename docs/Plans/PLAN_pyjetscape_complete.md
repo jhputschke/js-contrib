@@ -38,8 +38,17 @@
     energy loss, the signal manager's pointers) expired at once. Those setters now pass
     `py::potentially_slicing_weak_ptr<T>(obj).lock()` (the holder's block): the weak pointer
     lives as long as the Python object, as with JetScape owning its C++ liquefier.
-- Next: phase 2 (`IsrManager`, the C++ writers and `JetScapeReader` from Python, a Mode B example
-  with every stage), phase 3 (shower navigation), then the validation.
+- **Phases 2 and 3 done (2026-10-24):** `IsrManager`, `IsrJet`, `iMATTER`, `IsrShowerPSG` (the ISR
+  chain by hand), `PartonShowerGenerator` (subclassable) and `JetEnergyLoss.AddPartonShowerGenerator`,
+  `JetScapeReaderAscii(GZ)`; the C++ writers come from `create_module` as `JetScapeWriter`;
+  `register_module(name, cls, section=, defaults=)`: the main-XML default entry with the module's
+  parameters (JetScape also refuses a user parameter tag the main XML lacks); `run_manual`'s
+  stage order covers every stage. `PartonShower`: `final_partons`, `partons`, `children`,
+  `parents`, `production_vertex`, `end_vertex`, `edge_of`, the split variables, `new_vertex` /
+  `new_parton` (a shower built in Python); `Vertex` constructible. `example/python_modules/`:
+  one toy module per stage and the same all-Python pipeline from the XML and by hand, each with
+  the C++ ASCII writer read back (`tests/test_bindings_pipeline.py`); suite 296 passed, 2 skipped.
+- Next: the validation (V1–V4), then phase 5 (README section).
 
 ## Goal
 

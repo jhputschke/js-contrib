@@ -23,6 +23,7 @@
 
 #include <array>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "FourVector.h"
@@ -33,6 +34,7 @@
 #include "JetEnergyLossManager.h"
 #include "JetScapeModuleBase.h"
 #include "LiquefierBase.h"
+#include "PartonShowerGenerator.h"
 #include "FluidCellInfo.h"
 #include "pyjs_modules.h"
 
@@ -45,6 +47,14 @@ static constexpr int kFinalPartonNCols = 14;
 static const char *kFinalPartonColumns[kFinalPartonNCols] = {
     "shower", "pid", "pstat", "E", "px", "py", "pz",
     "t",      "x",   "y",     "z", "mass", "col", "acol"};
+
+// Shower navigation by node / edge id (the ids of PartonShower.to_numpy()).
+static node shower_node(PartonShower &s, int id) {
+  for (auto it = s.nodes_begin(); it != s.nodes_end(); ++it)
+    if (it->id() == id)
+      return *it;
+  throw py::index_error("PartonShower: no vertex with id " + std::to_string(id));
+}
 
 // ── PyJetEnergyLoss: an energy-loss module written in Python ─────────────────
 // Subclass JetEnergyLoss and override DoEnergyLoss(deltaT, time, Q2, pIn, pOut):
@@ -109,7 +119,16 @@ void bind_jet(py::module_ &m) {
 
   // ── Vertex (a node in the shower graph) ───────────────────────────────────
   py::class_<Vertex, std::shared_ptr<Vertex>>(m, "Vertex",
-      "A splitting vertex: space-time position (x,y,z) [fm], t [fm/c].")
+      "A splitting vertex: space-time position (x,y,z) [fm], t [fm/c]. "
+      "Vertex(x, y, z, t) or Vertex(FourVector).")
+      .def(py::init<>())
+      .def(py::init<double, double, double, double>(), py::arg("x"), py::arg("y"),
+           py::arg("z"), py::arg("t"))
+      .def(py::init([](FourVector x) { return std::make_shared<Vertex>(x); }),
+           py::arg("x"))
+      .def("x_in", [](Vertex &v) { return FourVector(v.x_in()); })
+      .def("set_location", [](Vertex &v, FourVector x) { v.set_location(x); },
+           py::arg("x"))
       .def("x", [](Vertex &v) { return v.x_in().x(); })
       .def("y", [](Vertex &v) { return v.x_in().y(); })
       .def("z", [](Vertex &v) { return v.x_in().z(); })
@@ -117,7 +136,83 @@ void bind_jet(py::module_ &m) {
 
   // ── PartonShower (GTL graph: nodes = Vertex, edges = Parton) ───────────────
   py::class_<PartonShower, std::shared_ptr<PartonShower>>(m, "PartonShower",
-      "Parton shower as a directed graph; iterate edges via to_numpy().")
+      "Parton shower as a directed graph (vertices = nodes, partons = edges); ids as "
+      "in to_numpy() / vertices_to_numpy().")
+      .def(py::init<>())
+      // ── navigation ──────────────────────────────────────────────────────────
+      .def("final_partons",
+           [](PartonShower &s) { return pyjs::ptrs(s.GetFinalPartons()); },
+           "The partons at the end of the shower.")
+      .def("partons", [](PartonShower &s) { return pyjs::ptrs(s.GetPartons()); },
+           "Every parton (edge) of the shower.")
+      .def("edge_of",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             edge e = s.GetEdge(p);
+             return py::make_tuple(e.id(), e.source().id(), e.target().id());
+           },
+           "(edge id, source vertex id, target vertex id) of a parton of this shower.",
+           py::arg("parton"))
+      .def("children",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             py::list out;
+             node t = s.GetEdge(p).target();
+             for (auto it = t.out_edges_begin(); it != t.out_edges_end(); ++it)
+               out.append(py::cast(s.GetParton(*it)));
+             return out;
+           },
+           "The partons coming out of the vertex where this parton ends.",
+           py::arg("parton"))
+      .def("parents",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             py::list out;
+             node src = s.GetEdge(p).source();
+             for (auto it = src.in_edges_begin(); it != src.in_edges_end(); ++it)
+               out.append(py::cast(s.GetParton(*it)));
+             return out;
+           },
+           "The partons going into the vertex where this parton starts.",
+           py::arg("parton"))
+      .def("production_vertex",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             return s.GetVertex(s.GetEdge(p).source());
+           },
+           py::arg("parton"))
+      .def("end_vertex",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             return s.GetVertex(s.GetEdge(p).target());
+           },
+           py::arg("parton"))
+      .def("vertex_id",
+           [](PartonShower &s, std::shared_ptr<Vertex> v) { return s.GetNode(v).id(); },
+           py::arg("vertex"))
+      .def("vertex_by_id",
+           [](PartonShower &s, int id) { return s.GetVertex(shower_node(s, id)); },
+           py::arg("id"))
+      .def("split_z",
+           [](PartonShower &s, int id) { return s.GetSplitZ(shower_node(s, id)); },
+           "z of the 1 -> 2 split at vertex id.", py::arg("vertex_id"))
+      .def("split_kt",
+           [](PartonShower &s, int id) { return s.GetSplitKt(shower_node(s, id)); },
+           py::arg("vertex_id"))
+      .def("split_delta_r",
+           [](PartonShower &s, int id) { return s.GetSplitDeltaR(shower_node(s, id)); },
+           py::arg("vertex_id"))
+      .def("is_one_to_two",
+           [](PartonShower &s, int id) { return s.IsOneToTwo(shower_node(s, id)); },
+           py::arg("vertex_id"))
+      .def("is_end_vertex",
+           [](PartonShower &s, int id) { return s.IsEndNode(shower_node(s, id)); },
+           py::arg("vertex_id"))
+      // ── building a shower (a PartonShowerGenerator in Python) ────────────────
+      .def("new_vertex",
+           [](PartonShower &s, std::shared_ptr<Vertex> v) { return s.new_vertex(v).id(); },
+           "Add a vertex; returns its id.", py::arg("vertex"))
+      .def("new_parton",
+           [](PartonShower &s, int source_id, int target_id, std::shared_ptr<Parton> p) {
+             return s.new_parton(shower_node(s, source_id), shower_node(s, target_id), p);
+           },
+           "Add a parton from vertex source_id to vertex target_id.",
+           py::arg("source_id"), py::arg("target_id"), py::arg("parton"))
       .def("number_of_partons",  &PartonShower::GetNumberOfPartons)
       .def("number_of_vertices", &PartonShower::GetNumberOfVertices)
       .def("parton_at", &PartonShower::GetPartonAt, py::arg("i"),
@@ -278,6 +373,17 @@ void bind_jet(py::module_ &m) {
       .def("SetStartT", &JetEnergyLoss::SetStartT, py::arg("startT"))
       .def("GetShowerInitiatingParton", &JetEnergyLoss::GetShowerInitiatingParton,
            "The parton this shower started from (the per-shower copies).")
+      .def("AddShowerInitiatingParton", &JetEnergyLoss::AddShowerInitiatingParton,
+           "Set the parton this task showers (the manager does this per shower).",
+           py::arg("parton"))
+      .def("AddPartonShowerGenerator", &JetEnergyLoss::AddPartonShowerGenerator,
+           "Set how this task grows its shower (PartonShowerGeneratorDefault unless set).",
+           py::arg("generator"))
+      .def("GetPartonShowerGenerator", &JetEnergyLoss::GetPartonShowerGenerator)
+      .def("SetUseIntialPartonShower", &JetEnergyLoss::SetUseIntialPartonShower,
+           "Continue a given shower (ISR) instead of starting from one parton.",
+           py::arg("use"))
+      .def("GetUseIntialPartonShower", &JetEnergyLoss::GetUseIntialPartonShower)
       .def("GetGetHydroCellSignalConnected",
            &JetEnergyLoss::GetGetHydroCellSignalConnected)
       .def("GetSentInPartonsConnected", &JetEnergyLoss::GetSentInPartonsConnected);

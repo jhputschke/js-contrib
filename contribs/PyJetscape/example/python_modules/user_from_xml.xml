@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!-- example/python_modules: every stage a Python module (toy_modules.py), named in the XML -->
+<jetscape>
+  <nEvents>3</nEvents>
+  <vlevel>0</vlevel>
+  <Random><seed>1</seed></Random>
+  <JetScapeWriterAscii> on </JetScapeWriterAscii>
+  <outputFilename>toy_from_xml</outputFilename>
+  <Hard>
+    <CustomModuleToyGun><E>50</E></CustomModuleToyGun>
+  </Hard>
+  <Eloss>
+    <deltaT>0.1</deltaT>
+    <maxT>2</maxT>
+    <CustomModuleToySplit> </CustomModuleToySplit>
+  </Eloss>
+  <JetHadronization><name>CustomModuleToyHadronizer</name></JetHadronization>
+  <SoftParticlization><CustomModuleToySampler> </CustomModuleToySampler></SoftParticlization>
+  <Afterburner>
+    <CustomModuleToyAfterburner> </CustomModuleToyAfterburner>
+    <include_fragmentation_hadrons>1</include_fragmentation_hadrons>
+    <output_only_final_state_hadrons>0</output_only_final_state_hadrons>
+  </Afterburner>
+</jetscape>

@@ -234,7 +234,7 @@ def test_every_stage_in_python(tmp_path):
     script = tmp_path / "run.py"
     script.write_text(RUN.format(python_dir=str(PYTHON_DIR), main=str(MAIN_XML),
                                  user=str(user)))
-    res = subprocess.run([sys.executable, str(script)], cwd=tmp_path, capture_output=True,
+    res = subprocess.run([sys.executable, str(script)], cwd=tmp_path, capture_output=True, check=False,
                          text=True, timeout=300)
     assert res.returncode == 0, res.stdout[-3000:] + res.stderr[-3000:]
     line = next(x for x in res.stdout.splitlines() if x.startswith("RESULT"))

@@ -67,22 +67,29 @@ from .pyjetscape_core import (
     JetScapePerEvent,
     JetScapeTask,
     InitialState,
+    HardProcess,
     PreequilibriumDynamics,
     FluidDynamics,
+    JetEnergyLossManager,
+    HadronizationManager,
+    SoftParticlization,
+    Afterburner,
 )
 
 # ── Pipeline stage order for Mode B validation ────────────────────────────────
 # Only the *top-level* module types are listed here.
 # JetEnergyLoss algorithms (Matter, Martini, …) and Hadronization algorithms
 # are nested inside their managers and should NOT appear in the top-level list.
+# Writers (JetScapeWriter) may stand anywhere.
 _STAGE_ORDER: list[type] = [
-    InitialState,          # e.g. TrentoInitial
+    InitialState,           # e.g. TrentoInitial
+    HardProcess,            # e.g. PythiaGun, a Python gun
     PreequilibriumDynamics, # e.g. FreestreamMilne, NullPreDynamics
-    FluidDynamics,         # e.g. FnoHydro, PyFNOHydro, MusicWrapper
-    # JetEnergyLossManager, HadronizationManager, SoftParticlization bindings
-    # are available via create_module(); they inherit JetScapeModuleBase.
-    # They are accepted by run_manual() without strict ordering checks
-    # (since their pybind11 classes are not imported here to avoid circular deps).
+    FluidDynamics,          # e.g. FnoHydro, PyFNOHydro, MusicWrapper
+    JetEnergyLossManager,   # with its JetEnergyLoss container(s) inside
+    HadronizationManager,   # with its Hadronization container(s) inside
+    SoftParticlization,     # e.g. iSS
+    Afterburner,            # e.g. SMASH
 ]
 
 

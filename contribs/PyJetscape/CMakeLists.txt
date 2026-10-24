@@ -54,6 +54,7 @@ set(PYJETSCAPE_SOURCES
   src/bind_jet.cc
   src/bind_particles.cc
   src/bind_stages.cc
+  src/bind_pipeline.cc
   src/bind_hadronization.cc
   src/bind_hard_process.cc
   src/bind_signal_manager.cc

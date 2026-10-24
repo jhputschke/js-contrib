@@ -156,6 +156,8 @@ constexpr int kPyModuleSlots = 256;
 struct PyModuleSlot {
   std::string name;
   py::object factory;  // a class or any callable returning a JetScapeModuleBase
+  std::string section;   // main-XML section of its default entry ("" = the root)
+  std::string defaults;  // the default entry's children, as XML text
 };
 
 // Never destroyed: the Python objects must not be released after the
@@ -225,10 +227,27 @@ static int add_python_module_defaults(const std::string &main_xml) {
   if (!root)
     return 0;
   int n = 0;
+  auto *doc = root->GetDocument();
   for (auto &slot : py_module_slots()) {
     if (!slot.factory || xml_has_element(root, slot.name.c_str()))
       continue;
-    root->InsertEndChild(root->GetDocument()->NewElement(slot.name.c_str()));
+    tinyxml2::XMLElement *parent = root;
+    if (!slot.section.empty()) {
+      parent = root->FirstChildElement(slot.section.c_str());
+      if (!parent)
+        parent = root->InsertEndChild(doc->NewElement(slot.section.c_str()))
+                     ->ToElement();
+    }
+    auto *el = parent->InsertEndChild(doc->NewElement(slot.name.c_str()))->ToElement();
+    if (!slot.defaults.empty()) {
+      tinyxml2::XMLDocument tmp;
+      std::string text = "<d>" + slot.defaults + "</d>";
+      if (tmp.Parse(text.c_str()) != tinyxml2::XML_SUCCESS)
+        throw py::value_error("register_module('" + slot.name +
+                              "'): defaults is no valid XML");
+      for (auto *c = tmp.FirstChildElement("d")->FirstChild(); c; c = c->NextSibling())
+        el->InsertEndChild(xml_deep_clone(c, doc));
+    }
     ++n;
   }
   return n;
@@ -763,7 +782,8 @@ void bind_framework(py::module_ &m) {
         py::arg("name"));
 
   m.def("register_module",
-        [](const std::string &name, py::object factory) {
+        [](const std::string &name, py::object factory, const std::string &section,
+           const std::string &defaults) {
           if (!PyCallable_Check(factory.ptr()))
             throw py::type_error("register_module: the factory must be a class or a "
                                  "callable returning a JetScapeModuleBase");
@@ -782,8 +802,15 @@ void bind_framework(py::module_ &m) {
                                        std::to_string(kPyModuleSlots) +
                                        " slots for Python modules are taken");
           }
+          if (!defaults.empty()) {      // refuse bad XML now, not at JetScape.Init()
+            tinyxml2::XMLDocument tmp;
+            if (tmp.Parse(("<d>" + defaults + "</d>").c_str()) != tinyxml2::XML_SUCCESS)
+              throw py::value_error("register_module: defaults is no valid XML");
+          }
           slots[slot].name = name;
           slots[slot].factory = factory;
+          slots[slot].section = section;
+          slots[slot].defaults = defaults;
           (*map)[name] = py_module_creators()[slot];
         },
         R"pbdoc(
@@ -796,10 +823,18 @@ void bind_framework(py::module_ &m) {
           modules meant for the XML under such a name. C++ owns what it makes; the
           Python object lives as long as C++ holds it.
 
+          JetScape refuses a user-XML tag the main XML lacks, so JetScape.Init()
+          adds a default entry for each registered module to the main XML (in
+          memory): <name> under ``section`` (e.g. "Eloss"; "" = the root) with the
+          children in ``defaults`` (XML text, e.g. "<E>40</E>"). A module reads its
+          parameters with get_xml_element_*([section, name, ...]): the user XML's
+          value, else this default.
+
           Registering a name again replaces the Python factory; a C++ module's name
           is refused.
         )pbdoc",
-        py::arg("name"), py::arg("factory"));
+        py::arg("name"), py::arg("factory"), py::arg("section") = std::string(),
+        py::arg("defaults") = std::string());
 
   m.def("unregister_module",
         [](const std::string &name) {
@@ -810,6 +845,8 @@ void bind_framework(py::module_ &m) {
           auto &slots = py_module_slots();
           slots[slot].factory = py::object();
           slots[slot].name.clear();
+          slots[slot].section.clear();
+          slots[slot].defaults.clear();
           return true;
         },
         "Remove a Python module registered with register_module(); False if the "
