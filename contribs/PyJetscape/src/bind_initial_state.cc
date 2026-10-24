@@ -36,7 +36,8 @@ using namespace Jetscape;
 // entropy_density_distribution_ directly from a numpy array, following the
 // storage convention used by TrentoInitial:
 //   boost-invariant (nz=1):  for y { for x }   ← flat shape (ny*nx,) or (ny,nx)
-class PyInitialState : public InitialState {
+class PyInitialState : public InitialState,
+                        public py::trampoline_self_life_support {
 public:
   using InitialState::InitialState;
 
@@ -86,7 +87,7 @@ void bind_initial_state(py::module_ &m) {
   // The PyInitialState trampoline allows Python subclasses to override Init(),
   // Exec(), and Clear() and to fill the IC grid via set_entropy_density_from_numpy().
   py::class_<InitialState, JetScapeModuleBase, PyInitialState,
-             std::shared_ptr<InitialState>>(m, "InitialState",
+             py::smart_holder>(m, "InitialState",
       R"pbdoc(
         Interface for initial-state physics modules (e.g. TrentoInitial).
 

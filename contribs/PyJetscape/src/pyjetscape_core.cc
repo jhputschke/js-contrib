@@ -12,6 +12,7 @@ namespace py = pybind11;
 
 // Forward declarations for each binding compilation unit
 void bind_framework(py::module_ &m);
+void bind_particles(py::module_ &m);
 void bind_evolution(py::module_ &m);
 void bind_initial_state(py::module_ &m);
 void bind_fluid_dynamics(py::module_ &m);
@@ -39,6 +40,8 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   )pbdoc";
 
   bind_framework(m);
+  // FourVector, Parton, Photon, Hadron: before everything that returns them.
+  bind_particles(m);
   bind_evolution(m);
   bind_initial_state(m);
   bind_fluid_dynamics(m);

@@ -33,6 +33,8 @@
 #include "JetEnergyLossManager.h"
 #include "JetScapeModuleBase.h"
 #include "LiquefierBase.h"
+#include "FluidCellInfo.h"
+#include "pyjs_modules.h"
 
 namespace py = pybind11;
 using namespace Jetscape;
@@ -44,6 +46,57 @@ static const char *kFinalPartonColumns[kFinalPartonNCols] = {
     "shower", "pid", "pstat", "E", "px", "py", "pz",
     "t",      "x",   "y",     "z", "mass", "col", "acol"};
 
+// ── PyJetEnergyLoss: an energy-loss module written in Python ─────────────────
+// Subclass JetEnergyLoss and override DoEnergyLoss(deltaT, time, Q2, pIn, pOut):
+// pIn holds the parton(s) of this step (the C++ objects, changed in place), pOut
+// is a list the module appends the partons at time + deltaT to (empty pOut: the
+// parton continues unchanged, as for a C++ module). The manager copies the module
+// once per shower through Clone() (pyjs::default_clone unless overridden).
+class PyJetEnergyLoss : public JetEnergyLoss,
+                        public py::trampoline_self_life_support {
+public:
+  PyJetEnergyLoss() = default;
+  PyJetEnergyLoss(const JetEnergyLoss &other) : JetEnergyLoss(other) {}
+
+  std::shared_ptr<JetEnergyLoss> Clone() const override {
+    py::gil_scoped_acquire gil;
+    py::function ov =
+        py::get_override(static_cast<const JetEnergyLoss *>(this), "Clone");
+    if (ov)
+      return ov().cast<std::shared_ptr<JetEnergyLoss>>();
+    return pyjs::default_clone<JetEnergyLoss>(this);
+  }
+
+  void DoEnergyLoss(double deltaT, double time, double Q2,
+                    std::vector<Parton> &pIn,
+                    std::vector<Parton> &pOut) override {
+    py::gil_scoped_acquire gil;
+    py::function ov = py::get_override(static_cast<const JetEnergyLoss *>(this),
+                                       "DoEnergyLoss");
+    if (!ov)
+      return;
+    py::list in = pyjs::refs(pIn);
+    py::list out = pyjs::copies(pOut);
+    ov(deltaT, time, Q2, in, out);
+    pyjs::write_back(in, pIn);
+    pyjs::assign(out, pOut);
+  }
+
+  // JetEnergyLoss::InitTask is the container's (it refuses a task without
+  // modules); a Python subclass is a module, so without an override: nothing.
+  void InitTask() override {
+    py::gil_scoped_acquire gil;
+    py::function ov =
+        py::get_override(static_cast<const JetEnergyLoss *>(this), "InitTask");
+    if (ov)
+      ov();
+  }
+  void ClearTask() override { PYBIND11_OVERRIDE(void, JetEnergyLoss, ClearTask); }
+  void FinishTask() override {
+    PYBIND11_OVERRIDE(void, JetEnergyLoss, FinishTask);
+  }
+};
+
 void bind_jet(py::module_ &m) {
   {
     py::tuple cols(kFinalPartonNCols);
@@ -52,28 +105,7 @@ void bind_jet(py::module_ &m) {
     m.attr("FINAL_PARTON_COLUMNS") = cols;
   }
 
-  // ── Parton (an edge in the shower graph) ──────────────────────────────────
-  // Momentum from p_in() [GeV], position from x_in() [fm, t in fm/c].
-  // NOTE: Parton::t() is the *virtuality*, so the position-time is x_in().t().
-  py::class_<Parton, std::shared_ptr<Parton>>(m, "Parton",
-      "A parton: pid/pstat, 4-momentum (px,py,pz,e) [GeV], position (x,y,z) [fm], t [fm/c].")
-      .def("pid",   [](Parton &p) { return p.pid(); })
-      .def("pstat", [](Parton &p) { return p.pstat(); })
-      .def("px",    [](Parton &p) { return p.p_in().x(); })
-      .def("py",    [](Parton &p) { return p.p_in().y(); })
-      .def("pz",    [](Parton &p) { return p.p_in().z(); })
-      .def("e",     [](Parton &p) { return p.p_in().t(); })
-      .def("x",     [](Parton &p) { return p.x_in().x(); })
-      .def("y",     [](Parton &p) { return p.x_in().y(); })
-      .def("z",     [](Parton &p) { return p.x_in().z(); })
-      .def("t",     [](Parton &p) { return p.x_in().t(); },
-           "Position time x_in().t() [fm/c] (NOT virtuality).")
-      .def("color",      [](Parton &p) { return p.color(); },
-           "Colour tag (0 = none). LBT assigns none, see PLAN_particlize_h5.md.")
-      .def("anti_color", [](Parton &p) { return p.anti_color(); },
-           "Anti-colour tag (0 = none).")
-      .def("restmass",   [](Parton &p) { return p.restmass(); },
-           "Rest mass [GeV] (the PDG mass the particle was built with).");
+  // Parton, Hadron and FourVector are bound in bind_particles.cc (before this file).
 
   // ── Vertex (a node in the shower graph) ───────────────────────────────────
   py::class_<Vertex, std::shared_ptr<Vertex>>(m, "Vertex",
@@ -160,13 +192,31 @@ void bind_jet(py::module_ &m) {
   // ── JetEnergyLoss — the per-shower energy-loss task ───────────────────────
   // Not in the module factory (JetScape.cc:651-652 hand-constructs it), so
   // create_module("JetEnergyLoss") does not work; a hand-wired Python pipeline needs this.
-  py::class_<JetEnergyLoss, JetScapeModuleBase, std::shared_ptr<JetEnergyLoss>>(
+  py::class_<JetEnergyLoss, JetScapeModuleBase, PyJetEnergyLoss,
+             py::smart_holder>(
       m, "JetEnergyLoss",
-      "One energy-loss task. Add the algorithm modules (Matter, then LBT) to it with Add(), "
-      "then add it to a JetEnergyLossManager.\n\n"
-      "Matter must be added BEFORE LBT: Matter sets the virtuality that LBT hands off at Q0, "
-      "and <Eloss><mutex>ON</mutex> arbitrates the handover.")
+      R"pbdoc(
+        An energy-loss task: the per-shower container the manager copies (Add() the
+        algorithm modules to it, Matter before LBT), and the base of every
+        energy-loss module, C++ (Matter, LBT, ...) or Python.
+
+        A Python module subclasses it and overrides
+
+            def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut): ...
+
+        pIn: the parton(s) of this step, the C++ objects (change them in place;
+        valid during the call only). pOut: append the partons at time + deltaT
+        (left empty, the parton goes on unchanged). GetHydroCell(t, x, y, z) gives
+        the medium. The manager copies the module once per shower with Clone():
+        by default the C++ copy constructor plus a shallow copy of the instance
+        attributes; override Clone() for anything deeper.
+
+        register_module("CustomModuleX", cls) makes it available to the XML
+        (<Eloss><CustomModuleX>...</CustomModuleX>).
+      )pbdoc")
       .def(py::init<>())
+      .def(py::init_alias<const JetEnergyLoss &>(), py::arg("other"),
+           "Copy (the C++ copy constructor: id, settings, a new task number).")
       .def("add_a_liquefier", &JetEnergyLoss::add_a_liquefier,
            "Attach the liquefier that collects droplets from this shower. The framework "
            "calls liquefier->add_hydro_sources() centrally in DoExecTime(), so Matter and "
@@ -178,7 +228,54 @@ void bind_jet(py::module_ &m) {
            },
            "The attached liquefier, or None.")
       .def("GetShower", &JetEnergyLoss::GetShower,
-           "The finished PartonShower for this task (valid after Exec).");
+           "The finished PartonShower for this task (valid after Exec).")
+      // ── the module interface ───────────────────────────────────────────────
+      .def("DoEnergyLoss",
+           [](JetEnergyLoss &j, double deltaT, double time, double Q2,
+              py::list pIn, py::list pOut) {
+             // a C++ module called from Python (e.g. a Python module delegating
+             // to Matter): copies in, results written back to the same lists
+             std::vector<Parton> in, out;
+             for (auto h : pIn) in.push_back(h.cast<Parton>());
+             for (auto h : pOut) out.push_back(h.cast<Parton>());
+             j.DoEnergyLoss(deltaT, time, Q2, in, out);
+             for (size_t i = 0; i < in.size() && i < py::len(pIn); ++i)
+               pIn[i].cast<Parton &>() = in[i];
+             pOut.attr("clear")();
+             for (auto &p : out) pOut.append(py::cast(Parton(p)));
+           },
+           "One step: pIn (list of Parton, changed in place), pOut (list, filled with "
+           "the partons at time + deltaT).",
+           py::arg("deltaT"), py::arg("time"), py::arg("Q2"), py::arg("pIn"),
+           py::arg("pOut"))
+      .def("Clone", &JetEnergyLoss::Clone,
+           "A copy for one shower (C++ modules: their copy constructor).")
+      .def("GetHydroCell",
+           [](JetEnergyLoss &j, double t, double x, double y, double z) -> py::object {
+             if (!j.GetGetHydroCellSignalConnected())
+               return py::none();
+             std::unique_ptr<FluidCellInfo> cell;
+             j.GetHydroCellSignal(t, x, y, z, cell);
+             if (!cell)
+               return py::none();
+             return py::cast(FluidCellInfo(*cell));
+           },
+           "The medium at (t, x, y, z) [fm] as a FluidCellInfo, or None without a hydro "
+           "(the GetHydroCell signal Matter and LBT use).",
+           py::arg("t"), py::arg("x"), py::arg("y"), py::arg("z"))
+      .def("GetQhat", &JetEnergyLoss::GetQhat)
+      .def("SetQhat", &JetEnergyLoss::SetQhat, py::arg("qhat"))
+      .def("GetDeltaT", &JetEnergyLoss::GetDeltaT)
+      .def("SetDeltaT", &JetEnergyLoss::SetDeltaT, py::arg("deltaT"))
+      .def("GetMaxT", &JetEnergyLoss::GetMaxT)
+      .def("SetMaxT", &JetEnergyLoss::SetMaxT, py::arg("maxT"))
+      .def("GetStartT", &JetEnergyLoss::GetStartT)
+      .def("SetStartT", &JetEnergyLoss::SetStartT, py::arg("startT"))
+      .def("GetShowerInitiatingParton", &JetEnergyLoss::GetShowerInitiatingParton,
+           "The parton this shower started from (the per-shower copies).")
+      .def("GetGetHydroCellSignalConnected",
+           &JetEnergyLoss::GetGetHydroCellSignalConnected)
+      .def("GetSentInPartonsConnected", &JetEnergyLoss::GetSentInPartonsConnected);
 
   // ── JetEnergyLossManager — per-event access to the finished showers ───────
   // NOTE: this binding previously declared no base class, so the type was not a
@@ -186,7 +283,7 @@ void bind_jet(py::module_ &m) {
   // read-only by accident. JetScapeModuleBase is added here so the manager can be placed
   // in a hand-wired pipeline. Existing read-only uses are unaffected.
   py::class_<JetEnergyLossManager, JetScapeModuleBase,
-             std::shared_ptr<JetEnergyLossManager>>(
+             py::smart_holder>(
       m, "JetEnergyLossManager",
       "Energy-loss manager; one JetEnergyLoss child per shower-initiating parton.")
       .def(py::init<>())

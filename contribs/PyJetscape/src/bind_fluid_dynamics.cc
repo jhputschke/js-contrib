@@ -62,7 +62,8 @@ static py::array_t<double> vec_to_numpy(std::vector<double> &vec,
 // Inherits FluidDynamics and overrides virtual methods via PYBIND11_OVERRIDE so
 // that a Python subclass can provide InitializeHydro() and EvolveHydro().
 // Also exposes protected members of FluidDynamics as public accessor methods.
-class PyFluidDynamics : public FluidDynamics {
+class PyFluidDynamics : public FluidDynamics,
+                        public py::trampoline_self_life_support {
 public:
   using FluidDynamics::FluidDynamics; // inherit constructors
 
@@ -465,7 +466,7 @@ void bind_fluid_dynamics(py::module_ &m) {
   // create_module().  Python code accesses the stress-energy fields as numpy
   // arrays via the get_*_numpy() helpers below.
   py::class_<PreequilibriumDynamics, JetScapeModuleBase,
-             std::shared_ptr<PreequilibriumDynamics>>(
+             py::smart_holder>(
       m, "PreequilibriumDynamics",
       R"pbdoc(
         Interface for pre-equilibrium dynamics modules.
@@ -521,7 +522,7 @@ void bind_fluid_dynamics(py::module_ &m) {
   // Registered with the PyFluidDynamics trampoline so that Python subclasses
   // (e.g. PyFNOHydro) can override InitializeHydro() and EvolveHydro().
   py::class_<FluidDynamics, JetScapeModuleBase, PyFluidDynamics,
-             std::shared_ptr<FluidDynamics>>(m, "FluidDynamics",
+             py::smart_holder>(m, "FluidDynamics",
       R"pbdoc(
         Base class for hydrodynamics modules.
 
