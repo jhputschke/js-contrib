@@ -62,7 +62,8 @@
     C++ Matter of its own (its inner Matter given the task number a C++ run has there,
     `next_task_number` / `set_next_task_number`; its `Clone` copies the Matter too); a Python
     writer in the C++ final-state format. The control, the inner Matter on a task number of its
-    own, differs in 2718 of 2688 + 2688 lines: the comparison can fail.
+    own, differs (2718 changed lines in the diff; the reference has 1324 particle lines in 20
+    events): the comparison can fail.
   - V4, cost: 500 events, 715,438 `DoEnergyLoss` calls: C++ Matter 2.72 s, through the Python
     module 3.70 s, i.e. about 1.4 µs per call for C++ -> Python -> C++ (two runs each).
   - Not done: a Python hadronization through Pythia's Python package against
