@@ -42,8 +42,9 @@
   chain by hand), `PartonShowerGenerator` (subclassable) and `JetEnergyLoss.AddPartonShowerGenerator`,
   `JetScapeReaderAscii(GZ)`; the C++ writers come from `create_module` as `JetScapeWriter`;
   `register_module(name, cls, section=, defaults=)`: the main-XML default entry with the module's
-  parameters (JetScape also refuses a user parameter tag the main XML lacks); `run_manual`'s
-  stage order covers every stage. `PartonShower`: `final_partons`, `partons`, `children`,
+  parameters (JetScape also refuses a user parameter tag the main XML lacks). (A wider
+  `run_manual` stage-order check, 4a84294, was reverted on 2026-10-24: it rejected FastHydro's
+  two-stage order, a second hydro after the energy-loss manager.) `PartonShower`: `final_partons`, `partons`, `children`,
   `parents`, `production_vertex`, `end_vertex`, `edge_of`, the split variables, `new_vertex` /
   `new_parton` (a shower built in Python); `Vertex` constructible. `example/python_modules/`:
   one toy module per stage and the same all-Python pipeline from the XML and by hand, each with
@@ -73,6 +74,15 @@
   exactness and cost, limits), the build note `-DUSE_3DGlauber=ON`, Mode B with hadronization;
   `InitialState`'s trampoline extended (task hooks, Npart/Ncoll/entropy/centrality,
   `SampleABinaryCollisionPoint`). Suite 302 passed, 2 skipped.
+- **Interference check (2026-10-24)**, `pyjetscape_full` against `main` (X-SCAPE-regbase):
+  every js-contrib test suite gives the same results (PyJetscape 265 + 36 new, FastHydro 316
+  passed / 8 skipped, Visualization 46; same skip reasons); no existing Python subclass
+  (SurfaceReplay, PyFNOHydro, GaussianIC, H5BulkWriter, PyBulkRootWriter, FastHydro's initial
+  states, hydro and DropletBridge) defines a hook the extended trampolines now call; no script
+  checks exact task types; `hadronize.py` (bulk and jets) and `rehadronize_jets.py` give
+  identical files; `run_prod_vacuum.py` differs only as two runs of one build do (the unit
+  seeds from the file uuid; the col/acol of Matter's uninitialized `max_color`), its parton
+  kinematics identical.
 - Open: phase 4 (module-specific access where the XML is not enough) when a need comes up;
   thread safety (one thread assumed); the PR split (see "Open").
 

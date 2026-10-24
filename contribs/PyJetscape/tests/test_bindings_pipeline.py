@@ -90,16 +90,6 @@ def test_cpp_writers_from_python():
     assert w.GetOutputFileName() == "x.dat"
 
 
-def test_run_manual_knows_every_stage():
-    from jetscape.run_jetscape import _STAGE_ORDER, _validate_pipeline_order
-
-    assert core.HardProcess in _STAGE_ORDER and core.Afterburner in _STAGE_ORDER
-    jlm, hm = core.JetEnergyLossManager(), core.HadronizationManager()
-    _validate_pipeline_order([jlm, hm], _STAGE_ORDER)
-    with pytest.raises(ValueError):
-        _validate_pipeline_order([hm, jlm], _STAGE_ORDER)
-
-
 def _run_example(script, tmp_path):
     res = subprocess.run([sys.executable, str(EXAMPLE / script), "--outdir", str(tmp_path),
                           "--main-xml", str(MAIN_XML)],
