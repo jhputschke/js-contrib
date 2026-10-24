@@ -248,3 +248,22 @@ def test_every_stage_in_python(tmp_path):
     for ev in out["writer"]:
         assert ev["sigma"] == 2.5                         # the gun's header, via C++
         assert ev["Hadron"] >= 4 and ev["Parton"] >= 4
+
+
+def test_initial_state():
+    class Ini(core.InitialState):
+        def ExecuteTask(self):
+            self.ran = True
+
+        def GetNcoll(self):
+            return 12.0
+
+        def SampleABinaryCollisionPoint(self):
+            return (0.0, 1.0, -2.0, 0.5)
+
+    ini = Ini()
+    core.InitialState.ExecuteTask(ini)
+    assert ini.ran
+    assert core.InitialState.GetNcoll(ini) == 12.0
+    # the gun's call (C++ SampleABinaryCollisionPoint) reaches the override
+    assert ini.sample_binary_collision_point() == (0.0, 1.0, -2.0, 0.5)

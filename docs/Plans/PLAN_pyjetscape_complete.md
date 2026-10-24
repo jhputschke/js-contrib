@@ -48,7 +48,32 @@
   `new_parton` (a shower built in Python); `Vertex` constructible. `example/python_modules/`:
   one toy module per stage and the same all-Python pipeline from the XML and by hand, each with
   the C++ ASCII writer read back (`tests/test_bindings_pipeline.py`); suite 296 passed, 2 skipped.
-- Next: the validation (V1–V4), then phase 5 (README section).
+- **Validation (2026-10-24, GB10), against X-SCAPE-regbase (`contrib` 41bdf8c5 + js-contrib
+  `main` 03d14fa, `build_gpu_base`), the base of `pyjetscape_full`:**
+  - V1, C++ physics unchanged: `run_prod_jet.py --events 2 --seed 1 --reuse 2
+    --write-particlize both`: the particlize file identical, the pair file identical except
+    `source/flux` (max 2e-16, the 1-ulp liquefier noise two runs of one build show);
+    `run_prod_oo_isr.py --events 6 --seed 101 --store-hadronization-input` (ISR, iMATTER,
+    iColored): jet hadrons (with the Pythia input) and particlize file identical.
+  - V2: `tests/test_bindings_*.py` (core, eloss, stages, pipeline, equivalence).
+  - V3, Python modules reproduce C++ ones byte for byte (`tests/test_bindings_equivalence.py`,
+    `equivalence_driver.py`: 100 GeV gluon, Matter in vacuum, Colorless, seed 7, 20 events; also
+    checked for 500): PGun ported to Python; a Python energy-loss module handing every step to a
+    C++ Matter of its own (its inner Matter given the task number a C++ run has there,
+    `next_task_number` / `set_next_task_number`; its `Clone` copies the Matter too); a Python
+    writer in the C++ final-state format. The control, the inner Matter on a task number of its
+    own, differs in 2718 of 2688 + 2688 lines: the comparison can fail.
+  - V4, cost: 500 events, 715,438 `DoEnergyLoss` calls: C++ Matter 2.72 s, through the Python
+    module 3.70 s, i.e. about 1.4 µs per call for C++ -> Python -> C++ (two runs each).
+  - Not done: a Python hadronization through Pythia's Python package against
+    ColorlessHadronization (a port of its string building, not a binding question).
+- **Phase 5 done (2026-10-24):** PyJetscape README "Writing modules in Python" (the stage table,
+  registration and the XML, ownership, copies and seeds, lists, particles, showers and output,
+  exactness and cost, limits), the build note `-DUSE_3DGlauber=ON`, Mode B with hadronization;
+  `InitialState`'s trampoline extended (task hooks, Npart/Ncoll/entropy/centrality,
+  `SampleABinaryCollisionPoint`). Suite 302 passed, 2 skipped.
+- Open: phase 4 (module-specific access where the XML is not enough) when a need comes up;
+  thread safety (one thread assumed); the PR split (see "Open").
 
 ## Goal
 
