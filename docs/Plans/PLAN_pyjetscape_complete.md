@@ -23,8 +23,23 @@
   module from the XML (`<Eloss><CustomModulePySplit>`) runs, is copied per shower, and its
   output builds the shower. Tests: `tests/test_bindings_core.py`, `test_bindings_eloss.py`;
   suite 281 passed, 2 skipped.
-- Next: phase 1 for the other stages (hadronization, hard process, pre-equilibrium,
-  soft particlization, afterburner, writer, liquefier).
+- **Phase 1 done (2026-10-24):** trampolines for `HardProcess` (a Python gun: `ExecuteTask`,
+  `AddParton`, the sigma/pTHat/weight virtuals), `PreequilibriumDynamics`
+  (`InitializePreequilibrium`, `EvolvePreequilibrium`, `set_<field>_numpy`), `Hadronization`
+  (`DoHadronization`, lists in and out; the container and `HadronizationManager` bound),
+  `SoftParticlization` (`set_hadron_list`, `GetHydroHyperSurface`), `Afterburner`
+  (`GetCurrentHadronList`, `GatherAfterburnerHadrons` through a publicist), `JetScapeWriter`
+  (one Python `Write(obj)` for Parton, Vertex, PartonShower, Hadron, str; `JetScapeEventHeader`)
+  and `LiquefierBase` (`smearing_kernel` and the deposition hooks). One run with every stage in
+  Python (gun, energy loss, jet hadronization, soft particlization, afterburner, writer) passes
+  (`tests/test_bindings_stages.py`); suite 289 passed, 2 skipped.
+  - Found: with `py::smart_holder` a Python-derived object handed to C++ gets a new shared_ptr
+    control block per conversion, so a C++ `weak_ptr` to it (the liquefier in the hydro and the
+    energy loss, the signal manager's pointers) expired at once. Those setters now pass
+    `py::potentially_slicing_weak_ptr<T>(obj).lock()` (the holder's block): the weak pointer
+    lives as long as the Python object, as with JetScape owning its C++ liquefier.
+- Next: phase 2 (`IsrManager`, the C++ writers and `JetScapeReader` from Python, a Mode B example
+  with every stage), phase 3 (shower navigation), then the validation.
 
 ## Goal
 

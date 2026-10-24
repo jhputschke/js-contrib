@@ -20,6 +20,7 @@ void bind_liquefier(py::module_ &m);
 void bind_music(py::module_ &m);
 void bind_root_bulk_writer(py::module_ &m);
 void bind_jet(py::module_ &m);
+void bind_stages(py::module_ &m);
 void bind_hadronization(py::module_ &m);
 void bind_hard_process(py::module_ &m);
 void bind_signal_manager(py::module_ &m);
@@ -59,6 +60,8 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   // before bind_signal_manager so GetJetEnergyLossManagerPointer()'s return type
   // is already registered.
   bind_jet(m);
+  // HardProcess, Hadronization, HadronizationManager, ...: subclassable in Python.
+  bind_stages(m);
   // Hadrons (iSS output, jet hadronization) as numpy; re-hadronizing stored partons.
   bind_hadronization(m);
   // The current event's hard process; PythiaGun's pTHat windows.

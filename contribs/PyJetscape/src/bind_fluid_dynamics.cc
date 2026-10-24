@@ -58,6 +58,53 @@ static py::array_t<double> vec_to_numpy(std::vector<double> &vec,
 
 // ── Surface cells as table rows: surface_rows.h ─────────────────────────────
 
+// ── PyPreequilibriumDynamics trampoline ─────────────────────────────────────
+// A pre-equilibrium stage in Python: override InitializePreequilibrium() (Init()
+// calls it after reading <Preequilibrium><tau0>/<taus>) and EvolvePreequilibrium()
+// (every event), and fill the fields with set_<field>_numpy(); the hydro reads
+// them (e_, P_, utau_, ..., bulk_Pi_ on the transverse grid).
+class PyPreequilibriumDynamics : public PreequilibriumDynamics,
+                                 public py::trampoline_self_life_support {
+public:
+  using PreequilibriumDynamics::PreequilibriumDynamics;
+
+  void InitializePreequilibrium() override {
+    PYBIND11_OVERRIDE(void, PreequilibriumDynamics, InitializePreequilibrium);
+  }
+  void EvolvePreequilibrium() override {
+    PYBIND11_OVERRIDE(void, PreequilibriumDynamics, EvolvePreequilibrium);
+  }
+  Jetscape::real GetPreequilibriumStartTime() const override {
+    PYBIND11_OVERRIDE(Jetscape::real, PreequilibriumDynamics,
+                      GetPreequilibriumStartTime);
+  }
+  Jetscape::real GetPreequilibriumEvodtau() const override {
+    PYBIND11_OVERRIDE(Jetscape::real, PreequilibriumDynamics,
+                      GetPreequilibriumEvodtau);
+  }
+  int get_ntau() const override {
+    PYBIND11_OVERRIDE(int, PreequilibriumDynamics, get_ntau);
+  }
+  int get_number_of_fluid_cells() override {
+    PYBIND11_OVERRIDE(int, PreequilibriumDynamics, get_number_of_fluid_cells);
+  }
+  void get_fluid_cell_with_index(
+      const int idx, std::unique_ptr<FluidCellInfo> &info_ptr) override {
+    py::gil_scoped_acquire gil;
+    py::function ov =
+        py::get_override(static_cast<const PreequilibriumDynamics *>(this),
+                         "get_fluid_cell_with_index");
+    if (!ov)
+      return;
+    py::object cell = ov(idx);
+    if (!cell.is_none())
+      info_ptr = std::make_unique<FluidCellInfo>(cell.cast<FluidCellInfo>());
+  }
+  void clear_evolution_data() override {
+    PYBIND11_OVERRIDE(void, PreequilibriumDynamics, clear_evolution_data);
+  }
+};
+
 // ── PyFluidDynamics trampoline ────────────────────────────────────────────────
 // Inherits FluidDynamics and overrides virtual methods via PYBIND11_OVERRIDE so
 // that a Python subclass can provide InitializeHydro() and EvolveHydro().
@@ -466,7 +513,7 @@ void bind_fluid_dynamics(py::module_ &m) {
   // create_module().  Python code accesses the stress-energy fields as numpy
   // arrays via the get_*_numpy() helpers below.
   py::class_<PreequilibriumDynamics, JetScapeModuleBase,
-             py::smart_holder>(
+             PyPreequilibriumDynamics, py::smart_holder>(
       m, "PreequilibriumDynamics",
       R"pbdoc(
         Interface for pre-equilibrium dynamics modules.
@@ -474,6 +521,41 @@ void bind_fluid_dynamics(py::module_ &m) {
         are public std::vector<double> members — directly accessible as zero-copy
         numpy arrays via the get_*_numpy() methods.
       )pbdoc")
+      .def(py::init<>())
+      .def("InitializePreequilibrium",
+           &PreequilibriumDynamics::InitializePreequilibrium,
+           "Once, from Init() (after tau0 and taus are read).")
+      .def("EvolvePreequilibrium", &PreequilibriumDynamics::EvolvePreequilibrium,
+           "Every event, from ExecuteTask().")
+      .def("GetPreequilibriumEvodtau",
+           &PreequilibriumDynamics::GetPreequilibriumEvodtau)
+      .def("GetPreequilibriumStatus",
+           &PreequilibriumDynamics::GetPreequilibriumStatus,
+           "0 NOT_STARTED, 1 INIT, 2 DONE, 3 ERR.")
+      .def("SetPreequilibriumStatus",
+           [](PreequilibriumDynamics &p, int status) {
+             if (status < NOT_STARTED || status > ERR)
+               throw py::value_error("status: 0 NOT_STARTED, 1 INIT, 2 DONE, 3 ERR");
+             p.preequilibrium_status_ = static_cast<PreequilibriumStatus>(status);
+           },
+           py::arg("status"))
+      .def_readwrite("preequilibrium_tau_0_",
+                     &PreequilibriumDynamics::preequilibrium_tau_0_)
+      .def_readwrite("preequilibrium_tau_max_",
+                     &PreequilibriumDynamics::preequilibrium_tau_max_)
+      .def("get_ini_pointer",
+           [](PreequilibriumDynamics &p) { return p.ini; },
+           "The initial state (set by Init()).")
+      .def("get_fluid_cell_with_index",
+           [](PreequilibriumDynamics &p, int idx) -> py::object {
+             std::unique_ptr<FluidCellInfo> cell;
+             p.get_fluid_cell_with_index(idx, cell);
+             if (!cell)
+               return py::none();
+             return py::cast(FluidCellInfo(*cell));
+           },
+           py::arg("idx"))
+      .def("clear_evolution_data", &PreequilibriumDynamics::clear_evolution_data)
       .def("GetPreequilibriumStartTime",
            &PreequilibriumDynamics::GetPreequilibriumStartTime,
            "Proper time tau_0 at the start of pre-equilibrium [fm/c].")
@@ -516,6 +598,22 @@ void bind_fluid_dynamics(py::module_ &m) {
       PREEQ_FIELD(pi33,    pi33_,    "pi^{33}, shape (nx*ny,).")
       PREEQ_FIELD(bulk_Pi, bulk_Pi_, "Bulk pressure Pi [GeV/fm^3], shape (nx*ny,).")
 #undef PREEQ_FIELD
+      // ── Setters (copies) for a pre-equilibrium module written in Python ─────
+#define PREEQ_SET(name, member)                                               \
+  .def(                                                                       \
+      "set_" #name "_numpy",                                                  \
+      [](PreequilibriumDynamics &p,                                           \
+         py::array_t<double, py::array::c_style | py::array::forcecast> a) {  \
+        p.member.assign(a.data(), a.data() + a.size());                       \
+      },                                                                      \
+      py::arg("values"), "Set the field (a copy, flattened).")
+      PREEQ_SET(e, e_) PREEQ_SET(P, P_) PREEQ_SET(utau, utau_) PREEQ_SET(ux, ux_)
+      PREEQ_SET(uy, uy_) PREEQ_SET(ueta, ueta_) PREEQ_SET(pi00, pi00_)
+      PREEQ_SET(pi01, pi01_) PREEQ_SET(pi02, pi02_) PREEQ_SET(pi03, pi03_)
+      PREEQ_SET(pi11, pi11_) PREEQ_SET(pi12, pi12_) PREEQ_SET(pi13, pi13_)
+      PREEQ_SET(pi22, pi22_) PREEQ_SET(pi23, pi23_) PREEQ_SET(pi33, pi33_)
+      PREEQ_SET(bulk_Pi, bulk_Pi_)
+#undef PREEQ_SET
       ;
 
   // ── FluidDynamics ──────────────────────────────────────────────────────────
@@ -763,8 +861,15 @@ void bind_fluid_dynamics(py::module_ &m) {
       .def("reset_out_of_range_count",
            [](PyFluidDynamics &fd) { fd.reset_out_of_range_count(); })
       // ── Liquefier ──────────────────────────────────────────────────────────
-      .def("add_a_liquefier", &FluidDynamics::add_a_liquefier,
-           "Attach a LiquefierBase (or CausalLiquefier) to this hydro.",
+      .def("add_a_liquefier",
+           [](FluidDynamics &fd, py::object liquefier) {
+             // FluidDynamics keeps a weak_ptr (JetScape owns the liquefier): the
+             // holder's control block, valid while the Python object lives
+             fd.add_a_liquefier(
+                 py::potentially_slicing_weak_ptr<LiquefierBase>(liquefier).lock());
+           },
+           "Attach a LiquefierBase (or CausalLiquefier) to this hydro. The hydro keeps "
+           "a weak reference: keep the liquefier object alive (as JetScape does).",
            py::arg("liquefier"))
       .def("get_liquefier",
            [](FluidDynamics &fd) -> std::shared_ptr<LiquefierBase> {

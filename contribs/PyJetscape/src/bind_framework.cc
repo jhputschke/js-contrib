@@ -24,6 +24,11 @@
 #include "InitialState.h"
 #include "JetEnergyLoss.h"
 #include "JetEnergyLossManager.h"
+#include "Hadronization.h"
+#include "HadronizationManager.h"
+#include "HardProcess.h"
+#include "Afterburner.h"
+#include "SoftParticlization.h"
 #include "JetScape.h"
 #include "JetScapePerEvent.h"
 #include "JetScapeModuleBase.h"
@@ -245,6 +250,18 @@ static py::object as_bound_module(std::shared_ptr<JetScapeTask> task) {
     return py::cast(trento);
   if (auto ini = std::dynamic_pointer_cast<InitialState>(task))
     return py::cast(ini);
+  if (auto w = std::dynamic_pointer_cast<JetScapeWriter>(task))
+    return py::cast(w);
+  if (auto sp = std::dynamic_pointer_cast<SoftParticlization>(task))
+    return py::cast(sp);
+  if (auto ab = std::dynamic_pointer_cast<Afterburner>(task))
+    return py::cast(ab);
+  if (auto hp = std::dynamic_pointer_cast<HardProcess>(task))
+    return py::cast(hp);
+  if (auto hm = std::dynamic_pointer_cast<HadronizationManager>(task))
+    return py::cast(hm);
+  if (auto h = std::dynamic_pointer_cast<Hadronization>(task))
+    return py::cast(h);
   if (auto jlm = std::dynamic_pointer_cast<JetEnergyLossManager>(task))
     return py::cast(jlm);
   if (auto jl = std::dynamic_pointer_cast<JetEnergyLoss>(task))

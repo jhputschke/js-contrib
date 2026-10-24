@@ -35,6 +35,58 @@ using namespace Jetscape;
 //: droplets_numpy() / add_droplets_numpy() column order
 static const char *kDropletColumns[8] = {"tau", "x", "y", "eta", "E", "px", "py", "pz"};
 
+// ── PyLiquefierBase: a liquefier written in Python ──────────────────────────
+// Override smearing_kernel(tau, x, y, eta, droplet) -> [j^tau, j^x, j^y, j^eta]
+// (the source of one droplet at a point) and, as needed, the deposition hooks.
+// FluidDynamics.add_a_liquefier / JetEnergyLoss.add_a_liquefier take it.
+class PyLiquefierBase : public LiquefierBase,
+                        public py::trampoline_self_life_support {
+public:
+  using LiquefierBase::LiquefierBase;
+
+  void smearing_kernel(Jetscape::real tau, Jetscape::real x, Jetscape::real y,
+                       Jetscape::real eta, const Droplet drop_i,
+                       std::array<Jetscape::real, 4> &jmu) const override {
+    py::gil_scoped_acquire gil;
+    py::function ov = py::get_override(static_cast<const LiquefierBase *>(this),
+                                       "smearing_kernel");
+    if (!ov) {
+      jmu = {0, 0, 0, 0};
+      return;
+    }
+    auto v = ov(tau, x, y, eta, drop_i).cast<std::vector<double>>();
+    if (v.size() != 4)
+      throw py::value_error("smearing_kernel must return 4 values (j^mu)");
+    for (int k = 0; k < 4; ++k)
+      jmu[k] = v[k];
+  }
+  bool normalizable_on_grid() const override {
+    PYBIND11_OVERRIDE(bool, LiquefierBase, normalizable_on_grid);
+  }
+  double deposit_time(const Droplet &drop_i) const override {
+    PYBIND11_OVERRIDE(double, LiquefierBase, deposit_time, drop_i);
+  }
+  double deposit_half_width() const override {
+    PYBIND11_OVERRIDE(double, LiquefierBase, deposit_half_width);
+  }
+  void set_hydro_step(double dtau) override {
+    PYBIND11_OVERRIDE(void, LiquefierBase, set_hydro_step, dtau);
+  }
+  void set_late_hydro_step(double dtau_late, double tau_switch) override {
+    PYBIND11_OVERRIDE(void, LiquefierBase, set_late_hydro_step, dtau_late,
+                      tau_switch);
+  }
+  double query_time(double tau, double dtau, int k) const override {
+    PYBIND11_OVERRIDE(double, LiquefierBase, query_time, tau, dtau, k);
+  }
+  bool droplet_may_contribute(const Droplet &drop_i, double tau_lo,
+                              double tau_hi) const override {
+    PYBIND11_OVERRIDE(bool, LiquefierBase, droplet_may_contribute, drop_i,
+                      tau_lo, tau_hi);
+  }
+  void ClearTask() override { PYBIND11_OVERRIDE(void, LiquefierBase, ClearTask); }
+};
+
 void bind_liquefier(py::module_ &m) {
 
   // ── Droplet ───────────────────────────────────────────────────────────────
@@ -55,7 +107,30 @@ void bind_liquefier(py::module_ &m) {
       });
 
   // ── LiquefierBase ─────────────────────────────────────────────────────────
-  py::class_<LiquefierBase, std::shared_ptr<LiquefierBase>>(m, "LiquefierBase")
+  py::class_<LiquefierBase, PyLiquefierBase, py::smart_holder>(m, "LiquefierBase",
+      "Turns what the jet loses to the medium (droplets) into a hydro source. A Python "
+      "liquefier subclasses it and overrides smearing_kernel(tau, x, y, eta, droplet) "
+      "-> [j^tau, j^x, j^y, j^eta] (and the deposition hooks as needed).")
+      .def(py::init<>())
+      .def("smearing_kernel",
+           [](LiquefierBase &l, double tau, double x, double y, double eta,
+              const Droplet &d) {
+             std::array<Jetscape::real, 4> j{0, 0, 0, 0};
+             l.smearing_kernel(tau, x, y, eta, d, j);
+             return std::vector<double>(j.begin(), j.end());
+           },
+           py::arg("tau"), py::arg("x"), py::arg("y"), py::arg("eta"),
+           py::arg("droplet"))
+      .def("normalizable_on_grid", &LiquefierBase::normalizable_on_grid)
+      .def("deposit_time", &LiquefierBase::deposit_time, py::arg("droplet"))
+      .def("deposit_half_width", &LiquefierBase::deposit_half_width)
+      .def("set_hydro_step", &LiquefierBase::set_hydro_step, py::arg("dtau"))
+      .def("set_late_hydro_step", &LiquefierBase::set_late_hydro_step,
+           py::arg("dtau_late"), py::arg("tau_switch"))
+      .def("query_time", &LiquefierBase::query_time, py::arg("tau"),
+           py::arg("dtau"), py::arg("k"))
+      .def("droplet_may_contribute", &LiquefierBase::droplet_may_contribute,
+           py::arg("droplet"), py::arg("tau_lo"), py::arg("tau_hi"))
       .def("add_a_droplet", &LiquefierBase::add_a_droplet, py::arg("droplet"))
       .def("get_a_droplet", &LiquefierBase::get_a_droplet, py::arg("idx"))
       .def("get_dropletlist_size", &LiquefierBase::get_dropletlist_size)
@@ -162,7 +237,7 @@ void bind_liquefier(py::module_ &m) {
       ;
 
   // ── CausalLiquefier ───────────────────────────────────────────────────────
-  py::class_<CausalLiquefier, LiquefierBase, std::shared_ptr<CausalLiquefier>>(
+  py::class_<CausalLiquefier, LiquefierBase, py::smart_holder>(
       m, "CausalLiquefier",
       "Causal (telegraph) diffusion of deposited energy-momentum.\n"
       "The default constructor reads <Liquefier><CausalLiquefier> from the loaded JETSCAPE "

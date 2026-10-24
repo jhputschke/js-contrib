@@ -217,7 +217,12 @@ void bind_jet(py::module_ &m) {
       .def(py::init<>())
       .def(py::init_alias<const JetEnergyLoss &>(), py::arg("other"),
            "Copy (the C++ copy constructor: id, settings, a new task number).")
-      .def("add_a_liquefier", &JetEnergyLoss::add_a_liquefier,
+      .def("add_a_liquefier",
+           [](JetEnergyLoss &j, py::object liquefier) {
+             // a weak_ptr in C++: the holder's control block (see FluidDynamics)
+             j.add_a_liquefier(
+                 py::potentially_slicing_weak_ptr<LiquefierBase>(liquefier).lock());
+           },
            "Attach the liquefier that collects droplets from this shower. The framework "
            "calls liquefier->add_hydro_sources() centrally in DoExecTime(), so Matter and "
            "LBT need no changes.",
