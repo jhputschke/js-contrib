@@ -333,6 +333,23 @@ production XMLs of `prod_AuAu_0_10_jet` and `prod_OO_isr`).
 
 ### Launch settings for several jobs per GPU
 
+**The quick way: [`utils/prodwizard.py`](../utils/prodwizard.py).** Pick a production
+preset and a machine (the 3090 box, the GB10, the M3 Max, or a SLURM cluster with V100, A40,
+A100 or L40S). It writes the launch command with the settings below and estimates events/h,
+duration, disk and memory, marking each as measured or estimated with its source. It also checks
+the plan: events per job a multiple of the pT̂ windows × jets, memory, disk, upload rate, the
+image, an OUTBASE that holds another campaign. It never starts jobs. The presets and the measured
+settings are in [`utils/prod_presets.json`](../utils/prod_presets.json); update them after a
+benchmark.
+
+```bash
+utils/prodwizard.py                        # the wizard (textual): a form, the plan beside it
+utils/prodwizard.py --list                 # presets and machines
+utils/prodwizard.py --preset auau_jet --machine 2x3090 --events 2700 --campaign c5 --out /data/c5
+utils/prodwizard.py --preset pbpb_zjet --machine slurm_a40 --events 19200 --gpus 20 \
+    --campaign zjet_c10 --save launch_zjet_c10.sh      # a script, the plan in its header
+```
+
 The settings measured best on 2 × RTX 3090 (with the current image) and on the GB10 (with
 earlier code). None of them changes the output:
 
@@ -633,6 +650,28 @@ utils/check_deposition.py /data/c1/gpu0 /data/c1/gpu1      # one campaign in two
 
 To redo a flagged job, move its files (`<stem>.*`) out of OUTDIR and run the campaign's
 command again: `run_jobs.sh` reruns the job (with a new seed in a seed-0 campaign).
+
+**All of it at once, during the run or after: [`utils/jobmon.py`](../utils/jobmon.py).** It
+reads the same logs and `.json` files and shows jobs done / running / failed, events, events/h,
+the ETA, disk per event, the failed jobs with their last log lines, the deposition check, edge
+hits, skipped events and the most frequent warnings. Standard library only; `--watch` uses
+`rich` if installed, `--tui` needs `textual` (both in the analysis venv,
+[`utils/analysis_env`](../utils/analysis_env/README.md)). For a workshop the TUI also runs in a
+browser: `textual serve "utils/jobmon.py /data/c1 --tui"` (package `textual-dev`).
+
+```bash
+utils/jobmon.py /data/c1                  # OUTBASE: its gpu0/, gpu1/, ... are taken
+utils/jobmon.py /data/c1 --njobs 100      # count the jobs not started yet too
+utils/jobmon.py /data/c1 --watch          # live view, every 10 s
+utils/jobmon.py /data/c1 --tui            # terminal UI: click a column to sort, f filters,
+                                          # a job's details and live log, problems, warnings
+utils/jobmon.py /data/c1 --all            # every job; exit code 1 if one failed or is flagged
+```
+
+A job counts as running while its driver process is alive (on the machine that runs the
+jobs, containers included); on another machine, while its log changed in the last 15 min
+(`--stale`). The drivers' `event … done in` lines reach the log in blocks, so a job's
+event count jumps by ~10–15 at a time; `PYTHONUNBUFFERED=1` in the jobs' environment avoids it.
 
 ---
 

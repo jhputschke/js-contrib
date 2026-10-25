@@ -191,10 +191,15 @@ campaign default above ~810 (2026-10-04 image); at 10 jobs/GPU with the 2026-10-
 
 ## Running a campaign
 
-- **Watch:** `docker logs -f xscape_gpu0_<pid>` (the names are printed at the start), `tail` the
-  per-job `OUTBASE/gpuN/<stem>.log`, `nvidia-smi`, `free -g`.
+- **Watch:** `utils/jobmon.py OUTBASE --watch` (progress, events/h, ETA, failed jobs, checks;
+  [`README_2stage.md`](../docs/README_2stage.md#checking-a-run)), or by hand
+  `docker logs -f xscape_gpu0_<pid>` (the names are printed at the start), `tail` the per-job
+  `OUTBASE/gpuN/<stem>.log`, `nvidia-smi`, `free -g`.
 - **The `event … done in` lines appear late, in batches**: the Python driver's output is
   block-buffered in the log file, MUSIC's is not. A job whose log shows only MUSIC lines is not stuck.
+  For the same reason `jobmon.py`'s event counts jump by ~10–15 at a time (its s/event, rate and
+  ETA are not affected). `PYTHONUNBUFFERED=1` in the jobs' environment (e.g. `docker run -e`)
+  writes each line at once; the launchers don't set it.
 - **Stop:** Ctrl-C (or `kill` the script) stops both containers and the uploader (which saves its
   state). If the script itself was killed hard, `docker stop $(docker ps -q --filter name=xscape_gpu)`;
   the uploader then notices that the script is gone, does its last pass and exits.
