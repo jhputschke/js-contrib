@@ -30,3 +30,7 @@ ipywidgets>=8
 
 # --- tests (check_env.py --tests) ---------------------------------------------------------
 pytest>=7.0
+
+# --- production monitor (utils/jobmon.py --watch, --tui) ----------------------------------
+rich>=13
+textual>=8

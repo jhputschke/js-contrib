@@ -28,7 +28,7 @@ Checks: tracebacks, crashes and kills in the logs; check_deposition.py's rule (d
 event below half the campaign median, a rare silent failure); events at the grid edge; skipped
 events; the most frequent warnings.  Exits 1 if a job failed or is flagged (for cron and
 scripts), else 0.  Standard library only; --watch uses rich if installed (the analysis venv
-has it), else plain text.
+has it), else plain text; --tui is a full terminal UI (jobmon_tui.py, needs textual).
 """
 
 from __future__ import annotations
@@ -525,6 +525,10 @@ def main(argv=None) -> int:
                     help="jobs in the campaign, to count those not started yet")
     ap.add_argument("--watch", type=float, nargs="?", const=10.0, default=None, metavar="S",
                     help="live view, refreshed every S s (default 10)")
+    ap.add_argument("--tui", action="store_true",
+                    help="the terminal UI (jobmon_tui.py; needs textual): sortable job table, "
+                         "a job's details and live log, problems, warnings; refreshed every "
+                         "--watch S s (default 10)")
     ap.add_argument("--all", action="store_true", help="list every job, not only running ones")
     ap.add_argument("--stale", type=float, default=900.0, metavar="S",
                     help="without visible driver processes, a job whose log changed within S s "
@@ -537,6 +541,12 @@ def main(argv=None) -> int:
                     help="no GPU, memory and load of this machine")
     a = ap.parse_args(argv)
     mon = Monitor(a)
+    if a.tui:
+        try:
+            from jobmon_tui import run_tui
+        except ImportError as e:
+            sys.exit(f"jobmon: --tui needs textual ({e}); pip install textual, or use --watch")
+        return run_tui(mon, a.watch or 10.0)
     if a.watch is None:
         mon.scan()
         r = mon.report()

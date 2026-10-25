@@ -638,12 +638,16 @@ command again: `run_jobs.sh` reruns the job (with a new seed in a seed-0 campaig
 reads the same logs and `.json` files and shows jobs done / running / failed, events, events/h,
 the ETA, disk per event, the failed jobs with their last log lines, the deposition check, edge
 hits, skipped events and the most frequent warnings. Standard library only; `--watch` uses
-`rich` if installed (the analysis venv has it).
+`rich` if installed, `--tui` needs `textual` (both in the analysis venv,
+[`utils/analysis_env`](../utils/analysis_env/README.md)). For a workshop the TUI also runs in a
+browser: `textual serve "utils/jobmon.py /data/c1 --tui"` (package `textual-dev`).
 
 ```bash
 utils/jobmon.py /data/c1                  # OUTBASE: its gpu0/, gpu1/, ... are taken
 utils/jobmon.py /data/c1 --njobs 100      # count the jobs not started yet too
 utils/jobmon.py /data/c1 --watch          # live view, every 10 s
+utils/jobmon.py /data/c1 --tui            # terminal UI: click a column to sort, f filters,
+                                          # a job's details and live log, problems, warnings
 utils/jobmon.py /data/c1 --all            # every job; exit code 1 if one failed or is flagged
 ```
 
