@@ -333,6 +333,23 @@ production XMLs of `prod_AuAu_0_10_jet` and `prod_OO_isr`).
 
 ### Launch settings for several jobs per GPU
 
+**The quick way: [`utils/prodwizard.py`](../utils/prodwizard.py).** Pick a production
+preset and a machine (the 3090 box, the GB10, the M3 Max, or a SLURM cluster with V100, A40,
+A100 or L40S). It writes the launch command with the settings below and estimates events/h,
+duration, disk and memory, marking each as measured or estimated with its source. It also checks
+the plan: events per job a multiple of the pT̂ windows × jets, memory, disk, upload rate, the
+image, an OUTBASE that holds another campaign. It never starts jobs. The presets and the measured
+settings are in [`utils/prod_presets.json`](../utils/prod_presets.json); update them after a
+benchmark.
+
+```bash
+utils/prodwizard.py                        # the wizard (textual): a form, the plan beside it
+utils/prodwizard.py --list                 # presets and machines
+utils/prodwizard.py --preset auau_jet --machine 2x3090 --events 2700 --campaign c5 --out /data/c5
+utils/prodwizard.py --preset pbpb_zjet --machine slurm_a40 --events 19200 --gpus 20 \
+    --campaign zjet_c10 --save launch_zjet_c10.sh      # a script, the plan in its header
+```
+
 The settings measured best on 2 × RTX 3090 (with the current image) and on the GB10 (with
 earlier code). None of them changes the output:
 
