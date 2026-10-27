@@ -1,0 +1,15 @@
+# the campaigns' data, the generated XML, the logs, and the results (not public) stay local
+before/
+after/
+reconnect/
+thermal/
+fake/
+xml/
+figures/
+figures_dupfix/
+SUMMARY_OO_Hadro.md
+SUMMARY_OO_Hadro.html
+SUMMARY_OO_DupFix.md
+SUMMARY_OO_DupFix.html
+seeds_used.tsv
+*.log

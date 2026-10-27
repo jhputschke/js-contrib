@@ -16,8 +16,9 @@
       -> Hard: PythiaIsrGun -> iMATTER (ISR, 0 -> -maxT) -> 3dMCGlauber strings from what
                the hard scattering left (MCGlauberGenString)
       -> NullPreDynamics -> MUSIC (music4gpu)            the medium, from those strings
-      -> Eloss: Matter in MUSIC's medium, from -maxT     the final-state shower
-      -> JetHadronization: iColored                      final partons + beam remnants
+      -> Eloss: Matter + LBT in MUSIC's medium, from -maxT   the final-state shower
+      -> JetHadronization: iColored                      final partons + beam remnants,
+                                                         through the colour flow
       (-> SoftParticlization: iSS                        with option bulk-hadrons N)
 
   X-SCAPE builds this chain from <Hard><ISR> (JetScape::DetermineTaskListFromXML, branch
@@ -29,9 +30,14 @@
   momentum is taken from the colliding nucleons), generateOnlyPositions 1 for the ISR and
   b <= 3 fm.  (EOS 9 before 2026-10, when iSS could not decay the SMASH list.)
 
-  Jet energy loss is Matter alone: LBT gives its partons no colour, which the
-  iColored hadronization (Pythia strings through the ISR colour flow and the remnants)
-  cannot take ("Unpaired colors sent to Pythia").
+  Jet energy loss: Matter above Q0 = 2 GeV and LBT below, Matter with recoils (recoil_on 1),
+  the settings of the Au+Au and Pb+Pb jet productions.  LBT's partons and Matter's recoils
+  carry the colour flow of every scattering, and the iColored hadronization closes the colour
+  lines that end in the medium (<JetHadronization><colour_closure>; X-SCAPE
+  lbt_colored_hadro, README_ColourFlow.md).  run_prod_oo_isr.py with its option matter-only
+  removes <Lbt> and sets recoil_on 0: Matter alone, the default before 2026-10-21 (when LBT's
+  partons had no colour), for builds without the colour closure and to extend Matter-only
+  campaigns.
 
   No hydro reuse: with ISR the medium is made from what each event's hard scattering left,
   so <setReuseHydro> stays false (X-SCAPE refuses true with ISR), also with pTHat windows.
@@ -205,7 +211,7 @@
            every cell per run); nothing reads them in production. -->
       <output_momentum_anisotropy_vs_etas>0</output_momentum_anisotropy_vs_etas>
       <surface_in_memory>1</surface_in_memory>
-      <!--0: MUSIC fills the framework medium Matter reads (and the hydro file is written from)-->
+      <!--0: MUSIC fills the framework medium Matter and LBT read (and the hydro file is written from)-->
       <dump_hydro_only>0</dump_hydro_only>
       <!--1: that framework copy keeps e, s, T, vx, vy, vz only (run_prod_oo_isr.py -bulk-info)-->
       <slim_bulk_info>1</slim_bulk_info>
@@ -251,8 +257,10 @@
     </MUSIC>
   </Hydro>
 
-  <!-- Energy loss in MUSIC's medium.  maxT is also the ISR range: iMATTER showers back
-       to -maxT and the final-state shower starts there (as in PythiaIsrMUSIC). -->
+  <!-- Energy loss in MUSIC's medium: Matter before Lbt (Matter sets the virtuality Lbt takes
+       over at Q0), <mutex>ON</mutex> arbitrates the handover, as in the Au+Au jet XML.  maxT is
+       also the ISR range: iMATTER showers back to -maxT and the final-state shower starts
+       there (as in PythiaIsrMUSIC). -->
   <Eloss>
     <deltaT> 0.1 </deltaT>
     <maxT> 50 </maxT>
@@ -261,13 +269,16 @@
          with the stored evolution, before it the lookup is vacuum.  This value applies only
          without a hydro. -->
     <tStart> 0.5 </tStart>
+    <mutex> ON </mutex>
     <Matter>
       <name> Matter </name>
       <matter_on> 1 </matter_on>
       <Q0> 2.0 </Q0>
       <in_vac> 0 </in_vac>
       <vir_factor> 0.25 </vir_factor>
-      <recoil_on> 0 </recoil_on>
+      <!-- 1: recoils and holes (pstat -1), with their colour (not hadronized; iColored
+           closes the colour lines they leave open) -->
+      <recoil_on> 1 </recoil_on>
       <broadening_on> 0 </broadening_on>
       <brick_med> 0 </brick_med>
       <hydro_Tc> 0.16 </hydro_Tc>
@@ -275,12 +286,26 @@
       <alphas> 0.25 </alphas>
       <QhatParametrizationType> 1 </QhatParametrizationType>
     </Matter>
+    <Lbt>
+      <name> Lbt </name>
+      <Q0> 2.0 </Q0>
+      <in_vac> 0 </in_vac>
+      <only_leading> 0 </only_leading>
+      <hydro_Tc> 0.16 </hydro_Tc>
+      <alphas> 0.25 </alphas>
+      <run_alphas> 1 </run_alphas>
+    </Lbt>
   </Eloss>
 
   <!-- Jet hadronization: the final partons and the beam remnants through the ISR colour
-       flow.  Needs the live event (remnants from 3dMCGlauber), so it runs in the job. -->
+       flow.  Needs the live event (remnants from 3dMCGlauber), so it runs in the job.
+       <colour_closure>: how the colour lines that end in the medium (the holes of LBT and
+       of Matter's recoils) are closed: reconnect (join the open ends within a shower, the
+       holes' medium partners for the rest), reconnect_global, thermal, fake, none
+       (prod_OO_isr/README.md, X-SCAPE README_ColourFlow.md). -->
   <JetHadronization>
     <name>iColored</name>
+    <colour_closure>reconnect</colour_closure>
   </JetHadronization>
 
 </jetscape>
