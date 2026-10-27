@@ -171,9 +171,20 @@ echo ""
 echo "=== 6. Python analysis packages (conda-forge) ==="
 
 for pkg in numpy matplotlib scipy h5py seaborn tqdm jupyterlab notebook ipykernel metakernel \
-           hdf5plugin pyyaml pandas ipywidgets pybind11 pytest networkx vector; do
+           hdf5plugin pyyaml pandas ipywidgets pytest networkx vector; do
     _check_conda "${pkg}"
 done
+# pybind11 3.0 or newer (PyJetscape uses py::smart_holder): check the version, not only the name
+if command -v conda &>/dev/null; then
+    if conda search -c conda-forge --override-channels "pybind11>=3.0" &>/dev/null 2>&1; then
+        _ok   "conda-forge: pybind11>=3.0"
+    else
+        _fail "conda-forge: pybind11>=3.0 — not found"
+    fi
+else
+    _check_conda pybind11
+    _warn "conda-forge: pybind11 version not checked without conda (needs >= 3.0)"
+fi
 
 # ---------------------------------------------------------------------------
 # 7. pip-only packages

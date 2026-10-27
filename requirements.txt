@@ -48,7 +48,7 @@ awkward>=2
 networkx              # jetscape.utils.shower_to_networkx
 
 # --- building pyjetscape_core (found by CMake through this Python) ---------------------
-pybind11>=2.11
+pybind11>=3.0
 
 # --- tests ------------------------------------------------------------------------------
 pytest>=7.0
