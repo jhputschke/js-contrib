@@ -58,6 +58,8 @@ Original development repository:
 | `python/jetscape/records.py`, `hadron_array.py` | Record dtypes of the per-event tables; `HadronArray` (hadrons per field, sample offsets, no copy) |
 | `python/jetscape/awkward_views.py`, `particles.py` | `to_awkward()` and `select()` (awkward, vector, particle); the particle property view |
 | `python/jetscape/pyjetscape_core.pyi`, `py.typed` | Type stubs of the bindings and the layer (`utils/gen_pyjetscape_stubs.py`) |
+| [`PYTHONIC.md`](PYTHONIC.md) | The Pythonic interface: guide and reference |
+| [`example/pythonic/`](example/pythonic/oo_workflow.ipynb) | `oo_workflow.ipynb`: 3 O+O events with the Pythonic interface, hadron files, FastJet |
 | `python/jetscape/bulk_root_writer.py` | Python ROOT bulk-evolution writer via uproot |
 | `python/jetscape/fast_root_bulk.py` | Reader for `FastRootBulkWriter` ROOT files (uproot) |
 | `python/jetscape/fast_h5_bulk.py` | `H5BulkWriter`: one hydro evolution per event → FNO4d HDF5 |
@@ -444,6 +446,11 @@ js.register_module("CustomModuleHalve", Halve, section="Eloss")
 
 ## Pythonic interface
 
+**The full guide and reference: [`PYTHONIC.md`](PYTHONIC.md).** A complete O+O workflow (3
+events through the whole chain, the hadron files written and read back, FastJet):
+[`example/pythonic/oo_workflow.ipynb`](example/pythonic/oo_workflow.ipynb). This section is
+the summary.
+
 An additive layer over the bindings (js-contrib `docs/Plans/PLAN_pyjetscape_pythonic.md`):
 `import jetscape` (or `from jetscape import pyjetscape_core`, which imports the package
 first) installs new methods and properties onto the bound classes. It refuses any name a
@@ -466,7 +473,7 @@ plus offsets, as the files store them); `to_awkward()` gives the nested view.
 | the same, with iColored's colour closure | `colour_audit()`, `colour_totals()`, `set_colour_closure(mode)` | `jet_hadronization_colour_*` (only when `ICOLORED_HAS_COLOUR_AUDIT` / `_CLOSURE`) |
 | `HardProcess` | `parton_array()`, `info` | `hard_partons_numpy`, `hard_process_info` |
 | `InitialState` | `info` | `initial_state_info` |
-| `JetScapePerEvent` | `with ...:` (Init / Finish), `events(n=None)`, `energy_loss_manager`, `hadronization_manager`, `soft_particlization`, `hydro`, `initial_state` | `ExecPerEvent` / `ClearPerEvent`, the task list and the signal manager |
+| `JetScapePerEvent` | `with ...:` (Init, ExecInit / Finish), `events(n=None, on_error=None)`, `energy_loss_manager`, `hadronization_manager`, `soft_particlization`, `hydro`, `initial_state` | `ExecPerEvent` / `ClearPerEvent`, the task list and the signal manager |
 
 The small tables are numpy record arrays (`jetscape.records`): `FINAL_PARTON_DTYPE` (shower,
 pid, pstat, E, px, py, pz, t, x, y, z, mass, col, acol; colour tags `uint32`),
@@ -475,7 +482,9 @@ it reorders, bit for bit. `hadronize()` takes such records or the old `(N, 14)` 
 
 Hadrons are a `HadronArray`: `pid`, `pstat`, `p` (E, px, py, pz) and `x` (t, x, y, z) as
 `float32`, `mass`, `sample_offsets` (one sample per oversample), and `info` (e.g. the seed
-`hadronize()` used). Two memory rules hold:
+`hadronize()` used). `to_dict()` hands it to `HadronH5Writer.append_unit`;
+`HadronArray.from_h5(path)` reads a hadron file back (the stored fields only, the units in
+`info`; `to_awkward(by_unit=True)` gives units x samples x hadrons). Two memory rules hold:
 
 - **One array per field (M1).** `HadronArray` wraps the dict the bindings return without a
   copy, so with `use_compact_output()` iSS's arrays are never copied. A record array would

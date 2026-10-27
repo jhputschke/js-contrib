@@ -24,6 +24,19 @@ bound classes; only the two module trampolines change in C++. No X-SCAPE change.
     `run_by_hand_pythonic.py`, the README section "Pythonic interface";
     tests `tests/test_pythonic.py` (26) and `tests/test_pythonic_run.py` (4).
   - Validation V0–V6 below: all passed.
+- **2026-10-27, later: the guide and an O+O workflow.** `contribs/PyJetscape/PYTHONIC.md`
+  (guide and reference: conventions, every accessor, records, HadronArray, awkward views,
+  `select`, hadron files, FastJet recipes, particles, showers, writing modules, stubs,
+  guarantees, cost, pitfalls, old and new side by side);
+  `example/pythonic/oo_workflow.ipynb` (3 O+O events through the whole chain with
+  `js.per_event`, both hadron files written from `HadronArray`s and read back, awkward,
+  FastJet per event and per oversample, a jet embedded in the bulk; stored with its outputs,
+  the modules' log removed). For it: `HadronArray.from_h5` / `to_dict()` /
+  `to_awkward(by_unit=True)` (`x`, `mass` may be None), `records.initiator_rows`,
+  `events(on_error=)`, `ExecInit()` on entering the driver. Found on the way:
+  `driver.energy_loss_manager` returned the ISR chain's `IsrManager` (a
+  `JetEnergyLossManager` inside the hard process); now the signal manager's final-state
+  manager first, and the task-list fallback skips `IsrManager`. Tests: 28 + 5.
 - Open: the follow-ups (hist, HepMC3) and the open questions at the end.
 
 ## Rules every step is held to
