@@ -184,6 +184,7 @@ echo "=== 7. pip-only packages ==="
 _check_pip neuraloperator
 _check_pip uproot
 _check_pip awkward
+_check_pip particle
 _check_pip pyvista
 _check_pip imageio
 _check_pip imageio-ffmpeg

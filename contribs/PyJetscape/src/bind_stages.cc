@@ -71,6 +71,7 @@ public:
 // A module: DoHadronization(shower, hOut, pOut). shower: one list of partons per
 // shower (the C++ objects, shared); hOut / pOut: the hadrons and the partons left
 // over, lists the module appends to (they may hold what an earlier module made).
+// Or it returns its hadrons (a list) or (hadrons, partons) instead of appending.
 // The manager does not copy jet hadronization modules, so Clone() only reaches a
 // Python override.
 class PyHadronization : public Hadronization,
@@ -95,7 +96,8 @@ public:
       in.append(pyjs::ptrs(s));
     py::list h = pyjs::ptrs(hOut);
     py::list p = pyjs::ptrs(pOut);
-    ov(in, h, p);
+    const py::ssize_t nh0 = py::len(h), np0 = py::len(p);
+    py::object r = ov(in, h, p);
     std::vector<std::vector<std::shared_ptr<Parton>>> nin;
     for (auto s : in) {
       std::vector<std::shared_ptr<Parton>> v;
@@ -105,6 +107,14 @@ public:
     shower.swap(nin);
     pyjs::assign_ptrs(h, hOut);
     pyjs::assign_ptrs(p, pOut);
+    // returned instead of appended: hadrons, or a tuple (hadrons, partons)
+    if (py::isinstance<py::tuple>(r) && py::len(r) == 2) {
+      py::tuple t = r.cast<py::tuple>();
+      pyjs::returned_list(t[0], nh0, h, "DoHadronization", hOut);
+      pyjs::returned_list(t[1], np0, p, "DoHadronization", pOut);
+    } else {
+      pyjs::returned_list(r, nh0, h, "DoHadronization", hOut);
+    }
   }
 
   // Hadronization::InitTask is the container's (it refuses a task without

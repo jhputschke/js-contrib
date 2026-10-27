@@ -65,6 +65,19 @@ except ImportError:  # pragma: no cover - reader-only / training-side install
 if HAS_CORE and HAS_ROOT:
     from .pyjetscape_core import FastRootBulkWriter  # noqa: F401
 
+# ── The Pythonic layer (docs/Plans/PLAN_pyjetscape_pythonic.md) ─────────────
+# Additive: new methods and properties on the bound classes, never a replaced name.
+# HadronArray, the record dtypes and the awkward views are numpy-level and need no build.
+from .hadron_array import HadronArray  # noqa: F401,E402
+from .awkward_views import select, to_awkward  # noqa: F401,E402
+
+if HAS_CORE:
+    from . import pythonic as _pythonic
+
+    _pythonic.install()
+    from .pythonic import (ShowerNode, make_hadron, make_parton, make_photon,  # noqa: F401
+                           module, per_event)
+
 
 # ── HDF5 tooling — h5py and numpy only, no X-SCAPE build required ────────────
 # This is why the block above is survivable: these are used on training machines that
@@ -97,7 +110,8 @@ _CORE_NAMES = frozenset({
     "JetScapeSignalManager", "FluidCellInfo", "SurfaceCellInfo", "EvolutionHistory",
     "InitialState", "PreequilibriumDynamics", "FluidDynamics", "MpiMusic", "TrentoInitial",
     "HydroStatus", "Parameter", "FastRootBulkWriter", "fno_config_from_xml",
-    "shower_to_networkx",
+    "shower_to_networkx", "make_parton", "make_hadron", "make_photon", "module",
+    "per_event", "ShowerNode",
 })
 
 

@@ -60,7 +60,8 @@ static node shower_node(PartonShower &s, int id) {
 // Subclass JetEnergyLoss and override DoEnergyLoss(deltaT, time, Q2, pIn, pOut):
 // pIn holds the parton(s) of this step (the C++ objects, changed in place), pOut
 // is a list the module appends the partons at time + deltaT to (empty pOut: the
-// parton continues unchanged, as for a C++ module). The manager copies the module
+// parton continues unchanged, as for a C++ module). Or the module returns the list
+// of those partons instead of appending (None: what it appended). The manager copies the module
 // once per shower through Clone() (pyjs::default_clone unless overridden).
 class PyJetEnergyLoss : public JetEnergyLoss,
                         public py::trampoline_self_life_support {
@@ -87,9 +88,11 @@ public:
       return;
     py::list in = pyjs::refs(pIn);
     py::list out = pyjs::copies(pOut);
-    ov(deltaT, time, Q2, in, out);
+    const py::ssize_t n0 = py::len(out);
+    py::object r = ov(deltaT, time, Q2, in, out);
     pyjs::write_back(in, pIn);
     pyjs::assign(out, pOut);
+    pyjs::returned_list(r, n0, out, "DoEnergyLoss", pOut);   // a returned list: the output
   }
 
   // JetEnergyLoss::InitTask is the container's (it refuses a task without
