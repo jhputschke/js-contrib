@@ -54,6 +54,10 @@ Original development repository:
 | `python/jetscape/utils.py` | NumPy/PyTorch ↔ JETSCAPE bulk-info conversion helpers |
 | `python/jetscape/run_jetscape.py` | High-level simulation drivers: `run_automatic()` (Mode A), `run_manual()` (Mode B), `per_event_loop()` / `run_per_event()` (Mode C) |
 | `example/python_modules/` | One toy Python module per stage (templates) and the same all-Python pipeline from the XML and by hand |
+| `python/jetscape/pythonic.py` | The Pythonic layer: `install()` onto the bound classes, `make_parton` / `make_hadron`, `@module`, `per_event`, `ShowerNode` |
+| `python/jetscape/records.py`, `hadron_array.py` | Record dtypes of the per-event tables; `HadronArray` (hadrons per field, sample offsets, no copy) |
+| `python/jetscape/awkward_views.py`, `particles.py` | `to_awkward()` and `select()` (awkward, vector, particle); the particle property view |
+| `python/jetscape/pyjetscape_core.pyi`, `py.typed` | Type stubs of the bindings and the layer (`utils/gen_pyjetscape_stubs.py`) |
 | `python/jetscape/bulk_root_writer.py` | Python ROOT bulk-evolution writer via uproot |
 | `python/jetscape/fast_root_bulk.py` | Reader for `FastRootBulkWriter` ROOT files (uproot) |
 | `python/jetscape/fast_h5_bulk.py` | `H5BulkWriter`: one hydro evolution per event → FNO4d HDF5 |
@@ -435,6 +439,133 @@ js.register_module("CustomModuleHalve", Halve, section="Eloss")
   715,438 calls in 500 events, 3.70 s against 2.72 s for C++ Matter alone).
 - **Limits.** At most 256 registered Python modules per process. Python modules assume one
   thread (the GIL is taken in every call).
+
+---
+
+## Pythonic interface
+
+An additive layer over the bindings (js-contrib `docs/Plans/PLAN_pyjetscape_pythonic.md`):
+`import jetscape` (or `from jetscape import pyjetscape_core`, which imports the package
+first) installs new methods and properties onto the bound classes. It refuses any name a
+class already has, so every call above keeps working and keeps its output; nothing else
+changes.
+
+**Conventions.** A method ending in `_array()` returns numpy data, filled once per event; a
+plain noun (`showers`, `nodes`, `final_partons()`) returns objects. Momentum is
+`(E, px, py, pz)`, position `(t, x, y, z)`, the order of `FourVector.comp(i)`; the
+`FourVector(x, y, z, t)` constructor and `to_list()` keep theirs. Results come flat (numpy
+plus offsets, as the files store them); `to_awkward()` gives the nested view.
+
+### Results of an event
+
+| class | new | wraps |
+|---|---|---|
+| `JetEnergyLossManager` | `showers` (property), `final_parton_array()`, `initiator_array()` | `get_showers`, `final_partons_numpy`, `showers.initiators_from_manager` |
+| `SoftParticlization` | `hadron_array()`, `primary_array()`, `use_compact_output(on=True)`, `set_number_of_samples(n)`, `set_next_random_seed(s)`, `last_random_seed`, `sample_cells(cells, seed, n_samples)` | the `soft_*` functions |
+| `HadronizationManager`, `Hadronization` | `hadron_array()`, `hadronize(partons, seed=None)`, `last_random_seed` | `hadronization_hadrons_numpy`, `hadronize_partons`, `jet_hadronization_last_random_seed` |
+| the same, with iColored's colour closure | `colour_audit()`, `colour_totals()`, `set_colour_closure(mode)` | `jet_hadronization_colour_*` (only when `ICOLORED_HAS_COLOUR_AUDIT` / `_CLOSURE`) |
+| `HardProcess` | `parton_array()`, `info` | `hard_partons_numpy`, `hard_process_info` |
+| `InitialState` | `info` | `initial_state_info` |
+| `JetScapePerEvent` | `with ...:` (Init / Finish), `events(n=None)`, `energy_loss_manager`, `hadronization_manager`, `soft_particlization`, `hydro`, `initial_state` | `ExecPerEvent` / `ClearPerEvent`, the task list and the signal manager |
+
+The small tables are numpy record arrays (`jetscape.records`): `FINAL_PARTON_DTYPE` (shower,
+pid, pstat, E, px, py, pz, t, x, y, z, mass, col, acol; colour tags `uint32`),
+`INITIATOR_DTYPE`, `EDGE_DTYPE`, `NODE_DTYPE`, `HARD_PARTON_DTYPE`. Each equals the array
+it reorders, bit for bit. `hadronize()` takes such records or the old `(N, 14)` array.
+
+Hadrons are a `HadronArray`: `pid`, `pstat`, `p` (E, px, py, pz) and `x` (t, x, y, z) as
+`float32`, `mass`, `sample_offsets` (one sample per oversample), and `info` (e.g. the seed
+`hadronize()` used). Two memory rules hold:
+
+- **One array per field (M1).** `HadronArray` wraps the dict the bindings return without a
+  copy, so with `use_compact_output()` iSS's arrays are never copied. A record array would
+  interleave them: a full copy.
+- **No stored derived columns (M2).** pt, eta, phi, rapidity come from `to_awkward()`,
+  computed when used. `to_hadrons()` converts to `hadrons_h5.Hadrons` when its `hist` /
+  `total` are wanted; that computes them all, in float64.
+
+```python
+import fastjet
+import numpy as np
+import jetscape as js
+
+with js.per_event(main_xml, user_xml) as driver:
+    for _ in driver.events():
+        fp = driver.energy_loss_manager.final_parton_array()     # record array
+        pt = np.hypot(fp["px"], fp["py"])
+        h = driver.soft_particlization.hadron_array().to_awkward()  # samples x hadrons
+        charged = h[js.select(h, "charged")]
+        jets = fastjet.ClusterSequence(charged, fastjet.JetDefinition(
+            fastjet.antikt_algorithm, 0.4)).inclusive_jets()     # every oversample at once
+```
+
+- **`to_awkward(obj, position=False, charge=False)`** (also `HadronArray.to_awkward`): a
+  `HadronArray` becomes samples x hadrons over the same buffers; final-parton and initiator
+  records become showers x partons; edge, node and hard-parton records a flat array.
+  Records are `vector` `Momentum4D` (fields E, px, py, pz): `.pt`, `.eta`, `.phi`,
+  `.rapidity`, `.mass` are computed when asked. The position is a nested `position` field
+  (a `Vector4D` t, x, y, z): flat t, x, y, z fields would be read by `vector` as the
+  coordinates. `charge=True` adds the PDG charge (needs `particle`). awkward and vector are
+  imported when called, never at `import jetscape`.
+- **`select(arr, species)`**: a mask of arr's shape for PDG names (`"pi+"`, `"K-"`, `"p~"`,
+  `"Lambda"`, `"K(S)0"`) or classes (`"charged"`, `"neutral"`, `"hadron"`, `"meson"`,
+  `"baryon"`, `"strange"`), one name or a list. Each distinct pid is looked up once with
+  `particle`. `"charged"` counts every pid with a PDG charge, resonances included;
+  `hadrons_h5.CHARGED` (used by `Hadrons.charged` and the analyses) lists the stable charged
+  hadrons and leptons only. The two agree on decayed hadrons and differ on files with
+  undecayed primaries (iSS `<keep_primaries>`).
+
+### Particles and showers
+
+| class | new |
+|---|---|
+| `FourVector` | iteration, `v[i]`, `np.asarray(v)` in `comp()` order; `==` by value (so not hashable); `FourVector.momentum(E, px, py, pz)`, `FourVector.position(t, x, y, z)`; pickling |
+| `Parton`, `Photon`, `Hadron` | `momentum`, `position` (FourVector copies: `E, px, py, pz = p.momentum`); pickling. `==` stays identity |
+| `PartonShower` | iteration over the partons, `nodes`, `start_node(p)`, `end_node(p)`, `edge_array()`, `node_array()`; no `len()`, so an empty shower stays true |
+| `ShowerNode` | `id`, `position`, `parents`, `children`, `split_z`, `split_kt`, `split_delta_r`, `is_one_to_two`, `is_end` |
+
+`js.make_parton(pid, momentum, position=(0, 0, 0, 0), stat=0, label=0, color=0,
+anti_color=0)`, `js.make_photon(...)` and `js.make_hadron(pid, momentum, position, stat,
+label, mass=None)` take any 4-sequence or a `FourVector`. `jetscape.particles.view(p)` gives
+properties (`v.pt`, `v.eta`, `v.e`, ...) over the bound methods; `unwrap()` returns the
+particle. Each is one call into C++: for many particles use the arrays.
+
+### Writing modules
+
+```python
+@js.module("CustomModuleHalve", section="Eloss")
+class Halve(js.JetEnergyLoss):
+    xml_parameters = {"t_split": 1.0, "e_min": 30.0}
+
+    def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut):
+        p = pIn[0]
+        if time >= self.t_split and p.e() > self.e_min:
+            E, px, py, pz = p.momentum
+            return [js.make_parton(p.pid(), (E / 2, px / 2, s * 1.0, pz / 2), p.position)
+                    for s in (+1, -1)]
+```
+
+- **`@js.module(name, section)`** registers the class (`register_module`). Its
+  `xml_parameters` (int, float, str or bool) become the main-XML default and class
+  attributes. Before the class's own `InitTask` runs, each is read into `self.<key>` from
+  `[section, name, key]`: the user XML's value, else the default.
+- **A returned list is the output.** `DoEnergyLoss` may return the partons instead of
+  appending to `pOut`; `DoHadronization` may return the hadrons, or `(hadrons, partons)`. A
+  returned list goes after what the output held before the call; `None` keeps today's
+  behaviour. Returning a list while also appending raises.
+- **`self.rng`**: a numpy `Generator` seeded from the task's own engine
+  (`GetMt19937Generator()`), made on first use. Each per-shower `Clone()` gets its own
+  stream (a new task number), and it is reproducible with the run's seed. An attribute
+  `self.rng = ...` of your own takes precedence; C++ modules don't have it.
+
+`example/python_modules/toy_modules_pythonic.py` has every toy in this style, and
+`run_by_hand_pythonic.py` runs them (or the old ones, `--style old`) with the context
+manager; both print `run_by_hand.py`'s SUMMARY line (`tests/test_pythonic_run.py`).
+
+**Type stubs.** `python/jetscape/pyjetscape_core.pyi` (with `py.typed`) covers the bindings
+and the layer, for editors and mypy. They follow the build they were made from;
+`python utils/gen_pyjetscape_stubs.py` (js-contrib, needs `pybind11-stubgen`) regenerates
+them after a build.
 
 ---
 
