@@ -561,11 +561,13 @@ _PENDING_N_EVENTS: "weakref.WeakKeyDictionary" = weakref.WeakKeyDictionary()
 
 
 def _driver_enter(self) -> "core.JetScapePerEvent":
-    """Init() (and the number of events given to per_event())."""
+    """Init(), the number of events given to per_event(), ExecInit() (as
+    run_jetscape.per_event_loop)."""
     self.Init()
     n = _PENDING_N_EVENTS.pop(self, None)
     if n is not None:
         self.SetNumberOfEvents(n)
+    self.ExecInit()
     return self
 
 
@@ -575,34 +577,58 @@ def _driver_exit(self, exc_type, exc, tb) -> bool:
     return False
 
 
-def _driver_events(self, n: int | None = None) -> "Iterator[int]":
-    """Yield once per event, after ExecPerEvent() and before ClearPerEvent(), so the
-    event's results can be read; n: at most n events (default GetNumberOfEvents()).
-    Stops cleanly on break (the event is cleared); Finish() is the context manager's."""
+def _driver_events(self, n: int | None = None,
+                   on_error: "Callable[[int, Exception], None] | None" = None
+                   ) -> "Iterator[int]":
+    """Yield the event index once per event, after ExecPerEvent() and before
+    ClearPerEvent(), so the event's results can be read; n: at most n events (default
+    GetNumberOfEvents()).  Stops cleanly on break (the event is cleared); Finish() is the
+    context manager's.
+
+    on_error: when a module throws inside an event (a C++ exception, e.g. Matter's "minus
+    log of sudakov negative"; the same seed hits it again on a rerun), call
+    on_error(i, exc), clear the event and go on with the next one, as the productions
+    skip such events.  Without it the exception propagates."""
     total = self.GetNumberOfEvents() if n is None else min(int(n), self.GetNumberOfEvents())
     for i in range(total):
-        self.ExecPerEvent()
+        try:
+            self.ExecPerEvent()
+        except RuntimeError as exc:
+            if on_error is None:
+                raise
+            on_error(i, exc)
+            try:
+                self.ClearPerEvent()
+            except RuntimeError:
+                pass
+            continue
         try:
             yield i
         finally:
             self.ClearPerEvent()
 
 
-def _find_task(self, cls):
-    """The first task of type cls in the task list (two levels deep), else None."""
+def _find_task(self, cls, exclude=()):
+    """The first task of type cls in the task list (two levels deep) that is none of
+    `exclude`, else None."""
+    def ok(t):
+        return isinstance(t, cls) and not isinstance(t, exclude)
     for t in self.GetTaskList():
-        if isinstance(t, cls):
+        if ok(t):
             return t
         for sub in t.GetTaskList():
-            if isinstance(sub, cls):
+            if ok(sub):
                 return sub
     return None
 
 
 def _driver_energy_loss_manager(self) -> "core.JetEnergyLossManager | None":
-    """The JetEnergyLossManager (task list, else the signal manager), or None."""
-    return (_find_task(self, core.JetEnergyLossManager)
-            or core.JetScapeSignalManager.Instance().GetJetEnergyLossManagerPointer())
+    """The final-state JetEnergyLossManager (the signal manager's, else the task list's;
+    never the ISR chain's IsrManager inside the hard process), or None."""
+    return (core.JetScapeSignalManager.Instance().GetJetEnergyLossManagerPointer()
+            or _find_task(self, core.JetEnergyLossManager,
+                          exclude=tuple(c for c in (getattr(core, "IsrManager", None),)
+                                        if c is not None)))
 
 
 def _driver_hadronization_manager(self) -> "core.HadronizationManager | None":

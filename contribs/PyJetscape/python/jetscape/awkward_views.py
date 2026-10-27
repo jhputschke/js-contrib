@@ -84,11 +84,13 @@ def pdg_charge(pid) -> np.ndarray:
     return _per_unique(pid, charge, np.float64)
 
 
-def to_awkward(obj, position=False, charge=False):
+def to_awkward(obj, position=False, charge=False, by_unit=False):
     """The nested awkward view of a HadronArray, a hadron dict or a record table.
 
-    position: add t, x, y, z (HadronArray; records always carry theirs).
+    position: add the nested `position` (HadronArray; records always carry theirs).
     charge:   add a `charge` field [e] from the PDG (needs `particle`).
+    by_unit:  a HadronArray read from a file (from_h5): units x samples x hadrons, over
+              info["unit_offsets"].
     """
     ak = _modules()
     from .hadron_array import HadronArray
@@ -96,7 +98,7 @@ def to_awkward(obj, position=False, charge=False):
     if isinstance(obj, dict):
         obj = HadronArray.from_dict(obj)
     if isinstance(obj, HadronArray):
-        return _hadrons(ak, obj, position, charge)
+        return _hadrons(ak, obj, position, charge, by_unit)
     rec = np.asarray(obj)
     if rec.dtype.names is None:
         raise TypeError("to_awkward takes a HadronArray, a hadron dict or a record array "
@@ -104,7 +106,7 @@ def to_awkward(obj, position=False, charge=False):
     return _records(ak, rec, charge)
 
 
-def _hadrons(ak, h, position, charge):
+def _hadrons(ak, h, position, charge, by_unit=False):
     names, contents = [], []
 
     def add(name, a):
@@ -115,8 +117,11 @@ def _hadrons(ak, h, position, charge):
         add(n, h.p[:, i])
     add("pid", h.pid)
     add("pstat", h.pstat)
-    add("mass", h.mass)
+    if h.mass is not None:
+        add("mass", h.mass)
     if position:
+        if h.x is None:
+            raise ValueError("to_awkward(position=True): these hadrons have no positions")
         names.append("position")
         contents.append(ak.contents.RecordArray(
             [ak.contents.NumpyArray(h.x[:, i]) for i in range(4)], list(_POSITION),
@@ -126,6 +131,13 @@ def _hadrons(ak, h, position, charge):
     record = ak.contents.RecordArray(contents, names, length=len(h),
                                      parameters={"__record__": "Momentum4D"})
     layout = ak.contents.ListOffsetArray(ak.index.Index64(h.sample_offsets), record)
+    if by_unit:
+        unit_offsets = h.info.get("unit_offsets")
+        if unit_offsets is None:
+            raise ValueError("to_awkward(by_unit=True) needs info['unit_offsets'] "
+                             "(a HadronArray read with HadronArray.from_h5)")
+        layout = ak.contents.ListOffsetArray(
+            ak.index.Index64(np.asarray(unit_offsets, dtype=np.int64)), layout)
     return ak.Array(layout)
 
 

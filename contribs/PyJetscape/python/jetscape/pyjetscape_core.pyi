@@ -318,7 +318,8 @@ class JetScapePerEvent(JetScape):
     @property
     def energy_loss_manager(self) -> 'JetEnergyLossManager | None':
         """
-        The JetEnergyLossManager (task list, else the signal manager), or None.
+        The final-state JetEnergyLossManager (the signal manager's, else the task list's;
+            never the ISR chain's IsrManager inside the hard process), or None.
         """
     @property
     def hadronization_manager(self) -> 'HadronizationManager | None':
@@ -362,7 +363,8 @@ class JetScapePerEvent(JetScape):
         """
     def __enter__(self) -> 'JetScapePerEvent':
         """
-        Init() (and the number of events given to per_event()).
+        Init(), the number of events given to per_event(), ExecInit() (as
+            run_jetscape.per_event_loop).
         """
     def __exit__(self, exc_type, exc, tb) -> bool:
         """
@@ -370,11 +372,17 @@ class JetScapePerEvent(JetScape):
         """
     def __init__(self) -> None:
         ...
-    def events(self, n: int | None = None) -> 'Iterator[int]':
+    def events(self, n: int | None = None, on_error: 'Callable[[int, Exception], None] | None' = None) -> 'Iterator[int]':
         """
-        Yield once per event, after ExecPerEvent() and before ClearPerEvent(), so the
-            event's results can be read; n: at most n events (default GetNumberOfEvents()).
-            Stops cleanly on break (the event is cleared); Finish() is the context manager's.
+        Yield the event index once per event, after ExecPerEvent() and before
+            ClearPerEvent(), so the event's results can be read; n: at most n events (default
+            GetNumberOfEvents()).  Stops cleanly on break (the event is cleared); Finish() is the
+            context manager's.
+        
+            on_error: when a module throws inside an event (a C++ exception, e.g. Matter's "minus
+            log of sudakov negative"; the same seed hits it again on a rerun), call
+            on_error(i, exc), clear the event and go on with the next one, as the productions
+            skip such events.  Without it the exception propagates.
         """
 class FourVector:
     """

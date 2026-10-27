@@ -91,6 +91,8 @@ def test_initiator_edge_node_and_hard_records():
     ini[:, :3] = rng.integers(0, 5, (4, 3))
     r = initiator_records(ini)
     assert r.dtype == INITIATOR_DTYPE
+    from jetscape.records import initiator_rows
+    assert np.array_equal(initiator_rows(r), ini)                # and back
     assert np.array_equal(r["E"], ini[:, 6]) and np.array_equal(r["t"], ini[:, 10])
     assert np.array_equal(r["px"], ini[:, 3]) and np.array_equal(r["x"], ini[:, 7])
     hard = rng.normal(size=(2, 7))
@@ -396,3 +398,43 @@ def test_the_particle_view():
     assert callable(p.pt)                                  # the core class is unchanged
     h = core.make_hadron(2212, (2, 0.1, 0.2, 0.3), mass=0.938)
     assert view(h).mass == pytest.approx(0.938)
+
+
+# ------------------------------------------------------------------------------ files
+
+def test_hadron_array_through_a_hadron_file(tmp_path):
+    ak = pytest.importorskip("awkward")
+    pytest.importorskip("h5py")
+    from jetscape.hadrons_h5 import Hadrons, HadronH5Writer
+
+    units = [HadronArray.from_dict(_hadron_dict(c)) for c in ((3, 0, 4), (5, 2, 1))]
+    path = tmp_path / "x_hadrons_bulk_bg.h5"
+    with HadronH5Writer(str(path), tag="bulk_bg", n_samples=3) as w:
+        for u, h in enumerate(units):
+            w.append_unit(h.to_dict(), unit=u, event=u, seed=10 + u)
+    back = HadronArray.from_h5(path)
+    assert back.mass is None and back.n_samples == 6
+    assert list(back.info["unit_offsets"]) == [0, 3, 6]
+    assert list(back.info["units"]["seed"]) == [10, 11]
+    for k in ("pid", "pstat", "p", "x"):
+        assert np.array_equal(getattr(back, k), np.concatenate([getattr(h, k) for h in units]))
+    assert ak.num(back.to_awkward(by_unit=True), axis=2).tolist() == [[3, 0, 4], [5, 2, 1]]
+    one = HadronArray.from_h5(path, units=[1])
+    assert list(one.sample_counts) == [5, 2, 1] and list(one.info["units"]["event"]) == [1]
+    old = Hadrons.from_h5(str(path))
+    new = back.to_hadrons()
+    assert np.array_equal(old.pt, new.pt) and np.array_equal(old.unit_offsets,
+                                                             new.unit_offsets)
+    with pytest.raises(ValueError, match="unit_offsets"):
+        units[0].to_awkward(by_unit=True)
+
+
+def test_the_driver_finds_the_final_state_manager_not_the_isr_one():
+    driver = core.JetScapePerEvent()
+    gun = core.HardProcess()
+    gun.Add(core.IsrManager())                 # the ISR chain sits inside the hard process
+    fsr = core.JetEnergyLossManager()
+    driver.Add(gun)
+    driver.Add(fsr)
+    assert pythonic._find_task(driver, core.JetEnergyLossManager,
+                               exclude=(core.IsrManager,)) is fsr

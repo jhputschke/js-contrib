@@ -236,3 +236,27 @@ def test_run_by_hand_with_the_context_manager_and_new_style_toys(tmp_path):
     reference = summary("run_by_hand.py")
     assert summary("run_by_hand_pythonic.py", "--style", "old") == reference
     assert summary("run_by_hand_pythonic.py", "--style", "new") == reference
+
+
+def test_events_skips_an_event_whose_module_throws(tmp_path):
+    script = """
+    import json, sys
+    sys.path.insert(0, {python_dir!r})
+    import jetscape as js
+    from jetscape import pyjetscape_core as core
+
+    @js.module("CustomModulePyThrows", section="Eloss")
+    class Throws(core.JetEnergyLoss):
+        def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut):
+            if self.GetCurrentEvent() == 1:
+                raise RuntimeError("event 1 fails")
+
+    skipped, done = [], []
+    with js.per_event({main!r}, "user.xml") as driver:
+        for i in driver.events(on_error=lambda i, exc: skipped.append((i, str(exc)))):
+            done.append(i)
+    print("RESULT" + json.dumps({{"done": done, "skipped": skipped}}))
+    """
+    out = _run(tmp_path, script, eloss="<CustomModulePyThrows> </CustomModulePyThrows>")
+    assert out["done"] == [0, 2]
+    assert [s[0] for s in out["skipped"]] == [1] and "event 1 fails" in out["skipped"][0][1]

@@ -28,7 +28,8 @@ import numpy as np
 
 __all__ = ["FINAL_PARTON_DTYPE", "INITIATOR_DTYPE", "EDGE_DTYPE", "NODE_DTYPE",
            "HARD_PARTON_DTYPE", "final_parton_records", "final_parton_rows",
-           "initiator_records", "edge_records", "node_records", "hard_parton_records"]
+           "initiator_records", "initiator_rows", "edge_records", "node_records",
+           "hard_parton_records"]
 
 _MOMENTUM = [("E", "f8"), ("px", "f8"), ("py", "f8"), ("pz", "f8")]
 _POSITION = [("t", "f8"), ("x", "f8"), ("y", "f8"), ("z", "f8")]
@@ -89,6 +90,18 @@ def final_parton_rows(partons) -> np.ndarray:
 def initiator_records(rows) -> np.ndarray:
     """(K, 11) INITIATOR_COLUMNS -> INITIATOR_DTYPE records."""
     return _records(rows, INITIATOR_DTYPE, _INITIATOR_SRC)
+
+
+def initiator_rows(initiators) -> np.ndarray:
+    """INITIATOR_DTYPE records (or a (K, 11) array, passed through) -> (K, 11) float64 in
+    INITIATOR_COLUMNS order: what HadronH5Writer.append_unit(initiators=...) takes."""
+    a = np.asarray(initiators)
+    if a.dtype.names is None:
+        return np.ascontiguousarray(a, dtype=np.float64).reshape(-1, len(_INITIATOR_SRC))
+    out = np.empty((len(a), len(_INITIATOR_SRC)), dtype=np.float64)
+    for name, col in _INITIATOR_SRC.items():
+        out[:, col] = a[name]
+    return out
 
 
 def edge_records(rows) -> np.ndarray:
