@@ -5,6 +5,7 @@ C++, the task random engines.
 """
 
 import gc
+import subprocess
 import sys
 from pathlib import Path
 
@@ -132,21 +133,42 @@ def test_unregister():
 
 # ------------------------------------------------------------------------------ random
 
+# The XML is loaded in a subprocess: JetScapeXML opens a user file once per process, so a
+# user XML loaded here would be the one every later test in this process sees (the iColored
+# fixture of test_icolored_colour.py would lose its <store_input>).
+RANDOM_RUN = """\
+import sys
+sys.path.insert(0, {python_dir!r})
+import jetscape.pyjetscape_core as core
+
+class Counter(core.JetScapeModuleBase):
+    pass
+
+core.load_xml({main!r}, {user!r})
+assert core.random_seed() == 12345
+n = core.next_task_number()
+a, b = Counter(), Counter()
+assert (a.GetMyTaskNumber(), b.GetMyTaskNumber()) == (n, n + 1)
+draws_a = [a.GetMt19937Generator()() for _ in range(3)]
+assert draws_a != [b.GetMt19937Generator()() for _ in range(3)]   # one engine per task
+core.set_next_task_number(n)
+c = Counter()                                       # the same task number as a
+gc_ = c.GetMt19937Generator()
+assert [gc_() for _ in range(3)] == draws_a
+assert 0.0 <= gc_.uniform() < 1.0
+print("OK")
+"""
+
+
 @pytest.mark.skipif(not MAIN_XML.exists(), reason="no X-SCAPE config next to js-contrib")
 def test_task_generators_are_reproducible(tmp_path):
-    user = tmp_path / "user.xml"
-    user.write_text("<jetscape><Random><seed>12345</seed></Random></jetscape>")
-    core.load_xml(str(MAIN_XML), str(user))
-    assert core.random_seed() == 12345
     if not core.HAS_NEXT_TASK_NUMBER:
         pytest.skip("this X-SCAPE has no JetScapeTaskSupport::GetNextTaskNumber")
-    n = core.next_task_number()
-    a, b = Counter(), Counter()
-    assert (a.GetMyTaskNumber(), b.GetMyTaskNumber()) == (n, n + 1)
-    draws_a = [a.GetMt19937Generator()() for _ in range(3)]
-    assert draws_a != [b.GetMt19937Generator()() for _ in range(3)]   # one engine per task
-    core.set_next_task_number(n)
-    c = Counter()                                       # the same task number as a
-    gc_ = c.GetMt19937Generator()
-    assert [gc_() for _ in range(3)] == draws_a
-    assert 0.0 <= gc_.uniform() < 1.0
+    user = tmp_path / "user.xml"
+    user.write_text("<jetscape><Random><seed>12345</seed></Random></jetscape>")
+    script = tmp_path / "run.py"
+    script.write_text(RANDOM_RUN.format(python_dir=str(Path(__file__).resolve().parents[1] / "python"),
+                                        main=str(MAIN_XML), user=str(user)))
+    res = subprocess.run([sys.executable, str(script)], cwd=tmp_path, capture_output=True,
+                         check=False, text=True, timeout=300)
+    assert res.returncode == 0 and "OK" in res.stdout, res.stdout[-2000:] + res.stderr[-2000:]
