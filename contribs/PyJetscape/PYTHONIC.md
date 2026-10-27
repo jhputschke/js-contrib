@@ -606,6 +606,7 @@ GB10 (`docs/Plans/PLAN_pyjetscape_pythonic.md`, V4 and V6):
 | file | |
 |---|---|
 | `example/pythonic/oo_workflow.ipynb` | 3 O+O events through the full chain: run, hadron files, read back, awkward, FastJet |
+| `example/pythonic/oo_workflow.xml` | its user XML (made once from the O+O production's template; change the run there) |
 | `example/python_modules/toy_modules_pythonic.py` | one module per stage in the new style |
 | `example/python_modules/run_by_hand_pythonic.py` | a hand-built pipeline with the context manager (`--style old|new`) |
 | `tests/test_pythonic.py`, `tests/test_pythonic_run.py` | every feature, against the functions it wraps |

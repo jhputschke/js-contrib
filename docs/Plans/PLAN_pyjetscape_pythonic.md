@@ -31,7 +31,9 @@ bound classes; only the two module trampolines change in C++. No X-SCAPE change.
   `example/pythonic/oo_workflow.ipynb` (3 O+O events through the whole chain with
   `js.per_event`, both hadron files written from `HadronArray`s and read back, awkward,
   FastJet per event and per oversample, a jet embedded in the bulk; stored with its outputs,
-  the modules' log removed). For it: `HadronArray.from_h5` / `to_dict()` /
+  the modules' log removed). Its user XML is `example/pythonic/oo_workflow.xml`, made once
+  with the O+O production's `job_xml()` (iSS paths `../`, made absolute per build when the
+  notebook enters its working directory); the notebook does not build XML. For it: `HadronArray.from_h5` / `to_dict()` /
   `to_awkward(by_unit=True)` (`x`, `mass` may be None), `records.initiator_rows`,
   `events(on_error=)`, `ExecInit()` on entering the driver. Found on the way:
   `driver.energy_loss_manager` returned the ISR chain's `IsrManager` (a
