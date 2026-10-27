@@ -12,6 +12,7 @@ namespace py = pybind11;
 
 // Forward declarations for each binding compilation unit
 void bind_framework(py::module_ &m);
+void bind_particles(py::module_ &m);
 void bind_evolution(py::module_ &m);
 void bind_initial_state(py::module_ &m);
 void bind_fluid_dynamics(py::module_ &m);
@@ -19,6 +20,8 @@ void bind_liquefier(py::module_ &m);
 void bind_music(py::module_ &m);
 void bind_root_bulk_writer(py::module_ &m);
 void bind_jet(py::module_ &m);
+void bind_stages(py::module_ &m);
+void bind_pipeline(py::module_ &m);
 void bind_hadronization(py::module_ &m);
 void bind_hard_process(py::module_ &m);
 void bind_signal_manager(py::module_ &m);
@@ -39,6 +42,8 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   )pbdoc";
 
   bind_framework(m);
+  // FourVector, Parton, Photon, Hadron: before everything that returns them.
+  bind_particles(m);
   bind_evolution(m);
   bind_initial_state(m);
   bind_fluid_dynamics(m);
@@ -56,6 +61,10 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   // before bind_signal_manager so GetJetEnergyLossManagerPointer()'s return type
   // is already registered.
   bind_jet(m);
+  // HardProcess, Hadronization, HadronizationManager, ...: subclassable in Python.
+  bind_stages(m);
+  // Shower generators, the ISR chain, the ASCII readers.
+  bind_pipeline(m);
   // Hadrons (iSS output, jet hadronization) as numpy; re-hadronizing stored partons.
   bind_hadronization(m);
   // The current event's hard process; PythiaGun's pTHat windows.

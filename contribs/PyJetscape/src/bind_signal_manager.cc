@@ -122,25 +122,28 @@ void bind_signal_manager(py::module_ &m) {
       // tests that build a pipeline without a full JetScape controller.
 
       .def("SetHydroPointer",
-          [](JetScapeSignalManager &sm,
-             std::shared_ptr<FluidDynamics> hydro) {
-            sm.SetHydroPointer(hydro);
+          [](JetScapeSignalManager &sm, py::object hydro) {
+            // the manager keeps a weak_ptr: the holder's control block, valid
+            // as long as the Python object lives (a Python subclass included)
+            sm.SetHydroPointer(py::potentially_slicing_weak_ptr<FluidDynamics>(hydro).lock());
           },
           py::arg("hydro"),
           "Register a FluidDynamics module with the signal manager.")
 
       .def("SetInitialStatePointer",
-          [](JetScapeSignalManager &sm,
-             std::shared_ptr<InitialState> ini) {
-            sm.SetInitialStatePointer(ini);
+          [](JetScapeSignalManager &sm, py::object ini) {
+            // the manager keeps a weak_ptr: the holder's control block, valid
+            // as long as the Python object lives (a Python subclass included)
+            sm.SetInitialStatePointer(py::potentially_slicing_weak_ptr<InitialState>(ini).lock());
           },
           py::arg("ini"),
           "Register an InitialState module with the signal manager.")
 
       .def("SetPreEquilibriumPointer",
-          [](JetScapeSignalManager &sm,
-             std::shared_ptr<PreequilibriumDynamics> preeq) {
-            sm.SetPreEquilibriumPointer(preeq);
+          [](JetScapeSignalManager &sm, py::object preeq) {
+            // the manager keeps a weak_ptr: the holder's control block, valid
+            // as long as the Python object lives (a Python subclass included)
+            sm.SetPreEquilibriumPointer(py::potentially_slicing_weak_ptr<PreequilibriumDynamics>(preeq).lock());
           },
           py::arg("preeq"),
           "Register a PreequilibriumDynamics module with the signal manager.")

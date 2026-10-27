@@ -23,6 +23,7 @@
 
 #include <array>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "FourVector.h"
@@ -33,6 +34,9 @@
 #include "JetEnergyLossManager.h"
 #include "JetScapeModuleBase.h"
 #include "LiquefierBase.h"
+#include "PartonShowerGenerator.h"
+#include "FluidCellInfo.h"
+#include "pyjs_modules.h"
 
 namespace py = pybind11;
 using namespace Jetscape;
@@ -44,6 +48,65 @@ static const char *kFinalPartonColumns[kFinalPartonNCols] = {
     "shower", "pid", "pstat", "E", "px", "py", "pz",
     "t",      "x",   "y",     "z", "mass", "col", "acol"};
 
+// Shower navigation by node / edge id (the ids of PartonShower.to_numpy()).
+static node shower_node(PartonShower &s, int id) {
+  for (auto it = s.nodes_begin(); it != s.nodes_end(); ++it)
+    if (it->id() == id)
+      return *it;
+  throw py::index_error("PartonShower: no vertex with id " + std::to_string(id));
+}
+
+// ── PyJetEnergyLoss: an energy-loss module written in Python ─────────────────
+// Subclass JetEnergyLoss and override DoEnergyLoss(deltaT, time, Q2, pIn, pOut):
+// pIn holds the parton(s) of this step (the C++ objects, changed in place), pOut
+// is a list the module appends the partons at time + deltaT to (empty pOut: the
+// parton continues unchanged, as for a C++ module). The manager copies the module
+// once per shower through Clone() (pyjs::default_clone unless overridden).
+class PyJetEnergyLoss : public JetEnergyLoss,
+                        public py::trampoline_self_life_support {
+public:
+  PyJetEnergyLoss() = default;
+  PyJetEnergyLoss(const JetEnergyLoss &other) : JetEnergyLoss(other) {}
+
+  std::shared_ptr<JetEnergyLoss> Clone() const override {
+    py::gil_scoped_acquire gil;
+    py::function ov =
+        py::get_override(static_cast<const JetEnergyLoss *>(this), "Clone");
+    if (ov)
+      return ov().cast<std::shared_ptr<JetEnergyLoss>>();
+    return pyjs::default_clone<JetEnergyLoss>(this);
+  }
+
+  void DoEnergyLoss(double deltaT, double time, double Q2,
+                    std::vector<Parton> &pIn,
+                    std::vector<Parton> &pOut) override {
+    py::gil_scoped_acquire gil;
+    py::function ov = py::get_override(static_cast<const JetEnergyLoss *>(this),
+                                       "DoEnergyLoss");
+    if (!ov)
+      return;
+    py::list in = pyjs::refs(pIn);
+    py::list out = pyjs::copies(pOut);
+    ov(deltaT, time, Q2, in, out);
+    pyjs::write_back(in, pIn);
+    pyjs::assign(out, pOut);
+  }
+
+  // JetEnergyLoss::InitTask is the container's (it refuses a task without
+  // modules); a Python subclass is a module, so without an override: nothing.
+  void InitTask() override {
+    py::gil_scoped_acquire gil;
+    py::function ov =
+        py::get_override(static_cast<const JetEnergyLoss *>(this), "InitTask");
+    if (ov)
+      ov();
+  }
+  void ClearTask() override { PYBIND11_OVERRIDE(void, JetEnergyLoss, ClearTask); }
+  void FinishTask() override {
+    PYBIND11_OVERRIDE(void, JetEnergyLoss, FinishTask);
+  }
+};
+
 void bind_jet(py::module_ &m) {
   {
     py::tuple cols(kFinalPartonNCols);
@@ -52,32 +115,20 @@ void bind_jet(py::module_ &m) {
     m.attr("FINAL_PARTON_COLUMNS") = cols;
   }
 
-  // ── Parton (an edge in the shower graph) ──────────────────────────────────
-  // Momentum from p_in() [GeV], position from x_in() [fm, t in fm/c].
-  // NOTE: Parton::t() is the *virtuality*, so the position-time is x_in().t().
-  py::class_<Parton, std::shared_ptr<Parton>>(m, "Parton",
-      "A parton: pid/pstat, 4-momentum (px,py,pz,e) [GeV], position (x,y,z) [fm], t [fm/c].")
-      .def("pid",   [](Parton &p) { return p.pid(); })
-      .def("pstat", [](Parton &p) { return p.pstat(); })
-      .def("px",    [](Parton &p) { return p.p_in().x(); })
-      .def("py",    [](Parton &p) { return p.p_in().y(); })
-      .def("pz",    [](Parton &p) { return p.p_in().z(); })
-      .def("e",     [](Parton &p) { return p.p_in().t(); })
-      .def("x",     [](Parton &p) { return p.x_in().x(); })
-      .def("y",     [](Parton &p) { return p.x_in().y(); })
-      .def("z",     [](Parton &p) { return p.x_in().z(); })
-      .def("t",     [](Parton &p) { return p.x_in().t(); },
-           "Position time x_in().t() [fm/c] (NOT virtuality).")
-      .def("color",      [](Parton &p) { return p.color(); },
-           "Colour tag (0 = none). LBT assigns none, see PLAN_particlize_h5.md.")
-      .def("anti_color", [](Parton &p) { return p.anti_color(); },
-           "Anti-colour tag (0 = none).")
-      .def("restmass",   [](Parton &p) { return p.restmass(); },
-           "Rest mass [GeV] (the PDG mass the particle was built with).");
+  // Parton, Hadron and FourVector are bound in bind_particles.cc (before this file).
 
   // ── Vertex (a node in the shower graph) ───────────────────────────────────
   py::class_<Vertex, std::shared_ptr<Vertex>>(m, "Vertex",
-      "A splitting vertex: space-time position (x,y,z) [fm], t [fm/c].")
+      "A splitting vertex: space-time position (x,y,z) [fm], t [fm/c]. "
+      "Vertex(x, y, z, t) or Vertex(FourVector).")
+      .def(py::init<>())
+      .def(py::init<double, double, double, double>(), py::arg("x"), py::arg("y"),
+           py::arg("z"), py::arg("t"))
+      .def(py::init([](FourVector x) { return std::make_shared<Vertex>(x); }),
+           py::arg("x"))
+      .def("x_in", [](Vertex &v) { return FourVector(v.x_in()); })
+      .def("set_location", [](Vertex &v, FourVector x) { v.set_location(x); },
+           py::arg("x"))
       .def("x", [](Vertex &v) { return v.x_in().x(); })
       .def("y", [](Vertex &v) { return v.x_in().y(); })
       .def("z", [](Vertex &v) { return v.x_in().z(); })
@@ -85,7 +136,83 @@ void bind_jet(py::module_ &m) {
 
   // ── PartonShower (GTL graph: nodes = Vertex, edges = Parton) ───────────────
   py::class_<PartonShower, std::shared_ptr<PartonShower>>(m, "PartonShower",
-      "Parton shower as a directed graph; iterate edges via to_numpy().")
+      "Parton shower as a directed graph (vertices = nodes, partons = edges); ids as "
+      "in to_numpy() / vertices_to_numpy().")
+      .def(py::init<>())
+      // ── navigation ──────────────────────────────────────────────────────────
+      .def("final_partons",
+           [](PartonShower &s) { return pyjs::ptrs(s.GetFinalPartons()); },
+           "The partons at the end of the shower.")
+      .def("partons", [](PartonShower &s) { return pyjs::ptrs(s.GetPartons()); },
+           "Every parton (edge) of the shower.")
+      .def("edge_of",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             edge e = s.GetEdge(p);
+             return py::make_tuple(e.id(), e.source().id(), e.target().id());
+           },
+           "(edge id, source vertex id, target vertex id) of a parton of this shower.",
+           py::arg("parton"))
+      .def("children",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             py::list out;
+             node t = s.GetEdge(p).target();
+             for (auto it = t.out_edges_begin(); it != t.out_edges_end(); ++it)
+               out.append(py::cast(s.GetParton(*it)));
+             return out;
+           },
+           "The partons coming out of the vertex where this parton ends.",
+           py::arg("parton"))
+      .def("parents",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             py::list out;
+             node src = s.GetEdge(p).source();
+             for (auto it = src.in_edges_begin(); it != src.in_edges_end(); ++it)
+               out.append(py::cast(s.GetParton(*it)));
+             return out;
+           },
+           "The partons going into the vertex where this parton starts.",
+           py::arg("parton"))
+      .def("production_vertex",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             return s.GetVertex(s.GetEdge(p).source());
+           },
+           py::arg("parton"))
+      .def("end_vertex",
+           [](PartonShower &s, std::shared_ptr<Parton> p) {
+             return s.GetVertex(s.GetEdge(p).target());
+           },
+           py::arg("parton"))
+      .def("vertex_id",
+           [](PartonShower &s, std::shared_ptr<Vertex> v) { return s.GetNode(v).id(); },
+           py::arg("vertex"))
+      .def("vertex_by_id",
+           [](PartonShower &s, int id) { return s.GetVertex(shower_node(s, id)); },
+           py::arg("id"))
+      .def("split_z",
+           [](PartonShower &s, int id) { return s.GetSplitZ(shower_node(s, id)); },
+           "z of the 1 -> 2 split at vertex id.", py::arg("vertex_id"))
+      .def("split_kt",
+           [](PartonShower &s, int id) { return s.GetSplitKt(shower_node(s, id)); },
+           py::arg("vertex_id"))
+      .def("split_delta_r",
+           [](PartonShower &s, int id) { return s.GetSplitDeltaR(shower_node(s, id)); },
+           py::arg("vertex_id"))
+      .def("is_one_to_two",
+           [](PartonShower &s, int id) { return s.IsOneToTwo(shower_node(s, id)); },
+           py::arg("vertex_id"))
+      .def("is_end_vertex",
+           [](PartonShower &s, int id) { return s.IsEndNode(shower_node(s, id)); },
+           py::arg("vertex_id"))
+      // ── building a shower (a PartonShowerGenerator in Python) ────────────────
+      .def("new_vertex",
+           [](PartonShower &s, std::shared_ptr<Vertex> v) { return s.new_vertex(v).id(); },
+           "Add a vertex; returns its id.", py::arg("vertex"))
+      .def("new_parton",
+           [](PartonShower &s, int source_id, int target_id, std::shared_ptr<Parton> p) {
+             return s.new_parton(shower_node(s, source_id), shower_node(s, target_id), p);
+           },
+           "Add a parton from vertex source_id to vertex target_id.",
+           py::arg("source_id"), py::arg("target_id"), py::arg("parton"))
       .def("number_of_partons",  &PartonShower::GetNumberOfPartons)
       .def("number_of_vertices", &PartonShower::GetNumberOfVertices)
       .def("parton_at", &PartonShower::GetPartonAt, py::arg("i"),
@@ -160,14 +287,37 @@ void bind_jet(py::module_ &m) {
   // ── JetEnergyLoss — the per-shower energy-loss task ───────────────────────
   // Not in the module factory (JetScape.cc:651-652 hand-constructs it), so
   // create_module("JetEnergyLoss") does not work; a hand-wired Python pipeline needs this.
-  py::class_<JetEnergyLoss, JetScapeModuleBase, std::shared_ptr<JetEnergyLoss>>(
+  py::class_<JetEnergyLoss, JetScapeModuleBase, PyJetEnergyLoss,
+             py::smart_holder>(
       m, "JetEnergyLoss",
-      "One energy-loss task. Add the algorithm modules (Matter, then LBT) to it with Add(), "
-      "then add it to a JetEnergyLossManager.\n\n"
-      "Matter must be added BEFORE LBT: Matter sets the virtuality that LBT hands off at Q0, "
-      "and <Eloss><mutex>ON</mutex> arbitrates the handover.")
+      R"pbdoc(
+        An energy-loss task: the per-shower container the manager copies (Add() the
+        algorithm modules to it, Matter before LBT), and the base of every
+        energy-loss module, C++ (Matter, LBT, ...) or Python.
+
+        A Python module subclasses it and overrides
+
+            def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut): ...
+
+        pIn: the parton(s) of this step, the C++ objects (change them in place;
+        valid during the call only). pOut: append the partons at time + deltaT
+        (left empty, the parton goes on unchanged). GetHydroCell(t, x, y, z) gives
+        the medium. The manager copies the module once per shower with Clone():
+        by default the C++ copy constructor plus a shallow copy of the instance
+        attributes; override Clone() for anything deeper.
+
+        register_module("CustomModuleX", cls) makes it available to the XML
+        (<Eloss><CustomModuleX>...</CustomModuleX>).
+      )pbdoc")
       .def(py::init<>())
-      .def("add_a_liquefier", &JetEnergyLoss::add_a_liquefier,
+      .def(py::init_alias<const JetEnergyLoss &>(), py::arg("other"),
+           "Copy (the C++ copy constructor: id, settings, a new task number).")
+      .def("add_a_liquefier",
+           [](JetEnergyLoss &j, py::object liquefier) {
+             // a weak_ptr in C++: the holder's control block (see FluidDynamics)
+             j.add_a_liquefier(
+                 py::potentially_slicing_weak_ptr<LiquefierBase>(liquefier).lock());
+           },
            "Attach the liquefier that collects droplets from this shower. The framework "
            "calls liquefier->add_hydro_sources() centrally in DoExecTime(), so Matter and "
            "LBT need no changes.",
@@ -178,7 +328,65 @@ void bind_jet(py::module_ &m) {
            },
            "The attached liquefier, or None.")
       .def("GetShower", &JetEnergyLoss::GetShower,
-           "The finished PartonShower for this task (valid after Exec).");
+           "The finished PartonShower for this task (valid after Exec).")
+      // ── the module interface ───────────────────────────────────────────────
+      .def("DoEnergyLoss",
+           [](JetEnergyLoss &j, double deltaT, double time, double Q2,
+              py::list pIn, py::list pOut) {
+             // a C++ module called from Python (e.g. a Python module delegating
+             // to Matter): copies in, results written back to the same lists
+             std::vector<Parton> in, out;
+             for (auto h : pIn) in.push_back(h.cast<Parton>());
+             for (auto h : pOut) out.push_back(h.cast<Parton>());
+             j.DoEnergyLoss(deltaT, time, Q2, in, out);
+             for (size_t i = 0; i < in.size() && i < py::len(pIn); ++i)
+               pIn[i].cast<Parton &>() = in[i];
+             pOut.attr("clear")();
+             for (auto &p : out) pOut.append(py::cast(Parton(p)));
+           },
+           "One step: pIn (list of Parton, changed in place), pOut (list, filled with "
+           "the partons at time + deltaT).",
+           py::arg("deltaT"), py::arg("time"), py::arg("Q2"), py::arg("pIn"),
+           py::arg("pOut"))
+      .def("Clone", &JetEnergyLoss::Clone,
+           "A copy for one shower (C++ modules: their copy constructor).")
+      .def("GetHydroCell",
+           [](JetEnergyLoss &j, double t, double x, double y, double z) -> py::object {
+             if (!j.GetGetHydroCellSignalConnected())
+               return py::none();
+             std::unique_ptr<FluidCellInfo> cell;
+             j.GetHydroCellSignal(t, x, y, z, cell);
+             if (!cell)
+               return py::none();
+             return py::cast(FluidCellInfo(*cell));
+           },
+           "The medium at (t, x, y, z) [fm] as a FluidCellInfo, or None without a hydro "
+           "(the GetHydroCell signal Matter and LBT use).",
+           py::arg("t"), py::arg("x"), py::arg("y"), py::arg("z"))
+      .def("GetQhat", &JetEnergyLoss::GetQhat)
+      .def("SetQhat", &JetEnergyLoss::SetQhat, py::arg("qhat"))
+      .def("GetDeltaT", &JetEnergyLoss::GetDeltaT)
+      .def("SetDeltaT", &JetEnergyLoss::SetDeltaT, py::arg("deltaT"))
+      .def("GetMaxT", &JetEnergyLoss::GetMaxT)
+      .def("SetMaxT", &JetEnergyLoss::SetMaxT, py::arg("maxT"))
+      .def("GetStartT", &JetEnergyLoss::GetStartT)
+      .def("SetStartT", &JetEnergyLoss::SetStartT, py::arg("startT"))
+      .def("GetShowerInitiatingParton", &JetEnergyLoss::GetShowerInitiatingParton,
+           "The parton this shower started from (the per-shower copies).")
+      .def("AddShowerInitiatingParton", &JetEnergyLoss::AddShowerInitiatingParton,
+           "Set the parton this task showers (the manager does this per shower).",
+           py::arg("parton"))
+      .def("AddPartonShowerGenerator", &JetEnergyLoss::AddPartonShowerGenerator,
+           "Set how this task grows its shower (PartonShowerGeneratorDefault unless set).",
+           py::arg("generator"))
+      .def("GetPartonShowerGenerator", &JetEnergyLoss::GetPartonShowerGenerator)
+      .def("SetUseIntialPartonShower", &JetEnergyLoss::SetUseIntialPartonShower,
+           "Continue a given shower (ISR) instead of starting from one parton.",
+           py::arg("use"))
+      .def("GetUseIntialPartonShower", &JetEnergyLoss::GetUseIntialPartonShower)
+      .def("GetGetHydroCellSignalConnected",
+           &JetEnergyLoss::GetGetHydroCellSignalConnected)
+      .def("GetSentInPartonsConnected", &JetEnergyLoss::GetSentInPartonsConnected);
 
   // ── JetEnergyLossManager — per-event access to the finished showers ───────
   // NOTE: this binding previously declared no base class, so the type was not a
@@ -186,7 +394,7 @@ void bind_jet(py::module_ &m) {
   // read-only by accident. JetScapeModuleBase is added here so the manager can be placed
   // in a hand-wired pipeline. Existing read-only uses are unaffected.
   py::class_<JetEnergyLossManager, JetScapeModuleBase,
-             std::shared_ptr<JetEnergyLossManager>>(
+             py::smart_holder>(
       m, "JetEnergyLossManager",
       "Energy-loss manager; one JetEnergyLoss child per shower-initiating parton.")
       .def(py::init<>())

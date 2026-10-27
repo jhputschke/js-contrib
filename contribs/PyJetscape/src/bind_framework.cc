@@ -16,8 +16,19 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <array>
+#include <random>
+#include <utility>
+
 #include "FluidDynamics.h"
 #include "InitialState.h"
+#include "JetEnergyLoss.h"
+#include "JetEnergyLossManager.h"
+#include "Hadronization.h"
+#include "HadronizationManager.h"
+#include "HardProcess.h"
+#include "Afterburner.h"
+#include "SoftParticlization.h"
 #include "JetScape.h"
 #include "JetScapePerEvent.h"
 #include "JetScapeModuleBase.h"
@@ -88,7 +99,8 @@ static std::string xml_path_str(const std::vector<std::string> &path) {
 //       def Finish(self):
 //           ...  # called by JetScape.Finish()
 //
-class PyJetScapeModuleBase : public JetScapeModuleBase {
+class PyJetScapeModuleBase : public JetScapeModuleBase,
+                        public py::trampoline_self_life_support {
 public:
   using JetScapeModuleBase::JetScapeModuleBase; // inherit constructors
 
@@ -104,13 +116,206 @@ public:
   void Finish() override {
     PYBIND11_OVERRIDE(void, JetScapeModuleBase, Finish);
   }
+  // The per-task hooks C++ modules override (JetScapeTask's Init/Exec/Clear/Finish
+  // call them), and the per-event and per-time-step hooks of the X-SCAPE loop.
+  void InitTask() override {
+    PYBIND11_OVERRIDE(void, JetScapeModuleBase, InitTask);
+  }
+  void ExecuteTask() override {
+    PYBIND11_OVERRIDE(void, JetScapeModuleBase, ExecuteTask);
+  }
+  void ClearTask() override {
+    PYBIND11_OVERRIDE(void, JetScapeModuleBase, ClearTask);
+  }
+  void FinishTask() override {
+    PYBIND11_OVERRIDE(void, JetScapeModuleBase, FinishTask);
+  }
+  void InitPerEvent() override {
+    PYBIND11_OVERRIDE(void, JetScapeModuleBase, InitPerEvent);
+  }
+  void FinishPerEvent() override {
+    PYBIND11_OVERRIDE(void, JetScapeModuleBase, FinishPerEvent);
+  }
+  void CalculateTime() override {
+    PYBIND11_OVERRIDE(void, JetScapeModuleBase, CalculateTime);
+  }
+  void ExecTime() override {
+    PYBIND11_OVERRIDE(void, JetScapeModuleBase, ExecTime);
+  }
 };
+
+// ── Python modules in the module factory ────────────────────────────────────
+// JetScapeModuleFactory keeps plain function pointers (no captured state), so a
+// creator for a Python class can not be made at run time. A fixed pool of
+// creators, one per slot, each calling the Python factory stored in its slot,
+// stands in for them. The map itself is protected; a subclass reaches it.
+namespace {
+
+constexpr int kPyModuleSlots = 256;
+
+struct PyModuleSlot {
+  std::string name;
+  py::object factory;  // a class or any callable returning a JetScapeModuleBase
+  std::string section;   // main-XML section of its default entry ("" = the root)
+  std::string defaults;  // the default entry's children, as XML text
+};
+
+// Never destroyed: the Python objects must not be released after the
+// interpreter has finalized (the factory map outlives it, too).
+std::vector<PyModuleSlot> &py_module_slots() {
+  static auto *slots = new std::vector<PyModuleSlot>(kPyModuleSlots);
+  return *slots;
+}
+
+template <int N> std::shared_ptr<JetScapeModuleBase> create_py_module() {
+  py::gil_scoped_acquire gil;
+  auto &slot = py_module_slots()[N];
+  py::object obj = slot.factory();
+  auto mod = obj.cast<std::shared_ptr<JetScapeModuleBase>>();
+  if (!mod)
+    throw std::runtime_error("register_module: the factory of '" + slot.name +
+                             "' returned None");
+  return mod;
+}
+
+using ModuleCreator = std::shared_ptr<JetScapeModuleBase> (*)();
+
+template <int... I>
+std::array<ModuleCreator, sizeof...(I)>
+make_creators(std::integer_sequence<int, I...>) {
+  return {&create_py_module<I>...};
+}
+
+const std::array<ModuleCreator, kPyModuleSlots> &py_module_creators() {
+  static const auto creators =
+      make_creators(std::make_integer_sequence<int, kPyModuleSlots>{});
+  return creators;
+}
+
+struct FactoryAccess : JetScapeModuleFactory {
+  static map_type *map() { return getMap(); }
+};
+
+int py_module_slot_of(const std::string &name) {
+  auto &slots = py_module_slots();
+  for (int k = 0; k < kPyModuleSlots; ++k)
+    if (slots[k].factory && slots[k].name == name)
+      return k;
+  return -1;
+}
+
+} // namespace
+
+// JetScape::Init refuses a user XML tag without a default entry in the main XML
+// (CompareElementsFromXML: anywhere in the file). The main XML is parsed once
+// (JetScapeXML::OpenXMLMainFile is a no-op when open), so opening it here and
+// adding an empty element for each registered Python module it lacks lets the
+// user XML name them, as <Eloss><CustomModuleX>.
+static bool xml_has_element(const tinyxml2::XMLElement *el, const char *name) {
+  for (; el; el = el->NextSiblingElement()) {
+    if (std::string(el->Name()) == name || xml_has_element(el->FirstChildElement(), name))
+      return true;
+  }
+  return false;
+}
+
+static int add_python_module_defaults(const std::string &main_xml) {
+  auto *xml = JetScapeXML::Instance();
+  if (!main_xml.empty())
+    xml->OpenXMLMainFile(main_xml);
+  tinyxml2::XMLElement *root = xml->GetXMLRootMain();
+  if (!root)
+    return 0;
+  int n = 0;
+  auto *doc = root->GetDocument();
+  for (auto &slot : py_module_slots()) {
+    if (!slot.factory || xml_has_element(root, slot.name.c_str()))
+      continue;
+    tinyxml2::XMLElement *parent = root;
+    if (!slot.section.empty()) {
+      parent = root->FirstChildElement(slot.section.c_str());
+      if (!parent)
+        parent = root->InsertEndChild(doc->NewElement(slot.section.c_str()))
+                     ->ToElement();
+    }
+    auto *el = parent->InsertEndChild(doc->NewElement(slot.name.c_str()))->ToElement();
+    if (!slot.defaults.empty()) {
+      tinyxml2::XMLDocument tmp;
+      std::string text = "<d>" + slot.defaults + "</d>";
+      if (tmp.Parse(text.c_str()) != tinyxml2::XML_SUCCESS)
+        throw py::value_error("register_module('" + slot.name +
+                              "'): defaults is no valid XML");
+      for (auto *c = tmp.FirstChildElement("d")->FirstChild(); c; c = c->NextSibling())
+        el->InsertEndChild(xml_deep_clone(c, doc));
+    }
+    ++n;
+  }
+  return n;
+}
+
+// The most derived bound Python type of a task: a C++ module whose own class is not
+// bound (Matter, LBT, ...) shows up as its bound base (JetEnergyLoss, ...), not as
+// JetScapeTask. Python modules come back as themselves.
+static py::object as_bound_module(std::shared_ptr<JetScapeTask> task) {
+  if (!task)
+    return py::none();
+  if (auto music = std::dynamic_pointer_cast<MpiMusic>(task))
+    return py::cast(music);
+  if (auto fd = std::dynamic_pointer_cast<FluidDynamics>(task))
+    return py::cast(fd);
+  if (auto preeq = std::dynamic_pointer_cast<PreequilibriumDynamics>(task))
+    return py::cast(preeq);
+  if (auto trento = std::dynamic_pointer_cast<TrentoInitial>(task))
+    return py::cast(trento);
+  if (auto ini = std::dynamic_pointer_cast<InitialState>(task))
+    return py::cast(ini);
+  if (auto w = std::dynamic_pointer_cast<JetScapeWriter>(task))
+    return py::cast(w);
+  if (auto sp = std::dynamic_pointer_cast<SoftParticlization>(task))
+    return py::cast(sp);
+  if (auto ab = std::dynamic_pointer_cast<Afterburner>(task))
+    return py::cast(ab);
+  if (auto hp = std::dynamic_pointer_cast<HardProcess>(task))
+    return py::cast(hp);
+  if (auto hm = std::dynamic_pointer_cast<HadronizationManager>(task))
+    return py::cast(hm);
+  if (auto h = std::dynamic_pointer_cast<Hadronization>(task))
+    return py::cast(h);
+  if (auto jlm = std::dynamic_pointer_cast<JetEnergyLossManager>(task))
+    return py::cast(jlm);
+  if (auto jl = std::dynamic_pointer_cast<JetEnergyLoss>(task))
+    return py::cast(jl);
+  if (auto mod = std::dynamic_pointer_cast<JetScapeModuleBase>(task))
+    return py::cast(mod);
+  return py::cast(task);
+}
 
 void bind_framework(py::module_ &m) {
 
+  // ── std::mt19937: a task's random generator ─────────────────────────────────
+  // JetScapeModuleBase::GetMt19937Generator() hands every task its own engine,
+  // seeded from <Random><seed> and the task number. A Python module draws from it
+  // as a C++ module does, or seeds its own generator from one draw.
+  py::class_<std::mt19937, std::shared_ptr<std::mt19937>>(m, "Mt19937",
+      "A task's std::mt19937 engine (JetScapeModuleBase.GetMt19937Generator()).")
+      .def("__call__", [](std::mt19937 &g) { return static_cast<uint32_t>(g()); },
+           "The next 32-bit draw.")
+      .def("uniform",
+           [](std::mt19937 &g) {
+             return std::uniform_real_distribution<double>(0.0, 1.0)(g);
+           },
+           "A draw in [0, 1), as the C++ modules' ZeroOneDistribution(*gen).")
+      .def("discard", [](std::mt19937 &g, unsigned long long n) { g.discard(n); },
+           py::arg("n"))
+      .def("seed", [](std::mt19937 &g, uint32_t s) { g.seed(s); }, py::arg("seed"));
+
+  m.def("random_seed", &JetScapeTaskSupport::GetRandomSeed,
+        "The run's <Random><seed> as JetScapeTaskSupport read it (0 before "
+        "JetScape.Init() or load_xml(); a time-based seed when the XML says 0).");
+
   // ── JetScapeTask ────────────────────────────────────────────────────────────
   // Base of every JETSCAPE module; provides Add(), SetId(), GetId().
-  py::class_<JetScapeTask, std::shared_ptr<JetScapeTask>>(m, "JetScapeTask")
+  py::class_<JetScapeTask, py::smart_holder>(m, "JetScapeTask")
       .def("Add", &JetScapeTask::Add,
            "Add a sub-module/task to this task's list.",
            py::arg("task"))
@@ -122,12 +327,17 @@ void bind_framework(py::module_ &m) {
       .def("GetNumberOfTasks", &JetScapeTask::GetNumberOfTasks,
            "Return the number of sub-tasks currently registered.")
       .def("GetTaskList",
-           [](JetScapeTask &t) -> std::vector<std::shared_ptr<JetScapeTask>> {
-             return t.GetTaskList();
+           [](JetScapeTask &t) {
+             py::list out;
+             for (auto &task : t.GetTaskList())
+               out.append(as_bound_module(task));
+             return out;
            },
-           "Return the list of sub-tasks as Python objects.")
-      .def("GetTaskAt", &JetScapeTask::GetTaskAt,
-           "Return the sub-task at index i.",
+           "Return the list of sub-tasks as Python objects (each as its most derived "
+           "bound type).")
+      .def("GetTaskAt",
+           [](JetScapeTask &t, int i) { return as_bound_module(t.GetTaskAt(i)); },
+           "Return the sub-task at index i (as its most derived bound type).",
            py::arg("i"))
       .def("ClearTaskList", &JetScapeTask::ClearTaskList,
            "Remove all sub-tasks.")
@@ -135,14 +345,16 @@ void bind_framework(py::module_ &m) {
            "Return whether this task is active.")
       .def("SetActive", &JetScapeTask::SetActive,
            "Enable or disable this task.",
-           py::arg("active"));
+           py::arg("active"))
+      .def("GetMyTaskNumber", &JetScapeTask::GetMyTaskNumber,
+           "The task's number (fixes its random generator's seed).");
 
   // ── JetScapeModuleBase ──────────────────────────────────────────────────────
   // Adds XML configuration accessors on top of JetScapeTask.
   // Uses PyJetScapeModuleBase as the trampoline so Python subclasses may
   // override Init(), Exec(), Clear(), and Finish().
   py::class_<JetScapeModuleBase, JetScapeTask, PyJetScapeModuleBase,
-             std::shared_ptr<JetScapeModuleBase>>(m, "JetScapeModuleBase",
+             py::smart_holder>(m, "JetScapeModuleBase",
       R"pbdoc(
         Base class for all JETSCAPE physics modules.
 
@@ -178,6 +390,27 @@ void bind_framework(py::module_ &m) {
            "Clear per-event state (called between events).")
       .def("Finish", &JetScapeModuleBase::Finish,
            "Finalise the module (called by JetScape::Finish()).")
+      // The hooks a module overrides; bound so an override can call the base
+      // (super().InitTask()) and a pipeline can drive a module by hand.
+      .def("InitTask", &JetScapeModuleBase::InitTask,
+           "Per-task initialisation (Init() calls it once).")
+      .def("ExecuteTask", &JetScapeModuleBase::ExecuteTask,
+           "The task's work for one event (Exec() calls it).")
+      .def("ClearTask", &JetScapeModuleBase::ClearTask,
+           "Per-event clean-up (Clear() calls it).")
+      .def("FinishTask", &JetScapeModuleBase::FinishTask,
+           "End-of-run work (Finish() calls it).")
+      .def("InitPerEvent", &JetScapeModuleBase::InitPerEvent,
+           "Start of an event in the time-step loop.")
+      .def("FinishPerEvent", &JetScapeModuleBase::FinishPerEvent,
+           "End of an event in the time-step loop.")
+      .def("CalculateTime", &JetScapeModuleBase::CalculateTime,
+           "Time-step loop: before ExecTime().")
+      .def("ExecTime", &JetScapeModuleBase::ExecTime,
+           "Time-step loop: the work of one time step.")
+      .def("GetMt19937Generator", &JetScapeModuleBase::GetMt19937Generator,
+           "This task's random engine (made on first use; needs the seed from "
+           "JetScape.Init() or load_xml()).")
       .def_static("GetCurrentEvent", &JetScapeModuleBase::GetCurrentEvent,
            "Return the framework-global current event number (advanced by "
            "ClearPerEvent() / per-event execution).")
@@ -281,15 +514,21 @@ void bind_framework(py::module_ &m) {
   //   js.SetXMLMainFileName("config/jetscape_main.xml")
   //   js.SetXMLUserFileName("config/jetscape_user.xml")
   //   js.Init(); js.Exec(); js.Finish()
-  py::class_<JetScape, JetScapeModuleBase, std::shared_ptr<JetScape>>(
+  py::class_<JetScape, JetScapeModuleBase, py::smart_holder>(
       m, "JetScape")
       .def(py::init<>())
       .def("SetXMLMainFileName", &JetScape::SetXMLMainFileName,
            py::arg("filename"))
       .def("SetXMLUserFileName", &JetScape::SetXMLUserFileName,
            py::arg("filename"))
-      .def("Init", &JetScape::Init,
-           "Initialise the full task list (reads XML, wires signals).")
+      .def("Init",
+           [](JetScape &js) {
+             add_python_module_defaults(js.GetXMLMainFileName());
+             js.Init();
+           },
+           "Initialise the full task list (reads XML, wires signals). Python modules "
+           "registered with register_module() get an empty default entry in the main "
+           "XML first, so the user XML may name them.")
       .def("Exec", &JetScape::Exec,
            "Run all events.")
       .def("Finish", &JetScape::Finish,
@@ -328,7 +567,7 @@ void bind_framework(py::module_ &m) {
   //
   // Note: Exec() is disabled on this class (it warns and exits); use the
   // ExecInit/ExecPerEvent/ClearPerEvent API instead.
-  py::class_<JetScapePerEvent, JetScape, std::shared_ptr<JetScapePerEvent>>(
+  py::class_<JetScapePerEvent, JetScape, py::smart_holder>(
       m, "JetScapePerEvent",
       R"pbdoc(
         JetScape driver that runs the event loop one event at a time.
@@ -516,26 +755,10 @@ void bind_framework(py::module_ &m) {
                 "' is not registered in JetScapeModuleFactory. "
                 "Make sure the corresponding library (e.g. libFnoModule) is "
                 "loaded before calling create_module().");
-          // Downcast to the most derived registered Python type so that all
-          // bound methods are accessible (e.g. FluidDynamics::get_bulk_info,
-          // InitialState::get_entropy_density_numpy, etc.).
-          //
-          // Concrete types are checked FIRST so that pybind11 resolves the
-          // Python type as e.g. MpiMusic (not just FluidDynamics), giving
-          // access to module-specific methods like set_preserve_bulk_info().
-          if (auto music = std::dynamic_pointer_cast<MpiMusic>(mod))
-            return py::cast(music);
-          if (auto fd = std::dynamic_pointer_cast<FluidDynamics>(mod))
-            return py::cast(fd);
-          if (auto preeq =
-                  std::dynamic_pointer_cast<PreequilibriumDynamics>(mod))
-            return py::cast(preeq);
-          if (auto trento =
-                  std::dynamic_pointer_cast<TrentoInitial>(mod))
-            return py::cast(trento);
-          if (auto ini = std::dynamic_pointer_cast<InitialState>(mod))
-            return py::cast(ini);
-          return py::cast(mod);
+          // The most derived bound Python type, so that all bound methods are
+          // accessible (MpiMusic's set_preserve_bulk_info(), JetEnergyLoss's
+          // DoEnergyLoss() for Matter, ...).
+          return as_bound_module(mod);
         },
         R"pbdoc(
           Create a registered JETSCAPE C++ module by name.
@@ -557,4 +780,88 @@ void bind_framework(py::module_ &m) {
               If the name is not found in the module registry.
         )pbdoc",
         py::arg("name"));
+
+  m.def("register_module",
+        [](const std::string &name, py::object factory, const std::string &section,
+           const std::string &defaults) {
+          if (!PyCallable_Check(factory.ptr()))
+            throw py::type_error("register_module: the factory must be a class or a "
+                                 "callable returning a JetScapeModuleBase");
+          auto *map = FactoryAccess::map();
+          int slot = py_module_slot_of(name);
+          if (slot < 0 && map->count(name))
+            throw py::value_error("register_module: '" + name + "' is a C++ module; "
+                                  "choose another name");
+          auto &slots = py_module_slots();
+          if (slot < 0) {
+            for (int k = 0; k < kPyModuleSlots && slot < 0; ++k)
+              if (!slots[k].factory)
+                slot = k;
+            if (slot < 0)
+              throw std::runtime_error("register_module: all " +
+                                       std::to_string(kPyModuleSlots) +
+                                       " slots for Python modules are taken");
+          }
+          if (!defaults.empty()) {      // refuse bad XML now, not at JetScape.Init()
+            tinyxml2::XMLDocument tmp;
+            if (tmp.Parse(("<d>" + defaults + "</d>").c_str()) != tinyxml2::XML_SUCCESS)
+              throw py::value_error("register_module: defaults is no valid XML");
+          }
+          slots[slot].name = name;
+          slots[slot].factory = factory;
+          slots[slot].section = section;
+          slots[slot].defaults = defaults;
+          (*map)[name] = py_module_creators()[slot];
+        },
+        R"pbdoc(
+          Register a Python module class (or any callable returning a module) in
+          JETSCAPE's module factory under ``name``.
+
+          create_module(name) then makes one, and so does the XML's automatic task
+          list: every section takes a module whose element name contains
+          ``CustomModule`` (e.g. ``<Eloss><CustomModulePyBrick>``), so register
+          modules meant for the XML under such a name. C++ owns what it makes; the
+          Python object lives as long as C++ holds it.
+
+          JetScape refuses a user-XML tag the main XML lacks, so JetScape.Init()
+          adds a default entry for each registered module to the main XML (in
+          memory): <name> under ``section`` (e.g. "Eloss"; "" = the root) with the
+          children in ``defaults`` (XML text, e.g. "<E>40</E>"). A module reads its
+          parameters with get_xml_element_*([section, name, ...]): the user XML's
+          value, else this default.
+
+          Registering a name again replaces the Python factory; a C++ module's name
+          is refused.
+        )pbdoc",
+        py::arg("name"), py::arg("factory"), py::arg("section") = std::string(),
+        py::arg("defaults") = std::string());
+
+  m.def("unregister_module",
+        [](const std::string &name) {
+          int slot = py_module_slot_of(name);
+          if (slot < 0)
+            return false;
+          FactoryAccess::map()->erase(name);
+          auto &slots = py_module_slots();
+          slots[slot].factory = py::object();
+          slots[slot].name.clear();
+          slots[slot].section.clear();
+          slots[slot].defaults.clear();
+          return true;
+        },
+        "Remove a Python module registered with register_module(); False if the "
+        "name was not one.",
+        py::arg("name"));
+
+  m.def("registered_modules",
+        [](bool python_only) {
+          std::vector<std::string> names;
+          for (auto &kv : *FactoryAccess::map())
+            if (!python_only || py_module_slot_of(kv.first) >= 0)
+              names.push_back(kv.first);
+          return names;
+        },
+        "The names in JETSCAPE's module factory (C++ modules of this build and the "
+        "Python ones registered); python_only=True lists only the latter.",
+        py::arg("python_only") = false);
 }

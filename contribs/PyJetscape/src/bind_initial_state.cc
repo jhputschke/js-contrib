@@ -15,6 +15,7 @@
  ******************************************************************************/
 
 #include <pybind11/pybind11.h>
+#include <vector>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
@@ -36,7 +37,8 @@ using namespace Jetscape;
 // entropy_density_distribution_ directly from a numpy array, following the
 // storage convention used by TrentoInitial:
 //   boost-invariant (nz=1):  for y { for x }   ← flat shape (ny*nx,) or (ny,nx)
-class PyInitialState : public InitialState {
+class PyInitialState : public InitialState,
+                        public py::trampoline_self_life_support {
 public:
   using InitialState::InitialState;
 
@@ -48,6 +50,42 @@ public:
   }
   void Clear() override {
     PYBIND11_OVERRIDE(void, InitialState, Clear);
+  }
+  // The per-task hooks C++ initial states override, and the event quantities the
+  // writers and the hard process ask for.
+  void InitTask() override { PYBIND11_OVERRIDE(void, InitialState, InitTask); }
+  void ExecuteTask() override {
+    PYBIND11_OVERRIDE(void, InitialState, ExecuteTask);
+  }
+  void ClearTask() override { PYBIND11_OVERRIDE(void, InitialState, ClearTask); }
+  void FinishTask() override {
+    PYBIND11_OVERRIDE(void, InitialState, FinishTask);
+  }
+  double GetNpart() override { PYBIND11_OVERRIDE(double, InitialState, GetNpart); }
+  double GetNcoll() override { PYBIND11_OVERRIDE(double, InitialState, GetNcoll); }
+  double GetTotalEntropy() override {
+    PYBIND11_OVERRIDE(double, InitialState, GetTotalEntropy);
+  }
+  double GetEventCentrality() override {
+    PYBIND11_OVERRIDE(double, InitialState, GetEventCentrality);
+  }
+  // A Python override returns (t, x, y, z); the guns call this for the hard vertex.
+  void SampleABinaryCollisionPoint(double &t, double &x, double &y,
+                                   double &z) override {
+    py::gil_scoped_acquire gil;
+    py::function ov = py::get_override(static_cast<const InitialState *>(this),
+                                       "SampleABinaryCollisionPoint");
+    if (!ov) {
+      InitialState::SampleABinaryCollisionPoint(t, x, y, z);
+      return;
+    }
+    auto v = ov().cast<std::vector<double>>();
+    if (v.size() != 4)
+      throw py::value_error("SampleABinaryCollisionPoint must return (t, x, y, z)");
+    t = v[0];
+    x = v[1];
+    y = v[2];
+    z = v[3];
   }
 
   // Populate entropy_density_distribution_ from a flat or 2-D numpy array.
@@ -86,7 +124,7 @@ void bind_initial_state(py::module_ &m) {
   // The PyInitialState trampoline allows Python subclasses to override Init(),
   // Exec(), and Clear() and to fill the IC grid via set_entropy_density_from_numpy().
   py::class_<InitialState, JetScapeModuleBase, PyInitialState,
-             std::shared_ptr<InitialState>>(m, "InitialState",
+             py::smart_holder>(m, "InitialState",
       R"pbdoc(
         Interface for initial-state physics modules (e.g. TrentoInitial).
 
@@ -176,6 +214,14 @@ void bind_initial_state(py::module_ &m) {
              from the matching energy-density node.
            )pbdoc",
            py::arg("arr"))
+      .def("SampleABinaryCollisionPoint",
+           [](InitialState &ini) {
+             double t = 0.0, x = 0.0, y = 0.0, z = 0.0;
+             ini.SampleABinaryCollisionPoint(t, x, y, z);
+             return py::make_tuple(t, x, y, z);
+           },
+           "The C++ name of sample_binary_collision_point(): (t, x, y, z) [fm]. A Python "
+           "initial state overrides it to return its own hard vertices.")
       .def("sample_binary_collision_point",
            [](InitialState &ini) {
              double t = 0.0, x = 0.0, y = 0.0, z = 0.0;
