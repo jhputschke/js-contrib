@@ -239,7 +239,7 @@ Options for the hadrons made in the job:
 | `--no-hydro-file` | no `<stem>.h5`: the hydro evolution is not stored (`hydro_row` is then -1 for every event) |
 | `--no-jet-hadrons` | no iColoredHadronization, no `<stem>_hadrons_jet_frag.h5` |
 | `--colour-closure MODE` | iColored's `<colour_closure>` for the job (reconnect, reconnect_global, thermal, fake, none; default the XML's, reconnect) |
-| `--matter-only` | Matter alone (no `<Lbt>`, `recoil_on` 0), the energy loss before 2026-10-21: for an X-SCAPE without the colour closure and to extend Matter-only campaigns |
+| `--matter-only` | Matter alone (no `<Lbt>`, `recoil_on` 0), the energy loss before 2026-10-21. With a current X-SCAPE this is the reference for the colour studies: unique tags and iColored's checks, no hole, so the closure never acts (add `--colour-closure none` to make an open line throw). Also for an X-SCAPE without the colour closure, and to extend Matter-only campaigns |
 | `--store-hadronization-input` | opt-in: also store each event's Pythia input of the jet hadronization in the jet file (`hadronization_input/`, ~2 kB per event), so `rehadronize_jets.py` can redo the jet hadrons later |
 | `--keep-primaries N` | with `--bulk-hadrons`: also write the undecayed bulk hadrons of the first N oversamples → `<stem>_hadrons_bulk_bg_primary.h5`, for SMASH later (full precision, positions, no selection; the decayed hadrons are the same with or without it) |
 | `--eos 9\|91` | MUSIC's EOS (default: the XML's, 91); 9 only to rerun older campaigns |
@@ -517,6 +517,22 @@ python run_prod_oo_isr.py --events 20 --seed 1 --outdir out_nosub --bulk-hadrons
     `<Eloss><Lbt>` unless `--no-jet-hadrons`) and to extend Matter-only campaigns such as
     `hard_sub_compare/`. Matter-only and Matter + LBT jet hadrons are different campaigns; the
     files' `eloss` attribute says which (absent before 2026-10-21: Matter alone).
+  - **Matter alone with only the tag fix.** On a current X-SCAPE (`contrib` since #181/#182),
+    `--matter-only` changes the jet hadrons of before only through the one colour-tag counter
+    per event and iColored's checks: without recoils and LBT there is no hole, so no colour
+    line ends in the medium and `<colour_closure>` never acts. This is the `after` campaign of
+    `hadro_compare/` and the reference for the closure and Matter + LBT studies (compare
+    against it, not against jobs made before the fix):
+
+    ```bash
+    ./run_jobs.sh -j 8 --mps 40 75 101 out_matter --matter-only --colour-closure none
+    ```
+
+    `--colour-closure none` changes nothing here; it makes an open line throw (the event is
+    skipped and recorded) instead of being closed. The jet file's `units/colour_holes`,
+    `colour_reconnected`, `colour_partners` and `colour_fakes` are then 0 in every event.
+    Jobs made before the fix (duplicate tags in most events, a failed fragmentation written out
+    as partons) are not to be combined with these.
 - **ISR range.** iMATTER runs from 0 to -`<Eloss><maxT>` (50 fm/c, as in X-SCAPE's ISR
   examples) and the final-state shower starts there; `<Hard><ISR><maxT>`/`<deltaT>` override.
 - **Not included:** X-SCAPE branch `Changing_iMatter_pTDefinition` (upstream, August 2025,
