@@ -14,7 +14,9 @@ inside the functions, never when jetscape is imported.
 
 Momentum fields are E, px, py, pz, so `vector` gives pt, eta, phi, rapidity, mass when
 asked (computed, not stored), and FastJet's ClusterSequence takes the result directly:
-one call clusters every sample.  The position is a nested `position` field (a Vector4D
+one call clusters every sample.  A stored mass (HadronArray.mass, the records' `mass`
+column: X-SCAPE's rest mass) becomes the field `rest_mass`: vector takes every temporal
+name (E, mass, m, tau, ...) as a coordinate and, from 1.9 on, refuses a record with two.  The position is a nested `position` field (a Vector4D
 record t, x, y, z): `vector` would read flat t, x, y, z fields as the coordinates of the
 Momentum4D record.  Node records (no momentum) are Vector4D records themselves.
 
@@ -40,6 +42,8 @@ __all__ = ["to_awkward", "select", "pdg_charge", "SPECIES_CLASSES"]
 
 _MOMENTUM = ("E", "px", "py", "pz")
 _POSITION = ("t", "x", "y", "z")
+#: the field a stored mass gets in the views (vector computes .mass from E and p)
+_REST_MASS = "rest_mass"
 _VECTOR_REGISTERED = False
 
 
@@ -118,7 +122,7 @@ def _hadrons(ak, h, position, charge, by_unit=False):
     add("pid", h.pid)
     add("pstat", h.pstat)
     if h.mass is not None:
-        add("mass", h.mass)
+        add(_REST_MASS, h.mass)               # not "mass": a second temporal coordinate
     if position:
         if h.x is None:
             raise ValueError("to_awkward(position=True): these hadrons have no positions")
@@ -146,6 +150,8 @@ def _records(ak, rec, charge):
     if charge and "pid" in fields:
         fields["charge"] = pdg_charge(rec["pid"])
     has_position = all(n in fields for n in _POSITION)
+    if "mass" in fields:                      # vector would read it as a coordinate
+        fields = {(_REST_MASS if n == "mass" else n): v for n, v in fields.items()}
     if all(n in fields for n in _MOMENTUM):
         with_name = "Momentum4D"
         if has_position:
