@@ -997,8 +997,8 @@ source ~/.venvs/js_analysis/bin/activate
 python utils/analysis_env/check_env.py /path/to/AuAu_a   # opens every file of the directory
 ```
 
-`--with-pelican` / `--with-gcs` add the remote readers (files read in place over `osdf://`,
-`gs://`); `--kernel NAME` registers a Jupyter kernel.
+The venv reads files in place over `osdf://` (pelicanfs, by default; `--no-pelican` skips
+it), `--with-gcs` adds `gs://`; `--kernel NAME` registers a Jupyter kernel.
 
 **Reading the hadrons** (`jetscape.hadrons_h5`):
 

@@ -19,8 +19,8 @@
 #   --with-gcs           also install the Google Cloud Storage interfaces: gcsfs (gs:// for
 #                        fsspec, h5py and uproot) and google-cloud-storage
 #                        (requirements_gcs.txt)
-#   --with-pelican       also install pelicanfs: pelican:// and osdf:// for fsspec, h5py
-#                        and uproot (requirements_pelican.txt)
+#   --no-pelican         skip pelicanfs (requirements_pelican.txt), installed by default:
+#                        pelican:// and osdf:// for fsspec, h5py and uproot
 #   --eos-table PATH     copy MUSIC's hotQCD table from PATH (a MUSIC/X-SCAPE EOS/hotQCD
 #                        directory or the hrg_hotqcd_eos_binary.dat) instead of downloading it
 #   --no-eos             neither download nor copy it (no e -> T: the visualization uses a
@@ -46,7 +46,7 @@ SYSSITE=0
 VIZ=1
 FASTHYDRO=0
 GCS=0
-PELICAN=0
+PELICAN=1
 EOS=download
 EOS_SRC=""
 KERNEL=""
@@ -63,7 +63,8 @@ while [ $# -gt 0 ]; do
         --no-viz)          VIZ=0; shift ;;
         --with-fasthydro)  FASTHYDRO=1; shift ;;
         --with-gcs)        GCS=1; shift ;;
-        --with-pelican)    PELICAN=1; shift ;;
+        --no-pelican)      PELICAN=0; shift ;;
+        --with-pelican)    PELICAN=1; shift ;;   # the default; old command lines
         --eos-table)       EOS=copy; EOS_SRC="${2:?--eos-table needs a path}"; shift 2 ;;
         --no-eos)          EOS=none; shift ;;
         --kernel)          KERNEL="${2:?--kernel needs a name}"; shift 2 ;;

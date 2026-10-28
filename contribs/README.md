@@ -286,7 +286,8 @@ FastHydro is optional (`--with-fasthydro`). For PyROOT and the ROOT macros, make
 from a conda env with ROOT and add `--system-site-packages`, or use the conda env in
 `utils/analysis_env/environment.yml`. See
 [With ROOT](../utils/analysis_env/README.md#with-root). For files in Google Cloud Storage or
-a Pelican federation (OSDF), `--with-gcs` and `--with-pelican` add the Python interfaces; see
+a Pelican federation (OSDF), pelicanfs is installed by default (`--no-pelican` skips it)
+and `--with-gcs` adds the GCS interfaces; see
 [Remote files](../utils/analysis_env/README.md#remote-files-google-cloud-storage-and-pelicanosdf).
 
 ---

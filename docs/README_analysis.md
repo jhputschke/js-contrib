@@ -113,8 +113,8 @@ cd js-contrib/utils/remote_transfer
 - **Measured:** ~69 MB/s down from a workstation (2026-10-05). On 2026-10-13 the namespace
   held `test/AuAu_0_10_jet_pth10-40_eta06_c1/` (68 ROOT files, 2.1 GB); `ls` and a download
   of its campaign file ran without a login.
-- **Reading in place,** without downloading, in the analysis venv made with `--with-pelican`
-  (§2). pelicanfs finds an OSDF cache (or the origin) for the path and hands back fsspec's
+- **Reading in place,** without downloading, in the analysis venv (pelicanfs is installed
+  by default, §2). pelicanfs finds an OSDF cache (or the origin) for the path and hands back fsspec's
   HTTP file, which reads by byte ranges: only the parts asked for travel. uproot takes the URL;
   h5py takes the file object, for every file kind here (pair, particlize, hadron files, Blosc
   included, with `hdf5plugin` imported):
@@ -221,7 +221,8 @@ python utils/analysis_env/check_env.py /path/to/campaign   # opens every file in
 | `--uv` | install with uv, much faster |
 | `--no-viz` | without pyvista/vtk/ffmpeg (~0.6 GB less) |
 | `--kernel NAME` | register a Jupyter kernel for the venv (for VS Code, another JupyterLab) |
-| `--with-pelican`, `--with-gcs` | read files in place over `osdf://` and `gs://` (fsspec) |
+| `--no-pelican` | without pelicanfs, which reads files in place over `osdf://` (fsspec) |
+| `--with-gcs` | read files in place over `gs://` (fsspec) |
 | `--system-site-packages` | see the packages of the Python the venv is made from, e.g. PyROOT (B) |
 | `--with-fasthydro` | FastHydro's readers (`fasthydro.browse.open_pair`); not needed for the production files |
 
@@ -732,8 +733,8 @@ if "windows" in c:                                # pT-hat-window campaigns only
 ```
 
 Read `events` as awkward (the default): `library="np"` fails on the jagged initiator columns.
-Files are also read in place over `gs://` and `osdf://` with the venv's `--with-gcs` /
-`--with-pelican`.
+Files are also read in place over `osdf://` in the venv (pelicanfs, by default) and over
+`gs://` with its `--with-gcs`.
 
 ### RDataFrame
 

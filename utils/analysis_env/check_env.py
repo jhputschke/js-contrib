@@ -209,16 +209,16 @@ REMOTE_TESTS = {
 
 
 def check_remote(test):
-    """The optional remote-storage interfaces (--with-gcs, --with-pelican): packages, the
+    """The remote-storage interfaces (pelicanfs unless --no-pelican, --with-gcs): packages, the
     fsspec URL schemes they register, and with ``test`` one public read each."""
     from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as dist_version
 
-    print("Remote storage (optional)")
+    print("Remote storage")
     have = {}
     for what, dists, schemes, flag in (
             ("gcs", ("gcsfs", "google-cloud-storage"), ("gs", "gcs"), "--with-gcs"),
-            ("pelican", ("pelicanfs",), ("osdf", "pelican"), "--with-pelican")):
+            ("pelican", ("pelicanfs",), ("osdf", "pelican"), "--no-pelican given?")):
         try:
             got = ", ".join(f"{d} {dist_version(d)}" for d in dists)
         except PackageNotFoundError:
