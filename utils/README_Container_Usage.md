@@ -16,7 +16,7 @@ built: [`BuildContainerProd.md`](BuildContainerProd.md). This page: how to use i
 
 **On a Mac** containers can't reach the GPU (Metal); there the same scripts, notebooks and
 outputs come as a Python wheel instead, installed with uv:
-[X-SCAPE on a Mac](https://github.com/jhputschke/xscape-macos#readme).
+[`README_Mac_Usage.md`](README_Mac_Usage.md) (the wheels: [jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos/releases)).
 
 Contents: [Get started](#get-started) · [The rules of the container](#the-rules-of-the-container)
 · [1 Productions](#1-the-production-scripts) · [2 Own scripts and notebooks](#2-your-own-scripts-and-notebooks)

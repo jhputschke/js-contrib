@@ -9,6 +9,8 @@ analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJe
 | guide | for | covers |
 |---|---|---|
 | [`docs/README_2stage.md`](docs/README_2stage.md) | running a production | the two-stage Au+Au jet production with the production containers (Docker, Apptainer, SLURM): the images, per-GPU sizing and launch settings, hydro + jets on GPUs, hadronization on CPUs, moving the files, the O+O ISR production, and another collision system (Pb+Pb at the LHC) from your own XML |
+| [`utils/README_Container_Usage.md`](utils/README_Container_Usage.md) | the production image (Linux, NVIDIA GPUs) | productions, your own scripts and notebooks, analysis and Jupyter in Docker or Apptainer, step by step |
+| [`utils/README_Mac_Usage.md`](utils/README_Mac_Usage.md) | a Mac with Apple Silicon (Metal) | the same without a container: the xscape wheel from [jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos/releases), installed with uv, step by step |
 | [`docs/README_analysis.md`](docs/README_analysis.md) | analysing the files | the environments (a venv without X-SCAPE, ROOT, FastJet), getting the files from the OSDF or reading them in place, reading the hydro, particlize and hadron files, jets with FastJet in Python and C++, the ROOT export and macros, the notebooks |
 | [`docs/README_OO.md`](docs/README_OO.md) | analysing O+O | the O+O ISR event and its per-event record, cross-section and Ncoll weights, checks, multiplicity, centrality, flow from the oversamples, jets, ROOT |
 
@@ -416,8 +418,9 @@ arm64 (e.g. GH200, GB10). On HPC clusters, Apptainer/Singularity pulls the same 
 
 **Not for Apple Silicon with Metal.** Docker on macOS runs containers in a Linux VM without
 access to the Metal GPU, so neither MUSIC4GPU's Metal back-end nor PyTorch's MPS backend
-works in a container. To use Metal on a Mac, build natively with the conda environment
-below. (The arm64 images might run CPU-only on a Mac, e.g. for hadronization; that is not
+works in a container. To use Metal on a Mac, install the prebuilt wheel
+([`utils/README_Mac_Usage.md`](utils/README_Mac_Usage.md)), or build natively with the conda
+environment below. (The arm64 images might run CPU-only on a Mac, e.g. for hadronization; that is not
 tested.)
 
 ## Native environment (Mac Silicon / Linux aarch64)
