@@ -176,6 +176,9 @@ def test_to_awkward_is_samples_by_hadrons_over_the_same_buffers():
     pt = ak.to_numpy(ak.flatten(a.pt))
     assert np.allclose(pt, np.hypot(d["p"][:, 1], d["p"][:, 2]))
     assert np.array_equal(ak.to_numpy(ak.flatten(a.pid)), d["pid"])
+    # the stored mass is rest_mass, not a second temporal coordinate (vector >= 1.9 refuses)
+    assert "mass" not in a.fields
+    assert np.array_equal(ak.to_numpy(ak.flatten(a.rest_mass)), d["mass"])
 
 
 def test_to_awkward_of_final_partons_is_showers_by_partons():
@@ -187,6 +190,8 @@ def test_to_awkward_of_final_partons_is_showers_by_partons():
     assert np.array_equal(ak.to_numpy(ak.flatten(a.E)), r["E"])
     assert np.array_equal(ak.to_numpy(ak.flatten(a.position.t)), r["t"])
     assert np.allclose(ak.to_numpy(ak.flatten(a.pt)), np.hypot(r["px"], r["py"]))
+    assert "mass" not in a.fields
+    assert np.array_equal(ak.to_numpy(ak.flatten(a.rest_mass)), r["mass"])
     flat = jetscape.to_awkward(np.zeros(3, EDGE_DTYPE))
     assert len(flat) == 3 and flat.ndim == 1
 

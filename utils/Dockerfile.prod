@@ -22,7 +22,15 @@
 # No GPU is needed to build: the CUDA architectures are listed explicitly (never
 # "native"), and nothing runs on a GPU during the build.
 #
-# Not included: PyTorch, FNO4d, JupyterLab, HepMC3 and -- by default -- ROOT: the pair and
+# Three uses (README_Container_Usage.md): the production scripts, scripts and notebooks of
+# one's own (the helpers in container/: xscape-examples, xscape-jupyter), analysis only.
+# For the last two the image carries the analysis environment's packages
+# (analysis_env/requirements.txt: awkward, vector, fastjet, particle, hist, mplhep,
+# matplotlib, scipy, pandas, uproot, Jupyter) -- --build-arg WITH_ANALYSIS=0 leaves them out
+# (the -slim tags, production only) -- and with --build-arg WITH_VIZ=1 pyvista/vtk for
+# contribs/Visualization.
+#
+# Not included: PyTorch, FNO4d, HepMC3 and -- by default -- ROOT: the pair and
 # particlize files are written from Python with h5py.  --build-arg WITH_ROOT=1 adds
 # conda-forge's root_base (ROOT's core libraries, not the full 'root' metapackage).
 #
@@ -49,7 +57,8 @@ ARG XSCAPE_REPO=https://github.com/JETSCAPE/X-SCAPE.git
 # ROOT writers only with ROOT), on contrib since d31946c0.  js-contrib main since 9356bf4
 # needs X-SCAPE#161 (slim bulk_info: PyJetscape does not compile without it), on contrib
 # since 011a4679; cbc72639 also pins MUSIC4GPU PR #15 (the memory fixes).
-ARG XSCAPE_REF=cbc72639cafbc053a8a45613cc912bd72d99c91e
+# The CI (docker-prod.yml) resolves the branch to a commit and passes that.
+ARG XSCAPE_REF=contrib
 ARG MUSIC4GPU_REF=""
 ARG JS_CONTRIB_REPO=https://github.com/jhputschke/js-contrib.git
 ARG JS_CONTRIB_REF=main
@@ -229,37 +238,75 @@ RUN PARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "x86_64") \
   && mkdir -p /opt/X-SCAPE \
   && /opt/miniforge3/envs/xscape/bin/pip freeze > /opt/X-SCAPE/pip-freeze-runtime.txt
 
+# ── Analysis and notebooks ───────────────────────────────────────────────────────────
+# WITH_ANALYSIS=1 (default): the analysis environment's packages, from its requirement file,
+# so the image and the venv (analysis_env/) cannot drift apart.  numpy, h5py, hdf5plugin,
+# pyyaml and pelicanfs stay at the versions installed above (a constraints file):
+# pyjetscape_core is compiled against this numpy.  WITH_VIZ=1: pyvista/vtk, imageio for
+# contribs/Visualization, and the OpenGL/OSMesa/EGL libraries for off-screen rendering.
+# Before the X-SCAPE copy, so a new X-SCAPE build reuses this layer.
+ARG WITH_ANALYSIS=1
+ARG WITH_VIZ=0
+COPY analysis_env/requirements.txt analysis_env/requirements_viz.txt /tmp/
+RUN if [ "$WITH_VIZ" = 1 ]; then \
+       apt-get -o Acquire::Retries=5 update \
+       && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+            libgl1 libegl1 libosmesa6 libxrender1 libxt6 \
+       && rm -rf /var/lib/apt/lists/* ; fi \
+  && /opt/miniforge3/envs/xscape/bin/python -c "import importlib.metadata as m; \
+print('\n'.join(f'{d}=={m.version(d)}' for d in ('numpy', 'h5py', 'hdf5plugin', 'PyYAML', 'pelicanfs')))" \
+       > /tmp/constraints.txt \
+  && reqs="" \
+  && if [ "$WITH_ANALYSIS" = 1 ]; then reqs="$reqs -r /tmp/requirements.txt"; fi \
+  && if [ "$WITH_VIZ" = 1 ]; then reqs="$reqs -r /tmp/requirements_viz.txt"; fi \
+  && if [ -n "$reqs" ]; then \
+       /opt/miniforge3/envs/xscape/bin/pip install --no-cache-dir -c /tmp/constraints.txt $reqs ; fi \
+  && /opt/miniforge3/envs/xscape/bin/pip freeze > /opt/X-SCAPE/pip-freeze-runtime.txt
+
 COPY --from=build /opt/X-SCAPE /opt/X-SCAPE
 
+# Helpers for scripts and notebooks of one's own (container/, README_Container_Usage.md):
+# xscape-entry (the entrypoint: a writable HOME for docker --user), xscape-examples (the
+# examples into a writable directory), xscape-jupyter; linked from the image's js-contrib.
+RUN for s in xscape-entry xscape-examples xscape-jupyter; do \
+      chmod 755 "/opt/X-SCAPE/external_packages/js-contrib/utils/container/$s" \
+      && ln -s "/opt/X-SCAPE/external_packages/js-contrib/utils/container/$s" /usr/local/bin/ ; done
+
+# PYTHONPATH: `import jetscape` (and FastHydro's packages) from anywhere; the production
+# scripts put the same directory first on sys.path themselves.  MUSIC_EOS_TABLE: e -> T for
+# the analysis of pair files (as analysis_env sets it).
 ENV CONDA_ENV=/opt/miniforge3/envs/xscape \
     PATH=/opt/miniforge3/envs/xscape/bin:/opt/miniforge3/bin:$PATH \
     LD_LIBRARY_PATH=/opt/miniforge3/envs/xscape/lib:$LD_LIBRARY_PATH \
     PYTHIA8DATA=/opt/miniforge3/envs/xscape/share/Pythia8/xmldoc \
-    XSCAPE=/opt/X-SCAPE
+    XSCAPE=/opt/X-SCAPE \
+    PYTHONPATH=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python:/opt/X-SCAPE/external_packages/js-contrib/contribs/FastHydro/python \
+    MPLBACKEND=Agg \
+    MUSIC_EOS_TABLE=/opt/X-SCAPE/build_gpu/EOS/hotQCD/hrg_hotqcd_eos_binary.dat
 
 # Fail the build, not the first job, if a library is missing: every shared object the
 # production loads must resolve, and pyjetscape_core must import (no GPU needed for that).
 RUN missing=$(ldd /opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python/jetscape/pyjetscape_core*.so \
                 | grep "not found" || true) \
   && if [ -n "$missing" ]; then echo "$missing"; exit 1; fi \
-  && cd /tmp && python -c "import sys; sys.path.insert(0, '/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python'); \
-import jetscape, h5py, hdf5plugin, yaml, pelicanfs; assert jetscape.HAS_CORE, 'pyjetscape_core does not import'; \
-print('pyjetscape_core ok, HAS_ROOT =', jetscape.HAS_ROOT)" \
+  && cd /tmp && python /opt/X-SCAPE/external_packages/js-contrib/utils/container/image_check.py \
+       $([ "$WITH_ANALYSIS" = 1 ] && echo --analysis) $([ "$WITH_VIZ" = 1 ] && echo --viz) \
   && if [ "$WITH_GCS" = 1 ]; then python -c "import gcsfs, google.cloud.storage; print('gcsfs', gcsfs.__version__)"; fi \
   && pelican --version | head -1 \
   && { echo "pelican CLI $PELICAN_VERSION, pelicanfs $(pip show pelicanfs | sed -n 's/^Version: //p')"; \
-       echo "WITH_GCS=$WITH_GCS"; } >> /opt/X-SCAPE/BUILD_INFO.txt
+       echo "WITH_GCS=$WITH_GCS, WITH_ANALYSIS=$WITH_ANALYSIS, WITH_VIZ=$WITH_VIZ"; } \
+       >> /opt/X-SCAPE/BUILD_INFO.txt
 
 # Declared here, not at the top of the stage: an ARG before a RUN is part of that step's
 # cache key, and these only label the image.
 ARG CUDA_VERSION
 ARG CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
-ARG XSCAPE_REF=d31946c0cde63f1bca33b56653417ae057e43313
+ARG XSCAPE_REF=contrib
 ARG JS_CONTRIB_REF=main
 ARG MUSIC4GPU_REF=""
 ARG WITH_ROOT=0
 LABEL org.opencontainers.image.title="xscape-prod" \
-      org.opencontainers.image.description="X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape for the prod_AuAu_0_10_jet productions" \
+      org.opencontainers.image.description="X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape: productions, own scripts and notebooks, analysis" \
       org.opencontainers.image.source="https://github.com/jhputschke/js-contrib" \
       xscape.ref="${XSCAPE_REF}" \
       xscape.js_contrib_ref="${JS_CONTRIB_REF}" \
@@ -268,7 +315,11 @@ LABEL org.opencontainers.image.title="xscape-prod" \
       xscape.cuda_architectures="${CUDA_ARCHITECTURES}" \
       xscape.with_root="${WITH_ROOT}" \
       xscape.with_gcs="${WITH_GCS}" \
+      xscape.with_analysis="${WITH_ANALYSIS}" \
+      xscape.with_viz="${WITH_VIZ}" \
       xscape.pelican="${PELICAN_VERSION}"
 
 WORKDIR /opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+EXPOSE 8888
+ENTRYPOINT ["/usr/local/bin/xscape-entry"]
 CMD ["bash"]

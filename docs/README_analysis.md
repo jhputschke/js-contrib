@@ -22,7 +22,8 @@ the analysis in ROOT, again with FastJet. Running the productions is in
 ```
 
 None of the analysis needs X-SCAPE, a GPU or the container. A Python venv reads every HDF5
-file and writes the ROOT files. ROOT itself is needed only for the C++ side (§2). The O+O
+file and writes the ROOT files; the production image carries the same packages too, for
+those who use it anyway ([`README_Container_Usage.md`](../utils/README_Container_Usage.md#3-analysis-only)). ROOT itself is needed only for the C++ side (§2). The O+O
 production (one hydro per event, hadrons made in the job) has its own guide,
 [`README_OO.md`](README_OO.md).
 

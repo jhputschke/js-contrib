@@ -5,6 +5,10 @@ them, but don't run X-SCAPE. How to read the files in it, FastJet, ROOT and the 
 [`docs/README_analysis.md`](../../docs/README_analysis.md). It needs this js-contrib checkout and a Python ≥ 3.10. It
 doesn't need X-SCAPE, MUSIC, ROOT, conda or the compiled `pyjetscape_core`.
 
+**Or the container:** the production image carries the same packages (since 2026-10-28, not
+the `-slim` tags) and runs these analyses with Docker or Apptainer, without a GPU:
+[`README_Container_Usage.md`](../README_Container_Usage.md#3-analysis-only).
+
 ```bash
 git clone https://github.com/jhputschke/js-contrib.git
 cd js-contrib

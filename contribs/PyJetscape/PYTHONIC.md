@@ -71,7 +71,8 @@ package first, so it installs it too: the layer is always there once the binding
 | `h5py` | `HadronArray.from_h5`, the hadron files |
 
 All are in the `js_fno` environment (`utils/conda_install/install_js_fno_build_minimal.sh`,
-`requirements.txt`). Names that depend on the X-SCAPE build (the iColored colour functions,
+`requirements.txt`), and in the production container image (js-contrib
+`utils/README_Container_Usage.md`: scripts, notebooks and Jupyter in Docker or Apptainer). Names that depend on the X-SCAPE build (the iColored colour functions,
 iSS primaries) are installed only when the build has them (section 5).
 
 ## 3 Conventions
@@ -140,6 +141,26 @@ skip such events; without `on_error` the exception propagates.
 
 Other modules: `driver.GetTaskList()` (top-level tasks, most derived bound types) and
 `task.GetTaskList()` for their sub-tasks, as before.
+
+**Where the run happens: `js.JobDir`.** MUSIC, 3dMCGlauber and iSS read their inputs from,
+and write side files to, the current directory, and X-SCAPE's XMLs give some paths relative
+to the build (`../external_packages/iSS/...`). The production scripts therefore run every
+job in a private working directory; `js.JobDir` (`jetscape.workdir`) does the same for a
+script or notebook of one's own, wherever it lives (a copy in a container's `/work`):
+
+```python
+with js.JobDir("out", "my_job.xml") as job:     # out/my_job.xml, out/work/my_job (cwd)
+    with js.per_event(job.main_xml, job.user_xml) as driver:
+        ...                                       # write outputs to absolute paths
+```
+
+It copies the user XML to `out/`, makes the `../` paths of both XMLs absolute for the build,
+copies `music_input`, links the build's tables, changes into `out/work/<name>` and back on
+exit, and removes that directory after a run without an exception (`keep=True` keeps it).
+The build is `jetscape.paths.build_dir()`: `$JETSCAPE_BUILD`, else `<X-SCAPE>/build_gpu`,
+where the tree is `$XSCAPE` or the one the package is in (`jetscape.paths.xscape_root()`,
+`main_xml()`). In the production image `XSCAPE=/opt/X-SCAPE` is set, so scripts run
+unchanged in and out of the container: js-contrib `utils/README_Container_Usage.md`.
 
 ## 5 The results of an event
 
@@ -276,6 +297,10 @@ dndeta = ak.mean(ak.num(mid), axis=0)              # mean over the oversamples
   then come from the position. Records always carry theirs (`showers.position.t`). Node
   records, which have no momentum, are `Vector4D` themselves.
 - `charge=True` adds a `charge` field [e] from the PDG.
+- **A stored mass is `rest_mass`**: `HadronArray.mass` (in-memory hadrons) and the records'
+  `mass` column become the field `rest_mass` (X-SCAPE's rest mass); `h.mass` is vector's,
+  computed from E and p. Not `mass`: vector takes every temporal name (E, mass, m, tau, ...)
+  as a coordinate, and from vector 1.9 on refuses a record with two of them.
 - `ak.flatten(a, axis=1)` merges the outer level (units x samples -> samples);
   `ak.num(a, axis=k)` counts at each level.
 
@@ -607,6 +632,7 @@ GB10 (`docs/Plans/PLAN_pyjetscape_pythonic.md`, V4 and V6):
 | file | |
 |---|---|
 | `example/pythonic/oo_workflow.ipynb` | 3 O+O events through the full chain: run, hadron files, read back, awkward, FastJet |
+| `example/pythonic/oo_workflow.py` | its run as a script and a template for a production of one's own (`--xml`, `--events`, `--seed`, `--outdir`), with `js.JobDir` |
 | `example/pythonic/oo_workflow.xml` | its user XML (made once from the O+O production's template; change the run there) |
 | `example/pythonic/oo_analysis.ipynb` | the analysis half of `oo_workflow.ipynb` on its hadron files streamed from the OSDF (`osdf:///fno4hic/test/OO_test`); the analysis env only, no build |
 | `example/python_modules/toy_modules_pythonic.py` | one module per stage in the new style |

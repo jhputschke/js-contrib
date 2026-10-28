@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# xscape-jupyter [DIR] [jupyter lab options...] -- JupyterLab in the production image.
+#
+#   docker run --rm -it --gpus all --user "$(id -u):$(id -g)" -p 8888:8888 \
+#     -v "$PWD:/work" jhputschke/xscape-prod:cu126 xscape-jupyter
+#   -> open the http://127.0.0.1:8888/lab?token=... line it prints
+#
+# DIR: the directory Jupyter shows (default /work).  Listens on all interfaces in Docker
+# (needed for -p); in Apptainer, where the network is the host's, on 127.0.0.1 only, for an
+# ssh tunnel (JUPYTER_IP overrides).  Port: $JUPYTER_PORT, default 8888.
+# README: utils/README_Container_Usage.md.
+set -euo pipefail
+
+DIR=${1:-/work}
+[ $# -gt 0 ] && shift
+if [ -n "${APPTAINER_CONTAINER:-}${SINGULARITY_CONTAINER:-}" ]; then
+  IP=${JUPYTER_IP:-127.0.0.1}
+else
+  IP=${JUPYTER_IP:-0.0.0.0}
+fi
+extra=()
+[ "$(id -u)" = 0 ] && extra+=(--allow-root)          # docker run without --user
+exec jupyter lab --ip "$IP" --port "${JUPYTER_PORT:-8888}" --no-browser \
+  --notebook-dir "$DIR" ${extra[@]+"${extra[@]}"} "$@"
