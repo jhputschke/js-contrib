@@ -56,11 +56,13 @@ With Homebrew, `brew install uv` works too.
 VER=0.1.0.dev2
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
-uv venv ~/.venvs/xscape-$VER --python 3.13
+uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
 source ~/.venvs/xscape-$VER/bin/activate
 uv pip sync xscape-$VER-cp313.lock.txt
 ```
 
+`--managed-python` makes uv use its own Python, never one from Homebrew, conda or
+python.org that happens to be installed, so nothing outside the environment is used.
 `source .../activate` is needed in every new Terminal window in which you use X-SCAPE (your
 prompt then starts with `(xscape-VER)`).
 
@@ -297,7 +299,7 @@ software:
 VER=<new version>
 cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
-uv venv ~/.venvs/xscape-$VER --python 3.13 && source ~/.venvs/xscape-$VER/bin/activate
+uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13 && source ~/.venvs/xscape-$VER/bin/activate
 uv pip sync xscape-$VER-cp313.lock.txt
 xscape-fetch-data lbt                    # reuses the tables in the cache when they match
 xscape-examples ~/xscape/examples-$VER   # the examples of this release
