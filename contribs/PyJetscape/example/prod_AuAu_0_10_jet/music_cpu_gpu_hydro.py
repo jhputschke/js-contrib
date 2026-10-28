@@ -45,7 +45,7 @@ EOS_TABLES = {"9": "hrg_hotqcd_eos_binary.dat", "91": "hrg_hotqcd_eos_SMASH_bina
 
 
 def eos_table_of(attrs):
-    """The build_gpu table of the EOS a pair file was made with: its ``eos`` attribute, else
+    """The build's table of the EOS a pair file was made with: its ``eos`` attribute, else
     the number in ``eos_kind`` (files before the attribute were all EOS 9)."""
     import re
     eos = str(attrs.get("eos", "")).strip()
@@ -54,7 +54,12 @@ def eos_table_of(attrs):
         eos = m.group(1) if m else "9"
     if eos not in EOS_TABLES:
         sys.exit(f"the pair file ran MUSIC EOS {eos}: no hotQCD table for it (pass --eos)")
-    return os.path.join(XSCAPE, "build_gpu", "EOS", "hotQCD", EOS_TABLES[eos])
+    try:      # jetscape.paths when importable ($JETSCAPE_BUILD, a copy, the xscape wheel)
+        from jetscape import paths
+        build = str(paths.build_dir())
+    except (ImportError, FileNotFoundError):
+        build = os.environ.get("JETSCAPE_BUILD") or os.path.join(XSCAPE, "build_gpu")
+    return os.path.join(build, "EOS", "hotQCD", EOS_TABLES[eos])
 
 #: MUSIC4GPU's GPU_VACUUM_E (1e-5 1/fm^4) in GeV/fm^3: below it, a cell with u^0 > 10 is put
 #: at rest on the GPU

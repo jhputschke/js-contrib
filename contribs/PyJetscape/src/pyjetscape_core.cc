@@ -54,6 +54,14 @@ PYBIND11_MODULE(pyjetscape_core, m) {
   // that pybind11 can resolve the inheritance chain (MpiMusic : FluidDynamics,
   // TrentoInitial : InitialState).
   bind_music(m);
+  // Which MUSIC this module is linked against ("music", "music4gpu-cuda",
+  // "music4gpu-metal"), set by CMake; the production files' "hydro" label
+  // (jetscape.workdir.hydro_label) comes from it.
+#ifdef PYJS_MUSIC_BACKEND
+  m.attr("MUSIC_BACKEND") = PYJS_MUSIC_BACKEND;
+#else
+  m.attr("MUSIC_BACKEND") = py::none();
+#endif
   // C++ ROOT writers (FastRootBulkWriter) — JetScapeModuleBase subclasses, only
   // bound when X-SCAPE was built with USE_ROOT; always sets HAS_ROOT.
   bind_root_bulk_writer(m);

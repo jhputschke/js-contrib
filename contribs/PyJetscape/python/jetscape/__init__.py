@@ -11,7 +11,25 @@ instead of:
     from python.jetscape import pyjetscape_core as pyjetscape
 """
 
+import os as _os
 import sys as _sys
+from pathlib import Path as _Path
+
+from . import paths as _paths  # stdlib only
+
+# The xscape wheel (macOS) holds X-SCAPE's libraries, its data and the compiled core in its
+# own package, site-packages/xscape.  Its core is used when none was built into this
+# directory (a checkout or the image has one), and then Pythia's data must be the wheel's
+# too: the bundled libpythia8 accepts only its own xmldoc version, and libJetScape builds a
+# Pythia while it loads (JetScapeParticles.cc), so PYTHIA8DATA is set before the import.
+_XSCAPE_PKG = _paths.installed_package()
+_WHEEL_CORE = (_XSCAPE_PKG is not None
+               and not any(_Path(__file__).parent.glob("pyjetscape_core*.so"))
+               and any(_XSCAPE_PKG.glob("pyjetscape_core*.so")))
+if _WHEEL_CORE:
+    _xmldoc = _XSCAPE_PKG / "share" / "xscape" / "Pythia8" / "xmldoc"
+    if _xmldoc.is_dir():
+        _os.environ["PYTHIA8DATA"] = str(_xmldoc)
 
 # NOTE: do not reorder these imports.  On macOS the scientific stack (numpy, torch) and
 # ROOT (loaded by the extension) each ship a libomp, and the process aborts with "OMP:
@@ -26,6 +44,13 @@ try:
             import torch  # noqa: F401
         except ImportError:
             pass
+    if _WHEEL_CORE:
+        # the wheel's core as jetscape.pyjetscape_core, after numpy as fno_hydro has it
+        import importlib as _importlib
+
+        import numpy  # noqa: F401
+        _sys.modules[__name__ + ".pyjetscape_core"] = _importlib.import_module(
+            "xscape.pyjetscape_core")
     from .fno_hydro import fno_config_from_xml  # noqa: F401
     from .utils import shower_to_networkx  # noqa: F401
 

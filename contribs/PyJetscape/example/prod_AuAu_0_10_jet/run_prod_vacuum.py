@@ -76,9 +76,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", default=None,
                    help="output stem name (default: vacuum_jet[_<campaign>]_seed<NNNN>.h5, "
                         "or vacuum_jet_<campaign>_<NNNN>.h5 with --seed 0)")
-    p.add_argument("--build", default=os.path.join(rp.XSCAPE, "build_gpu"),
-                   help="X-SCAPE build tree (default: build_gpu)")
-    p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
+    p.add_argument("--build", default=rp.BUILD,
+                   help="X-SCAPE build tree (default: $JETSCAPE_BUILD, else build_gpu)")
+    p.add_argument("--main-xml", default=rp.MAIN_XML,
                    dest="main_xml")
     p.add_argument("--user-xml", default=rj.USER_XML, dest="user_xml",
                    help="the medium production's user XML, whose <Hard><PythiaGun> and "

@@ -33,5 +33,9 @@ fno = ["torch>=2.0"]
 # bulk_root_writer.py / fast_root_bulk.py (read ROOT bulk files without ROOT)
 root = ["uproot>=5"]
 
+[project.scripts]
+# a writable copy of example/ (the installed or image tree is read-only)
+xscape-examples = "jetscape.copy_examples:main"
+
 [tool.setuptools.packages.find]
 where = ["python"]

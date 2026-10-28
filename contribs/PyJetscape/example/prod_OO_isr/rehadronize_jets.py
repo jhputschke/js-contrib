@@ -57,9 +57,9 @@ def parse_args(argv=None):
     p.add_argument("--new-seeds", type=int, default=None, dest="new_seeds", metavar="BASE",
                    help="seeds derived from (BASE, event) instead of the stored ones")
     p.add_argument("--events", default=None, help="unit range a:b (default all)")
-    p.add_argument("--build", default=os.path.join(rp.XSCAPE, "build_gpu"),
-                   help="X-SCAPE build tree (default: build_gpu)")
-    p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
+    p.add_argument("--build", default=rp.BUILD,
+                   help="X-SCAPE build tree (default: $JETSCAPE_BUILD, else build_gpu)")
+    p.add_argument("--main-xml", default=rp.MAIN_XML,
                    dest="main_xml")
     p.add_argument("--workdir", default=None,
                    help="working directory (default: a temporary one next to --out or the "

@@ -97,13 +97,27 @@ def samples_per_background(oversample, spec, uses, cap):
 
 
 def iss_commit(xscape):
-    """The iSS checkout an X-SCAPE tree uses (best effort; '' if git cannot tell)."""
+    """The iSS checkout an X-SCAPE tree uses (best effort; '' if nothing can tell): git in
+    the tree's external_packages/iSS, else the ``external_packages/iSS <sha> ...`` line of
+    the tree's BUILD_INFO.txt (written by the production image and the xscape wheel)."""
+    iss = os.path.join(xscape, "external_packages", "iSS")
+    if os.path.isdir(iss):
+        try:
+            sha = subprocess.run(["git", "-C", iss, "rev-parse", "HEAD"], capture_output=True,
+                                 text=True, timeout=10).stdout.strip()
+            if sha:
+                return sha
+        except (OSError, subprocess.SubprocessError):
+            pass
     try:
-        return subprocess.run(["git", "-C", os.path.join(xscape, "external_packages", "iSS"),
-                               "rev-parse", "HEAD"], capture_output=True, text=True,
-                              timeout=10).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return ""
+        with open(os.path.join(xscape, "BUILD_INFO.txt")) as f:
+            for line in f:
+                words = line.split()
+                if len(words) >= 2 and words[0] == "external_packages/iSS":
+                    return words[1]
+    except OSError:
+        pass
+    return ""
 
 
 def iss_decay_attrs(core, eos, xml_root, xscape=None):
