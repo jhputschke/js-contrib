@@ -339,6 +339,9 @@
       <matter_on> 1 </matter_on>
       <Q0> 2.0 </Q0>
       <in_vac> 0 </in_vac>
+      <!-- the start time (MUSIC's tau0) at each point's own proper time, i.e. the events
+           of tStart 0 with MUSIC's lookup deciding (X-SCAPE 2026-10-28; default 0) -->
+      <tStart_at_point> 1 </tStart_at_point>
       <recoil_on> 1 </recoil_on>
       <broadening_on> 0 </broadening_on>
       <brick_med> 0 </brick_med>
