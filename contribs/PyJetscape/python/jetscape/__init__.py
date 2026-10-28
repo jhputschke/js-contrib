@@ -49,8 +49,8 @@ try:
         import importlib as _importlib
 
         import numpy  # noqa: F401
-        _sys.modules[__name__ + ".pyjetscape_core"] = _importlib.import_module(
-            "xscape.pyjetscape_core")
+        pyjetscape_core = _sys.modules[__name__ + ".pyjetscape_core"] = (
+            _importlib.import_module("xscape.pyjetscape_core"))
     from .fno_hydro import fno_config_from_xml  # noqa: F401
     from .utils import shower_to_networkx  # noqa: F401
 

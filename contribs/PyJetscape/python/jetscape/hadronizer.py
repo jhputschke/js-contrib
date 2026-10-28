@@ -183,13 +183,17 @@ def set_hadronization_ecm(root, ecm):
 def configure_hadronize_xml(root, *, xscape, seed, n_events, oversample, keep_primaries,
                             correlated=False, correlated_block=None):
     """A parsed hadronize.xml (``root``) with a run's settings, in place: the event count,
-    the seed, iSS's paths (absolute, into ``xscape``; its working directory ".", where the
-    run's music_input is), the oversample count, <keep_primaries> and the correlated
-    sampling (``correlated_block`` "DTAU,DX,DETA"; ValueError if malformed)."""
+    the seed, iSS's paths (absolute, into ``xscape``'s external_packages/iSS, or into
+    ``xscape`` itself for an installed tree, which keeps iSS_parameters.dat and iSS_tables in
+    its data folder; its working directory ".", where the run's music_input is), the
+    oversample count, <keep_primaries> and the correlated sampling (``correlated_block``
+    "DTAU,DX,DETA"; ValueError if malformed)."""
     _set_text(root, "nEvents", max(1, int(n_events)))
     root.find("Random/seed").text = str(seed)
     iss = root.find("SoftParticlization/iSS")
     iss_dir = os.path.join(xscape, "external_packages", "iSS")
+    if not os.path.isdir(iss_dir) and os.path.isfile(os.path.join(xscape, "iSS_parameters.dat")):
+        iss_dir = xscape
     _set_text(iss, "iSS_input_file", os.path.join(iss_dir, "iSS_parameters.dat"))
     _set_text(iss, "iSS_table_path", os.path.join(iss_dir, "iSS_tables"))
     _set_text(iss, "iSS_particle_table_path", os.path.join(iss_dir, "iSS_tables"))

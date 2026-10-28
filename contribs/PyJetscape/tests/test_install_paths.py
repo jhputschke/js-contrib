@@ -123,3 +123,17 @@ def test_copy_examples(monkeypatch, tmp_path):
     assert not (dest / "pythonic" / "out_oo").exists()
     assert not (dest / "pythonic" / "run.h5").exists()
     assert copy_examples.main([str(dest)]) == 1          # never overwrites
+
+
+def test_hadronize_xml_iss_paths(tmp_path):
+    xml = "<jetscape><nEvents>1</nEvents><Random><seed>1</seed></Random><SoftParticlization>" \
+          "<iSS/></SoftParticlization></jetscape>"
+    for tree, iss in ((tmp_path / "checkout", tmp_path / "checkout" / "external_packages" / "iSS"),
+                      (tmp_path / "installed", tmp_path / "installed")):
+        iss.mkdir(parents=True)
+        (iss / "iSS_parameters.dat").write_text("")
+        root = hadronizer.configure_hadronize_xml(ET.fromstring(xml), xscape=str(tree), seed=1,
+                                                  n_events=1, oversample=1, keep_primaries=0)
+        assert root.find("SoftParticlization/iSS/iSS_input_file").text == str(
+            iss / "iSS_parameters.dat")
+        assert root.find("SoftParticlization/iSS/iSS_table_path").text == str(iss / "iSS_tables")
