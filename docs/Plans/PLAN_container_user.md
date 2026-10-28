@@ -15,7 +15,39 @@ It should cover three uses:
 
 ## Status
 
-- **2026-10-28:** plan and decisions; nothing implemented yet.
+- **2026-10-28:** plan and decisions (a596015).
+- **2026-10-28, implemented** on `container_user`:
+  - Step 1 (d712e46): `jetscape.paths`, `jetscape.workdir` (+ `JobDir`), `run_prod.py`
+    re-exports; its `XSCAPE` from `jetscape.paths`. `tests/test_workdir.py`.
+  - Step 2 (e1f9eaa): `oo_workflow.ipynb` on `JobDir`/`paths`, `oo_workflow.py`,
+    `oo_isr_overview.ipynb` ($XSCAPE), `utils/container/` (`xscape-entry`,
+    `xscape-examples`, `xscape-jupyter`).
+  - Step 3 (7088d84): `Dockerfile.prod` (`WITH_ANALYSIS`, `WITH_VIZ`, helpers, ENV,
+    entrypoint, `utils/container/image_check.py` as the build-time check).
+  - Found by that check (900722c): `to_awkward()` failed with vector 1.9 on in-memory
+    hadrons and final-parton records (a `mass` field next to `E`); the stored mass is now
+    the field `rest_mass`.
+  - Steps 5-6 (f5745e8): the workflow's `flavor` input, `utils/README_Container_Usage.md`,
+    links from BuildContainerProd.md, PYTHONIC.md, the analysis READMEs.
+  - Validation: see Step 4.
+
+### Where the implementation differs from the plan
+
+- **No `my_production.py`:** `oo_workflow.py` is the template (any user XML via `--xml`),
+  and README_Container_Usage.md §2.2 has the ten-line skeleton.
+- **The workdir functions keep their signatures** (the parsed arguments `a`), moved
+  byte-identical; `JobDir` is the plain-argument entry point. No wrappers needed.
+- **Example audit:** instead of changing the defaults of study scripts that write next to
+  themselves (`hadro_compare`, `hard_sub_compare`, ...), `xscape-examples` makes a writable
+  copy in which they run as they are; the copies of the production scripts find the build
+  through `jetscape.paths`.
+- **FastHydro's matplotlib 3.11 deprecation not fixed here:** `fast_data/` is vendored
+  byte-identical from FNO4d (VENDORING.md, checksum test); the fix (`cmap.with_extremes`)
+  belongs upstream. Only a PendingDeprecationWarning.
+- **`OMP_WAIT_POLICY` not set in the image** (R1: productions unchanged); stays an open
+  point of BuildContainerProd.md.
+- **One workflow input `flavor` (full/slim/viz)** instead of two booleans: the workflow
+  stays at GitHub's 10 inputs.
 
 ## What stands in the way today
 
