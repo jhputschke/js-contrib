@@ -86,6 +86,26 @@ void assign_ptrs(const py::list &l, std::vector<std::shared_ptr<T>> &v) {
     v.push_back(h.cast<std::shared_ptr<T>>());
 }
 
+// A module's return value as its output (the Pythonic layer): None leaves the
+// output to what the module appended; a list (or tuple) of T is appended after
+// what the output held before the call. Returning a list while also appending
+// to the output list is refused.
+template <class T>
+bool returned_list(const py::object &r, py::ssize_t len_before, const py::list &out,
+                   const char *what, std::vector<T> &v) {
+  if (r.is_none())
+    return false;
+  if (!py::isinstance<py::list>(r) && !py::isinstance<py::tuple>(r))
+    throw py::type_error(std::string(what) + ": return None or a list, not " +
+                         std::string(py::str(py::type::of(r).attr("__name__"))));
+  if (py::len(out) != static_cast<size_t>(len_before))
+    throw py::value_error(std::string(what) + ": returned a list and also appended to "
+                          "the output list; do one or the other");
+  for (auto h : r)
+    v.push_back(h.cast<T>());
+  return true;
+}
+
 // Clone() of a Python subclass of Base (Base bound with an
 // init_alias<const Base &> copy constructor).
 template <class Base> std::shared_ptr<Base> default_clone(const Base *self) {

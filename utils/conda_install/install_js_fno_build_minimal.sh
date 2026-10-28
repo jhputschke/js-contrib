@@ -200,7 +200,7 @@ echo "==> Installing pip packages"
 "${ENV_PY}" -m pip install \
     "neuraloperator>=2.0" \
     "uproot>=5" \
-    "awkward>=2" \
+    "awkward>=2" particle hist mplhep \
     "pyvista>=0.43" \
     "imageio>=2.9" \
     imageio-ffmpeg
