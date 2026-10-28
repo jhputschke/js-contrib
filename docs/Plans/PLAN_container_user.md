@@ -45,6 +45,9 @@ It should cover three uses:
        `-p`; `--user 4321:4321` gets HOME=/tmp/home-4321 (writable, matplotlib's config).
     5. Sizes: full 5.36 GB, main/slim 4.75 GB.
     Not yet: the launchers on the RTX box, amd64 images, Apptainer, `-viz`.
+  - CI test image (run 40705578930, flavor full, 5e2d0e3 + X-SCAPE contrib 38e90519):
+    `jhputschke/xscape-prod:cu124-container_user` (= `cu124-20261028-38e9051`), amd64; the
+    build-time `image_check.py --analysis` passed. The moving `cu124` tag is unchanged.
 
 ### Where the implementation differs from the plan
 
