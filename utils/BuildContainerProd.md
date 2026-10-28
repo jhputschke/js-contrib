@@ -26,8 +26,10 @@
 > The dev images are in [`BuildContainerDev.md`](BuildContainerDev.md): published for amd64
 > and arm64, not tested on aarch64.
 
-**For running a production with the images** (Docker, Apptainer, SLURM, hadronization on
-CPUs, analysis and ROOT export), see the user guide
+**Using the images**, step by step, for the three uses (the production scripts, scripts and
+notebooks of one's own, analysis only; Docker, Apptainer, Jupyter):
+[`README_Container_Usage.md`](README_Container_Usage.md). Running productions in detail
+(SLURM, hadronization on CPUs, ROOT export): the user guide
 [`docs/README_2stage.md`](../docs/README_2stage.md).
 This file is about the images themselves.
 
@@ -42,7 +44,8 @@ target machine:
 |---|---|---|
 | purpose | develop: sources mounted, built by the user | run productions: read-only, ready to run |
 | X-SCAPE + MUSIC4GPU | not included | built in, pinned commits, fat CUDA binary |
-| PyTorch, FNO4d, JupyterLab | yes | **no** |
+| PyTorch, FNO4d | yes | **no** |
+| analysis packages (awkward, vector, fastjet, hist, mplhep, ...), JupyterLab | partly | yes, since 2026-10-28 (`WITH_ANALYSIS=1`, the default); not in `-slim` |
 | ROOT | yes | no; `--build-arg WITH_ROOT=1` adds `root_base` (see [ROOT](#root)) |
 | base image shipped | `cuda:*-devel` | `cuda:*-base` (multi-stage: libcudart only) |
 | size | ~12–15 GB | 4.7 GB (`cu130`, arm64) |
@@ -335,6 +338,13 @@ commands for the new tags.
 
 With `with_gcs`, the same tags with `-gcs` after the variant: `cu126-gcs`,
 `cu126-gcs-<YYYYMMDD>-<xscape7>`, `cu126-gcs-<release_tag>`.
+
+**Flavors** (workflow input `flavor`, the build arguments `WITH_ANALYSIS` / `WITH_VIZ`):
+`full` (the default: + the analysis environment's packages from
+`analysis_env/requirements.txt`, JupyterLab, the helpers of [`container/`](container/)),
+`slim` (production only, tags `cu126-slim`, ...), `viz` (full + pyvista/vtk with off-screen
+rendering, tags `cu126-viz`, ...). The suffixes combine: `cu126-slim-gcs`. What the full image
+adds for its users: [`README_Container_Usage.md`](README_Container_Usage.md).
 
 Every tag is one multi-arch manifest: the builds push their images untagged, by digest, and a
 merge job tags the manifest. Runs are serialized, so two builds never race for the moving
@@ -871,6 +881,8 @@ used a build from X-SCAPE `8c306762`, which has the same tree as `d31946c0`.)
   container on a system without unified memory** (discrete GPU). On the GB10 (integrated
   GPU, unified memory) its daemon does not start in a container, so this has to be tested
   on a non-unified system before `--mps` goes into container campaigns.
+- **`WITH_VIZ=1`** (the `-viz` flavor) is not built or tested yet: off-screen rendering with
+  the OSMesa/EGL libraries it installs.
 - **`OMP_WAIT_POLICY=passive`** could be set in the image (`ENV`) instead of per run: MUSIC
   asks for it on the CPU path (the M3 Max campaign settings in the production README set it
   too; the GB10's only set `OMP_NUM_THREADS`).
