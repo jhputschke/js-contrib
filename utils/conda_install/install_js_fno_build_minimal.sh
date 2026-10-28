@@ -179,7 +179,7 @@ ${SOLVER} install -n "${ENV_NAME}" \
     numpy matplotlib scipy h5py seaborn tqdm \
     jupyterlab notebook ipykernel metakernel \
     hdf5plugin pyyaml pandas ipywidgets \
-    pybind11 pytest networkx vector \
+    "pybind11>=3.0" pytest networkx vector \
     -c conda-forge -y
 
 # Apple Silicon: numpy's BLAS from Accelerate, not OpenBLAS.  conda-forge's OpenBLAS is

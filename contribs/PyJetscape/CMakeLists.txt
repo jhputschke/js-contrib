@@ -15,8 +15,10 @@ message(STATUS "Python3: ${Python3_EXECUTABLE} (${Python3_VERSION})")
 #   1. User-supplied pybind11_DIR / CMAKE_PREFIX_PATH (system install, conda)
 #   2. pip-installed pybind11 — ask the active Python interpreter for its
 #      cmake dir (works with `pip install pybind11` or conda pybind11).
+# pybind11 3.0 or newer: the bindings use py::smart_holder (pybind11 2.x fails
+# with template errors deep in the build instead of a clear message here).
 # ---------------------------------------------------------------------------
-find_package(pybind11 CONFIG QUIET)
+find_package(pybind11 3.0 CONFIG QUIET)
 if(NOT pybind11_FOUND)
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
@@ -27,15 +29,15 @@ if(NOT pybind11_FOUND)
   )
   if(_pybind11_cmd_result EQUAL 0 AND _pybind11_cmake_dir)
     list(APPEND CMAKE_PREFIX_PATH "${_pybind11_cmake_dir}")
-    find_package(pybind11 CONFIG QUIET)
+    find_package(pybind11 3.0 CONFIG QUIET)
   endif()
 endif()
 
 if(NOT pybind11_FOUND)
   message(FATAL_ERROR
-    "Could not find pybind11. Install it with one of:\n"
-    "  pip install pybind11\n"
-    "  conda install -c conda-forge pybind11\n"
+    "Could not find pybind11 3.0 or newer (py::smart_holder). Install it with one of:\n"
+    "  pip install 'pybind11>=3.0'\n"
+    "  conda install -c conda-forge 'pybind11>=3.0'\n"
     "or set pybind11_DIR to the directory containing pybind11Config.cmake."
   )
 endif()

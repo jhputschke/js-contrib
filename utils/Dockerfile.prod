@@ -84,7 +84,7 @@ RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
 RUN CARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "64") \
   && /opt/miniforge3/bin/mamba create -n xscape -y -c conda-forge \
        python=3.12 "numpy>=2" \
-       "cmake>=3.28,<4" make pkg-config "gcc_linux-${CARCH}=14" "gxx_linux-${CARCH}=14" "pybind11>=2.11" \
+       "cmake>=3.28,<4" make pkg-config "gcc_linux-${CARCH}=14" "gxx_linux-${CARCH}=14" "pybind11>=3.0" \
        boost-cpp zlib hdf5 gsl pythia8 \
   && if [ "$WITH_ROOT" = 1 ]; then \
        /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge root_base ; fi \
