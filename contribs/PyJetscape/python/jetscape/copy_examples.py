@@ -33,8 +33,23 @@ from . import paths
 _EXCLUDE = ("__pycache__", ".ipynb_checkpoints", "out", "out_*", "*.h5", "*.root")
 
 
+def _in_git_checkout(path: str) -> bool:
+    """A .git in ``path`` or above -- checked without running git, which on a Mac without
+    the Command Line Tools opens an install dialog."""
+    path = os.path.abspath(path)
+    while True:
+        if os.path.exists(os.path.join(path, ".git")):
+            return True
+        parent = os.path.dirname(path)
+        if parent == path:
+            return False
+        path = parent
+
+
 def _tracked_files(src: str) -> list[str] | None:
     """The files git tracks under ``src`` (relative paths), or None outside a checkout."""
+    if not _in_git_checkout(src):
+        return None
     try:
         r = subprocess.run(["git", "-C", src, "ls-files", "-z", "."], capture_output=True,
                            timeout=60)

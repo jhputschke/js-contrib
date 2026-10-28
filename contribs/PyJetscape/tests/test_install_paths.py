@@ -137,3 +137,21 @@ def test_hadronize_xml_iss_paths(tmp_path):
         assert root.find("SoftParticlization/iSS/iSS_input_file").text == str(
             iss / "iSS_parameters.dat")
         assert root.find("SoftParticlization/iSS/iSS_table_path").text == str(iss / "iSS_tables")
+
+
+def test_analysis_extra_is_the_analysis_env_list():
+    import tomllib
+    here = Path(__file__).resolve().parents[1]
+    extra = tomllib.loads((here / "pyproject.toml").read_text())["project"][
+        "optional-dependencies"]["analysis"]
+    req = here.parents[1] / "utils" / "analysis_env" / "requirements.txt"
+    listed = [line.split("#")[0].strip() for line in req.read_text().splitlines()]
+    assert extra == [x for x in listed if x]
+
+
+def test_copy_examples_runs_git_only_in_a_checkout(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(copy_examples.subprocess, "run",
+                        lambda *a, **k: calls.append(a) or (_ for _ in ()).throw(OSError()))
+    assert copy_examples._tracked_files(str(tmp_path)) is None
+    assert calls == []
