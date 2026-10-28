@@ -70,6 +70,10 @@ if HAS_CORE and HAS_ROOT:
 # HadronArray, the record dtypes and the awkward views are numpy-level and need no build.
 from .hadron_array import HadronArray  # noqa: F401,E402
 from .awkward_views import select, to_awkward  # noqa: F401,E402
+# where the tree and the build are, and a job's working directory, for scripts and notebooks
+# outside the tree (a container's /work); pure Python (PLAN_container_user.md)
+from . import paths  # noqa: F401,E402
+from .workdir import JobDir  # noqa: F401,E402
 
 if HAS_CORE:
     from . import pythonic as _pythonic
