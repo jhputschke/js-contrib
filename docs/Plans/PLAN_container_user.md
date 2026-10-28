@@ -29,7 +29,22 @@ It should cover three uses:
     the field `rest_mass`.
   - Steps 5-6 (f5745e8): the workflow's `flavor` input, `utils/README_Container_Usage.md`,
     links from BuildContainerProd.md, PYTHONIC.md, the analysis READMEs.
-  - Validation: see Step 4.
+  - Validation (GB10, local arm64 cu130 images, X-SCAPE contrib 38e90519; image
+    `container_user` f5745e8 vs the same image from `main` 8a1165d with main's Dockerfile):
+    1. Regression in the image: Au+Au jet (`--events 2 --seed 1 --reuse 2
+       --write-particlize both`) and O+O (`--events 2 --seed 5`): pair and particlize files
+       identical (wall_s, the 1-ulp source/flux jitter aside); stage 2 (`hadronize.py
+       --seed-uuid <fixed>`, no GPU) identical. Natively against main: identical too.
+       (Container vs native differ: another GSL/HDF5/compiler stack, as expected.)
+    2. `xscape-examples` + `oo_workflow.py` and `oo_workflow.ipynb` (nbconvert, GPU) from
+       the copy in /work: same hadron files as each other.
+    3. No GPU: `hadronize.py`; the tutorials `hadron_distributions`, `jet_fastjet`,
+       `jet_fastjet_awkward` on the run's hadron files (after their kernelspec fix,
+       86b28ea); `oo_analysis.ipynb` streaming from the OSDF: all run without errors.
+    4. `xscape-jupyter` as `--user`: URL with token printed, the API answers through
+       `-p`; `--user 4321:4321` gets HOME=/tmp/home-4321 (writable, matplotlib's config).
+    5. Sizes: full 5.36 GB, main/slim 4.75 GB.
+    Not yet: the launchers on the RTX box, amd64 images, Apptainer, `-viz`.
 
 ### Where the implementation differs from the plan
 

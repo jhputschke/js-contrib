@@ -48,7 +48,7 @@ target machine:
 | analysis packages (awkward, vector, fastjet, hist, mplhep, ...), JupyterLab | partly | yes, since 2026-10-28 (`WITH_ANALYSIS=1`, the default); not in `-slim` |
 | ROOT | yes | no; `--build-arg WITH_ROOT=1` adds `root_base` (see [ROOT](#root)) |
 | base image shipped | `cuda:*-devel` | `cuda:*-base` (multi-stage: libcudart only) |
-| size | ~12–15 GB | 4.7 GB (`cu130`, arm64) |
+| size | ~12–15 GB | 5.36 GB (`cu130`, arm64, full); 4.75 GB without the analysis packages (`-slim`) |
 
 ---
 

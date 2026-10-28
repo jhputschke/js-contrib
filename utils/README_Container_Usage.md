@@ -43,8 +43,8 @@ Each tag comes as:
   `cu126-<YYYYMMDD>-<xscape commit>` (e.g. `cu126-20261013-9e84450`), so every job runs the
   same code. Don't mix images of different builds in one campaign: physics fixes change the
   results (the image's `/opt/X-SCAPE/BUILD_INFO.txt` lists its commits).
-- `cu126-slim` — production only, without the analysis packages and Jupyter (~0.5 GB
-  smaller); fine for use 1.
+- `cu126-slim` — production only, without the analysis packages and Jupyter (0.6 GB
+  smaller: 4.75 GB instead of 5.36 GB for cu130 arm64); fine for use 1.
 - `cu126-viz` — with pyvista/vtk for `contribs/Visualization` (off-screen rendering).
 - `...-gcs` — with Google Cloud Storage for Python.
 
@@ -67,8 +67,8 @@ apptainer exec --nv xscape_prod.sif nvidia-smi
 
 `image_check.py` ends with `image_check: all ok` (it also runs when the image is built).
 
-**Your first event** (one O+O event through the whole chain, ~1 min on a GPU, the hadron files
-in `./work/out_oo/`):
+**Your first event** (one O+O event through the whole chain, under a minute on a GPU, the
+hadron files in `./work/out_oo/`):
 
 ```bash
 mkdir -p work
