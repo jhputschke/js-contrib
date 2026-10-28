@@ -14,6 +14,10 @@ compiled, with PyJetscape and its Pythonic layer
 vector, fastjet, particle, hist, mplhep, matplotlib, scipy, pandas, uproot, Jupyter). How it is
 built: [`BuildContainerProd.md`](BuildContainerProd.md). This page: how to use it.
 
+**On a Mac** containers can't reach the GPU (Metal); there the same scripts, notebooks and
+outputs come as a Python wheel instead, installed with uv:
+[X-SCAPE on a Mac](https://github.com/jhputschke/xscape-macos#readme).
+
 Contents: [Get started](#get-started) · [The rules of the container](#the-rules-of-the-container)
 · [1 Productions](#1-the-production-scripts) · [2 Own scripts and notebooks](#2-your-own-scripts-and-notebooks)
 · [3 Analysis only](#3-analysis-only) · [Jupyter](#jupyter) · [HPC with Apptainer](#hpc-apptainer)
