@@ -21,7 +21,10 @@ scipy>=1.10
 matplotlib>=3.7
 pandas
 fastjet>=3.4          # jet_fastjet*.ipynb (scikit-hep wheels; includes the FastJet C++ library)
-vector>=1             # jet_fastjet_awkward.ipynb
+vector>=1             # jet_fastjet_awkward.ipynb, jetscape.to_awkward
+particle              # jetscape.select (PDG names and classes), to_awkward(charge=True)
+hist                  # histograms with statistical errors (boost-histogram)
+mplhep                # plotting hist histograms
 
 # --- notebooks ----------------------------------------------------------------------------
 notebook>=7

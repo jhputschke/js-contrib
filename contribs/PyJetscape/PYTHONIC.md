@@ -67,6 +67,7 @@ package first, so it installs it too: the layer is always there once the binding
 | `awkward` ≥ 2 and `vector` | `to_awkward()`; imported only when called |
 | `particle` (scikit-hep) | `select()`, `to_awkward(charge=True)`; imported only when called |
 | `fastjet` (Python package) | jet finding on the awkward views |
+| `hist`, `mplhep` | histograms with statistical errors and their plots (the O+O notebook's spectra) |
 | `h5py` | `HadronArray.from_h5`, the hadron files |
 
 All are in the `js_fno` environment (`utils/conda_install/install_js_fno_build_minimal.sh`,

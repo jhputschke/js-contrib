@@ -28,7 +28,8 @@ if PYJETSCAPE_PY not in sys.path:
     sys.path.insert(0, PYJETSCAPE_PY)
 
 REQUIRED = ["numpy", "h5py", "hdf5plugin", "yaml", "uproot", "awkward", "scipy",
-            "matplotlib", "pandas", "fastjet", "vector", "notebook", "ipykernel", "ipywidgets"]
+            "matplotlib", "pandas", "fastjet", "vector", "particle", "hist", "mplhep", "notebook",
+            "ipykernel", "ipywidgets"]
 VIZ = ["pyvista", "vtk", "imageio", "imageio_ffmpeg"]
 BLOSC = 32001                      # HDF5 filter id of Blosc, the default compression
 

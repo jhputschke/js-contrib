@@ -16,7 +16,7 @@ python utils/analysis_env/check_env.py /path/to/out  # opens every file in a pro
 | file | purpose |
 |---|---|
 | `setup_analysis_env.sh` | makes or updates the venv, gets MUSIC's EoS table, runs `check_env.py` |
-| `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector), Jupyter |
+| `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector, particle, hist, mplhep), Jupyter |
 | `requirements_viz.txt` | pyvista (+ vtk), imageio, imageio-ffmpeg for `contribs/Visualization` |
 | `requirements_gcs.txt`, `requirements_pelican.txt` | optional: Google Cloud Storage (gcsfs, google-cloud-storage) and Pelican/OSDF (pelicanfs), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
 | `check_env.py` | checks the packages, the Blosc filter, PyROOT, the EoS table and off-screen rendering; with a directory, opens its pair, hadron and ROOT files |

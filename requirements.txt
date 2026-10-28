@@ -46,6 +46,8 @@ imageio-ffmpeg        # .mp4 output (.gif works without)
 uproot>=5             # bulk_root_writer.py / fast_root_bulk.py (ROOT files without ROOT)
 awkward>=2            # jetscape.to_awkward (the Pythonic layer), uproot
 particle              # jetscape.select / to_awkward(charge=True): PDG names and charges
+hist                  # histograms with errors (boost-histogram), e.g. example/pythonic/oo_workflow.ipynb
+mplhep                # plotting hist histograms
 networkx              # jetscape.utils.shower_to_networkx
 
 # --- building pyjetscape_core (found by CMake through this Python) ---------------------
