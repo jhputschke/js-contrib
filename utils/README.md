@@ -40,3 +40,14 @@ python utils/h5_inspect.py out/AuAu_0_10_jet_seed0001.h5            # summary + 
 utils/remote_transfer/js_gcs.py upload /data/AuAu_c1 --what root      # -> gs://test_fno/AuAu_c1/
 utils/remote_transfer/js_osdf.py download AuAu_c1 --what h5 --to /scratch   # osdf:///fno4hic/AuAu_c1/
 ```
+
+## Notes
+
+| | what | docs |
+|---|---|---|
+| [`md2html.py`](md2html.py) | a Markdown note (an analysis summary, a README) as one self-contained HTML page, to read in a browser or send around: tables, figures embedded as data URIs, heading anchors, simple inline math (letters and Greek macros). Keeps the `<head>` (title, style) of an existing `.html` twin, e.g. one made by pandoc, else a built-in style. Needs markdown-it-py (it comes with rich, in the analysis environment) | the script |
+
+```bash
+python utils/md2html.py contribs/PyJetscape/example/analysis/runs/zjet_c00-01/figures/ANALYSIS_c00_01.md
+python utils/md2html.py NOTE.md -o note.html --title "My note"
+```
