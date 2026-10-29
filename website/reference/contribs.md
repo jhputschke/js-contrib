@@ -29,7 +29,7 @@ the PyJetscape bindings and so need a current `pyjetscape_core`.
 | Production images | [`jhputschke/xscape-prod`](https://hub.docker.com/r/jhputschke/xscape-prod) | everything above, built, for Linux with NVIDIA GPUs (amd64 and arm64) |
 | Development images | `jhputschke/xscape-fno4d-dev` | the build environment without sources, for a source build on Linux with NVIDIA GPUs |
 | Mac wheel | [jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos) | everything above, built for Apple Silicon with Metal, installed with uv |
-| FNO models | [JETSCAPE/JETSCAPE-FNO](https://github.com/JETSCAPE/JETSCAPE-FNO) | trained FNO hydro models and the training code |
+| FNO models | [Zenodo record 16647726](https://doi.org/10.5281/zenodo.16647726) | the trained FNO hydro models and their training data ([Live PyTorch FNO hydro](../python/fno.md#where-the-models-come-from)) |
 
 The X-SCAPE scripts `external_packages/get_*.sh` clone MUSIC4GPU, iSS and 3D MC-Glauber at
 pinned commits. When you update X-SCAPE, run them again so the pins take effect. See

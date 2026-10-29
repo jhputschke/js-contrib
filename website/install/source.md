@@ -128,12 +128,6 @@ cd X-SCAPE/external_packages
 | `get_lbtTab.sh` | LBT tables | none; run it **before** configuring, so CMake links them into the build directory |
 | `get_js_contrib.sh` | js-contrib (step 1) | `-DUSE_JS_CONTRIB=ON` |
 
-!!! warning "`get_lbtTab.sh` on macOS"
-    The script uses bash associative arrays (`declare -A`), which need bash 4 or later.
-    macOS's `/bin/bash` is version 3.2 and stops with `declare: -A: invalid option`. Run it with
-    a newer bash, e.g. Homebrew's: `brew install bash`, then
-    `"$(brew --prefix)/bin/bash" get_lbtTab.sh`.
-
 !!! tip "After `git pull` of X-SCAPE"
     The `get_*.sh` scripts carry the pinned commit of each package. When a pull changes a pin
     (`git diff` on `external_packages/get_*.sh`), bring that package to the new commit (or

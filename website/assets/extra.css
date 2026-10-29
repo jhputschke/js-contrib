@@ -87,9 +87,10 @@
   max-height: 92vh;
 }
 
-/* The moved-in .mermaid host: give it a readable backdrop and breathing room */
+/* The moved-in .mermaid host: give it a readable backdrop and breathing room.
+   The theme's page colour, not white: in the dark scheme Mermaid draws light text. */
 .mermaid.dz-enlarged {
-  background: #fff;
+  background: var(--md-default-bg-color);
   border-radius: 6px;
   padding: 1.5rem;
   -webkit-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);

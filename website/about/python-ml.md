@@ -17,7 +17,7 @@ prediction as they would on MUSIC.
 **Hydro surrogates need hydro.** A Fourier neural operator (FNO) learns the map from an initial
 condition to the full space-time evolution of the medium. In 2+1D it reproduces MUSIC orders of
 magnitude faster
-([Phys. Rev. C 113 (2026) 014904](https://doi.org/10.48550/arXiv.2507.23598)). Training it, and
+([Phys. Rev. C 113, 014904 (2026)](https://doi.org/10.1103/jsh8-6tm7)). Training it, and
 the 3+1D and jet-deposition models that follow, takes many MUSIC evolutions in a format a
 training code reads directly. The productions write exactly that.
 

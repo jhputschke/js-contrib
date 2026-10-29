@@ -8,7 +8,7 @@ would on MUSIC. Use it to test a surrogate model against the full event: jet que
 hadron observables on the predicted medium, side by side with MUSIC. Because the model can be a
 live `torch.nn.Module`, you can do this in the same Python session in which you train it, with no
 export step. The method and the 2+1D models are described in
-[Phys. Rev. C 113 (2026) 014904](https://doi.org/10.48550/arXiv.2507.23598)
+[Phys. Rev. C 113, 014904 (2026)](https://doi.org/10.1103/jsh8-6tm7)
 (arXiv:2507.23598).
 
 ## How it works
@@ -221,17 +221,26 @@ stored evolution from ROOT) and the ROOT bulk writers of the original training p
 
 ## Where the models come from
 
-The trained models are not in js-contrib (too large for git):
+The trained models are not in js-contrib, because they are too large for git (about 1.5 GB
+each). They are published with the paper on **Zenodo**,
+[record 16647726](https://doi.org/10.5281/zenodo.16647726), together with the training data in
+ROOT format:
 
-- **The JETSCAPE-FNO repository**,
-  [github.com/JETSCAPE/JETSCAPE-FNO](https://github.com/JETSCAPE/JETSCAPE-FNO), branch
-  `PythonTest`, folder `fno_hydro/models`: traced TorchScript models such as
-  `traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt` (3 features, 60 × 60, 59 time steps), the
-  default of `python_fno_test.py`. The repository also has the training notebooks.
-- **Zenodo**, [record 16647726](https://zenodo.org/records/16647726): the training data (ROOT
-  format) and several pre-trained models of the paper.
-- **The OSDF** (in the future): trained models and training data will be shared on the OSDF next
-  to the production outputs; see [Data on the OSDF](../run/osdf.md).
+| Model file | What it is |
+|---|---|
+| `traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt` | traced, 3 features, 60 × 60, 59 time steps, 40–60 % centrality; the default of `python_fno_test.py` |
+| `traced_JS3.7_10k_3feat_fno_model_cpu_0_10_59bins.pt` | the same for 0–10 % |
+| `traced_JS3.7_2k_3feat_fno_model_cpu_4types_59bins.pt` | traced, trained on four event types |
+| `model_10K_central.pt`, `model_10K_peripheral.pt`, `model_500_of_four_types.pt` | the untraced models of the paper (central, peripheral, four event types) |
+
+```bash
+mkdir -p models && cd models
+curl -L -o traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt \
+  "https://zenodo.org/records/16647726/files/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt?download=1"
+```
+
+In the future, trained models and training data will also be shared on the OSDF, next to the
+production outputs; see [Data on the OSDF](../run/osdf.md).
 
 ## Training data from the productions
 
