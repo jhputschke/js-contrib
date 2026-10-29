@@ -1,0 +1,2890 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="GPU-accelerated X-SCAPE heavy-ion simulations with Python and PyTorch: install, run the productions, analyse the files, write your own modules.">
+      
+      
+        <meta name="author" content="Joern Putschke and the js-contrib contributors">
+      
+      
+        <link rel="canonical" href="https://jhputschke.github.io/js-contrib/about/gpu/">
+      
+      
+        <link rel="prev" href="../physics/">
+      
+      
+        <link rel="next" href="../python-ml/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>GPU acceleration - js-contrib</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#gpu-acceleration" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="js-contrib" class="md-header__button md-logo" aria-label="js-contrib" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.36 2.64c1.64 0 3 1.36 3 3 0 1.65-1.36 3-3 3-1.65 0-3-1.35-3-3 0-.3.05-.58.14-.84-1.07-.51-2.25-.8-3.5-.8a8 8 0 0 0-8 8l.04.84-1.99.21L2 12A10 10 0 0 1 12 2c1.69 0 3.28.42 4.67 1.16.49-.33 1.07-.52 1.69-.52m0 2a1 1 0 0 0-1 1 1 1 0 0 0 1 1c.56 0 1-.45 1-1 0-.56-.44-1-1-1M5.64 15.36c1.65 0 3 1.35 3 3 0 .3-.05.58-.14.84 1.07.51 2.25.8 3.5.8a8 8 0 0 0 8-8l-.04-.84 1.99-.21L22 12a10 10 0 0 1-10 10c-1.69 0-3.28-.42-4.67-1.16-.49.33-1.07.52-1.69.52-1.64 0-3-1.36-3-3 0-1.65 1.36-3 3-3m0 2c-.56 0-1 .45-1 1 0 .56.44 1 1 1a1 1 0 0 0 1-1 1 1 0 0 0-1-1M12 8a4 4 0 0 1 4 4 4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4"></path></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            js-contrib
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              GPU acceleration
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-orange" aria-label="Switch to dark mode" type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden="">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"></path></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="deep-orange" aria-label="Switch to light mode" type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden="">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"></path></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required="">
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix="">
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jhputschke/js-contrib" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    jhputschke/js-contrib
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  About
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../install/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Install
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../run/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Run
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../analysis/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Analyse
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../python/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Python
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="js-contrib" class="md-nav__button md-logo" aria-label="js-contrib" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.36 2.64c1.64 0 3 1.36 3 3 0 1.65-1.36 3-3 3-1.65 0-3-1.35-3-3 0-.3.05-.58.14-.84-1.07-.51-2.25-.8-3.5-.8a8 8 0 0 0-8 8l.04.84-1.99.21L2 12A10 10 0 0 1 12 2c1.69 0 3.28.42 4.67 1.16.49-.33 1.07-.52 1.69-.52m0 2a1 1 0 0 0-1 1 1 1 0 0 0 1 1c.56 0 1-.45 1-1 0-.56-.44-1-1-1M5.64 15.36c1.65 0 3 1.35 3 3 0 .3-.05.58-.14.84 1.07.51 2.25.8 3.5.8a8 8 0 0 0 8-8l-.04-.84 1.99-.21L22 12a10 10 0 0 1-10 10c-1.69 0-3.28-.42-4.67-1.16-.49.33-1.07.52-1.69.52-1.64 0-3-1.36-3-3 0-1.65 1.36-3 3-3m0 2c-.56 0-1 .45-1 1 0 .56.44 1 1 1a1 1 0 0 0 1-1 1 1 0 0 0-1-1M12 8a4 4 0 0 1 4 4 4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4"></path></svg>
+
+    </a>
+    js-contrib
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jhputschke/js-contrib" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    jhputschke/js-contrib
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix="">
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked="">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    About
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why js-contrib
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../physics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The physics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU acceleration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU acceleration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#what-runs-on-the-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What runs on the GPU
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What runs on the GPU">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#precision-choices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Precision choices
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-close-is-the-gpu-to-cpu-music" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How close is the GPU to CPU MUSIC?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#headline-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Headline numbers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Headline numbers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#throughput-per-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Throughput per machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gpu-vs-cpu-music" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPU vs CPU MUSIC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-speed-ups-that-matter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other speed-ups that matter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-launch-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended launch settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-on-hpc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cost on HPC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full details
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../python-ml/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python and machine learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publications and citing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../install/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Install
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production container
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/mac/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mac (xscape wheel)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/analysis-env/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Source build (conda)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../run/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/first-event/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your first event
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/auau-jet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Au+Au jets (two stages)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/oo-isr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    O+O with ISR
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/zjet-other/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Z+jet and other systems
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/clusters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clusters, GPUs and monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../run/osdf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data on the OSDF
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../analysis/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Analyse
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a production writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/hadrons/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hadrons
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/jets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jets with FastJet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/hydro-hadrons/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hydro and hadrons together
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/oo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/root/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT and C++
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/notebooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notebooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/pythonic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Pythonic interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/modules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing modules in Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/fno/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live PyTorch FNO hydro
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/fasthydro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FastHydro
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/contribs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribs and repositories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/site/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building this site
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#what-runs-on-the-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What runs on the GPU
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What runs on the GPU">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#precision-choices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Precision choices
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-close-is-the-gpu-to-cpu-music" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How close is the GPU to CPU MUSIC?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#headline-numbers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Headline numbers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Headline numbers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#throughput-per-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Throughput per machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gpu-vs-cpu-music" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPU vs CPU MUSIC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#other-speed-ups-that-matter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Other speed-ups that matter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recommended-launch-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Recommended launch settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#cost-on-hpc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cost on HPC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full details
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/jhputschke/js-contrib/edit/main/website/about/gpu.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"></path></svg>
+    </a>
+  
+  
+
+
+<h1 id="gpu-acceleration">GPU acceleration<a class="headerlink" href="#gpu-acceleration" title="Permanent link">¶</a></h1>
+<p>The viscous hydrodynamics is the most expensive part of an X-SCAPE heavy-ion event, and
+js-contrib runs it on the GPU with <strong>MUSIC4GPU</strong>, a port of MUSIC to CUDA (NVIDIA) and Metal
+(Apple Silicon). This page explains what runs on the GPU and what does not, how closely the GPU
+results agree with CPU MUSIC, what throughput to expect on the machines it was measured on, and
+the launch settings that give that throughput. Read it before you plan a campaign or pick
+hardware. To launch jobs, see <a href="../../run/clusters/">Clusters, GPUs and monitoring</a>.</p>
+<h2 id="what-runs-on-the-gpu">What runs on the GPU<a class="headerlink" href="#what-runs-on-the-gpu" title="Permanent link">¶</a></h2>
+<p>MUSIC4GPU is a <strong>direct port of MUSIC 3.1</strong>: the same equations and the same numerical scheme
+(KT flux, Newton reconstruction, second-order Israel–Stewart viscous evolution). It adds no
+new physics. Two back ends share the same compute kernels and host code, and are chosen when
+MUSIC is built:</p>
+<table>
+<thead>
+<tr>
+<th>back end</th>
+<th>hardware</th>
+<th>used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CUDA</strong></td>
+<td>NVIDIA GPUs, discrete (V100 … H100, RTX) and Grace-Blackwell (GB10)</td>
+<td>the <a href="../../install/container/">production container</a>, source builds on Linux</td>
+</tr>
+<tr>
+<td><strong>Metal</strong></td>
+<td>Apple Silicon (M1 or later)</td>
+<td>the <a href="../../install/mac/">Mac wheel</a>, source builds on macOS</td>
+</tr>
+</tbody>
+</table>
+<p>When a configuration is supported, the <strong>whole per-cell hydro time step runs on the GPU</strong>:
+ideal evolution and reconstruction, shear stress and bulk pressure, velocity gradients,
+temperature-dependent η/s and ζ/s, the regulator, and the integration of the hydro source
+terms. The X-SCAPE productions (zero net baryon density, 3+1D grid) fall entirely inside it.
+Configurations outside it fall back to the CPU path, correct but slower: baryon diffusion,
+vorticity terms, a finite-μ<sub>B</sub> EOS or μ<sub>B</sub>-dependent shear.</p>
+<p>Everything else in the event runs on the CPU:</p>
+<pre class="mermaid"><code>flowchart LR
+  IC["3D MC-Glauber strings&lt;br/&gt;CPU"] --&gt; M1["MUSIC_1: background&lt;br/&gt;&lt;b&gt;GPU&lt;/b&gt;"]
+  H["Pythia hard process&lt;br/&gt;CPU"] --&gt; E["Matter + LBT&lt;br/&gt;CPU"]
+  M1 --&gt; E
+  E --&gt; L["CausalLiquefier droplets&lt;br/&gt;CPU"]
+  L --&gt; M2["MUSIC_2: jet leg&lt;br/&gt;&lt;b&gt;GPU&lt;/b&gt;"]
+  M1 --&gt; S["freeze-out surfaces&lt;br/&gt;CPU, OpenMP"]
+  M2 --&gt; S
+  S --&gt; W["HDF5 writers&lt;br/&gt;CPU"]
+  W --&gt; P["iSS particlization,&lt;br/&gt;hadronization&lt;br/&gt;CPU (stage 2)"]</code></pre>
+<ul>
+<li><strong>On the CPU:</strong> the initial state, Pythia, the jet energy loss (Matter, LBT), the liquefier's
+  droplets (the source is evaluated on the CPU and integrated on the GPU), the freeze-out
+  surface search (Cornelius), the HDF5 output, and the whole second stage: iSS particlization
+  and hadronization. Stage 2 needs no GPU at all, so it runs on CPU nodes.</li>
+<li><strong>One GPU per MUSIC.</strong> MUSIC uses the first GPU it sees, so a machine with several GPUs runs
+  one campaign per GPU (each with its own <code>CUDA_VISIBLE_DEVICES</code>).</li>
+<li><strong>The CPU path is still there.</strong> <code>MUSIC_FORCE_CPU=1</code> runs the double-precision CPU path of
+  the same binary, for validation.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">The GPU is no longer the bottleneck</p>
+<p>After the speed-ups, an Au+Au jet event on an RTX 3090 needs about <strong>2 GPU-seconds but
+about 35 host core-seconds</strong>. On a discrete GPU the host cores, not the GPU, set the rate.
+That is why the launch settings below are mostly about cores and threads, and why several
+jobs share one GPU.</p>
+</div>
+<h3 id="precision-choices">Precision choices<a class="headerlink" href="#precision-choices" title="Permanent link">¶</a></h3>
+<ul>
+<li><strong>Single precision on the GPU.</strong> The kernels compute in FP32 (CUDA builds with
+  <code>--use_fast_math</code>); the CPU path computes in double precision. Apple GPUs have no FP64, so
+  Metal stays FP32. An FP64 build option has been assessed but not built.</li>
+<li><strong>Vacuum cells at rest.</strong> In FP32, dilute vacuum cells could reach large u⁰ and stall an
+  evolution. MUSIC4GPU puts vacuum cells (e &lt; 10⁻⁵ fm⁻⁴, u⁰ &gt; 10) at rest and zeroes
+  non-finite viscous fields with a warning; <code>MUSIC_ABORT_ON_NONFINITE=1</code> stops the run instead.</li>
+<li><strong>The reconstruction solvers stop at float resolution.</strong> No switch; the change is at the
+  level of float rounding.</li>
+<li><strong>A larger time step late in the evolution</strong> (on by default in the production XMLs):
+  Δτ = 0.02 → 0.05 fm/c from τ = 3 fm/c, with the stored frames and freeze-out checks kept every
+  0.1 fm/c, so the output format does not change. It roughly halves the MUSIC steps and changes
+  the medium at the 10⁻³ level, below the GPU-vs-CPU difference. The wake field differs cell by
+  cell by ~5 %, almost all at scales below ~1 fm; at hadron level no change is seen within
+  ±2 %. Keep <strong>one setting per campaign</strong>; <code>--late-dtau 0</code> gives a constant step.</li>
+</ul>
+<h2 id="how-close-is-the-gpu-to-cpu-music">How close is the GPU to CPU MUSIC?<a class="headerlink" href="#how-close-is-the-gpu-to-cpu-music" title="Permanent link">¶</a></h2>
+<p><strong>Method.</strong> The same Au+Au 0–10 % jet job (6 jet events on 3 backgrounds, PythiaGun
+p̂<sub>T</sub> 50–70 GeV, Matter + LBT + liquefier) was run twice with identical options, once
+on the GPU and once with <code>MUSIC_FORCE_CPU=1</code>. Only MUSIC's arithmetic differs. The comparison
+goes cell by cell through the hydro fields, then the freeze-out surfaces, then hadrons: iSS was
+run on both paths' surfaces with the same seeds and correlated sampling, so the hadrons are
+identical wherever the surfaces agree and the difference is measured with little noise. It was
+done with CUDA on a GB10 and repeated with Metal on an M3 Max.</p>
+<p><strong>Result.</strong> The two paths agree to about 0.2–0.3 %, with identical freeze-out times. The small
+remaining difference is systematic, and the same with CUDA and Metal:</p>
+<table>
+<thead>
+<tr>
+<th>quantity</th>
+<th>GPU vs CPU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>freeze-out times (all 9 MUSIC runs)</td>
+<td>identical</td>
+</tr>
+<tr>
+<td>energy density above freeze-out, energy-weighted |Δe|/e</td>
+<td>2×10⁻³</td>
+</tr>
+<tr>
+<td>temperature |ΔT|/T, velocity |Δv| above freeze-out</td>
+<td>3×10⁻⁴, 1.6×10⁻⁴</td>
+</tr>
+<tr>
+<td>energy above freeze-out / in the dilute fluid below it</td>
+<td>−0.3 % / +0.4 %</td>
+</tr>
+<tr>
+<td>freeze-out volume</td>
+<td>−0.19 %</td>
+</tr>
+<tr>
+<td>charged hadrons</td>
+<td><strong>−0.20 ± 0.02 %</strong></td>
+</tr>
+<tr>
+<td>⟨p<sub>T</sub>⟩, v₂, v₃, momentum anisotropy</td>
+<td>equal within errors</td>
+</tr>
+<tr>
+<td>jet wake (events with the same showers)</td>
+<td>fields 0.1–1 %, integrals ~1 %</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What it means.</strong></p>
+<ul>
+<li><strong>Within one campaign the difference is negligible</strong>: far below model and tuning
+  uncertainties.</li>
+<li><strong>Between paths it is a normalization offset</strong> that does not average out (it has the same
+  sign in every event). Keep a campaign, and an FNO training set, on one path; don't mix in
+  CPU-fallback jobs; and name the path when you compare with CPU or published MUSIC results.</li>
+<li><strong>Single events can differ in their jets.</strong> A 3×10⁻⁴ change in the temperature is enough to
+  send Matter and LBT down another random sequence, so the same seed may give a different
+  shower. Compare the two paths statistically.</li>
+<li><strong>Limits:</strong> 6 events, one centrality, one p̂<sub>T</sub> window. A large campaign compared with
+  the CPU build has not been done.</li>
+</ul>
+<p>Full details: <a href="https://github.com/jhputschke/js-contrib/blob/main/docs/MUSIC_CPU_vs_GPU.md">MUSIC_CPU_vs_GPU.md</a>.
+The physics of the productions themselves is on <a href="../physics/">The physics</a>.</p>
+<h2 id="headline-numbers">Headline numbers<a class="headerlink" href="#headline-numbers" title="Permanent link">¶</a></h2>
+<div class="admonition warning">
+<p class="admonition-title">Measured on specific machines</p>
+<p>These numbers come from a handful of machines and code states, and they change as the
+code does. Each one is given with its hardware and settings. Re-measure on your own
+hardware before you size a campaign.</p>
+</div>
+<p>The productions:</p>
+<ul>
+<li><strong>Au+Au jets, campaign setting:</strong> <code>prod_AuAu_0_10_jet</code> (two stages: MUSIC_1 background,
+  then MUSIC_2 with jet deposition) with <code>--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5
+  --parton-ymax 0.6 --write-particlize both</code>: one background per 15 jet events, pair file and
+  particlize file written. An "event" is a jet event.</li>
+<li><strong>O+O, hadron files only:</strong> <code>prod_OO_isr --bulk-hadrons 10 --no-particlize --no-hydro-file</code>
+  (bulk hadrons made in the job, nothing else kept).</li>
+</ul>
+<p>The rates are events per hour for the whole machine, from the campaign's makespan.</p>
+<h3 id="throughput-per-machine">Throughput per machine<a class="headerlink" href="#throughput-per-machine" title="Permanent link">¶</a></h3>
+<table>
+<thead>
+<tr>
+<th>machine</th>
+<th>production</th>
+<th>launch</th>
+<th>events/h</th>
+<th>per event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>2 × RTX 3090</strong>, Threadripper 3960X (24 cores), 125 GB; Docker, current image</td>
+<td>Au+Au, campaign setting, 15-event jobs</td>
+<td>per GPU: 10 jobs, <code>OMP_NUM_THREADS=3</code>, MPS, blocking sync, LBT cache, stagger 12 s</td>
+<td><strong>2,160</strong> (1,080 per GPU); ~2,400–2,500 expected with 45-event jobs</td>
+<td>~25 s in a loaded job; 2.1 GPU-s, 35 core-s; 0.243 GB on disk</td>
+</tr>
+<tr>
+<td></td>
+<td>O+O, hadron files only, ±10.5 fm grid, 60-event jobs</td>
+<td>per GPU: 8 jobs, <code>OMP_NUM_THREADS=3</code>, MPS, blocking sync</td>
+<td><strong>13,728</strong> (6,860 per GPU)</td>
+<td>4.0 s in a loaded job; 0.34 GPU-s, 6.1 core-s; 0.13 MB on disk</td>
+</tr>
+<tr>
+<td><strong>NVIDIA GB10</strong>, 20 cores, 121 GB unified memory; native build</td>
+<td>Au+Au, campaign setting, older code¹</td>
+<td>4 jobs, MPS, <code>OMP_NUM_THREADS=5</code>, passive, blocking sync</td>
+<td><strong>381</strong> (~750–800 expected with the current code, not measured)</td>
+<td>34–37 s in a job of 4</td>
+</tr>
+<tr>
+<td></td>
+<td>O+O, hadron files only, older code¹ and ±15 fm grid</td>
+<td>8 jobs, MPS, <code>OMP_NUM_THREADS=2</code></td>
+<td><strong>1,620</strong> (~3,500–4,500 expected, not measured)</td>
+<td>17 s in a job of 8; GPU 92 % busy</td>
+</tr>
+<tr>
+<td></td>
+<td>Pb+Pb 5.02 TeV Z+jet vs Au+Au jets, hadrons only, 2 jobs</td>
+<td><code>OMP_NUM_THREADS=6</code>, blocking sync</td>
+<td>Pb+Pb <strong>323</strong>, Au+Au 693 in the same setup</td>
+<td>Pb+Pb 2.1× the time and memory (14–16 GB per job)</td>
+</tr>
+<tr>
+<td><strong>Apple M3 Max</strong>, 16 cores, 64 GB; Metal</td>
+<td>Au+Au, older code¹, <strong>not</strong> the campaign setting: a new background every event, p̂<sub>T</sub> 50–70 GeV, no particlize file</td>
+<td>3 jobs, <code>OMP_NUM_THREADS=5</code>, passive, LBT cache</td>
+<td><strong>263</strong> (284 from the per-event times)</td>
+<td>~38 s in a job of 3</td>
+</tr>
+<tr>
+<td></td>
+<td>O+O</td>
+<td>not measured as a campaign</td>
+<td>–</td>
+<td>–</td>
+</tr>
+</tbody>
+</table>
+<p>¹ These campaigns predate the latest GPU changes (the solver stop and the late
+time step) and, on the M3 Max, the host-CPU fixes; both machines are GPU-bound, so these should
+help them most. The expected rates are estimates.</p>
+<p><strong>One job alone</strong> (no other job on the machine):</p>
+<table>
+<thead>
+<tr>
+<th>machine</th>
+<th>job</th>
+<th>time</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2 × RTX 3090</td>
+<td>Au+Au jet event</td>
+<td>~8–15 s</td>
+</tr>
+<tr>
+<td>M3 Max, current code</td>
+<td>Au+Au two-stage, 4 events, <code>--reuse 2 --write-particlize both</code></td>
+<td>54.7 s in all; a jet event on a reused background 6.5–7.2 s</td>
+</tr>
+<tr>
+<td></td>
+<td>O+O, 4 events</td>
+<td>9.2 s</td>
+</tr>
+<tr>
+<td></td>
+<td>one O+O event through the whole chain (to hadrons) with the Mac wheel</td>
+<td>27 s</td>
+</tr>
+<tr>
+<td>GB10, older code</td>
+<td>Au+Au two-stage, 4 events, <code>--reuse 2 --write-particlize both</code></td>
+<td>92.9 s; a jet event on a reused background 12.3–14.6 s</td>
+</tr>
+<tr>
+<td></td>
+<td>O+O</td>
+<td>~5 s per event</td>
+</tr>
+</tbody>
+</table>
+<h3 id="gpu-vs-cpu-music">GPU vs CPU MUSIC<a class="headerlink" href="#gpu-vs-cpu-music" title="Permanent link">¶</a></h3>
+<p>How much faster MUSIC is on the GPU than on the CPU of the same machine. These are speed-ups
+over each machine's own CPU, not a comparison between GPUs.</p>
+<table>
+<thead>
+<tr>
+<th>comparison</th>
+<th>GB10 (vs 20 threads)</th>
+<th>RTX 3090 (vs 48 threads)</th>
+<th>M3 Max</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>one MUSIC time step</td>
+<td>~5.2–5.5×</td>
+<td>9.1×</td>
+<td>5.0× (vs 12 threads)</td>
+</tr>
+<tr>
+<td>one O+O event, wall time (indicative)</td>
+<td>~5.5×</td>
+<td>~3.5×</td>
+<td>~8× (vs 16 threads)</td>
+</tr>
+<tr>
+<td>a whole Au+Au jet job (6 events, <code>MUSIC_FORCE_CPU=1</code> for the CPU)</td>
+<td>3.2 vs 23 min (~7×)</td>
+<td>–</td>
+<td>2.8 vs 30.2 min (~11×)</td>
+</tr>
+</tbody>
+</table>
+<p>The whole-job numbers include the parts that stay on the CPU in both runs.</p>
+<h3 id="other-speed-ups-that-matter">Other speed-ups that matter<a class="headerlink" href="#other-speed-ups-that-matter" title="Permanent link">¶</a></h3>
+<p>A pair event once took ~184 s on the GB10. Much of the way to today's rates came from the CPU
+side, with bit-identical output:</p>
+<ul>
+<li><strong>MUSIC's host work:</strong> the string source fill skips empty steps and bins strings by
+  transverse reach (15.3 → 5.9 s per event); the jet source is prepared once per step and the
+  liquefier evaluates only droplets that can deposit (pair event 184 → 60 s).</li>
+<li><strong>Parallel freeze-out surface:</strong> the surface search runs η-slices in parallel with OpenMP,
+  deterministic across thread counts (9.6 → 1.2 s per event).</li>
+<li><strong>MUSIC_2 restarts from MUSIC_1's state</strong> at the step before the first droplet, instead of
+  re-running the early evolution (two-stage job −19 % wall time, on by default).</li>
+<li><strong>iSS:</strong> the per-surface fixed cost fell from ~16.5 s to ~4 s, and the sampling loop was
+  repacked; <code>hadronize.py</code> on both legs at 500 oversamples now takes ~10.6 s on one core
+  (8.8 s with <code>--correlated</code>), against ~58 s before.</li>
+<li><strong>HDF5 writers and memory:</strong> Blosc-zstd compression and a background stored once for all
+  its jet events take the pair file from 400 to 170 MB per event (15 jets per background);
+  reading the legs one frame at a time and a slim copy of the hydro history for the jets took a
+  job's memory from ~20 GB to ~6–7 GB.</li>
+<li><strong>Shared LBT tables</strong> (<code>LBT_TABLE_CACHE</code>): one read-only copy of LBT's 0.66 GB of tables for
+  all jobs on a machine.</li>
+</ul>
+<p>The complete list, with what is and is not bit-identical:
+<a href="https://github.com/jhputschke/js-contrib/blob/main/docs/OPTIMIZATION_CHANGES.md">OPTIMIZATION_CHANGES.md</a>.</p>
+<h2 id="recommended-launch-settings">Recommended launch settings<a class="headerlink" href="#recommended-launch-settings" title="Permanent link">¶</a></h2>
+<p>None of these settings changes the output; they only change how fast a campaign runs. They are
+<strong>not built into the scripts</strong>, because the best values depend on the machine's balance of
+cores, GPU and memory. These are the measured best values:</p>
+<table>
+<thead>
+<tr>
+<th>setting</th>
+<th>2 × RTX 3090 (per GPU, Docker)</th>
+<th>GB10</th>
+<th>M3 Max (Metal)</th>
+<th>SLURM cluster (<code>slurm_prod_array.sh</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>jobs at once (<code>run_jobs.sh -j</code>)</td>
+<td>Au+Au 10, O+O 8</td>
+<td>Au+Au 4, O+O 8</td>
+<td>Au+Au 3</td>
+<td><code>P=10</code> (default; see the per-GPU table)</td>
+</tr>
+<tr>
+<td><code>OMP_NUM_THREADS</code></td>
+<td>3</td>
+<td>Au+Au 5, O+O 2</td>
+<td>5</td>
+<td><code>cpus-per-task / P</code>, at least 2 (set by the script)</td>
+</tr>
+<tr>
+<td><code>OMP_WAIT_POLICY</code></td>
+<td><code>passive</code></td>
+<td><code>passive</code> (no measurable effect here)</td>
+<td><code>passive</code>, with <code>KMP_BLOCKTIME=0</code></td>
+<td><code>passive</code> (set by the script)</td>
+</tr>
+<tr>
+<td><code>MUSIC_CUDA_SYNC</code></td>
+<td><code>block</code></td>
+<td><code>block</code></td>
+<td>– (CUDA only)</td>
+<td><code>block</code> (default)</td>
+</tr>
+<tr>
+<td>CUDA MPS (<code>--mps</code>)</td>
+<td>yes, one daemon per container</td>
+<td>yes, natively (not in a container)</td>
+<td>– (CUDA only)</td>
+<td>off (<code>USE_MPS=0</code>), never tried on a cluster</td>
+</tr>
+<tr>
+<td><code>LBT_TABLE_CACHE</code></td>
+<td>yes (Au+Au)</td>
+<td>optional (−0.6 GB per job)</td>
+<td>yes</td>
+<td>yes (Au+Au, default path)</td>
+</tr>
+<tr>
+<td><code>--stagger</code></td>
+<td>12 s (Au+Au)</td>
+<td>–</td>
+<td>no gain</td>
+<td>12 s (Au+Au, default)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>What each setting does:</strong></p>
+<ul>
+<li><strong>Jobs per GPU.</strong> One job alone leaves the GPU idle much of the time, so several jobs share
+  it. Size the number by the cores (~2–3 per job) and host memory (plan ~7 GB per Au+Au job,
+  5 GB with <code>--particlize-only</code>; ~1.5–2 GB per O+O job). If a node gives fewer cores per GPU,
+  lower <code>-j</code>, not the threads per job.</li>
+<li><strong><code>OMP_NUM_THREADS</code> ≈ cores / jobs.</strong> By default every job starts one OpenMP thread per
+  core, and several jobs then oversubscribe the cores. On the M3 Max, <code>-j 3</code> with default
+  threads gave only 1.1× one job; with the cores split, 1.6×. <strong>For one job alone, leave it
+  unset</strong>: on the GB10, fewer threads made a single job 24 % slower.</li>
+<li><strong><code>OMP_WAIT_POLICY=passive</code>:</strong> idle OpenMP threads sleep instead of spinning and stealing
+  cores from the other jobs.</li>
+<li><strong><code>MUSIC_CUDA_SYNC=block</code>:</strong> the host thread sleeps while it waits for the GPU instead of
+  spinning, ~30 % less CPU per event at the same throughput. The job log says
+  <code>[MUSIC-GPU] host sync: block</code>.</li>
+<li><strong>CUDA MPS</strong> lets the kernels of several jobs run side by side instead of taking turns:
+  +5–7 % on the 3090s, +12.5 % on the GB10 at 4 jobs. Try without it first; if the GPU is
+  under ~60 % busy it won't help. The MPS daemon does not start inside a container on the
+  GB10, and two daemons in one container hang the second GPU's jobs: use one container per GPU.</li>
+<li><strong><code>LBT_TABLE_CACHE=FILE</code>:</strong> all jobs map one read-only copy of LBT's tables: −0.6 GB and
+  6–11 s of start-up per Au+Au job (on the M3 Max, start-up 14.5 → 3.0 s). Put the file on
+  local disk, one file per LBT-tables version, not in the container's <code>/dev/shm</code>. O+O runs no
+  LBT.</li>
+<li><strong><code>run_jobs.sh --stagger S</code>:</strong> the first jobs start S seconds apart so that their memory peaks
+  don't coincide (−11 GB at 20 jobs on the 3090 box).</li>
+<li><strong><code>OPENBLAS_NUM_THREADS=1</code></strong> is set by the drivers; more threads don't help.</li>
+</ul>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><input id="__tabbed_1_2" name="__tabbed_1" type="radio"><input id="__tabbed_1_3" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="__tabbed_1_1">NVIDIA GPU, ~12 cores per GPU</label><label for="__tabbed_1_2">GB10</label><label for="__tabbed_1_3">Mac (Metal)</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p>One RTX 3090-class GPU, Au+Au campaign setting (one <code>run_jobs.sh</code> per GPU):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>/scratch/lbt_cache
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="nv">MUSIC_CUDA_SYNC</span><span class="o">=</span>block<span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/scratch/lbt_cache/lbt_tables_v1.bin<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>./run_jobs.sh<span class="w"> </span>-j<span class="w"> </span><span class="m">10</span><span class="w"> </span>--mps<span class="w"> </span>--stagger<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="m">60</span><span class="w"> </span><span class="m">45</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>out_c<span class="w"> </span>--pthat-bins<span class="w"> </span><span class="m">10</span>-20,20-30,30-40<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--jets-per-bin<span class="w"> </span><span class="m">5</span><span class="w"> </span>--parton-ymax<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span>--write-particlize<span class="w"> </span>both
+</code></pre></div>
+<p>With Docker on two GPUs, <code>utils/launch_2gpu.sh</code> (Au+Au) and <code>utils/launch_2gpu_oo.sh</code>
+(O+O) start one container and one MPS daemon per GPU, with the settings above as their
+defaults (Au+Au: 10 jobs and 3 threads per GPU, the LBT cache, <code>--stagger 12</code>).</p>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="nv">OMP_WAIT_POLICY</span><span class="o">=</span>passive<span class="w"> </span><span class="nv">MUSIC_CUDA_SYNC</span><span class="o">=</span>block<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>./run_jobs.sh<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--mps<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">0</span>
+</code></pre></div>
+<p>For O+O: <code>OMP_NUM_THREADS=2</code> and <code>-j 8 --mps</code>.</p>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/path/on/local/disk/lbt_tables_v1.bin
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="nv">OMP_WAIT_POLICY</span><span class="o">=</span>passive<span class="w"> </span><span class="nv">KMP_BLOCKTIME</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>./run_jobs.sh<span class="w"> </span>-j<span class="w"> </span><span class="m">3</span><span class="w"> </span>--campaign<span class="w"> </span><span class="nb">test</span><span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>~/xscape/prod/out
+</code></pre></div>
+<p><code>-j 4</code> with 4 threads was not better than <code>-j 3</code>. <code>--mps</code> and <code>MUSIC_CUDA_SYNC</code> don't
+apply. Keep the Mac awake for long campaigns (<code>caffeinate -i ./run_jobs.sh ...</code>).</p>
+</div>
+</div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Let the wizard write the command</p>
+<p><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/prodwizard.py"><code>utils/prodwizard.py</code></a>
+takes a production preset and a machine (<code>2x3090</code>, <code>gb10</code>, <code>m3max</code>, or a SLURM cluster with
+V100, A40, A100 or L40S) and writes the launch command with these settings, with estimates
+of events/h, duration, disk and memory. It never starts jobs.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Disk can become the limit</p>
+<p>At 2,160 Au+Au events/h with the pair file, the 3090 box writes ~525 GB/h, more than the
+~290 GB/h an upload to the OSDF takes. If you don't need the hydro history, use
+<code>--particlize-only</code> (0.097 instead of 0.243 GB per event) or a large local disk.</p>
+</div>
+<p><strong>On another machine,</strong> measure: one job alone first (is the GPU mostly idle?), then a short
+sweep of <code>-j</code> with and without MPS, with <code>OMP_NUM_THREADS ≈ cores / jobs</code>. Use the same seeds
+in every run and compare events/h by makespan. If the GPU stays below ~75 % busy while the
+cores are full, the machine is host-limited: more cores per GPU pay, more jobs don't. How to
+launch and monitor: <a href="../../run/clusters/">Clusters, GPUs and monitoring</a>.</p>
+<h2 id="cost-on-hpc">Cost on HPC<a class="headerlink" href="#cost-on-hpc" title="Permanent link">¶</a></h2>
+<p>None of the cluster GPUs has been run yet. Scaling the measured 3090 and GB10 numbers by GPU
+speed and cores per GPU gives these <strong>estimates</strong> for the Au+Au campaign setting, per GPU:</p>
+<table>
+<thead>
+<tr>
+<th>GPU</th>
+<th>jobs per GPU</th>
+<th>cores per GPU</th>
+<th>host memory per GPU</th>
+<th>expected Au+Au events/h</th>
+<th>limit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V100 (16/32 GB)</td>
+<td>8</td>
+<td>12–16</td>
+<td>64 GB</td>
+<td>700–950</td>
+<td>GPU</td>
+</tr>
+<tr>
+<td>A40 (48 GB)</td>
+<td>10–12</td>
+<td>16–24</td>
+<td>90–100 GB</td>
+<td>1,100–1,400</td>
+<td>cores at 16, GPU at 24</td>
+</tr>
+<tr>
+<td>A100 (40/80 GB)</td>
+<td>10–12</td>
+<td>16–24</td>
+<td>90–100 GB</td>
+<td>1,000–1,500</td>
+<td>GPU or cores</td>
+</tr>
+<tr>
+<td>L40S (48 GB)</td>
+<td>18–22</td>
+<td>24–32</td>
+<td>135–165 GB</td>
+<td>2,000–2,900</td>
+<td>cores</td>
+</tr>
+</tbody>
+</table>
+<p>For NSF ACCESS resources, on well-sized nodes every option gives about <strong>15–25 Au+Au events per
+ACCESS credit</strong>: faster GPUs cost proportionally more per hour. An H100 pays off only with at
+least ~24 cores per GPU; with 16 it runs at an A100's rate. About <strong>50,000–55,000 credits</strong> of
+GPU time make a million Au+Au events. Storage (100–240 TB for those files) is the larger
+request. The first choice is NCSA DeltaAI (GH200, 72 Grace cores per H100, about 19–22 events
+per credit), the second NCSA Delta A40. Details, including Slurm settings per resource:
+<a href="https://github.com/jhputschke/js-contrib/blob/main/docs/REPORT_CLUSTER_ACCESS.md">REPORT_CLUSTER_ACCESS.md</a>.</p>
+<h2 id="full-details">Full details<a class="headerlink" href="#full-details" title="Permanent link">¶</a></h2>
+<ul>
+<li><a href="https://github.com/jhputschke/js-contrib/blob/main/docs/MUSIC_CPU_vs_GPU.md">MUSIC_CPU_vs_GPU.md</a>:
+  GPU vs CPU MUSIC, method and every number; FP32 vs FP64.</li>
+<li><a href="https://github.com/jhputschke/js-contrib/blob/main/docs/REPORT_SUMMARY_CLUSTER.md">REPORT_SUMMARY_CLUSTER.md</a>:
+  throughput summary of all machines and the cluster sizing model.</li>
+<li><a href="https://github.com/jhputschke/js-contrib/blob/main/docs/BENCHMARK_2x3090.md">BENCHMARK_2x3090.md</a>,
+  <a href="https://github.com/jhputschke/js-contrib/blob/main/docs/BENCHMARK_GB10.md">BENCHMARK_GB10.md</a>,
+  <a href="https://github.com/jhputschke/js-contrib/blob/main/docs/BENCHMARK_M3MAX.md">BENCHMARK_M3MAX.md</a>,
+  <a href="https://github.com/jhputschke/js-contrib/blob/main/docs/BENCHMARK_PbPb_vs_AuAu.md">BENCHMARK_PbPb_vs_AuAu.md</a>:
+  the measurements per machine.</li>
+<li><a href="https://github.com/jhputschke/js-contrib/blob/main/docs/REPORT_FINAL_OPTIM.md">REPORT_FINAL_OPTIM.md</a>:
+  the throughput of the current image and the physics check of the late time step.</li>
+<li>MUSIC4GPU: <a href="https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README.md">README</a>,
+  <a href="https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_CUDA.md">CUDA</a> and
+  <a href="https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_Metal.md">Metal</a> back ends,
+  <a href="https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/docs/VacReset_BUG.md">the vacuum-cell fix</a>.</li>
+</ul>
+<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">¶</a></h2>
+<ul>
+<li><a href="../../install/container/">Install the production container</a> (CUDA) or
+  <a href="../../install/mac/">the Mac wheel</a> (Metal).</li>
+<li><a href="../../run/clusters/">Launch campaigns on clusters and multi-GPU machines</a>.</li>
+<li><a href="../why/">Why js-contrib</a> and <a href="../physics/">the physics of the productions</a>.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden="">
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer">
+        
+          
+          <a href="../physics/" class="md-footer__link md-footer__link--prev" aria-label="Previous: The physics">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                The physics
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../python-ml/" class="md-footer__link md-footer__link--next" aria-label="Next: Python and machine learning">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Python and machine learning
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"></path></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      js-contrib is distributed under the GNU General Public License v3.0 (GPLv3 or later), like X-SCAPE.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jhputschke/js-contrib" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jhputschke/xscape-macos" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11"></path></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://hub.docker.com/r/jhputschke/xscape-prod" target="_blank" rel="noopener" title="hub.docker.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M349.9 236.3h-66.1v-59.4h66.1zm0-204.3h-66.1v60.7h66.1zm78.2 144.8H362v59.4h66.1zm-156.3-72.1h-66.1v60.1h66.1zm78.1 0h-66.1v60.1h66.1zm276.8 100c-14.4-9.7-47.6-13.2-73.1-8.4-3.3-24-16.7-44.9-41.1-63.7l-14-9.3-9.3 14c-18.4 27.8-23.4 73.6-3.7 103.8-8.7 4.7-25.8 11.1-48.4 10.7H2.4c-8.7 50.8 5.8 116.8 44 162.1 37.1 43.9 92.7 66.2 165.4 66.2 157.4 0 273.9-72.5 328.4-204.2 21.4.4 67.6.1 91.3-45.2 1.5-2.5 6.6-13.2 8.5-17.1zm-511.1-27.9h-66v59.4h66.1v-59.4zm78.1 0h-66.1v59.4h66.1zm78.1 0h-66.1v59.4h66.1zm-78.1-72.1h-66.1v60.1h66.1z"></path></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://jetscape.org" target="_blank" rel="noopener" title="jetscape.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16.36 14c.08-.66.14-1.32.14-2s-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2m-5.15 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56M14.34 14H9.66c-.1-.66-.16-1.32-.16-2s.06-1.35.16-2h4.68c.09.65.16 1.32.16 2s-.07 1.34-.16 2M12 19.96c-.83-1.2-1.5-2.53-1.91-3.96h3.82c-.41 1.43-1.08 2.76-1.91 3.96M8 8H5.08A7.92 7.92 0 0 1 9.4 4.44C8.8 5.55 8.35 6.75 8 8m-2.92 8H8c.35 1.25.8 2.45 1.4 3.56A8 8 0 0 1 5.08 16m-.82-2C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2s.06 1.34.14 2M12 4.03c.83 1.2 1.5 2.54 1.91 3.97h-3.82c.41-1.43 1.08-2.77 1.91-3.97M18.92 8h-2.95a15.7 15.7 0 0 0-1.38-3.56c1.84.63 3.37 1.9 4.33 3.56M12 2C6.47 2 2 6.5 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2"></path></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+        <script src="../../assets/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+      
+        <script src="../../assets/diagram-zoom.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>

@@ -1,0 +1,2722 @@
+<!DOCTYPE html><html lang="en" class="no-js"><head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="GPU-accelerated X-SCAPE heavy-ion simulations with Python and PyTorch: install, run the productions, analyse the files, write your own modules.">
+      
+      
+        <meta name="author" content="Joern Putschke and the js-contrib contributors">
+      
+      
+        <link rel="canonical" href="https://jhputschke.github.io/js-contrib/run/clusters/">
+      
+      
+        <link rel="prev" href="../zjet-other/">
+      
+      
+        <link rel="next" href="../osdf/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Clusters, GPUs and monitoring - js-contrib</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  <link href="../../assets/stylesheets/glightbox.min.css" rel="stylesheet"><script src="../../assets/javascripts/glightbox.min.js"></script><style id="glightbox-style">
+            html.glightbox-open { overflow: initial; height: 100%; }
+            .gslide-title { margin-top: 0px; user-select: text; }
+            .gslide-desc { color: #666; user-select: text; }
+            .gslide-image img { background: white; }
+            .gscrollbar-fixer { padding-right: 15px; }
+            .gdesc-inner { font-size: 0.75rem; }
+            body[data-md-color-scheme="slate"] .gdesc-inner { background: var(--md-default-bg-color); }
+            body[data-md-color-scheme="slate"] .gslide-title { color: var(--md-default-fg-color); }
+            body[data-md-color-scheme="slate"] .gslide-desc { color: var(--md-default-fg-color); }
+        </style></head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#clusters-gpus-and-monitoring" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="js-contrib" class="md-header__button md-logo" aria-label="js-contrib" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.36 2.64c1.64 0 3 1.36 3 3 0 1.65-1.36 3-3 3-1.65 0-3-1.35-3-3 0-.3.05-.58.14-.84-1.07-.51-2.25-.8-3.5-.8a8 8 0 0 0-8 8l.04.84-1.99.21L2 12A10 10 0 0 1 12 2c1.69 0 3.28.42 4.67 1.16.49-.33 1.07-.52 1.69-.52m0 2a1 1 0 0 0-1 1 1 1 0 0 0 1 1c.56 0 1-.45 1-1 0-.56-.44-1-1-1M5.64 15.36c1.65 0 3 1.35 3 3 0 .3-.05.58-.14.84 1.07.51 2.25.8 3.5.8a8 8 0 0 0 8-8l-.04-.84 1.99-.21L22 12a10 10 0 0 1-10 10c-1.69 0-3.28-.42-4.67-1.16-.49.33-1.07.52-1.69.52-1.64 0-3-1.36-3-3 0-1.65 1.36-3 3-3m0 2c-.56 0-1 .45-1 1 0 .56.44 1 1 1a1 1 0 0 0 1-1 1 1 0 0 0-1-1M12 8a4 4 0 0 1 4 4 4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4"></path></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"></path></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            js-contrib
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Clusters, GPUs and monitoring
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="deep-orange" aria-label="Switch to dark mode" type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden="">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"></path></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="deep-orange" aria-label="Switch to light mode" type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden="">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"></path></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required="">
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"></path></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"></path></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix="">
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jhputschke/js-contrib" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    jhputschke/js-contrib
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../about/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  About
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../install/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Install
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Run
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../analysis/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Analyse
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../python/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Python
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../reference/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="js-contrib" class="md-nav__button md-logo" aria-label="js-contrib" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.36 2.64c1.64 0 3 1.36 3 3 0 1.65-1.36 3-3 3-1.65 0-3-1.35-3-3 0-.3.05-.58.14-.84-1.07-.51-2.25-.8-3.5-.8a8 8 0 0 0-8 8l.04.84-1.99.21L2 12A10 10 0 0 1 12 2c1.69 0 3.28.42 4.67 1.16.49-.33 1.07-.52 1.69-.52m0 2a1 1 0 0 0-1 1 1 1 0 0 0 1 1c.56 0 1-.45 1-1 0-.56-.44-1-1-1M5.64 15.36c1.65 0 3 1.35 3 3 0 .3-.05.58-.14.84 1.07.51 2.25.8 3.5.8a8 8 0 0 0 8-8l-.04-.84 1.99-.21L22 12a10 10 0 0 1-10 10c-1.69 0-3.28-.42-4.67-1.16-.49.33-1.07.52-1.69.52-1.64 0-3-1.36-3-3 0-1.65 1.36-3 3-3m0 2c-.56 0-1 .45-1 1 0 .56.44 1 1 1a1 1 0 0 0 1-1 1 1 0 0 0-1-1M12 8a4 4 0 0 1 4 4 4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4"></path></svg>
+
+    </a>
+    js-contrib
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jhputschke/js-contrib" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+  </div>
+  <div class="md-source__repository">
+    jhputschke/js-contrib
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix="">
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../about/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2" id="__nav_2_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    About
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/why/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why js-contrib
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/physics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The physics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/gpu/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GPU acceleration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/python-ml/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python and machine learning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../about/references/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Publications and citing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../install/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Install
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/container/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Production container
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/mac/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mac (xscape wheel)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/analysis-env/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis environment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/source/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Source build (conda)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked="">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../first-event/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Your first event
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auau-jet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Au+Au jets (two stages)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../oo-isr/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    O+O with ISR
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../zjet-other/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Z+jet and other systems
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clusters, GPUs and monitoring
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clusters, GPUs and monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#sizing-jobs-cores-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizing: jobs, cores, memory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#launch-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Launch settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slurm-one-gpu-per-array-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SLURM: one GPU per array task
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SLURM: one GPU per array task">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stage-2-on-cpu-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2 on CPU nodes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#several-gpus-in-one-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several GPUs in one machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring-a-campaign" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring a campaign
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking a run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../osdf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data on the OSDF
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../analysis/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Analyse
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/files/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What a production writes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/hadrons/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hadrons
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/jets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jets with FastJet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/hydro-hadrons/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hydro and hadrons together
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/oo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/root/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT and C++
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/notebooks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Notebooks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/pythonic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The Pythonic interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/modules/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing modules in Python
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/fno/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live PyTorch FNO hydro
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/fasthydro/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FastHydro
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/visualization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D visualization
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../reference/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/contribs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contribs and repositories
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/tools/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/site/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Building this site
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix="">
+      
+        <li class="md-nav__item">
+  <a href="#sizing-jobs-cores-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sizing: jobs, cores, memory
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#launch-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Launch settings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#slurm-one-gpu-per-array-task" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SLURM: one GPU per array task
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="SLURM: one GPU per array task">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#stage-2-on-cpu-nodes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2 on CPU nodes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#several-gpus-in-one-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several GPUs in one machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring-a-campaign" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring a campaign
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checking-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checking a run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#troubleshooting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Troubleshooting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#next-steps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Next steps
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/jhputschke/js-contrib/edit/main/website/run/clusters.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"></path></svg>
+    </a>
+  
+  
+
+
+<h1 id="clusters-gpus-and-monitoring">Clusters, GPUs and monitoring<a class="headerlink" href="#clusters-gpus-and-monitoring" title="Permanent link">¶</a></h1>
+<p>A production job keeps a GPU only partly busy: much of an event is host work (string
+deposition, Matter and LBT, the freeze-out search, writing). So a GPU needs several jobs at
+once, and <strong>the cores and host memory per GPU, not the GPU, usually set the rate</strong>. This page
+covers running at scale with the production container: the launch settings, SLURM arrays
+with Apptainer, several GPUs in one machine, watching a campaign with <code>jobmon.py</code>, and what to
+do when a run goes wrong. The single-machine commands are on the production pages
+(<a href="../auau-jet/">Au+Au jets</a>, <a href="../oo-isr/">O+O</a>).</p>
+<h2 id="sizing-jobs-cores-memory">Sizing: jobs, cores, memory<a class="headerlink" href="#sizing-jobs-cores-memory" title="Permanent link">¶</a></h2>
+<p>For the Au+Au jet production with the current code, per job:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>host memory</td>
+<td><strong>plan 7 GB per job</strong> (5 GB with <code>--particlize-only</code>), plus ~8 GB per node; Pb+Pb ~16 GB</td>
+</tr>
+<tr>
+<td>cores</td>
+<td>~1 core busy on average, with OpenMP bursts: <strong>2–3 threads per job</strong></td>
+</tr>
+<tr>
+<td>GPU memory</td>
+<td>~1 GB per job: a 16 GB V100 holds 8–10 jobs</td>
+</tr>
+<tr>
+<td>disk</td>
+<td>0.243 GB per event with pair + particlize files</td>
+</tr>
+</tbody>
+</table>
+<p>An O+O job needs ~1.5 GB and, with 10 oversamples in the job, ~6 core-s per event. So set the
+number of jobs per GPU from the cores and memory a GPU gets: about cores / 2–3, and about
+(memory − 8 GB) / 7 GB. Lower the number of jobs where a node gives a GPU less, not the
+threads per job below 2. The measured and extrapolated rates per GPU type (V100, A40, A100,
+L40S, RTX 3090, GB10, M3 Max) are in <a href="../../about/gpu/">GPU acceleration</a>.</p>
+<p><strong>Before a large campaign</strong>, on the first node: a 20–30 min sweep of the jobs per GPU (e.g.
+8, 12, 16) at the planned cores. Record events/h by makespan, the GPU use
+(<code>nvidia-smi dmon -s u</code>) and the memory peak. If the GPU stays below ~75 % busy while the
+cores are full, more cores per GPU pay, more jobs don't.</p>
+<h2 id="launch-settings">Launch settings<a class="headerlink" href="#launch-settings" title="Permanent link">¶</a></h2>
+<p>None of these changes the output; together they decide how many jobs fit and how fast they
+run.</p>
+<table>
+<thead>
+<tr>
+<th>setting</th>
+<th>how</th>
+<th>why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>jobs per GPU</td>
+<td><code>run_jobs.sh -j P</code></td>
+<td>the GPU needs several jobs to stay busy (10 on an RTX 3090 with 12 cores per GPU)</td>
+</tr>
+<tr>
+<td>threads per job</td>
+<td><code>OMP_NUM_THREADS</code> ≈ cores per GPU / P, at least 2</td>
+<td>more threads than cores oversubscribe them</td>
+</tr>
+<tr>
+<td><code>OMP_WAIT_POLICY=passive</code></td>
+<td>environment</td>
+<td>idle OpenMP threads sleep instead of spinning</td>
+</tr>
+<tr>
+<td><code>MUSIC_CUDA_SYNC=block</code></td>
+<td>environment</td>
+<td>the host sleeps while it waits for the GPU: ~30 % less CPU per event at the same throughput</td>
+</tr>
+<tr>
+<td><code>LBT_TABLE_CACHE=FILE</code></td>
+<td>environment; FILE in a bound, writable directory</td>
+<td>all jobs map one read-only copy of LBT's 0.66 GB of tables: −0.6 GB and 6–11 s of start-up per job. The first job writes it</td>
+</tr>
+<tr>
+<td><code>--stagger S</code></td>
+<td><code>run_jobs.sh</code> option</td>
+<td>the first P jobs start S s apart, so their memory peaks don't coincide (12 for 8–10 jobs per GPU)</td>
+</tr>
+<tr>
+<td><code>--mps</code></td>
+<td><code>run_jobs.sh</code> option, CUDA only</td>
+<td>the jobs share the GPU through CUDA MPS: +5–12 % where it works</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">CUDA MPS in containers</p>
+<p>MPS is not assured inside containers (on the GB10 the daemon does not start in one) and
+has never been tried on a cluster: run without it first, and test with
+<code>nvidia-cuda-mps-control -d; echo $?</code> inside the container. Two daemons in one container
+hang the second GPU's jobs. If the site runs MPS itself (<code>--gres=mps</code>), don't add <code>--mps</code>.</p>
+</div>
+<p>In Docker pass the variables with <code>-e</code>, in Apptainer with <code>--env A=1,B=2</code>. On a Mac the same
+rule holds without MPS: <code>OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0
+./run_jobs.sh -j 3 …</code> on a 16-core M3 Max.</p>
+<h2 id="slurm-one-gpu-per-array-task">SLURM: one GPU per array task<a class="headerlink" href="#slurm-one-gpu-per-array-task" title="Permanent link">¶</a></h2>
+<p><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/slurm_prod_array.sh"><code>utils/slurm_prod_array.sh</code></a>
+runs a campaign as a job array in the production container: each task gets one GPU and runs
+<code>P</code> jobs on it with the launch settings above. SLURM gives whole GPUs, and only jobs in one
+allocation can share a GPU, so one SLURM job per production job would leave the GPUs mostly
+idle.</p>
+<p><strong>1. Pull the image</strong> once, on a login node (a <code>.sif</code> holds one CPU architecture; on x86
+login nodes with arm64 GPU nodes such as GH200, add <code>--arch arm64</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>apptainer<span class="w"> </span>pull<span class="w"> </span>xscape_prod.sif<span class="w"> </span>docker://jhputschke/xscape-prod:cu126-&lt;date&gt;-&lt;commit&gt;
+</code></pre></div>
+<p><strong>2. Make the LBT table cache once</strong> with one 1-event job (otherwise 20 tasks starting
+together each write their own copy; add your site's <code>-p</code>/<code>-A</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">PROD</span><span class="o">=</span>/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">WORK</span><span class="o">=</span><span class="nv">$SCRATCH</span>/xscape_prod<span class="p">;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$WORK</span>/lbt_cache
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>srun<span class="w"> </span>--gres<span class="o">=</span>gpu:1<span class="w"> </span>--cpus-per-task<span class="o">=</span><span class="m">4</span><span class="w"> </span>--mem<span class="o">=</span>16G<span class="w"> </span>--time<span class="o">=</span><span class="m">0</span>:20:00<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--env<span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/work/lbt_cache/lbt_tables_v1.bin<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span>--pwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PROD</span><span class="s2">"</span><span class="w"> </span>--bind<span class="w"> </span><span class="s2">"</span><span class="nv">$WORK</span><span class="s2">:/work"</span><span class="w"> </span>xscape_prod.sif<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>/work/lbt_cache/init<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">    </span>--seed-registry<span class="w"> </span>none<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span><span class="s2">"LBT:"</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>rm<span class="w"> </span>-r<span class="w"> </span><span class="nv">$WORK</span>/lbt_cache/init<span class="w">                 </span><span class="c1"># the test event, not needed</span>
+</code></pre></div>
+<p>The <code>grep</code> shows <code>LBT: wrote the table cache /work/lbt_cache/lbt_tables_v1.bin</code>. Where arm64
+and amd64 nodes share a file system, keep one file per architecture
+(<code>LBT_CACHE=/work/lbt_cache/lbt_tables_v1_arm64.bin</code>).</p>
+<p><strong>3. A trial, then the campaign</strong> (from a js-contrib checkout):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># trial: 2 tasks, 2 jobs of 15 events each</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">SIF</span><span class="o">=</span><span class="nv">$PWD</span>/xscape_prod.sif<span class="w"> </span><span class="nv">CAMPAIGN</span><span class="o">=</span>pth10-40_eta06_c2<span class="w"> </span><span class="nv">NJOBS</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="nv">EVENTS</span><span class="o">=</span><span class="m">15</span><span class="w"> </span><span class="nv">P</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nv">EXTRA_ARGS</span><span class="o">=</span><span class="s2">"--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>sbatch<span class="w"> </span>--array<span class="o">=</span><span class="m">0</span>-1<span class="w"> </span>--time<span class="o">=</span><span class="m">2</span>:00:00<span class="w"> </span>utils/slurm_prod_array.sh
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="c1"># the campaign: 20 tasks x 40 jobs x 15 events = 12,000 events on 800 backgrounds</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="nv">SIF</span><span class="o">=</span><span class="nv">$PWD</span>/xscape_prod.sif<span class="w"> </span><span class="nv">CAMPAIGN</span><span class="o">=</span>pth10-40_eta06_c2<span class="w"> </span><span class="nv">NJOBS</span><span class="o">=</span><span class="m">40</span><span class="w"> </span><span class="nv">EVENTS</span><span class="o">=</span><span class="m">15</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">  </span><span class="nv">EXTRA_ARGS</span><span class="o">=</span><span class="s2">"--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">  </span>sbatch<span class="w"> </span>--array<span class="o">=</span><span class="m">0</span>-19<span class="w"> </span>utils/slurm_prod_array.sh
+</code></pre></div>
+<p>The defaults, <code>P=10</code> jobs per GPU with <code>--gres=gpu:1 --cpus-per-task=20 --mem=96G</code>, are an
+A100's or A40's share of a node; for other GPUs pass <code>P</code> and the <code>sbatch</code> options (e.g. V100s:
+<code>P=8 … sbatch --cpus-per-task=16 --mem=64G</code>). The script sets <code>OMP_NUM_THREADS = cpus / P</code>
+itself (and warns below 2). At the 3090's measured rate, that 12,000-event campaign is ~11
+GPU-hours, ~2.9 TB of stage-1 files and ~0.9 TB of hadrons.</p>
+<table>
+<thead>
+<tr>
+<th>variable</th>
+<th>default</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SIF</code></td>
+<td><code>$HOME/xscape_prod.sif</code></td>
+<td>the image</td>
+</tr>
+<tr>
+<td><code>WORK</code></td>
+<td><code>$SCRATCH/xscape_prod</code></td>
+<td>bound to <code>/work</code>; writable, shared by the tasks</td>
+</tr>
+<tr>
+<td><code>PROD</code></td>
+<td><code>auau</code></td>
+<td><code>oo</code> runs <code>prod_OO_isr</code></td>
+</tr>
+<tr>
+<td><code>CAMPAIGN</code>, <code>NJOBS</code>, <code>EVENTS</code>, <code>P</code></td>
+<td></td>
+<td>campaign name, jobs per task, events per job, jobs at once per GPU</td>
+</tr>
+<tr>
+<td><code>EXTRA_ARGS</code></td>
+<td></td>
+<td>options for the driver (<code>run_prod_jet.py</code> / <code>run_prod_oo_isr.py</code>)</td>
+</tr>
+<tr>
+<td><code>BINDS</code></td>
+<td></td>
+<td>more binds, e.g. <code>"$PWD/xml:/xml"</code> for your own XML</td>
+</tr>
+<tr>
+<td><code>TAG_PREFIX</code></td>
+<td>the production's</td>
+<td>file names, e.g. <code>PbPb_0_30_seed</code></td>
+</tr>
+<tr>
+<td><code>SEED_MODE</code></td>
+<td><code>registry</code></td>
+<td><code>ranges</code> with <code>SEED_BASE</code>: task t runs seeds <code>SEED_BASE + t·NJOBS …</code>, no cross-node lock needed</td>
+</tr>
+<tr>
+<td><code>MUSIC_CUDA_SYNC</code>, <code>LBT_CACHE</code>, <code>STAGGER</code>, <code>USE_MPS</code></td>
+<td><code>block</code>, <code>/work/lbt_cache/lbt_tables_v1.bin</code>, 12, 0</td>
+<td>the launch settings (<code>LBT_CACHE=none</code>, <code>STAGGER=0</code> to turn off)</td>
+</tr>
+<tr>
+<td><code>CHECK_DEPOSITION</code></td>
+<td>1</td>
+<td>after the jobs, flag jobs whose droplets per event fall below half the median</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Output:</strong> <code>WORK/CAMPAIGN/t000/</code>, <code>t001/</code>, … with one shared seed registry
+  <code>WORK/CAMPAIGN/seeds_used.tsv</code>. The script checks that file locks work across nodes, or use
+  <code>SEED_MODE=ranges</code>.</li>
+<li><strong>Restarting:</strong> submit the same command again; each task skips its finished jobs. A task
+  that runs out of time resumes.</li>
+<li><strong>Time:</strong> at ~25 s per event in a loaded job, a 15-event job takes ~6–7 min; allow 2× on
+  V100s. Longer jobs (30 or 45 events) amortise the start-up better.</li>
+<li><strong>Memory:</strong> SLURM counts the page cache of the HDF5 files being written; if tasks are killed
+  near the limit, raise <code>--mem</code> by ~10–15 % rather than lowering <code>P</code>.</li>
+<li><strong>Disk:</strong> one fast GPU can write more than an OSDF upload takes (an L40S up to ~0.7 TB/h
+  with pair files). Use <code>--particlize-only</code> unless the hydro history is needed, and
+  <code>upload_follow.py</code> (<a href="../osdf/#uploading-while-a-production-runs">Data on the OSDF</a>).</li>
+<li><strong>O+O:</strong> <code>PROD=oo CAMPAIGN=OO_c1 EXTRA_ARGS="--bulk-hadrons 10 --no-particlize --no-hydro-file" sbatch --mem=40G utils/slurm_prod_array.sh</code>.</li>
+</ul>
+<h3 id="stage-2-on-cpu-nodes">Stage 2 on CPU nodes<a class="headerlink" href="#stage-2-on-cpu-nodes" title="Permanent link">¶</a></h3>
+<p><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/slurm_hadronize.sh"><code>utils/slurm_hadronize.sh</code></a>
+hadronizes the campaign with the same image, without a GPU: task <em>t</em> runs <code>run_hadronize.py</code>
+on <code>WORK/CAMPAIGN/t&lt;ttt&gt;/</code>, the directory of stage-1 task <em>t</em>, one process per core.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">SIF</span><span class="o">=</span><span class="nv">$PWD</span>/xscape_prod.sif<span class="w"> </span><span class="nv">CAMPAIGN</span><span class="o">=</span>pth10-40_eta06_c2<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nv">HAD_ARGS</span><span class="o">=</span><span class="s2">"--oversample 400 --oversample-bg per-pthat-bin --n-frag 50 --keep-bits-p 12 --keep-bits-x 8"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>sbatch<span class="w"> </span>--array<span class="o">=</span><span class="m">0</span>-19<span class="w"> </span>utils/slurm_hadronize.sh
+</code></pre></div>
+<ul>
+<li>Defaults: <code>--cpus-per-task=16 --mem=32G</code>; <code>HAD_ARGS</code> defaults to
+  <code>--oversample 400 --n-frag 50 --keep-bits-p 12 --keep-bits-x 8</code>. <strong>Keep <code>HAD_ARGS</code> the same
+  for every task and resubmission.</strong></li>
+<li><code>PROD=oo</code> hadronizes the O+O bulk (<code>--tags bulk_bg</code> is added); <code>INPUTS="/work/…"</code> takes other
+  inputs (directories, particlize files or quoted globs, as paths inside the container).</li>
+<li>Memory ~1.6–1.7 GB per process: ask for ~2 GB per core. One process does ~340 Au+Au
+  events/h at 500 oversamples, so ~6–7 cores keep up with 2,000 events/h of stage 1.</li>
+</ul>
+<h2 id="several-gpus-in-one-machine">Several GPUs in one machine<a class="headerlink" href="#several-gpus-in-one-machine" title="Permanent link">¶</a></h2>
+<p>MUSIC always uses the first GPU it sees, and <code>run_jobs.sh</code> doesn't assign GPUs: on a machine
+with several GPUs, run <strong>one campaign per GPU</strong>, each with its own <code>CUDA_VISIBLE_DEVICES</code> (or
+its own container), OUTDIR and campaign name. OUTDIRs side by side share the seed registry.</p>
+<p><strong>Ready-made for Docker on two GPUs:</strong>
+<a href="https://github.com/jhputschke/js-contrib/blob/main/utils/launch_2gpu.sh"><code>utils/launch_2gpu.sh</code></a>
+starts one container per GPU, each running <code>run_jobs.sh</code> with MPS, guards the disk and can
+upload every finished job to the OSDF while the campaign runs.
+<a href="https://github.com/jhputschke/js-contrib/blob/main/utils/launch_2gpu_oo.sh"><code>utils/launch_2gpu_oo.sh</code></a>
+does the same for O+O. Run them from <code>utils/</code> of a js-contrib checkout:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>js-contrib/utils
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># Au+Au with the defaults: 10 jobs per GPU, 3 threads, shared LBT tables, staggered start,</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># blocking CUDA sync; 60 jobs x 45 events (a multiple of 20 jobs)</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nv">IMAGE</span><span class="o">=</span>jhputschke/xscape-prod:cu126<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>nohup<span class="w"> </span>./launch_2gpu.sh<span class="w"> </span><span class="m">60</span><span class="w"> </span><span class="m">45</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>/data/camp_pth3<span class="w"> </span>--campaign<span class="w"> </span>pth3<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span>--pthat-bins<span class="w"> </span><span class="m">10</span>-20,20-30,30-40<span class="w"> </span>--jets-per-bin<span class="w"> </span><span class="m">5</span><span class="w"> </span>--parton-ymax<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>&gt;<span class="w"> </span>/data/camp_pth3.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">&amp;</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="c1"># O+O, hadron files only (defaults: 8 jobs per GPU, 3 threads, MUSIC_CUDA_SYNC=block, MPS)</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>nohup<span class="w"> </span>./launch_2gpu_oo.sh<span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">100</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>/data/OO_had<span class="w"> </span>--campaign<span class="w"> </span>had1<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span>--bulk-hadrons<span class="w"> </span><span class="m">100</span><span class="w"> </span>--no-particlize<span class="w"> </span>--no-hydro-file<span class="w"> </span>&gt;<span class="w"> </span>/data/OO_had.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">&amp;</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./launch_2gpu.sh [options] NJOBS EVENTS_PER_JOB [FIRST_SEED] [OUTBASE] [driver / run_jobs.sh options]
+</code></pre></div>
+<ul>
+<li><strong>NJOBS</strong> is the total: GPU0 gets the first half, GPU1 the rest. Output goes to
+  <code>OUTBASE/gpu0/</code> and <code>OUTBASE/gpu1/</code>, with a shared seed registry. With <code>FIRST_SEED 0</code> both
+  directories hold files of the same names (different seeds): keep the directories.</li>
+<li><strong>Options before NJOBS:</strong> <code>--lbt-cache FILE</code> (Au+Au default <code>/work/lbt_cache/lbt_tables_v1.bin</code>,
+  made first if missing, ~1 min; <code>none</code> turns it off), <code>--stagger S</code> (Au+Au default 12; <code>0</code> off),
+  <code>--min-free SIZE</code> (the disk guard: stops both containers below SIZE free, default <code>50G</code>),
+  and the upload options <code>--upload REMOTE</code>, <code>--delete none|pair|all</code>, <code>--keep-free SIZE</code>,
+  <code>--verify-every N</code> (<a href="../osdf/#uploading-while-a-production-runs">Data on the OSDF</a>).</li>
+<li><strong>Environment:</strong> <code>IMAGE</code>, <code>JOBS_PER_GPU</code> (default 10; O+O 8), <code>OMP_THREADS</code> (default 3),
+  <code>WORKDIR</code> (mounted as <code>/work</code>, default <code>$HOME/prod_test</code>), <code>MUSIC_CUDA_SYNC</code> (default
+  <code>block</code>), <code>TAG_PREFIX</code>. For an image older than 2026-10-10:
+  <code>JOBS_PER_GPU=8 OMP_THREADS=4 ./launch_2gpu.sh --lbt-cache none --stagger 0 …</code>.</li>
+<li><strong>Stop</strong> with Ctrl-C or <code>kill</code> (both containers and the uploader stop); <strong>resume</strong> with the
+  same command.</li>
+</ul>
+<p>Measured on 2 × RTX 3090 (24 cores, 125 GB) with the campaign setting: <strong>2,160 events/h</strong> for
+Au+Au at 10 jobs per GPU, 105 GB host memory peak; <strong>13,728 events/h</strong> for O+O with hadron
+files only. Details: <a href="https://github.com/jhputschke/js-contrib/blob/main/utils/README_launch.md"><code>utils/README_launch.md</code></a>.</p>
+<p><strong>By hand, or with Apptainer</strong> (one container for all GPUs, no <code>--mps</code>):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--env<span class="w"> </span><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">3</span>,OMP_WAIT_POLICY<span class="o">=</span>passive,MUSIC_CUDA_SYNC<span class="o">=</span>block<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--env<span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/work/lbt_cache/lbt_tables_v1.bin<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--pwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PROD</span><span class="s2">"</span><span class="w"> </span>--bind<span class="w"> </span><span class="s2">"</span><span class="nv">$SCRATCH</span><span class="s2">/prod:/work"</span><span class="w"> </span>xscape_prod.sif<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s1">'</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="s1">  trap "kill \$(jobs -p) 2&gt;/dev/null; wait" INT TERM</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="s1">  CUDA_VISIBLE_DEVICES=0 ./run_jobs.sh -j 8 --stagger 12 --campaign AuAu_gpu0 24 45 0 /work/AuAu/gpu0 --write-particlize both &amp;</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="s1">  CUDA_VISIBLE_DEVICES=1 ./run_jobs.sh -j 8 --stagger 12 --campaign AuAu_gpu1 24 45 0 /work/AuAu/gpu1 --write-particlize both &amp;</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="s1">  wait'</span>
+</code></pre></div>
+<p>Under SLURM, if <code>CUDA_VISIBLE_DEVICES</code> is already set (e.g. <code>2,3</code>), use those numbers.</p>
+<h2 id="monitoring-a-campaign">Monitoring a campaign<a class="headerlink" href="#monitoring-a-campaign" title="Permanent link">¶</a></h2>
+<p><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/jobmon.py"><code>utils/jobmon.py</code></a> reads
+what the jobs write (their logs, <code>.json</code> summaries and the <code>run_jobs.*</code> markers) and shows jobs
+done / running / failed, events, events/h, the ETA, disk per event, the failed jobs with their
+last log lines, the deposition check, edge hits, skipped events and the most frequent
+warnings. It works on Docker, SLURM and Mac output alike, during a run or after.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w">                  </span><span class="c1"># OUTBASE: its gpu0/, gpu1/, ... (or t000/, ...) are taken</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w"> </span>--njobs<span class="w"> </span><span class="m">100</span><span class="w">      </span><span class="c1"># count the jobs not started yet too</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w"> </span>--watch<span class="w">          </span><span class="c1"># live view, every 10 s</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w"> </span>--tui<span class="w">            </span><span class="c1"># terminal UI: sort, filter, a job's details and live log</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w"> </span>--all<span class="w">            </span><span class="c1"># every job; exit code 1 if one failed or is flagged</span>
+</code></pre></div>
+<p>It needs only the standard library; <code>--watch</code> uses <code>rich</code> if installed and <code>--tui</code> needs
+<code>textual</code> (both in the <a href="../../install/analysis-env/">analysis environment</a>). For a workshop,
+the TUI runs in a browser: <code>textual serve "utils/jobmon.py /data/c1 --tui"</code> (package
+<code>textual-dev</code>).</p>
+<ul>
+<li>A job counts as running while its driver process is alive (on the machine that runs the
+  jobs, containers included); on another machine, while its log changed in the last 15 min
+  (<code>--stale</code>).</li>
+<li>The drivers' <code>event … done in</code> lines reach the log in blocks, so event counts jump by
+  ~10–15 at a time; <code>PYTHONUNBUFFERED=1</code> in the jobs' environment avoids it. The s per event
+  are exact.</li>
+</ul>
+<p><strong>The deposition check.</strong> Once, in ~250 campaign jobs, all events of one job lost almost no
+jet energy (1–5 droplets per event instead of 13–34), with a correct background and no
+warning in the log; the same seed alone was normal. Check every campaign for it:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>utils/check_deposition.py<span class="w"> </span>/work/AuAu_a<span class="w">                     </span><span class="c1"># every job summary below it</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>utils/check_deposition.py<span class="w"> </span>/data/c1/gpu0<span class="w"> </span>/data/c1/gpu1<span class="w">      </span><span class="c1"># one campaign in two directories</span>
+</code></pre></div>
+<p>It flags a job whose droplets per event fall below half the campaign's median (<code>--fraction</code>)
+and exits 1 if one is flagged. To redo it, move its files (<code>&lt;stem&gt;.*</code>) out of OUTDIR and run
+the campaign's command again. <code>slurm_prod_array.sh</code> runs it on each task's directory.</p>
+<h2 id="checking-a-run">Checking a run<a class="headerlink" href="#checking-a-run" title="Permanent link">¶</a></h2>
+<p>In a job log, <code>OUTDIR/&lt;stem&gt;.log</code>:</p>
+<table>
+<thead>
+<tr>
+<th>line</th>
+<th>means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[MUSIC-GPU] CUDA device: &lt;GPU name&gt; (cc X.Y, …)</code></td>
+<td>the hydro runs on that GPU</td>
+</tr>
+<tr>
+<td><code>[MUSIC-GPU] OMP wait policy: passive (max threads N)</code></td>
+<td>the thread settings arrived</td>
+</tr>
+<tr>
+<td><code>[MUSIC-GPU] host sync: block</code></td>
+<td><code>MUSIC_CUDA_SYNC=block</code> arrived</td>
+</tr>
+<tr>
+<td><code>LBT: wrote the table cache …</code> / <code>LBT: tables mapped read-only from …</code></td>
+<td>the LBT cache works (<code>grep -L "mapped read-only" OUTDIR/*.log</code> lists jobs without it)</td>
+</tr>
+<tr>
+<td><code>late step: delta_tau 0.02 -&gt; 0.05 fm/c at step 130 …</code></td>
+<td>MUSIC's late time step is on</td>
+</tr>
+<tr>
+<td><code>restart  MUSIC_2 starts from MUSIC_1's state …</code> / <code>restart  OFF: …</code></td>
+<td>the MUSIC_2 restart, on or off with the reason</td>
+</tr>
+<tr>
+<td><code>… done in … s</code> per event</td>
+<td>the speed: events/h = jobs × 3600 / s per event</td>
+</tr>
+<tr>
+<td><code>No CUDA device found</code>, <code>falling back to CPU</code></td>
+<td><strong>no GPU</strong>: ~7–10× slower and systematically different (~0.2 %). Don't add that output to a GPU campaign</td>
+</tr>
+<tr>
+<td><code>PairH5Writer: event i: the jet leg has e = … on the transverse edge of the output grid</code></td>
+<td>fluid above freeze-out reached the stored box's edge (<code>diag/{bg,jet}_hit_edge</code>); a few per campaign are expected, frequent ones mean the grid is too small</td>
+</tr>
+</tbody>
+</table>
+<p>Each job also writes <code>&lt;stem&gt;.json</code> (seed, events written, settings, <code>events_hit_edge</code>,
+<code>droplets_total</code>), and a campaign ends with <code>OUTDIR/run_jobs.finished</code>.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>symptom</th>
+<th>cause and fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>./run_jobs.sh: No such file</code> (Apptainer)</td>
+<td>no <code>--pwd "$PROD"</code>; or call <code>$PROD/run_jobs.sh</code></td>
+</tr>
+<tr>
+<td><code>--outdir: give OUTDIR as the argument after FIRST_SEED</code></td>
+<td>OUTDIR is the 4th argument of <code>run_jobs.sh</code>, not an option</td>
+</tr>
+<tr>
+<td><code>Read-only file system: …/seeds_used.tsv</code></td>
+<td>OUTDIR's parent isn't writable: put OUTDIR one level inside a bound directory (<code>/work/out</code>)</td>
+</tr>
+<tr>
+<td>only one job runs with <code>-j 2</code></td>
+<td>NJOBS is 1: <code>-j</code> only limits how many run at once</td>
+</tr>
+<tr>
+<td><code>No CUDA device found</code> / jobs much slower</td>
+<td>no GPU visible: <code>--nv</code> / <code>--gpus</code>, <code>CUDA_VISIBLE_DEVICES</code>, or per-campaign MPS on several GPUs</td>
+</tr>
+<tr>
+<td><code>kernel launch … failed: no kernel image is available</code></td>
+<td>the image lacks this GPU's architecture (e.g. V100 with a <code>cu130</code> image): use <code>cu124</code> or <code>cu126</code>; discard that output</td>
+</tr>
+<tr>
+<td><code>--mps: could not start the MPS daemon</code></td>
+<td>MPS doesn't work in this container or site: drop <code>--mps</code></td>
+</tr>
+<tr>
+<td>jobs killed (OOM)</td>
+<td>plan ~7 GB per Au+Au job plus ~8 GB per node: lower <code>-j</code>, use <code>LBT_TABLE_CACHE</code> and <code>--stagger</code>, or ask for more <code>--mem</code></td>
+</tr>
+<tr>
+<td>busy-spinning threads, the libgomp warning</td>
+<td><code>OMP_WAIT_POLICY=passive</code> before launching</td>
+</tr>
+<tr>
+<td>the GPUs stay ~60 % busy whatever <code>-j</code></td>
+<td>expected: the cores per GPU set the rate. More cores per GPU help, more jobs don't</td>
+</tr>
+<tr>
+<td>one job's events have far fewer droplets than the rest</td>
+<td>the rare failure of the deposition check: redo that job</td>
+</tr>
+<tr>
+<td><code>unrecognized arguments: --late-dtau</code> (or <code>--no-music2-restart</code>)</td>
+<td>an older image without the option: drop it</td>
+</tr>
+<tr>
+<td>a failed job</td>
+<td>its <code>OUTDIR/&lt;stem&gt;.log</code>; rerun the same command (finished jobs are skipped)</td>
+</tr>
+</tbody>
+</table>
+<p>More cases: <a href="https://github.com/jhputschke/js-contrib/blob/main/docs/README_2stage.md#7-troubleshooting"><code>docs/README_2stage.md</code>, §7</a>.</p>
+<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">¶</a></h2>
+<ul>
+<li><a href="../osdf/">Data on the OSDF</a>: move the outputs, or upload them while the campaign runs.</li>
+<li><a href="../../analysis/files/">What a production writes</a>: the files of a finished campaign.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden="">
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"></path></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer">
+        
+          
+          <a href="../zjet-other/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Z+jet and other systems">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"></path></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Z+jet and other systems
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../osdf/" class="md-footer__link md-footer__link--next" aria-label="Next: Data on the OSDF">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Data on the OSDF
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"></path></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      js-contrib is distributed under the GNU General Public License v3.0 (GPLv3 or later), like X-SCAPE.
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jhputschke/js-contrib" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"></path></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/jhputschke/xscape-macos" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11"></path></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://hub.docker.com/r/jhputschke/xscape-prod" target="_blank" rel="noopener" title="hub.docker.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M349.9 236.3h-66.1v-59.4h66.1zm0-204.3h-66.1v60.7h66.1zm78.2 144.8H362v59.4h66.1zm-156.3-72.1h-66.1v60.1h66.1zm78.1 0h-66.1v60.1h66.1zm276.8 100c-14.4-9.7-47.6-13.2-73.1-8.4-3.3-24-16.7-44.9-41.1-63.7l-14-9.3-9.3 14c-18.4 27.8-23.4 73.6-3.7 103.8-8.7 4.7-25.8 11.1-48.4 10.7H2.4c-8.7 50.8 5.8 116.8 44 162.1 37.1 43.9 92.7 66.2 165.4 66.2 157.4 0 273.9-72.5 328.4-204.2 21.4.4 67.6.1 91.3-45.2 1.5-2.5 6.6-13.2 8.5-17.1zm-511.1-27.9h-66v59.4h66.1v-59.4zm78.1 0h-66.1v59.4h66.1zm78.1 0h-66.1v59.4h66.1zm-78.1-72.1h-66.1v60.1h66.1z"></path></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://jetscape.org" target="_blank" rel="noopener" title="jetscape.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M16.36 14c.08-.66.14-1.32.14-2s-.06-1.34-.14-2h3.38c.16.64.26 1.31.26 2s-.1 1.36-.26 2m-5.15 5.56c.6-1.11 1.06-2.31 1.38-3.56h2.95a8.03 8.03 0 0 1-4.33 3.56M14.34 14H9.66c-.1-.66-.16-1.32-.16-2s.06-1.35.16-2h4.68c.09.65.16 1.32.16 2s-.07 1.34-.16 2M12 19.96c-.83-1.2-1.5-2.53-1.91-3.96h3.82c-.41 1.43-1.08 2.76-1.91 3.96M8 8H5.08A7.92 7.92 0 0 1 9.4 4.44C8.8 5.55 8.35 6.75 8 8m-2.92 8H8c.35 1.25.8 2.45 1.4 3.56A8 8 0 0 1 5.08 16m-.82-2C4.1 13.36 4 12.69 4 12s.1-1.36.26-2h3.38c-.08.66-.14 1.32-.14 2s.06 1.34.14 2M12 4.03c.83 1.2 1.5 2.54 1.91 3.97h-3.82c.41-1.43 1.08-2.77 1.91-3.97M18.92 8h-2.95a15.7 15.7 0 0 0-1.38-3.56c1.84.63 3.37 1.9 4.33 3.56M12 2C6.47 2 2 6.5 2 12a10 10 0 0 0 10 10 10 10 0 0 0 10-10A10 10 0 0 0 12 2"></path></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+        <script src="../../assets/mathjax.js"></script>
+      
+        <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
+      
+        <script src="../../assets/diagram-zoom.js"></script>
+      
+    
+  
+<script id="init-glightbox">const lightbox = GLightbox({"touchNavigation": true, "loop": false, "zoomable": true, "draggable": true, "openEffect": "zoom", "closeEffect": "zoom", "slideEffect": "slide"});
+document$.subscribe(()=>{ lightbox.reload(); });
+</script></body></html>
