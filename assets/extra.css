@@ -127,3 +127,50 @@
 body.dz-noscroll {
   overflow: hidden;
 }
+
+/* ── GPU speed-up bar chart (about/gpu.md) ─────────────────────────── */
+/* Series colours checked for colour-vision separation and contrast on each scheme's page colour. */
+:root {
+  --sp-s1: #2a78d6;   /* single event */
+  --sp-s2: #eb6834;   /* whole machine */
+}
+[data-md-color-scheme="slate"] {
+  --sp-s1: #3987e5;
+  --sp-s2: #d95926;
+}
+.md-typeset .sp-figure {   /* Material sizes figures to fit-content; the SVG needs the column width */
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 1.5em 0;
+}
+.sp-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.sp-chart text { font-family: var(--md-code-font-family); font-size: 13px; fill: var(--md-default-fg-color--light); }
+.sp-chart .sp-lab { font-family: var(--md-text-font-family); font-size: 15px; font-weight: 600; fill: var(--md-default-fg-color); }
+.sp-chart .sp-sub { font-family: var(--md-text-font-family); font-size: 12px; fill: var(--md-default-fg-color--lighter); }
+.sp-chart .sp-val { font-size: 14px; font-weight: 600; fill: var(--md-default-fg-color); }
+.sp-chart .sp-grid { stroke: var(--md-default-fg-color--lightest); stroke-width: 1; }
+.sp-chart .sp-axis { stroke: var(--md-default-fg-color--lighter); stroke-width: 1; }
+.sp-chart .sp-s1 { fill: var(--sp-s1); }
+.sp-chart .sp-s2 { fill: var(--sp-s2); }
+.sp-chart .sp-whisk { stroke: var(--md-default-fg-color--light); stroke-width: 2; fill: none; }
+.sp-chart .sp-hit { fill: transparent; }
+.sp-chart .sp-bar:hover path:not(.sp-whisk) { opacity: 0.8; }
+.sp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 1.2em;
+  font-size: 0.8rem;
+  color: var(--md-default-fg-color--light);
+  margin-bottom: 0.5em;
+}
+.sp-legend span { display: inline-flex; align-items: center; gap: 0.4em; }
+.sp-sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+.sp-sw.sp-s1 { background: var(--sp-s1); }
+.sp-sw.sp-s2 { background: var(--sp-s2); }
+.sp-sw.sp-rng { width: 18px; height: 2px; border-radius: 0; background: var(--md-default-fg-color--light); }
