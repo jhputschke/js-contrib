@@ -15,6 +15,13 @@ response, Cooper–Frye particlization and hadronization) and makes it fast enou
 enough and portable enough to produce large event samples. Those samples are used for physics
 analyses and as training data for machine-learned surrogates.
 
+![A Pb+Pb Z+jet event at t = 3 fm/c: the medium without the jet's deposit, with it, and the wake](assets/img/zjet_wake_event1_t3.jpg)
+
+*A Pb+Pb Z+jet event at 5.02 TeV, 3 fm/c after the collision: the medium without the jet's
+deposit, with it, and the difference, the jet's wake. The Z (white arrow, its muons in green)
+recoils against the parton shower. Drawn by `wake_pyvista.py` from the
+[example on the OSDF](python/visualization.md#example-data-a-pbpb-zjet-event-on-the-osdf).*
+
 <div class="grid cards" markdown>
 
 -   :material-expansion-card-variant:{ .lg .middle } **GPU acceleration**
