@@ -80,7 +80,10 @@ weighted by window cross section / events × N_coll (normalized to mean 1, `even
   (its selected events), `ncoll`, `S_full[1440]`, `S_zc[1440]` (the Z-correlated yield
   bulk_jet − bulk_bg + jet_frag; vacuum files: `full` only), `R_full[8640]` (lab η × φ);
   `pool_bgr`, one per background: `unit`, `RB[8640]` (bulk_bg's lab density per sample);
-- `file_info`, the production file's record (`../common/AnaCommon.h` `FileRecord`).
+- `file_info`, the production file's record (`../common/AnaCommon.h` `FileRecord`);
+- `pool_grid`, one entry: the grid's edges `pt[4]`, `dy[25]`, `dphi[21]`, `eta[49]`, `phi[61]`,
+  `dyf[97]` (`zjet_mixing.GRID`; since 2026-10-29: `assemble` refuses pools binned otherwise, to
+  10⁻¹², as this linspace may differ from numpy's in the last bit).
 
 Pool version 4 (2026-10-18): the weights factorize per window and background, so
 `zjet_mixing.assemble` (`Pool.load`) rebuilds `w`, the ids and the weighted per-background sums

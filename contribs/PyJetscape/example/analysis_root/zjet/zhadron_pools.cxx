@@ -15,7 +15,8 @@
 // bg_unit).  Per hydro background and pTHat window, unweighted (tree pool_bgw): the number
 // of selected events, N_coll, the sums of S (full event and Z-correlated yield, bulk_jet -
 // bulk_bg + jet_frag) and of the full event's lab density; per background its bulk_bg lab
-// density per sample (pool_bgr); the production file's record (file_info).  Pool version 4:
+// density per sample (pool_bgr); the production file's record (file_info); the grid's edges
+// (pool_grid, zjet_mixing.GRID: check_grid refuses pools binned otherwise).  Pool version 4:
 // zjet_mixing.assemble rebuilds the weights and the weighted sums of any set of pools, from
 // several campaigns.  Vacuum files: the fragments, one content.  The stored w (window cross
 // section / events x N_coll) is that of the input directory, for the record.
@@ -45,6 +46,19 @@ struct BgCache {
   std::vector<Track> tracks;
   std::vector<double> R;           // lab-frame counts summed over the samples
 };
+
+// the one-entry tree pool_grid: the edges of zjet_mixing.GRID (read_root_pool's grid_*)
+void write_grid(TFile &fo) {
+  std::vector<std::pair<const char *, std::vector<double>>> g = {
+      {"pt", PT()},   {"dy", DETA()}, {"dphi", DPHI()},
+      {"eta", ETA()}, {"phi", PHI()}, {"dyf", DY_FINE()}};
+  TTree t("pool_grid", "zjet_mixing pool: the grid's edges");
+  t.SetDirectory(&fo);
+  for (auto &x : g) t.Branch(x.first, x.second.data(), Form("%s[%zu]/D", x.first, x.second.size()));
+  t.Fill();
+  fo.cd();
+  t.Write();
+}
 
 int run(int argc, char **argv) {
   if (argc < 3) {
@@ -278,6 +292,7 @@ int run(int argc, char **argv) {
     tb.Write();
     if (!vacuum_file) tr.Write();
     write_file_info(fo, file_record(r, f));
+    write_grid(fo);
     fo.Close();
     gSystem->Rename((path + ".part").c_str(), path.c_str());
     const double dt =

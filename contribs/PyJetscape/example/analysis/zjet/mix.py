@@ -33,13 +33,17 @@ cancel part of its flow modulation in the mixed modes' noise, which mixing in da
 Checks first: (1) factorized = compare.py (data/hists.npz) to rounding, Pb+Pb and pp; (2)
 the own-background rule with the bulk off, within the errors of (1); (3) the closure: the
 bulk term (all - all with the bulk off) against 0; (4) the exclusion bias of leaving the own
-background out (zjet_mixing.exclusion_bias), predicted and measured; (5) the strict spread
-error against the scatter of disjoint subsamples (``--strict-split``); (6) the noise budget
+background out (zjet_mixing.exclusion_bias), predicted and measured; (5) the explicit modes'
+errors (strict: spread and jackknife; cms10: jackknife, and the former one with each Z's S - B
+fixed) against the scatter of disjoint subsamples of the backgrounds (``--strict-split``); (6)
+the noise budget
 per Z from all Z's (zjet_mixing.per_z_noise, strict_noise): the strict error predicted with
 and without each event's flat multiplicity level and Poisson only (``--efficiency`` scales the
 Poisson part as efficiency-corrected tracks do).  Then the modes against CMS, and the strict
 errors scaled to CMS's Z count (``--n-cms``) against CMS's statistical errors.  Errors:
-jackknife over blocks of backgrounds (``--blocks``); strict: the spread."""
+jackknife over blocks of backgrounds (``--blocks``), the block left out of S and B together
+(cms10: zjet_mixing.explicit_replicates); strict: the spread over its Z's, its jackknife
+beside it."""
 import argparse
 import glob
 import json
@@ -75,8 +79,8 @@ def _pool_job(stem, local, glob_, w, bg, seed, path, rec):
 
 def build_pools(src, outdir, jobs, seed, rebuild):
     """The pools of every production file of ``src`` in ``outdir`` (rebuilt when the
-    files, the selection or the seed changed) -> their paths.  One campaign per ``src``:
-    the pools of several combine at load time (zjet_mixing.Pool.load)."""
+    files, the selection, the seed or zjet_mixing's grid changed) -> their paths.  One
+    campaign per ``src``: the pools of several combine at load time (zjet_mixing.Pool.load)."""
     from jetscape.hadrons_h5 import HadronFileReader
     from jetcorr import weights as jw
 
@@ -93,7 +97,8 @@ def build_pools(src, outdir, jobs, seed, rebuild):
     bgid = bgid.ravel()
     stems = r.stems
     manifest = {"version": POOL_VERSION, "source": os.path.abspath(src), "seed": seed,
-                "selection": "CMS_2507", "n_events": r.n_events, "n_selected": int(sel.sum()),
+                "grid": zm.grid_tag(), "selection": "CMS_2507", "n_events": r.n_events,
+                "n_selected": int(sel.sum()),
                 "files": [[os.path.basename(s), os.path.getmtime(f"{s}_hadrons_jet_frag.h5")]
                           for s in stems]}
     os.makedirs(outdir, exist_ok=True)
@@ -101,9 +106,11 @@ def build_pools(src, outdir, jobs, seed, rebuild):
     mpath = os.path.join(outdir, "manifest.json")
     if not rebuild and os.path.exists(mpath) and all(map(os.path.exists, paths)):
         with open(mpath) as f:
-            if json.load(f) == json.loads(json.dumps(manifest)):
-                print(f"pools of {src}: cached in {outdir}", flush=True)
-                return paths
+            cached = json.load(f)
+        cached.setdefault("grid", zm.grid_tag(zm.GRID_UNSTORED))   # before the edges were kept
+        if cached == json.loads(json.dumps(manifest)):
+            print(f"pools of {src}: cached in {outdir}", flush=True)
+            return paths
     t0 = time.time()
     print(f"pools of {src}: {len(stems)} files, {int(sel.sum())} selected events, "
           f"{jobs} jobs", flush=True)
@@ -147,36 +154,74 @@ def from_all(pool, content, rules, phi_flat, blocks, k):
     return out
 
 
-def from_explicit(pool, res, w, groups, blocks, k, error):
-    """Per-Z explicit-mixing observables -> dict phi, y (value, error); ``error`` 'jk' (the
-    jackknife over the blocks) or 'spread' (over the Z's), the other one in ``*_alt``."""
+def from_explicit(pool, res, z_index, w, S, blocks, k, error):
+    """Explicit mixing (``res`` of zjet_mixing.explicit_partners on the Z's ``z_index``,
+    weights ``w``, S maps ``S``) -> dict phi, y (value, error); ``error`` 'jk' (the jackknife
+    over the blocks, each left out of S and B together: zjet_mixing.explicit_replicates) or
+    'spread' (over the Z's), the other one in ``*_alt``."""
+    mean, reps = zm.explicit_replicates(pool, z_index, w, res, S,
+                                        blocks if len(blocks) > 1 else ())
     out = {}
-    for var, x in (("phi", res["dphi"]), ("y", rebin(res["dy"], k))):
-        m, s, jk = zm.weighted_mean(x, w, groups, blocks if len(blocks) > 1 else ())
-        jk = np.zeros_like(m) if jk is None else jk
-        out[var], out[f"{var}_alt"] = ((m, jk), s) if error == "jk" else ((m, s), jk)
+    for var, j, x in (("phi", 0, res["dphi"]), ("y", 1, rebin(res["dy"], k))):
+        v = zm.observables(mean)[j]
+        rv = np.array([zm.observables(r)[j] for r in reps])
+        if var == "y":
+            v = rebin(v, k)
+            rv = rebin(rv, k) if len(rv) else rv
+        jk = zm.jackknife(rv) if len(rv) > 1 else np.zeros_like(v)
+        s = zm.weighted_mean(x, w)[1]
+        out[var], out[f"{var}_alt"] = ((v, jk), s) if error == "jk" else ((v, s), jk)
     return out
 
 
-def strict_pulls(pool, zi, W, n_split, n_mix, seed, k):
-    """The strict emulation in ``n_split`` disjoint subsamples of its Z's (partners inside
-    each) -> {var: (n_PT,) pull width}: the scatter of the subsamples' results over their
-    spread errors, the median over the bins of sqrt(sum_g (m_g - <m>)^2 / s_g^2 / (G - 1)).
-    1 if the spread error is right (it ignores that partners are shared between Z's)."""
+#: the errors check (5) tests, in its order
+PULL_ERRORS = ("strict, spread", "strict, jackknife", "cms10, jackknife",
+               "cms10, jackknife S - B fixed")
+
+
+def subsample_pulls(pool, zi, W, n_split, n_mix, seed, k):
+    """The explicit modes in ``n_split`` disjoint subsamples of the backgrounds (partners
+    inside each) -> {error: {var: (n_PT,) pull width}}: the scatter of the subsamples'
+    results over their errors, the median over the bins of sqrt(sum_g (m_g - <m>)^2 / e_g^2
+    / (G - 1)); 1 if the error is right.  strict (``zi``: one Z per background, in background
+    order, weights ``W``): its spread and its jackknife; cms10, if the backgrounds have more
+    than one Z: its jackknife (S and B left out together) and the former one, each Z's S - B
+    fixed (zjet_mixing.weighted_mean).  Each subsample's jackknife: 20 blocks."""
     rng = np.random.default_rng([int(seed), 0x5917])
-    groups = np.array_split(rng.permutation(len(zi)), n_split)
-    vals, errs = {"phi": [], "y": []}, {"phi": [], "y": []}
+    groups = np.array_split(rng.permutation(pool.n_bg), n_split)
+    vals = {e: {"phi": [], "y": []} for e in PULL_ERRORS}
+    errs = {e: {"phi": [], "y": []} for e in PULL_ERRORS}
+    cms10 = pool.n > pool.n_bg
     for g in groups:
+        blocks = [b for b in np.array_split(np.sort(g), min(20, len(g))) if len(b)]
         res = zm.explicit_partners(pool, zi[g], zi[g], W[g], n_mix=n_mix, s="one", seed=seed)
-        for var, x in (("phi", res["dphi"]), ("y", rebin(res["dy"], k))):
-            m, s, _ = zm.weighted_mean(x, W[g])
-            vals[var].append(m)
-            errs[var].append(s)
+        R = from_explicit(pool, res, zi[g], W[g], pool.S_one[zi[g]], blocks, k, "spread")
+        todo = [("strict, spread", R, ""), ("strict, jackknife", R, "_alt")]
+        if cms10:
+            z = np.flatnonzero(np.isin(pool.zb, g))
+            res = zm.explicit_partners(pool, z, z, pool.w[z], n_mix=n_mix, s="full", seed=seed,
+                                       maps=True)
+            R = from_explicit(pool, res, z, pool.w[z], pool.S_full[z], blocks, k, "jk")
+            fixed = {}
+            for var, x in (("phi", res["dphi"]), ("y", rebin(res["dy"], k))):
+                m, _, jk = zm.weighted_mean(x, pool.w[z], pool.zb[z], blocks)
+                fixed[var] = (m, jk)
+            todo += [("cms10, jackknife", R, ""), ("cms10, jackknife S - B fixed", fixed, "")]
+        for e, r, alt in todo:
+            for var in ("phi", "y"):
+                vals[e][var].append(r[var][0])
+                errs[e][var].append(r[f"{var}{alt}"] if alt else r[var][1])
     out = {}
-    for var in vals:
-        m, s = np.array(vals[var]), np.array(errs[var])
-        pull2 = np.sum((m - m.mean(axis=0)) ** 2 / s ** 2, axis=0) / (len(groups) - 1)
-        out[var] = np.median(np.sqrt(pull2), axis=-1)
+    for e in PULL_ERRORS:
+        if not vals[e]["phi"]:
+            continue
+        out[e] = {}
+        for var in ("phi", "y"):
+            m, s = np.array(vals[e][var]), np.array(errs[e][var])
+            with np.errstate(invalid="ignore", divide="ignore"):
+                pull2 = np.sum((m - m.mean(axis=0)) ** 2 / s ** 2, axis=0) / (len(groups) - 1)
+            out[e][var] = np.nanmedian(np.where(np.isfinite(pull2), np.sqrt(pull2), np.nan),
+                                       axis=-1)
     return out
 
 
@@ -267,20 +312,21 @@ def main():
     full_bg = from_all(pb, "full", ("background", "background"), False, blocks, 2)  # (4)
     bias = zm.exclusion_bias(pb, "full")
     cms10 = zm.explicit_partners(pb, np.arange(pb.n), np.arange(pb.n), pb.w, n_mix=a.n_mix,
-                                 s="full", seed=a.seed)
-    R["cms10"] = from_explicit(pb, cms10, pb.w, pb.zb, blocks, 2, "jk")
+                                 s="full", seed=a.seed, maps=True)
+    R["cms10"] = from_explicit(pb, cms10, np.arange(pb.n), pb.w, pb.S_full, blocks, 2, "jk")
+    del cms10["B"]
     zi, W = zm.strict_set(pb, seed=a.seed)
     strict = zm.explicit_partners(pb, zi, zi, W, n_mix=a.n_mix, s="one", seed=a.seed)
-    R["strict"] = from_explicit(pb, strict, W, pb.zb[zi], blocks, 2, "spread")
+    R["strict"] = from_explicit(pb, strict, zi, W, pb.S_one[zi], blocks, 2, "spread")
     P = from_all(pp, "full", ("all", "self"), True, pblocks, 1)
     P["y08"] = (rebin(P["y04"], 2), zm.jackknife(rebin(P["y04_reps"], 2)))
-    # (5) the strict spread error checked against the scatter of disjoint subsamples
+    # (5) the explicit modes' errors checked against the scatter of disjoint subsamples
     pulls = {}
     need = a.strict_split * (a.n_mix + 1)
     pzi, pW = zm.strict_set(pp, seed=a.seed)
     for name, pool_, zi_, W_, k in (("Pb+Pb", pb, zi, W, 2), ("pp", pp, pzi, pW, 1)):
         if len(zi_) >= 2 * need:
-            pulls[name] = strict_pulls(pool_, zi_, W_, a.strict_split, a.n_mix, a.seed, k)
+            pulls[name] = subsample_pulls(pool_, zi_, W_, a.strict_split, a.n_mix, a.seed, k)
     # (6) the noise budget per Z, from all Z's: the strict error predicted
     nz = zm.per_z_noise(pb)
     budget, sd = {}, {}
@@ -359,15 +405,16 @@ def main():
                      f"{meas[c]:+.4f}), explicit draws (cms10, strict) "
                      f"{bias['explicit'][c]:+.4f}; error of cms10 at the first bin past 0 "
                      f"{R['cms10']['phi'][1][c][_first('phi')]:.4f}")
-    lines.append(f"(5) strict spread error against the scatter of {a.strict_split} disjoint "
-                 "subsamples (partners inside each): pull width, median over the bins "
-                 "(1: the error is right):")
+    lines.append(f"(5) the explicit modes' errors against the scatter of {a.strict_split} "
+                 "disjoint subsamples of the backgrounds (partners inside each): pull width, "
+                 "median over the bins (1: the error is right; p_T classes 1-2, 2-4, 4-10 GeV); "
+                 "'S - B fixed': the jackknife with each Z's S - B fixed, cms10's former error:")
     if not pulls:
         lines.append(f"    too few Z's (each sample needs {2 * need}: one Z per background)")
-    for name, pv in pulls.items():
-        lines.append(f"    {name:6s} " + "   ".join(
-            f"d{var} " + " ".join(f"{x:4.2f}" for x in pv[var]) for var in ("phi", "y"))
-            + "   (p_T classes 1-2, 2-4, 4-10 GeV)")
+    for name, pe in pulls.items():
+        for e, pv in pe.items():
+            lines.append(f"    {name:6s} {e:29s} " + "   ".join(
+                f"d{var} " + " ".join(f"{x:4.2f}" for x in pv[var]) for var in ("phi", "y")))
     lines.append("")
 
     # the modes against CMS; the errors
@@ -387,7 +434,7 @@ def main():
                  f"error (strict: {neff_strict:.0f} effective Z's, x sqrt({neff_strict:.0f} / "
                  f"{a.n_cms:.0f}) = {np.sqrt(neff_strict / a.n_cms):.2f}):",
                  f"{'':5s} {'':20s} " + " ".join(f"{m:>10s}" for m in MODES)
-                 + f" {'strict@CMS':>10s} {'CMS stat':>9s}   {'ratio':>6s}"]
+                 + f" {'strict jk':>10s} {'strict@CMS':>10s} {'CMS stat':>9s}   {'ratio':>6s}"]
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -426,6 +473,8 @@ def main():
                 ae[c].plot(cx + dx, e, "s-" if mode != "strict" else "s:", ms=3.5,
                            color=COLORS[mode], mfc="none", lw=0.8,
                            label=mode + (" (jackknife)" if mode != "strict" else " (spread)"))
+            ae[c].plot(cx, R["strict"][f"{var}_alt"][c], "s--", ms=3.5, color="C1", mfc="none",
+                       lw=0.8, label="strict (jackknife)")
             es = R["strict"][var][1][c] * scale
             ae[c].plot(cx, es, "D-", ms=4, color="C1", label=f"strict at CMS's {a.n_cms:.0f} Z's")
             ae[c].plot(cx, sp, "o-", ms=4, color="k", label="CMS stat")
@@ -446,6 +495,7 @@ def main():
                 + ", ".join(f"{np.median(pred[v][half] / sp[half]):.2f}" for v in variants))
             err_lines.append(f"d{var:4s} {PT_LABELS[c]:20s} "
                              + " ".join(f"{R[mode][var][1][c][i0]:10.3f}" for mode in MODES)
+                             + f" {R['strict'][f'{var}_alt'][c][i0]:10.3f}"
                              + f" {es[i0]:10.3f} {sp[i0]:9.3f}   {ratio:6.2f}")
             for row, lab in enumerate(("Pb+Pb 0–30 %", "Pb+Pb − pp")):
                 ax[row, c].axhline(0, color="0.6", lw=0.6)

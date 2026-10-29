@@ -7,8 +7,8 @@
 
 pools: every array of zjet_mixing's pool (per event S_full, S_one, the one oversample's
 tracks, weights, Z, k_one, the keys and the dijet proxy's Y_*, L_*; per background and window
-the unweighted sums, per background bulk_bg's density, the file record; version 3: per
-background W, W2, SW, T, rho for both contents).  jets: every
+the unweighted sums, per background bulk_bg's density, the file record, the grid's edges;
+version 3: per background W, W2, SW, T, rho for both contents).  jets: every
 (event, sample) entry's jets, embedding pairs, random cones and Z cone, every background
 sample's jets (bg_jets), the jet QA trees (qa_jets, qa_bg_jets), and the outputs' records
 (file_info, run_info).  Integers and the events
@@ -73,6 +73,8 @@ def pools(py_dir, cxx_dir):
                   "fi_n_accepted"):
             if k in a:
                 report(np.array_equal(a[k], b[k]), f"{k} equal")
+        for k in sorted(x for x in a if x.startswith("grid_")):     # the edges, to 10^-12
+            close(a[k], b[k], k, 0.0)
         for k in ("n_coll", "bgw_ncoll"):
             if k in a:
                 report(np.array_equal(a[k], b[k], equal_nan=True), f"{k} equal")

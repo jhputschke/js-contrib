@@ -155,8 +155,10 @@ The pools are of **version 4** (2026-10-19): each carries its production file's 
 unweighted per hydro background and pTHat window, so the pools of any set of files, of one
 campaign or of several built apart, are weighted for that set when they are loaded
 (`zjet_mixing.assemble`: the ids and weights of `HadronFileReader` over the whole set, the same
-to rounding as one build of all files; `test/combine_check.py`). Pools of version 3 (before)
-load as stored, one directory at a time, and do not mix with version 4.
+to rounding as one build of all files; `test/combine_check.py`). Every pool also stores its
+grid's edges (`grid_*` / `pool_grid`, since 2026-10-29), and pools binned on other edges than
+`zjet_mixing.GRID` are refused (older pools: today's grid). Pools of version 3 (before) load as
+stored, one directory at a time, and do not mix with version 4.
 
 **Per selected Z** (CMS 2507.09307's Z selection):
 
@@ -458,7 +460,8 @@ went through the same mixing as the data).
 
 **Steps 1–4: `mixing_dphi_c00.png`, `mixing_dy_c00.png`** — 2 rows: Pb+Pb 0–30 % and
 Pb+Pb − pp; the four steps side by side (factorized red, all blue, cms10 green, strict orange)
-with their errors (jackknife over the backgrounds; strict: the spread over its Z's). How each
+with their errors (jackknife over the backgrounds, each block left out of S and B together;
+strict: the spread over its Z's, its jackknife in the summary's error table). How each
 experimental ingredient moves the result (it should not, within the errors, if the closure
 holds) and widens the errors.
 

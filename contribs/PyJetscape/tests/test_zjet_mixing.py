@@ -266,3 +266,199 @@ def test_rotate_backgrounds_is_a_symmetry_of_each_background():
     vac = zm.Pool({k: v for k, v in d.items() if not k.endswith("_zc")})
     vac.rotate_backgrounds(11)
     assert vac.bg_R["zc"] is vac.bg_R["full"]
+
+
+# ── the grid's edges in the pools ───────────────────────────────────────────────
+def vacuum_part(name, n=3, seed=0, grid=True):
+    """A version-4 pool part of a vacuum file with ``n`` events (each its own background)."""
+    from jetcorr import mapio
+
+    rng = np.random.default_rng(seed)
+    S = rng.uniform(0, 2, (n, *SZ)).astype(np.float32)
+    m = 4 * n
+    rec = {"name": name, "n_events": n, "vacuum": True, "units": np.arange(n),
+           "n_stored": np.zeros(0, np.int64),
+           **{k: np.zeros(0) for k in mapio.WINDOW_KEYS if k != "n_stored"}}
+    d = {"event": np.arange(n), "bg": np.arange(n), "w": np.ones(n),
+         "y": rng.uniform(-2, 2, n), "phi": rng.uniform(-np.pi, np.pi, n),
+         "k_one": np.zeros(n, np.int64), "n_samples": np.full(n, 10), "S_full": S, "S_one": S,
+         "trk_n": np.full(n, 4), "trk_pt": np.zeros(m, np.int8),
+         "trk_eta": rng.uniform(-2, 2, m).astype(np.float32),
+         "trk_phi": rng.uniform(-np.pi, np.pi, m).astype(np.float32),
+         "local_event": np.arange(n), "pthat_bin": np.full(n, -1), "n_coll": np.full(n, np.nan),
+         "bg_unit": np.arange(n), "bgw_unit": np.arange(n), "bgw_k": np.full(n, -1),
+         "bgw_n": np.ones(n, np.int64), "bgw_ncoll": np.full(n, np.nan),
+         "bgw_S_full": S.astype(float), "bgw_R_full": rng.uniform(0, 1, (n, *SL)),
+         **mapio.file_info_npz(rec), "pool_version": np.array(zm.POOL_VERSION)}
+    if grid:
+        d.update(zm.grid_arrays())
+    return d
+
+
+def test_unstored_grid_is_the_grid():
+    """The pools written before the edges were stored were binned on today's GRID, and
+    mix.py's cache key of their manifests is today's."""
+    for k, e in zm.GRID.items():
+        assert np.array_equal(zm.GRID_UNSTORED[k], e)
+    assert zm.grid_tag(zm.GRID_UNSTORED) == zm.grid_tag()
+
+
+def test_assemble_takes_parts_with_and_without_edges():
+    a, b = vacuum_part("vac_a", seed=1), vacuum_part("vac_b", seed=2)
+    ref = zm.assemble([a, b])
+    old = {k: v for k, v in b.items() if not k.startswith("grid_")}
+    mixed = zm.assemble([a, old])
+    assert set(mixed) == set(ref)
+    for k in ref:
+        assert np.array_equal(mixed[k], ref[k], equal_nan=ref[k].dtype.kind == "f"), k
+    pool = zm.Pool(mixed)
+    assert pool.n == 6 and not any(k.startswith("grid_") for k in vars(pool))
+
+
+@pytest.mark.parametrize("key, shift", [("dy", 0.1), ("pt", 0.5), ("dyf", 1e-9)])
+def test_other_edges_are_refused(key, shift, tmp_path):
+    a, b = vacuum_part("vac_a", seed=1), vacuum_part("vac_b", seed=2)
+    b[f"grid_{key}"] = b[f"grid_{key}"] + shift
+    with pytest.raises(ValueError, match=f"vac_b: binned on other edges.*{key}"):
+        zm.assemble([a, b])
+    for name, part in (("a", a), ("b", b)):
+        np.savez(tmp_path / f"{name}.npz", **part)
+    with pytest.raises(ValueError, match="other edges"):
+        zm.Pool.load([tmp_path / "a.npz", tmp_path / "b.npz"])
+    with pytest.raises(ValueError, match="other edges"):
+        zm.Pool({**synthetic()[0], f"grid_{key}": b[f"grid_{key}"]})
+
+
+def test_edges_to_rounding_are_accepted():
+    """The C++ map step's linspace may differ from numpy's in the last bit."""
+    b = vacuum_part("vac_b")
+    b["grid_dphi"] = np.nextafter(b["grid_dphi"], np.inf)
+    zm.check_grid([b])
+
+
+def test_load_combines_parts_with_and_without_edges(tmp_path):
+    a, b = vacuum_part("vac_a", seed=1), vacuum_part("vac_b", seed=2)
+    np.savez(tmp_path / "a.npz", **a)
+    np.savez(tmp_path / "b.npz", **{k: v for k, v in b.items() if not k.startswith("grid_")})
+    pool = zm.Pool.load([tmp_path / "a.npz", tmp_path / "b.npz"])
+    ref = zm.Pool(zm.assemble([a, b]))
+    assert np.array_equal(pool.S_full, ref.S_full) and np.array_equal(pool.w, ref.w)
+
+
+# ── hist: the pools' contents and the results ───────────────────────────────────
+def test_to_hist_contents():
+    hist = pytest.importorskip("hist")
+    d, S, rho = synthetic()
+    d["Y_full"] = np.random.default_rng(9).uniform(0, 1, (len(S), zm.N_PT, zm.N_SIDE, zm.N_DYF))
+    pool = zm.Pool(d)
+    w, W = pool.w, pool.w.sum()
+    h = pool.to_hist("S_full")
+    assert [a.name for a in h.axes] == ["pt", "dy", "dphi"]
+    for a, k in zip(h.axes, ("pt", "dy", "dphi")):
+        assert np.array_equal(a.edges, zm.GRID[k])
+    assert np.allclose(h.values(), np.tensordot(w, S, axes=1) / W)
+    assert np.all(np.isnan(h.variances()))
+    assert np.allclose(h[{"pt": hist.loc(1.5)}].values(), h.values()[0])     # 1-2 GeV
+    hb = pool.to_hist("S_zc", per="background")
+    assert list(hb.axes["background"]) == list(pool.bg_id)
+    assert np.allclose(hb.values(), pool.bg_SW["zc"] / pool.bg_W[:, None, None, None])
+    ho = pool.to_hist("S_one")                                # from the per-event arrays
+    assert np.allclose(ho.values(), np.tensordot(w, pool.S_one.astype(float), axes=1) / W)
+    he = pool.to_hist("S_one", per="event", events=[2, 0])
+    assert list(he.axes["event"]) == [pool.event[2], pool.event[0]]
+    assert np.array_equal(he.values(), pool.S_one[[2, 0]].astype(float))
+    hr = pool.to_hist("R_full", per="background")
+    assert [a.name for a in hr.axes] == ["background", "pt", "eta", "phi"]
+    assert np.allclose(hr.values(), pool.bg_R["full"] / pool.bg_W[:, None, None, None])
+    hy = pool.to_hist("Y_full", per="background")
+    assert [a.name for a in hy.axes] == ["background", "pt", "side", "dy"]
+    yb = np.array([(w[pool.zb == b, None, None, None] * d["Y_full"][pool.zb == b]).sum(0)
+                   / w[pool.zb == b].sum() for b in range(pool.n_bg)])
+    assert np.allclose(hy.values(), yb)
+    for args, kw in ((("R_full",), {"per": "event"}), (("S_zc",), {"per": "event"}),
+                     (("X_full",), {}), (("L_full",), {}), (("S_one",), {"events": [0]})):
+        with pytest.raises(ValueError):
+            pool.to_hist(*args, **kw)
+
+
+def test_observables_hist_jackknife():
+    pytest.importorskip("hist")
+    from cms2507 import rebin_y
+
+    d, _, _ = synthetic()
+    pool = zm.Pool(d)
+    D, reps = zm.all_partners(pool, "zc", "all", False, pool.blocks(4))
+    hs = zm.observables_hist(D, reps, k=2)
+    dphi, dy = zm.observables(D)
+    rp = np.array([zm.observables(r)[0] for r in reps])
+    ry = np.array([zm.observables(r)[1] for r in reps])
+    ry = rebin_y(ry, np.zeros_like(ry), 2)[0]
+    assert np.allclose(hs["phi"].values(), dphi)
+    assert np.allclose(hs["phi"].variances(), zm.jackknife(rp) ** 2)
+    assert np.array_equal(hs["y"].axes["dy"].edges, zm.DETA[2:23:2])           # |Δy| < 4, 0.8
+    assert np.allclose(hs["y"].axes["dy"].edges, np.linspace(-4, 4, 11))
+    assert np.allclose(hs["y"].values(), rebin_y(dy, np.zeros_like(dy), 2)[0])
+    assert np.allclose(hs["y"].variances(), zm.jackknife(ry) ** 2)
+    one = zm.observables_hist(D, reps[:1])                 # too few replicates: no error
+    assert one["y"].axes["dy"].size == zm.N_DY and np.all(np.isnan(one["y"].variances()))
+
+
+def test_obs_hist_shapes_and_independent_difference():
+    pytest.importorskip("hist")
+    rng = np.random.default_rng(5)
+    a, b = rng.normal(size=(zm.N_PT, zm.N_DPHI)), rng.normal(size=(zm.N_PT, zm.N_DPHI))
+    ha, hb = zm.obs_hist("phi", a, np.full_like(a, 0.3)), zm.obs_hist("phi", b, 0.4)
+    diff = ha + hb * -1                    # Pb+Pb - pp, independent (Weight storage: no -)
+    assert np.allclose(diff.values(), a - b) and np.allclose(diff.variances(), 0.25)
+    with pytest.raises(ValueError, match="shape"):
+        zm.obs_hist("y", np.zeros((zm.N_PT, zm.N_DY)), k=2)
+    with pytest.raises(ValueError):
+        zm.obs_hist("eta", a)
+
+
+def test_zframe_hist_projections_are_the_observables():
+    """Summed over dy, or over the Z side's dphi bins, then +- merged: observables()."""
+    hist = pytest.importorskip("hist")
+    D = np.random.default_rng(6).normal(size=SZ)
+    h = zm.zframe_hist(D, np.full(SZ, 0.1))
+    assert [a.name for a in h.axes] == ["pt", "dy", "dphi"]
+    assert np.allclose(h.variances(), 0.01)
+    p = h[{"dy": sum}].values() / np.diff(zm.DPHI)
+    y = h[{"dphi": slice(0, zm.N_DPHI // 2, sum)}].values() / np.diff(zm.DETA)
+    dphi, dy = zm.observables(D)
+    assert np.allclose(0.5 * (p + p[:, zm.MIRROR]), dphi)
+    assert np.allclose(0.5 * (y + y[:, ::-1]), dy)
+    assert h[{"dphi": hist.loc(np.pi)}].shape == (zm.N_PT, zm.N_DY)
+
+
+@pytest.mark.parametrize("n_mix", [1, 2])
+def test_explicit_replicates_leave_blocks_out_of_s_and_b(n_mix):
+    """Each replicate, by brute force: S the mean over the Z's off the block; B the mean over
+    the (Z, partner) pairs with neither on the block, each weighing w_i / m_i.  The mean is
+    the weighted mean of explicit_partners' per-Z observables."""
+    d, _, _ = synthetic(n_bg=4, per_bg=(3, 2, 4, 3), seed=4)
+    pool = zm.Pool(d)
+    z = np.arange(pool.n)
+    res = zm.explicit_partners(pool, z, z, pool.w, n_mix=n_mix, seed=3)
+    S = pool.S_full.astype(float)
+    blocks = pool.blocks(4)                                  # one background each
+    mean, reps = zm.explicit_replicates(pool, z, pool.w, res, S, blocks)
+    for got, per_z in zip(zm.observables(mean), (res["dphi"], res["dy"])):
+        assert np.allclose(got, zm.weighted_mean(per_z, pool.w)[0])
+    res_maps = zm.explicit_partners(pool, z, z, pool.w, n_mix=n_mix, seed=3, maps=True)
+    assert res_maps["partners"] == res["partners"]
+    _, reps_maps = zm.explicit_replicates(pool, z, pool.w, res_maps, S, blocks)
+    assert np.allclose(reps_maps, reps)
+    for blk, rep in zip(blocks, reps):
+        sn, sd, bn, bd = np.zeros(SZ), 0.0, np.zeros(SZ), 0.0
+        for i in z:
+            if pool.zb[i] in blk:
+                continue
+            sn, sd = sn + pool.w[i] * S[i], sd + pool.w[i]
+            js = res["partners"][i]
+            for j in js:
+                if pool.zb[j] not in blk:
+                    pw = pool.w[i] / len(js)
+                    bn = bn + pw * zm.z_hist(*pool.tracks(j), pool.y[i], pool.phi[i])
+                    bd += pw
+        assert np.allclose(rep, sn / sd - bn / bd)

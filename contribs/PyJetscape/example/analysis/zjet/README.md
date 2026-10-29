@@ -55,6 +55,7 @@ Route B converts the hadron files once (`../../prod_AuAu_0_10_jet/run_h5toROOT.p
 | `get_hepdata.sh` | CMS 2507.09307's, 1702.01060's and HIN-25-012's (`25012`, ins3123406: the dijet Δη of `../dijet/deta.py`) HEPData records → `../runs/hepdata/` (once, before the final stages) |
 | `zjet_wake.py`, `zjet_mixing.py`, `cms2507.py` | the library: the Z record, selection, weights and Z frame; the pools and the mixing modes; CMS 2507.09307's HEPData and observables (the factorized result) |
 | `zjet_wake.ipynb` | the Z–hadron wake notebook (stored without outputs; runs on `test/`'s test data) |
+| `zhadron_mixing.ipynb` | CMS's event mixing step by step, with `hist`: S, B from 10 partners per Z, S − B in 2D (Δη × Δφ), the projections CMS publishes and their errors (replicates, not the histograms' variances: a jackknife leaving each block out of S and B together, tested against sub-campaigns), the corrected projections of `factorized`, `all` and `cms10` side by side (`strict` described, not shown); reproduces `mix.py`'s `cms10`; Pb+Pb pools of `runs/<ZJET_RUN>/data/mix` (stored with the outputs of `zjet_c00-01`; no data points) |
 
 ## Runs: where the data and figures go
 
@@ -102,7 +103,11 @@ python mix.py --pbpb-pools $RUNS/zjet_c00/data/mix/pbpb $RUNS/zjet_c01/data/mix/
   keys and contents, per hydro background and window the unweighted sums;
   `zjet_mixing.assemble` weights them for the set loaded. `--emb-samples` and `--rho-m` are
   jet options and do not touch the pools. `mix.py --pools-only` builds a campaign's pools and
-  stops.
+  stops. Each pool also stores its grid's edges (`grid_*`, in the ROOT pools the tree
+  `pool_grid`; since 2026-10-29), and `assemble` refuses pools binned on other edges than
+  `zjet_mixing.GRID` (to 10⁻¹²: the C++ map step's edges differ from numpy's in the last bit),
+  so campaigns binned differently never add up silently; older pools without the edges were
+  binned on today's grid (`GRID_UNSTORED`) and mix with the newer ones.
 - **Older outputs** (before 2026-10-19: no `file_info`, pools of version 3): one directory at a
   time, with the ids and weights as stored; version 3 and 4 pools do not mix (rebuild the
   older ones).
@@ -133,8 +138,8 @@ modes take seconds.
 |---|---|---|---|
 | factorized | Z-correlated yield (paired wake + fragments) | compare.py's: Δφ S's own average, Δy the folded η density over the pairs i ≠ j | jackknife over blocks of backgrounds |
 | all | full event, 40-sample mean | every selected event, pairs weighted w_i w_j: the pooled density shifted into each Z's frame, no noise of its own | jackknife |
-| cms10 | full event, 40-sample mean | CMS's procedure: 10 partners from 10 other backgrounds, drawn ~ w, one oversample each (one recorded collision) | jackknife |
-| strict | one Z per background (drawn ~ w inside it, weighted by the background's total W_b): every Z its own fluid, as in data; one oversample | 10 partners from 10 other backgrounds of that set, one oversample each | the spread over the Z's (the experiment's statistical error) |
+| cms10 | full event, 40-sample mean | CMS's procedure: 10 partners from 10 other backgrounds, drawn ~ w, one oversample each (one recorded collision) | jackknife, each block left out of S and B together (`zjet_mixing.explicit_replicates`) |
+| strict | one Z per background (drawn ~ w inside it, weighted by the background's total W_b): every Z its own fluid, as in data; one oversample | 10 partners from 10 other backgrounds of that set, one oversample each | the spread over the Z's (the error an experiment quotes from its Z's; the default), its jackknife beside it |
 
 **The backgrounds are rotated** (2026-10-17, default): 3dMCGlauber puts the impact parameter
 along x in every event, so all hydro backgrounds have their event plane near φ = 0 (on the
@@ -159,9 +164,17 @@ The checks, first in `runs/<run>/figures/mixing_summary.txt`:
    of the errors with a campaign's 4,000 (estimated). Data have no weights, so no such term. So
    `all` keeps every partner (S − B then integrates to zero exactly); `cms10` and `strict`
    exclude the own background as CMS does and print the bias.
-5. **The strict spread error** against the scatter of 10 disjoint subsamples (partners inside
-   each): pp pull widths 0.84–1.09 over 6 seeds and 10 or 20 subsamples: right to ~15 %. Pb+Pb
-   needs ≥ 220 backgrounds, i.e. a campaign.
+5. **The explicit modes' errors** against the scatter of 10 disjoint subsamples of the
+   backgrounds (partners inside each), as pull widths (scatter / quoted error; 1: right):
+   `strict`'s spread and jackknife, `cms10`'s jackknife and, for the record, its former one with
+   each Z's S − B fixed. The partners come from the same sample as the Z's, so a fluid's
+   fluctuations enter S and B together and largely cancel in the mean; an error that leaves a
+   block out of S alone counts them anyway. On zjet_c00-01 (3 seeds, 2026-10-29): the fixed
+   jackknife 0.10–0.20 at 1–4 GeV (5–10× too large), `strict`'s spread 0.32–0.71 (1.4–3×),
+   both ≈ 1 at 4–10 GeV; the jackknife leaving a block out of S and B together
+   (`zjet_mixing.explicit_replicates`, `cms10`'s error since 2026-10-29) 0.57–0.96 for `cms10`,
+   0.64–1.21 for `strict`: right to ~20 %, the check's own precision. pp: pull widths 0.79–1.28.
+   Pb+Pb needs ≥ 220 backgrounds, i.e. a campaign.
 6. **The noise budget per Z**, from all Z's (`zjet_mixing.per_z_noise`, `strict_noise`): the
    spreads of the pooled mode, of the same with B scaled to each event's own multiplicity (no
    flat level), and of one oversample's Poisson noise; from them the strict error predicted at
@@ -188,3 +201,37 @@ On a campaign (the vacuum reference with the campaign's windows and storage):
 python mix.py --pbpb <campaign dir> --vacuum ../runs/zjet_test/data/vacuum_all --pools <pool dir> \
   --hists '' --jobs 8 --tag _c01
 ```
+
+### The pools and the results as `hist` histograms
+
+For notebooks and mplhep (2026-10-29; `hist` and `mplhep` are in the analysis environment),
+read-only, next to the arrays the modes work on; [`zhadron_mixing.ipynb`](zhadron_mixing.ipynb)
+walks through CMS's procedure with them:
+
+```python
+import hist, mplhep
+import zjet_mixing as zm
+
+pb = zm.Pool.load(paths)                         # pools of one or several campaigns
+pb.rotate_backgrounds([1, 0x726F74])             # as mix.py (--seed 1)
+pb.to_hist("S_full")                             # the mean S per Z: axes pt, dy, dphi
+pb.to_hist("R_full", per="background")           # the lab density per Z of each background
+pb.to_hist("Y_zc", per="event", events=[0, 1])   # events' own contents
+D, reps = zm.all_partners(pb, "full", "all", False, pb.blocks(100))    # the 'all' mode
+h = zm.observables_hist(D, reps, k=2)            # {"phi", "y"}: CMS's observables, jackknife
+mplhep.histplot(h["phi"][{"pt": hist.loc(1.5)}], histtype="errorbar")  # 1-2 GeV
+```
+
+- **Axes**: `zjet_mixing.GRID`'s, by name: `pt` (the track p_T class, edges 1, 2, 4, 10 GeV, so
+  `hist.loc(1.5)` is 1–2 GeV), `dy`, `dphi`, `eta`, `phi`, `side` (0: the Z side), and
+  `background` or `event` (their ids) with `per`.
+- **Errors**: Weight storage. The pools' contents have the variance NaN (the tracks of an event
+  are correlated, its oversamples and its fluid: √Σw² is not their error, and mplhep draws
+  none); `observables_hist` and `obs_hist` carry the jackknife's (mix.py's results:
+  `zm.obs_hist("y", *R["all"]["y"], k=2)`). hist adds variances as independent: right for
+  Pb+Pb − pp (`h_pbpb + h_pp * -1`: Weight storage has no `−`), wrong for rebinning and for
+  two results on the same Z's (modes, the bulk on and off), which come from the replicates.
+- **Weights**: `assemble` weights the combined pools for the set loaded, and only then do they
+  become histograms. Weighted histograms of separate campaigns do not add: each would carry
+  its own windows' σ / N.
+
