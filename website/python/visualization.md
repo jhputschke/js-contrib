@@ -33,6 +33,69 @@ The output is a GIF or MP4 movie, a ParaView time series, or an interactive wind
 - `.mp4` needs `imageio-ffmpeg`; without it the scripts fall back to `.gif`. Rendering is
   off-screen, so headless machines work (else run under `xvfb-run`).
 
+## Example data: a Pb+Pb Z+jet event on the OSDF
+
+To try the scripts without running a production first, the OSDF holds a ready-made example in
+**`osdf:///fno4hic/LHC/zjet_viz/`** ([Data on the OSDF](../run/osdf.md)): the full hydro
+evolution of two Pb+Pb Z+jet events, with and without the jet's deposit, their hadrons, and the
+movies made from them. The pair file is also input for the
+[wake observables](../analysis/hydro-hadrons.md) and for anything else you want to do with a
+3+1D MUSIC evolution.
+
+![The wake of event 1: medium without the deposit, with it, and the difference](../assets/img/zjet_wake_event1_frame.jpg)
+
+*Event 1 at t = 6.9 fm/c, drawn by `wake_pyvista.py`: the Z (white arrow, its muons in green)
+recoils against the parton shower; the right panel is the wake, Δe = e(with deposit) − e(without).*
+
+| file | size | content | needed by |
+|---|---|---|---|
+| `AuAu_0_10_jet_seed0201.h5` | 0.93 GB | the pair file: both MUSIC legs (the medium without and with the jet's deposit) frame by frame on the 3+1D grid, with the showers and the Z | `wake_pyvista.py`, `hydro_jet_particles_pyvista.py` |
+| `AuAu_0_10_jet_seed0201.json`, `.xml` | 10 kB | the run's settings and its X-SCAPE XML | |
+| `…_hadrons_bulk_bg.h5`, `…_hadrons_bulk_jet.h5`, `…_hadrons_jet_frag.h5` | 13 MB | the hadrons: iSS on each leg's freeze-out surface, and the jet's fragmentation | `hydro_jet_particles_pyvista.py` |
+| `…_particlize.h5` | 0.77 GB | the freeze-out surfaces, to run iSS again with `hadronize.py` | not needed for the movies |
+| `zjet_wake_event1.mp4`, `zjet_particles_event1.mp4`, and a `_frame.png` of each | 3.6 MB | the two movies of event 1 | |
+
+**The events:** Pb+Pb at √s<sub>NN</sub> = 5.02 TeV, 0–30 %, made like the
+[Z+jet production](../run/zjet-other.md) (`PbPb_0_30_ZJet.xml`, the Pb+Pb grid) but with the
+pair and particlize files written: a Z → μμ trigger (|y<sub>Z</sub>| < 1, muon
+p<sub>T</sub> > 20 GeV, |η| < 2.5), PythiaGun p̂<sub>T</sub> 80–120 GeV, Matter + LBT, the
+CausalLiquefier into MUSIC_2, EOS 91. In event 1 (the second; events count from 0) a Z of
+p<sub>T</sub> 109.6 GeV at y = −0.49 recoils against a leading parton of 54.2 GeV. The file name
+keeps the jet production's stem, `AuAu_0_10_jet_seed…`, although the system is Pb+Pb.
+
+**Download and render.** `js_osdf.py` needs no environment of its own; the scripts run in the
+[analysis environment](../install/analysis-env.md):
+
+```bash
+cd js-contrib/utils/remote_transfer
+./js_osdf.py download 'LHC/zjet_viz/*.mp4' --to ~/zjet_viz        # only the movies (2.3 MB)
+./js_osdf.py download LHC/zjet_viz --what pair --to ~             # the pair file -> ~/zjet_viz/ (0.93 GB)
+./js_osdf.py download 'LHC/zjet_viz/*_hadrons_*' --to ~/zjet_viz  # its hadron files (13 MB)
+
+# EOS 91 needs MUSIC's SMASH hotQCD table for the temperature (3.2 MB)
+curl -fL -o ~/zjet_viz/hrg_hotqcd_eos_SMASH_binary.dat \
+  https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_SMASH_binary.dat
+
+cd ../../contribs/Visualization
+# the jet wake: medium without the deposit, with it, and the difference
+python wake_pyvista.py --file ~/zjet_viz/AuAu_0_10_jet_seed0201.h5 --event 1 \
+    --eos-table ~/zjet_viz --nt 48 --z-oversample 3 --movie zjet_wake.mp4
+# the whole event, from the hard scattering to the free-streaming hadrons
+python hydro_jet_particles_pyvista.py --file ~/zjet_viz/AuAu_0_10_jet_seed0201.h5 --event 1 \
+    --eos-table ~/zjet_viz --nt 60 --z-oversample 3 --movie zjet_particles.mp4
+```
+
+- **`--event 0`** draws the other event. Keep `--nt` small (4–8) while you try camera angles and
+  colour scales: a 4-frame test of either script takes about 10 s on an M3 Max.
+- **The EoS table.** The analysis environment downloads MUSIC's EOS 9 table
+  (`hrg_hotqcd_eos_binary.dat`); this event, like the current productions, uses EOS 91, whose
+  table is `hrg_hotqcd_eos_SMASH_binary.dat`. Without it the scripts warn and take the
+  temperature from a conformal EoS, so the freeze-out isosurface is only indicative.
+  `--eos-table` takes the file or its directory; a source build has it in
+  `external_packages/music/EOS/hotQCD/`.
+- The two scripts are described below: [the jet wake](#the-jet-wake-wake_pyvistapy) and
+  [hadrons after freeze-out](#hadrons-after-freeze-out-hydro_jet_particles_pyvistapy).
+
 ## From Milne to the lab frame
 
 For each lab time \(t\) the script sweeps \(z\) and maps back to Milne, as X-SCAPE's

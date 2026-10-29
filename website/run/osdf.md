@@ -20,6 +20,7 @@ The test data named in this documentation:
 | `test/AuAu_0_10_jet_pth10-40_eta06_c1/` | the ROOT files of an Au+Au jet campaign (pT̂ 10–40 GeV, 68 files, 2.1 GB), with its campaign file |
 | `test/h5_read_test/` | a small Au+Au hadron file, to try reading in place |
 | `test/OO_test/` | the hadron files of an O+O `oo_workflow` run, read in place by the notebook `pythonic/oo_analysis.ipynb` |
+| `LHC/zjet_viz/` | two Pb+Pb Z+jet events with their full hydro evolution (pair file, 0.93 GB), hadron files and movies: the example for [3D visualization](../python/visualization.md#example-data-a-pbpb-zjet-event-on-the-osdf) of the medium and the jet wake |
 
 ## The transfer tool: `js_osdf.py`
 
