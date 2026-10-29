@@ -126,9 +126,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", default=None,
                    help="hydro file name (default: OO_isr[_<campaign>]_seed<NNNN>.h5, or "
                         "OO_isr_<campaign>_<NNNN>.h5 with --seed 0)")
-    p.add_argument("--build", default=os.path.join(rp.XSCAPE, "build_gpu"),
-                   help="X-SCAPE build tree (default: build_gpu)")
-    p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
+    p.add_argument("--build", default=rp.BUILD,
+                   help="X-SCAPE build tree (default: $JETSCAPE_BUILD, else build_gpu)")
+    p.add_argument("--main-xml", default=rp.MAIN_XML,
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
                    help="template user XML (default: ../config/OO_MCGlauber_MUSIC_isr.xml)")
@@ -626,7 +626,7 @@ def main() -> int:
         "prod_bulk_info": a.bulk_info,
         "system": system,
         "initial_state_kind": "3dMCGlauber_strings_after_ISR",
-        "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
+        "hydro": rp.hydro_label(a.build),
         "jet": f"PythiaIsrGun + iMATTER (ISR); {eloss} in MUSIC's medium (FSR)",
         "eloss": eloss,
         "jet_hadronization": "none" if a.no_jet_hadrons else

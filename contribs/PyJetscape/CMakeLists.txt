@@ -83,12 +83,43 @@ if(DEFINED GSL_LIBRARIES AND GSL_LIBRARIES)
   target_link_libraries(pyjetscape_core PRIVATE ${GSL_LIBRARIES})
 endif()
 
+# Which MUSIC the module links (X-SCAPE's USE_METAL / USE_CUDA): MUSIC_BACKEND in Python.
+if(USE_METAL)
+  set(_pyjs_music_backend "music4gpu-metal")
+elseif(USE_CUDA)
+  set(_pyjs_music_backend "music4gpu-cuda")
+else()
+  set(_pyjs_music_backend "music")
+endif()
+target_compile_definitions(pyjetscape_core PRIVATE
+  PYJS_MUSIC_BACKEND="${_pyjs_music_backend}")
+
 # The compiled extension lives inside the contrib source tree so that the
 # jetscape Python package works directly via sys.path or PYTHONPATH without
-# any installation step.
+# any installation step.  A second build tree (the xscape wheel's) sets
+# PYJETSCAPE_CORE_OUTPUT_DIR elsewhere, so it does not replace that module.
+set(PYJETSCAPE_CORE_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape"
+    CACHE PATH "Where the build writes pyjetscape_core")
 set_target_properties(pyjetscape_core PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape"
+  LIBRARY_OUTPUT_DIRECTORY "${PYJETSCAPE_CORE_OUTPUT_DIR}"
 )
+
+# The xscape wheel (macOS): installs the module into the wheel's xscape package, next to
+# lib/, as the component X-SCAPE's runtime install uses.  Off by default.
+set(PYJETSCAPE_INSTALL_DIR "" CACHE STRING
+    "Install pyjetscape_core here (relative to the prefix); empty: no install rule")
+if(PYJETSCAPE_INSTALL_DIR)
+  if(APPLE)
+    set_target_properties(pyjetscape_core PROPERTIES
+      INSTALL_RPATH "@loader_path/${CMAKE_INSTALL_LIBDIR}")
+  else()
+    set_target_properties(pyjetscape_core PROPERTIES
+      INSTALL_RPATH "$ORIGIN/${CMAKE_INSTALL_LIBDIR}")
+  endif()
+  install(TARGETS pyjetscape_core
+          LIBRARY DESTINATION "${PYJETSCAPE_INSTALL_DIR}"
+          COMPONENT xscape_runtime)
+endif()
 
 # Optional: install the jetscape package in editable mode so that
 # `import jetscape` works without any PYTHONPATH / sys.path setup.

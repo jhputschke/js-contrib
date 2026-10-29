@@ -24,6 +24,7 @@ For a script of one's own, JobDir does the same with plain arguments:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import re
 import shutil
@@ -38,7 +39,7 @@ from . import paths
 __all__ = ["JobDir", "WORKDIR_LINKS", "enter_workdir", "job_workdir", "leave_workdir",
            "add_workdir_args", "SEED_MAX", "add_seed_args", "seed_args_problems",
            "output_name", "seed_registry", "resolve_seed", "seed_provenance",
-           "pythia_data_problem"]
+           "pythia_data_problem", "hydro_label", "build_or_job_dir"]
 
 
 # ─────────────────────────────────────────────────────────── working directory
@@ -185,6 +186,11 @@ def add_workdir_args(p: argparse.ArgumentParser) -> None:
                         "every side file with any other job running there)")
 
 
+#: what an installed tree keeps directly in its data folder that jetscape_main.xml finds
+#: through ../external_packages/iSS/ (see _absolute_parent_paths)
+INSTALLED_ASSETS = ("iSS_tables", "iSS_parameters.dat")
+
+
 def _absolute_parent_paths(src: str, dst: str, build: str) -> None:
     """Copy an XML, making every element text that starts with '../' absolute.
 
@@ -192,12 +198,24 @@ def _absolute_parent_paths(src: str, dst: str, build: str) -> None:
     relative to the build tree, which is the working directory only with --in-build.
     './' paths (outputs such as ./FinalPartonsInfo.dat, iSS_working_path '.') stay
     relative: they belong in the job's own directory.
+
+    iSS's '../' paths with no target fall back to the build's iSS_tables and
+    iSS_parameters.dat (INSTALLED_ASSETS) if those exist: an installed tree (the xscape
+    wheel's share/xscape) has them but no ../external_packages/iSS -- X-SCAPE's
+    run_in_workdir.sh points the iSS entries there too.  In a checkout or the image the
+    '../' targets exist.  Only these names: another missing target (the test hydro files)
+    stays as it was, and macOS would match MUSIC_input to the build's music_input.
     """
     tree = ET.parse(src)
     for el in tree.iter():
         text = (el.text or "").strip()
         if text.startswith("../"):
-            el.text = os.path.normpath(os.path.join(build, text))
+            path = os.path.normpath(os.path.join(build, text))
+            name = os.path.basename(path)
+            beside = os.path.join(build, name)
+            if name in INSTALLED_ASSETS and not os.path.exists(path) and os.path.exists(beside):
+                path = beside
+            el.text = path
     tree.write(dst)
 
 
@@ -287,6 +305,22 @@ def pythia_data_problem():
             f"Import error (exit {r.returncode}): {tail}")
 
 
+def hydro_label(build: str) -> str:
+    """The production files' ``hydro`` attribute: "MUSIC (music4gpu)" or "MUSIC".
+
+    From the compiled core's MUSIC_BACKEND (the MUSIC it was linked against: "music",
+    "music4gpu-cuda", "music4gpu-metal"); a core without it (built before) falls back to
+    the old test, "gpu" in the build folder's name (build_gpu).
+    """
+    try:
+        from .pyjetscape_core import MUSIC_BACKEND
+    except ImportError:
+        MUSIC_BACKEND = None
+    if MUSIC_BACKEND is None:
+        return "MUSIC (music4gpu)" if "gpu" in os.path.basename(build) else "MUSIC"
+    return "MUSIC (music4gpu)" if MUSIC_BACKEND.startswith("music4gpu") else "MUSIC"
+
+
 # ──────────────────────────────────────────────────────── for one's own scripts
 class JobDir:
     """A job's private working directory, as the production scripts make it, for a script
@@ -347,3 +381,24 @@ class JobDir:
 
     def __repr__(self) -> str:
         return f"JobDir({self.path!r}, build={self.build!r})"
+
+
+@contextlib.contextmanager
+def build_or_job_dir(out_dir, user_xml, main_xml=None, *, name=None, keep=False):
+    """Where an example script runs X-SCAPE -> an object with ``main_xml``, ``user_xml``,
+    ``path``.
+
+    In a build tree (``music_input`` in the current directory: the old way, ``cd
+    X-SCAPE/build_gpu`` and run the script from there) it runs right here with the XMLs as
+    given, as these scripts always did.  Anywhere else -- a copy of the examples
+    (xscape-examples), the container's /work, the macOS wheel -- it runs in a JobDir under
+    ``out_dir`` (``keep``: leave its working directory, e.g. for files the XML writes there).
+    Give output paths absolute: a JobDir changes the current directory.
+    """
+    main_xml = os.path.abspath(main_xml or paths.main_xml())
+    if os.path.isfile("music_input"):
+        yield SimpleNamespace(main_xml=main_xml, user_xml=os.path.abspath(user_xml),
+                              path=os.getcwd())
+        return
+    with JobDir(out_dir, user_xml, name=name, main_xml=main_xml, keep=keep) as job:
+        yield job

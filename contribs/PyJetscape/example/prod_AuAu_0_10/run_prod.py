@@ -60,13 +60,17 @@ from jetscape.bulk_sources import Grid, ntau_to_end         # noqa: E402  (pure 
 # the drivers keep calling rp.enter_workdir(a, ...), rp.resolve_seed(a, ...), ...
 from jetscape.workdir import (  # noqa: E402,F401
     SEED_MAX, WORKDIR_LINKS, _absolute_parent_paths, add_seed_args, add_workdir_args,
-    enter_workdir, job_workdir, leave_workdir, output_name, pythia_data_problem,
+    enter_workdir, hydro_label, job_workdir, leave_workdir, output_name, pythia_data_problem,
     resolve_seed, seed_args_problems, seed_provenance, seed_registry)
 from jetscape import paths as _paths  # noqa: E402
 
 #: the X-SCAPE tree: $XSCAPE (the production image sets it), else the tree this js-contrib
 #: is in -- so a copy of the examples outside the tree (xscape-examples) finds the build too
 XSCAPE = str(_paths.xscape_root())
+#: the defaults of --build and --main-xml for every production script: $JETSCAPE_BUILD,
+#: else <XSCAPE>/build_gpu (an installed tree: the tree itself); <XSCAPE>/config
+BUILD = str(_paths.build_dir())
+MAIN_XML = str(_paths.main_xml())
 
 USER_XML = os.path.join(CONFIG, "AuAu_MCGlauber_MUSIC_0_10_fast.xml")
 GRID_YAML = os.path.join(CONFIG, "grid_fno.yaml")
@@ -87,10 +91,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", default=None,
                    help="output file name (default: AuAu_0_10[_<campaign>]_seed<NNNN>.h5, "
                         "or AuAu_0_10_<campaign>_<NNNN>.h5 with --seed 0)")
-    p.add_argument("--build", default=os.path.join(XSCAPE, "build_gpu"),
+    p.add_argument("--build", default=BUILD,
                    help="X-SCAPE build tree the PyJetscape extension is linked against "
-                        "(default: build_gpu)")
-    p.add_argument("--main-xml", default=os.path.join(XSCAPE, "config", "jetscape_main.xml"),
+                        "(default: $JETSCAPE_BUILD, else build_gpu)")
+    p.add_argument("--main-xml", default=MAIN_XML,
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
                    help="template user XML (default: ../config/AuAu_MCGlauber_MUSIC_0_10_fast.xml)")
@@ -338,7 +342,7 @@ def main() -> int:
         "prod_grid_yaml": grid_text,
         "system": collision_system(root, a.main_xml),
         "initial_state_kind": "3dMCGlauber_strings",
-        "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
+        "hydro": hydro_label(a.build),
         "T_fo": music_freezeout_temperature(root, a.main_xml),
     }
     writer = H5BulkWriter(out_file_name=out_h5, grid_mode=grid_mode, tau_stride=1,

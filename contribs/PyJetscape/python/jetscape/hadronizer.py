@@ -97,13 +97,27 @@ def samples_per_background(oversample, spec, uses, cap):
 
 
 def iss_commit(xscape):
-    """The iSS checkout an X-SCAPE tree uses (best effort; '' if git cannot tell)."""
+    """The iSS checkout an X-SCAPE tree uses (best effort; '' if nothing can tell): git in
+    the tree's external_packages/iSS, else the ``external_packages/iSS <sha> ...`` line of
+    the tree's BUILD_INFO.txt (written by the production image and the xscape wheel)."""
+    iss = os.path.join(xscape, "external_packages", "iSS")
+    if os.path.isdir(iss):
+        try:
+            sha = subprocess.run(["git", "-C", iss, "rev-parse", "HEAD"], capture_output=True,
+                                 text=True, timeout=10).stdout.strip()
+            if sha:
+                return sha
+        except (OSError, subprocess.SubprocessError):
+            pass
     try:
-        return subprocess.run(["git", "-C", os.path.join(xscape, "external_packages", "iSS"),
-                               "rev-parse", "HEAD"], capture_output=True, text=True,
-                              timeout=10).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return ""
+        with open(os.path.join(xscape, "BUILD_INFO.txt")) as f:
+            for line in f:
+                words = line.split()
+                if len(words) >= 2 and words[0] == "external_packages/iSS":
+                    return words[1]
+    except OSError:
+        pass
+    return ""
 
 
 def iss_decay_attrs(core, eos, xml_root, xscape=None):
@@ -169,13 +183,17 @@ def set_hadronization_ecm(root, ecm):
 def configure_hadronize_xml(root, *, xscape, seed, n_events, oversample, keep_primaries,
                             correlated=False, correlated_block=None):
     """A parsed hadronize.xml (``root``) with a run's settings, in place: the event count,
-    the seed, iSS's paths (absolute, into ``xscape``; its working directory ".", where the
-    run's music_input is), the oversample count, <keep_primaries> and the correlated
-    sampling (``correlated_block`` "DTAU,DX,DETA"; ValueError if malformed)."""
+    the seed, iSS's paths (absolute, into ``xscape``'s external_packages/iSS, or into
+    ``xscape`` itself for an installed tree, which keeps iSS_parameters.dat and iSS_tables in
+    its data folder; its working directory ".", where the run's music_input is), the
+    oversample count, <keep_primaries> and the correlated sampling (``correlated_block``
+    "DTAU,DX,DETA"; ValueError if malformed)."""
     _set_text(root, "nEvents", max(1, int(n_events)))
     root.find("Random/seed").text = str(seed)
     iss = root.find("SoftParticlization/iSS")
     iss_dir = os.path.join(xscape, "external_packages", "iSS")
+    if not os.path.isdir(iss_dir) and os.path.isfile(os.path.join(xscape, "iSS_parameters.dat")):
+        iss_dir = xscape
     _set_text(iss, "iSS_input_file", os.path.join(iss_dir, "iSS_parameters.dat"))
     _set_text(iss, "iSS_table_path", os.path.join(iss_dir, "iSS_tables"))
     _set_text(iss, "iSS_particle_table_path", os.path.join(iss_dir, "iSS_tables"))

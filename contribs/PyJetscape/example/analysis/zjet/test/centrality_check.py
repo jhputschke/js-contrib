@@ -26,7 +26,12 @@ import subprocess
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-XSCAPE = os.environ.get("XSCAPE", os.path.normpath(os.path.join(HERE, *[".."] * 8)))
+try:      # the build: jetscape.paths ($JETSCAPE_BUILD, $XSCAPE, the checkout; the container)
+    from jetscape import paths as _paths
+    BUILD = str(_paths.build_dir())
+except (ImportError, FileNotFoundError):
+    BUILD = os.path.join(os.environ.get("XSCAPE", os.path.normpath(os.path.join(HERE, *[".."] * 8))),
+                         "build_gpu")
 RUNS = os.path.join(HERE, "..", "..", "runs")   # jetcorr.runs.RUNS
 
 
@@ -59,7 +64,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--xml", default=os.path.join(HERE, "..", "..", "..", "config", "PbPb_0_30_ZJet.xml"))
     ap.add_argument("--percent", type=float, default=30.0, help="the class the XML's b_max means")
-    ap.add_argument("--build", default=os.path.join(XSCAPE, "build_gpu"))
+    ap.add_argument("--build", default=BUILD)
     ap.add_argument("--events", type=int, default=50000, help="per seed")
     ap.add_argument("--seeds", type=int, nargs="+", default=[11, 12, 13, 14])
     ap.add_argument("--out", default=os.path.join(RUNS, "zjet_test", "data", "glauber_mb"))

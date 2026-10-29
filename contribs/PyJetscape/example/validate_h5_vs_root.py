@@ -23,6 +23,10 @@ What "agreement" means depends on the source mode:
 The XML must have a <FastRootBulkWriter> block, plus <dump_hydro_only>1 and
 <output_evolution_to_memory>1.
 
+    # from the build tree as below, or from anywhere (a copy made by xscape-examples,
+    # the container's /work, the macOS wheel): then the defaults come from
+    # jetscape.paths and the run gets its own working directory
+    # (jetscape.workdir.build_or_job_dir)
     cd X-SCAPE/build_gpu
     python ../external_packages/js-contrib/contribs/PyJetscape/example/validate_h5_vs_root.py \
         --user ../config/BulkFastTest/OO_one_event_fast.xml
@@ -41,6 +45,12 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
 import numpy as np
 
 import jetscape as js
+from jetscape import paths as _paths
+from jetscape.workdir import build_or_job_dir
+
+#: the X-SCAPE tree ($XSCAPE, the checkout, or the macOS wheel's installed tree), for the
+#: default XMLs
+_XSCAPE = str(_paths.xscape_root())
 from jetscape.fast_h5_bulk import H5BulkWriter, read_fast_h5_bulk
 from jetscape.fast_root_bulk import read_fast_root_bulk
 
@@ -52,8 +62,8 @@ SHARED_KEYS = ("nFeatures", "nx", "ny", "neta", "x_min", "y_min", "eta_min",
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--main", default="../config/jetscape_main.xml")
-    p.add_argument("--user", default="../config/BulkFastTest/OO_one_event_fast.xml")
+    p.add_argument("--main", default=os.path.join(_XSCAPE, "config", "jetscape_main.xml"))
+    p.add_argument("--user", default=os.path.join(_XSCAPE, "config", "BulkFastTest", "OO_one_event_fast.xml"))
     p.add_argument("--h5", default="validate_h5_vs_root.h5", help="HDF5 output path.")
     p.add_argument("--events", type=int, default=None,
                    help="Override the number of events from the XML.")
@@ -227,7 +237,13 @@ def main() -> int:
     if not js.HAS_H5PY:
         print("h5py is not installed in this environment.", file=sys.stderr)
         return 1
-    root_path, h5_path, grid_mode = run_both(args)
+    # from a build tree as always; elsewhere (a copy, the container) in a JobDir next to the
+    # HDF5 file, kept: the ROOT file is written there (its name is in the XML)
+    args.h5 = os.path.abspath(args.h5)
+    with build_or_job_dir(os.path.dirname(args.h5), args.user, args.main, keep=True) as job:
+        args.main, args.user = job.main_xml, job.user_xml
+        root_path, h5_path, grid_mode = run_both(args)
+        root_path = os.path.abspath(root_path)
     return 0 if compare(root_path, h5_path, grid_mode, args.rtol) else 1
 
 

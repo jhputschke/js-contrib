@@ -14,6 +14,10 @@ compiled, with PyJetscape and its Pythonic layer
 vector, fastjet, particle, hist, mplhep, matplotlib, scipy, pandas, uproot, Jupyter). How it is
 built: [`BuildContainerProd.md`](BuildContainerProd.md). This page: how to use it.
 
+**On a Mac** containers can't reach the GPU (Metal); there the same scripts, notebooks and
+outputs come as a Python wheel instead, installed with uv:
+[`README_Mac_Usage.md`](README_Mac_Usage.md) (the wheels: [jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos/releases)).
+
 Contents: [Get started](#get-started) · [The rules of the container](#the-rules-of-the-container)
 · [1 Productions](#1-the-production-scripts) · [2 Own scripts and notebooks](#2-your-own-scripts-and-notebooks)
 · [3 Analysis only](#3-analysis-only) · [Jupyter](#jupyter) · [HPC with Apptainer](#hpc-apptainer)
@@ -186,8 +190,10 @@ docker run --rm --gpus all --user "$(id -u):$(id -g)" -v "$PWD/work:/work" \
 
 The notebook version, [`oo_workflow.ipynb`](../contribs/PyJetscape/example/pythonic/oo_workflow.ipynb)
 (the same run, then the hadron files read back, awkward arrays, spectra with errors, FastJet),
-runs in Jupyter: [Jupyter](#jupyter). The copied production scripts work too: they find the
-build through `$XSCAPE`, exactly as the image's own.
+runs in Jupyter: [Jupyter](#jupyter). Every copied example works too (production scripts,
+`per_event_loop.py`, the bulk writers, `python_modules/`, ...): they find the build through
+`$XSCAPE` (`jetscape.paths`), exactly as the image's own, and run in a working directory
+of their own.
 
 ### 2.2 A script of your own
 
