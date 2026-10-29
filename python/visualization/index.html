@@ -1683,6 +1683,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#example-data-a-pbpb-zjet-event-on-the-osdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example data: a Pb+Pb Z+jet event on the OSDF
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#from-milne-to-the-lab-frame" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1966,6 +1977,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#example-data-a-pbpb-zjet-event-on-the-osdf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Example data: a Pb+Pb Z+jet event on the OSDF
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#from-milne-to-the-lab-frame" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2113,6 +2135,96 @@ The output is a GIF or MP4 movie, a ParaView time series, or an interactive wind
 <li><code>.mp4</code> needs <code>imageio-ffmpeg</code>; without it the scripts fall back to <code>.gif</code>. Rendering is
   off-screen, so headless machines work (else run under <code>xvfb-run</code>).</li>
 </ul>
+<h2 id="example-data-a-pbpb-zjet-event-on-the-osdf">Example data: a Pb+Pb Z+jet event on the OSDF<a class="headerlink" href="#example-data-a-pbpb-zjet-event-on-the-osdf" title="Permanent link">¶</a></h2>
+<p>To try the scripts without running a production first, the OSDF holds a ready-made example in
+<strong><code>osdf:///fno4hic/LHC/zjet_viz/</code></strong> (<a href="../../run/osdf/">Data on the OSDF</a>): the full hydro
+evolution of two Pb+Pb Z+jet events, with and without the jet's deposit, their hadrons, and the
+movies made from them. The pair file is also input for the
+<a href="../../analysis/hydro-hadrons/">wake observables</a> and for anything else you want to do with a
+3+1D MUSIC evolution.</p>
+<p><a class="glightbox" data-type="image" data-width="auto" data-height="auto" href="../../assets/img/zjet_wake_event1_frame.jpg" data-desc-position="bottom"><img alt="The wake of event 1: medium without the deposit, with it, and the difference" src="../../assets/img/zjet_wake_event1_frame.jpg"></a></p>
+<p><em>Event 1 at t = 6.9 fm/c, drawn by <code>wake_pyvista.py</code>: the Z (white arrow, its muons in green)
+recoils against the parton shower; the right panel is the wake, Δe = e(with deposit) − e(without).</em></p>
+<table>
+<thead>
+<tr>
+<th>file</th>
+<th>size</th>
+<th>content</th>
+<th>needed by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AuAu_0_10_jet_seed0201.h5</code></td>
+<td>0.93 GB</td>
+<td>the pair file: both MUSIC legs (the medium without and with the jet's deposit) frame by frame on the 3+1D grid, with the showers and the Z</td>
+<td><code>wake_pyvista.py</code>, <code>hydro_jet_particles_pyvista.py</code></td>
+</tr>
+<tr>
+<td><code>AuAu_0_10_jet_seed0201.json</code>, <code>.xml</code></td>
+<td>10 kB</td>
+<td>the run's settings and its X-SCAPE XML</td>
+<td></td>
+</tr>
+<tr>
+<td><code>…_hadrons_bulk_bg.h5</code>, <code>…_hadrons_bulk_jet.h5</code>, <code>…_hadrons_jet_frag.h5</code></td>
+<td>13 MB</td>
+<td>the hadrons: iSS on each leg's freeze-out surface, and the jet's fragmentation</td>
+<td><code>hydro_jet_particles_pyvista.py</code></td>
+</tr>
+<tr>
+<td><code>…_particlize.h5</code></td>
+<td>0.77 GB</td>
+<td>the freeze-out surfaces, to run iSS again with <code>hadronize.py</code></td>
+<td>not needed for the movies</td>
+</tr>
+<tr>
+<td><code>zjet_wake_event1.mp4</code>, <code>zjet_particles_event1.mp4</code>, and a <code>_frame.png</code> of each</td>
+<td>3.6 MB</td>
+<td>the two movies of event 1</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>The events:</strong> Pb+Pb at √s<sub>NN</sub> = 5.02 TeV, 0–30 %, made like the
+<a href="../../run/zjet-other/">Z+jet production</a> (<code>PbPb_0_30_ZJet.xml</code>, the Pb+Pb grid) but with the
+pair and particlize files written: a Z → μμ trigger (|y<sub>Z</sub>| &lt; 1, muon
+p<sub>T</sub> &gt; 20 GeV, |η| &lt; 2.5), PythiaGun p̂<sub>T</sub> 80–120 GeV, Matter + LBT, the
+CausalLiquefier into MUSIC_2, EOS 91. In event 1 (the second; events count from 0) a Z of
+p<sub>T</sub> 109.6 GeV at y = −0.49 recoils against a leading parton of 54.2 GeV. The file name
+keeps the jet production's stem, <code>AuAu_0_10_jet_seed…</code>, although the system is Pb+Pb.</p>
+<p><strong>Download and render.</strong> <code>js_osdf.py</code> needs no environment of its own; the scripts run in the
+<a href="../../install/analysis-env/">analysis environment</a>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>js-contrib/utils/remote_transfer
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span><span class="s1">'LHC/zjet_viz/*.mp4'</span><span class="w"> </span>--to<span class="w"> </span>~/zjet_viz<span class="w">        </span><span class="c1"># only the movies (2.3 MB)</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span>LHC/zjet_viz<span class="w"> </span>--what<span class="w"> </span>pair<span class="w"> </span>--to<span class="w"> </span>~<span class="w">             </span><span class="c1"># the pair file -&gt; ~/zjet_viz/ (0.93 GB)</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span><span class="s1">'LHC/zjet_viz/*_hadrons_*'</span><span class="w"> </span>--to<span class="w"> </span>~/zjet_viz<span class="w">  </span><span class="c1"># its hadron files (13 MB)</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># EOS 91 needs MUSIC's SMASH hotQCD table for the temperature (3.2 MB)</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span>~/zjet_viz/hrg_hotqcd_eos_SMASH_binary.dat<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span>https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_SMASH_binary.dat
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nb">cd</span><span class="w"> </span>../../contribs/Visualization
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># the jet wake: medium without the deposit, with it, and the difference</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>python<span class="w"> </span>wake_pyvista.py<span class="w"> </span>--file<span class="w"> </span>~/zjet_viz/AuAu_0_10_jet_seed0201.h5<span class="w"> </span>--event<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span>--eos-table<span class="w"> </span>~/zjet_viz<span class="w"> </span>--nt<span class="w"> </span><span class="m">48</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span>--movie<span class="w"> </span>zjet_wake.mp4
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># the whole event, from the hard scattering to the free-streaming hadrons</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>python<span class="w"> </span>hydro_jet_particles_pyvista.py<span class="w"> </span>--file<span class="w"> </span>~/zjet_viz/AuAu_0_10_jet_seed0201.h5<span class="w"> </span>--event<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span>--eos-table<span class="w"> </span>~/zjet_viz<span class="w"> </span>--nt<span class="w"> </span><span class="m">60</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span>--movie<span class="w"> </span>zjet_particles.mp4
+</code></pre></div>
+<ul>
+<li><strong><code>--event 0</code></strong> draws the other event. Keep <code>--nt</code> small (4–8) while you try camera angles and
+  colour scales: a 4-frame test of either script takes about 10 s on an M3 Max.</li>
+<li><strong>The EoS table.</strong> The analysis environment downloads MUSIC's EOS 9 table
+  (<code>hrg_hotqcd_eos_binary.dat</code>); this event, like the current productions, uses EOS 91, whose
+  table is <code>hrg_hotqcd_eos_SMASH_binary.dat</code>. Without it the scripts warn and take the
+  temperature from a conformal EoS, so the freeze-out isosurface is only indicative.
+  <code>--eos-table</code> takes the file or its directory; a source build has it in
+  <code>external_packages/music/EOS/hotQCD/</code>.</li>
+<li>The two scripts are described below: <a href="#the-jet-wake-wake_pyvistapy">the jet wake</a> and
+  <a href="#hadrons-after-freeze-out-hydro_jet_particles_pyvistapy">hadrons after freeze-out</a>.</li>
+</ul>
 <h2 id="from-milne-to-the-lab-frame">From Milne to the lab frame<a class="headerlink" href="#from-milne-to-the-lab-frame" title="Permanent link">¶</a></h2>
 <p>For each lab time <span class="arithmatex">\(t\)</span> the script sweeps <span class="arithmatex">\(z\)</span> and maps back to Milne, as X-SCAPE's
 <code>EvolutionHistory::get_tz()</code> does:</p>
@@ -2141,17 +2253,17 @@ in parallel over frames (<code>--jobs</code>).</p>
 resampling cost); the script warns when neither is set.</p>
 </div>
 <h2 id="the-medium-hydro_pyvistapy">The medium: <code>hydro_pyvista.py</code><a class="headerlink" href="#the-medium-hydro_pyvistapy" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">cd</span><span class="w"> </span>external_packages/js-contrib/contribs/Visualization
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># live: one event with the bundled O+O config, a movie and a ParaView time series</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>python<span class="w"> </span>hydro_pyvista.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--movie<span class="w"> </span>evt.gif<span class="w"> </span>--vtk-dir<span class="w"> </span>vti
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># iterate on the picture without re-running MUSIC: dump the Milne array once, re-render from it</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>python<span class="w"> </span>hydro_pyvista.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--save-milne<span class="w"> </span>/tmp/milne.npz
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>python<span class="w"> </span>hydro_pyvista.py<span class="w"> </span>--load<span class="w"> </span>/tmp/milne.npz<span class="w"> </span>--movie<span class="w"> </span>/tmp/hydro.gif<span class="w"> </span>--field<span class="w"> </span>both
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># an interactive window with a lab-time slider</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>python<span class="w"> </span>hydro_pyvista.py<span class="w"> </span>--load<span class="w"> </span>/tmp/milne.npz<span class="w"> </span>--interactive
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>external_packages/js-contrib/contribs/Visualization
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># live: one event with the bundled O+O config, a movie and a ParaView time series</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>python<span class="w"> </span>hydro_pyvista.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--movie<span class="w"> </span>evt.gif<span class="w"> </span>--vtk-dir<span class="w"> </span>vti
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># iterate on the picture without re-running MUSIC: dump the Milne array once, re-render from it</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>python<span class="w"> </span>hydro_pyvista.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--save-milne<span class="w"> </span>/tmp/milne.npz
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>python<span class="w"> </span>hydro_pyvista.py<span class="w"> </span>--load<span class="w"> </span>/tmp/milne.npz<span class="w"> </span>--movie<span class="w"> </span>/tmp/hydro.gif<span class="w"> </span>--field<span class="w"> </span>both
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="c1"># an interactive window with a lab-time slider</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>python<span class="w"> </span>hydro_pyvista.py<span class="w"> </span>--load<span class="w"> </span>/tmp/milne.npz<span class="w"> </span>--interactive
 </code></pre></div>
 <p>Main options: <code>--field {e,T,both}</code>, <code>--freeze-temp 0.155</code> (an isosurface, repeatable),
 <code>--velocity</code> (flow arrows), <code>--nxy</code>/<code>--nz</code>/<code>--nt</code> (render resolution and frame count),
@@ -2161,11 +2273,11 @@ Python). The speed of a movie is <code>--framerate</code> (frames per second, de
 <code>--frame-duration</code> (seconds per frame); <code>--vtk-dir DIR</code> writes <code>.vti</code> + <code>.pvd</code> for ParaView. The
 3+1D array can be large; <code>--save-milne</code> compresses it well (a 643 MB grid to about 37 MB).</p>
 <h2 id="the-parton-shower-hydro_jet_pyvistapy">The parton shower: <code>hydro_jet_pyvista.py</code><a class="headerlink" href="#the-parton-shower-hydro_jet_pyvistapy" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># live: MUSIC + jets with the bundled config/OO_one_event_jet.xml</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>python<span class="w"> </span>hydro_jet_pyvista.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--movie<span class="w"> </span>evt_jet.gif
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="c1"># from a dump, with the shower from the ASCII writer's output</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>python<span class="w"> </span>hydro_jet_pyvista.py<span class="w"> </span>--load<span class="w"> </span>hydro.npz<span class="w"> </span>--jet-ascii<span class="w"> </span>test_out.dat<span class="w"> </span>--movie<span class="w"> </span>evt_jet.gif
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># live: MUSIC + jets with the bundled config/OO_one_event_jet.xml</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python<span class="w"> </span>hydro_jet_pyvista.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--movie<span class="w"> </span>evt_jet.gif
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># from a dump, with the shower from the ASCII writer's output</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>python<span class="w"> </span>hydro_jet_pyvista.py<span class="w"> </span>--load<span class="w"> </span>hydro.npz<span class="w"> </span>--jet-ascii<span class="w"> </span>test_out.dat<span class="w"> </span>--movie<span class="w"> </span>evt_jet.gif
 </code></pre></div>
 <p>The medium is drawn exactly as by <code>hydro_pyvista.py</code>; the partons are arrows in the same
 <span class="arithmatex">\((t, x, y, z)\)</span> frame, colour-coded by pT and accumulating over lab time, so the shower tree
@@ -2175,18 +2287,18 @@ appears at <span class="arithmatex">\(\tau_0\)</span>. Live, the shower is read 
 a file. Options: <code>--jet-radius</code> (arrow width in fm), <code>--jet-cmap</code>, <code>--jet-color</code>,
 <code>--jet-min-energy</code>, <code>--jet-ascii</code>, plus everything <code>hydro_pyvista.py</code> accepts.</p>
 <h2 id="the-jet-wake-wake_pyvistapy">The jet wake: <code>wake_pyvista.py</code><a class="headerlink" href="#the-jet-wake-wake_pyvistapy" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>┌────────────────────┬────────────────────┬────────────────────┐
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>│ medium, no deposit │  medium + deposit  │      the wake      │
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>│ arr_bg             │  arr               │   arr - arr_bg     │
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>│ + shower           │  + the SAME shower │  + the SAME shower │
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>└────────────────────┴────────────────────┴────────────────────┘
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>┌────────────────────┬────────────────────┬────────────────────┐
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>│ medium, no deposit │  medium + deposit  │      the wake      │
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>│ arr_bg             │  arr               │   arr - arr_bg     │
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>│ + shower           │  + the SAME shower │  + the SAME shower │
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>└────────────────────┴────────────────────┴────────────────────┘
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># a FastHydro pair (FastHydro's make_wake_data.py writes one)</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>python<span class="w"> </span>wake_pyvista.py<span class="w"> </span>--file<span class="w"> </span>out_wake/wake_ideal.h5<span class="w"> </span>--nt<span class="w"> </span><span class="m">48</span><span class="w"> </span>--nz<span class="w"> </span><span class="m">160</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span>--movie<span class="w"> </span>wake_ideal.mp4
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># a MUSIC pair from the Au+Au jet production</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>python<span class="w"> </span>wake_pyvista.py<span class="w"> </span>--file<span class="w"> </span>&lt;out&gt;/AuAu_0_10_jet_seed0001.h5<span class="w"> </span>--nt<span class="w"> </span><span class="m">48</span><span class="w"> </span>--movie<span class="w"> </span>wake_music.mp4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># a FastHydro pair (FastHydro's make_wake_data.py writes one)</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>python<span class="w"> </span>wake_pyvista.py<span class="w"> </span>--file<span class="w"> </span>out_wake/wake_ideal.h5<span class="w"> </span>--nt<span class="w"> </span><span class="m">48</span><span class="w"> </span>--nz<span class="w"> </span><span class="m">160</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span>--movie<span class="w"> </span>wake_ideal.mp4
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="c1"># a MUSIC pair from the Au+Au jet production</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>python<span class="w"> </span>wake_pyvista.py<span class="w"> </span>--file<span class="w"> </span>&lt;out&gt;/AuAu_0_10_jet_seed0001.h5<span class="w"> </span>--nt<span class="w"> </span><span class="m">48</span><span class="w"> </span>--movie<span class="w"> </span>wake_music.mp4
 </code></pre></div>
 <p>Nothing is run: the pair file holds both legs on one initial condition and the shower.</p>
 <ul>
@@ -2213,8 +2325,8 @@ small while iterating.</p>
 <h2 id="hadrons-after-freeze-out-hydro_jet_particles_pyvistapy">Hadrons after freeze-out: <code>hydro_jet_particles_pyvista.py</code><a class="headerlink" href="#hadrons-after-freeze-out-hydro_jet_particles_pyvistapy" title="Permanent link">¶</a></h2>
 <p>One event of an <a href="../../run/auau-jet/">Au+Au jet production</a>, from the hard scattering to the
 free-streaming hadrons: the jet leg's medium (with the deposit), the shower, then the hadrons.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>hydro_jet_particles_pyvista.py<span class="w"> </span>--file<span class="w"> </span>&lt;out&gt;/AuAu_0_10_jet_seed0001.h5<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">    </span>--nt<span class="w"> </span><span class="m">60</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span>--movie<span class="w"> </span>jet_particles.mp4
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>hydro_jet_particles_pyvista.py<span class="w"> </span>--file<span class="w"> </span>&lt;out&gt;/AuAu_0_10_jet_seed0001.h5<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span>--nt<span class="w"> </span><span class="m">60</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span>--movie<span class="w"> </span>jet_particles.mp4
 </code></pre></div>
 <p>It reads the pair file and, next to it, the hadron files that <code>hadronize.py</code> writes:
 <code>&lt;stem&gt;_hadrons_bulk_jet.h5</code> (iSS on the jet leg's surface, small pale points) and
