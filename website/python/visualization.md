@@ -17,6 +17,29 @@ The output is a GIF or MP4 movie, a ParaView time series, or an interactive wind
 
 ## Requirements
 
+!!! important "On a Mac: use the analysis environment, not the xscape wheel"
+    The [Mac wheel](../install/mac.md) has neither PyVista nor these scripts. To render stored
+    files (a pair file, the [example on the OSDF](#example-data-a-pbpb-zjet-event-on-the-osdf))
+    on a Mac, clone js-contrib and create the [analysis environment](../install/analysis-env.md).
+    Its 3D visualization stack (PyVista, VTK, imageio-ffmpeg) is installed by default; only
+    `--no-viz` leaves it out:
+
+    ```bash
+    git clone https://github.com/jhputschke/js-contrib.git
+    cd js-contrib
+    utils/analysis_env/setup_analysis_env.sh --python /opt/homebrew/bin/python3   # -> ~/.venvs/js_analysis
+    source ~/.venvs/js_analysis/bin/activate
+    cd contribs/Visualization          # the scripts run from here
+    ```
+
+    macOS's own `python3` is 3.9, and the script needs 3.10 or later: pass a newer one with
+    `--python`, as above with Homebrew's (with uv instead:
+    `--uv --python "$(uv python find 3.13)"`, not tested). Tested on an M3 Max on 2026-10-29:
+    the setup took 2.5 minutes, `check_env.py` reported off-screen rendering working, and both
+    scripts rendered the OSDF example to `.mp4`. Live runs (`hydro_pyvista.py`,
+    `hydro_jet_pyvista.py` without `--load`) need a [source build](../install/source.md); they
+    have not been tried with the wheel.
+
 - **For stored files** (`wake_pyvista.py`, `hydro_jet_particles_pyvista.py`) no X-SCAPE build is
   needed: the [analysis environment](../install/analysis-env.md) has PyVista, VTK, imageio and
   MUSIC's EoS table (`requirements_viz.txt`, skipped with `--no-viz`). The container image has a
@@ -64,7 +87,7 @@ p<sub>T</sub> 109.6 GeV at y = −0.49 recoils against a leading parton of 54.2 
 keeps the jet production's stem, `AuAu_0_10_jet_seed…`, although the system is Pb+Pb.
 
 **Download and render.** `js_osdf.py` needs no environment of its own; the scripts run in the
-[analysis environment](../install/analysis-env.md):
+[analysis environment](../install/analysis-env.md) (on a Mac too: [see above](#requirements)):
 
 ```bash
 cd js-contrib/utils/remote_transfer

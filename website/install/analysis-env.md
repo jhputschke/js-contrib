@@ -10,8 +10,11 @@ pyvista for the 3D visualization, and pelicanfs for `osdf://` files.
 
 !!! tip "You may already have one"
     The [production container](container.md) (run without `--gpus`) and the
-    [xscape wheel](mac.md) on a Mac carry the same analysis packages. This page is for
-    computers that have neither.
+    [xscape wheel](mac.md) on a Mac carry the same analysis packages, but not the 3D
+    visualization: the wheel has no PyVista (and the container only in its `-viz` variant).
+    For [3D visualization](../python/visualization.md) on a Mac, create this environment
+    (it includes PyVista by default) next to the wheel. Otherwise this page is for computers
+    that have neither.
 
 ## What works in it, and what doesn't
 

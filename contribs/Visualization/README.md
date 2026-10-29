@@ -43,7 +43,27 @@ another env: `pip install pyvista imageio imageio-ffmpeg`.
 For `wake_pyvista.py` and `hydro_jet_particles_pyvista.py` on stored files, no X-SCAPE
 build is needed: the venv of
 [`utils/analysis_env`](../../utils/analysis_env/README.md)
-has everything, including MUSIC's EoS table. Live runs need the build.
+has everything, including MUSIC's EoS tables (EOS 9 and 91). Its visualization stack
+(`requirements_viz.txt`) is installed by default; `--no-viz` leaves it out. Live runs need
+the build.
+
+**On a Mac, use the analysis environment, not the xscape wheel.** The
+[Mac wheel](https://github.com/jhputschke/xscape-macos) has neither PyVista nor these
+scripts. Clone js-contrib and create the venv; macOS's own `python3` is 3.9, and the script
+needs 3.10 or later, so pass a newer one:
+
+```bash
+git clone https://github.com/jhputschke/js-contrib.git && cd js-contrib
+utils/analysis_env/setup_analysis_env.sh --python /opt/homebrew/bin/python3   # -> ~/.venvs/js_analysis
+source ~/.venvs/js_analysis/bin/activate
+cd contribs/Visualization
+```
+
+Tested on an M3 Max on 2026-10-29: the setup took 2.5 minutes, off-screen rendering works,
+and both scripts rendered the Pb+Pb Z+jet example of `osdf:///fno4hic/LHC/zjet_viz/` to
+`.mp4` (event 1 of `AuAu_0_10_jet_seed0201.h5`; download it with
+`utils/remote_transfer/js_osdf.py download LHC/zjet_viz --what pair --to ~`). Live runs
+have not been tried with the wheel.
 
 For live runs, the compiled `pyjetscape_core` module must match the env's Python: in
 `js_fno` it does, since X-SCAPE is built with that Python; in an env of its own, build it

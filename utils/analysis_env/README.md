@@ -17,14 +17,20 @@ source ~/.venvs/js_analysis/bin/activate
 python utils/analysis_env/check_env.py /path/to/out  # opens every file in a production directory
 ```
 
+**On a Mac** `python3` is often Apple's 3.9: pass a newer one,
+`./utils/analysis_env/setup_analysis_env.sh --python /opt/homebrew/bin/python3`. This venv is
+also the way to the **3D visualization** on a Mac: the xscape wheel has no PyVista, while this
+venv installs it by default ([`contribs/Visualization`](../../contribs/Visualization/README.md#environment);
+tested on an M3 Max, 2026-10-29).
+
 | file | purpose |
 |---|---|
-| `setup_analysis_env.sh` | makes or updates the venv, gets MUSIC's EoS table, runs `check_env.py` |
+| `setup_analysis_env.sh` | makes or updates the venv, gets MUSIC's EoS tables (EOS 9 and 91), runs `check_env.py` |
 | `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector, particle, hist, mplhep), Jupyter |
-| `requirements_viz.txt` | pyvista (+ vtk), imageio, imageio-ffmpeg for `contribs/Visualization` |
+| `requirements_viz.txt` | pyvista (+ vtk), imageio, imageio-ffmpeg for `contribs/Visualization`, installed by default (`--no-viz` skips it) |
 | `requirements_pelican.txt` | Pelican/OSDF (pelicanfs), installed by default (`--no-pelican` skips it), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
 | `requirements_gcs.txt` | optional: Google Cloud Storage (gcsfs, google-cloud-storage), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
-| `check_env.py` | checks the packages, the Blosc filter, PyROOT, the EoS table and off-screen rendering; with a directory, opens its pair, hadron and ROOT files |
+| `check_env.py` | checks the packages, the Blosc filter, PyROOT, the EoS tables and off-screen rendering; with a directory, opens its pair, hadron and ROOT files |
 | `environment.yml` | the same as one conda env, ROOT included (see [With ROOT](#with-root)) |
 
 ## What works in it

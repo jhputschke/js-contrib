@@ -222,6 +222,14 @@ from, in your copy of the examples:
 To analyse on another computer (Linux, an Intel Mac, a cluster) you need only the Python
 package, not X-SCAPE: see [the analysis environment](analysis-env.md#without-a-checkout-the-pyjetscape-wheel).
 
+!!! important "3D visualization is not in the wheel"
+    The wheel has neither PyVista nor the [3D visualization](../python/visualization.md)
+    scripts (`wake_pyvista.py`, `hydro_jet_particles_pyvista.py`). For movies of the medium,
+    the jet wake and the hadrons, clone js-contrib and create the
+    [analysis environment](analysis-env.md) next to this one, with
+    `setup_analysis_env.sh --python /opt/homebrew/bin/python3`: its visualization stack is
+    installed by default. [How, step by step](../python/visualization.md#requirements).
+
 ## Jupyter and VS Code
 
 ```bash
