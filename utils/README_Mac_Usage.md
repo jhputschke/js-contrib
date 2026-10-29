@@ -19,7 +19,8 @@ The environment holds X-SCAPE with MUSIC (music4gpu, Metal), iSS, 3dMCGlauber, M
 iColored and Pythia, compiled, with PyJetscape and its Pythonic layer
 ([`PYTHONIC.md`](../contribs/PyJetscape/PYTHONIC.md)),
 and the analysis packages (awkward, vector, fastjet, particle, hist, mplhep, matplotlib,
-scipy, pandas, uproot, Jupyter). How it is built: [`BUILDING.md`](https://github.com/jhputschke/xscape-macos/blob/main/BUILDING.md) in the wheel's repository.
+scipy, pandas, uproot, Jupyter), precompiled: for developing X-SCAPE itself see
+[2.4](#24-developing-x-scape-or-pyjetscape-not-with-this-environment). How it is built: [`BUILDING.md`](https://github.com/jhputschke/xscape-macos/blob/main/BUILDING.md) in the wheel's repository.
 
 Contents: [Get started](#get-started) · [The rules](#the-rules) ·
 [1 Productions](#1-the-production-scripts) · [2 Own scripts and notebooks](#2-your-own-scripts-and-notebooks) ·
@@ -230,10 +231,20 @@ uv pip install seaborn
 (`my_packages.txt`) and run `uv pip install -r my_packages.txt` after each sync. Don't
 change numpy or h5py this way.
 
-### 2.4 Changing PyJetscape or X-SCAPE itself
+### 2.4 Developing X-SCAPE or PyJetscape: not with this environment
 
-The environment is for running, not for developing X-SCAPE: changes to its Python or C++
-code need a source build of X-SCAPE (Xcode, Homebrew; the X-SCAPE README).
+This environment is precompiled: X-SCAPE, MUSIC4GPU, iSS, 3dMCGlauber, the PyJetscape
+bindings and the libraries they need were built once, for the release. It runs them, and
+you can build on top of them in Python, but it can't rebuild them.
+
+| you want to | use |
+|---|---|
+| run productions; write your own scripts, notebooks and Python modules ([`PYTHONIC.md`](../contribs/PyJetscape/PYTHONIC.md)); analyse | this environment |
+| change X-SCAPE's C++ (modules, framework), MUSIC4GPU (Metal), iSS, 3dMCGlauber, the PyJetscape bindings, or js-contrib's `jetscape` package | a **source build** in the **native conda environment**: Xcode with its Metal toolchain, Homebrew's libraries, a conda environment with Python and pybind11 ([js-contrib README, *Native environment*](../README.md#native-environment-mac-silicon--linux-aarch64); step by step: [`contribs/README.md`](../contribs/README.md)) |
+
+Both can live on one Mac. Use them in separate Terminal windows: the source build's conda
+environment and variables (`PYTHONPATH`, `XSCAPE`, ...) must not be active where this
+environment runs ([rule 4](#the-rules)).
 
 ---
 
