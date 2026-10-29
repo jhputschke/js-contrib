@@ -389,6 +389,30 @@ def test_the_smash_table_is_picked_for_eos_91(tmp_path):
     assert np.allclose(pa["jet"][..., 1], 0.03 * np.clip(e, 0.01, None) + 0.1, rtol=1e-5)
 
 
+def test_music_eos_table_naming_the_eos9_file_finds_the_smash_table_next_to_it(tmp_path, monkeypatch):
+    """The analysis venv sets $MUSIC_EOS_TABLE to the EOS 9 file, with EOS 91's beside it."""
+    d = tmp_path / "hotQCD"
+    d.mkdir()
+    _write_music_table(d / "hrg_hotqcd_eos_binary.dat")
+    _write_music_table(d / "hrg_hotqcd_eos_SMASH_binary.dat", lambda e: 0.03 * e + 0.1)
+    monkeypatch.setenv("MUSIC_EOS_TABLE", str(d / "hrg_hotqcd_eos_binary.dat"))
+    p = _music_pair(tmp_path, eos_kind="hotqcd (MUSIC EOS 91)")
+    pa, meta, _ = wp.load_pair(p, 0, ("jet",))
+    assert "SMASH" in meta["eos"]
+    e = pa["jet"][..., 0]
+    assert np.allclose(pa["jet"][..., 1], 0.03 * np.clip(e, 0.01, None) + 0.1, rtol=1e-5)
+
+
+def test_the_eos9_table_is_never_used_for_eos_91(tmp_path, capsys, monkeypatch):
+    d = tmp_path / "hotQCD"
+    d.mkdir()
+    _write_music_table(d / "hrg_hotqcd_eos_binary.dat")
+    monkeypatch.setenv("MUSIC_EOS_TABLE", str(d / "hrg_hotqcd_eos_binary.dat"))
+    p = _music_pair(tmp_path, eos_kind="hotqcd (MUSIC EOS 91)")
+    _, meta, _ = wp.load_pair(p, 0, ("jet",))
+    assert "fallback" in meta["eos"]
+
+
 def test_a_named_eos_whose_table_is_missing_falls_back_loudly(tmp_path, capsys, monkeypatch):
     monkeypatch.delenv("MUSIC_EOS_TABLE", raising=False)
     p = _music_pair(tmp_path, eos_kind="hotqcd (MUSIC EOS 9)",

@@ -147,10 +147,12 @@ python wake_pyvista.py \
     --nt 48 --movie wake_music.mp4
 ```
 
-It carries no `eos/` group; it names the EoS in `eos_kind` ("hotqcd (MUSIC EOS 9)") and
-the build in `prod_build`, and the temperature is read from MUSIC's own table under
-`<prod_build>/EOS/hotQCD`, or from `--eos-table` / `$MUSIC_EOS_TABLE` (file or
-directory). A conformal fallback is used only when no table can be found, and the run
+It carries no `eos/` group; it names the EoS in `eos_kind` ("hotqcd (MUSIC EOS 91)" for the
+current productions, EOS 9 for older files) and the build in `prod_build`, and the
+temperature is read from MUSIC's own table of that EOS under `<prod_build>/EOS/hotQCD`, or
+from `--eos-table` / `$MUSIC_EOS_TABLE` (file or directory). A file named after the other
+EOS's table stands for its directory, never for this EOS: the analysis venv points
+`$MUSIC_EOS_TABLE` at the EOS 9 table and puts EOS 91's next to it. A conformal fallback is used only when no table can be found, and the run
 says so: near freeze-out it is far off (T = 0.15 GeV is e = 0.92 GeV/fm³ conformal,
 0.23 from hotQCD). The run prints where the temperature came from.
 

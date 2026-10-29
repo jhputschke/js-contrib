@@ -192,7 +192,9 @@ def _music_table(eos_id, attrs, eos_table=None):
 
     Looked for, in order, at --eos-table and $MUSIC_EOS_TABLE (each a file or a directory
     holding it), then under the producing build's EOS/hotQCD, which PyJetscape's
-    productions record as the `prod_build` attribute.
+    productions record as the `prod_build` attribute. A file named after the other EOS's
+    table stands for its directory (the analysis venv points $MUSIC_EOS_TABLE at the EOS 9
+    file and puts the EOS 91 one next to it); it is never used for this EOS.
     """
     fname = _MUSIC_HOTQCD[eos_id]
     cands = [eos_table, os.environ.get("MUSIC_EOS_TABLE")]
@@ -203,6 +205,8 @@ def _music_table(eos_id, attrs, eos_table=None):
         if not c:
             continue
         path = os.path.join(c, fname) if os.path.isdir(c) else c
+        if os.path.basename(path) in _MUSIC_HOTQCD.values():
+            path = os.path.join(os.path.dirname(path), fname)
         if os.path.isfile(path):
             return path
     return None

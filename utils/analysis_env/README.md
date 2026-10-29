@@ -62,8 +62,8 @@ evolve a live event. The ROOT macros and the C++ reader in
 | `--with-fasthydro` | also install [FastHydro](../../contribs/FastHydro/README.md) (`jetscape-fasthydro`), for FastHydro's own files and readers (`fast_data`, `fasthydro.browse`). **Not needed for the `prod_AuAu_0_10_jet` files**; the visualization falls back to `jetscape.showers` without it. The FastHydro solver also needs `pip install torch`. |
 | `--with-gcs` | also install the Google Cloud Storage interfaces, `requirements_gcs.txt`: gcsfs (`gs://` URLs for fsspec, h5py and uproot) and Google's `google-cloud-storage` client |
 | `--no-pelican` | skip pelicanfs, `requirements_pelican.txt`, which is installed by default: `osdf://` and `pelican://` URLs for fsspec, h5py and uproot |
-| `--eos-table PATH` | copy MUSIC's hotQCD table from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or its `hrg_hotqcd_eos_binary.dat`) instead of downloading it |
-| `--no-eos` | neither download nor copy it |
+| `--eos-table PATH` | copy MUSIC's hotQCD tables from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or one of its `.dat` files) instead of downloading them; a table not found there is downloaded |
+| `--no-eos` | neither download nor copy them |
 | `--kernel NAME` | register a Jupyter kernel `NAME` for the venv (in `~/.local/share/jupyter`) |
 | `--check DIR` | at the end, open the production files in `DIR` |
 
@@ -147,12 +147,14 @@ python utils/analysis_env/check_env.py /path/to/out
 ```
 
 Everything available on conda-forge comes from conda-forge. pip adds only the scikit-hep
-`fastjet` and PyJetscape (editable). The EoS table isn't part of it; add it with
+`fastjet` and PyJetscape (editable). The EoS tables aren't part of it; add them with
 
 ```bash
 mkdir -p "$CONDA_PREFIX/share/music_eos/hotQCD"
-curl -fL -o "$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat" \
-  https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_binary.dat
+for t in binary SMASH_binary; do                         # EOS 9 and EOS 91
+  curl -fL -o "$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_$t.dat" \
+    https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_$t.dat
+done
 conda env config vars set MUSIC_EOS_TABLE="$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat"
 conda activate js_analysis                               # again, to pick up the variable
 ```
@@ -239,12 +241,16 @@ credentials.
 
 The pair files store the energy density, not the temperature. `jet_wake.ipynb` (freeze-out
 contours, Mach angle), `analysis/wake_observables.py`, `wake_hadrons.py` and the
-Visualization scripts (freeze-out isosurface) convert e → T with MUSIC's hotQCD table. The
-files say `eos_kind = "hotqcd (MUSIC EOS 9)"`. Normally these tools find the table in the
-producing X-SCAPE build, but in this venv there is none. So the setup script downloads
-`hrg_hotqcd_eos_binary.dat` (3.2 MB) into `VENV/share/music_eos/hotQCD`, from the same
-place as MUSIC's `EOS/download_hotQCD.sh`, and checks its md5. It then sets
-`MUSIC_EOS_TABLE` to that file, in `VENV/bin/activate` and in the `--kernel` kernel spec.
+Visualization scripts (freeze-out isosurface) convert e → T with MUSIC's hotQCD table of the
+file's EOS, which the files name in `eos` and `eos_kind`: EOS 9 (`hrg_hotqcd_eos_binary.dat`,
+UrQMD hadron list, the older files) or EOS 91 (`hrg_hotqcd_eos_SMASH_binary.dat`, SMASH
+hadron list, the current productions). Normally these tools find the table in the producing
+X-SCAPE build, but in this venv there is none. So the setup script downloads both tables
+(3.2 MB each) into `VENV/share/music_eos/hotQCD`, from the same place as MUSIC's
+`EOS/download_hotQCD.sh`, and checks their md5. It then sets `MUSIC_EOS_TABLE` to the EOS 9
+file, in `VENV/bin/activate` and in the `--kernel` kernel spec; the tools take the table of
+the file's EOS from that file's directory. A venv made before 2026-10-29 has only the EOS 9
+table: re-run the setup script to add the other.
 Without the table, the visualization uses a conformal EoS and prints a warning,
 `jet_wake.ipynb` skips the contours, and `wake_*.py` stop and ask for `--eos`.
 

@@ -922,6 +922,6 @@ fjcontrib, add `-lfastjetcontribfragile` (conda-forge `fastjet-contrib`) and e.g
 | `fastjet/ClusterSequenceArea.hh: No such file` (ACLiC) | `gSystem->AddIncludePath("-I$CONDA_PREFIX/include")`, or install `fastjet-cxx` |
 | `Error: You can only make one query at a time` | `fastjet-config --cxxflags --libs`: call it twice |
 | ROOT's C++ notebook kernel dies at start | `pip install metakernel` in the env; deactivate other venvs first |
-| no freeze-out contours, `wake_*.py` ask for `--eos` | `MUSIC_EOS_TABLE` unset: the venv sets it, else point it at `EOS/hotQCD/hrg_hotqcd_eos_binary.dat` of an X-SCAPE build |
+| no freeze-out contours, `wake_*.py` ask for `--eos` | `MUSIC_EOS_TABLE` unset, or no table of the file's EOS next to it (EOS 91 files need `hrg_hotqcd_eos_SMASH_binary.dat`): re-run `setup_analysis_env.sh`, which installs both, else point it at `EOS/hotQCD/` of an X-SCAPE build |
 | files with different `arr` shapes | two grids (64 × 64 × 32 and 65 × 65 × 33): keep them apart |
 | a campaign's events differ systematically from another's at the 1e-3 level | late-step vs constant-step files, or different images: check `<late_delta_tau>` (§1) |

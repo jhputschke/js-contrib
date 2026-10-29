@@ -72,27 +72,24 @@ cd js-contrib/utils/remote_transfer
 ./js_osdf.py download LHC/zjet_viz --what pair --to ~             # the pair file -> ~/zjet_viz/ (0.93 GB)
 ./js_osdf.py download 'LHC/zjet_viz/*_hadrons_*' --to ~/zjet_viz  # its hadron files (13 MB)
 
-# EOS 91 needs MUSIC's SMASH hotQCD table for the temperature (3.2 MB)
-curl -fL -o ~/zjet_viz/hrg_hotqcd_eos_SMASH_binary.dat \
-  https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_SMASH_binary.dat
-
 cd ../../contribs/Visualization
 # the jet wake: medium without the deposit, with it, and the difference
 python wake_pyvista.py --file ~/zjet_viz/AuAu_0_10_jet_seed0201.h5 --event 1 \
-    --eos-table ~/zjet_viz --nt 48 --z-oversample 3 --movie zjet_wake.mp4
+    --nt 48 --z-oversample 3 --movie zjet_wake.mp4
 # the whole event, from the hard scattering to the free-streaming hadrons
 python hydro_jet_particles_pyvista.py --file ~/zjet_viz/AuAu_0_10_jet_seed0201.h5 --event 1 \
-    --eos-table ~/zjet_viz --nt 60 --z-oversample 3 --movie zjet_particles.mp4
+    --nt 60 --z-oversample 3 --movie zjet_particles.mp4
 ```
 
 - **`--event 0`** draws the other event. Keep `--nt` small (4–8) while you try camera angles and
   colour scales: a 4-frame test of either script takes about 10 s on an M3 Max.
-- **The EoS table.** The analysis environment downloads MUSIC's EOS 9 table
-  (`hrg_hotqcd_eos_binary.dat`); this event, like the current productions, uses EOS 91, whose
-  table is `hrg_hotqcd_eos_SMASH_binary.dat`. Without it the scripts warn and take the
-  temperature from a conformal EoS, so the freeze-out isosurface is only indicative.
-  `--eos-table` takes the file or its directory; a source build has it in
-  `external_packages/music/EOS/hotQCD/`.
+- **The EoS table.** This event, like the current productions, uses EOS 91, whose table is
+  `hrg_hotqcd_eos_SMASH_binary.dat`. The analysis environment has it (a venv made before
+  2026-10-29 has only EOS 9's: re-run `setup_analysis_env.sh`). Elsewhere pass `--eos-table`
+  with the file or its directory: `EOS/hotQCD/` of a source build, or of the Mac wheel
+  (`site-packages/xscape/share/xscape/EOS/hotQCD/`, which holds only EOS 91's). Without it the
+  scripts warn and take the temperature from a conformal EoS, so the freeze-out isosurface is
+  only indicative.
 - The two scripts are described below: [the jet wake](#the-jet-wake-wake_pyvistapy) and
   [hadrons after freeze-out](#hadrons-after-freeze-out-hydro_jet_particles_pyvistapy).
 

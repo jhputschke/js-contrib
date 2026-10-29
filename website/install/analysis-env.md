@@ -41,10 +41,12 @@ The script
    and pelicanfs (both on by default), about 1.6 GB in total;
 3. installs PyJetscape from your checkout in editable mode, so `import jetscape` works from
    anywhere and follows `git pull`;
-4. downloads MUSIC's hotQCD EoS table (3.2 MB, md5-checked) into the venv and sets
-   `MUSIC_EOS_TABLE` in its `activate` script. The pair files store the energy density, not
-   the temperature; `jet_wake.ipynb`, `analysis/wake_*.py` and the visualization use the table
-   to convert e → T;
+4. downloads MUSIC's two hotQCD EoS tables (3.2 MB each, md5-checked) into the venv: EOS 91
+   (SMASH hadron list, the current productions) and EOS 9 (UrQMD, older files). It sets
+   `MUSIC_EOS_TABLE` in its `activate` script to the EOS 9 file; the tools take the table of a
+   file's EOS from the same directory. The pair files store the energy density, not the
+   temperature; `jet_wake.ipynb`, `analysis/wake_*.py` and the visualization use the table
+   to convert e → T. A venv made before 2026-10-29 has only EOS 9's: re-run the script;
 5. runs `check_env.py`.
 
 Nothing outside the venv directory is written, except a Jupyter kernel spec if you ask for one.
@@ -80,8 +82,8 @@ With a directory it opens its pair, hadron and ROOT files. Two flags:
 | `--system-site-packages` | let the venv see the packages of the Python it is made from, e.g. PyROOT of a conda env ([§4](#4-root-next-to-it)); on an existing venv it switches this on |
 | `--with-gcs` | add Google Cloud Storage (`gcsfs`, `google-cloud-storage`): `gs://` URLs for fsspec, h5py and uproot |
 | `--no-pelican` | leave out pelicanfs, which is installed by default: `osdf://` and `pelican://` URLs |
-| `--eos-table PATH` | copy the EoS table from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or the `.dat` file) instead of downloading it |
-| `--no-eos` | neither download nor copy it |
+| `--eos-table PATH` | copy the EoS tables from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or one of its `.dat` files) instead of downloading them; a table not found there is downloaded |
+| `--no-eos` | neither download nor copy them |
 | `--kernel NAME` | register a Jupyter kernel `NAME` for the venv (for VS Code or a JupyterLab elsewhere) |
 | `--check DIR` | at the end, open the production files in `DIR` |
 
@@ -139,12 +141,14 @@ ROOT only when it is made **from the Python that ROOT was built for**, with
     ```
 
     Everything comes from conda-forge except the scikit-hep `fastjet` and PyJetscape (editable).
-    The EoS table is not part of it; add it with
+    The EoS tables are not part of it; add them with
 
     ```bash
     mkdir -p "$CONDA_PREFIX/share/music_eos/hotQCD"
-    curl -fL -o "$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat" \
-      https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_binary.dat
+    for t in binary SMASH_binary; do                         # EOS 9 and EOS 91
+      curl -fL -o "$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_$t.dat" \
+        https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_$t.dat
+    done
     conda env config vars set MUSIC_EOS_TABLE="$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat"
     conda activate js_analysis                               # again, to pick up the variable
     ```
@@ -201,8 +205,8 @@ uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-maco
 Quote the argument: zsh treats `[...]` as a pattern. The readers, `HadronArray`, the awkward
 views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it
 installs neither pyvista nor pelicanfs (add `pelicanfs` with `uv pip install pelicanfs` for the
-OSDF), and it does not fetch the EoS table: download `hrg_hotqcd_eos_binary.dat` as in the
-conda tab above and point `MUSIC_EOS_TABLE` at it.
+OSDF), and it does not fetch the EoS tables: download both as in the conda tab above and
+point `MUSIC_EOS_TABLE` at one of them (the tools take the other from the same directory).
 
 ## Threads and memory
 

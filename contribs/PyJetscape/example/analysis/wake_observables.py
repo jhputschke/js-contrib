@@ -198,14 +198,19 @@ def file_eos(attrs):
 def find_eos(attrs, override):
     """The hotQCD table of the file's EOS: --eos, $MUSIC_EOS_TABLE or the production
     build's.  A given table must be the file's (EOS 9 and 91 differ by up to 6% in e(T)
-    around T_fo)."""
+    around T_fo).  $MUSIC_EOS_TABLE may be a directory, or a table whose directory also
+    holds the other one (the analysis venv points it at EOS 9's, with EOS 91's beside it)."""
     if "hotqcd" not in str(attrs.get("eos_kind", "hotqcd")).lower():
         sys.exit(f"eos_kind is {attrs.get('eos_kind')!r}; only the hotQCD table is supported")
     eos = file_eos(attrs)
     if eos not in EOS_TABLES:
         sys.exit(f"the file ran MUSIC EOS {eos}: no hotQCD table for it here")
     want = EOS_TABLES[eos]
-    cands = [override, os.environ.get("MUSIC_EOS_TABLE", ""),
+    env = os.environ.get("MUSIC_EOS_TABLE", "")
+    if env:
+        env_dir = env if os.path.isdir(env) else os.path.dirname(env)
+        env = os.path.join(env_dir, want)
+    cands = [override, env,
              os.path.join(str(attrs.get("prod_build", "")), "EOS", "hotQCD", want)]
     path = next((c for c in cands if c and os.path.exists(c)), None)
     if path is None:
