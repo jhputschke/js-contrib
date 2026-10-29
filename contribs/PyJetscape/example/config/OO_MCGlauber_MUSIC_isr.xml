@@ -89,7 +89,7 @@
       <target>O</target> <!--Target name-->
       <sqrts>200</sqrts> <!--Center of mass energy in GeV-->
       <!--b selects the centrality inside X-SCAPE (cenMin/cenMax act only in the standalone
-          3dMCGlauber). b <= 3 fm is about 0-20% of the O+O cross section (~1.4 b). With ISR
+          3dMCGlauber). b <= 3 fm is about 0-24% of the O+O cross section (~1.55 b). With ISR
           the nucleon pair of the hard scattering makes no string, so an event whose only
           collision is the hard one may have no medium: keep b small enough.-->
       <b_min>0.0</b_min> <!--Minimum impact parameter in fm-->

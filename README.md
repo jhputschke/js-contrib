@@ -1,5 +1,10 @@
 # js-contrib
 
+> **Documentation: <https://jhputschke.github.io/js-contrib/>**: why js-contrib exists, the
+> physics, GPU acceleration, step-by-step installs (container, Mac wheel, analysis venv,
+> conda), running the productions, analysing the files, and Python modules with PyTorch.
+> The site's sources are in [`website/`](website/) ([building it](https://jhputschke.github.io/js-contrib/reference/site/)).
+
 Community contributions for the [JETSCAPE](https://github.com/JETSCAPE/JETSCAPE) /
 [X-SCAPE](https://github.com/JETSCAPE/X-SCAPE) and C-SCAPE (in development) heavy-ion simulation framework,
 analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJet.
@@ -405,6 +410,12 @@ make -j$(nproc)
 ```
 
 ### Path B — standalone (fastjet-contrib style)
+
+> **Not tested; the PyJetscape bindings don't build this way at present.** The `JetScape`
+> package config that X-SCAPE exports lacks the include directories the bindings need (MUSIC,
+> GSL, Pythia8, Boost, ROOT): see the
+> [PyJetscape README, Path B](contribs/PyJetscape/README.md#path-b--standalone-build-not-working-at-present).
+> Path C is not tested with the bindings either. Use [Path A](#path-a--via-x-scape-cmake-recommended).
 
 ```bash
 git clone https://github.com/jhputschke/js-contrib

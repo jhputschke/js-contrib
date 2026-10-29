@@ -174,7 +174,7 @@ the scripts). The campaign setting is `--pthat-bins 10-20,20-30,30-40 --jets-per
 | 2 × RTX 3090 | `cu124-freezeoutcopies` (A1–A11) | the same | 1,271 | 108 GB | [BENCHMARK_2x3090.md](../../../../docs/BENCHMARK_2x3090.md) |
 | GB10 (CUDA, 20 cores, 121 GB unified) | A1–A8 + restart (2026-10-11) | `OMP_NUM_THREADS=5 MUSIC_CUDA_SYNC=block ./run_jobs.sh -j 4 --mps …`; campaign setting | 381 (~750–800 expected with `final_optim`, not measured) | 31.5 GB | [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md) |
 | GB10 | 2026-10-03 | `OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps …`; a new background every event, no particlize | ~190 | ~29 GB | [BENCHMARK_GB10.md](../../../../docs/BENCHMARK_GB10.md) |
-| Apple M3 Max (Metal, 16 cores, 64 GB) | before A1 | `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 …`; a new background every event, no particlize | 213 | ~40 GB | [BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md) |
+| Apple M3 Max (Metal, 16 cores, 64 GB) | A1–A8 + `cuda_blocking_sync` (2026-10-10) | `OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3 …`; a new background every event, no particlize | 263 by makespan (284 from the per-event times; 213 before A1) | ~34 GB | [BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md) |
 
 Cluster GPUs (V100, A40, A100, L40S), extrapolated: [`docs/README_2stage.md`](../../../../docs/README_2stage.md) §1.
 
@@ -1167,8 +1167,8 @@ what MUSIC applied: FastHydro measured point sampling losing whole deposits at |
 ## Reading it
 
 ```python
-from fasthydro.browse import open_pair        # FastHydro's PairBrowser
-with open_pair("out/AuAu_0_10_jet_seed0001.h5") as p:   # checks frame 0 is identical
+from fasthydro.browse import PairBrowser      # FastHydro's browser of a pair file
+with PairBrowser("out/AuAu_0_10_jet_seed0001.h5") as p:   # checks frame 0 is identical
     print(p.summary(0))
     de = p.diff(0, 20)                        # arr - arr_bg, energy density, frame 20
 ```
@@ -1577,9 +1577,10 @@ or be missed. With a constant step everything is bit-identical to before.
   - **Apple M3 Max (Metal, 16 cores, 64 GB):** 26.1 / 28.7 s per event for seed 1, one
     job ~132 events/h. Several jobs at once only pay off with the cores split between
     them: **`OMP_NUM_THREADS=5 OMP_WAIT_POLICY=passive KMP_BLOCKTIME=0 ./run_jobs.sh -j 3
-    …` gives 213 events/h (1.61×, recommended, ~40 GB)**, and `-j 4` with
-    `OMP_NUM_THREADS=4` 221. With the default settings `-j 3` gives only 148 and `-j 4`
-    129. `--mps` is CUDA-only. Details: [BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md).
+    …` gives 263 events/h by makespan (284 from the per-event times, ~34 GB; recommended)**
+    with the code of 2026-10-10, against 213 before A1. `-j 4` gained nothing on top (202–256
+    by makespan, ±15 % between runs). Before A1, with the default settings, `-j 3` gave only
+    148 and `-j 4` 129. `--mps` is CUDA-only. Details: [BENCHMARK_M3MAX.md](../../../../docs/BENCHMARK_M3MAX.md).
 
 ## Checks before a campaign
 

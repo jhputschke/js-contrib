@@ -304,7 +304,7 @@ bash utils/conda_install/pinned/install_js_fno_pinned.sh               # ML stac
 
 Pinned scripts specify explicit package versions and are tested against the
 environment used for the results in
-[Phys. Rev. C 113 (2026) 1, 014904](https://doi.org/10.48550/arXiv.2507.23598). The packages
+[Phys. Rev. C 113, 014904 (2026)](https://doi.org/10.1103/jsh8-6tm7). The packages
 added since (pybind11, pytest, networkx, notebook, vector, pyvista, imageio; fastjet moved from 3.4.2,
 no longer on conda-forge, to 3.5.0.1; gsl 2.7.1 to 2.7) are pinned to versions that resolve
 with that environment's Python 3.11 and numpy 1.26 (checked by dry runs of conda and pip

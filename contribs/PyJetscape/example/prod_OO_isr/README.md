@@ -181,9 +181,11 @@ apptainer exec --nv --env OMP_NUM_THREADS=3,OMP_WAIT_POLICY=passive,MUSIC_CUDA_S
   (no GPU needed).
 - **Nothing to set for iMATTER:** the image sets `PYTHIA8DATA`, and iMATTER finds Pythia's
   PDF tables next to it.
-- **The notebook** `oo_isr_overview.ipynb` needs Jupyter, which the image does not have: run
-  it on the host or in the analysis venv ([`utils/analysis_env`](../../../../utils/analysis_env/README.md))
-  on the files in `/work`.
+- **The notebook** `oo_isr_overview.ipynb` needs Jupyter. Images built since 2026-10-28 have
+  it (`xscape-jupyter`, not in the `-slim` variants:
+  [`utils/README_Container_Usage.md`](../../../../utils/README_Container_Usage.md#jupyter));
+  with an older image, run it on the host or in the analysis venv
+  ([`utils/analysis_env`](../../../../utils/analysis_env/README.md)) on the files in `/work`.
 
 ## Hadronization: in the job or afterwards
 
@@ -456,7 +458,7 @@ events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 
 - **One hard scattering per event**, at a binary collision of 3dMCGlauber drawn uniformly.
   The events are therefore hard-triggered with no weight for the number of collisions:
   `glauber_ncoll` is recorded per event for that. `b` selects the centrality
-  (`cenMin`/`cenMax` act only in the standalone 3dMCGlauber); `b < 3 fm` is about 0–20% of
+  (`cenMin`/`cenMax` act only in the standalone 3dMCGlauber); `b < 3 fm` is about 0–24% of
   the O+O cross section.
 - **The hard partons' momentum is taken from the colliding nucleons**
   (`<Subtract_hard_momentum>1`, the X-SCAPE default; the BulkFastTest O+O example, without

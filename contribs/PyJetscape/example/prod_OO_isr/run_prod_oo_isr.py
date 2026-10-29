@@ -162,7 +162,7 @@ def parse_args() -> argparse.Namespace:
                    help="3dMCGlauber minimum impact parameter [fm] (default: the XML's, 0)")
     p.add_argument("--b-max", type=float, default=None, dest="b_max",
                    help="3dMCGlauber maximum impact parameter [fm] (default: the XML's, 3, "
-                        "about 0-20%% of O+O). Inside X-SCAPE b selects the centrality; "
+                        "about 0-24%% of O+O). Inside X-SCAPE b selects the centrality; "
                         "the hard scattering sits at one of the binary collisions")
     p.add_argument("--late-dtau", type=float, default=None, dest="late_dtau", metavar="DT",
                    help="MUSIC's time step from --late-tau on [fm/c] (the XML's "
