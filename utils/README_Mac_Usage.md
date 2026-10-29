@@ -40,7 +40,7 @@ Each one is a set of three files: the `xscape` wheel (X-SCAPE, 175 MB), the `pyj
 wheel (the Python package) and a **lock file**, `xscape-<version>-cp313.lock.txt`, which
 names every package of the environment with its exact version and checksum. You install
 from the lock file, so every Mac gets the same software. Below, `VER` is the release's
-version (e.g. `0.1.0.dev3`).
+version (e.g. `0.1.0`).
 
 **Step 1: install uv** (Astral's Python package manager; one program, in `~/.local/bin`):
 
@@ -54,7 +54,7 @@ With Homebrew, `brew install uv` works too.
 **Step 2: the environment** (uv downloads Python 3.13 and about 200 MB of packages; seconds to a few minutes, depending on the connection):
 
 ```bash
-VER=0.1.0.dev3
+VER=0.1.0
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
 uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
