@@ -1,0 +1,166 @@
+site_name: js-contrib
+site_description: >-
+  GPU-accelerated X-SCAPE heavy-ion simulations with Python and PyTorch:
+  install, run the productions, analyse the files, write your own modules.
+site_author: Joern Putschke and the js-contrib contributors
+site_url: https://jhputschke.github.io/js-contrib/
+repo_url: https://github.com/jhputschke/js-contrib
+repo_name: jhputschke/js-contrib
+edit_uri: edit/main/website/
+copyright: >-
+  js-contrib is distributed under the GNU General Public License v3.0
+  (GPLv3 or later), like X-SCAPE.
+
+# The site's sources. docs/ holds the design notes, plans and benchmarks of the
+# repository and is not part of the site; the pages link to it on GitHub.
+docs_dir: website
+site_dir: _site
+
+exclude_docs: |
+  requirements.txt
+  README.md
+
+theme:
+  name: material
+  icon:
+    logo: material/atom-variant
+    repo: fontawesome/brands/github
+  favicon: assets/favicon.svg
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - navigation.instant
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+    - toc.follow
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - md_in_html
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+extra_css:
+  - assets/extra.css
+
+extra_javascript:
+  - assets/mathjax.js
+  - https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js
+  - assets/diagram-zoom.js
+
+plugins:
+  - search
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      zoomable: true
+      draggable: true
+
+validation:
+  omitted_files: warn
+  absolute_links: ignore
+  unrecognized_links: warn
+  anchors: warn
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jhputschke/js-contrib
+    - icon: material/apple
+      link: https://github.com/jhputschke/xscape-macos
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/jhputschke/xscape-prod
+    - icon: material/web
+      link: https://jetscape.org
+
+nav:
+  - Home: index.md
+  - About:
+      - about/index.md
+      - Why js-contrib: about/why.md
+      - The physics: about/physics.md
+      - GPU acceleration: about/gpu.md
+      - Python and machine learning: about/python-ml.md
+      - Publications and citing: about/references.md
+  - Install:
+      - install/index.md
+      - Production container: install/container.md
+      - Mac (xscape wheel): install/mac.md
+      - Analysis environment: install/analysis-env.md
+      - Source build (conda): install/source.md
+  - Run:
+      - run/index.md
+      - Your first event: run/first-event.md
+      - Au+Au jets (two stages): run/auau-jet.md
+      - O+O with ISR: run/oo-isr.md
+      - Z+jet and other systems: run/zjet-other.md
+      - Clusters, GPUs and monitoring: run/clusters.md
+      - Data on the OSDF: run/osdf.md
+  - Analyse:
+      - analysis/index.md
+      - What a production writes: analysis/files.md
+      - Hadrons: analysis/hadrons.md
+      - Jets with FastJet: analysis/jets.md
+      - Hydro and hadrons together: analysis/hydro-hadrons.md
+      - O+O: analysis/oo.md
+      - ROOT and C++: analysis/root.md
+      - Notebooks: analysis/notebooks.md
+  - Python:
+      - python/index.md
+      - The Pythonic interface: python/pythonic.md
+      - Writing modules in Python: python/modules.md
+      - Live PyTorch FNO hydro: python/fno.md
+      - FastHydro: python/fasthydro.md
+      - 3D visualization: python/visualization.md
+  - Reference:
+      - reference/index.md
+      - Contribs and repositories: reference/contribs.md
+      - Tools: reference/tools.md
+      - Building this site: reference/site.md
