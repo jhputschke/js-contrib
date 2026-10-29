@@ -97,8 +97,8 @@ mean (the closure, check 3) and differ in noise.
 |---|---|---|---|---|---|---|---|---|---|
 | **factorized** (1) | S_i^zc | mean of all 40 | every selected Z event of every background, pooled (ρ^zc) | mean of all 40 | Δφ: in (B flat); Δy: out (`self`) | in | all (~400 per campaign) | w_i | jackknife, 100 blocks of backgrounds |
 | **all** (2) | S_i^full | mean of all 40 | every selected Z event, pooled (ρ^full) | mean of all 40 | in | in | all | w_i | jackknife |
-| **cms10** (3) | S_i^full, every selected Z | mean of all 40 | 10 events of 10 distinct other backgrounds | **one** (T_j) | out | **out** | 10 unique | w_i | jackknife |
-| **strict** (4) | S_i^one, **one Z per background** | **one** (k1) | 10 events of the strict set, 10 distinct other backgrounds | **one** (T_j) | out | out | 10 unique | W_b | **spread over the Z's** (the jackknife beside it) |
+| **cms10** (3) | S_i^full, every selected Z | mean of all 40 | 10 events of 10 distinct other backgrounds | **one** (T_j) | out | **out** | 10 unique | w_i | jackknife, blocks out of S and B together |
+| **strict** (4) | S_i^one, **one Z per background** | **one** (k1) | 10 events of the strict set, 10 distinct other backgrounds | **one** (T_j) | out | out | 10 unique | W_b | **spread over the Z's** (the jackknife, blocks out of S and B together, beside it) |
 
 - **Partner draws in cms10 and strict** (the same code): 10 backgrounds without replacement, each
   ∝ the summed weight of its candidates (W_c), the Z's own excluded; then one candidate event in
@@ -202,6 +202,17 @@ background), which is not a question of the mixing. **`cms10`** is CMS's B on ev
 model's full statistics with CMS's partner rule; its Z's are not independent and its S is averaged,
 so its spread is not data's error (hence the jackknife).
 
+**The explicit modes' errors.** The partners come from the same sample as the Z's: a fluid with
+more particles than average raises the S of its own Z's and the B of the Z's that drew its
+events, and the two cancel in the mean. A jackknife therefore leaves a block of backgrounds out
+of S (its Z's) and of B (its events as partners) together, B the mean over the remaining (Z,
+partner) pairs, each weighing w_i / m_i (`zjet_mixing.explicit_replicates`). Leaving it out of S
+alone, each Z's S − B fixed (`cms10`'s error before 2026-10-29), counts the cancelled
+fluctuations: on zjet_c00-01 5–10× the scatter of disjoint sub-campaigns at 1–4 GeV, right at
+4–10 GeV. `strict`'s spread errs the same way, less (1.4–3× at low p_T); its jackknife is right
+(check 5). If CMS's statistical errors are such a spread over its Z's, they carry the same
+excess; how CMS computes them is not stated.
+
 **Which to compare with what**: the model's values with the factorized (or `all`) result, which
 has the same mean as every mode and the smallest error; the model's error bars with `strict`'s.
 That the modes agree in the mean is the closure: CMS's procedure recovers the model's truth.
@@ -258,8 +269,12 @@ Z's would measure 1 + (m − 1) r.
 |---|---|
 | S_full, S_zc, S_one, the lab densities, the recorded tracks, per file | `zjet_mixing.file_pool` (route B: `../../analysis_root/zjet/zhadron_pools`) |
 | the weights and ids of any set of pools | `zjet_mixing.assemble`, `jetcorr.weights` |
+| the grid's edges in every pool, pools binned otherwise refused | `zjet_mixing.GRID`, `check_grid` |
+| the pools' contents and the results as `hist.Hist` (notebooks, mplhep) | `zjet_mixing.Pool.to_hist`, `zframe_hist`, `observables_hist`, `obs_hist` ([README](README.md#the-pools-and-the-results-as-hist-histograms)) |
+| the procedure step by step: S, B, S − B in 2D, projections, errors, the modes side by side | [`zhadron_mixing.ipynb`](zhadron_mixing.ipynb) |
 | pooled B, rules `all` / `self` / `background`, `phi_flat` | `zjet_mixing.all_partners`, `ZKernel` |
 | explicit partners (cms10, strict) | `zjet_mixing.explicit_partners`; the strict set `strict_set` |
+| their jackknife, blocks out of S and B together | `zjet_mixing.explicit_replicates`; tested by `mix.subsample_pulls` (check 5) |
 | the exclusion bias | `zjet_mixing.exclusion_bias` |
 | Δφ / Δy as CMS (± merged, × 0.5, Z side) | `zjet_mixing.observables` |
 | rotation of the backgrounds | `zjet_mixing.Pool.rotate_backgrounds` |

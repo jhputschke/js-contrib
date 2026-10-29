@@ -95,6 +95,15 @@ N_DYF, N_SIDE = len(DY_FINE) - 1, 2
 #: the per-event contents of the dijet proxy (Y_*: Z frame, DY_FINE; L_*: lab eta, ETA)
 Y_CONTENTS = ("full", "one", "zc", "frag")
 L_CONTENTS = ("full", "zc", "frag")
+#: the grid's edges by name: every pool stores them (``grid_<name>``; the C++ pools in the tree
+#: ``pool_grid``), and :func:`check_grid` refuses pools binned on other edges
+GRID = {"pt": PT, "dy": DETA, "dphi": DPHI, "eta": ETA, "phi": PHI, "dyf": DY_FINE}
+#: the edges of the pools written before the edges were stored (versions 3 and 4 until
+#: 2026-10-29), fixed here: should GRID change, those pools are refused, not misread
+GRID_UNSTORED = {"pt": np.array([1.0, 2.0, 4.0, 10.0]), "dy": np.linspace(-4.8, 4.8, 25),
+                 "dphi": np.linspace(-np.pi / 2, 3 * np.pi / 2, 21),
+                 "eta": np.linspace(-2.4, 2.4, 49), "phi": np.linspace(-np.pi, np.pi, 61),
+                 "dyf": np.linspace(-4.8, 4.8, 97)}
 
 _CD = 0.5 * (DPHI[1:] + DPHI[:-1])
 #: the Delta phi bin at -Delta phi, and the Z side |Delta phi| < pi/2 (cms2507.Model's)
@@ -360,16 +369,53 @@ def _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec):
         d["bgr_RB"] = (np.array([per_bgr[u] for u in units]) if units
                        else np.zeros((0, *shp_l)))
     d.update(mapio.file_info_npz(rec))
+    d.update(grid_arrays())
     d["pool_version"] = np.array(POOL_VERSION, np.int64)
     return d
+
+
+def grid_arrays():
+    """:data:`GRID` as a pool's ``grid_*`` arrays."""
+    return {f"grid_{k}": np.asarray(e, float) for k, e in GRID.items()}
+
+
+def grid_tag(grid=None):
+    """A short digest of the edges (:data:`GRID`, or ``grid``): mix.py's pool cache key."""
+    import hashlib
+
+    g = GRID if grid is None else grid
+    data = b"".join(k.encode() + np.asarray(g[k], "<f8").tobytes() for k in sorted(g))
+    return hashlib.sha1(data).hexdigest()[:16]
+
+
+def pool_grid(part):
+    """The edges a pool part (the dict of :func:`file_pool` or :func:`read_root_pool`) was
+    binned on: its ``grid_*``, else :data:`GRID_UNSTORED`'s (written before they were stored)."""
+    return {k: np.asarray(part[f"grid_{k}"], float) if f"grid_{k}" in part else e
+            for k, e in GRID_UNSTORED.items()}
+
+
+def check_grid(parts):
+    """ValueError unless every pool part was binned on :data:`GRID`, the edges equal to 10^-12
+    (the C++ map step's linspace may differ from numpy's in the last bit)."""
+    for p in parts:
+        g = pool_grid(p)
+        bad = [k for k, e in GRID.items()
+               if g[k].shape != e.shape or not np.allclose(g[k], e, rtol=0, atol=1e-12)]
+        if bad:
+            name = str(p["fi_name"]) if "fi_name" in p else "a pool part"
+            raise ValueError(f"{name}: binned on other edges than zjet_mixing's "
+                             f"({', '.join(bad)}): rebuild its pools (mix.py --rebuild, or "
+                             "zhadron_pools)")
 
 
 def read_root_pool(path):
     """A pool written by analysis_root/zjet/zhadron_pools (one ROOT file per production file)
     -> the dict of :func:`file_pool`.  Trees ``pool_events`` (per event the arrays of
     file_pool, S_*/Y_*/L_* flattened), ``pool_bgw`` (per background and window: unit, k, n,
-    ncoll, S_<c>, R_full), ``pool_bgr`` (unit, RB; Pb+Pb), ``file_info``; pools of version 3
-    have ``pool_bg`` (bg_id, W, W2, SW_<c>, T_<c>, R_<c>) instead."""
+    ncoll, S_<c>, R_full), ``pool_bgr`` (unit, RB; Pb+Pb), ``file_info``, ``pool_grid`` (one
+    entry, the edges of :data:`GRID`; not in older pools); pools of version 3 have ``pool_bg``
+    (bg_id, W, W2, SW_<c>, T_<c>, R_<c>) instead."""
     import awkward as ak
     import uproot
 
@@ -381,6 +427,7 @@ def read_root_pool(path):
         v4 = "pool_bgw" in f
         bg = f["pool_bgw" if v4 else "pool_bg"].arrays(library="ak")
         bgr = f["pool_bgr"].arrays(library="ak") if "pool_bgr" in f else None
+        grid = f["pool_grid"].arrays(library="np") if "pool_grid" in f else None
         rec = mapio.read_file_info(f)
     n = len(ev)
 
@@ -424,6 +471,8 @@ def read_root_pool(path):
         d["bgr_unit"] = col(bgr, "unit", np.int64)
         d["bgr_RB"] = col(bgr, "RB", float).reshape(len(bgr), *shp_l)
     d.update(mapio.file_info_npz(rec))
+    if grid is not None:
+        d.update({f"grid_{k}": np.asarray(grid[k][0], float) for k in GRID})
     d["pool_version"] = np.array(POOL_VERSION, np.int64)
     return d
 
@@ -436,11 +485,13 @@ def assemble(parts):
     records (``jetcorr.weights.campaign_ids``, ``window_weights``: the rules of
     ``HadronFileReader``, so a campaign alone gets the ids and weights of mix.py's direct
     build); per background W, W2 and the weighted sums SW, T, R rebuilt from the unweighted
-    per-(background, window) sums (the same to rounding)."""
+    per-(background, window) sums (the same to rounding).  Parts binned on other edges than
+    :data:`GRID`: ValueError (:func:`check_grid`)."""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from jetcorr import mapio
     from jetcorr import weights as jw
 
+    check_grid(parts)
     recs = [mapio.read_file_info_npz(p) for p in parts]
     ids = jw.campaign_ids(recs)
     wmb = jw.window_weights(recs)
@@ -448,10 +499,8 @@ def assemble(parts):
     parts = [parts[i] for i in order]
     recs = [recs[i] for i in order]
     per = [(int(ids["event_offset"][i]), ids["units"][i]) for i in order]
-    keys = set(parts[0])
-    if any(set(p) != keys for p in parts):
-        raise ValueError("pool parts with different contents (vacuum and Pb+Pb mixed?)")
-    bulk = "bgw_S_zc" in keys
+    _same_contents(parts)
+    bulk = "bgw_S_zc" in parts[0]
 
     def base(k):
         k = np.asarray(k, np.int64)
@@ -464,7 +513,8 @@ def assemble(parts):
     w0 = [base(p["pthat_bin"]) * (p["n_coll"] if use_nc else 1.0) for p in parts]
     w0_all = np.concatenate(w0)
     norm = w0_all.mean() if len(w0_all) else 1.0
-    per_event = [k for k in parts[0] if not k.startswith(("bgw_", "bgr_", "fi_", "pool_"))
+    per_event = [k for k in parts[0]
+                 if not k.startswith(("bgw_", "bgr_", "fi_", "pool_", "grid_"))
                  and k not in ("trk_pt", "trk_eta", "trk_phi")]
     d = {k: np.concatenate([p[k] for p in parts]) for k in per_event}
     for k in ("trk_pt", "trk_eta", "trk_phi"):
@@ -476,6 +526,7 @@ def assemble(parts):
                                 for f, p in enumerate(parts)])
     d["w"] = w0_all / norm
     d["file_names"] = np.array([r["name"] for r in recs])
+    d.update(grid_arrays())
     # per background, from the per-(background, window) rows
     contents = CONTENTS if bulk else ("full",)
     sums = {}
@@ -513,16 +564,26 @@ def assemble(parts):
     return d
 
 
+def _same_contents(parts):
+    """ValueError unless the parts hold the same arrays (the edges aside: older parts have
+    none, :func:`pool_grid`)."""
+    keys = [{k for k in p if not k.startswith("grid_")} for p in parts]
+    if any(k != keys[0] for k in keys):
+        raise ValueError("pool parts with different contents (vacuum and Pb+Pb mixed?)")
+
+
 # ── the reduce step's input ─────────────────────────────────────────────────────
 class Pool:
     """The per-file pools of a campaign merged: per selected event (``event``, ``bg``,
     ``w``, ``y``, ``phi``, ``k_one``, ``S_full``, ``S_one``, its one-sample tracks
     ``tracks(i)``) and per background (``bg_W``, ``bg_W2``, ``bg_SW[c]``, ``bg_T[c]``,
     ``bg_R[c]`` for c in CONTENTS).  ``zb``: each event's background as an index into the
-    per-background arrays.  Vacuum pools store one content: "zc" is then "full"."""
+    per-background arrays.  Vacuum pools store one content: "zc" is then "full".  Binned on
+    :data:`GRID` (:func:`check_grid`); :meth:`to_hist` gives the contents as hist.Hist."""
 
     def __init__(self, d):
-        self.__dict__.update({k: v for k, v in d.items() if not k.startswith("bg_")})
+        check_grid([d])
+        self.__dict__.update({k: v for k, v in d.items() if not k.startswith(("bg_", "grid_"))})
         for pre, conts in (("Y", Y_CONTENTS), ("L", L_CONTENTS)):    # vacuum: one content
             if f"{pre}_full" in d:
                 for c in conts:
@@ -546,17 +607,19 @@ class Pool:
     @classmethod
     def from_parts(cls, parts):
         parts = [dict(p) for p in parts]
-        keys = set(parts[0])
-        if any(set(p) != keys for p in parts):
-            raise ValueError("pool parts with different contents (vacuum and Pb+Pb mixed?)")
-        return cls({k: np.concatenate([p[k] for p in parts]) for k in parts[0]})
+        check_grid(parts)
+        _same_contents(parts)
+        d = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]
+             if not k.startswith("grid_")}
+        return cls({**d, **grid_arrays()})
 
     @classmethod
     def load(cls, paths):
         """The pools of ``paths`` (several campaigns' alike): ``.npz`` (``file_pool``) or
         ``.root`` (analysis_root/zjet's ``zhadron_pools``, :func:`read_root_pool`).  Version 4
         (the file records): the ids and weights of the whole set (:func:`assemble`); version
-        3: as stored, which holds only for the set it was built on."""
+        3: as stored, which holds only for the set it was built on.  Pools binned on other
+        edges than :data:`GRID`: ValueError (:func:`check_grid`)."""
         parts = []
         for p in paths:
             if str(p).endswith(".root"):
@@ -611,6 +674,58 @@ class Pool:
         if same:
             self.bg_R["zc"] = self.bg_R["full"]
         return dphi
+
+    def to_hist(self, name, per=None, events=None):
+        """A content of the pool as a ``hist.Hist`` on :data:`GRID` (axes by name: ``pt``, the
+        track p_T class in GeV, then ``dy`` and ``dphi``, ``eta`` and ``phi``, or ``side`` and
+        ``dy``), for notebooks and mplhep; a copy, the mixing works on the arrays.
+
+        ``name``: "S_full", "S_zc", "S_one" (the Z frame), "R_full", "R_zc" (the lab-frame
+        density), "Y_<c>" (the dijet proxy's Delta y in 0.1 per side of the Z), "L_<c>" (its lab
+        eta per side).  ``per``: None, the mean per Z over all Z's, sum_i w_i X_i / sum_i w_i;
+        "background", the same over the Z's of each background (axis ``background``: ``bg_id``);
+        "event", each event's own X_i (axis ``event``: its global id; ``events``, pool indices,
+        default all; not for S_zc and R_*, stored per background only).  As the pool stands:
+        after :meth:`rotate_backgrounds` its rotated phi.
+
+        Storage Weight with the variance NaN: the tracks of an event are correlated (its
+        oversamples, its fluid), so sqrt(sum w^2) is not their error (the jackknife over
+        backgrounds is, ``all_partners``' blocks); mplhep then draws no error bars."""
+        kind, _, c = name.partition("_")
+        if kind not in _HIST_AXES or not c:
+            raise ValueError(f"{name!r}: S_*, R_*, Y_* or L_*")
+        if per not in (None, "background", "event"):
+            raise ValueError(f"per {per!r}: None, 'background' or 'event'")
+        if events is not None and per != "event":
+            raise ValueError("events: for per='event' only")
+        if kind == "R" or name == "S_zc":
+            if per == "event":
+                raise ValueError(f"{name} is stored per background only, not per event")
+            store = self.bg_R if kind == "R" else self.bg_SW
+            if c not in store:
+                raise ValueError(f"{name}: no such content ({', '.join(store)})")
+            X, W = store[c], self.bg_W
+        elif name == "S_full" and per != "event":
+            X, W = self.bg_SW["full"], self.bg_W
+        else:
+            if not hasattr(self, name):
+                raise ValueError(f"{name}: not in this pool (Y_*, L_*: pools of version 4)")
+            A = getattr(self, name)
+            if per == "event":
+                idx = np.arange(self.n) if events is None else np.asarray(events, np.int64)
+                return _weight_hist([_category("event", self.event[idx])]
+                                    + _grid_axes(_HIST_AXES[kind]), np.asarray(A[idx], float),
+                                    name)
+            X = np.asarray(A, float)
+            wx = self.w.reshape(-1, *[1] * (X.ndim - 1)) * X     # per background, weighted
+            X = np.zeros((self.n_bg, *X.shape[1:]))
+            np.add.at(X, self.zb, wx)
+            W = self.bg_W
+        axes = _grid_axes(_HIST_AXES[kind])
+        if per == "background":
+            return _weight_hist([_category("background", self.bg_id)] + axes,
+                                X / W.reshape(-1, *[1] * (X.ndim - 1)), name)
+        return _weight_hist(axes, X.sum(axis=0) / W.sum(), name)
 
 
 def n_eff(w):
@@ -863,8 +978,16 @@ def strict_set(pool, seed=0):
     return pick, pool.bg_W.copy()
 
 
+def partner_map(pool, partners, i):
+    """The tracks of the ``partners`` (pool indices; each its one recorded oversample) in the
+    frame of Z ``i``, summed -> (N_PT, N_DY, N_DPHI)."""
+    trk = [pool.tracks(j) for j in partners]
+    return z_hist(*(np.concatenate([t[q] for t in trk]) for q in range(3)), pool.y[i],
+                  pool.phi[i])
+
+
 def explicit_partners(pool, z_index, partner_index, partner_weight, *, n_mix=10, s="full",
-                      seed=0):
+                      seed=0, maps=False):
     """CMS-style mixing: every Z (pool indices ``z_index``) with ``n_mix`` partner events
     from as many different backgrounds, never its own.  The backgrounds are drawn without
     replacement with probability ~ the summed ``partner_weight`` of their candidates
@@ -872,7 +995,8 @@ def explicit_partners(pool, z_index, partner_index, partner_weight, *, n_mix=10,
     recorded oversample (``Pool.tracks``).  ``s``: "full" (S the 40-sample mean) or "one" (S
     one oversample, as one recorded collision).  With fewer backgrounds available than
     ``n_mix``, all of them (a warning).  -> dict dphi (n, N_PT, N_DPHI), dy (n, N_PT, N_DY)
-    per Z, n_mix (n,) the partners used, partners (list of their pool indices)."""
+    per Z, n_mix (n,) the partners used, partners (list of their pool indices); ``maps``:
+    also B (n, N_PT, N_DY, N_DPHI), each Z's B map (for :func:`explicit_replicates`)."""
     rng = np.random.default_rng([int(seed), 0xC3510])
     partner_index = np.asarray(partner_index, np.int64)
     partner_weight = np.asarray(partner_weight, float)
@@ -888,6 +1012,7 @@ def explicit_partners(pool, z_index, partner_index, partner_weight, *, n_mix=10,
     dy = np.zeros((n, N_PT, N_DY))
     used = np.zeros(n, np.int64)
     partners = []
+    B_maps = np.zeros((n, N_PT, N_DY, N_DPHI)) if maps else None
     short = 0
     for a, i in enumerate(z_index):
         own = np.flatnonzero(bgs == pool.zb[i])
@@ -908,17 +1033,68 @@ def explicit_partners(pool, z_index, partner_index, partner_weight, *, n_mix=10,
         js = [int(rng.choice(cand[d], p=cw[d] / cw[d].sum())) for d in chosen]
         partners.append(js)
         used[a] = m
-        if m:
-            trk = [pool.tracks(j) for j in js]
-            B = z_hist(np.concatenate([t[0] for t in trk]), np.concatenate([t[1] for t in trk]),
-                       np.concatenate([t[2] for t in trk]), pool.y[i], pool.phi[i]) / m
-        else:
-            B = np.full((N_PT, N_DY, N_DPHI), np.nan)
+        B = partner_map(pool, js, i) / m if m else np.full((N_PT, N_DY, N_DPHI), np.nan)
+        if maps:
+            B_maps[a] = B
         dphi[a], dy[a] = observables(S_all[i].astype(float) - B)
     if short:
         warnings.warn(f"{short} of {n} Z's had fewer than {n_mix} other backgrounds to mix "
                       "with: all of them used", RuntimeWarning, stacklevel=2)
-    return {"dphi": dphi, "dy": dy, "n_mix": used, "partners": partners}
+    out = {"dphi": dphi, "dy": dy, "n_mix": used, "partners": partners}
+    if maps:
+        out["B"] = B_maps
+    return out
+
+
+def explicit_replicates(pool, z_index, w, res, S, blocks=()):
+    """The weighted mean S - B map of explicit mixing and its delete-block jackknife
+    replicates, the block left out of S and B together.  ``res``: :func:`explicit_partners`'
+    result for the Z's ``z_index`` (pool indices) with weights ``w``; ``S`` their S maps (n,
+    N_PT, N_DY, N_DPHI); ``blocks``: lists of background indices.
+
+    S is the mean over the Z's (weights w_i), B the mean over all (Z, partner) pairs, each
+    weighing w_i / m_i (m_i the Z's partners): the same as sum_i w_i B_i / sum_i w_i.  A
+    block leaves out its Z's (with their pairs) and the pairs with its events as partners,
+    and both means are renormalized over what is left.  The partners come from the same
+    sample as the Z's, so a fluid's fluctuations (its multiplicity above all) enter S and B
+    together and largely cancel in the mean; leaving a block out of S alone, each Z's S - B
+    fixed (:func:`weighted_mean` on the per-Z observables), counts them anyway: on
+    zjet_c00-01 8x the scatter of disjoint sub-campaigns at 1-2 GeV, 5x at 2-4, right at
+    4-10 GeV (mix.py's check 5).  Re-averaging each Z's B over its partners left instead
+    weighs those up by m / (m - 1) and over-corrects by 1/(m - 1) of the block's
+    fluctuation.  The observables and the Delta y rebinning are linear: the replicate maps
+    give theirs.  ``res`` with ``B`` (``maps=True``) saves recomputing the B maps.
+    -> (mean (N_PT, N_DY, N_DPHI), [replicate per block])."""
+    z_index = np.asarray(z_index, np.int64)
+    w = np.asarray(w, float)
+    partners = res["partners"]
+    S = np.asarray(S, float)
+    B = res.get("B")
+    if B is None:
+        B = np.stack([partner_map(pool, js, i) / len(js) if len(js)
+                      else np.full(S.shape[1:], np.nan) for i, js in zip(z_index, partners)])
+    ok = np.all(np.isfinite(B.reshape(len(B), -1)), axis=1)    # Z's with partners
+    s_num, s_den = np.tensordot(w[ok], S[ok], axes=1), w[ok].sum()
+    b_num, b_den = np.tensordot(w[ok], B[ok], axes=1), w[ok].sum()
+    zb = pool.zb[z_index]
+    pbg = np.full((len(z_index), max((len(js) for js in partners), default=0)), -1, np.int64)
+    for a, js in enumerate(partners):
+        pbg[a, :len(js)] = pool.zb[np.asarray(js, np.int64)]
+    m = (pbg >= 0).sum(axis=1)
+    reps = []
+    for blk in blocks:
+        own = np.isin(zb, blk) & ok
+        sn = s_num - np.tensordot(w[own], S[own], axes=1)
+        bn = b_num - np.tensordot(w[own], B[own], axes=1)
+        sd = bd = s_den - w[own].sum()
+        hit = np.isin(pbg, blk) & (pbg >= 0)
+        for a in np.flatnonzero(hit.any(axis=1) & ok & ~own):
+            drop = [partners[a][q] for q in np.flatnonzero(hit[a])]
+            pw = w[a] / m[a]                               # each pair's weight
+            bn = bn - pw * partner_map(pool, drop, z_index[a])
+            bd = bd - pw * len(drop)
+        reps.append(sn / sd - bn / bd)
+    return s_num / s_den - b_num / b_den, reps
 
 
 def weighted_mean(x, w, groups=None, blocks=()):
@@ -946,3 +1122,107 @@ def jackknife(reps):
     reps = np.asarray(reps, float)
     G = len(reps)
     return np.sqrt((G - 1) / G * np.sum((reps - reps.mean(axis=0)) ** 2, axis=0))
+
+
+# ── histograms (hist): the pools' contents and the results, for notebooks and mplhep ──────
+#: the axes of each kind of content (Pool.to_hist)
+_HIST_AXES = {"S": ("pt", "dy", "dphi"), "R": ("pt", "eta", "phi"), "Y": ("pt", "side", "dyf"),
+              "L": ("pt", "side", "eta")}
+_HIST_LABELS = {"pt": "track $p_T$ class [GeV]", "dy": r"$\Delta y = \eta - y_Z$",
+                "dphi": r"$\Delta\phi = \phi - \phi_Z$", "eta": r"$\eta$", "phi": r"$\phi$",
+                "dyf": r"$\Delta y = \eta - y_Z$"}
+
+
+def _grid_axes(names, edges=None):
+    """hist axes of :data:`GRID` (``edges`` replaces some), no flow bins: ``dyf`` is named
+    ``dy``, ``side`` is 0 on the Z side (|Delta phi| < pi/2), 1 on the away side."""
+    import hist
+
+    edges = {**GRID, **(edges or {})}
+    out = []
+    for n in names:
+        if n == "side":
+            out.append(hist.axis.Integer(0, N_SIDE, name="side", label="0: Z side, 1: away side",
+                                         underflow=False, overflow=False))
+        else:
+            out.append(hist.axis.Variable(edges[n], name="dy" if n == "dyf" else n,
+                                          label=_HIST_LABELS[n], underflow=False,
+                                          overflow=False))
+    return out
+
+
+def _category(name, ids):
+    import hist
+
+    return hist.axis.IntCategory([int(x) for x in ids], name=name, overflow=False)
+
+
+def _weight_hist(axes, value, label, error=None):
+    """A Weight-storage hist.Hist with these values and the variance error^2, NaN (unknown)
+    without ``error``."""
+    import hist
+
+    h = hist.Hist(*axes, storage=hist.storage.Weight(), label=label)
+    v = h.view()
+    v.value = value
+    v.variance = np.nan if error is None else np.asarray(error, float) ** 2
+    return h
+
+
+def _rebin_y(dy, k):
+    from cms2507 import rebin_y
+
+    return rebin_y(dy, np.zeros_like(dy), k)[0]
+
+
+def zframe_hist(value, error=None, label=None):
+    """A Z-frame map (N_PT, N_DY, N_DPHI), e.g. S, B or S - B per Z averaged over the Z's, as a
+    ``hist.Hist`` (axes ``pt``, ``dy``, ``dphi``), its variance error^2 (NaN without
+    ``error``).  Its projections are CMS's observables before the +- merging
+    (:func:`observables`): sum over ``dy`` for Delta phi, over the Z side's ``dphi`` bins
+    (|Delta phi| < pi/2, the first N_DPHI / 2) for Delta y; their errors from replicates."""
+    return _weight_hist(_grid_axes(_HIST_AXES["S"]), np.asarray(value, float),
+                        label or "Z frame, per Z", error)
+
+
+def obs_hist(var, value, error=None, k=None, label=None):
+    """CMS's observable of S - B as a ``hist.Hist`` (axes ``pt`` and ``dphi`` or ``dy``), its
+    variance error^2 (the jackknife's or the spread's; NaN without ``error``): ``var`` "phi",
+    (N_PT, N_DPHI) per radian, or "y", (N_PT, N_DY) per unit Delta y on DETA, or with ``k``
+    cms2507.rebin_y's |Delta y| < 4 in bins of 0.4 k (mix.py's results: ``obs_hist("y",
+    *R["all"]["y"], k=2)``).
+
+    hist adds the variances of what it sums as independent: right for Pb+Pb - pp
+    (``h_pbpb + h_pp * -1``: Weight storage has no ``-``), wrong for neighbouring bins
+    (rebinning) and for two results on the same Z's (modes, the bulk on and off): those from
+    the replicates (:func:`observables_hist` on the difference, ``mix.py``'s checks)."""
+    value = np.asarray(value, float)
+    if var == "phi":
+        name, edges = "dphi", DPHI
+    elif var == "y":
+        name, edges = "dy", DETA if k is None else DETA[2:23][::k]
+    else:
+        raise ValueError(f"var {var!r}: 'phi' or 'y'")
+    if value.shape != (N_PT, len(edges) - 1):
+        raise ValueError(f"{var}: shape {value.shape}, the edges want {(N_PT, len(edges) - 1)}")
+    return _weight_hist(_grid_axes(("pt", name), {name: edges}), value,
+                        label or f"S - B, d<N_ch>/d{name}", error)
+
+
+def observables_hist(D, reps=(), k=None, label=None):
+    """S - B per Z (:func:`all_partners`' result, (N_PT, N_DY, N_DPHI)) and its jackknife
+    replicates -> {"phi": Hist, "y": Hist}: CMS's observables (:func:`observables`), Delta y
+    rebinned with ``k`` before the jackknife (as mix.py), the variance the jackknife's (NaN
+    with fewer than two replicates).  For a difference of two results on the same Z's pass
+    D1 - D2 and the replicates' differences."""
+    dphi, dy = observables(D)
+    rp = [observables(r) for r in reps]
+    if k is not None:
+        dy = _rebin_y(dy, k)
+    ep = ey = None
+    if len(rp) > 1:
+        ep = jackknife([r[0] for r in rp])
+        ry = np.array([r[1] for r in rp])
+        ey = jackknife(ry if k is None else _rebin_y(ry, k))
+    return {"phi": obs_hist("phi", dphi, ep, label=label),
+            "y": obs_hist("y", dy, ey, k, label=label)}
