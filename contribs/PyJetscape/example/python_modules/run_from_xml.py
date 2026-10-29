@@ -26,7 +26,11 @@ from toy_modules import (
     register_toy_modules,
 )
 
-XSCAPE = HERE.parents[5]
+from jetscape import paths  # noqa: E402
+
+#: the X-SCAPE tree: $XSCAPE, the checkout, or the xscape wheel's installed tree
+#: (jetscape.paths), so a copy of the examples (xscape-examples) runs too
+XSCAPE = paths.xscape_root()
 
 
 def read_back(path):

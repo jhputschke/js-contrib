@@ -218,6 +218,10 @@ cd ~/xscape/mine && python my_job.py
   is that working directory.
 - `driver.events()`, `final_parton_array()`, `hadron_array()`, the hadron files, writing a
   module of your own in Python: [`PYTHONIC.md`](../contribs/PyJetscape/PYTHONIC.md).
+- **Modules of your own in Python** (a hard process, energy loss, hadronization, an afterburner,
+  a writer) run in X-SCAPE's event loop with this environment as they are, next to the C++
+  modules: start from `examples/python_modules/` (`python run_by_hand_pythonic.py --style new`;
+  the modules are in `toy_modules_pythonic.py`, an XML that names them in `user_from_xml.xml`).
 - X-SCAPE's defaults are in `config/jetscape_main.xml` of the installed X-SCAPE
   (`python -c "import xscape; print(xscape.TREE / 'config')"`).
 
