@@ -244,7 +244,7 @@ you can build on top of them in Python, but it can't rebuild them.
 | you want to | use |
 |---|---|
 | run productions; write your own scripts, notebooks and Python modules ([`PYTHONIC.md`](../contribs/PyJetscape/PYTHONIC.md)); analyse | this environment |
-| change X-SCAPE's C++ (modules, framework), MUSIC4GPU (Metal), iSS, 3dMCGlauber, the PyJetscape bindings, or js-contrib's `jetscape` package | a **source build** in the **native conda environment**: Xcode with its Metal toolchain, Homebrew's libraries, a conda environment with Python and pybind11 ([js-contrib README, *Native environment*](../README.md#native-environment-mac-silicon--linux-aarch64); step by step: [`contribs/README.md`](../contribs/README.md)) |
+| change X-SCAPE's C++ (modules, framework), MUSIC4GPU (Metal), iSS, 3dMCGlauber, the PyJetscape bindings, or js-contrib's `jetscape` package | a **source build** in the **native conda environment**: Xcode with its Metal toolchain, Homebrew's libraries, a conda environment with Python and pybind11 ([js-contrib README, *Getting started*](../README.md#getting-started-pick-your-setup); step by step: [`contribs/README.md`](../contribs/README.md)) |
 
 Both can live on one Mac. Use them in separate Terminal windows: the source build's conda
 environment and variables (`PYTHONPATH`, `XSCAPE`, ...) must not be active where this

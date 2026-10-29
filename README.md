@@ -36,7 +36,8 @@ docker run --rm --gpus all --user "$(id -u):$(id -g)" -v "$PWD/work:/work" -w /w
 ```
 
 Other CUDA versions (`cu130` for Blackwell and GH200, `cu124` for older drivers), Apptainer
-on clusters, Jupyter: the [container guide](utils/README_Container_Usage.md#get-started).
+on clusters, Jupyter: the [container guide](utils/README_Container_Usage.md#get-started); all
+images: [Container images](#container-images).
 
 **xscape wheel** (Mac, Apple Silicon): the same event on the Mac's GPU, in under a minute:
 
@@ -67,6 +68,13 @@ Without a checkout, the same packages come with the pyjetscape wheel of a Mac re
 Python, any platform): `uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.1.0.dev3/pyjetscape-1.3-py3-none-any.whl"`.
 The container is an analysis environment too, without `--gpus`.
 
+The venv's options: FastHydro (`--with-fasthydro`), PyROOT from a conda environment with ROOT
+(`--system-site-packages`, or the single conda environment `environment.yml`), Google Cloud
+Storage (`--with-gcs`); pelicanfs for the OSDF is in by default (`--no-pelican` leaves it
+out), and it downloads MUSIC's hotQCD EoS table: [`utils/analysis_env/README.md`](utils/analysis_env/README.md).
+Reading the files, FastJet, ROOT and the notebooks: [`docs/README_analysis.md`](docs/README_analysis.md);
+for O+O, [`docs/README_OO.md`](docs/README_OO.md).
+
 **Source build** (full development): the `js_fno` conda environment with the C++ build tools,
 then X-SCAPE (branch `contrib`) with js-contrib built from source:
 
@@ -81,7 +89,9 @@ js-contrib included: [PyJetscape README, Path A](contribs/PyJetscape/README.md#p
 and build it with the contribs you need, on a Mac with `-DUSE_METAL=ON` for MUSIC on the GPU
 ([`contribs/README.md`](contribs/README.md), step 3).
 On Linux with an NVIDIA GPU, the dev container `jhputschke/xscape-fno4d-dev` holds the same
-build environment ([`utils/BuildContainerDev.md`](utils/BuildContainerDev.md)).
+build environment ([`utils/BuildContainerDev.md`](utils/BuildContainerDev.md)). On Linux
+`aarch64` machines without one (AWS Graviton, ARM servers) the conda environment is the way:
+several JETSCAPE C++ dependencies are missing from the usual package managers there.
 
 ## User guides: running the productions and analysing them
 
@@ -117,7 +127,8 @@ and [contribs/Visualization/README.md](contribs/Visualization/README.md).
 ### Utilities
 
 [`utils/README.md`](utils/README.md) lists everything in `utils/`: environments, container
-images, the SLURM scripts and the data tools below.
+images, the SLURM scripts and the data tools below. Which environment for what:
+[Getting started](#getting-started-pick-your-setup).
 
 [`utils/h5_inspect.py`](utils/h5_inspect.py) lists every group and dataset of an HDF5 file
 with its shape, dtype, storage and attributes. For the js-contrib hydro files
@@ -130,37 +141,6 @@ python utils/h5_inspect.py out/AuAu_0_10_jet_seed0001.h5           # summary + t
 python utils/h5_inspect.py FILE.h5 --stats [--event 0]              # per-feature min/max/mean, NaN/inf
 python utils/h5_inspect.py FILE.h5 --attr prod_user_xml             # one attribute in full
 ```
-
-### Conda environments
-
-[`utils/conda_install/`](utils/conda_install/) creates and checks the `js_fno` conda env: the
-Python/ML stack plus, optionally, the C++ build tools for X-SCAPE and js-contrib, minimal or
-pinned. See [contribs/README.md](contribs/README.md) for the steps.
-
-### Analysis environment (no X-SCAPE build)
-
-[`utils/analysis_env/`](utils/analysis_env/README.md) makes a Python venv for people who only
-analyse the files of a `prod_AuAu_0_10_jet` production. It needs this checkout and a
-Python ≥ 3.10, but no X-SCAPE, ROOT, conda or `pyjetscape_core`. It covers the pair,
-particlize and hadron HDF5 files, `run_h5toROOT.py` and its ROOT files (uproot), the
-analysis notebooks (fastjet), and the Visualization scripts on stored files (pyvista). It
-also downloads MUSIC's hotQCD EoS table. FastHydro is optional (`--with-fasthydro`). ROOT is
-optional too: made from the Python of a conda env with ROOT and `--system-site-packages`,
-the venv uses PyROOT. A single conda env with ROOT, `environment.yml`, also exists. See
-[With ROOT](utils/analysis_env/README.md#with-root). For productions in Google Cloud Storage
-or a Pelican federation (OSDF), pelicanfs is installed by default (`--no-pelican` skips
-it) and `--with-gcs` adds gcsfs / google-cloud-storage; see
-[Remote files](utils/analysis_env/README.md#remote-files-google-cloud-storage-and-pelicanosdf).
-
-```bash
-./utils/analysis_env/setup_analysis_env.sh           # venv in ~/.venvs/js_analysis
-source ~/.venvs/js_analysis/bin/activate
-python utils/analysis_env/check_env.py /path/to/out  # opens every file of a production
-```
-
-How to read the files in it, FastJet, ROOT and the notebooks:
-[`docs/README_analysis.md`](docs/README_analysis.md); for O+O,
-[`docs/README_OO.md`](docs/README_OO.md).
 
 ### Moving productions: Google Cloud Storage and Pelican/OSDF
 
@@ -485,34 +465,20 @@ files are required.
 | Path B — build-tree standalone | `JETSCAPE_DIR=/path/to/xscape/build` | `JetScapeConfig.cmake` in build dir |
 | Path C — installed prefix | `CMAKE_PREFIX_PATH=/opt/xscape` | `find_package(XSCAPE)` → `XSCAPE::JetScape` alias |
 
-## Containers
+## Container images
 
-Two sets of Docker images exist, for **Linux with NVIDIA GPUs (CUDA)**, each for amd64 and
-arm64 (e.g. GH200, GB10). On HPC clusters, Apptainer/Singularity pulls the same images.
+Which setup for what: [Getting started](#getting-started-pick-your-setup). The images are for
+**Linux with NVIDIA GPUs (CUDA)**, each for amd64 and arm64 (e.g. GH200, GB10); on HPC
+clusters Apptainer/Singularity pulls the same images.
 
 | | images | what | docs |
 |---|---|---|---|
 | **dev** | `jhputschke/xscape-fno4d-dev:cu126`, `:cu132` | the build and runtime environment (CUDA, conda env, PyTorch) **without sources**: mount your X-SCAPE / js-contrib checkouts and build in it | [`utils/BuildContainerDev.md`](utils/BuildContainerDev.md), [`docs/Plans/PlanContainerDev.md`](docs/Plans/PlanContainerDev.md) |
-| **production** | `jhputschke/xscape-prod:cu126`, `:cu124` (amd64 only), `:cu130`; `-gcs` variants | X-SCAPE, MUSIC4GPU, iSS, 3dMCGlauber and PyJetscape **built in**, ready to run `prod_AuAu_0_10_jet`; the same image hadronizes on CPU nodes | [`docs/README_2stage.md`](docs/README_2stage.md) (running a production), [`utils/BuildContainerProd.md`](utils/BuildContainerProd.md) (the images) |
+| **production** | `jhputschke/xscape-prod:cu126`, `:cu124` (amd64 only), `:cu130`; `-slim` (no analysis packages), `-viz`, `-gcs` variants | X-SCAPE, MUSIC4GPU, iSS, 3dMCGlauber and PyJetscape **built in**, with the analysis packages and Jupyter: the productions, your own scripts, notebooks and Python modules ([`utils/README_Container_Usage.md`](utils/README_Container_Usage.md)); the same image hadronizes on CPU nodes | [`docs/README_2stage.md`](docs/README_2stage.md) (running a production), [`utils/BuildContainerProd.md`](utils/BuildContainerProd.md) (the images) |
 
-**Not for Apple Silicon with Metal.** Docker on macOS runs containers in a Linux VM without
-access to the Metal GPU, so neither MUSIC4GPU's Metal back-end nor PyTorch's MPS backend
-works in a container. To use Metal on a Mac, install the prebuilt wheel
-([`utils/README_Mac_Usage.md`](utils/README_Mac_Usage.md)), or build natively with the conda
-environment below. (The arm64 images might run CPU-only on a Mac, e.g. for hadronization; that is not
-tested.)
-
-## Native environment (Mac Silicon / Linux aarch64)
-
-A native conda environment is the way to **use Metal on a Mac** (MUSIC4GPU's Metal back-end,
-PyTorch's MPS backend) and to develop outside a container. On **Linux `aarch64`** (AWS
-Graviton, ARM servers) several JETSCAPE C++ dependencies are absent from most package
-managers; the conda environment provides them (with an NVIDIA GPU, the arm64 containers
-above are the alternative).
-
-The scripts are in [`utils/conda_install/`](utils/conda_install/). See
-[contribs/README.md](contribs/README.md) for the step-by-step setup: dry-run package check,
-full build-environment install, and CMake integration.
+On a Mac the containers can't use the GPU (Docker runs them in a Linux VM without Metal):
+there, the xscape wheel or the source build. The arm64 images might run CPU-only on a Mac,
+e.g. for hadronization; that is not tested.
 
 ## XML configuration requirements for new modules
 
