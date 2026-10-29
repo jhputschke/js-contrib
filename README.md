@@ -4,6 +4,85 @@ Community contributions for the [JETSCAPE](https://github.com/JETSCAPE/JETSCAPE)
 [X-SCAPE](https://github.com/JETSCAPE/X-SCAPE) and C-SCAPE (in development) heavy-ion simulation framework,
 analogous to [fastjet-contrib](https://fastjet.hepforge.org/contrib/) for FastJet.
 
+## Getting started: pick your setup
+
+Four ways in. The first two run everything ready-made: productions, your own scripts,
+notebooks and Python modules, analysis. The third only reads and analyses files. The fourth is
+for changing the code itself.
+
+| setup | for | runs on | guide |
+|---|---|---|---|
+| **Production container** `jhputschke/xscape-prod` | productions; your own scripts, notebooks and **Python modules**; analysis; Jupyter | Linux with an NVIDIA GPU (Docker), HPC clusters (Apptainer); analysis also without a GPU | [`utils/README_Container_Usage.md`](utils/README_Container_Usage.md) |
+| **xscape wheel** (installed with uv) | the same, natively on a Mac with its GPU (Metal) | Apple Silicon Macs, macOS 26 or later | [`utils/README_Mac_Usage.md`](utils/README_Mac_Usage.md) |
+| **Analysis environment** (a Python venv) | reading and analysing production files: HDF5, ROOT files through uproot, FastJet, the notebooks, files on the OSDF | any computer with Python ≥ 3.10; no GPU, no X-SCAPE build | [`utils/analysis_env/README.md`](utils/analysis_env/README.md), [`docs/README_analysis.md`](docs/README_analysis.md) |
+| **Source build** in the `js_fno` conda environment | changing C++ (X-SCAPE modules, MUSIC4GPU, iSS, 3dMCGlauber), the PyJetscape bindings or the `jetscape` package; FNO hydro with PyTorch; ROOT output | Mac (Metal; needs Xcode with its Metal toolchain), Linux; on Linux with an NVIDIA GPU also the dev container | [`contribs/README.md`](contribs/README.md), [`utils/conda_install/README.md`](utils/conda_install/README.md), [`utils/BuildContainerDev.md`](utils/BuildContainerDev.md) |
+
+The container and the wheel are precompiled: X-SCAPE and the bindings come built, so they
+need no compiler, and you can still write modules of your own in Python (a hard process,
+energy loss, hadronization, an afterburner, a writer: `contribs/PyJetscape/example/python_modules/`,
+[`PYTHONIC.md`](contribs/PyJetscape/PYTHONIC.md)). Only changes to the C++ code, the bindings
+or the `jetscape` package itself need the source build.
+
+**Production container** (Linux, NVIDIA GPU): one O+O event through the whole chain, the
+hadron files in `./work/out_oo/`:
+
+```bash
+docker pull jhputschke/xscape-prod:cu126
+mkdir -p work
+docker run --rm --gpus all --user "$(id -u):$(id -g)" -v "$PWD/work:/work" -w /work \
+  jhputschke/xscape-prod:cu126 bash -c \
+  'xscape-examples /work/examples && cd /work/examples/pythonic &&
+   python oo_workflow.py --events 1 --outdir /work/out_oo'
+```
+
+Other CUDA versions (`cu130` for Blackwell and GH200, `cu124` for older drivers), Apptainer
+on clusters, Jupyter: the [container guide](utils/README_Container_Usage.md#get-started).
+
+**xscape wheel** (Mac, Apple Silicon): the same event on the Mac's GPU, in under a minute:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh        # once; then open a new Terminal
+VER=0.1.0.dev3                                         # the latest: github.com/jhputschke/xscape-macos/releases
+mkdir -p ~/xscape && cd ~/xscape
+curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
+uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
+source ~/.venvs/xscape-$VER/bin/activate
+uv pip sync xscape-$VER-cp313.lock.txt
+xscape-fetch-data lbt                                  # the LBT tables (240 MB download)
+xscape-examples ~/xscape/examples
+cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
+```
+
+**Analysis environment** (any computer, from a checkout of this repository): a venv with
+the readers, uproot, awkward, FastJet, the notebooks and pelicanfs:
+
+```bash
+git clone https://github.com/jhputschke/js-contrib.git && cd js-contrib
+./utils/analysis_env/setup_analysis_env.sh             # venv in ~/.venvs/js_analysis
+source ~/.venvs/js_analysis/bin/activate
+python utils/analysis_env/check_env.py /path/to/out    # opens every file of a production
+```
+
+Without a checkout, the same packages come with the pyjetscape wheel of a Mac release (pure
+Python, any platform): `uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.1.0.dev3/pyjetscape-1.3-py3-none-any.whl"`.
+The container is an analysis environment too, without `--gpus`.
+
+**Source build** (full development): the `js_fno` conda environment with the C++ build tools,
+then X-SCAPE (branch `contrib`) with js-contrib built from source:
+
+```bash
+bash utils/conda_install/test_js_fno_build_env.sh             # dry run: every package reachable?
+bash utils/conda_install/install_js_fno_build_minimal.sh none  # macOS Apple Silicon; Linux: no argument (CUDA auto-detected)
+conda activate js_fno
+```
+
+Then get X-SCAPE (branch `contrib`) and its external packages (`external_packages/get_*.sh`,
+js-contrib included: [PyJetscape README, Path A](contribs/PyJetscape/README.md#path-a--via-x-scape-cmake))
+and build it with the contribs you need, on a Mac with `-DUSE_METAL=ON` for MUSIC on the GPU
+([`contribs/README.md`](contribs/README.md), step 3).
+On Linux with an NVIDIA GPU, the dev container `jhputschke/xscape-fno4d-dev` holds the same
+build environment ([`utils/BuildContainerDev.md`](utils/BuildContainerDev.md)).
+
 ## User guides: running the productions and analysing them
 
 | guide | for | covers |
