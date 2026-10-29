@@ -251,8 +251,8 @@ cores, GPU and memory. These are the measured best values:
     ```
 
     With Docker on two GPUs, `utils/launch_2gpu.sh` (Au+Au) and `utils/launch_2gpu_oo.sh`
-    (O+O) start one container and one MPS daemon per GPU. Note that `launch_2gpu.sh` defaults
-    to 8 jobs and 4 threads per GPU: set `JOBS_PER_GPU=10 OMP_THREADS=3` for the setting above.
+    (O+O) start one container and one MPS daemon per GPU, with the settings above as their
+    defaults (Au+Au: 10 jobs and 3 threads per GPU, the LBT cache, `--stagger 12`).
 
 === "GB10"
 

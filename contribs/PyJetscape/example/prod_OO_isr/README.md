@@ -181,9 +181,11 @@ apptainer exec --nv --env OMP_NUM_THREADS=3,OMP_WAIT_POLICY=passive,MUSIC_CUDA_S
   (no GPU needed).
 - **Nothing to set for iMATTER:** the image sets `PYTHIA8DATA`, and iMATTER finds Pythia's
   PDF tables next to it.
-- **The notebook** `oo_isr_overview.ipynb` needs Jupyter, which the image does not have: run
-  it on the host or in the analysis venv ([`utils/analysis_env`](../../../../utils/analysis_env/README.md))
-  on the files in `/work`.
+- **The notebook** `oo_isr_overview.ipynb` needs Jupyter. Images built since 2026-10-28 have
+  it (`xscape-jupyter`, not in the `-slim` variants:
+  [`utils/README_Container_Usage.md`](../../../../utils/README_Container_Usage.md#jupyter));
+  with an older image, run it on the host or in the analysis venv
+  ([`utils/analysis_env`](../../../../utils/analysis_env/README.md)) on the files in `/work`.
 
 ## Hadronization: in the job or afterwards
 

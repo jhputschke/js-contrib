@@ -170,11 +170,10 @@ does the same for O+O. Run them from `utils/` of a js-contrib checkout:
 
 ```bash
 cd js-contrib/utils
-# Au+Au, 10 jobs per GPU: shared LBT tables, staggered start, blocking CUDA sync;
-# 60 jobs x 45 events (a multiple of 20 jobs)
-IMAGE=jhputschke/xscape-prod:cu126 JOBS_PER_GPU=10 OMP_THREADS=3 MUSIC_CUDA_SYNC=block \
-nohup ./launch_2gpu.sh --lbt-cache /work/lbt_cache/lbt_tables_v1.bin --stagger 12 \
-    60 45 0 /data/camp_pth3 --campaign pth3 \
+# Au+Au with the defaults: 10 jobs per GPU, 3 threads, shared LBT tables, staggered start,
+# blocking CUDA sync; 60 jobs x 45 events (a multiple of 20 jobs)
+IMAGE=jhputschke/xscape-prod:cu126 \
+nohup ./launch_2gpu.sh 60 45 0 /data/camp_pth3 --campaign pth3 \
     --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
     --write-particlize both > /data/camp_pth3.log 2>&1 &
 
@@ -190,13 +189,15 @@ nohup ./launch_2gpu_oo.sh 64 100 0 /data/OO_had --campaign had1 \
 - **NJOBS** is the total: GPU0 gets the first half, GPU1 the rest. Output goes to
   `OUTBASE/gpu0/` and `OUTBASE/gpu1/`, with a shared seed registry. With `FIRST_SEED 0` both
   directories hold files of the same names (different seeds): keep the directories.
-- **Options before NJOBS:** `--lbt-cache FILE` (made first if missing, ~1 min), `--stagger S`,
+- **Options before NJOBS:** `--lbt-cache FILE` (Au+Au default `/work/lbt_cache/lbt_tables_v1.bin`,
+  made first if missing, ~1 min; `none` turns it off), `--stagger S` (Au+Au default 12; `0` off),
   `--min-free SIZE` (the disk guard: stops both containers below SIZE free, default `50G`),
   and the upload options `--upload REMOTE`, `--delete none|pair|all`, `--keep-free SIZE`,
   `--verify-every N` ([Data on the OSDF](osdf.md#uploading-while-a-production-runs)).
-- **Environment:** `IMAGE`, `JOBS_PER_GPU` (default 8), `OMP_THREADS` (default 4),
-  `WORKDIR` (mounted as `/work`, default `$HOME/prod_test`), `MUSIC_CUDA_SYNC`, `TAG_PREFIX`.
-  The defaults predate the current image: set `JOBS_PER_GPU=10 OMP_THREADS=3` as above.
+- **Environment:** `IMAGE`, `JOBS_PER_GPU` (default 10; O+O 8), `OMP_THREADS` (default 3),
+  `WORKDIR` (mounted as `/work`, default `$HOME/prod_test`), `MUSIC_CUDA_SYNC` (default
+  `block`), `TAG_PREFIX`. For an image older than 2026-10-10:
+  `JOBS_PER_GPU=8 OMP_THREADS=4 ./launch_2gpu.sh --lbt-cache none --stagger 0 …`.
 - **Stop** with Ctrl-C or `kill` (both containers and the uploader stop); **resume** with the
   same command.
 
