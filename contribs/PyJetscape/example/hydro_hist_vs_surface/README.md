@@ -2,7 +2,9 @@
 
 The pair files of [`../prod_AuAu_0_10_jet`](../prod_AuAu_0_10_jet/README.md) (the FNO
 training data) keep only the **hydro history**: $e, v_x, v_y, v_z$ on the output grid
-(0.3125 fm × 0.3125 fm × 0.3125 in $\eta_s$, every 0.1 fm/c), with no viscous fields. An
+(0.3125 fm × 0.3125 fm × 0.3125 in $\eta_s$, every 0.1 fm/c, in the files of this study; since
+October 2026 the production grid is 0.3875 fm in x and y, `../config/grid_fno.yaml`), with no
+viscous fields. An
 FNO that predicts such a history can be hadronized only through a freeze-out surface
 **found in that history**, sampled **without viscous corrections**. This study measures how
 far those hadrons are from the correct ones: iSS on MUSIC's own surface with $\pi^{\mu\nu}$

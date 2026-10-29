@@ -406,6 +406,12 @@ make -j$(nproc)
 
 ### Path B — standalone (fastjet-contrib style)
 
+> **Not tested; the PyJetscape bindings don't build this way at present.** The `JetScape`
+> package config that X-SCAPE exports lacks the include directories the bindings need (MUSIC,
+> GSL, Pythia8, Boost, ROOT): see the
+> [PyJetscape README, Path B](contribs/PyJetscape/README.md#path-b--standalone-build-not-working-at-present).
+> Path C is not tested with the bindings either. Use [Path A](#path-a--via-x-scape-cmake-recommended).
+
 ```bash
 git clone https://github.com/jhputschke/js-contrib
 cd js-contrib && mkdir build && cd build

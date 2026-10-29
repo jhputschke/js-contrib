@@ -225,7 +225,7 @@ python utils/analysis_env/check_env.py /path/to/campaign   # opens every file in
 | `--no-pelican` | without pelicanfs, which reads files in place over `osdf://` (fsspec) |
 | `--with-gcs` | read files in place over `gs://` (fsspec) |
 | `--system-site-packages` | see the packages of the Python the venv is made from, e.g. PyROOT (B) |
-| `--with-fasthydro` | FastHydro's readers (`fasthydro.browse.open_pair`); not needed for the production files |
+| `--with-fasthydro` | FastHydro's readers (`fasthydro.browse.PairBrowser`); not needed for the production files |
 
 The script also downloads MUSIC's hotQCD EoS table and sets `MUSIC_EOS_TABLE` (e → T, §3).
 All options and the tests: [`utils/analysis_env/README.md`](../utils/analysis_env/README.md).
@@ -347,7 +347,7 @@ with h5py.File("AuAu_0_10_jet_c1_0001.h5", "r") as f:
 | FNO4d `loc_libs.read_3d_hdf5.read_3d_data_hdf5(files, h5_key="arr"/"arr_bg", unique_bg=...)` | a lazy `MultiH5Array` over many files, as the FNO training reads them; `unique_bg` drops the repeated backgrounds of a reuse campaign (from `diag/bg_id`) |
 | `jetscape.fast_h5_bulk.read_fast_h5_bulk(path)` | hydro-only files: each event as `(ntau, nx, ny, neta, 4)`, trimmed at its freeze-out |
 | `python ../../python/jetscape/repad_h5.py FILES` | brings the files of a campaign to one τ length, in place (a metadata resize) |
-| `fasthydro.browse.open_pair` (`--with-fasthydro`) | FastHydro's `PairBrowser`: `p.diff(event, frame)`, `p.summary(event)` |
+| `fasthydro.browse.PairBrowser` (`--with-fasthydro`) | FastHydro's browser of a pair file: `p.diff(event, frame)`, `p.summary(event)` |
 | [`jet_wake.ipynb`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/jet_wake.ipynb) | one pair from e to hadrons, step by step (`WAKE_H5=<pair file>`) |
 | [`analysis/wake_observables.py`](../contribs/PyJetscape/example/analysis/README.md#6-wake-observables-script-then-notebook) | one pass over a campaign's pair files: P^μ and S of both legs through every τ, the jet-frame wake, the showers' path lengths → `wake_observables.h5` |
 | [`check_output.ipynb`](../contribs/PyJetscape/example/prod_AuAu_0_10/check_output.ipynb), [`oo_isr_overview.ipynb`](../contribs/PyJetscape/example/prod_OO_isr/oo_isr_overview.ipynb) | hydro-only and O+O files |
@@ -434,7 +434,7 @@ def dphi(ev, info):                             # azimuth relative to the leadin
 def soft_charged(ev, info):
     return ev.charged & (ev.pt > 0.2) & (ev.pt < 4) & (np.abs(ev.eta) < 1)
 
-with HadronFileReader("/path/to/campaign") as r:          # every *_particlize.h5 below it
+with HadronFileReader("/path/to/campaign") as r:          # every *_particlize.h5 in it (not in subdirectories)
     print(r.n_files, "files,", r.n_events, "events, tags", r.tags())
 
     # names of EventHadrons attributes: per-event sample means, averaged over events
@@ -452,6 +452,10 @@ with HadronFileReader("/path/to/campaign") as r:          # every *_particlize.h
     info = r.event_info(0)                      # stem, local_event, bg_unit, seed, pthat_bin, initiators()
 ```
 
+- **What it reads:** a directory (its `*_particlize.h5`, and the hadron files of
+  `--hadrons-only` jobs, which have no particlize file), a glob, or a list of files. A
+  directory is not searched below: for jobs in subdirectories pass a glob, e.g.
+  `HadronFileReader("OUTBASE/gpu*/*_particlize.h5")`.
 - **`values`, `mask`, `weights`** are names of `EventHadrons` attributes (`pid`, `pstat`,
   `p`, `x`, `E`, `px`, `py`, `pz`, `pt`, `eta`, `y`, `phi`, `charged`, `sample`), `"charged"`
   or a species name, or callables `f(ev, info)`. A tuple gives an N-d histogram.

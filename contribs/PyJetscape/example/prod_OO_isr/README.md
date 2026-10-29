@@ -456,7 +456,7 @@ events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 
 - **One hard scattering per event**, at a binary collision of 3dMCGlauber drawn uniformly.
   The events are therefore hard-triggered with no weight for the number of collisions:
   `glauber_ncoll` is recorded per event for that. `b` selects the centrality
-  (`cenMin`/`cenMax` act only in the standalone 3dMCGlauber); `b < 3 fm` is about 0–20% of
+  (`cenMin`/`cenMax` act only in the standalone 3dMCGlauber); `b < 3 fm` is about 0–24% of
   the O+O cross section.
 - **The hard partons' momentum is taken from the colliding nucleons**
   (`<Subtract_hard_momentum>1`, the X-SCAPE default; the BulkFastTest O+O example, without

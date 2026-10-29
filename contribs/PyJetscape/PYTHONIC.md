@@ -406,11 +406,13 @@ hadrons.
 **`FourVector`** gains Python protocols in `comp()` order (t, x, y, z) = (E, px, py, pz):
 
 ```python
-v = js.FourVector.momentum(10.0, 1.0, 2.0, 3.0)    # E, px, py, pz
+from jetscape import pyjetscape_core as core        # the bound classes; jetscape (js) has the Pythonic helpers
+
+v = core.FourVector.momentum(10.0, 1.0, 2.0, 3.0)  # E, px, py, pz
 E, px, py, pz = v                                   # iteration
 v[0], v[-1]                                         # 10.0, 3.0
 np.asarray(v)                                       # array([10., 1., 2., 3.])
-v == js.FourVector(1, 2, 3, 10)                     # True: equal by value
+v == core.FourVector(1, 2, 3, 10)                   # True: equal by value
 pickle.dumps(v)
 ```
 
@@ -481,8 +483,11 @@ records (`edge_array()`, `final_parton_array()`) are copies and outlive it.
 ## 14 Writing modules
 
 ```python
+import jetscape as js
+from jetscape import pyjetscape_core as core   # the base classes (JetEnergyLoss, ...) live here
+
 @js.module("CustomModuleHalve", section="Eloss")
-class Halve(js.JetEnergyLoss):
+class Halve(core.JetEnergyLoss):
     xml_parameters = {"t_split": 1.0, "e_min": 30.0}
 
     def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut):

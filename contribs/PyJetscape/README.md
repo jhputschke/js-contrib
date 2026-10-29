@@ -20,10 +20,10 @@ bindings for the JETSCAPE C++ framework, enabling:
 
 The module is derived from the work documented in:
 
-> *Fast prediction of hydrodynamical evolution in ultra-relativistic
-> heavy-ion collisions using Fourier Neural Operators*,
-> https://doi.org/10.48550/arXiv.2507.23598
-> Phys. Rev. C 113 (2026) 1, 014904
+> D. Stewart and J. Putschke, *Fast prediction of the hydrodynamic QGP evolution in
+> ultrarelativistic heavy-ion collisions using Fourier neural operators*,
+> Phys. Rev. C 113, 014904 (2026), https://doi.org/10.1103/jsh8-6tm7,
+> [arXiv:2507.23598](https://arxiv.org/abs/2507.23598)
 
 Original development repository:
 [jhputschke/JETSCAPE-FNO](https://github.com/jhputschke/JETSCAPE-FNO)
@@ -103,10 +103,11 @@ Original development repository:
 > **Important — import order:** when PyTorch is used, `torch` must be loaded **before**
 > `pyjetscape_core`.  Both ROOT (loaded by the C++ extension) and PyTorch ship their own
 > `libomp`; the one initialised second will cause a segfault on some platforms.
-> `import jetscape` takes care of it: it imports `fno_hydro` (and with it torch, if
-> installed) before the extension. The rule matters when importing
-> `jetscape.pyjetscape_core` directly, or ROOT before `jetscape`. Importing `torch` first,
-> as the example scripts do, is always safe.
+> On macOS `import jetscape` takes care of it: it imports torch (if installed) before the
+> extension. Elsewhere it does not: `fno_hydro` imports torch only when a `PyFNOHydro` is
+> built, after the extension. So import `torch` first yourself, as the example scripts do:
+> that is always safe, and it is required on Linux when you use PyTorch, when you import
+> `jetscape.pyjetscape_core` directly, or when you import ROOT before `jetscape`.
 
 ---
 
@@ -542,8 +543,11 @@ particle. Each is one call into C++: for many particles use the arrays.
 ### Writing modules
 
 ```python
+import jetscape as js
+from jetscape import pyjetscape_core as core   # the base classes (JetEnergyLoss, ...) live here
+
 @js.module("CustomModuleHalve", section="Eloss")
-class Halve(js.JetEnergyLoss):
+class Halve(core.JetEnergyLoss):
     xml_parameters = {"t_split": 1.0, "e_min": 30.0}
 
     def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut):
@@ -1148,7 +1152,7 @@ On top of the single-leg schema (`arr`, `ntau_freezeout`, `tau_freezeout`, grid 
 
 The ragged tables (`source/`, `shower/`) and `diag/` are written as each event arrives, so a
 run killed mid-way loses nothing it has counted. `repad_to` grows `arr` and `arr_bg`
-together. Read a pair with FastHydro's `PairBrowser` (`fasthydro.browse.open_pair`), which
+together. Read a pair with FastHydro's `PairBrowser` (`fasthydro.browse.PairBrowser`), which
 follows the file's freeze-out convention, or with plain h5py
 (`f["arr"][i] - f["arr_bg"][i]`).
 
@@ -1641,15 +1645,18 @@ directory. Or set `pybind11_DIR` to the directory with `pybind11Config.cmake`.
 If you use PyJetscape in scientific work, please cite:
 
 ```bibtex
-@article{FNOHydro2026,
-  title  = {Fast prediction of hydrodynamical evolution in ultra-relativistic
-            heavy-ion collisions using Fourier Neural Operators},
-  journal= {Phys. Rev. C},
-  volume = {113},
-  number = {1},
-  pages  = {014904},
-  year   = {2026},
-  doi    = {10.48550/arXiv.2507.23598}
+@article{Stewart:FNOhydro,
+  author  = {Stewart, David and Putschke, Joern},
+  title   = {Fast prediction of the hydrodynamic {QGP} evolution in ultrarelativistic
+             heavy-ion collisions using {F}ourier neural operators},
+  journal = {Phys. Rev. C},
+  volume  = {113},
+  number  = {1},
+  pages   = {014904},
+  year    = {2026},
+  doi     = {10.1103/jsh8-6tm7},
+  eprint  = {2507.23598},
+  archivePrefix = {arXiv}
 }
 ```
 
