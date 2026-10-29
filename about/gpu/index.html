@@ -733,6 +733,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#where-an-events-time-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where an event's time goes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#other-speed-ups-that-matter" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -767,6 +778,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Cost on HPC">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#speed-up-per-gpu-against-the-cpu-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Speed-up per GPU against the CPU path
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2084,6 +2112,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#where-an-events-time-goes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where an event's time goes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#other-speed-ups-that-matter" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2118,6 +2157,23 @@
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="Cost on HPC">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#speed-up-per-gpu-against-the-cpu-path" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Speed-up per GPU against the CPU path
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2231,7 +2287,9 @@ vorticity terms, a finite-μ<sub>B</sub> EOS or μ<sub>B</sub>-dependent shear.<
 <div class="admonition note">
 <p class="admonition-title">The GPU is no longer the bottleneck</p>
 <p>After the speed-ups, an Au+Au jet event on an RTX 3090 needs about <strong>2 GPU-seconds but
-about 35 host core-seconds</strong>. On a discrete GPU the host cores, not the GPU, set the rate.
+about 35 host core-seconds</strong> (24 core-seconds for a job alone); the GPU computes for about
+2 s of a 15 s event (<a href="#where-an-events-time-goes">where the time goes</a>). On a discrete GPU
+the host cores, not the GPU, set the rate.
 That is why the launch settings below are mostly about cores and threads, and why several
 jobs share one GPU.</p>
 </div>
@@ -2413,9 +2471,9 @@ help them most. The expected rates are estimates.</p>
 </thead>
 <tbody>
 <tr>
-<td>2 × RTX 3090</td>
-<td>Au+Au jet event</td>
-<td>~8–15 s</td>
+<td>2 × RTX 3090, current image</td>
+<td>Au+Au campaign setting, 15-event job</td>
+<td>11.3 s per event with 48 threads, 15.0 s with 3; a jet event on a reused background 10.7 s (<a href="#where-an-events-time-goes">breakdown</a>)</td>
 </tr>
 <tr>
 <td>M3 Max, current code</td>
@@ -2445,39 +2503,210 @@ help them most. The expected rates are estimates.</p>
 </tbody>
 </table>
 <h3 id="gpu-vs-cpu-music">GPU vs CPU MUSIC<a class="headerlink" href="#gpu-vs-cpu-music" title="Permanent link">¶</a></h3>
-<p>How much faster MUSIC is on the GPU than on the CPU of the same machine. These are speed-ups
-over each machine's own CPU, not a comparison between GPUs.</p>
+<p>How much faster a production runs on the GPU than on MUSIC's CPU path (<code>MUSIC_FORCE_CPU=1</code>,
+same binary, same events) on the <strong>same machine</strong>. These are speed-ups over each machine's own
+CPU, not a comparison between GPUs. Two numbers answer different questions:</p>
+<ul>
+<li><strong>Single event:</strong> one job alone on the machine, GPU against CPU path. This is what a user
+  running a few events sees.</li>
+<li><strong>Whole machine:</strong> each path with as many jobs at once as pays, best events/h against best
+  events/h. This is what a campaign sees.</li>
+</ul>
 <table>
 <thead>
 <tr>
-<th>comparison</th>
-<th>GB10 (vs 20 threads)</th>
-<th>RTX 3090 (vs 48 threads)</th>
-<th>M3 Max</th>
+<th></th>
+<th>2 × RTX 3090, Threadripper 3960X (24 cores)</th>
+<th>GB10 (20 Arm cores, one integrated GPU)</th>
+<th>M3 Max (12 performance + 4 efficiency cores, Metal)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>one MUSIC time step</td>
-<td>~5.2–5.5×</td>
-<td>9.1×</td>
-<td>5.0× (vs 12 threads)</td>
+<td>code and setting</td>
+<td>current <code>cu124</code> image, Au+Au campaign setting (2026-10-23)</td>
+<td>code of 2026-10-03 to 10-08</td>
+<td>code of 2026-09 to 10-10</td>
 </tr>
 <tr>
-<td>one O+O event, wall time (indicative)</td>
-<td>~5.5×</td>
-<td>~3.5×</td>
-<td>~8× (vs 16 threads)</td>
+<td>one job alone, CPU path</td>
+<td>60.9 s/event (59 events/h)</td>
+<td>230 s/event</td>
+<td>302 s/event</td>
 </tr>
 <tr>
-<td>a whole Au+Au jet job (6 events, <code>MUSIC_FORCE_CPU=1</code> for the CPU)</td>
-<td>3.2 vs 23 min (~7×)</td>
-<td>–</td>
-<td>2.8 vs 30.2 min (~11×)</td>
+<td>one job alone, GPU</td>
+<td>11.3 s/event (319 events/h)</td>
+<td>32 s/event</td>
+<td>28 s/event</td>
+</tr>
+<tr>
+<td><strong>single-event speed-up</strong></td>
+<td><strong>5.4×</strong></td>
+<td><strong>7.2×</strong></td>
+<td><strong>10.8×</strong> (12.8× in a September test)</td>
+</tr>
+<tr>
+<td>CPU path, machine full</td>
+<td>4 jobs × 12 threads: 62 events/h (1.05× one job)</td>
+<td>not measured; 1.0–1.1× assumed</td>
+<td>not measured; 1.05–1.25× assumed</td>
+</tr>
+<tr>
+<td>GPU, machine full</td>
+<td>10 jobs per GPU, MPS: 2,846 events/h (8.9× one job)</td>
+<td>6 jobs, MPS: 205 events/h (1.74× one job)</td>
+<td>3 jobs: 284 events/h (1.69× one job)</td>
+</tr>
+<tr>
+<td><strong>whole-machine speed-up</strong></td>
+<td><strong>~46×</strong> (35× counting job startup and ramp-up)</td>
+<td><strong>~11–13×</strong></td>
+<td><strong>~15–17×</strong></td>
 </tr>
 </tbody>
 </table>
-<p>The whole-job numbers include the parts that stay on the CPU in both runs.</p>
+<p>The whole-machine speed-up is the single-event speed-up times what concurrent jobs add on the
+GPU, divided by what they add on the CPU path. The two differ this much because:</p>
+<ul>
+<li><strong>One GPU job leaves the machine mostly idle.</strong> On the 3090 box a job alone keeps the GPU 18 %
+  busy and 4.4 of 48 threads. More jobs fill the spare GPU and cores: 20 jobs (10 per GPU) give
+  8.9× the rate of one.</li>
+<li><strong>One CPU-path job already fills the machine.</strong> MUSIC's OpenMP loops keep 42 of 48 threads
+  busy, so 4 jobs × 12 threads gain only 5 %.</li>
+<li><strong>The 3090 box gains most</strong> because it has two GPUs and 24 fast cores, so 20 jobs fit. Its rate
+  is now limited by the CPUs (22 of 24 cores busy, GPUs 62 % busy). The GB10 and the M3 Max each
+  have one integrated GPU, which is ~85 % busy at 3–6 jobs; more jobs add nothing.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">The GB10 and M3 Max numbers are older</p>
+<p>Their CPU/GPU pairs come from the 2026-10-08 comparison (6 events, two per background,
+MUSIC's own grid); their concurrent-job gains from a setting with a new background every
+event and p̂<sub>T</sub> 50–70 GeV. Both predate the GPU-side speed-ups of 2026-10-11/12 (on
+the M3 Max a job alone got 43 % faster), while the CPU path gained only the late time step,
+so their speed-ups today are probably higher. One CPU-path and one GPU job with the current
+code (~15 minutes per machine) would settle them.</p>
+</div>
+<ul>
+<li><strong>The CPU path is a fair reference.</strong> It takes the late time step, but MUSIC_2 starts from
+  τ<sub>0</sub> instead of restarting from MUSIC_1's state, which is how a CPU production would
+  run. Both paths gave the same p̂<sub>T</sub> values and droplet counts.</li>
+<li><strong>MUSIC alone</strong> gains more than the whole event. Per time step: 9.1× on the 3090 (vs 48
+  threads), ~5.2–5.5× on the GB10 (vs 20 threads), 5.0× on the M3 Max (vs 12 threads). One
+  O+O event (wall time, indicative): ~3.5×, ~5.5× and ~8×.</li>
+</ul>
+<h3 id="where-an-events-time-goes">Where an event's time goes<a class="headerlink" href="#where-an-events-time-goes" title="Permanent link">¶</a></h3>
+<p>The stages of one Au+Au event at the campaign setting, for <strong>one job alone on the 3090 box</strong>,
+same image on both paths (measured 2026-10-23 and 10-25). Stage 1 is the GPU job; stage 2 is iSS
+on the saved freeze-out surfaces, run later on CPU cores. Times are per event in a 15-event job,
+so the background's hydro counts one fifteenth.</p>
+<table>
+<thead>
+<tr>
+<th>per event, one job alone</th>
+<th>GPU, 3 threads (campaign)</th>
+<th>GPU, 48 threads</th>
+<th>CPU path, 48 threads</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>jet-leg hydro (MUSIC_2)</td>
+<td>8.24 s</td>
+<td>5.14 s</td>
+<td>51.52 s</td>
+</tr>
+<tr>
+<td> GPU kernels</td>
+<td>2.07 s (GPU 25 % busy)</td>
+<td>1.80 s (GPU 35 % busy)</td>
+<td>–</td>
+</tr>
+<tr>
+<td> CPU work around them</td>
+<td>6.17 s (1.8 cores)</td>
+<td>3.34 s (7.6 threads)</td>
+<td>51.52 s (45.5 threads)</td>
+</tr>
+<tr>
+<td>background hydro (MUSIC_1 + copy), ⅟₁₅</td>
+<td>1.00 s</td>
+<td>0.36 s</td>
+<td>3.78 s</td>
+</tr>
+<tr>
+<td>Pythia + Matter + LBT + liquefier</td>
+<td>0.13 s</td>
+<td>0.14 s</td>
+<td>0.13 s</td>
+</tr>
+<tr>
+<td>pair file writer</td>
+<td>4.34 s</td>
+<td>4.36 s</td>
+<td>4.18 s</td>
+</tr>
+<tr>
+<td>particlize file writer</td>
+<td>1.32 s</td>
+<td>1.27 s</td>
+<td>1.27 s</td>
+</tr>
+<tr>
+<td><strong>stage 1</strong></td>
+<td><strong>15.0 s</strong> (hydro 61 %)</td>
+<td><strong>11.3 s</strong> (hydro 49 %)</td>
+<td><strong>60.9 s</strong> (hydro 91 %)</td>
+</tr>
+<tr>
+<td>stage 2, one core: iSS (400 oversamples)</td>
+<td>6.45 s</td>
+<td>6.45 s</td>
+<td>6.45 s</td>
+</tr>
+<tr>
+<td>stage 2, one core: jet fragmentation + files</td>
+<td>0.86 s</td>
+<td>0.86 s</td>
+<td>0.86 s</td>
+</tr>
+<tr>
+<td><strong>both stages</strong></td>
+<td><strong>22.3 s</strong></td>
+<td><strong>18.6 s</strong></td>
+<td><strong>68.2 s</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Inside the jet leg's hydro (<code>MUSIC_PROFILE=1</code>, 3 threads): the RK steps, where the host waits
+for the kernels, take 1.96 s; putting the string and droplet source terms on the grid (CPU,
+OpenMP) 2.93 s; the freeze-out surface 2.64 s (Cornelius 1.93 s, on the CPU after a copy from the
+GPU); packing and copying the frames 0.35 s; init and other 0.36 s.</p>
+<ul>
+<li><strong>The GPU computes for about 2 s of a 15 s event.</strong> The rest of the hydro is CPU work around
+  the kernels, which runs in parallel: 48 threads cut it from 6.2 to 3.3 s, while the GPU part
+  stays at ~2 s.</li>
+<li><strong>Matter + LBT take 0.13 s per event, under 1 %,</strong> including Pythia and the liquefier, the same
+  on both paths.</li>
+<li><strong>The writers take 5.6 s on one core,</strong> as long as the GPU-path hydro with 48 threads; the pair
+  file alone 4.3 s (reading the frames, resampling, HDF5). <code>--particlize-only</code> skips it.</li>
+<li><strong>Counting stage 2 lowers the single-event speed-up from 5.4× to 3.7×</strong> (18.6 s against
+  68.2 s), since iSS costs the same on both paths. Stage 2 usually runs on a CPU cluster
+  (<code>slurm_hadronize.sh</code>), where 4–5 cores keep up with 2,160 events/h; on the 3090 box itself it
+  would cost ~17 % of stage 1's rate (~38× instead of 46× over the CPU path, an estimate).</li>
+</ul>
+<div class="admonition tip">
+<p class="admonition-title">iSS in stage 1?</p>
+<p>Today the hydro (GPU and CPU parts) is about half of a stage-1 event. iSS at 400 oversamples
+adds ~7.3 s on one core, about as long as the hydro, so moving it into stage 1 drops the
+hydro to 30–40 % of the event if the job still writes its files (22.3 s and 18.6 s per event
+above). It stays near half only without the writers (<code>--hadrons-only</code>, ~16.6 s and ~13.0 s)
+or with few oversamples (1–10 oversamples cost mostly a fixed ~2.6 s per surface). But
+<code>--hadrons-only</code> writes no pair file, so there is no hydro history for FNO training and no
+surfaces to sample again. On a full 3090 box, already CPU-limited, iSS in stage 1 costs
+~17 % of the rate either way. These rows add measured stage times; they were not run as
+jobs.</p>
+</div>
 <h3 id="other-speed-ups-that-matter">Other speed-ups that matter<a class="headerlink" href="#other-speed-ups-that-matter" title="Permanent link">¶</a></h3>
 <p>A pair event once took ~184 s on the GB10. Much of the way to today's rates came from the CPU
 side, with bit-identical output:</p>
@@ -2697,6 +2926,80 @@ GPU time make a million Au+Au events. Storage (100–240 TB for those files) is 
 request. The first choice is NCSA DeltaAI (GH200, 72 Grace cores per H100, about 19–22 events
 per credit), the second NCSA Delta A40. Details, including Slurm settings per resource:
 <a href="https://github.com/jhputschke/js-contrib/blob/main/docs/REPORT_CLUSTER_ACCESS.md">REPORT_CLUSTER_ACCESS.md</a>.</p>
+<h3 id="speed-up-per-gpu-against-the-cpu-path">Speed-up per GPU against the CPU path<a class="headerlink" href="#speed-up-per-gpu-against-the-cpu-path" title="Permanent link">¶</a></h3>
+<p>A cluster hands out a GPU together with a share of a node's cores and memory, so the useful
+number is events/h per GPU against the CPU path on that same share. The 3090 column is measured;
+the NCSA Delta columns are <strong>estimates</strong> (nothing has run on Delta), and Delta's smaller memory
+share gives lower rates than the table above.</p>
+<table>
+<thead>
+<tr>
+<th>per GPU</th>
+<th>2 × RTX 3090 box (measured)</th>
+<th>Delta A40 or A100 40 GB, 4-GPU node (estimate)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>share of the node</td>
+<td>12 Zen 2 cores (24 threads), ~62 GB</td>
+<td>16 Milan cores, 62.5 GB (one GPU's charge on a 64-core, 256 GB node)</td>
+</tr>
+<tr>
+<td>jobs per GPU</td>
+<td>10, <code>OMP_NUM_THREADS=3</code></td>
+<td>8 with the pair file, 10 with <code>--particlize-only</code>; OMP 2; memory sets this</td>
+</tr>
+<tr>
+<td>GPU path, events/h</td>
+<td>1,423 (1,080 by makespan), pair + particlize</td>
+<td>800–1,100 with the pair file, 1,000–1,400 with <code>--particlize-only</code>; limited by memory, then cores, so the A100 adds nothing</td>
+</tr>
+<tr>
+<td>CPU path on the same cores, events/h</td>
+<td>31 (half of the 62 measured on 24 cores)</td>
+<td>47–62 (16 cores × 2.6 events/h per Zen 2 core × 1.15–1.5 for Milan)</td>
+</tr>
+<tr>
+<td><strong>speed-up per GPU</strong></td>
+<td><strong>46×</strong> (35× by makespan)</td>
+<td><strong>13–23×</strong> with the pair file, <strong>16–30×</strong> with <code>--particlize-only</code></td>
+</tr>
+<tr>
+<td>one GPU replaces</td>
+<td>~550 Zen 2 cores (~420 by makespan)</td>
+<td>~200–470 Milan cores</td>
+</tr>
+<tr>
+<td>events per ACCESS credit</td>
+<td>–</td>
+<td>12–16 (pair), 15–21 (<code>--particlize-only</code>) at the A100 rate; about twice that on A40s if they cost half</td>
+</tr>
+<tr>
+<td><strong>cost per event against Delta CPU nodes</strong> (3.0–3.9 events per credit)</td>
+<td>–</td>
+<td><strong>3–5× cheaper</strong> (pair, A100 rate); up to 8–14× (<code>--particlize-only</code>, A40 at half rate)</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Delta's per-GPU speed-up is lower than the 3090 box's</strong> (13–30× against 35–46×): its
+  62.5 GB share holds only 8–10 jobs, too few to keep the GPU busy, and the CPU path does better
+  on 16 newer cores than on 12.</li>
+<li><strong>The speed-up per credit is the per-GPU speed-up divided by ~4.2,</strong> because Delta charges a
+  GPU-hour (66.7 credits, cores included) about 4.2× the 16 core-hours of the same cores. The
+  A40 is charged below the A100 rate, but Delta does not publish the factor.</li>
+<li><strong>Stage 2 changes little:</strong> 7.3 core-s per event, about 0.002 credits on Delta CPU, against
+  ~0.05–0.08 credits per event of GPU time.</li>
+<li><strong>Assumptions:</strong> ~5 GB per job with <code>--particlize-only</code> and ~7 GB with the pair file; 25–35 s
+  per event in a loaded job; 45-event jobs; a Milan core 1.15–1.5× a Zen 2 core for both paths;
+  the A40's GPU time per event 1.0–1.2× the 3090's, the A100's 0.9–1.4×. The CPU path's rate
+  per Milan core is not measured; its hydro is bandwidth-heavy and could scale less well.</li>
+<li><strong>Delta's 8-GPU A100 nodes</strong> (more memory per GPU; check before planning) would lift the
+  memory limit: ~1,100–1,700 events/h per GPU, about 18–36× the CPU path.</li>
+<li><strong>One short benchmark settles it:</strong> one A40 at <code>-j 8</code> and <code>-j 10</code>, plus one CPU-path job on
+  16 cores (REPORT_CLUSTER_ACCESS.md §7).</li>
+</ul>
 <h2 id="full-details">Full details<a class="headerlink" href="#full-details" title="Permanent link">¶</a></h2>
 <ul>
 <li><a href="https://github.com/jhputschke/js-contrib/blob/main/docs/MUSIC_CPU_vs_GPU.md">MUSIC_CPU_vs_GPU.md</a>:
