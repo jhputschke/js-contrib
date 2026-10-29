@@ -171,6 +171,38 @@ CPU, not a comparison between GPUs. Two numbers answer different questions:
 - **Whole machine:** each path with as many jobs at once as pays, best events/h against best
   events/h. This is what a campaign sees.
 
+<figure class="sp-figure">
+<div class="sp-legend" aria-hidden="true"><span><i class="sp-sw sp-s1"></i>Single event: one job alone, GPU vs CPU path</span><span><i class="sp-sw sp-s2"></i>Whole machine: best events/h, GPU vs CPU path</span><span><i class="sp-sw sp-rng"></i>Range</span></div>
+<svg class="sp-chart" viewBox="0 0 720 286" role="img" aria-labelledby="sp-title">
+<title id="sp-title">Speed-up of the GPU over MUSIC's CPU path per machine. 2 × RTX 3090: single event 5.4×, whole machine 46× (35× counting startup). GB10: single event 7.2×, whole machine 11–13×. M3 Max: single event 10.8×, whole machine 15–17×.</title>
+<line class="sp-axis" x1="128.0" x2="128.0" y1="6" y2="258"/>
+<text class="sp-tick" x="128.0" y="278" text-anchor="middle">0×</text>
+<line class="sp-grid" x1="224.0" x2="224.0" y1="6" y2="258"/>
+<text class="sp-tick" x="224.0" y="278" text-anchor="middle">10×</text>
+<line class="sp-grid" x1="320.0" x2="320.0" y1="6" y2="258"/>
+<text class="sp-tick" x="320.0" y="278" text-anchor="middle">20×</text>
+<line class="sp-grid" x1="416.0" x2="416.0" y1="6" y2="258"/>
+<text class="sp-tick" x="416.0" y="278" text-anchor="middle">30×</text>
+<line class="sp-grid" x1="512.0" x2="512.0" y1="6" y2="258"/>
+<text class="sp-tick" x="512.0" y="278" text-anchor="middle">40×</text>
+<line class="sp-grid" x1="608.0" x2="608.0" y1="6" y2="258"/>
+<text class="sp-tick" x="608.0" y="278" text-anchor="middle">50×</text>
+<text class="sp-lab" x="116" y="46" text-anchor="end">2 × RTX 3090</text>
+<text class="sp-sub" x="116" y="64" text-anchor="end">current image</text>
+<g class="sp-bar"><title>2 × RTX 3090, single event: 5.4×. One job alone: GPU 11.3 s/event, CPU path 60.9 s/event.</title><rect class="sp-hit" x="128" y="19" width="592" height="26"/><path class="sp-s1" d="M128.0,20H175.8Q179.8,20 179.8,24V40Q179.8,44 175.8,44H128.0Z"/><text class="sp-val" x="187.8" y="37.0">5.4×</text></g>
+<g class="sp-bar"><title>2 × RTX 3090, whole machine: 46× (35–46). GPU, 20 jobs: 2,846 events/h (2,160 counting startup and ramp-up). CPU path, 4 jobs: 62 events/h.</title><rect class="sp-hit" x="128" y="45" width="592" height="26"/><path class="sp-s2" d="M128.0,46H565.6Q569.6,46 569.6,50V66Q569.6,70 565.6,70H128.0Z"/><path class="sp-whisk" d="M464.0,52.0V64.0M464.0,58.0H569.6M569.6,52.0V64.0"/><text class="sp-val" x="577.6" y="63.0">46× (35–46)</text></g>
+<text class="sp-lab" x="116" y="130" text-anchor="end">GB10</text>
+<text class="sp-sub" x="116" y="148" text-anchor="end">older code</text>
+<g class="sp-bar"><title>GB10, single event: 7.2×. One job alone: GPU 32 s/event, CPU path 230 s/event (2026-10-08).</title><rect class="sp-hit" x="128" y="103" width="592" height="26"/><path class="sp-s1" d="M128.0,104H193.1Q197.1,104 197.1,108V124Q197.1,128 193.1,128H128.0Z"/><text class="sp-val" x="205.1" y="121.0">7.2×</text></g>
+<g class="sp-bar"><title>GB10, whole machine: ~12× (11–13). GPU, 6 jobs with MPS: 205 events/h, 1.74× one job. CPU job-count gain assumed 1.0–1.1×.</title><rect class="sp-hit" x="128" y="129" width="592" height="26"/><path class="sp-s2" d="M128.0,130H239.2Q243.2,130 243.2,134V150Q243.2,154 239.2,154H128.0Z"/><path class="sp-whisk" d="M233.6,136.0V148.0M233.6,142.0H252.8M252.8,136.0V148.0"/><text class="sp-val" x="260.8" y="147.0">~12× (11–13)</text></g>
+<text class="sp-lab" x="116" y="214" text-anchor="end">M3 Max</text>
+<text class="sp-sub" x="116" y="232" text-anchor="end">older code</text>
+<g class="sp-bar"><title>M3 Max, single event: 10.8×. One job alone: GPU 28 s/event, CPU path 302 s/event (2026-10-08).</title><rect class="sp-hit" x="128" y="187" width="592" height="26"/><path class="sp-s1" d="M128.0,188H227.7Q231.7,188 231.7,192V208Q231.7,212 227.7,212H128.0Z"/><text class="sp-val" x="239.7" y="205.0">10.8×</text></g>
+<g class="sp-bar"><title>M3 Max, whole machine: ~16× (15–17). GPU, 3 jobs: 284 events/h, 1.69× one job. CPU job-count gain assumed 1.05–1.25×.</title><rect class="sp-hit" x="128" y="213" width="592" height="26"/><path class="sp-s2" d="M128.0,214H277.6Q281.6,214 281.6,218V234Q281.6,238 277.6,238H128.0Z"/><path class="sp-whisk" d="M272.0,220.0V232.0M272.0,226.0H291.2M291.2,220.0V232.0"/><text class="sp-val" x="299.2" y="231.0">~16× (15–17)</text></g>
+</svg>
+<figcaption>Speed-up of the GPU over MUSIC's CPU path on the same machine. Hover a bar for the measured times and rates; the numbers are in the table below.</figcaption>
+</figure>
+
 | | 2 × RTX 3090, Threadripper 3960X (24 cores) | GB10 (20 Arm cores, one integrated GPU) | M3 Max (12 performance + 4 efficiency cores, Metal) |
 |---|---|---|---|
 | code and setting | current `cu124` image, Au+Au campaign setting (2026-10-23) | code of 2026-10-03 to 10-08 | code of 2026-09 to 10-10 |
