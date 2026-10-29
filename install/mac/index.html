@@ -2460,6 +2460,15 @@ from, in your copy of the examples:</p>
 </table>
 <p>To analyse on another computer (Linux, an Intel Mac, a cluster) you need only the Python
 package, not X-SCAPE: see <a href="../analysis-env/#without-a-checkout-the-pyjetscape-wheel">the analysis environment</a>.</p>
+<div class="admonition important">
+<p class="admonition-title">3D visualization is not in the wheel</p>
+<p>The wheel has neither PyVista nor the <a href="../../python/visualization/">3D visualization</a>
+scripts (<code>wake_pyvista.py</code>, <code>hydro_jet_particles_pyvista.py</code>). For movies of the medium,
+the jet wake and the hadrons, clone js-contrib and create the
+<a href="../analysis-env/">analysis environment</a> next to this one, with
+<code>setup_analysis_env.sh --python /opt/homebrew/bin/python3</code>: its visualization stack is
+installed by default. <a href="../../python/visualization/#requirements">How, step by step</a>.</p>
+</div>
 <h2 id="jupyter-and-vs-code">Jupyter and VS Code<a class="headerlink" href="#jupyter-and-vs-code" title="Permanent link">¶</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-VER/bin/activate
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples
