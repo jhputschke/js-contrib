@@ -2201,27 +2201,24 @@ keeps the jet production's stem, <code>AuAu_0_10_jet_seed…</code>, although th
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span>LHC/zjet_viz<span class="w"> </span>--what<span class="w"> </span>pair<span class="w"> </span>--to<span class="w"> </span>~<span class="w">             </span><span class="c1"># the pair file -&gt; ~/zjet_viz/ (0.93 GB)</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span><span class="s1">'LHC/zjet_viz/*_hadrons_*'</span><span class="w"> </span>--to<span class="w"> </span>~/zjet_viz<span class="w">  </span><span class="c1"># its hadron files (13 MB)</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># EOS 91 needs MUSIC's SMASH hotQCD table for the temperature (3.2 MB)</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span>~/zjet_viz/hrg_hotqcd_eos_SMASH_binary.dat<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span>https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_SMASH_binary.dat
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nb">cd</span><span class="w"> </span>../../contribs/Visualization
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="c1"># the jet wake: medium without the deposit, with it, and the difference</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>python<span class="w"> </span>wake_pyvista.py<span class="w"> </span>--file<span class="w"> </span>~/zjet_viz/AuAu_0_10_jet_seed0201.h5<span class="w"> </span>--event<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span>--eos-table<span class="w"> </span>~/zjet_viz<span class="w"> </span>--nt<span class="w"> </span><span class="m">48</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span>--movie<span class="w"> </span>zjet_wake.mp4
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="c1"># the whole event, from the hard scattering to the free-streaming hadrons</span>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>python<span class="w"> </span>hydro_jet_particles_pyvista.py<span class="w"> </span>--file<span class="w"> </span>~/zjet_viz/AuAu_0_10_jet_seed0201.h5<span class="w"> </span>--event<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="w">    </span>--eos-table<span class="w"> </span>~/zjet_viz<span class="w"> </span>--nt<span class="w"> </span><span class="m">60</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span>--movie<span class="w"> </span>zjet_particles.mp4
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nb">cd</span><span class="w"> </span>../../contribs/Visualization
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># the jet wake: medium without the deposit, with it, and the difference</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>python<span class="w"> </span>wake_pyvista.py<span class="w"> </span>--file<span class="w"> </span>~/zjet_viz/AuAu_0_10_jet_seed0201.h5<span class="w"> </span>--event<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span>--nt<span class="w"> </span><span class="m">48</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span>--movie<span class="w"> </span>zjet_wake.mp4
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># the whole event, from the hard scattering to the free-streaming hadrons</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>python<span class="w"> </span>hydro_jet_particles_pyvista.py<span class="w"> </span>--file<span class="w"> </span>~/zjet_viz/AuAu_0_10_jet_seed0201.h5<span class="w"> </span>--event<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span>--nt<span class="w"> </span><span class="m">60</span><span class="w"> </span>--z-oversample<span class="w"> </span><span class="m">3</span><span class="w"> </span>--movie<span class="w"> </span>zjet_particles.mp4
 </code></pre></div>
 <ul>
 <li><strong><code>--event 0</code></strong> draws the other event. Keep <code>--nt</code> small (4–8) while you try camera angles and
   colour scales: a 4-frame test of either script takes about 10 s on an M3 Max.</li>
-<li><strong>The EoS table.</strong> The analysis environment downloads MUSIC's EOS 9 table
-  (<code>hrg_hotqcd_eos_binary.dat</code>); this event, like the current productions, uses EOS 91, whose
-  table is <code>hrg_hotqcd_eos_SMASH_binary.dat</code>. Without it the scripts warn and take the
-  temperature from a conformal EoS, so the freeze-out isosurface is only indicative.
-  <code>--eos-table</code> takes the file or its directory; a source build has it in
-  <code>external_packages/music/EOS/hotQCD/</code>.</li>
+<li><strong>The EoS table.</strong> This event, like the current productions, uses EOS 91, whose table is
+  <code>hrg_hotqcd_eos_SMASH_binary.dat</code>. The analysis environment has it (a venv made before
+  2026-10-29 has only EOS 9's: re-run <code>setup_analysis_env.sh</code>). Elsewhere pass <code>--eos-table</code>
+  with the file or its directory: <code>EOS/hotQCD/</code> of a source build, or of the Mac wheel
+  (<code>site-packages/xscape/share/xscape/EOS/hotQCD/</code>, which holds only EOS 91's). Without it the
+  scripts warn and take the temperature from a conformal EoS, so the freeze-out isosurface is
+  only indicative.</li>
 <li>The two scripts are described below: <a href="#the-jet-wake-wake_pyvistapy">the jet wake</a> and
   <a href="#hadrons-after-freeze-out-hydro_jet_particles_pyvistapy">hadrons after freeze-out</a>.</li>
 </ul>

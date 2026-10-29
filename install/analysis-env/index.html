@@ -2200,10 +2200,12 @@ compiled core.</p>
    and pelicanfs (both on by default), about 1.6 GB in total;</li>
 <li>installs PyJetscape from your checkout in editable mode, so <code>import jetscape</code> works from
    anywhere and follows <code>git pull</code>;</li>
-<li>downloads MUSIC's hotQCD EoS table (3.2 MB, md5-checked) into the venv and sets
-   <code>MUSIC_EOS_TABLE</code> in its <code>activate</code> script. The pair files store the energy density, not
-   the temperature; <code>jet_wake.ipynb</code>, <code>analysis/wake_*.py</code> and the visualization use the table
-   to convert e → T;</li>
+<li>downloads MUSIC's two hotQCD EoS tables (3.2 MB each, md5-checked) into the venv: EOS 91
+   (SMASH hadron list, the current productions) and EOS 9 (UrQMD, older files). It sets
+   <code>MUSIC_EOS_TABLE</code> in its <code>activate</code> script to the EOS 9 file; the tools take the table of a
+   file's EOS from the same directory. The pair files store the energy density, not the
+   temperature; <code>jet_wake.ipynb</code>, <code>analysis/wake_*.py</code> and the visualization use the table
+   to convert e → T. A venv made before 2026-10-29 has only EOS 9's: re-run the script;</li>
 <li>runs <code>check_env.py</code>.</li>
 </ol>
 <p>Nothing outside the venv directory is written, except a Jupyter kernel spec if you ask for one.</p>
@@ -2273,11 +2275,11 @@ With a directory it opens its pair, hadron and ROOT files. Two flags:</p>
 </tr>
 <tr>
 <td><code>--eos-table PATH</code></td>
-<td>copy the EoS table from <code>PATH</code> (an <code>EOS/hotQCD</code> directory of a MUSIC or X-SCAPE build, or the <code>.dat</code> file) instead of downloading it</td>
+<td>copy the EoS tables from <code>PATH</code> (an <code>EOS/hotQCD</code> directory of a MUSIC or X-SCAPE build, or one of its <code>.dat</code> files) instead of downloading them; a table not found there is downloaded</td>
 </tr>
 <tr>
 <td><code>--no-eos</code></td>
-<td>neither download nor copy it</td>
+<td>neither download nor copy them</td>
 </tr>
 <tr>
 <td><code>--kernel NAME</code></td>
@@ -2333,12 +2335,14 @@ make the venv from the <code>python3</code> in which <code>import ROOT</code> wo
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>python<span class="w"> </span>utils/analysis_env/check_env.py<span class="w"> </span>/path/to/out
 </code></pre></div>
 <p>Everything comes from conda-forge except the scikit-hep <code>fastjet</code> and PyJetscape (editable).
-The EoS table is not part of it; add it with</p>
+The EoS tables are not part of it; add them with</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/share/music_eos/hotQCD"</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat"</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_binary.dat
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>conda<span class="w"> </span>env<span class="w"> </span>config<span class="w"> </span>vars<span class="w"> </span><span class="nb">set</span><span class="w"> </span><span class="nv">MUSIC_EOS_TABLE</span><span class="o">=</span><span class="s2">"</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat"</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>conda<span class="w"> </span>activate<span class="w"> </span>js_analysis<span class="w">                               </span><span class="c1"># again, to pick up the variable</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">for</span><span class="w"> </span>t<span class="w"> </span><span class="k">in</span><span class="w"> </span>binary<span class="w"> </span>SMASH_binary<span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w">                         </span><span class="c1"># EOS 9 and EOS 91</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/share/music_eos/hotQCD/hrg_hotqcd_eos_</span><span class="nv">$t</span><span class="s2">.dat"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_<span class="nv">$t</span>.dat
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="k">done</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>conda<span class="w"> </span>env<span class="w"> </span>config<span class="w"> </span>vars<span class="w"> </span><span class="nb">set</span><span class="w"> </span><span class="nv">MUSIC_EOS_TABLE</span><span class="o">=</span><span class="s2">"</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat"</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>conda<span class="w"> </span>activate<span class="w"> </span>js_analysis<span class="w">                               </span><span class="c1"># again, to pick up the variable</span>
 </code></pre></div>
 </div>
 </div>
@@ -2401,8 +2405,8 @@ installs on any platform, in any Python 3.10+ environment:</p>
 <p>Quote the argument: zsh treats <code>[...]</code> as a pattern. The readers, <code>HadronArray</code>, the awkward
 views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it
 installs neither pyvista nor pelicanfs (add <code>pelicanfs</code> with <code>uv pip install pelicanfs</code> for the
-OSDF), and it does not fetch the EoS table: download <code>hrg_hotqcd_eos_binary.dat</code> as in the
-conda tab above and point <code>MUSIC_EOS_TABLE</code> at it.</p>
+OSDF), and it does not fetch the EoS tables: download both as in the conda tab above and
+point <code>MUSIC_EOS_TABLE</code> at one of them (the tools take the other from the same directory).</p>
 <h2 id="threads-and-memory">Threads and memory<a class="headerlink" href="#threads-and-memory" title="Permanent link">¶</a></h2>
 <p>The analysis tools are mostly single-threaded Python. Parallelise over files with processes,
 and keep processes × threads at or below the number of cores.</p>
