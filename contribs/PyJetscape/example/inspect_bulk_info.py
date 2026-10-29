@@ -13,6 +13,10 @@ Usage (two modes):
 
   1. Run a fresh simulation (Mode B, explicit module pipeline), then inspect:
        conda activate js_fno
+       # from the build tree as below, or from anywhere (a copy made by xscape-examples,
+       # the container's /work, the macOS wheel): then the defaults come from
+       # jetscape.paths and the run gets its own working directory
+       # (jetscape.workdir.build_or_job_dir)
        cd X-SCAPE/build_gpu
        python ../external_packages/js-contrib/contribs/PyJetscape/example/inspect_bulk_info.py \\
            --main ../config/jetscape_main.xml \\
@@ -52,10 +56,11 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
-# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib), and the
-# FnoHydro contrib next to PyJetscape, for the default XMLs
-_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
-_FNOHYDRO = os.path.normpath(os.path.join(_REPO_ROOT, "..", "FnoHydro"))
+# the X-SCAPE tree ($XSCAPE, the checkout, or the macOS wheel's installed tree: jetscape.paths)
+# and its FnoHydro contrib, for the default XMLs
+from jetscape import paths as _paths  # noqa: E402
+_XSCAPE = str(_paths.xscape_root())
+_FNOHYDRO = os.path.join(_XSCAPE, "external_packages", "js-contrib", "contribs", "FnoHydro")
 
 
 def parse_args() -> argparse.Namespace:
@@ -73,7 +78,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-feat", type=int, default=4, dest="n_features",
                    help="Number of fluid features to extract (3 or 4).")
     p.add_argument("--outdir", default="inspect_bulk_info_out",
-                   help="Directory to write plot images.")
+                   help="Directory to write plot images (and, when not started in a "
+                        "build tree, the run's JobDir: jetscape.workdir.build_or_job_dir).")
     p.add_argument("--no-show", action="store_true",
                    help="Never open interactive plot windows.")
     p.add_argument("--events", type=int, default=1)
@@ -420,7 +426,9 @@ def print_summary(arr: "np.ndarray", n_features: int) -> None:
 
 def main() -> None:
     args = parse_args()
+    from jetscape.workdir import build_or_job_dir
 
+    args.outdir = os.path.abspath(args.outdir)
     os.makedirs(args.outdir, exist_ok=True)
 
     # ── Acquire data ──────────────────────────────────────────────────────────
@@ -436,7 +444,9 @@ def main() -> None:
         ic_name = "TrentoInitial" if args.use_trento else "GaussianIC"
         print(f"Running JETSCAPE simulation "
               f"(Mode B, hydro: {args.hydro_module}, IC: {ic_name}) ...")
-        js, hydro, ini = run_simulation(args)
+        with build_or_job_dir(args.outdir, args.user, args.main) as job:
+            args.main, args.user = job.main_xml, job.user_xml
+            js, hydro, ini = run_simulation(args)
 
         # Print per-event geometry info when using TrentoInitial
         try:

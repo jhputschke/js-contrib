@@ -190,8 +190,10 @@ docker run --rm --gpus all --user "$(id -u):$(id -g)" -v "$PWD/work:/work" \
 
 The notebook version, [`oo_workflow.ipynb`](../contribs/PyJetscape/example/pythonic/oo_workflow.ipynb)
 (the same run, then the hadron files read back, awkward arrays, spectra with errors, FastJet),
-runs in Jupyter: [Jupyter](#jupyter). The copied production scripts work too: they find the
-build through `$XSCAPE`, exactly as the image's own.
+runs in Jupyter: [Jupyter](#jupyter). Every copied example works too (production scripts,
+`per_event_loop.py`, the bulk writers, `python_modules/`, ...): they find the build through
+`$XSCAPE` (`jetscape.paths`), exactly as the image's own, and run in a working directory
+of their own.
 
 ### 2.2 A script of your own
 

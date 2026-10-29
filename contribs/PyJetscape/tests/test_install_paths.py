@@ -12,6 +12,7 @@ directory; nothing here runs X-SCAPE.
 
 from __future__ import annotations
 
+import os
 import sys
 import types
 import xml.etree.ElementTree as ET
@@ -155,3 +156,29 @@ def test_copy_examples_runs_git_only_in_a_checkout(monkeypatch, tmp_path):
                         lambda *a, **k: calls.append(a) or (_ for _ in ()).throw(OSError()))
     assert copy_examples._tracked_files(str(tmp_path)) is None
     assert calls == []
+
+
+def test_build_or_job_dir(monkeypatch, tmp_path):
+    for k in ("XSCAPE", "JETSCAPE_BUILD"):
+        monkeypatch.delenv(k, raising=False)
+    build = tmp_path / "build"
+    (build / "config").mkdir(parents=True)
+    (build / "music_input").write_text("")
+    main = build / "config" / "jetscape_main.xml"
+    main.write_text("<jetscape/>")
+    user = tmp_path / "u.xml"
+    user.write_text("<jetscape/>")
+    for k in ("XSCAPE_DATA_DIR", "HYDROPROGRAMPATH", "LBT_TABLES_PATH"):
+        monkeypatch.setenv(k, "")
+    # from the build tree: right here, the XMLs as given (the old way)
+    monkeypatch.chdir(build)
+    with workdir.build_or_job_dir(tmp_path / "out", str(user), str(main)) as job:
+        assert job.path == str(build) and job.user_xml == str(user)
+    assert not (tmp_path / "out").exists()
+    # elsewhere: a JobDir under out_dir, back afterwards
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("JETSCAPE_BUILD", str(build))
+    with workdir.build_or_job_dir(tmp_path / "out", str(user), str(main)) as job:
+        assert os.getcwd() == job.path == str(tmp_path / "out" / "work" / "u")
+        assert os.path.isfile(job.main_xml)
+    assert os.getcwd() == str(tmp_path)

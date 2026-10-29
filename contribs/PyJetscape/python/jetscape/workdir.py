@@ -24,6 +24,7 @@ For a script of one's own, JobDir does the same with plain arguments:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import os
 import re
 import shutil
@@ -38,7 +39,7 @@ from . import paths
 __all__ = ["JobDir", "WORKDIR_LINKS", "enter_workdir", "job_workdir", "leave_workdir",
            "add_workdir_args", "SEED_MAX", "add_seed_args", "seed_args_problems",
            "output_name", "seed_registry", "resolve_seed", "seed_provenance",
-           "pythia_data_problem", "hydro_label"]
+           "pythia_data_problem", "hydro_label", "build_or_job_dir"]
 
 
 # ─────────────────────────────────────────────────────────── working directory
@@ -380,3 +381,24 @@ class JobDir:
 
     def __repr__(self) -> str:
         return f"JobDir({self.path!r}, build={self.build!r})"
+
+
+@contextlib.contextmanager
+def build_or_job_dir(out_dir, user_xml, main_xml=None, *, name=None, keep=False):
+    """Where an example script runs X-SCAPE -> an object with ``main_xml``, ``user_xml``,
+    ``path``.
+
+    In a build tree (``music_input`` in the current directory: the old way, ``cd
+    X-SCAPE/build_gpu`` and run the script from there) it runs right here with the XMLs as
+    given, as these scripts always did.  Anywhere else -- a copy of the examples
+    (xscape-examples), the container's /work, the macOS wheel -- it runs in a JobDir under
+    ``out_dir`` (``keep``: leave its working directory, e.g. for files the XML writes there).
+    Give output paths absolute: a JobDir changes the current directory.
+    """
+    main_xml = os.path.abspath(main_xml or paths.main_xml())
+    if os.path.isfile("music_input"):
+        yield SimpleNamespace(main_xml=main_xml, user_xml=os.path.abspath(user_xml),
+                              path=os.getcwd())
+        return
+    with JobDir(out_dir, user_xml, name=name, main_xml=main_xml, keep=keep) as job:
+        yield job

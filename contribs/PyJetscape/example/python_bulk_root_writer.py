@@ -43,12 +43,14 @@ import time
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
-# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib)
-_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
-
 # ── JETSCAPE Python bindings ──────────────────────────────────────────────────
-import python.jetscape as js
-from python.jetscape.bulk_root_writer import PyBulkRootWriter
+import jetscape as js
+from jetscape import paths as _paths
+from jetscape.bulk_root_writer import PyBulkRootWriter
+from jetscape.workdir import build_or_job_dir
+
+# the X-SCAPE tree ($XSCAPE, the checkout, or an installed tree: jetscape.paths)
+_XSCAPE = str(_paths.xscape_root())
 
 # ── Optional visualisation ────────────────────────────────────────────────────
 try:
@@ -64,9 +66,9 @@ except ImportError:
 # ─────────────────────────────────────────────────────────────────────────────
 
 MAIN_XML = os.path.join(_XSCAPE, "config", "jetscape_main.xml")
-USER_XML = os.path.join(_REPO_ROOT, "..", "FnoHydro", "config",
+USER_XML = os.path.join(_XSCAPE, "external_packages", "js-contrib", "contribs", "FnoHydro", "config",
                         "jetscape_user_root_bulk_test.xml")
-OUTPUT   = "bulk_root_writer_python_test.root"
+OUTPUT   = os.path.abspath("bulk_root_writer_python_test.root")   # where the script is started
 
 # User-resolution grid parameters (mirrors bulkRootWriter.cc defaults)
 TAU_MAX    = 5.0   # fm/c
@@ -75,7 +77,7 @@ D_X        = 0.5   # fm
 N_FEATURES = 3     # energy_density, vx, vy
 
 
-def build_pipeline() -> tuple:
+def build_pipeline(main_xml=MAIN_XML, user_xml=USER_XML) -> tuple:
     """
     Build the JETSCAPE pipeline and return (jetscape, bulk_writer).
 
@@ -84,8 +86,8 @@ def build_pipeline() -> tuple:
     """
     # ── Top-level controller ──────────────────────────────────────────────────
     jetscape = js.JetScape()
-    jetscape.SetXMLMainFileName(MAIN_XML)
-    jetscape.SetXMLUserFileName(USER_XML)
+    jetscape.SetXMLMainFileName(main_xml)
+    jetscape.SetXMLUserFileName(user_xml)
 
     # ── Physics modules ───────────────────────────────────────────────────────
     trento        = js.create_module("TrentoInitial")
@@ -124,23 +126,25 @@ def run() -> None:
     show()
 
     js_logger = __import__(
-        "python.jetscape.pyjetscape_core", fromlist=["pyjetscape_core"]
+        "jetscape.pyjetscape_core", fromlist=["pyjetscape_core"]
     )
 
     t_wall = time.time()
 
-    jetscape, hydro, bulk_writer = build_pipeline()
+    # from a build tree as always; elsewhere (a copy, the container) in a JobDir
+    with build_or_job_dir(os.path.dirname(OUTPUT), USER_XML, MAIN_XML) as job:
+        jetscape, hydro, bulk_writer = build_pipeline(job.main_xml, job.user_xml)
 
-    # ── Run simulation ────────────────────────────────────────────────────────
-    jetscape.Init()
-    jetscape.Exec()
-    jetscape.Finish()
+        # ── Run simulation ────────────────────────────────────────────────────
+        jetscape.Init()
+        jetscape.Exec()
+        jetscape.Finish()
 
-    # JetScape::Finish() calls JetScapeTask::FinishTasks() which is a no-op
-    # and does NOT propagate Finish() to sub-tasks.  Call it explicitly so
-    # the ROOT file is actually written (mirrors ~BulkRootWriter() in the C++).
-    # should be fixed in X-SCAPE!!!
-    bulk_writer.Finish()
+        # JetScape::Finish() calls JetScapeTask::FinishTasks() which is a no-op
+        # and does NOT propagate Finish() to sub-tasks.  Call it explicitly so
+        # the ROOT file is actually written (mirrors ~BulkRootWriter() in the C++).
+        # should be fixed in X-SCAPE!!!
+        bulk_writer.Finish()
 
     elapsed = time.time() - t_wall
     print(f"\nFinished in {elapsed:.1f} s")
