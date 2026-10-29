@@ -6,8 +6,18 @@ PyTorch tensors.  Produces matplotlib plots of energy density, temperature, and
 velocity field slices at selected proper-time steps.
 
 Run it from the X-SCAPE build directory, with PyJetscape built (-DUSE_JS_PYJETSCAPE=ON)
-and PyTorch installed.  The XML defaults are found from where js-contrib sits
-(X-SCAPE/external_packages/js-contrib).
+and PyTorch installed.  The XML defaults come from jetscape.paths ($XSCAPE, the checkout,
+or the installed tree).
+
+The user XML must switch X-SCAPE's automatic pipeline off
+(<enableAutomaticTaskListDetermination> false): this script builds the pipeline itself
+(initial state -> pre-equilibrium -> hydro).  With it on, X-SCAPE adds a second pipeline
+from the XML, and the script reads the first hydro, which got no cells ("bulk_info is
+empty").  The XML must also not set MUSIC's <dump_hydro_only> 1, which hands no copy of
+the evolution to the framework.  The default, FnoHydro's
+config/jetscape_user_root_bulk_test.xml, meets both; config/jetscape_user_MUSIC.xml and
+BulkFastTest/OO_one_event_fast.xml do not work here.  The macOS wheel does not ship the
+FnoHydro contrib: pass that XML (or your copy of it) with --user.
 
 Usage (two modes):
 
@@ -18,9 +28,7 @@ Usage (two modes):
        # jetscape.paths and the run gets its own working directory
        # (jetscape.workdir.build_or_job_dir)
        cd X-SCAPE/build_gpu
-       python ../external_packages/js-contrib/contribs/PyJetscape/example/inspect_bulk_info.py \\
-           --main ../config/jetscape_main.xml \\
-           --user ../config/jetscape_user_MUSIC.xml
+       python ../external_packages/js-contrib/contribs/PyJetscape/example/inspect_bulk_info.py
 
      --hydro-module chooses the C++ hydro module (default: MUSIC).
 
@@ -31,7 +39,8 @@ Usage (two modes):
 Optional flags:
     --main          Path to main XML config (default: X-SCAPE's config/jetscape_main.xml)
     --user          Path to user XML config (default: FnoHydro's
-                    config/jetscape_user_root_bulk_test.xml)
+                    config/jetscape_user_root_bulk_test.xml); automatic task list off,
+                    no dump_hydro_only (see above)
     --load          Load a previously saved .npy file instead of running a sim
     --save          Save the extracted numpy array to this path (e.g. bulk_info.npy)
     --n-feat        Number of features to extract (default: 4)
@@ -70,7 +79,11 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--main",   default=os.path.join(_XSCAPE, "config", "jetscape_main.xml"))
     p.add_argument("--user",   default=os.path.join(_FNOHYDRO, "config",
-                                                    "jetscape_user_root_bulk_test.xml"))
+                                                    "jetscape_user_root_bulk_test.xml"),
+                   help="user XML with <enableAutomaticTaskListDetermination> false and "
+                        "no MUSIC <dump_hydro_only> 1 (this script builds the pipeline "
+                        "itself); default: FnoHydro's jetscape_user_root_bulk_test.xml, "
+                        "which the macOS wheel does not ship: pass it with --user there")
     p.add_argument("--load",   default=None,
                    help="Load bulk_info from a previously saved .npy file.")
     p.add_argument("--save",   default=None,
