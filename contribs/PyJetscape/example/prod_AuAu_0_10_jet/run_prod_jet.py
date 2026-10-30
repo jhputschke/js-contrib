@@ -91,9 +91,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", default=None,
                    help="output file name (default: AuAu_0_10_jet[_<campaign>]_seed<NNNN>.h5, "
                         "or AuAu_0_10_jet_<campaign>_<NNNN>.h5 with --seed 0)")
-    p.add_argument("--build", default=os.path.join(rp.XSCAPE, "build_gpu"),
-                   help="X-SCAPE build tree (default: build_gpu)")
-    p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
+    p.add_argument("--build", default=rp.BUILD,
+                   help="X-SCAPE build tree (default: $JETSCAPE_BUILD, else build_gpu)")
+    p.add_argument("--main-xml", default=rp.MAIN_XML,
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
                    help="template user XML (default: ../config/"
@@ -1234,7 +1234,7 @@ def main() -> int:
         **({"min_partons": int(a.min_partons)} if a.min_partons is not None else {}),
         "system": rp.collision_system(root, a.main_xml),
         "initial_state_kind": "3dMCGlauber_strings",
-        "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
+        "hydro": rp.hydro_label(a.build),
         "jet": "Matter + LBT, CausalLiquefier droplets into MUSIC_2",
         "T_fo": rp.music_freezeout_temperature(root, a.main_xml),
         "eos": music_eos(root, a.main_xml),

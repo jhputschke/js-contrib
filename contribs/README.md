@@ -286,7 +286,8 @@ FastHydro is optional (`--with-fasthydro`). For PyROOT and the ROOT macros, make
 from a conda env with ROOT and add `--system-site-packages`, or use the conda env in
 `utils/analysis_env/environment.yml`. See
 [With ROOT](../utils/analysis_env/README.md#with-root). For files in Google Cloud Storage or
-a Pelican federation (OSDF), `--with-gcs` and `--with-pelican` add the Python interfaces; see
+a Pelican federation (OSDF), pelicanfs is installed by default (`--no-pelican` skips it)
+and `--with-gcs` adds the GCS interfaces; see
 [Remote files](../utils/analysis_env/README.md#remote-files-google-cloud-storage-and-pelicanosdf).
 
 ---
@@ -303,7 +304,7 @@ bash utils/conda_install/pinned/install_js_fno_pinned.sh               # ML stac
 
 Pinned scripts specify explicit package versions and are tested against the
 environment used for the results in
-[Phys. Rev. C 113 (2026) 1, 014904](https://doi.org/10.48550/arXiv.2507.23598). The packages
+[Phys. Rev. C 113, 014904 (2026)](https://doi.org/10.1103/jsh8-6tm7). The packages
 added since (pybind11, pytest, networkx, notebook, vector, pyvista, imageio; fastjet moved from 3.4.2,
 no longer on conda-forge, to 3.5.0.1; gsl 2.7.1 to 2.7) are pinned to versions that resolve
 with that environment's Python 3.11 and numpy 1.26 (checked by dry runs of conda and pip

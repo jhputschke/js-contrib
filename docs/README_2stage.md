@@ -333,6 +333,23 @@ production XMLs of `prod_AuAu_0_10_jet` and `prod_OO_isr`).
 
 ### Launch settings for several jobs per GPU
 
+**The quick way: [`utils/prodwizard.py`](../utils/prodwizard.py).** Pick a production
+preset and a machine (the 3090 box, the GB10, the M3 Max, or a SLURM cluster with V100, A40,
+A100 or L40S). It writes the launch command with the settings below and estimates events/h,
+duration, disk and memory, marking each as measured or estimated with its source. It also checks
+the plan: events per job a multiple of the pT̂ windows × jets, memory, disk, upload rate, the
+image, an OUTBASE that holds another campaign. It never starts jobs. The presets and the measured
+settings are in [`utils/prod_presets.json`](../utils/prod_presets.json); update them after a
+benchmark.
+
+```bash
+utils/prodwizard.py                        # the wizard (textual): a form, the plan beside it
+utils/prodwizard.py --list                 # presets and machines
+utils/prodwizard.py --preset auau_jet --machine 2x3090 --events 2700 --campaign c5 --out /data/c5
+utils/prodwizard.py --preset pbpb_zjet --machine slurm_a40 --events 19200 --gpus 20 \
+    --campaign zjet_c10 --save launch_zjet_c10.sh      # a script, the plan in its header
+```
+
 The settings measured best on 2 × RTX 3090 (with the current image) and on the GB10 (with
 earlier code). None of them changes the output:
 
@@ -527,33 +544,28 @@ The `trap` passes Ctrl-C and `docker stop` on to both campaigns; `wait` keeps th
 alive until both are done.
 
 **Ready-made for Docker on two GPUs:** [`utils/launch_2gpu.sh`](../utils/launch_2gpu.sh) does the
-Docker variant above, with `run_jobs.sh -j 8 --mps` per GPU, a disk guard that stops the
-campaign before the disk fills (`--min-free`), and optionally the upload of every finished job
-to the OSDF while it runs (`--upload`, below in §5). Measured on 2 × RTX 3090 with the c1
-settings of §4: ~810 events/h at 8 jobs per GPU with the 2026-10-05 image, **2,160 events/h**
-at 10 jobs per GPU with `cu124-final_optim` (15-event jobs; ~2,400–2,500 expected in 45-event
-jobs, where the stagger ramp counts less). The launcher's defaults (8 jobs per GPU, 4 threads)
-predate the current image: set them as in the second command. Usage, tuning and the measurements:
-[`utils/README_launch.md`](../utils/README_launch.md). Under SLURM, if `CUDA_VISIBLE_DEVICES` is already set (e.g. `2,3`),
-use those numbers.
+Docker variant above with the measured best setup as its default: `run_jobs.sh -j 10 --mps
+--stagger 12` per GPU, 3 threads, `MUSIC_CUDA_SYNC=block` and LBT's tables shared through one
+cache file. It adds a disk guard that stops the campaign before the disk fills (`--min-free`),
+and optionally the upload of every finished job to the OSDF while it runs (`--upload`, below in
+§5). Measured on 2 × RTX 3090 with the c1 settings of §4: **2,160 events/h** with the current
+image (15-event jobs; ~2,400–2,500 expected in 45-event jobs, where the stagger ramp counts
+less). Usage, tuning and the measurements: [`utils/README_launch.md`](../utils/README_launch.md).
+Under SLURM, if `CUDA_VISIBLE_DEVICES` is already set (e.g. `2,3`), use those numbers.
 
 ```bash
 cd js-contrib/utils
-# 8 jobs per GPU (the default): c1 settings of §4, 64 jobs x 45 events, ~3.5 h
-nohup ./launch_2gpu.sh 64 45 0 /data/camp_pth3 --campaign pth3 \
+# c1 settings of §4, 60 jobs x 45 events (a multiple of 20 jobs), ~1.2 h; pin the image
+IMAGE=jhputschke/xscape-prod:cu124-20261013-9e84450 \
+nohup ./launch_2gpu.sh 60 45 0 /data/camp_pth3 --campaign pth3 \
     --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
     --write-particlize both > /data/camp_pth3.log 2>&1 &
 
-# 10 jobs per GPU with the current image (the setting of the 2,160 events/h): shared LBT
-# tables, staggered start, blocking CUDA sync; 60 jobs x 45 events (a multiple of 20 jobs), ~1.2 h
-IMAGE=jhputschke/xscape-prod:cu124-20261013-9e84450 JOBS_PER_GPU=10 OMP_THREADS=3 \
-MUSIC_CUDA_SYNC=block nohup ./launch_2gpu.sh --lbt-cache /work/lbt_cache/lbt_tables_v1.bin \
-    --stagger 12 60 45 0 /data/camp_pth3 --campaign pth3 \
-    --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
-    --write-particlize both > /data/camp_pth3.log 2>&1 &
+# an image older than 2026-10-10 (no LBT table cache, no --stagger): 8 jobs per GPU, 4 threads
+JOBS_PER_GPU=8 OMP_THREADS=4 ./launch_2gpu.sh --lbt-cache none --stagger 0 64 45 0 /data/camp_old ...
 ```
 
-**10 jobs per GPU** needs an image with the host-memory changes of 2026-10-10 (js-contrib
+**10 jobs per GPU** (the launcher's default) needs an image with the host-memory changes of 2026-10-10 (js-contrib
 `593fcc4` or later; `cu124-final_optim` has them). Measured in a same-day comparison, with the
 2026-10-10 image:
 - **Throughput:** +8.4 % over 8 jobs/GPU, 805 against 743 events/h by makespan.
@@ -633,6 +645,28 @@ utils/check_deposition.py /data/c1/gpu0 /data/c1/gpu1      # one campaign in two
 
 To redo a flagged job, move its files (`<stem>.*`) out of OUTDIR and run the campaign's
 command again: `run_jobs.sh` reruns the job (with a new seed in a seed-0 campaign).
+
+**All of it at once, during the run or after: [`utils/jobmon.py`](../utils/jobmon.py).** It
+reads the same logs and `.json` files and shows jobs done / running / failed, events, events/h,
+the ETA, disk per event, the failed jobs with their last log lines, the deposition check, edge
+hits, skipped events and the most frequent warnings. Standard library only; `--watch` uses
+`rich` if installed, `--tui` needs `textual` (both in the analysis venv,
+[`utils/analysis_env`](../utils/analysis_env/README.md)). For a workshop the TUI also runs in a
+browser: `textual serve "utils/jobmon.py /data/c1 --tui"` (package `textual-dev`).
+
+```bash
+utils/jobmon.py /data/c1                  # OUTBASE: its gpu0/, gpu1/, ... are taken
+utils/jobmon.py /data/c1 --njobs 100      # count the jobs not started yet too
+utils/jobmon.py /data/c1 --watch          # live view, every 10 s
+utils/jobmon.py /data/c1 --tui            # terminal UI: click a column to sort, f filters,
+                                          # a job's details and live log, problems, warnings
+utils/jobmon.py /data/c1 --all            # every job; exit code 1 if one failed or is flagged
+```
+
+A job counts as running while its driver process is alive (on the machine that runs the
+jobs, containers included); on another machine, while its log changed in the last 15 min
+(`--stale`). The drivers' `event … done in` lines reach the log in blocks, so a job's
+event count jumps by ~10–15 at a time; `PYTHONUNBUFFERED=1` in the jobs' environment avoids it.
 
 ---
 
@@ -958,8 +992,8 @@ source ~/.venvs/js_analysis/bin/activate
 python utils/analysis_env/check_env.py /path/to/AuAu_a   # opens every file of the directory
 ```
 
-`--with-pelican` / `--with-gcs` add the remote readers (files read in place over `osdf://`,
-`gs://`); `--kernel NAME` registers a Jupyter kernel.
+The venv reads files in place over `osdf://` (pelicanfs, by default; `--no-pelican` skips
+it), `--with-gcs` adds `gs://`; `--kernel NAME` registers a Jupyter kernel.
 
 **Reading the hadrons** (`jetscape.hadrons_h5`):
 
@@ -1055,10 +1089,8 @@ and the jet hadrons (iColoredHadronization) made in the job; the bulk hadrons in
 (`--bulk-hadrons N`) or afterwards from the stored surfaces (`hadronize.py --tags bulk_bg`).
 There is no two-stage hydro and no pair file.
 
-**Image.** `cu124-final_optim` has the folder and ran the O+O measurements: **13,728
-events/h** with hadron files only on 2 × RTX 3090 (`utils/launch_2gpu_oo.sh`: 8 jobs per GPU,
-3 threads, `MUSIC_CUDA_SYNC=block`, MPS; ±10.5 fm MUSIC grid, the late time step). The images
-of 2026-09-30 and 2026-10-03 don't have it. Two O+O fixes came after `cu124-final_optim`:
+**Image.** The current images (`cu124`, `cu126`, `cu130`, built 2026-10-14 or later, §1) have
+the folder and the two O+O fixes that came after `cu124-final_optim`:
 - **Matter's qhat lookup before t = 0** (X-SCAPE `8c975d37`): with ISR, partons start at
   t < 0 and read a garbage qhat (~3,800 lookups per event), which made runs irreproducible
   (events skipped differently from run to run, an occasional crash). Au+Au has no ISR and is
@@ -1066,14 +1098,11 @@ of 2026-09-30 and 2026-10-03 don't have it. Two O+O fixes came after `cu124-fina
 - **iSS's memory leak** (`50226a7c`, iSS `98deaff`: 19,272 leaked blocks per event, matters
   for long jobs with `--bulk-hadrons`).
 
-For an O+O campaign, build an image from X-SCAPE `final_optim` `50226a7c` or later:
-
-```bash
-gh workflow run docker-prod.yml -f variants=cu124 -f xscape_ref=final_optim -f js_contrib_ref=final_optim
-# or locally
-docker build -t xscape-prod:oo -f utils/Dockerfile.prod \
-  --build-arg XSCAPE_REF=final_optim --build-arg JS_CONTRIB_REF=final_optim .
-```
+So use them for O+O campaigns; there is no image to build. The O+O throughput was measured
+with `cu124-final_optim`, whose hydro code they share: **13,728 events/h** with hadron files
+only on 2 × RTX 3090 (`utils/launch_2gpu_oo.sh`: 8 jobs per GPU, 3 threads,
+`MUSIC_CUDA_SYNC=block`, MPS; ±10.5 fm MUSIC grid, the late time step). The images of
+2026-09-30 and 2026-10-03 don't have the folder.
 
 **Working directory.** The image starts in `prod_AuAu_0_10_jet`; select the O+O folder with
 `-w` (Docker) or `--pwd` (Apptainer), or call its scripts by their full path:
@@ -1238,9 +1267,13 @@ as they are, or copy them as a start for another system.
     max_ntau: 0
   ```
 
-- **Names.** The files are named `AuAu_0_10_jet_…`: the prefix is fixed in `run_jobs.sh`. Put
-  the system into the campaign (`--campaign PbPb_c1` → `AuAu_0_10_jet_PbPb_c1_0001.h5`), or
-  use `--out` for single `run_prod_jet.py` runs.
+- **Names.** `TAG_PREFIX` names the files of another system (default `AuAu_0_10_jet_seed`):
+  `TAG_PREFIX=PbPb_0_10_seed ./run_jobs.sh --campaign c1 …` writes `PbPb_0_10_c1_seed0001.*`.
+  Letters, digits, `.`, `_`, `-`, ending in `_seed`; one per `OUTDIR`. `launch_2gpu.sh` and
+  `slurm_prod_array.sh` pass it into the container; it needs js-contrib of 2026-10-16 or
+  later in the image (images of 2026-10-14 ignore it: there, put the system into the campaign,
+  `--campaign PbPb_c1` → `AuAu_0_10_jet_PbPb_c1_0001.h5`). For single `run_prod_jet.py` runs,
+  `--out`. Details: the [`prod_AuAu_0_10_jet` README](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#campaigns-with-run_jobssh).
 
 ### A first event
 

@@ -5,6 +5,10 @@ them, but don't run X-SCAPE. How to read the files in it, FastJet, ROOT and the 
 [`docs/README_analysis.md`](../../docs/README_analysis.md). It needs this js-contrib checkout and a Python ≥ 3.10. It
 doesn't need X-SCAPE, MUSIC, ROOT, conda or the compiled `pyjetscape_core`.
 
+**Or the container:** the production image carries the same packages (since 2026-10-28, not
+the `-slim` tags) and runs these analyses with Docker or Apptainer, without a GPU:
+[`README_Container_Usage.md`](../README_Container_Usage.md#3-analysis-only).
+
 ```bash
 git clone https://github.com/jhputschke/js-contrib.git
 cd js-contrib
@@ -13,13 +17,20 @@ source ~/.venvs/js_analysis/bin/activate
 python utils/analysis_env/check_env.py /path/to/out  # opens every file in a production directory
 ```
 
+**On a Mac** `python3` is often Apple's 3.9: pass a newer one,
+`./utils/analysis_env/setup_analysis_env.sh --python /opt/homebrew/bin/python3`. This venv is
+also the way to the **3D visualization** on a Mac: the xscape wheel has no PyVista, while this
+venv installs it by default ([`contribs/Visualization`](../../contribs/Visualization/README.md#environment);
+tested on an M3 Max, 2026-10-29).
+
 | file | purpose |
 |---|---|
-| `setup_analysis_env.sh` | makes or updates the venv, gets MUSIC's EoS table, runs `check_env.py` |
-| `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector), Jupyter |
-| `requirements_viz.txt` | pyvista (+ vtk), imageio, imageio-ffmpeg for `contribs/Visualization` |
-| `requirements_gcs.txt`, `requirements_pelican.txt` | optional: Google Cloud Storage (gcsfs, google-cloud-storage) and Pelican/OSDF (pelicanfs), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
-| `check_env.py` | checks the packages, the Blosc filter, PyROOT, the EoS table and off-screen rendering; with a directory, opens its pair, hadron and ROOT files |
+| `setup_analysis_env.sh` | makes or updates the venv, gets MUSIC's EoS tables (EOS 9 and 91), runs `check_env.py` |
+| `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector, particle, hist, mplhep), Jupyter |
+| `requirements_viz.txt` | pyvista (+ vtk), imageio, imageio-ffmpeg for `contribs/Visualization`, installed by default (`--no-viz` skips it) |
+| `requirements_pelican.txt` | Pelican/OSDF (pelicanfs), installed by default (`--no-pelican` skips it), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
+| `requirements_gcs.txt` | optional: Google Cloud Storage (gcsfs, google-cloud-storage), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
+| `check_env.py` | checks the packages, the Blosc filter, PyROOT, the EoS tables and off-screen rendering; with a directory, opens its pair, hadron and ROOT files |
 | `environment.yml` | the same as one conda env, ROOT included (see [With ROOT](#with-root)) |
 
 ## What works in it
@@ -56,9 +67,9 @@ evolve a live event. The ROOT macros and the C++ reader in
 | `--no-viz` | skip `requirements_viz.txt` (pyvista/vtk/ffmpeg: ~0.6 GB of the ~1.6 GB) |
 | `--with-fasthydro` | also install [FastHydro](../../contribs/FastHydro/README.md) (`jetscape-fasthydro`), for FastHydro's own files and readers (`fast_data`, `fasthydro.browse`). **Not needed for the `prod_AuAu_0_10_jet` files**; the visualization falls back to `jetscape.showers` without it. The FastHydro solver also needs `pip install torch`. |
 | `--with-gcs` | also install the Google Cloud Storage interfaces, `requirements_gcs.txt`: gcsfs (`gs://` URLs for fsspec, h5py and uproot) and Google's `google-cloud-storage` client |
-| `--with-pelican` | also install pelicanfs, `requirements_pelican.txt`: `osdf://` and `pelican://` URLs for fsspec, h5py and uproot |
-| `--eos-table PATH` | copy MUSIC's hotQCD table from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or its `hrg_hotqcd_eos_binary.dat`) instead of downloading it |
-| `--no-eos` | neither download nor copy it |
+| `--no-pelican` | skip pelicanfs, `requirements_pelican.txt`, which is installed by default: `osdf://` and `pelican://` URLs for fsspec, h5py and uproot |
+| `--eos-table PATH` | copy MUSIC's hotQCD tables from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or one of its `.dat` files) instead of downloading them; a table not found there is downloaded |
+| `--no-eos` | neither download nor copy them |
 | `--kernel NAME` | register a Jupyter kernel `NAME` for the venv (in `~/.local/share/jupyter`) |
 | `--check DIR` | at the end, open the production files in `DIR` |
 
@@ -142,12 +153,14 @@ python utils/analysis_env/check_env.py /path/to/out
 ```
 
 Everything available on conda-forge comes from conda-forge. pip adds only the scikit-hep
-`fastjet` and PyJetscape (editable). The EoS table isn't part of it; add it with
+`fastjet` and PyJetscape (editable). The EoS tables aren't part of it; add them with
 
 ```bash
 mkdir -p "$CONDA_PREFIX/share/music_eos/hotQCD"
-curl -fL -o "$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat" \
-  https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_binary.dat
+for t in binary SMASH_binary; do                         # EOS 9 and EOS 91
+  curl -fL -o "$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_$t.dat" \
+    https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_$t.dat
+done
 conda env config vars set MUSIC_EOS_TABLE="$CONDA_PREFIX/share/music_eos/hotQCD/hrg_hotqcd_eos_binary.dat"
 conda activate js_analysis                               # again, to pick up the variable
 ```
@@ -158,17 +171,18 @@ duplicates `requirements*.txt`, so a change to one needs the same change in the 
 ## Remote files: Google Cloud Storage and Pelican/OSDF
 
 For productions kept in a Google Cloud Storage bucket or in a Pelican federation such as the
-OSDF, the venv can get the Python interfaces of either or both:
+OSDF, the venv has the Python interfaces: pelicanfs by default (`--no-pelican` leaves it
+out), gcsfs and `google-cloud-storage` with `--with-gcs`:
 
 ```bash
-./utils/analysis_env/setup_analysis_env.sh --with-gcs --with-pelican   # or one of them
+./utils/analysis_env/setup_analysis_env.sh --with-gcs      # pelicanfs + the GCS interfaces
 ```
 
 Both are [fsspec](https://filesystem-spec.readthedocs.io) file systems, so the URLs work
 wherever fsspec does. `check_env.py --remote-test` reads one public object from each (the
-setup script does that when either option is given). On an existing venv, re-run the script
-with the option. In the conda env of `environment.yml`, run
-`pip install -r utils/analysis_env/requirements_gcs.txt` (or `_pelican.txt`) instead.
+setup script does that unless both are left out). On an existing venv, re-run the script
+(with `--with-gcs` for GCS). The conda env of `environment.yml` has pelicanfs; for GCS, run
+`pip install -r utils/analysis_env/requirements_gcs.txt` in it.
 
 **Reading files in place.** uproot takes the URL directly; h5py takes the file object
 fsspec opens (with `hdf5plugin` imported for Blosc). Only the chunks read travel over the
@@ -233,12 +247,16 @@ credentials.
 
 The pair files store the energy density, not the temperature. `jet_wake.ipynb` (freeze-out
 contours, Mach angle), `analysis/wake_observables.py`, `wake_hadrons.py` and the
-Visualization scripts (freeze-out isosurface) convert e → T with MUSIC's hotQCD table. The
-files say `eos_kind = "hotqcd (MUSIC EOS 9)"`. Normally these tools find the table in the
-producing X-SCAPE build, but in this venv there is none. So the setup script downloads
-`hrg_hotqcd_eos_binary.dat` (3.2 MB) into `VENV/share/music_eos/hotQCD`, from the same
-place as MUSIC's `EOS/download_hotQCD.sh`, and checks its md5. It then sets
-`MUSIC_EOS_TABLE` to that file, in `VENV/bin/activate` and in the `--kernel` kernel spec.
+Visualization scripts (freeze-out isosurface) convert e → T with MUSIC's hotQCD table of the
+file's EOS, which the files name in `eos` and `eos_kind`: EOS 9 (`hrg_hotqcd_eos_binary.dat`,
+UrQMD hadron list, the older files) or EOS 91 (`hrg_hotqcd_eos_SMASH_binary.dat`, SMASH
+hadron list, the current productions). Normally these tools find the table in the producing
+X-SCAPE build, but in this venv there is none. So the setup script downloads both tables
+(3.2 MB each) into `VENV/share/music_eos/hotQCD`, from the same place as MUSIC's
+`EOS/download_hotQCD.sh`, and checks their md5. It then sets `MUSIC_EOS_TABLE` to the EOS 9
+file, in `VENV/bin/activate` and in the `--kernel` kernel spec; the tools take the table of
+the file's EOS from that file's directory. A venv made before 2026-10-29 has only the EOS 9
+table: re-run the setup script to add the other.
 Without the table, the visualization uses a conformal EoS and prints a warning,
 `jet_wake.ipynb` skips the contours, and `wake_*.py` stop and ask for `--eos`.
 

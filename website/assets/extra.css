@@ -1,0 +1,176 @@
+/* ── Global body text ──────────────────────────────────────────────── */
+:root {
+  --md-typeset-font-size: 0.9rem;   /* base: default is 0.8rem */
+}
+
+.md-typeset {
+  font-size: 0.9rem;
+  line-height: 1.75;
+}
+
+/* ── Tables ────────────────────────────────────────────────────────── */
+.md-typeset table:not([class]) {
+  font-size: 0.9rem;
+}
+
+.md-typeset table:not([class]) th,
+.md-typeset table:not([class]) td {
+  font-size: 0.9rem;
+  padding: 0.6rem 1rem;
+}
+
+/* ── Headings ──────────────────────────────────────────────────────── */
+.md-typeset h1 { font-size: 2.2rem; }
+.md-typeset h2 { font-size: 1.7rem; }
+.md-typeset h3 { font-size: 1.35rem; }
+.md-typeset h4 { font-size: 1.1rem; }
+
+/* ── Top navigation bar (title + tabs) ────────────────────────────── */
+.md-header__title {
+  font-size: 1.5rem;
+}
+
+.md-tabs__item,
+.md-tabs__link {
+  font-size: 1.0rem;
+}
+
+/* ── Logo ──────────────────────────────────────────────────────────── */
+.md-header__button.md-logo img,
+.md-header__button.md-logo svg {
+  height: 3rem;   /* default is 1.2rem */
+  width: auto;
+}
+
+/* ── Admonitions / info boxes ──────────────────────────────────────── */
+.md-typeset .admonition,
+.md-typeset details {
+  font-size: 0.9rem;
+}
+
+.md-typeset .admonition-title,
+.md-typeset summary {
+  font-size: 0.9rem;
+}
+
+/* ── Diagram zoom overlay ──────────────────────────────────────────── */
+#dz-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.75);
+  cursor: zoom-out;
+  -webkit-box-align: center;
+          align-items: center;
+  -webkit-box-pack: center;
+          justify-content: center;
+  padding: 2rem;
+}
+
+#dz-overlay.dz-visible {
+  display: -webkit-box;
+  display:         flex;
+}
+
+#dz-inner {
+  -webkit-box-align: center;
+          align-items: center;
+  -webkit-box-pack: center;
+          justify-content: center;
+  display: -webkit-box;
+  display:         flex;
+  max-width: 96vw;
+  max-height: 92vh;
+}
+
+/* The moved-in .mermaid host: give it a readable backdrop and breathing room.
+   The theme's page colour, not white: in the dark scheme Mermaid draws light text. */
+.mermaid.dz-enlarged {
+  background: var(--md-default-bg-color);
+  border-radius: 6px;
+  padding: 1.5rem;
+  -webkit-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  cursor: default;
+}
+
+#dz-close {
+  position: absolute;
+  top: 1rem;
+  right: 1.25rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: none;
+  border-radius: 50%;
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #fff;
+  z-index: 1;
+}
+
+#dz-close:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* Cursor hint: every rendered Mermaid diagram is clickable */
+.mermaid:not(.dz-enlarged) {
+  cursor: zoom-in;
+}
+
+/* Lock background scroll while the overlay is open */
+body.dz-noscroll {
+  overflow: hidden;
+}
+
+/* ── GPU speed-up bar chart (about/gpu.md) ─────────────────────────── */
+/* Series colours checked for colour-vision separation and contrast on each scheme's page colour. */
+:root {
+  --sp-s1: #2a78d6;   /* single event */
+  --sp-s2: #eb6834;   /* whole machine */
+}
+[data-md-color-scheme="slate"] {
+  --sp-s1: #3987e5;
+  --sp-s2: #d95926;
+}
+.md-typeset .sp-figure {   /* Material sizes figures to fit-content; the SVG needs the column width */
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 1.5em 0;
+}
+.sp-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.sp-chart text { font-family: var(--md-code-font-family); font-size: 13px; fill: var(--md-default-fg-color--light); }
+.sp-chart .sp-lab { font-family: var(--md-text-font-family); font-size: 15px; font-weight: 600; fill: var(--md-default-fg-color); }
+.sp-chart .sp-sub { font-family: var(--md-text-font-family); font-size: 12px; fill: var(--md-default-fg-color--lighter); }
+.sp-chart .sp-val { font-size: 14px; font-weight: 600; fill: var(--md-default-fg-color); }
+.sp-chart .sp-grid { stroke: var(--md-default-fg-color--lightest); stroke-width: 1; }
+.sp-chart .sp-axis { stroke: var(--md-default-fg-color--lighter); stroke-width: 1; }
+.sp-chart .sp-s1 { fill: var(--sp-s1); }
+.sp-chart .sp-s2 { fill: var(--sp-s2); }
+.sp-chart .sp-whisk { stroke: var(--md-default-fg-color--light); stroke-width: 2; fill: none; }
+.sp-chart .sp-hit { fill: transparent; }
+.sp-chart .sp-bar:hover path:not(.sp-whisk) { opacity: 0.8; }
+.sp-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em 1.2em;
+  font-size: 0.8rem;
+  color: var(--md-default-fg-color--light);
+  margin-bottom: 0.5em;
+}
+.sp-legend span { display: inline-flex; align-items: center; gap: 0.4em; }
+.sp-sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
+.sp-sw.sp-s1 { background: var(--sp-s1); }
+.sp-sw.sp-s2 { background: var(--sp-s2); }
+.sp-sw.sp-rng { width: 18px; height: 2px; border-radius: 0; background: var(--md-default-fg-color--light); }

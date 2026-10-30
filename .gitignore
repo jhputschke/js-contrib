@@ -35,3 +35,6 @@ Makefile
 fnotest-wayne-gcs.json
 utils/remote_transfer/*.json
 utils/remote_transfer/*token*
+
+# MkDocs site (website/), built by mkdocs build
+/_site/

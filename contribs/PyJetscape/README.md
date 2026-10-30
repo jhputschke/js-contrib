@@ -5,10 +5,12 @@ bindings for the JETSCAPE C++ framework, enabling:
 
 - Full Python control of the simulation pipeline (module construction, event
   loops, parameter injection).
-- A **trampoline interface** that lets Python classes inherit from
-  `FluidDynamics`, `InitialState`, etc., so that a pure-Python module (e.g.
-  a PyTorch FNO model) runs as a first-class JETSCAPE module alongside C++
-  modules.
+- A **trampoline interface** for every stage: a Python class inherits from
+  `InitialState`, `HardProcess`, `PreequilibriumDynamics`, `FluidDynamics`,
+  `JetEnergyLoss`, `Hadronization`, `SoftParticlization`, `Afterburner`,
+  `JetScapeWriter` or `LiquefierBase` and runs as a first-class JETSCAPE module next
+  to C++ modules, built by hand or named in the XML (see
+  [Writing modules in Python](#writing-modules-in-python)).
 - `PyFNOHydro` — a ready-to-use Python hydro module backed by a PyTorch FNO
   model (see [FnoHydro](../FnoHydro/README.md) for the C++ counterpart and
   the trained model files).
@@ -18,10 +20,10 @@ bindings for the JETSCAPE C++ framework, enabling:
 
 The module is derived from the work documented in:
 
-> *Fast prediction of hydrodynamical evolution in ultra-relativistic
-> heavy-ion collisions using Fourier Neural Operators*,
-> https://doi.org/10.48550/arXiv.2507.23598
-> Phys. Rev. C 113 (2026) 1, 014904
+> D. Stewart and J. Putschke, *Fast prediction of the hydrodynamic QGP evolution in
+> ultrarelativistic heavy-ion collisions using Fourier neural operators*,
+> Phys. Rev. C 113, 014904 (2026), https://doi.org/10.1103/jsh8-6tm7,
+> [arXiv:2507.23598](https://arxiv.org/abs/2507.23598)
 
 Original development repository:
 [jhputschke/JETSCAPE-FNO](https://github.com/jhputschke/JETSCAPE-FNO)
@@ -38,7 +40,11 @@ Original development repository:
 | `src/bind_initial_state.cc` | Bindings for `InitialState`, with a trampoline for Python initial states |
 | `src/bind_fluid_dynamics.cc` | `FluidDynamics` trampoline — enables Python subclasses as JETSCAPE hydro modules; also `PreequilibriumDynamics`, `Parameter`, `HydroStatus`, `SURFACE_CELL_COLUMNS` |
 | `src/bind_music.cc` | Bindings for the MUSIC module (`MpiMusic`, incl. native-store numpy export for `dump_hydro_only`) and `TrentoInitial` |
-| `src/bind_jet.cc` | `Parton`, `Vertex`, `PartonShower`, `JetEnergyLoss`, `JetEnergyLossManager`, `FINAL_PARTON_COLUMNS` |
+| `src/bind_jet.cc` | `Vertex`, `PartonShower` (navigation, building), `JetEnergyLoss` (trampoline), `JetEnergyLossManager`, `FINAL_PARTON_COLUMNS` |
+| `src/bind_particles.cc` | `FourVector`, `JetScapeParticleBase`, `Parton`, `Photon`, `Hadron` with constructors and setters |
+| `src/bind_stages.cc` | Trampolines for `HardProcess`, `Hadronization`, `SoftParticlization`, `Afterburner`, `JetScapeWriter`; `HadronizationManager`, `JetScapeEventHeader` |
+| `src/bind_pipeline.cc` | `PartonShowerGenerator` (trampoline), the ISR chain (`IsrManager`, `IsrJet`, `iMATTER`, `IsrShowerPSG`), `JetScapeReaderAscii(GZ)` |
+| `src/pyjs_modules.h` | The trampolines' list conversions and the default `Clone()` of a Python module |
 | `src/bind_liquefier.cc` | `Droplet`, `LiquefierBase`, `CausalLiquefier` |
 | `src/bind_hard_process.cc` | The hard process: `hard_process_info`, `pythia_gun_bins`, `hard_partons_numpy` |
 | `src/bind_root_bulk_writer.cc` | Binding for the C++ `FastRootBulkWriter` (ROOT builds only, see `HAS_ROOT`) |
@@ -47,6 +53,13 @@ Original development repository:
 | `python/jetscape/fno_hydro.py` | `PyFNOHydro` — Python FluidDynamics backed by a PyTorch FNO model |
 | `python/jetscape/utils.py` | NumPy/PyTorch ↔ JETSCAPE bulk-info conversion helpers |
 | `python/jetscape/run_jetscape.py` | High-level simulation drivers: `run_automatic()` (Mode A), `run_manual()` (Mode B), `per_event_loop()` / `run_per_event()` (Mode C) |
+| `example/python_modules/` | One toy Python module per stage (templates) and the same all-Python pipeline from the XML and by hand |
+| `python/jetscape/pythonic.py` | The Pythonic layer: `install()` onto the bound classes, `make_parton` / `make_hadron`, `@module`, `per_event`, `ShowerNode` |
+| `python/jetscape/records.py`, `hadron_array.py` | Record dtypes of the per-event tables; `HadronArray` (hadrons per field, sample offsets, no copy) |
+| `python/jetscape/awkward_views.py`, `particles.py` | `to_awkward()` and `select()` (awkward, vector, particle); the particle property view |
+| `python/jetscape/pyjetscape_core.pyi`, `py.typed` | Type stubs of the bindings and the layer (`utils/gen_pyjetscape_stubs.py`) |
+| [`PYTHONIC.md`](PYTHONIC.md) | The Pythonic interface: guide and reference |
+| [`example/pythonic/`](example/pythonic/oo_workflow.ipynb) | `oo_workflow.ipynb`: 3 O+O events with the Pythonic interface, hadron files, FastJet |
 | `python/jetscape/bulk_root_writer.py` | Python ROOT bulk-evolution writer via uproot |
 | `python/jetscape/fast_root_bulk.py` | Reader for `FastRootBulkWriter` ROOT files (uproot) |
 | `python/jetscape/fast_h5_bulk.py` | `H5BulkWriter`: one hydro evolution per event → FNO4d HDF5 |
@@ -62,7 +75,7 @@ Original development repository:
 | `python/jetscape/showers.py`, `liquefier_io.py` | Parton-shower graph and liquefier droplet/parameter readers (numpy only) |
 | [`example/`](example/README.md) | Index of the examples: productions, analyses (Python and ROOT), single-feature scripts |
 | `example/prod_AuAu_0_10/`, `example/prod_AuAu_0_10_jet/` | Productions: 0–10% Au+Au hydro-only, and the same with a jet as background/jet pairs |
-| `example/prod_OO_isr/` | Production: O+O with initial-state radiation (iMATTER) and Matter in one MUSIC medium, tuned O+O parameters; jet hadrons (iColored) and optionally the bulk (iSS) hadronized in the job |
+| `example/prod_OO_isr/` | Production: O+O with initial-state radiation (iMATTER) and Matter + LBT (`--matter-only`: Matter alone) in one MUSIC medium, tuned O+O parameters; jet hadrons (iColored) and optionally the bulk (iSS) hadronized in the job |
 | `example/python_fast_bulk_root_writer.py` | Runs the C++ `FastRootBulkWriter` from Python, reads the file back |
 | `tests/` | pytest suites of the Python tooling; most run without an X-SCAPE build |
 | `CMakeLists.txt`, `pyproject.toml`, `setup.py` | The `pyjetscape_core` build; source-only Python package metadata (`name = "pyjetscape"`) |
@@ -90,10 +103,11 @@ Original development repository:
 > **Important — import order:** when PyTorch is used, `torch` must be loaded **before**
 > `pyjetscape_core`.  Both ROOT (loaded by the C++ extension) and PyTorch ship their own
 > `libomp`; the one initialised second will cause a segfault on some platforms.
-> `import jetscape` takes care of it: it imports `fno_hydro` (and with it torch, if
-> installed) before the extension. The rule matters when importing
-> `jetscape.pyjetscape_core` directly, or ROOT before `jetscape`. Importing `torch` first,
-> as the example scripts do, is always safe.
+> On macOS `import jetscape` takes care of it: it imports torch (if installed) before the
+> extension. Elsewhere it does not: `fno_hydro` imports torch only when a `PyFNOHydro` is
+> built, after the extension. So import `torch` first yourself, as the example scripts do:
+> that is always safe, and it is required on Linux when you use PyTorch, when you import
+> `jetscape.pyjetscape_core` directly, or when you import ROOT before `jetscape`.
 
 ---
 
@@ -164,6 +178,7 @@ mkdir -p build && cd build
 cmake .. \
   -DUSE_MUSIC=ON \
   -DUSE_ISS=ON \
+  -DUSE_3DGlauber=ON \
   -DUSE_JS_CONTRIB=ON \
   -DUSE_JS_PYJETSCAPE=ON
 
@@ -171,6 +186,10 @@ make -j$(nproc) pyjetscape_core
 ```
 
 - `-DUSE_MUSIC=ON` is required: the bindings include MUSIC's wrapper.
+- `-DUSE_3DGlauber=ON` is required: without it X-SCAPE compiles neither
+  iColoredHadronization nor iMATTER, which the bindings use, and `pyjetscape_core` fails to
+  load (`undefined symbol ... iColoredHadronization`). Tests that `pytest.importorskip` the
+  core then skip instead of failing.
 - `-DUSE_ISS=ON` is needed for the hadron-level tools (`hadronize.py`).
 - `-DUSE_ROOT=ON` adds the `FastRootBulkWriter` binding (`jetscape.HAS_ROOT`).
 - PyJetscape doesn't link libtorch, so it needs no `CMAKE_PREFIX_PATH` to PyTorch. Only
@@ -280,13 +299,14 @@ js = run_manual(main_xml="config/jetscape_main.xml", user_xml=user_xml,
                 modules=[ini, preeq, fno])
 ```
 
-Jet energy loss in a manual pipeline: `JetEnergyLossManager` and `JetEnergyLoss` are not
-registered in the module factory, so `create_module()` can't make them. Construct the
-bound classes directly (`from jetscape.pyjetscape_core import JetEnergyLossManager,
-JetEnergyLoss`), `Add()` a `create_module("Matter")` to the `JetEnergyLoss` and that to the
-manager. Hadronization managers are not bound; a pipeline that needs them is best built
-from the XML (Mode A or C). `example/python_fno_test.py` runs the
-initial state → pre-equilibrium → `PyFNOHydro` chain.
+Jet energy loss and hadronization in a manual pipeline: the managers and their containers
+are not in the module factory, so `create_module()` can't make them. Construct the bound
+classes directly: `Add()` a `create_module("Matter")` (or a Python module) to a
+`JetEnergyLoss` and that to a `JetEnergyLossManager`; `Add()` a
+`create_module("ColorlessHadronization")` to a `Hadronization` and that to a
+`HadronizationManager`. `example/python_fno_test.py` runs the initial state →
+pre-equilibrium → `PyFNOHydro` chain; `example/python_modules/run_by_hand.py` a pipeline with
+every stage.
 
 ### Mode C — Per-Event External Loop
 
@@ -347,6 +367,218 @@ js.Finish()
 
 > Note: `Exec()` is disabled on `JetScapePerEvent` (it warns and exits); use the
 > `ExecInit` / `ExecPerEvent` / `ClearPerEvent` API instead.
+
+---
+
+## Writing modules in Python
+
+Every JETSCAPE stage can be a Python class: subclass the C++ base class and override what
+JETSCAPE calls, with the C++ names and argument order, so a C++ module ports line by line.
+`example/python_modules/toy_modules.py` has one template per stage; the design and its
+validation are in js-contrib `docs/Plans/PLAN_pyjetscape_complete.md`.
+
+| stage | base class | override | gets / gives |
+|---|---|---|---|
+| initial state | `InitialState` | `ExecuteTask` (+ `GetNcoll`, `GetNpart`, `SampleABinaryCollisionPoint`) | `set_entropy_density_from_numpy`, `set_num_of_binary_collisions_from_numpy`; the hard vertices |
+| hard process | `HardProcess` | `ExecuteTask` (+ `GetSigmaGen`, `GetPtHat`, `GetEventWeight`) | `AddParton(Parton(...))`, `AddHadron` |
+| pre-equilibrium | `PreequilibriumDynamics` | `InitializePreequilibrium`, `EvolvePreequilibrium` | `set_e_numpy`, `set_utau_numpy`, … |
+| hydro | `FluidDynamics` | `InitializeHydro`, `EvolveHydro` | `store_fluid_cells_from_numpy`, the surface |
+| energy loss | `JetEnergyLoss` | `DoEnergyLoss(deltaT, time, Q2, pIn, pOut)` | `pIn`: the parton(s), changed in place; append to `pOut`; `GetHydroCell(t, x, y, z)` |
+| jet hadronization | `Hadronization` | `DoHadronization(shower, hOut, pOut)` | shower: one list of partons per shower; append `Hadron`s to `hOut` |
+| soft particlization | `SoftParticlization` | `ExecuteTask` | `GetHydroHyperSurface()`; `set_hadron_list([[Hadron, ...], ...])` |
+| afterburner | `Afterburner` | `ExecuteTask`, `GetCurrentHadronList` | `GatherAfterburnerHadrons()` |
+| writer | `JetScapeWriter` | `GetStatus`, `Write(obj)`, `WriteEvent` | every `Parton`, `Vertex`, `PartonShower`, `Hadron`, `str`; `GetHeader()` |
+| liquefier | `LiquefierBase` | `smearing_kernel(tau, x, y, eta, droplet)` | `[j^tau, j^x, j^y, j^eta]` |
+| shower growth | `PartonShowerGenerator` | `DoShower(jloss)` | `JetEnergyLoss.AddPartonShowerGenerator(gen)` |
+
+```python
+from jetscape import pyjetscape_core as js
+
+class Halve(js.JetEnergyLoss):
+    def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut):
+        p = pIn[0]
+        if time >= 1.0 and p.e() > 30.0:
+            for s in (+1, -1):
+                pOut.append(js.Parton(0, p.pid(), 0,
+                    js.FourVector(0.5 * p.px(), s * 1.0, 0.5 * p.pz(), 0.5 * p.e()), p.x_in()))
+
+js.register_module("CustomModuleHalve", Halve, section="Eloss")
+# the user XML now takes <Eloss><CustomModuleHalve> </CustomModuleHalve></Eloss>
+```
+
+- **By hand or from the XML.** A module object goes into a hand-built pipeline as any C++
+  module (`JetScape.Add`, `JetEnergyLoss.Add`, `Hadronization.Add`). For the XML,
+  `register_module(name, cls, section=, defaults=)` puts the class into JETSCAPE's module
+  factory: every section takes a module whose element name contains `CustomModule`
+  (`<JetHadronization>` takes it as `<name>CustomModuleX</name>`). JetScape exits on a user
+  tag the main XML lacks, so `JetScape.Init()` adds `<section><name>defaults</name>` to the
+  main XML in memory; the module reads its parameters with
+  `self.get_xml_element_double([section, name, "E"], False)` (the user's value, else the
+  default). `registered_modules()` lists the factory.
+- **Ownership.** C++ may create, hold and copy a Python module; it lives as long as C++ holds
+  it (pybind11 `smart_holder`). Where C++ keeps only a weak reference (a liquefier attached
+  with `add_a_liquefier`, the signal manager's `Set*Pointer`), keep the Python object alive
+  yourself, as `JetScape` owns its C++ liquefier.
+- **Copies and seeds.** The energy-loss manager copies its modules once per shower with
+  `Clone()`: by default the C++ copy constructor plus a shallow copy of the instance
+  attributes (`__init__` is not called again); override `Clone` for anything deeper. Task
+  numbers, and with them the random engines (`self.GetMt19937Generator()`, `.uniform()`),
+  follow a C++ run.
+- **Lists.** The containers C++ passes by reference arrive as lists: the inputs are the C++
+  objects (valid during the call only), the outputs are copied back after the call.
+- **Particles.** `Parton(label, id, stat, p, x)` with `p = FourVector(px, py, pz, E)` and
+  `x = FourVector(x, y, z, t)`; setters as in C++ (`set_stat`, `set_form_time`,
+  `set_color`, …). A particle's `x()`, `y()`, `z()`, `t()` are its position; the
+  virtuality is `Parton.virtuality()` (C++ `t()`), set with `set_t()`.
+- **Showers and output.** `PartonShower`: `final_partons()`, `children(p)`, `parents(p)`,
+  `production_vertex(p)`, `end_vertex(p)`, the split variables, `new_vertex` / `new_parton`.
+  The C++ writers come from `create_module("JetScapeWriterAscii")` +
+  `set_writer_output_file`; `JetScapeReaderAscii(file)` reads such a file back
+  (`Next()`, `GetPartonShowers()`, `GetHadrons()`).
+- **Exactness and cost.** Ported to Python with the same seed, PGun and a module handing
+  each step to C++ Matter give byte-identical hadrons to the C++ run, and a Python writer
+  writes the same lines as the C++ one (`tests/test_bindings_equivalence.py`). A call into a
+  Python energy-loss module costs about 1.4 µs on top of the module's own work (GB10:
+  715,438 calls in 500 events, 3.70 s against 2.72 s for C++ Matter alone).
+- **Limits.** At most 256 registered Python modules per process. Python modules assume one
+  thread (the GIL is taken in every call).
+
+---
+
+## Pythonic interface
+
+**The full guide and reference: [`PYTHONIC.md`](PYTHONIC.md).** A complete O+O workflow (3
+events through the whole chain, the hadron files written and read back, FastJet):
+[`example/pythonic/oo_workflow.ipynb`](example/pythonic/oo_workflow.ipynb). This section is
+the summary.
+
+An additive layer over the bindings (js-contrib `docs/Plans/PLAN_pyjetscape_pythonic.md`):
+`import jetscape` (or `from jetscape import pyjetscape_core`, which imports the package
+first) installs new methods and properties onto the bound classes. It refuses any name a
+class already has, so every call above keeps working and keeps its output; nothing else
+changes.
+
+**Conventions.** A method ending in `_array()` returns numpy data, filled once per event; a
+plain noun (`showers`, `nodes`, `final_partons()`) returns objects. Momentum is
+`(E, px, py, pz)`, position `(t, x, y, z)`, the order of `FourVector.comp(i)`; the
+`FourVector(x, y, z, t)` constructor and `to_list()` keep theirs. Results come flat (numpy
+plus offsets, as the files store them); `to_awkward()` gives the nested view.
+
+### Results of an event
+
+| class | new | wraps |
+|---|---|---|
+| `JetEnergyLossManager` | `showers` (property), `final_parton_array()`, `initiator_array()` | `get_showers`, `final_partons_numpy`, `showers.initiators_from_manager` |
+| `SoftParticlization` | `hadron_array()`, `primary_array()`, `use_compact_output(on=True)`, `set_number_of_samples(n)`, `set_next_random_seed(s)`, `last_random_seed`, `sample_cells(cells, seed, n_samples)` | the `soft_*` functions |
+| `HadronizationManager`, `Hadronization` | `hadron_array()`, `hadronize(partons, seed=None)`, `last_random_seed` | `hadronization_hadrons_numpy`, `hadronize_partons`, `jet_hadronization_last_random_seed` |
+| the same, with iColored's colour closure | `colour_audit()`, `colour_totals()`, `set_colour_closure(mode)` | `jet_hadronization_colour_*` (only when `ICOLORED_HAS_COLOUR_AUDIT` / `_CLOSURE`) |
+| `HardProcess` | `parton_array()`, `info` | `hard_partons_numpy`, `hard_process_info` |
+| `InitialState` | `info` | `initial_state_info` |
+| `JetScapePerEvent` | `with ...:` (Init, ExecInit / Finish), `events(n=None, on_error=None)`, `energy_loss_manager`, `hadronization_manager`, `soft_particlization`, `hydro`, `initial_state` | `ExecPerEvent` / `ClearPerEvent`, the task list and the signal manager |
+
+The small tables are numpy record arrays (`jetscape.records`): `FINAL_PARTON_DTYPE` (shower,
+pid, pstat, E, px, py, pz, t, x, y, z, mass, col, acol; colour tags `uint32`),
+`INITIATOR_DTYPE`, `EDGE_DTYPE`, `NODE_DTYPE`, `HARD_PARTON_DTYPE`. Each equals the array
+it reorders, bit for bit. `hadronize()` takes such records or the old `(N, 14)` array.
+
+Hadrons are a `HadronArray`: `pid`, `pstat`, `p` (E, px, py, pz) and `x` (t, x, y, z) as
+`float32`, `mass`, `sample_offsets` (one sample per oversample), and `info` (e.g. the seed
+`hadronize()` used). `to_dict()` hands it to `HadronH5Writer.append_unit`;
+`HadronArray.from_h5(path)` reads a hadron file back (the stored fields only, the units in
+`info`; `to_awkward(by_unit=True)` gives units x samples x hadrons). Two memory rules hold:
+
+- **One array per field (M1).** `HadronArray` wraps the dict the bindings return without a
+  copy, so with `use_compact_output()` iSS's arrays are never copied. A record array would
+  interleave them: a full copy.
+- **No stored derived columns (M2).** pt, eta, phi, rapidity come from `to_awkward()`,
+  computed when used. `to_hadrons()` converts to `hadrons_h5.Hadrons` when its `hist` /
+  `total` are wanted; that computes them all, in float64.
+
+```python
+import fastjet
+import numpy as np
+import jetscape as js
+
+with js.per_event(main_xml, user_xml) as driver:
+    for _ in driver.events():
+        fp = driver.energy_loss_manager.final_parton_array()     # record array
+        pt = np.hypot(fp["px"], fp["py"])
+        h = driver.soft_particlization.hadron_array().to_awkward()  # samples x hadrons
+        charged = h[js.select(h, "charged")]
+        jets = fastjet.ClusterSequence(charged, fastjet.JetDefinition(
+            fastjet.antikt_algorithm, 0.4)).inclusive_jets()     # every oversample at once
+```
+
+- **`to_awkward(obj, position=False, charge=False)`** (also `HadronArray.to_awkward`): a
+  `HadronArray` becomes samples x hadrons over the same buffers; final-parton and initiator
+  records become showers x partons; edge, node and hard-parton records a flat array.
+  Records are `vector` `Momentum4D` (fields E, px, py, pz): `.pt`, `.eta`, `.phi`,
+  `.rapidity`, `.mass` are computed when asked. The position is a nested `position` field
+  (a `Vector4D` t, x, y, z): flat t, x, y, z fields would be read by `vector` as the
+  coordinates. `charge=True` adds the PDG charge (needs `particle`). awkward and vector are
+  imported when called, never at `import jetscape`.
+- **`select(arr, species)`**: a mask of arr's shape for PDG names (`"pi+"`, `"K-"`, `"p~"`,
+  `"Lambda"`, `"K(S)0"`) or classes (`"charged"`, `"neutral"`, `"hadron"`, `"meson"`,
+  `"baryon"`, `"strange"`), one name or a list. Each distinct pid is looked up once with
+  `particle`. `"charged"` counts every pid with a PDG charge, resonances included;
+  `hadrons_h5.CHARGED` (used by `Hadrons.charged` and the analyses) lists the stable charged
+  hadrons and leptons only. The two agree on decayed hadrons and differ on files with
+  undecayed primaries (iSS `<keep_primaries>`).
+
+### Particles and showers
+
+| class | new |
+|---|---|
+| `FourVector` | iteration, `v[i]`, `np.asarray(v)` in `comp()` order; `==` by value (so not hashable); `FourVector.momentum(E, px, py, pz)`, `FourVector.position(t, x, y, z)`; pickling |
+| `Parton`, `Photon`, `Hadron` | `momentum`, `position` (FourVector copies: `E, px, py, pz = p.momentum`); pickling. `==` stays identity |
+| `PartonShower` | iteration over the partons, `nodes`, `start_node(p)`, `end_node(p)`, `edge_array()`, `node_array()`; no `len()`, so an empty shower stays true |
+| `ShowerNode` | `id`, `position`, `parents`, `children`, `split_z`, `split_kt`, `split_delta_r`, `is_one_to_two`, `is_end` |
+
+`js.make_parton(pid, momentum, position=(0, 0, 0, 0), stat=0, label=0, color=0,
+anti_color=0)`, `js.make_photon(...)` and `js.make_hadron(pid, momentum, position, stat,
+label, mass=None)` take any 4-sequence or a `FourVector`. `jetscape.particles.view(p)` gives
+properties (`v.pt`, `v.eta`, `v.e`, ...) over the bound methods; `unwrap()` returns the
+particle. Each is one call into C++: for many particles use the arrays.
+
+### Writing modules
+
+```python
+import jetscape as js
+from jetscape import pyjetscape_core as core   # the base classes (JetEnergyLoss, ...) live here
+
+@js.module("CustomModuleHalve", section="Eloss")
+class Halve(core.JetEnergyLoss):
+    xml_parameters = {"t_split": 1.0, "e_min": 30.0}
+
+    def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut):
+        p = pIn[0]
+        if time >= self.t_split and p.e() > self.e_min:
+            E, px, py, pz = p.momentum
+            return [js.make_parton(p.pid(), (E / 2, px / 2, s * 1.0, pz / 2), p.position)
+                    for s in (+1, -1)]
+```
+
+- **`@js.module(name, section)`** registers the class (`register_module`). Its
+  `xml_parameters` (int, float, str or bool) become the main-XML default and class
+  attributes. Before the class's own `InitTask` runs, each is read into `self.<key>` from
+  `[section, name, key]`: the user XML's value, else the default.
+- **A returned list is the output.** `DoEnergyLoss` may return the partons instead of
+  appending to `pOut`; `DoHadronization` may return the hadrons, or `(hadrons, partons)`. A
+  returned list goes after what the output held before the call; `None` keeps today's
+  behaviour. Returning a list while also appending raises.
+- **`self.rng`**: a numpy `Generator` seeded from the task's own engine
+  (`GetMt19937Generator()`), made on first use. Each per-shower `Clone()` gets its own
+  stream (a new task number), and it is reproducible with the run's seed. An attribute
+  `self.rng = ...` of your own takes precedence; C++ modules don't have it.
+
+`example/python_modules/toy_modules_pythonic.py` has every toy in this style, and
+`run_by_hand_pythonic.py` runs them (or the old ones, `--style old`) with the context
+manager; both print `run_by_hand.py`'s SUMMARY line (`tests/test_pythonic_run.py`).
+
+**Type stubs.** `python/jetscape/pyjetscape_core.pyi` (with `py.typed`) covers the bindings
+and the layer, for editors and mypy. They follow the build they were made from;
+`python utils/gen_pyjetscape_stubs.py` (js-contrib, needs `pybind11-stubgen`) regenerates
+them after a build.
 
 ---
 
@@ -920,7 +1152,7 @@ On top of the single-leg schema (`arr`, `ntau_freezeout`, `tau_freezeout`, grid 
 
 The ragged tables (`source/`, `shower/`) and `diag/` are written as each event arrives, so a
 run killed mid-way loses nothing it has counted. `repad_to` grows `arr` and `arr_bg`
-together. Read a pair with FastHydro's `PairBrowser` (`fasthydro.browse.open_pair`), which
+together. Read a pair with FastHydro's `PairBrowser` (`fasthydro.browse.PairBrowser`), which
 follows the file's freeze-out convention, or with plain h5py
 (`f["arr"][i] - f["arr_bg"][i]`).
 
@@ -1141,8 +1373,12 @@ X-SCAPE `contrib`: the seed hooks in `SoftParticlization` and `ColorlessHadroniz
 | `soft_set_number_of_samples(task, n)` | iSS oversamples from the next event on (e.g. more for a reused background) |
 | `soft_set_compact_output(task, on=True)` | from the next event on, iSS hands its hadrons over as flat arrays (~8× less memory); call `soft_hadrons_numpy` once per event |
 | `hadronization_hadrons_numpy(task)` | a HadronizationManager's output hadrons |
-| `hadronize_partons(module, partons, seed=None)` | run a jet hadronization module on stored partons; `seed` reseeds ColorlessHadronization first |
-| `jet_hadronization_last_random_seed(task)` | ColorlessHadronization's last seed (with `<reseed_per_event>1`) |
+| `hadronize_partons(module, partons, seed=None)` | run a jet hadronization module on stored partons; `seed` reseeds ColorlessHadronization (or iColoredHadronization) first; iColoredHadronization takes them through its pstat policy and `<colour_closure>` (below) |
+| `jet_hadronization_last_random_seed(task)` | ColorlessHadronization's or iColoredHadronization's last seed (with `<reseed_per_event>1`) |
+| `hadronization_input_numpy(task)`, `hadronize_input(module, pid, col, acol, p, mass, seed=None)` | iColoredHadronization with `<store_input>1`: the parton list the last event handed to Pythia; hadronize such a list again (`ICOLORED_HAS_INPUT_RECORD`) |
+| `jet_hadronization_colour_audit(task)` | iColoredHadronization: the last event's colour audit (`ICOLORED_HAS_COLOUR_AUDIT`) |
+| `jet_hadronization_colour_totals(task)` | iColoredHadronization: the audits added up over the run (the log summary) |
+| `jet_hadronization_set_colour_closure(task, mode)` | iColoredHadronization: `<colour_closure>` by hand (`ICOLORED_HAS_COLOUR_CLOSURE`) |
 
 These are free functions taking a task because `create_module()` returns modules whose
 concrete types are not registered with pybind11.
@@ -1249,6 +1485,77 @@ and their cross sections. Correlated jet/background sampling (`hadronize.py
 ROOT files (layout in `example/prod_AuAu_0_10_jet/root_export/README.md`), and
 `example/analysis_root/HadronFileReader.h` reads them in C++.
 
+### Jet hadronization with colour (iColoredHadronization)
+
+X-SCAPE `lbt_colored_hadro` (X-SCAPE `README_ColourFlow.md`; design and validation in
+`docs/Plans/PLAN_lbt_colour_tags.md`): Matter and LBT give their partons the large-Nc
+colour flow, with one tag counter per event (`HardProcess::NextColorTag`), and
+iColoredHadronization closes the colour lines that scatterings off the medium leave open.
+So Matter + LBT showers (and Matter with `recoil_on` 1) can be hadronized through their
+colour flow. ColorlessHadronization does not read the tags and is unchanged.
+
+**What iColored does with the partons:** holes (pstat −1) and the liquefier's partons are
+not handed to Pythia (the holes' energy is recorded), the beam remnants always are;
+duplicate tags fail the event (`<colour_duplicates>relabel` repairs them, counted); the open
+lines are closed as `<JetHadronization><colour_closure>` says:
+
+| `<colour_closure>` | what it does |
+|---|---|
+| `reconnect` (default) | join open colour and anticolour ends within a shower, the shortest string first; the holes' medium partners (the conjugate parton, the hole's tags swapped, its momentum) for the rest |
+| `reconnect_global` | the same, joining across showers too |
+| `thermal` | every open line gets its hole's medium partner |
+| `fake` | a soft (1 GeV) light (anti)quark along the beam per open end |
+| `none` | throw on an open line |
+
+A fragmentation that Pythia gives up on is retried once with `fake` and otherwise throws
+(a `RuntimeError` in Python), never handing the input partons on as hadrons.
+
+**In a job** (between `ExecPerEvent()` and `ClearPerEvent()`): the event's audit, and at
+the end the run's totals (also printed by `jetscape.Finish()` as the colour summary):
+
+```python
+from jetscape import pyjetscape_core as core
+mgr = hadronization_manager   # the HadronizationManager task, or iColored itself
+for i in range(n):
+    try:
+        jetscape.ExecPerEvent()
+    except RuntimeError as exc:              # duplicate tags, an open line with none, Pythia
+        jetscape.ClearPerEvent(); continue   # (the O+O driver records these as skipped)
+    audit = core.jet_hadronization_colour_audit(mgr)
+    # partons, remnants, holes, hole_energy, skipped, unpaired_col, unpaired_acol,
+    # duplicate_tags, relabelled_tags, reconnected, reconnected_cross, partners,
+    # partner_energy, fakes, fake_energy, retries
+    ...
+    jetscape.ClearPerEvent()
+totals = core.jet_hadronization_colour_totals(mgr)   # events, failed, events_open, ...
+jetscape.Finish()
+```
+
+`example/prod_OO_isr/run_prod_oo_isr.py` (Matter + LBT by default) writes the audit per
+event to the jet hadron file (`units/colour_*`) and the totals to the job summary
+(`jet_colour_totals`); a build without the closure needs `--matter-only`. See
+`example/prod_OO_isr/README.md`, "Jet hadronization colour checks".
+
+**Offline, on stored partons** (`FINAL_PARTON_COLUMNS`, e.g. a particlize file's
+`partons/`; no beam remnants), with the closure chosen by hand, e.g. to compare the modes on
+the same partons:
+
+```python
+js = core.JetScapePerEvent()                 # a user XML with only <JetHadronization>
+js.SetXMLMainFileName(main_xml); js.SetXMLUserFileName(user_xml); js.Init()
+ic = core.create_module("iColoredHadronization"); ic.Init()
+for mode in ("reconnect", "reconnect_global", "thermal"):
+    core.jet_hadronization_set_colour_closure(ic, mode)
+    had = core.hadronize_partons(ic, partons, seed=7)   # dict: pid, p, ... ; seed used
+    print(mode, core.jet_hadronization_colour_audit(ic))
+```
+
+`tests/test_icolored_colour.py` runs every mode on hand-made scatterings (gluon and quark
+holes, joins within and across showers, partners, soft end partons). Related work (JEWEL,
+Pythia/Herwig colour reconnection, Hybrid Hadronization, Beraudo–Milhano–Wiedemann) and
+references: `docs/Plans/PLAN_lbt_colour_tags.md`, "Related work and references". For runJetscape
+(no Python) the same chain is X-SCAPE's `config/jetscape_user_OO_ISR_MatterLBT_iColored.xml`.
+
 ---
 
 ## Pipeline Mode Comparison
@@ -1338,15 +1645,18 @@ directory. Or set `pybind11_DIR` to the directory with `pybind11Config.cmake`.
 If you use PyJetscape in scientific work, please cite:
 
 ```bibtex
-@article{FNOHydro2026,
-  title  = {Fast prediction of hydrodynamical evolution in ultra-relativistic
-            heavy-ion collisions using Fourier Neural Operators},
-  journal= {Phys. Rev. C},
-  volume = {113},
-  number = {1},
-  pages  = {014904},
-  year   = {2026},
-  doi    = {10.48550/arXiv.2507.23598}
+@article{Stewart:FNOhydro,
+  author  = {Stewart, David and Putschke, Joern},
+  title   = {Fast prediction of the hydrodynamic {QGP} evolution in ultrarelativistic
+             heavy-ion collisions using {F}ourier neural operators},
+  journal = {Phys. Rev. C},
+  volume  = {113},
+  number  = {1},
+  pages   = {014904},
+  year    = {2026},
+  doi     = {10.1103/jsh8-6tm7},
+  eprint  = {2507.23598},
+  archivePrefix = {arXiv}
 }
 ```
 

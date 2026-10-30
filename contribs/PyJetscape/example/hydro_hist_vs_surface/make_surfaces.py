@@ -72,7 +72,6 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PYJETSCAPE = os.path.abspath(os.path.join(HERE, "..", ".."))
-XSCAPE = os.path.abspath(os.path.join(PYJETSCAPE, "..", "..", "..", ".."))
 sys.path.insert(0, os.path.join(PYJETSCAPE, "python"))
 
 VARIANTS = ("hist", "ref_ideal", "ref_no_bulk", "ref_no_shear")
@@ -81,7 +80,7 @@ EOS_TABLES = {"9": "hrg_hotqcd_eos_binary.dat", "91": "hrg_hotqcd_eos_SMASH_bina
 
 
 def eos_table_of(attrs):
-    """The build_gpu table of the EOS a pair file was made with: its ``eos`` attribute, else
+    """The build's table of the EOS a pair file was made with: its ``eos`` attribute, else
     the number in ``eos_kind`` (files before the attribute were all EOS 9)."""
     import re
     eos = str(attrs.get("eos", "")).strip()
@@ -90,7 +89,8 @@ def eos_table_of(attrs):
         eos = m.group(1) if m else "9"
     if eos not in EOS_TABLES:
         sys.exit(f"the pair file ran MUSIC EOS {eos}: no hotQCD table for it (pass --eos)")
-    return os.path.join(XSCAPE, "build_gpu", "EOS", "hotQCD", EOS_TABLES[eos])
+    from jetscape import paths      # $JETSCAPE_BUILD, else build_gpu
+    return os.path.join(str(paths.build_dir()), "EOS", "hotQCD", EOS_TABLES[eos])
 #: MUSIC's lower cut of the low-temperature freeze-out (evolve.cpp: epsFO_low = 0.05/hbarc)
 E_CAP_LOW = 0.05
 

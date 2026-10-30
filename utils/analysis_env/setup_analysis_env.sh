@@ -19,11 +19,12 @@
 #   --with-gcs           also install the Google Cloud Storage interfaces: gcsfs (gs:// for
 #                        fsspec, h5py and uproot) and google-cloud-storage
 #                        (requirements_gcs.txt)
-#   --with-pelican       also install pelicanfs: pelican:// and osdf:// for fsspec, h5py
-#                        and uproot (requirements_pelican.txt)
-#   --eos-table PATH     copy MUSIC's hotQCD table from PATH (a MUSIC/X-SCAPE EOS/hotQCD
-#                        directory or the hrg_hotqcd_eos_binary.dat) instead of downloading it
-#   --no-eos             neither download nor copy it (no e -> T: the visualization uses a
+#   --no-pelican         skip pelicanfs (requirements_pelican.txt), installed by default:
+#                        pelican:// and osdf:// for fsspec, h5py and uproot
+#   --eos-table PATH     copy MUSIC's hotQCD tables from PATH (a MUSIC/X-SCAPE EOS/hotQCD
+#                        directory, or one of the .dat files) instead of downloading them; a
+#                        table not found there is downloaded
+#   --no-eos             neither download nor copy them (no e -> T: the visualization uses a
 #                        conformal EoS, jet_wake.ipynb skips the contours, analysis/wake_*.py
 #                        need --eos)
 #   --kernel NAME        also register a Jupyter kernel NAME for this venv (in ~/.local)
@@ -46,7 +47,7 @@ SYSSITE=0
 VIZ=1
 FASTHYDRO=0
 GCS=0
-PELICAN=0
+PELICAN=1
 EOS=download
 EOS_SRC=""
 KERNEL=""
@@ -63,7 +64,8 @@ while [ $# -gt 0 ]; do
         --no-viz)          VIZ=0; shift ;;
         --with-fasthydro)  FASTHYDRO=1; shift ;;
         --with-gcs)        GCS=1; shift ;;
-        --with-pelican)    PELICAN=1; shift ;;
+        --no-pelican)      PELICAN=0; shift ;;
+        --with-pelican)    PELICAN=1; shift ;;   # the default; old command lines
         --eos-table)       EOS=copy; EOS_SRC="${2:?--eos-table needs a path}"; shift 2 ;;
         --no-eos)          EOS=none; shift ;;
         --kernel)          KERNEL="${2:?--kernel needs a name}"; shift 2 ;;
@@ -132,40 +134,60 @@ if [ "$FASTHYDRO" = 1 ]; then
     pip_install -e "$CONTRIBS/FastHydro[viz]"
 fi
 
-# ── MUSIC's hotQCD EoS table ────────────────────────────────────────────────────────────
+# ── MUSIC's hotQCD EoS tables ───────────────────────────────────────────────────────────
 # MUSIC pair files store e, not T. jet_wake.ipynb, analysis/wake_*.py and the visualization
-# convert e -> T with MUSIC's EOS 9 table, from $MUSIC_EOS_TABLE (the .dat file itself).
-# Same source as MUSIC's EOS/download_hotQCD.sh.
+# convert e -> T with the hotQCD table of the file's EOS: EOS 9 (UrQMD hadron list, the
+# older files) or EOS 91 (SMASH hadron list, the current productions). Both go into one
+# directory; $MUSIC_EOS_TABLE names the EOS 9 file, and the tools that pick the table by the
+# file's EOS look for the other one next to it. Same source as MUSIC's EOS/download_hotQCD.sh.
 EOS_DIR="$VENV/share/music_eos/hotQCD"
-EOS_NAME="hrg_hotqcd_eos_binary.dat"
-EOS_MD5="9ac35d8387c442d168a5ca93a7864dca"
-EOS_URL="https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/$EOS_NAME"
-EOS_TABLE="$EOS_DIR/$EOS_NAME"
+EOS_NAMES="hrg_hotqcd_eos_binary.dat hrg_hotqcd_eos_SMASH_binary.dat"
+EOS_URL="https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main"
 
 md5_of() { "$VPY" -c 'import hashlib,sys; print(hashlib.md5(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
+eos_md5() {
+    case "$1" in
+        hrg_hotqcd_eos_binary.dat)       echo 9ac35d8387c442d168a5ca93a7864dca ;;
+        hrg_hotqcd_eos_SMASH_binary.dat) echo 4a7a8e0ae2b957bfe38c53cfde122144 ;;
+    esac
+}
+
+# install_eos NAME: copy (--eos-table) or download one table into EOS_DIR, md5-checked
+install_eos() {
+    local name="$1" table="$EOS_DIR/$1" md5 got=0 src
+    md5="$(eos_md5 "$name")"
+    if [ -f "$table" ] && [ "$(md5_of "$table")" = "$md5" ]; then return 0; fi
+    if [ "$EOS" = copy ]; then
+        src="$EOS_SRC"
+        if [ -d "$src" ]; then src="$src/$name"
+        elif [ "$(basename "$src")" != "$name" ]; then src="$(dirname "$src")/$name"; fi
+        if [ -f "$src" ]; then cp -L "$src" "$table.part" && got=1
+        else echo "  [!] no $name at $EOS_SRC: downloading it"; fi
+    fi
+    if [ "$got" = 0 ]; then
+        echo "==> downloading MUSIC's $name (3.2 MB)"
+        curl -fsSL -o "$table.part" "$EOS_URL/$name" && got=1 || echo "  [!] the download of $name failed"
+    fi
+    if [ "$got" = 1 ] && [ "$(md5_of "$table.part")" = "$md5" ]; then
+        mv "$table.part" "$table"; rm -f "$table.part"; return 0
+    fi
+    [ "$got" = 1 ] && echo "  [!] $name has the wrong checksum; not installed"
+    rm -f "$table.part"
+    return 1
+}
 
 eos_ok=0
+EOS_TABLE=""
 if [ "$EOS" != none ]; then
     mkdir -p "$EOS_DIR"
-    if [ -f "$EOS_TABLE" ] && [ "$(md5_of "$EOS_TABLE")" = "$EOS_MD5" ]; then
-        eos_ok=1
-    else
-        got=0
-        if [ "$EOS" = copy ]; then
-            src="$EOS_SRC"; [ -d "$src" ] && src="$src/$EOS_NAME"
-            if [ -f "$src" ]; then cp -L "$src" "$EOS_TABLE.part" && got=1
-            else echo "  [!] no $EOS_NAME at $EOS_SRC"; fi
-        else
-            echo "==> downloading MUSIC's $EOS_NAME (3.2 MB)"
-            curl -fsSL -o "$EOS_TABLE.part" "$EOS_URL" && got=1 || echo "  [!] the download failed"
+    for name in $EOS_NAMES; do
+        if install_eos "$name"; then
+            eos_ok=1
+            [ -z "$EOS_TABLE" ] && EOS_TABLE="$EOS_DIR/$name"    # the EOS 9 file when it's there
         fi
-        if [ "$got" = 1 ] && [ "$(md5_of "$EOS_TABLE.part")" = "$EOS_MD5" ]; then
-            mv "$EOS_TABLE.part" "$EOS_TABLE"; eos_ok=1
-        elif [ "$got" = 1 ]; then
-            echo "  [!] $EOS_NAME has the wrong checksum; not installed"
-        fi
-        rm -f "$EOS_TABLE.part"
-    fi
+    done
+    [ -f "$EOS_DIR/hrg_hotqcd_eos_SMASH_binary.dat" ] \
+        || echo "  [!] no EOS 91 table: current pair files (EOS 91) get no e -> T"
 fi
 
 # export it from bin/activate; the block is rewritten on every run

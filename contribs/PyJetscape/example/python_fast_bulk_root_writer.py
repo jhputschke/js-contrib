@@ -27,6 +27,10 @@ Requirements in the user XML:
 
 Run from the X-SCAPE build directory (MUSIC resolves its input files relative
 to the current directory):
+    # from the build tree as below, or from anywhere (a copy made by xscape-examples,
+    # the container's /work, the macOS wheel): then the defaults come from
+    # jetscape.paths and the run gets its own working directory
+    # (jetscape.workdir.build_or_job_dir)
     cd X-SCAPE/build_gpu
     python ../external_packages/js-contrib/contribs/PyJetscape/example/python_fast_bulk_root_writer.py \\
         --user ../config/BulkFastTest/OO_one_event_fast.xml
@@ -51,6 +55,12 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
 import numpy as np
 
 import jetscape as js
+from jetscape import paths as _paths
+from jetscape.workdir import build_or_job_dir
+
+#: the X-SCAPE tree ($XSCAPE, the checkout, or the macOS wheel's installed tree), for the
+#: default XMLs
+_XSCAPE = str(_paths.xscape_root())
 from jetscape.fast_root_bulk import read_fast_root_bulk
 
 try:
@@ -65,9 +75,9 @@ def parse_args() -> argparse.Namespace:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--main", default="../config/jetscape_main.xml",
+    p.add_argument("--main", default=os.path.join(_XSCAPE, "config", "jetscape_main.xml"),
                    help="Main XML config (default: ../config/jetscape_main.xml).")
-    p.add_argument("--user", default="../config/BulkFastTest/OO_one_event_fast.xml",
+    p.add_argument("--user", default=os.path.join(_XSCAPE, "config", "BulkFastTest", "OO_one_event_fast.xml"),
                    help="User XML config with dump_hydro_only and a "
                         "<FastRootBulkWriter> block.")
     p.add_argument("--events", type=int, default=None,
@@ -213,7 +223,12 @@ def main() -> None:
                  "-DUSE_ROOT=ON.")
 
     t_wall = time.time()
-    out = run_check_numpy(args) if args.check_numpy else run(args)
+    # from a build tree as always; elsewhere (a copy, the container) in a JobDir under the
+    # current directory, kept: the ROOT file is written there (its name is in the XML)
+    with build_or_job_dir(os.getcwd(), args.user, args.main, keep=True) as job:
+        args.main, args.user = job.main_xml, job.user_xml
+        out = os.path.abspath(run_check_numpy(args) if args.check_numpy else run(args))
+    print(f"ROOT file: {out}")
     print(f"Finished in {time.time() - t_wall:.1f} s")
 
     if _PLT_AVAILABLE and not args.no_plot and os.path.exists(out):

@@ -253,3 +253,47 @@ The GB10 is GPU-limited, so events/h there rise only with the GPU part (28 of ~5
 - Documented in `prod_AuAu_0_10_jet/README.md` (*MUSIC_2 from MUSIC_1's state*),
   `docs/README_2stage.md` §2, the PyJetscape README, `utils/README_launch.md`, X-SCAPE's README
   and MUSIC4GPU's README.
+
+## runJetscape: the same from XML (2026-10-24, X-SCAPE `music_xml_restart`)
+
+The Python driver sets the restart and the jet leg's storage after `Init()`; X-SCAPE
+`music_xml_restart` (c2416c77) makes both XML settings, so `runJetscape` runs a two-stage job
+the same way. In the jet leg's own block:
+
+```xml
+<Hydro>
+  <AddLiquefier> true </AddLiquefier>
+  <MUSIC>
+    <name>MUSIC_2</name>
+    <restart_from>MUSIC_1</restart_from>   <!-- start from MUSIC_1's checkpoint -->
+    <dump_hydro_only>1</dump_hydro_only>   <!-- no framework copy of the jet leg -->
+    <store_evolution>0</store_evolution>   <!-- and no native frames -->
+    <skip_surface>0</skip_surface>         <!-- export the surface (iSS on MUSIC_2) -->
+  </MUSIC>
+</Hydro>
+```
+
+- `dump_hydro_only`, `skip_surface` and the new `store_evolution` are read from the first
+  `<Hydro><MUSIC>` block for every instance and overridden in an instance's own block, as
+  `freeze_out_surface` already was.
+- `restart_from` and `checkpoint_tau` are read only from an instance's own block. The
+  instance named in `restart_from` keeps its checkpoint at its `<checkpoint_tau>`, by default
+  (0) at `<Liquefier><CausalLiquefier><tau_delay>`, as `restart_legs` does. Main-XML defaults
+  `none` / `0` are off.
+- The Python setters still override the XML: `run_prod_jet.py` is unchanged (the PyJetscape
+  tests touching it: 120 passed).
+
+**Check (GB10, 0-10 % Au+Au, PythiaGun 50-70, seed 4242, 3 events, iSS (20 samples) +
+Colorless on MUSIC_2, FinalStateHadrons writer):**
+
+| runJetscape | final-state hadrons | peak RSS | wall |
+|---|---|---|---|
+| T0: as before (MUSIC_2 keeps its frames) | reference | 15.9 GB | 48.6 s |
+| T1: + `dump_hydro_only` 1, `store_evolution` 0, `skip_surface` per leg | identical | 6.3 GB | 45.9 s |
+| T2: T1 + `restart_from` MUSIC_1 | identical | 6.5 GB | 42.6 s |
+
+T2 started every jet leg from the checkpoint at step 28 (τ = 0.96 fm/c), as the Python driver.
+`run_prod_jet.py --write-particlize both --particlize-only --validate-inline` with the same seed
+(iSS 100 samples, plus the particlize file): 49.4 s, 7.0 GB. Its events differ from
+runJetscape's from event 1 on, also against T0, so this is not the restart; the same seed does
+not give the same events in the two drivers.

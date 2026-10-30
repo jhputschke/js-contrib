@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# xscape-examples [DEST] -- copy PyJetscape's examples into a writable directory.
+#
+# The image's tree (/opt/X-SCAPE) is read-only (Apptainer) or root-owned (Docker --user), so
+# notebooks and scripts that write next to themselves run from a copy:
+#
+#   xscape-examples                 # -> /work/examples
+#   xscape-examples ~/my_examples
+#
+# Copies contribs/PyJetscape/example (production scripts, notebooks, user XMLs, configs),
+# without outputs (out/, out_*/, *.h5, *.root) and caches (in a git checkout: the tracked
+# files only).  The copies find the X-SCAPE tree
+# and its build through $XSCAPE / $JETSCAPE_BUILD (jetscape.paths), as in the image.
+# README: utils/README_Container_Usage.md.
+set -euo pipefail
+
+JS_CONTRIB=$(cd "$(dirname "$(readlink -f "$0")")/../.." && pwd)
+SRC="$JS_CONTRIB/contribs/PyJetscape/example"
+DEST=${1:-/work/examples}
+
+case "${DEST}" in -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;; esac
+if [ ! -d "$SRC" ]; then
+  echo "xscape-examples: no examples at $SRC" >&2; exit 1
+fi
+if [ -e "$DEST" ] && [ -n "$(ls -A "$DEST" 2>/dev/null)" ]; then
+  echo "xscape-examples: $DEST exists and is not empty; give another directory" \
+       "(nothing is overwritten)" >&2
+  exit 1
+fi
+mkdir -p "$DEST"
+if git -C "$SRC" rev-parse --is-inside-work-tree > /dev/null 2>&1; then
+  # a checkout: the tracked files only (its git-ignored runs and figures stay behind)
+  (cd "$SRC" && git ls-files -z . | tar --null -T - -cf -) | tar -C "$DEST" -xf -
+else
+  tar -C "$SRC" --exclude=__pycache__ --exclude=.ipynb_checkpoints --exclude=out \
+      --exclude='out_*' --exclude='*.h5' --exclude='*.root' -cf - . | tar -C "$DEST" -xf -
+fi
+echo "xscape-examples: $SRC -> $DEST"
+echo "  e.g. cd $DEST/pythonic && python oo_workflow.py --events 1"

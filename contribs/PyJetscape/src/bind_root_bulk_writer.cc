@@ -45,7 +45,7 @@ void bind_root_bulk_writer(py::module_ &m) {
   m.attr("HAS_ROOT") = true;
 
   py::class_<FastRootBulkWriter, JetScapeModuleBase,
-             std::shared_ptr<FastRootBulkWriter>>(
+             py::smart_holder>(
       m, "FastRootBulkWriter",
       R"pbdoc(
         Hydro-only ROOT writer for the MUSIC evolution.

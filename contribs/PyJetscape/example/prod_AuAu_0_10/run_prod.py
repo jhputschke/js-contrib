@@ -36,8 +36,6 @@ import argparse
 import json
 import os
 import platform
-import re
-import shutil
 import socket
 import sys
 import time
@@ -47,7 +45,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PYJETSCAPE = os.path.dirname(os.path.dirname(HERE))          # contribs/PyJetscape
 #: the productions' inputs: one user XML per setup, the shared hadronize.xml, the grid YAMLs
 CONFIG = os.path.join(os.path.dirname(HERE), "config")
-XSCAPE = os.path.abspath(os.path.join(PYJETSCAPE, "..", "..", "..", ".."))
 sys.path.insert(0, os.path.join(PYJETSCAPE, "python"))
 
 # One OpenBLAS thread per job unless set otherwise.  The resampling's small matrix
@@ -58,6 +55,22 @@ sys.path.insert(0, os.path.join(PYJETSCAPE, "python"))
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 
 from jetscape.bulk_sources import Grid, ntau_to_end         # noqa: E402  (pure Python)
+# The working directory and the seeds (shared by every production script) live in
+# jetscape.workdir since PLAN_container_user.md; re-exported under their old names, so
+# the drivers keep calling rp.enter_workdir(a, ...), rp.resolve_seed(a, ...), ...
+from jetscape.workdir import (  # noqa: E402,F401
+    SEED_MAX, WORKDIR_LINKS, _absolute_parent_paths, add_seed_args, add_workdir_args,
+    enter_workdir, hydro_label, job_workdir, leave_workdir, output_name, pythia_data_problem,
+    resolve_seed, seed_args_problems, seed_provenance, seed_registry)
+from jetscape import paths as _paths  # noqa: E402
+
+#: the X-SCAPE tree: $XSCAPE (the production image sets it), else the tree this js-contrib
+#: is in -- so a copy of the examples outside the tree (xscape-examples) finds the build too
+XSCAPE = str(_paths.xscape_root())
+#: the defaults of --build and --main-xml for every production script: $JETSCAPE_BUILD,
+#: else <XSCAPE>/build_gpu (an installed tree: the tree itself); <XSCAPE>/config
+BUILD = str(_paths.build_dir())
+MAIN_XML = str(_paths.main_xml())
 
 USER_XML = os.path.join(CONFIG, "AuAu_MCGlauber_MUSIC_0_10_fast.xml")
 GRID_YAML = os.path.join(CONFIG, "grid_fno.yaml")
@@ -78,10 +91,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", default=None,
                    help="output file name (default: AuAu_0_10[_<campaign>]_seed<NNNN>.h5, "
                         "or AuAu_0_10_<campaign>_<NNNN>.h5 with --seed 0)")
-    p.add_argument("--build", default=os.path.join(XSCAPE, "build_gpu"),
+    p.add_argument("--build", default=BUILD,
                    help="X-SCAPE build tree the PyJetscape extension is linked against "
-                        "(default: build_gpu)")
-    p.add_argument("--main-xml", default=os.path.join(XSCAPE, "config", "jetscape_main.xml"),
+                        "(default: $JETSCAPE_BUILD, else build_gpu)")
+    p.add_argument("--main-xml", default=MAIN_XML,
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
                    help="template user XML (default: ../config/AuAu_MCGlauber_MUSIC_0_10_fast.xml)")
@@ -106,225 +119,6 @@ def add_h5_args(p: argparse.ArgumentParser) -> None:
                    help="round the evolutions to N float32 mantissa bits before compressing "
                         "(lossy: relative error <= 2^-(N+1); 12 -> 1.2e-4 and ~2x smaller "
                         "files). Default: bit-exact")
-
-
-# ─────────────────────────────────────────────────────────── working directory
-#: read-only assets still opened relative to the working directory: the vendored
-#: 3dMCGlauber / trento code, and Matter, whose read_tables() hard-codes
-#: "LBT-tables/{ratedata-HQ,distB.dat,distF.dat}" (LBT itself honours LBT_TABLES_PATH).
-#: Without LBT-tables, Matter's heavy-quark recoil sampling (collHQ22) runs on all-zero
-#: tables.  X-SCAPE's examples/run_in_workdir.sh links the same set minus LBT-tables.
-WORKDIR_LINKS = ("tables", "eps09", "LHAPDF_Lib", "nucleusConfigs", "data_table",
-                 "LBT-tables")
-
-
-# ---------------------------------------------------------------------------------- seeds
-#: Pythia takes seeds 1..SEED_MAX and silently clamps larger ones to SEED_MAX, so jobs with
-#: larger seeds (a date, Unix time) would all get the same Pythia stream: the same jets.
-SEED_MAX = 900_000_000
-_CAMPAIGN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-_REGISTRY_HEADER = "# seed\tsource\tcampaign\tfile\thost\tdate\n"
-
-
-def add_seed_args(p: argparse.ArgumentParser, drives: str) -> None:
-    """--seed, --campaign, --index and --seed-registry (run_prod.py and run_prod_jet.py)."""
-    p.add_argument("--seed", type=int, default=1,
-                   help=f"framework seed (drives {drives}), 1..{SEED_MAX}; the same seed "
-                        "gives the same collisions. 0: draw a unique one from OS entropy, "
-                        "recorded in the file, the .json and the seed registry (the job stays "
-                        "reproducible); the file is then named by --campaign. Not X-SCAPE's "
-                        "own seed 0, which Pythia takes from the clock in seconds (jobs "
-                        "started together get the same jets) and records nowhere")
-    p.add_argument("--campaign", default=None,
-                   help="put the campaign in the name: <base>_<CAMPAIGN>_<NNNN>.h5 with --seed 0 "
-                        "(NNNN = --index), <base>_<CAMPAIGN>_seed<NNNN>.h5 with an explicit "
-                        "seed (NNNN = the seed); letters, digits, '.', '_', '-'. Default with "
-                        "--seed 0: the start time, YYYYMMDD-HHMMSS")
-    p.add_argument("--index", type=int, default=1,
-                   help="job number within the campaign: NNNN in the name with --seed 0, "
-                        "recorded as prod_index (default 1)")
-    p.add_argument("--seed-registry", default=None, dest="seed_registry",
-                   help="file of the seeds already used (tab-separated, appended per job); "
-                        "--seed 0 draws only seeds not in it. Default: seeds_used.tsv next "
-                        "to OUTDIR, shared by the campaigns kept side by side there; 'none' "
-                        "turns it off")
-
-
-def seed_args_problems(a) -> list:
-    problems = []
-    if not 0 <= a.seed <= SEED_MAX:
-        problems.append(f"--seed must be 0 (unique, from OS entropy) or 1..{SEED_MAX}, got "
-                        f"{a.seed}: Pythia (the jet production's hard process) clamps "
-                        f"larger seeds to {SEED_MAX}, so every such job would get the same "
-                        "jets; the same range holds everywhere")
-    if a.index < 1:
-        problems.append(f"--index must be >= 1, got {a.index}")
-    if a.campaign is not None and not _CAMPAIGN_RE.match(a.campaign):
-        problems.append(f"--campaign {a.campaign!r}: use letters, digits, '.', '_', '-' "
-                        "(no '/', not starting with '.' or '-')")
-    return problems
-
-
-def output_name(a, base: str) -> str:
-    """The output file name: --out, else by seed when the seed is given --
-    <base>[_<campaign>]_seed<NNNN>.h5 -- and by job number when it is drawn (--seed 0, with
-    the start time as the campaign if none was given): <base>_<campaign>_<NNNN>.h5."""
-    if a.campaign is None and a.seed == 0:
-        a.campaign = time.strftime("%Y%m%d-%H%M%S")
-    if a.out:
-        return a.out
-    if a.seed == 0:
-        return f"{base}_{a.campaign}_{a.index:04d}.h5"
-    return f"{base}{'_' + a.campaign if a.campaign else ''}_seed{a.seed:04d}.h5"
-
-
-def seed_registry(a):
-    if a.seed_registry and a.seed_registry.lower() == "none":
-        return None
-    return os.path.abspath(a.seed_registry or
-                           os.path.join(os.path.dirname(os.path.abspath(a.outdir)),
-                                        "seeds_used.tsv"))
-
-
-def resolve_seed(a, out_h5: str, record: bool = True) -> None:
-    """Make ``a.seed`` concrete and note where it came from (``a.seed_source``).
-
-    --seed 0 draws from OS entropy (``secrets``) a seed in 1..SEED_MAX that the registry does
-    not hold yet.  With ``record`` the seed is appended to the registry (under an exclusive
-    lock, so jobs starting together cannot draw the same one); an explicit seed is recorded
-    too, and reported when the registry has it for another file (the same collisions: fine for
-    paired comparisons, not for more statistics)."""
-    import fcntl
-    import secrets
-
-    path = seed_registry(a)
-    a.seed_source = "os_entropy" if a.seed == 0 else "explicit"
-    if path is None or (not record and not os.path.exists(path)):
-        if a.seed == 0:
-            a.seed = secrets.randbelow(SEED_MAX) + 1
-        return
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "a+") as fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        fh.seek(0)
-        used = {}
-        for line in fh:
-            cols = line.rstrip("\n").split("\t")
-            if line.startswith("#") or len(cols) < 4 or not cols[0].isdigit():
-                continue
-            used.setdefault(int(cols[0]), []).append(cols[3])
-        if a.seed == 0:
-            while True:
-                seed = secrets.randbelow(SEED_MAX) + 1
-                if seed not in used:
-                    break
-            a.seed = seed
-        else:
-            others = [f for f in used.get(a.seed, []) if f != os.path.abspath(out_h5)]
-            if others:
-                print(f"note: seed {a.seed} was used before, for {others[0]}"
-                      f"{f' (+{len(others) - 1} more)' if len(others) > 1 else ''}: the same "
-                      "collisions -- fine for comparing settings, not for more statistics",
-                      file=sys.stderr)
-        if record and os.path.abspath(out_h5) not in used.get(a.seed, []):
-            if fh.tell() == 0:
-                fh.write(_REGISTRY_HEADER)
-            fh.write("\t".join([str(a.seed), a.seed_source, a.campaign or "",
-                                 os.path.abspath(out_h5), socket.gethostname(),
-                                 time.strftime("%Y-%m-%dT%H:%M:%S")]) + "\n")
-            fh.flush()
-
-
-def seed_provenance(a) -> dict:
-    return {"prod_seed": a.seed, "prod_seed_source": a.seed_source,
-            "prod_campaign": a.campaign or "", "prod_index": a.index}
-
-
-def add_workdir_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--workdir", default=None,
-                   help="this job's working directory (default: OUTDIR/work/<output name>)")
-    p.add_argument("--keep-workdir", action="store_true", dest="keep_workdir",
-                   help="keep the working directory after a successful job (it holds only "
-                        "the modules' side files: 3dMCGlauber strings_event_*.dat, MUSIC's "
-                        "momentum_anisotropy_*.dat, ...); a failed job always keeps it")
-    p.add_argument("--in-build", action="store_true", dest="in_build",
-                   help="run in the build tree itself, as before (shares music_input and "
-                        "every side file with any other job running there)")
-
-
-def _absolute_parent_paths(src: str, dst: str, build: str) -> None:
-    """Copy an XML, making every element text that starts with '../' absolute.
-
-    Such paths (iSS, SMASH, hydro-from-file, Martini, ... in jetscape_main.xml) are
-    relative to the build tree, which is the working directory only with --in-build.
-    './' paths (outputs such as ./FinalPartonsInfo.dat, iSS_working_path '.') stay
-    relative: they belong in the job's own directory.
-    """
-    tree = ET.parse(src)
-    for el in tree.iter():
-        text = (el.text or "").strip()
-        if text.startswith("../"):
-            el.text = os.path.normpath(os.path.join(build, text))
-    tree.write(dst)
-
-
-def enter_workdir(a, workdir: str, job_xml_path: str) -> str:
-    """Make ``workdir`` this job's working directory -> the main XML to use.
-
-    The Python counterpart of X-SCAPE's examples/run_in_workdir.sh (which execs the
-    runJetscape binary, so it cannot drive PyJetscape).  In the build tree, concurrent jobs
-    share music_input -- MusicWrapper truncates and rewrites it at every MUSIC init, and a
-    job reading it in that window spins forever in MUSIC's StringFind4 -- as well as every
-    file the modules write to the working directory (3dMCGlauber strings_event_<N>.dat and
-    events_summary.dat, MUSIC's momentum_anisotropy / eccentricities / meanpT files, ...).
-    Here each job has its own directory with a private music_input, and the read-only
-    assets come from the build tree:
-
-    * ``XSCAPE_DATA_DIR`` -> mcglauber.input (MCGlauberWrapper), LBT-tables fallback
-    * ``HYDROPROGRAMPATH`` -> MUSIC's EOS tables
-    * ``LBT_TABLES_PATH`` -> LBT tables
-    * symlinks for the dirs still opened relative to the working directory (WORKDIR_LINKS)
-    * '../' paths in the main and job XML made absolute (see _absolute_parent_paths)
-    """
-    build = a.build
-    os.makedirs(workdir, exist_ok=True)
-    shutil.copyfile(os.path.join(build, "music_input"), os.path.join(workdir, "music_input"))
-    for name in WORKDIR_LINKS:
-        src, dst = os.path.join(build, name), os.path.join(workdir, name)
-        if os.path.exists(src) and not os.path.lexists(dst):
-            os.symlink(src, dst)
-    os.environ["XSCAPE_DATA_DIR"] = build
-    os.environ["HYDROPROGRAMPATH"] = build
-    os.environ["LBT_TABLES_PATH"] = os.path.join(build, "LBT-tables")
-    main_xml = os.path.join(workdir, "jetscape_main.xml")
-    _absolute_parent_paths(a.main_xml, main_xml, build)
-    _absolute_parent_paths(job_xml_path, job_xml_path, build)
-    os.chdir(workdir)
-    return main_xml
-
-
-def job_workdir(a, out_h5: str) -> str:
-    """This job's working directory: --workdir, else OUTDIR/work/<output name>."""
-    if a.workdir:
-        return os.path.abspath(a.workdir)
-    return os.path.join(os.path.dirname(out_h5), "work",
-                        os.path.splitext(os.path.basename(out_h5))[0])
-
-
-def leave_workdir(a, workdir: str, ok: bool) -> None:
-    """Remove the working directory after a successful job unless --keep-workdir."""
-    if a.in_build:
-        return
-    os.chdir(os.path.dirname(workdir))
-    if ok and not a.keep_workdir:
-        shutil.rmtree(workdir, ignore_errors=True)
-        if not a.workdir:                # OUTDIR/work, once its last job is gone
-            try:
-                os.rmdir(os.path.dirname(workdir))
-            except OSError:
-                pass
-    else:
-        print(f"  working directory kept: {workdir}")
 
 
 # ───────────────────────────────────────────────────────────────── grid YAML
@@ -448,31 +242,6 @@ def describe(grid: Grid, max_ntau: int) -> str:
 
 
 # ───────────────────────────────────────────────────────────────── job setup
-def pythia_data_problem():
-    """None if pyjetscape_core can be imported, else the reason.
-
-    Pythia finds its xmldoc through PYTHIA8DATA or the path compiled into libpythia8.
-    Homebrew's Pythia (macOS) has a working compiled-in path; a relocated conda Pythia
-    (the js_fno env) may not, and then the import aborts the process -- so it is probed
-    in a subprocess, and only when PYTHIA8DATA is unset.
-    """
-    if os.environ.get("PYTHIA8DATA"):
-        return None
-    import subprocess
-    probe = f"import sys; sys.path.insert(0, {os.path.join(PYJETSCAPE, 'python')!r}); import jetscape"
-    try:
-        r = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True,
-                           timeout=300)
-    except subprocess.TimeoutExpired:
-        return "importing pyjetscape_core timed out (PYTHIA8DATA is not set)"
-    if r.returncode == 0:
-        return None
-    tail = " | ".join((r.stderr or r.stdout).strip().splitlines()[-3:])
-    return ("PYTHIA8DATA is not set and importing pyjetscape_core fails without it: point it "
-            "to Pythia's xmldoc (`conda activate js_fno` sets it). "
-            f"Import error (exit {r.returncode}): {tail}")
-
-
 def check_env(a) -> None:
     problems = []
     pythia = pythia_data_problem()
@@ -573,7 +342,7 @@ def main() -> int:
         "prod_grid_yaml": grid_text,
         "system": collision_system(root, a.main_xml),
         "initial_state_kind": "3dMCGlauber_strings",
-        "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
+        "hydro": hydro_label(a.build),
         "T_fo": music_freezeout_temperature(root, a.main_xml),
     }
     writer = H5BulkWriter(out_file_name=out_h5, grid_mode=grid_mode, tau_stride=1,

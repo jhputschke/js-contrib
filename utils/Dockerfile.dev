@@ -48,7 +48,7 @@ RUN /opt/miniforge3/bin/mamba create -n xscape python=3.11 -y -c conda-forge
 
 # Step 1: build tools + C++ build/runtime libs (+ pybind11 for find_package)
 RUN /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge \
-    cmake make compilers "pybind11>=2.11" \
+    cmake make compilers "pybind11>=3.0" \
     boost-cpp zlib hdf5 gsl openmpi \
   && /opt/miniforge3/bin/mamba clean -afy
 

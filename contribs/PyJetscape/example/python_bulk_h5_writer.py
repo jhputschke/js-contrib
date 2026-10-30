@@ -23,6 +23,10 @@ XML requirements differ by mode and are mutually exclusive:
 Run from the X-SCAPE build directory (MUSIC resolves its input files relative to the
 current directory):
 
+    # from the build tree as below, or from anywhere (a copy made by xscape-examples,
+    # the container's /work, the macOS wheel): then the defaults come from
+    # jetscape.paths and the run gets its own working directory
+    # (jetscape.workdir.build_or_job_dir)
     cd X-SCAPE/build_gpu
     python ../external_packages/js-contrib/contribs/PyJetscape/example/python_bulk_h5_writer.py \
         --user ../config/BulkFastTest/OO_one_event_fast.xml --out hydro_evo.h5
@@ -46,6 +50,12 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
 import numpy as np
 
 import jetscape as js
+from jetscape import paths as _paths
+from jetscape.workdir import build_or_job_dir
+
+#: the X-SCAPE tree ($XSCAPE, the checkout, or the macOS wheel's installed tree), for the
+#: default XMLs
+_XSCAPE = str(_paths.xscape_root())
 from jetscape.fast_h5_bulk import H5BulkWriter, read_fast_h5_bulk
 from jetscape.run_jetscape import run_manual
 
@@ -59,9 +69,9 @@ except ImportError:
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--main", default="../config/jetscape_main.xml",
+    p.add_argument("--main", default=os.path.join(_XSCAPE, "config", "jetscape_main.xml"),
                    help="Main XML config.")
-    p.add_argument("--user", default="../config/BulkFastTest/OO_one_event_fast.xml",
+    p.add_argument("--user", default=os.path.join(_XSCAPE, "config", "BulkFastTest", "OO_one_event_fast.xml"),
                    help="User XML config.")
     p.add_argument("--out", default="hydro_evo.h5", help="Output HDF5 file.")
     p.add_argument("--events", type=int, default=None,
@@ -242,7 +252,12 @@ def main() -> int:
         print("h5py is not installed in this environment (pip install h5py).",
               file=sys.stderr)
         return 1
-    path = run_manual_pipeline(args) if args.manual else run_xml(args)
+    # from a build tree as always; elsewhere (a copy, the container, the macOS wheel) in a
+    # JobDir next to the output file
+    args.out = os.path.abspath(args.out)
+    with build_or_job_dir(os.path.dirname(args.out), args.user, args.main) as job:
+        args.main, args.user = job.main_xml, job.user_xml
+        path = run_manual_pipeline(args) if args.manual else run_xml(args)
     d = summarize(path)
     if not args.no_plot:
         quick_plot(d)

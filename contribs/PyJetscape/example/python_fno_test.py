@@ -12,6 +12,10 @@ The pipeline (Mode B — manual task list) is:
 Run it from the X-SCAPE build directory, with PyJetscape built (-DUSE_JS_PYJETSCAPE=ON)
 and PyTorch installed:
     conda activate js_fno
+    # from the build tree as below, or from anywhere (a copy made by xscape-examples,
+    # the container's /work, the macOS wheel): then the defaults come from
+    # jetscape.paths and the run gets its own working directory
+    # (jetscape.workdir.build_or_job_dir)
     cd X-SCAPE/build_gpu
     python ../external_packages/js-contrib/contribs/PyJetscape/example/python_fno_test.py
 
@@ -38,10 +42,6 @@ import sys
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
-# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib), and the
-# FnoHydro contrib next to PyJetscape, for the default model and XMLs
-_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
-_FNOHYDRO = os.path.normpath(os.path.join(_REPO_ROOT, "..", "FnoHydro"))
 
 # torch must be imported BEFORE pyjetscape_core (loaded via jetscape.__init__)
 # to avoid a dual-OpenMP-runtime crash: ROOT (pulled in by pyjetscape_core)
@@ -49,11 +49,18 @@ _FNOHYDRO = os.path.normpath(os.path.join(_REPO_ROOT, "..", "FnoHydro"))
 import torch  # noqa: E402
 
 from jetscape import create_module, fno_config_from_xml
+from jetscape import paths as _paths
+from jetscape.workdir import build_or_job_dir
 from jetscape.fno_hydro import PyFNOHydro
 from jetscape.run_jetscape import run_manual
 from jetscape.utils import bulk_info_to_numpy, bulk_info_to_tensor
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
+
+# the X-SCAPE tree ($XSCAPE, the checkout, or an installed tree: jetscape.paths) and its
+# FnoHydro contrib, for the default model and XMLs (after torch: see above)
+_XSCAPE = str(_paths.xscape_root())
+_FNOHYDRO = os.path.join(_XSCAPE, "external_packages", "js-contrib", "contribs", "FnoHydro")
 
 _DEFAULT_MODEL = os.path.join(
     _FNOHYDRO, "models",
@@ -69,7 +76,7 @@ FNO_CONFIG = dict(
     ny=60,
     ntau=59,          # time steps predicted by the model
     neta=1,
-    n_features=3,     # [energy_density*tau, temperature, vx]  (3-feature model)
+    n_features=3,     # [energy_density*tau, vx, vy]  (3-feature model: input and output channels)
     x_min=-15.0,      # fm
     y_min=-15.0,      # fm
     dtau=0.1,         # fm/c
@@ -291,7 +298,9 @@ def main() -> None:
     # Locate the PyFNOHydro instance for post-run inspection
     fno_hydro = next(m for m in modules if isinstance(m, PyFNOHydro))
 
-    js = run_manual(args.main, args.user, modules, n_events=args.events)
+    # from a build tree as always; elsewhere (a copy, the container) in a JobDir
+    with build_or_job_dir(os.getcwd(), args.user, args.main) as job:
+        js = run_manual(job.main_xml, job.user_xml, modules, n_events=args.events)
 
     # n_features: read from config if already resolved, else fall back to
     # FNO_CONFIG (config=None case: _config is populated after js.Init())

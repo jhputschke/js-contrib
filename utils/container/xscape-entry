@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# xscape-entry -- the production image's entrypoint (utils/Dockerfile.prod).
+#
+# `docker run --user <uid>` starts with HOME=/ (not writable), and Jupyter, matplotlib, pip
+# --user, ... cannot write their configuration there.  Then HOME becomes /tmp/home-<uid>.
+# Everything else runs unchanged: `exec "$@"` (the image's CMD is bash).  Apptainer binds
+# the user's home and does not use the entrypoint for `apptainer exec`.
+if [ -z "${HOME:-}" ] || [ ! -w "$HOME" ]; then
+  export HOME="/tmp/home-$(id -u)"
+  mkdir -p "$HOME"
+fi
+exec "$@"

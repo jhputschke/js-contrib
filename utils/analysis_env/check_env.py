@@ -28,7 +28,8 @@ if PYJETSCAPE_PY not in sys.path:
     sys.path.insert(0, PYJETSCAPE_PY)
 
 REQUIRED = ["numpy", "h5py", "hdf5plugin", "yaml", "uproot", "awkward", "scipy",
-            "matplotlib", "pandas", "fastjet", "vector", "notebook", "ipykernel", "ipywidgets"]
+            "matplotlib", "pandas", "fastjet", "vector", "particle", "hist", "mplhep", "notebook",
+            "ipykernel", "ipywidgets"]
 VIZ = ["pyvista", "vtk", "imageio", "imageio_ffmpeg"]
 BLOSC = 32001                      # HDF5 filter id of Blosc, the default compression
 
@@ -83,13 +84,22 @@ def check_packages():
     except Exception as exc:  # noqa: BLE001
         fail(f"jetscape: {exc}")
 
-    # jet_wake.ipynb and analysis/wake_*.py want the file, the visualization takes either
+    # MUSIC_EOS_TABLE names a table; the tools take the one of the file's EOS from its directory
     eos = os.environ.get("MUSIC_EOS_TABLE", "")
+    eos_dir = eos if os.path.isdir(eos) else os.path.dirname(eos)
     if os.path.isfile(eos):
         ok(f"MUSIC_EOS_TABLE={eos}")
     else:
-        warn("MUSIC_EOS_TABLE is not MUSIC's hrg_hotqcd_eos_binary.dat: no e -> T for the "
+        warn("MUSIC_EOS_TABLE is not one of MUSIC's hotQCD tables: no e -> T for the "
              "pair files (visualization: conformal EoS; analysis/wake_*.py: pass --eos)")
+    if eos:
+        for eos_id, name in (("9", "hrg_hotqcd_eos_binary.dat"),
+                             ("91", "hrg_hotqcd_eos_SMASH_binary.dat")):
+            if os.path.isfile(os.path.join(eos_dir, name)):
+                ok(f"EOS {eos_id} table {name}")
+            else:
+                warn(f"no EOS {eos_id} table ({name}) next to MUSIC_EOS_TABLE: no e -> T for "
+                     f"EOS {eos_id} pair files (re-run setup_analysis_env.sh)")
 
     try:
         from importlib.metadata import version as dist_version
@@ -208,16 +218,16 @@ REMOTE_TESTS = {
 
 
 def check_remote(test):
-    """The optional remote-storage interfaces (--with-gcs, --with-pelican): packages, the
+    """The remote-storage interfaces (pelicanfs unless --no-pelican, --with-gcs): packages, the
     fsspec URL schemes they register, and with ``test`` one public read each."""
     from importlib.metadata import PackageNotFoundError
     from importlib.metadata import version as dist_version
 
-    print("Remote storage (optional)")
+    print("Remote storage")
     have = {}
     for what, dists, schemes, flag in (
             ("gcs", ("gcsfs", "google-cloud-storage"), ("gs", "gcs"), "--with-gcs"),
-            ("pelican", ("pelicanfs",), ("osdf", "pelican"), "--with-pelican")):
+            ("pelican", ("pelicanfs",), ("osdf", "pelican"), "--no-pelican given?")):
         try:
             got = ", ".join(f"{d} {dist_version(d)}" for d in dists)
         except PackageNotFoundError:

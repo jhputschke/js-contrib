@@ -6,17 +6,29 @@ PyTorch tensors.  Produces matplotlib plots of energy density, temperature, and
 velocity field slices at selected proper-time steps.
 
 Run it from the X-SCAPE build directory, with PyJetscape built (-DUSE_JS_PYJETSCAPE=ON)
-and PyTorch installed.  The XML defaults are found from where js-contrib sits
-(X-SCAPE/external_packages/js-contrib).
+and PyTorch installed.  The XML defaults come from jetscape.paths ($XSCAPE, the checkout,
+or the installed tree).
+
+The user XML must switch X-SCAPE's automatic pipeline off
+(<enableAutomaticTaskListDetermination> false): this script builds the pipeline itself
+(initial state -> pre-equilibrium -> hydro).  With it on, X-SCAPE adds a second pipeline
+from the XML, and the script reads the first hydro, which got no cells ("bulk_info is
+empty").  The XML must also not set MUSIC's <dump_hydro_only> 1, which hands no copy of
+the evolution to the framework.  The default, FnoHydro's
+config/jetscape_user_root_bulk_test.xml, meets both; config/jetscape_user_MUSIC.xml and
+BulkFastTest/OO_one_event_fast.xml do not work here.  The macOS wheel does not ship the
+FnoHydro contrib: pass that XML (or your copy of it) with --user.
 
 Usage (two modes):
 
   1. Run a fresh simulation (Mode B, explicit module pipeline), then inspect:
        conda activate js_fno
+       # from the build tree as below, or from anywhere (a copy made by xscape-examples,
+       # the container's /work, the macOS wheel): then the defaults come from
+       # jetscape.paths and the run gets its own working directory
+       # (jetscape.workdir.build_or_job_dir)
        cd X-SCAPE/build_gpu
-       python ../external_packages/js-contrib/contribs/PyJetscape/example/inspect_bulk_info.py \\
-           --main ../config/jetscape_main.xml \\
-           --user ../config/jetscape_user_MUSIC.xml
+       python ../external_packages/js-contrib/contribs/PyJetscape/example/inspect_bulk_info.py
 
      --hydro-module chooses the C++ hydro module (default: MUSIC).
 
@@ -27,7 +39,8 @@ Usage (two modes):
 Optional flags:
     --main          Path to main XML config (default: X-SCAPE's config/jetscape_main.xml)
     --user          Path to user XML config (default: FnoHydro's
-                    config/jetscape_user_root_bulk_test.xml)
+                    config/jetscape_user_root_bulk_test.xml); automatic task list off,
+                    no dump_hydro_only (see above)
     --load          Load a previously saved .npy file instead of running a sim
     --save          Save the extracted numpy array to this path (e.g. bulk_info.npy)
     --n-feat        Number of features to extract (default: 4)
@@ -52,10 +65,11 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
-# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib), and the
-# FnoHydro contrib next to PyJetscape, for the default XMLs
-_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
-_FNOHYDRO = os.path.normpath(os.path.join(_REPO_ROOT, "..", "FnoHydro"))
+# the X-SCAPE tree ($XSCAPE, the checkout, or the macOS wheel's installed tree: jetscape.paths)
+# and its FnoHydro contrib, for the default XMLs
+from jetscape import paths as _paths  # noqa: E402
+_XSCAPE = str(_paths.xscape_root())
+_FNOHYDRO = os.path.join(_XSCAPE, "external_packages", "js-contrib", "contribs", "FnoHydro")
 
 
 def parse_args() -> argparse.Namespace:
@@ -65,7 +79,11 @@ def parse_args() -> argparse.Namespace:
     )
     p.add_argument("--main",   default=os.path.join(_XSCAPE, "config", "jetscape_main.xml"))
     p.add_argument("--user",   default=os.path.join(_FNOHYDRO, "config",
-                                                    "jetscape_user_root_bulk_test.xml"))
+                                                    "jetscape_user_root_bulk_test.xml"),
+                   help="user XML with <enableAutomaticTaskListDetermination> false and "
+                        "no MUSIC <dump_hydro_only> 1 (this script builds the pipeline "
+                        "itself); default: FnoHydro's jetscape_user_root_bulk_test.xml, "
+                        "which the macOS wheel does not ship: pass it with --user there")
     p.add_argument("--load",   default=None,
                    help="Load bulk_info from a previously saved .npy file.")
     p.add_argument("--save",   default=None,
@@ -73,7 +91,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--n-feat", type=int, default=4, dest="n_features",
                    help="Number of fluid features to extract (3 or 4).")
     p.add_argument("--outdir", default="inspect_bulk_info_out",
-                   help="Directory to write plot images.")
+                   help="Directory to write plot images (and, when not started in a "
+                        "build tree, the run's JobDir: jetscape.workdir.build_or_job_dir).")
     p.add_argument("--no-show", action="store_true",
                    help="Never open interactive plot windows.")
     p.add_argument("--events", type=int, default=1)
@@ -420,7 +439,9 @@ def print_summary(arr: "np.ndarray", n_features: int) -> None:
 
 def main() -> None:
     args = parse_args()
+    from jetscape.workdir import build_or_job_dir
 
+    args.outdir = os.path.abspath(args.outdir)
     os.makedirs(args.outdir, exist_ok=True)
 
     # ── Acquire data ──────────────────────────────────────────────────────────
@@ -436,7 +457,9 @@ def main() -> None:
         ic_name = "TrentoInitial" if args.use_trento else "GaussianIC"
         print(f"Running JETSCAPE simulation "
               f"(Mode B, hydro: {args.hydro_module}, IC: {ic_name}) ...")
-        js, hydro, ini = run_simulation(args)
+        with build_or_job_dir(args.outdir, args.user, args.main) as job:
+            args.main, args.user = job.main_xml, job.user_xml
+            js, hydro, ini = run_simulation(args)
 
         # Print per-event geometry info when using TrentoInitial
         try:

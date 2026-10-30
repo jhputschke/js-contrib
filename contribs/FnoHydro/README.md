@@ -9,10 +9,10 @@ fidelity needed for downstream hard-probe and hadronisation studies.
 
 The module is derived from the work documented in:
 
-> *Fast prediction of hydrodynamical evolution in ultra-relativistic
-> heavy-ion collisions using Fourier Neural Operators*,
-> https://doi.org/10.48550/arXiv.2507.23598
-> Phys. Rev. C 113 (2026) 1, 014904
+> D. Stewart and J. Putschke, *Fast prediction of the hydrodynamic QGP evolution in
+> ultrarelativistic heavy-ion collisions using Fourier neural operators*,
+> Phys. Rev. C 113, 014904 (2026), https://doi.org/10.1103/jsh8-6tm7,
+> [arXiv:2507.23598](https://arxiv.org/abs/2507.23598)
 
 Data (ROOT format) and several pre-trained models are available at:
 https://zenodo.org/records/16647726
@@ -159,15 +159,22 @@ Example configuration files are in `config/`.
 
 ### FnoHydro — live FNO prediction
 
-Replace `<MUSIC>` with `<FnoHydro>`:
+`FnoHydro` is added to the task list in C++ (`make_shared<FnoHydro>()`, as in `example/`); it
+is not picked by an element name in the XML. It reads its parameters from `<Hydro><FNO>`, and
+two more from other blocks, so keep `<MUSIC>` in the user XML:
+
+- the freeze-out temperature from `<Hydro><MUSIC><freezeout_temperature>`;
+- the EoS from `<Hydro><FNOROOIN><EOS_id_MUSIC>` (91 by default in the main XML);
+- the start time τ₀ from the pre-equilibrium module's end time.
 
 ```xml
 <Hydro>
-  <FnoHydro>
+  <MUSIC>
+    <freezeout_temperature>0.136</freezeout_temperature>
+  </MUSIC>
+  <FNO>
     <model_file>/path/to/models/traced_JS3.7_10k_3feat_fno_model_cpu_0_10_59bins.pt</model_file>
     <n_features>3</n_features>
-    <tau0>0.5</tau0>
-    <freezeout_temperature>0.136</freezeout_temperature>
     <nx>60</nx>
     <ny>60</ny>
     <neta>1</neta>
@@ -175,10 +182,12 @@ Replace `<MUSIC>` with `<FnoHydro>`:
     <x_min>-15.0</x_min>
     <y_min>-15.0</y_min>
     <dtau>0.1</dtau>
-    <EOS_id_MUSIC>91</EOS_id_MUSIC>
-  </FnoHydro>
+    <deta>0</deta>
+  </FNO>
 </Hydro>
 ```
+
+A complete user XML: `config/jetscape_user_root_bulk_test.xml`.
 
 ### FnoRooIn — replay hydro evolution from a ROOT file
 
@@ -325,15 +334,18 @@ https://github.com/jhputschke/JETSCAPE-FNO/tree/main/fno_hydro/train_model
 If you use FnoHydro in scientific work, please cite:
 
 ```bibtex
-@article{FNOHydro2026,
-  title  = {Fast prediction of hydrodynamical evolution in ultra-relativistic
-            heavy-ion collisions using Fourier Neural Operators},
-  journal= {Phys. Rev. C},
-  volume = {113},
-  number = {1},
-  pages  = {014904},
-  year   = {2026},
-  doi    = {10.48550/arXiv.2507.23598}
+@article{Stewart:FNOhydro,
+  author  = {Stewart, David and Putschke, Joern},
+  title   = {Fast prediction of the hydrodynamic {QGP} evolution in ultrarelativistic
+             heavy-ion collisions using {F}ourier neural operators},
+  journal = {Phys. Rev. C},
+  volume  = {113},
+  number  = {1},
+  pages   = {014904},
+  year    = {2026},
+  doi     = {10.1103/jsh8-6tm7},
+  eprint  = {2507.23598},
+  archivePrefix = {arXiv}
 }
 ```
 

@@ -1,0 +1,195 @@
+{
+  "_about": "Presets of utils/prodwizard.py: the productions and the machines, with the launch settings and rates measured on them. mem_peak_gb: the machine-wide peak measured at that setting (idle included); without it the plan uses vmhwm_gb (a job's measured peak resident memory, max over jobs) per job + 6 GB on a workstation and mem_gb_per_job, the conservative figure for SLURM requests (VmHWM + page cache); a SLURM --mem is computed from it unless the machine's setting gives mem_gb (a fixed node share). Rates are events/h for the whole machine (per GPU for slurm machines), [low, high]. 'measured' says whether the rate was measured with the current image at this setting; every number names its source. Update these when a new benchmark is made.",
+  "images": {
+    "auau": "jhputschke/xscape-prod@sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58",
+    "auau_tag": "cu124-20261013-9e84450 (amd64; cu126 sha256:2e870cacbddef12d2f675f206bc54cfb49b7c1f3822e19c487936be93da8fe0f for arm64 and R560+ drivers)",
+    "zjet": "jhputschke/xscape-prod@sha256:2ca82bc4cd389f47a7b4cb40dd4d84cfdace941bd75ac29cd7b0e6d0983fc3fa",
+    "zjet_tag": "cu124-zjet (2026-10-16; TAG_PREFIX support)",
+    "source": "docs/README_2stage.md section 1, REPORT_ZJET_BENCH_3090.md"
+  },
+  "productions": {
+    "auau_jet": {
+      "title": "Au+Au 200 GeV 0-10 %, jets: pair + particlize files (campaign setting)",
+      "prod": "auau",
+      "args": ["--pthat-bins", "10-20,20-30,30-40", "--jets-per-bin", "5", "--parton-ymax", "0.6",
+               "--write-particlize", "both"],
+      "events_multiple": 15, "events_per_job": 45,
+      "vmhwm_gb": 6.7, "mem_gb_per_job": 7.0, "disk_mb_per_event": 243, "lbt": true, "stagger": 12,
+      "source": "docs/README_2stage.md section 4; docs/REPORT_SUMMARY_CLUSTER.md"
+    },
+    "auau_particlize_only": {
+      "title": "Au+Au jets, particlize file only (no hydro history; 2.5x less disk)",
+      "prod": "auau",
+      "args": ["--pthat-bins", "10-20,20-30,30-40", "--jets-per-bin", "5", "--parton-ymax", "0.6",
+               "--write-particlize", "both", "--particlize-only"],
+      "events_multiple": 15, "events_per_job": 45,
+      "vmhwm_gb": 4.6, "mem_gb_per_job": 5.0, "disk_mb_per_event": 97, "lbt": true, "stagger": 12,
+      "note": "+10 % events/h over pair + particlize on the earlier image; not re-measured with the current one",
+      "source": "docs/REPORT_SUMMARY_CLUSTER.md"
+    },
+    "auau_hadrons_only": {
+      "title": "Au+Au jets, hadron files only, in the job (no stage 2)",
+      "prod": "auau",
+      "args": ["--pthat-bins", "10-20,20-30,30-40", "--jets-per-bin", "5", "--parton-ymax", "0.6",
+               "--hadrons-only"],
+      "events_multiple": 15, "events_per_job": 45,
+      "vmhwm_gb": 7.0, "mem_gb_per_job": 7.4, "disk_mb_per_event": 0.64, "lbt": true, "stagger": 12,
+      "note": "~4 % fewer events/h than --particlize-only (GB10); 0.64 MB/event at 1 sample, 5.4 MB at --oversample 10; no surfaces kept, so no new samples later",
+      "source": "docs/README_2stage.md section 3, Hadrons only"
+    },
+    "oo_hadrons": {
+      "title": "O+O 200 GeV with ISR, hadron files only",
+      "prod": "oo",
+      "args": ["--bulk-hadrons", "10", "--no-particlize", "--no-hydro-file"],
+      "events_multiple": 1, "events_per_job": 60,
+      "vmhwm_gb": 1.5, "mem_gb_per_job": 2.0, "disk_mb_per_event": 0.13, "lbt": false, "stagger": 0,
+      "source": "docs/REPORT_SUMMARY_CLUSTER.md (O+O table)"
+    },
+    "oo_full": {
+      "title": "O+O with ISR, default outputs (hydro, particlize, jet hadrons; bulk later)",
+      "prod": "oo",
+      "args": [],
+      "events_multiple": 1, "events_per_job": 60,
+      "vmhwm_gb": 1.5, "mem_gb_per_job": 2.0, "disk_mb_per_event": 28, "lbt": false, "stagger": 0,
+      "source": "docs/REPORT_SUMMARY_CLUSTER.md (O+O table)"
+    },
+    "pbpb_zjet": {
+      "title": "Pb+Pb 5.02 TeV 0-30 % Z+jet, hadron files only (the zjet_cNN campaigns)",
+      "prod": "auau",
+      "image": "zjet",
+      "tag_prefix": "PbPb_0_30_seed",
+      "args": ["--user-xml", "{CONFIG}/PbPb_0_30_ZJet.xml", "--grid", "{CONFIG}/grid_PbPb.yaml",
+               "--pthat-bins", "20-30,30-35,35-45,45-55,55-70,70-200", "--jets-per-bin", "4",
+               "--lepton-ptmin", "20", "--lepton-etamax", "2.5",
+               "--hadrons-only", "--oversample", "40", "--n-frag", "40", "--correlated",
+               "--eta-max", "2.6", "--no-x", "--hadron-keep-bits-p", "12", "--hadron-keep-bits-x", "8",
+               "--keep-primaries", "0"],
+      "events_multiple": 24, "events_per_job": 96,
+      "vmhwm_gb": 13.2, "mem_gb_per_job": 13.5, "disk_mb_per_event": 5.0, "lbt": true, "stagger": 12,
+      "note": "a job peaks at 9.5-13.2 GB on the 3090 box (15.7 GB alone on the GB10), set by the background's N_coll; seeds 1+1000*C.. per campaign C keep campaigns apart (utils/zjet/README.md)",
+      "source": "utils/zjet/README.md, ~/prod_test/REPORT_ZJET_BENCH_3090.md, zjet_c00/c01 (5.0 MB/event)"
+    }
+  },
+  "machines": {
+    "2x3090": {
+      "title": "2 x RTX 3090 workstation (Docker, utils/launch_2gpu.sh)",
+      "kind": "docker2gpu", "gpus": 2, "cores": 24, "mem_gb": 125,
+      "settings": {
+        "auau_jet": {"jobs_per_gpu": 10, "omp": 3, "rate": [2160, 2500], "measured": true, "mem_peak_gb": 105,
+                     "note": "2,160 by makespan with 15-event jobs (2,846 steady state); ~2,400-2,500 expected with 45-event jobs. Host-bound: 22 of 24 cores busy, GPUs 63 %",
+                     "source": "docs/REPORT_FINAL_OPTIM.md, bench/final_optim_20261012 A_N1"},
+        "auau_particlize_only": {"jobs_per_gpu": 10, "omp": 3, "rate": [2160, 2700], "measured": false, "mem_peak_gb": 74,
+                     "note": "estimate: the pair + particlize rate, +0-10 %",
+                     "source": "docs/REPORT_SUMMARY_CLUSTER.md"},
+        "auau_hadrons_only": {"jobs_per_gpu": 10, "omp": 3, "rate": [2000, 2600], "measured": false,
+                     "note": "estimate from the particlize-only rate (-4 % on the GB10)",
+                     "source": "docs/README_2stage.md section 3"},
+        "oo_hadrons": {"jobs_per_gpu": 8, "omp": 3, "rate": [13728, 14260], "measured": true, "mem_peak_gb": 25,
+                     "note": "13,728 by makespan, 14,260 steady state, 60-event jobs; host-bound",
+                     "source": "docs/REPORT_SUMMARY_CLUSTER.md"},
+        "oo_full": {"jobs_per_gpu": 8, "omp": 3, "rate": [12700, 13384], "measured": true, "mem_peak_gb": 25,
+                     "note": "12,700 by makespan; writes ~28 MB/event, more than the OSDF upload takes",
+                     "source": "docs/REPORT_SUMMARY_CLUSTER.md"},
+        "pbpb_zjet": {"jobs_per_gpu": 4, "omp": 3, "rate": [554, 770], "measured": true, "mem_peak_gb": 80,
+                     "note": "8 jobs x 24 events: 554 by makespan, 741-770 steady state; 96-event jobs (4 backgrounds) run near the steady state. Host peak 80 GB; 5 per GPU risks memory",
+                     "source": "~/prod_test/REPORT_ZJET_BENCH_3090.md"}
+      }
+    },
+    "gb10": {
+      "title": "NVIDIA GB10 (run_jobs.sh in the js_fno env, CUDA MPS)",
+      "kind": "native", "env": "js_fno", "mps": true, "gpus": 1, "cores": 20, "mem_gb": 121,
+      "settings": {
+        "auau_jet": {"jobs_per_gpu": 4, "omp": 5, "rate": [750, 800], "measured": false, "mem_peak_gb": 32,
+                     "note": "measured 381 with the code before C4/D1 (GPU-bound, 89 % busy); 750-800 is the Final_Optims estimate for the current code",
+                     "source": "docs/BENCHMARK_GB10.md, docs/REPORT_SUMMARY_CLUSTER.md"},
+        "auau_particlize_only": {"jobs_per_gpu": 4, "omp": 5, "rate": [750, 850], "measured": false,
+                     "note": "estimate", "source": "docs/REPORT_SUMMARY_CLUSTER.md"},
+        "auau_hadrons_only": {"jobs_per_gpu": 4, "omp": 5, "rate": [720, 820], "measured": false,
+                     "note": "estimate; 937 events/h measured at the section 4 layout with 4 x 30 events (README_2stage.md section 3)",
+                     "source": "docs/README_2stage.md section 3"},
+        "oo_hadrons": {"jobs_per_gpu": 8, "omp": 2, "rate": [3500, 4500], "measured": false, "mem_peak_gb": 29,
+                     "note": "measured 1,620 on the old +-15 fm grid and code; 3,500-4,500 estimated for the current image",
+                     "source": "docs/REPORT_SUMMARY_CLUSTER.md"},
+        "oo_full": {"jobs_per_gpu": 8, "omp": 2, "rate": [3300, 4300], "measured": false,
+                     "note": "estimate", "source": "docs/REPORT_SUMMARY_CLUSTER.md"},
+        "pbpb_zjet": {"jobs_per_gpu": 4, "omp": 5, "rate": null, "measured": false,
+                     "note": "not measured as a campaign; one event alone 38.9 s at 15.7 GB peak (2.3x Au+Au)",
+                     "source": "docs/BENCHMARK_PbPb_vs_AuAu.md"}
+      }
+    },
+    "m3max": {
+      "title": "Apple M3 Max, 64 GB (run_jobs.sh in the fno_env_mlx env, Metal)",
+      "kind": "native", "env": "fno_env_mlx", "mps": false, "mac": true, "gpus": 1, "cores": 16, "mem_gb": 64,
+      "settings": {
+        "auau_jet": {"jobs_per_gpu": 3, "omp": 5, "rate": null, "measured": false,
+                     "note": "not measured at this setting; 284 events/h with -j 3 at the plain setting (a new background every event, pT-hat 50-70) on the code before C4/D1",
+                     "source": "docs/BENCHMARK_M3MAX.md"},
+        "auau_particlize_only": {"jobs_per_gpu": 3, "omp": 5, "rate": null, "measured": false,
+                     "note": "not measured", "source": "docs/BENCHMARK_M3MAX.md"},
+        "auau_hadrons_only": {"jobs_per_gpu": 3, "omp": 5, "rate": null, "measured": false,
+                     "note": "not measured", "source": "docs/BENCHMARK_M3MAX.md"},
+        "oo_hadrons": {"jobs_per_gpu": 4, "omp": 4, "rate": null, "measured": false,
+                     "note": "not measured on the Mac (one O+O job: -48 % with final_optim)", "source": "docs/BENCHMARK_M3MAX.md"},
+        "oo_full": {"jobs_per_gpu": 4, "omp": 4, "rate": null, "measured": false,
+                     "note": "not measured", "source": "docs/BENCHMARK_M3MAX.md"},
+        "pbpb_zjet": {"jobs_per_gpu": 2, "omp": 8, "rate": null, "measured": false,
+                     "note": "not measured; at ~14-16 GB per job only 2-3 fit in 64 GB", "source": "docs/BENCHMARK_PbPb_vs_AuAu.md"}
+      }
+    },
+    "slurm_v100": {
+      "title": "SLURM cluster, V100 per array task", "kind": "slurm",
+      "cpus": 16,
+      "settings": {
+        "auau_jet": {"jobs_per_gpu": 8, "rate": [700, 950]},
+        "auau_particlize_only": {"jobs_per_gpu": 8, "rate": [700, 1000]},
+        "auau_hadrons_only": {"jobs_per_gpu": 8, "rate": [670, 920]},
+        "oo_hadrons": {"jobs_per_gpu": 8, "rate": [4200, 5700]},
+        "oo_full": {"jobs_per_gpu": 8, "rate": [3900, 5300]}
+      },
+      "note": "extrapolated, not measured on this GPU (REPORT_SUMMARY_CLUSTER.md part 2); not in the cu130 image",
+      "source": "docs/REPORT_SUMMARY_CLUSTER.md, utils/slurm_prod_array.sh"
+    },
+    "slurm_a40": {
+      "title": "SLURM cluster, A40 per array task", "kind": "slurm",
+      "cpus": 16,
+      "settings": {
+        "auau_jet": {"jobs_per_gpu": 10, "cpus": 24, "rate": [1100, 1400]},
+        "auau_particlize_only": {"jobs_per_gpu": 10, "cpus": 24, "rate": [1100, 1500]},
+        "auau_hadrons_only": {"jobs_per_gpu": 10, "cpus": 24, "rate": [1050, 1350]},
+        "oo_hadrons": {"jobs_per_gpu": 12, "cpus": 16, "rate": [7000, 8500]},
+        "oo_full": {"jobs_per_gpu": 12, "cpus": 16, "rate": [6500, 7900]},
+        "pbpb_zjet": {"jobs_per_gpu": 3, "cpus": 16, "mem_gb": 58, "rate": [210, 320],
+                      "note": "Delta gpuA40x4 share (zjet_slurm_campaign.sh): 10 jobs x 96 events per task in ~3-4.5 h, estimate",
+                      "source": "utils/zjet/zjet_slurm_campaign.sh"}
+      },
+      "note": "extrapolated, not measured on this GPU (REPORT_SUMMARY_CLUSTER.md part 2)",
+      "source": "docs/REPORT_SUMMARY_CLUSTER.md, utils/slurm_prod_array.sh"
+    },
+    "slurm_a100": {
+      "title": "SLURM cluster, A100 per array task", "kind": "slurm",
+      "cpus": 24,
+      "settings": {
+        "auau_jet": {"jobs_per_gpu": 12, "cpus": 24, "rate": [1000, 1500]},
+        "auau_particlize_only": {"jobs_per_gpu": 12, "cpus": 24, "rate": [1000, 1600]},
+        "auau_hadrons_only": {"jobs_per_gpu": 12, "cpus": 24, "rate": [950, 1450]},
+        "oo_hadrons": {"jobs_per_gpu": 12, "cpus": 16, "rate": [6000, 8800]},
+        "oo_full": {"jobs_per_gpu": 12, "cpus": 16, "rate": [5600, 8200]}
+      },
+      "note": "extrapolated, not measured on this GPU (REPORT_SUMMARY_CLUSTER.md part 2)",
+      "source": "docs/REPORT_SUMMARY_CLUSTER.md, utils/slurm_prod_array.sh"
+    },
+    "slurm_l40s": {
+      "title": "SLURM cluster, L40S per array task", "kind": "slurm",
+      "cpus": 32,
+      "settings": {
+        "auau_jet": {"jobs_per_gpu": 20, "cpus": 32, "rate": [2000, 2900]},
+        "auau_particlize_only": {"jobs_per_gpu": 20, "cpus": 32, "rate": [2000, 3100]},
+        "auau_hadrons_only": {"jobs_per_gpu": 20, "cpus": 32, "rate": [1900, 2800]},
+        "oo_hadrons": {"jobs_per_gpu": 18, "cpus": 32, "rate": [12000, 17000]},
+        "oo_full": {"jobs_per_gpu": 18, "cpus": 32, "rate": [11000, 16000]}
+      },
+      "note": "extrapolated, not measured on this GPU; the cores per GPU set the rate (REPORT_SUMMARY_CLUSTER.md part 2)",
+      "source": "docs/REPORT_SUMMARY_CLUSTER.md, utils/slurm_prod_array.sh"
+    }
+  }
+}

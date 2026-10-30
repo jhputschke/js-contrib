@@ -87,6 +87,9 @@ ingredient, its difference to the step before is what that ingredient costs:
 | **4** | strict | one Z per background (drawn ∝ w, weighted by the background's Σw), **one** oversample | 10 partners from 10 other backgrounds **of that set**, one oversample each | an experiment's statistics: every Z its own fluid | the **errors**, compared with CMS's statistical errors (checks 5, 6); its central values are not the point |
 | (pp) | – | the fragments (Pythia's Z + jet with MPI, Matter in vacuum) | as step 1 (no fluid) | – | the reference for Pb+Pb − pp in every step |
 
+Every mode written out (S and B from `bulk_jet`, `bulk_bg`, `jet_frag`, the oversamples, the
+partners, the weights, pp, `strict` against CMS): [`MIXING_MODES.md`](MIXING_MODES.md).
+
 Why steps 3 and 4 never take a partner from the Z's own background: its 24 events share the
 fluid (and the random numbers), and such a partner would cancel part of S's fluctuations, which
 no experiment can do. The price, with weighted backgrounds, is a small flat bias of order
@@ -142,31 +145,49 @@ route B:  *_hadrons_*.h5  --run_h5toROOT.py-->  *_hadrons.root  --zhadron_pools-
 | pools made by | format | read by |
 |---|---|---|
 | `mix.py`'s own map step (route A, Python, from the HDF5 files; `zjet_mixing.file_pool`) | compressed `.npz` in `--pools/<sample>/`, with a manifest | `mix.py` (cached; rebuilt when the files, the selection or the seed change) |
-| `zhadron_pools` (route B, C++, from the ROOT hadron files) | `.root` (TTrees `pool_events`, `pool_bg`) | `mix.py --pbpb-pools / --vacuum-pools` (`zjet_mixing.read_root_pool`) |
+| `zhadron_pools` (route B, C++, from the ROOT hadron files) | `.root` (TTrees `pool_events`, `pool_bgw`, `pool_bgr`, `file_info`) | `mix.py --pbpb-pools / --vacuum-pools` (`zjet_mixing.read_root_pool`) |
 
 The content is the same (`check_cxx.py pools`, array by array); `mix.py` never reads the ROOT
 hadron files itself. Pb+Pb and pp can come from different routes, but the checks assume one.
+
+The pools are of **version 4** (2026-10-19): each carries its production file's record
+(`fi_*` / `file_info`: name, events, hydro backgrounds, pTHat windows) and keeps its sums
+unweighted per hydro background and pTHat window, so the pools of any set of files, of one
+campaign or of several built apart, are weighted for that set when they are loaded
+(`zjet_mixing.assemble`: the ids and weights of `HadronFileReader` over the whole set, the same
+to rounding as one build of all files; `test/combine_check.py`). Every pool also stores its
+grid's edges (`grid_*` / `pool_grid`, since 2026-10-29), and pools binned on other edges than
+`zjet_mixing.GRID` are refused (older pools: today's grid). Pools of version 3 (before) load as
+stored, one directory at a time, and do not mix with version 4.
 
 **Per selected Z** (CMS 2507.09307's Z selection):
 
 | field | shape | what |
 |---|---|---|
-| `event`, `bg` | – | the global event index, its hydro background (dense id over the campaign) |
-| `w` | – | the weight: window σ / events × N_coll, mean 1 over the selected Z's |
+| `local_event`, `pthat_bin`, `n_coll`, `bg_unit` | – | the keys: the event in its file, its pTHat window, N_coll, its hydro background in the file |
+| `event`, `bg`, `w` | – | made at load time for the set loaded: the global event index, its hydro background (dense id), the weight window σ / events × N_coll, mean 1 over the selected Z's |
 | `y`, `phi` | – | the Z's y_Z and φ_Z |
 | `k_one`, `n_samples` | – | the event's one "recorded" oversample (`zjet_wake.key_index(event_key(seed, file name, event in the file), n)`), the number of oversamples |
 | `S_full` | 3 × 24 × 20 | the full event's tracks (`bulk_jet` + fragments) in the Z frame: p_T class × Δy (0.4) × Δφ (π/10), mean over all oversamples |
 | `S_one` | 3 × 24 × 20 | the same for oversample `k_one` alone: one collision |
 | `trk_pt`, `trk_eta`, `trk_phi` | n tracks | that oversample's tracks in the lab frame (p_T class, η, φ): what this event contributes as a mixing partner |
+| `Y_full`, `Y_one`, `Y_zc`, `Y_frag` | 3 × 2 × 96 | the dijet proxy's contents ([`../dijet/ANA_Deta.md`](../dijet/ANA_Deta.md)): Δy = η − y_Z in 0.1 per side of the Z (\|Δφ\| < π/2, the away side); the full event, one oversample, the Z-correlated yield, the fragments |
+| `L_full`, `L_zc`, `L_frag` | 3 × 2 × 48 | the same in lab η (0.1) |
 
-**Per hydro background** (summed over its selected Z's):
+**Per hydro background and pTHat window** (unweighted sums over its selected Z's; `pool_bgw`):
 
 | field | shape | what |
 |---|---|---|
-| `W`, `W2` | – | Σw, Σw² |
-| `SW_full`, `SW_zc` | 3 × 24 × 20 | Σ w·S in the Z frame: the full event; the Z-correlated yield (`bulk_jet` − `bulk_bg` sample by sample, + fragments) |
-| `T_full`, `T_zc` | 3 × 24 × 20 | Σ w²·S, the self pairs' terms |
-| `R_full`, `R_zc` | 3 × 48 × 60 | Σ w·ρ, the lab-frame track density: p_T class × η (0.1) × φ (6°) |
+| `unit`, `k` | – | the hydro background in the file, the window |
+| `n`, `ncoll` | – | the number of selected Z's, the background's N_coll |
+| `S_full`, `S_zc` | 3 × 24 × 20 | Σ S in the Z frame: the full event; the Z-correlated yield (`bulk_jet` − `bulk_bg` sample by sample, + fragments) |
+| `R_full` | 3 × 48 × 60 | Σ ρ, the lab-frame track density of the full event: p_T class × η (0.1) × φ (6°) |
+
+Per hydro background (`pool_bgr`, Pb+Pb): `RB`, its `bulk_bg` lab density per sample. Every
+event's weight factorizes into its window's (σ / events) and its background's (N_coll), so at
+load time `assemble` makes the per-background sums the steps use: W = Σw, W2 = Σw², SW = Σ w·S
+and T = Σ w²·S (the self pairs' terms) for both contents, R_full = Σ w·ρ and R_zc = R_full −
+W·RB.
 
 Tracks are always charged, |η| < 2.4, p_T 1–10 GeV, without the Z's two leptons. Vacuum pools
 store one content (full = Z-correlated).
@@ -272,7 +293,16 @@ python mix.py --pbpb "$DATA/gpu*/*_hadrons_jet_frag.h5" --vacuum "$PP/*_hadrons_
 
 - The pools land in `$ANA/pools/pbpb` and `$ANA/pools/vacuum` (compressed `.npz`, a manifest);
   the second command reuses them. They are rebuilt by themselves when the files, the selection
-  or the seed change (add a campaign: everything is rebuilt, the weights change).
+  or the seed change (files added to the same `--pbpb`: all of that directory's pools are
+  rebuilt). A new campaign is better built on its own (`--pools-only`: build and stop) and
+  combined with the others when they are read:
+  ```bash
+  python mix.py --pbpb "/data/zjet_c01/gpu*/*_hadrons_jet_frag.h5" --vacuum none \
+      --pools /data/ana_c01/pools --pools-only --jobs 8
+  python mix.py --pbpb-pools /data/ana_c00/pools/pbpb /data/ana_c01/pools/pbpb \
+      --vacuum-pools /data/ana_c00/pools/vacuum --hists '' --outdir ... --tag _c00-01
+  ```
+  ([README](README.md#combining-campaigns); `--pools-only` with `--vacuum none` skips the pp).
 - `--hists ''`: check (1) compares with the 96-event test's `compare.py` and is skipped here.
 - Cost (estimated from the test): the map a few seconds per file and ~2–3 GB per process, so
   `--jobs 8` takes minutes and ~20 GB; the reduce a few minutes.
@@ -288,6 +318,17 @@ step 2's closure (A3), which decides whether it is the comparison with data.
 2. **Pb+Pb 0–30 %** (middle row): the jet side (Δφ ≈ π, quenched fragments plus medium response)
    and the Z side (Δφ ≈ 0, Δy ≈ 0: the wake's depletion at 1–2 GeV).
 3. **Pb+Pb − pp** (bottom row): the medium's modification, the paper's headline observable.
+
+What makes the Z side's Pb+Pb − pp (with version-4 pools): `wake_decomp.py` splits its Δy into
+the fragments' and the wake's parts, each into its own Z-side yield and its level. CMS's
+observable subtracts the mean (S − B integrates to zero), so tracks added on the jet side lower
+the Z side and tracks removed there raise it: a Z-side depletion can come from the wake's
+Z-side yield or from its jet-side excess, and the quenched fragments' jet-side deficit works
+against it.
+
+```bash
+python wake_decomp.py --pbpb $ANA/pools/pbpb --pp $ANA/pools/vacuum --outdir $ANA/figures --tag _c00
+```
 
 **A3. Step 2, the closure** — `mixing_dphi_c00.png`, `mixing_dy_c00.png`: blue (all) against red
 (factorized); the summary's checks (2) and (3). Expect the bulk term (all − all with the bulk
@@ -419,7 +460,8 @@ went through the same mixing as the data).
 
 **Steps 1–4: `mixing_dphi_c00.png`, `mixing_dy_c00.png`** — 2 rows: Pb+Pb 0–30 % and
 Pb+Pb − pp; the four steps side by side (factorized red, all blue, cms10 green, strict orange)
-with their errors (jackknife over the backgrounds; strict: the spread over its Z's). How each
+with their errors (jackknife over the backgrounds, each block left out of S and B together;
+strict: the spread over its Z's, its jackknife in the summary's error table). How each
 experimental ingredient moves the result (it should not, within the errors, if the closure
 holds) and widens the errors.
 

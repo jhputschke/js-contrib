@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<!--
+  analysis/zjet/pp_comp/ZJet_pp_PP19.xml: the pp Z+jet reference with JETSCAPE's PP19 tune
+  (arXiv:1910.05481, Table I and section II.E) for run_prod_vacuum.py, which takes from a user
+  XML only the general settings, <Hard><PythiaGun> and <Eloss> (deltaT, maxT, tStart, mutex,
+  <Matter>, with in_vac 1 and recoil_on 0 forced).
+
+  Everything is the campaign's (../../../config/PbPb_0_30_ZJet.xml, the pp reference of
+  utils/zjet/README.md) except Matter's Q0:
+
+    PP19 (Table I)                              campaign                 here
+    ISR on, MPI on, FSR off                     the same                 the same
+    partons: status 62, pT > 2 GeV              softMomentumCutoff 2.0   the same
+    hard QCD processes, electroweak off         Z + parton processes     the campaign's (Z+jet)
+    Matter Q_ini = 0.5 pT (vir_factor 0.25)     main XML's 0.25          the same
+    Lambda_QCD 0.2 GeV                          main XML's 0.2           the same
+    Matter Q0 = 1 GeV                           2 GeV (Matter -> LBT)    1.0
+    hadronization: Colorless (JETSCAPE's        Colorless                Colorless (the same
+      config/publications_config file)                                   ../config/hadronize.xml)
+    decays c tau < 1 cm                         tau0Max 10 mm            the same
+
+  check_settings.py inputs verifies that the PythiaGun and Matter blocks agree with the
+  campaign's but for Q0, and check_settings.py jobs that the two job XMLs differ in Q0 alone.
+-->
+<jetscape>
+
+  <debug> off </debug>
+  <remark> off </remark>
+  <vlevel> 0 </vlevel>
+  <nEvents_printout> 10 </nEvents_printout>
+  <enableAutomaticTaskListDetermination> true </enableAutomaticTaskListDetermination>
+
+  <JetScapeWriterAscii> off </JetScapeWriterAscii>
+  <JetScapeWriterAsciiGZ> off </JetScapeWriterAsciiGZ>
+  <JetScapeWriterHepMC> off </JetScapeWriterHepMC>
+  <JetScapeWriterRootHepMC> off </JetScapeWriterRootHepMC>
+  <JetScapeWriterFinalStatePartonsAscii> off </JetScapeWriterFinalStatePartonsAscii>
+  <JetScapeWriterFinalStateHadronsAscii> off </JetScapeWriterFinalStateHadronsAscii>
+  <JetScapeWriterQnVectorAscii>off</JetScapeWriterQnVectorAscii>
+
+  <!-- the campaign's Z+jet PythiaGun (pTHatMin/Max are overwritten per window) -->
+  <Hard>
+    <PythiaGun>
+      <name>PythiaGun</name>
+      <FSR_on>0</FSR_on>
+      <pTHatMin>60</pTHatMin>
+      <pTHatMax>80</pTHatMax>
+      <eCM>5020</eCM>
+      <softMomentumCutoff>2.0</softMomentumCutoff>
+      <minPartons>1</minPartons>
+      <trigger>Z</trigger>
+      <LinesToRead>
+        HardQCD:all = off
+        PromptPhoton:all = off
+        WeakBosonAndParton:qqbar2gmZg = on
+        WeakBosonAndParton:qg2gmZq = on
+        WeakZ0:gmZmode = 2
+        23:onMode = off
+        23:onIfAny = 11 13
+        PartonLevel:ISR = on
+        PartonLevel:MPI = on
+      </LinesToRead>
+    </PythiaGun>
+  </Hard>
+
+  <Eloss>
+    <deltaT> 0.1 </deltaT>
+    <maxT> 20 </maxT>
+    <tStart> 0.5 </tStart>
+    <mutex> ON </mutex>
+
+    <Matter>
+      <name> Matter </name>
+      <matter_on> 1 </matter_on>
+      <Q0> 1.0 </Q0>                <!-- PP19; the campaign: 2.0 -->
+      <in_vac> 1 </in_vac>
+      <recoil_on> 0 </recoil_on>
+      <broadening_on> 0 </broadening_on>
+      <brick_med> 0 </brick_med>
+      <hydro_Tc> 0.16 </hydro_Tc>
+      <qhat0> -2.0 </qhat0>
+      <alphas> 0.25 </alphas>
+      <QhatParametrizationType> 1 </QhatParametrizationType>
+    </Matter>
+  </Eloss>
+
+</jetscape>

@@ -7,7 +7,9 @@ two-stage hydro), written straight to HDF5 like the Au+Au productions.
 
     IS (3dMCGlauber O16, positions) -> PythiaIsrGun -> iMATTER (ISR) -> 3dMCGlauber strings
       (the hard partons' momentum subtracted) -> NullPreDynamics -> MUSIC (music4gpu)
-      -> Matter in MUSIC's medium -> iColoredHadronization (partons + beam remnants)
+      -> Matter + LBT in MUSIC's medium -> iColoredHadronization (partons + beam remnants,
+         through the colour flow; the lines that end in the medium closed, <colour_closure>)
+      (--matter-only: Matter alone, the default before 2026-10-21)
 
 One call = one job = one seed.  Each job writes, next to each other:
 
@@ -124,9 +126,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--out", default=None,
                    help="hydro file name (default: OO_isr[_<campaign>]_seed<NNNN>.h5, or "
                         "OO_isr_<campaign>_<NNNN>.h5 with --seed 0)")
-    p.add_argument("--build", default=os.path.join(rp.XSCAPE, "build_gpu"),
-                   help="X-SCAPE build tree (default: build_gpu)")
-    p.add_argument("--main-xml", default=os.path.join(rp.XSCAPE, "config", "jetscape_main.xml"),
+    p.add_argument("--build", default=rp.BUILD,
+                   help="X-SCAPE build tree (default: $JETSCAPE_BUILD, else build_gpu)")
+    p.add_argument("--main-xml", default=rp.MAIN_XML,
                    dest="main_xml")
     p.add_argument("--user-xml", default=USER_XML, dest="user_xml",
                    help="template user XML (default: ../config/OO_MCGlauber_MUSIC_isr.xml)")
@@ -160,7 +162,7 @@ def parse_args() -> argparse.Namespace:
                    help="3dMCGlauber minimum impact parameter [fm] (default: the XML's, 0)")
     p.add_argument("--b-max", type=float, default=None, dest="b_max",
                    help="3dMCGlauber maximum impact parameter [fm] (default: the XML's, 3, "
-                        "about 0-20%% of O+O). Inside X-SCAPE b selects the centrality; "
+                        "about 0-24%% of O+O). Inside X-SCAPE b selects the centrality; "
                         "the hard scattering sits at one of the binary collisions")
     p.add_argument("--late-dtau", type=float, default=None, dest="late_dtau", metavar="DT",
                    help="MUSIC's time step from --late-tau on [fm/c] (the XML's "
@@ -196,6 +198,15 @@ def parse_args() -> argparse.Namespace:
                         "partons, beam remnants, colour-balancing parton) in the jet_frag "
                         "file (hadronization_input/), so rehadronize_jets.py can redo the "
                         "jet hadrons later (other settings, decays off, positions)")
+    p.add_argument("--matter-only", action="store_true", dest="matter_only",
+                   help="Matter alone (no <Eloss><Lbt>, Matter's recoil_on 0): the energy "
+                        "loss before 2026-10-21, when LBT's partons had no colour. For an "
+                        "X-SCAPE without the colour closure, and to extend Matter-only "
+                        "campaigns (their jet hadrons are not combinable with Matter + LBT)")
+    p.add_argument("--colour-closure", default=None, dest="colour_closure",
+                   choices=("reconnect", "reconnect_global", "thermal", "fake", "none"),
+                   help="iColored's <colour_closure> for this job (default: the XML's, "
+                        "reconnect): how the colour lines that end in the medium are closed")
     p.add_argument("--eos", choices=("9", "91"), default=None,
                    help="MUSIC's EOS (default: the XML's, 91: hotQCD + the SMASH hadron "
                         "list, the tunes' EOS; 9: the UrQMD list, older campaigns)")
@@ -260,6 +271,12 @@ def job_xml(a, out_h5: str):
     _set(root, "nEvents", a.events)
     root.find("Random/seed").text = str(a.seed)
     _set(root, "setReuseHydro", "false")     # every event has its own strings (after ISR)
+    if a.matter_only and root.find("Eloss") is not None:
+        eloss_node = root.find("Eloss")
+        if eloss_node.find("Lbt") is not None:
+            eloss_node.remove(eloss_node.find("Lbt"))
+        if eloss_node.find("Matter") is not None:
+            _set(eloss_node.find("Matter"), "recoil_on", 0)
     _set(root, "nReuseHydro", 1)
 
     tags = [c.tag for c in root]
@@ -328,9 +345,8 @@ def job_xml(a, out_h5: str):
     eloss = root.find("Eloss")
     if eloss is None:
         problems.append("need <Eloss>")
-    elif eloss.find("Lbt") is not None and not a.no_jet_hadrons:
-        problems.append("<Eloss><Lbt>: LBT's partons carry no colour, which "
-                        "iColoredHadronization cannot take; remove it (or --no-jet-hadrons)")
+    # <Eloss><Lbt> needs LBT's colour tags and iColored's <colour_closure>
+    # (PLAN_lbt_colour_tags.md); checked against the build in main()
     jh = root.find("JetHadronization")
     if a.no_jet_hadrons:
         if jh is not None:
@@ -341,6 +357,8 @@ def job_xml(a, out_h5: str):
         # every event reseeds Pythia from the job's seed and records the seed
         _set(jh, "reseed_per_event", 1)
         _set(jh, "store_input", int(a.store_hadronization_input))
+        if a.colour_closure:
+            _set(jh, "colour_closure", a.colour_closure)
     for tag in ("SoftParticlization", "Afterburner", "Liquefier", "RootBulkWriter",
                 "FastRootBulkWriter"):
         if root.find(tag) is not None:
@@ -533,10 +551,14 @@ def main() -> int:
         pthat_desc += f", hard partons |y| < {a.parton_ymax:g} ({a.parton_y_mode})"
     hard = (f"PythiaIsrGun {pthat_desc}, ISR (iMATTER) to "
             f"-{_text(root, 'Eloss/maxT')} fm/c")
+    # the final-state energy loss, as the job XML has it
+    recoil = (_text(root, "Eloss/Matter/recoil_on") or "0").strip()
+    eloss = ("Matter + LBT" if root.find("Eloss/Lbt") is not None else "Matter") + \
+        f" (Matter recoil_on {recoil})"
     print(f"prod_OO_isr: {a.events} event(s), seed {a.seed}"
           + (" (from OS entropy)" if a.seed_source == "os_entropy" else "")
           + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
-          + f", {system}, {hard}, Matter in MUSIC, "
+          + f", {system}, {hard}, {eloss} in MUSIC, "
           + ("no jet hadronization" if a.no_jet_hadrons else "iColored jet hadronization")
           + (f", iSS in the job ({a.bulk_hadrons} oversamples)" if out_bulk else "")
           + (", NO SUBTRACTION (reference)" if a.no_subtraction else ""))
@@ -565,6 +587,13 @@ def main() -> int:
               "<decay_smash_list> 0): rho, omega, K*, Delta ... stay in the bulk hadrons"
               + ("; with --no-particlize the surfaces are not kept to redo it."
                  if a.no_particlize else "."), file=sys.stderr)
+    if (root.find("Eloss/Lbt") is not None and not a.no_jet_hadrons
+            and not getattr(core, "ICOLORED_HAS_COLOUR_CLOSURE", False)):
+        sys.exit("run_prod_oo_isr.py: <Eloss><Lbt> (the default) needs X-SCAPE with LBT's "
+                 "colour tags and iColoredHadronization's <colour_closure> "
+                 "(lbt_colored_hadro), and PyJetscape built against it; with an older build "
+                 "use --matter-only (Matter alone, as before 2026-10-21) or "
+                 "--no-jet-hadrons")
     if not a.no_jet_hadrons and not getattr(core, "ICOLORED_HAS_INPUT_RECORD", False):
         if a.store_hadronization_input:
             sys.exit("run_prod_oo_isr.py: --store-hadronization-input needs X-SCAPE's "
@@ -597,8 +626,9 @@ def main() -> int:
         "prod_bulk_info": a.bulk_info,
         "system": system,
         "initial_state_kind": "3dMCGlauber_strings_after_ISR",
-        "hydro": "MUSIC (music4gpu)" if "gpu" in os.path.basename(a.build) else "MUSIC",
-        "jet": "PythiaIsrGun + iMATTER (ISR); Matter in MUSIC's medium (FSR)",
+        "hydro": rp.hydro_label(a.build),
+        "jet": f"PythiaIsrGun + iMATTER (ISR); {eloss} in MUSIC's medium (FSR)",
+        "eloss": eloss,
         "jet_hadronization": "none" if a.no_jet_hadrons else
                              "iColoredHadronization, in the job (<stem>_hadrons_jet_frag.h5)",
         "bulk_hadronization": f"iSS in the job, {a.bulk_hadrons} oversamples "
@@ -711,7 +741,7 @@ def main() -> int:
                    "decayed": iss_decays != "none",
                    **{k: v for k, v in provenance.items()
                       if k in ("prod", "prod_seed", "system", "prod_hard",
-                                 "subtract_hard_momentum", "eos")}})
+                                 "subtract_hard_momentum", "eos", "eloss")}})
         if out_bulk_primary:
             # full precision, positions, no selection: what SMASH needs
             pbwriter = HadronH5Writer(
@@ -743,9 +773,10 @@ def main() -> int:
                                         **{k: v for k, v in provenance.items()
                                            if k in ("prod", "prod_seed", "system",
                                                     "prod_hard", "subtract_hard_momentum",
-                                                    "eos")}})
+                                                    "eos", "eloss")}})
 
     n = n_hydro = no_medium = 0
+    colour_totals = None          # iColored's colour audits added up (the log summary)
     skipped = []                  # (event, error) of events whose simulation threw
     t_job = time.time()
     try:
@@ -817,9 +848,14 @@ def main() -> int:
                 frag_n = len(frag["pid"])
                 hin = (core.hadronization_input_numpy(tasks["HadronizationManager"])
                        if a.store_hadronization_input else None)
+                # iColored's colour audit of the event (PLAN_lbt_colour_tags.md, C3)
+                audit = ({f"colour_{key}": val for key, val in
+                          core.jet_hadronization_colour_audit(
+                              tasks["HadronizationManager"]).items()}
+                         if getattr(core, "ICOLORED_HAS_COLOUR_AUDIT", False) else {})
                 hwriter.append_unit([frag], initiators=initiators_from_manager(mgr),
                                     hadronization_input=hin, unit=k, event=i, hydro_row=row,
-                                    seed=ev.get("jet_pythia_seed", 0), **ev)
+                                    seed=ev.get("jet_pythia_seed", 0), **ev, **audit)
             jetscape.ClearPerEvent()
             wall = time.time() - t0
             if pwriter is not None:
@@ -840,6 +876,8 @@ def main() -> int:
         sigma = core.hard_process_info(gun)
         if windows is not None:
             windows = core.pythia_gun_bins(gun)          # the final cross sections
+        if not a.no_jet_hadrons and getattr(core, "ICOLORED_HAS_COLOUR_CLOSURE", False):
+            colour_totals = core.jet_hadronization_colour_totals(tasks["HadronizationManager"])
         jetscape.Finish()
     finally:
         if writer is not None:
@@ -895,6 +933,8 @@ def main() -> int:
                        particlize_events_written=pwriter.GetNumberOfEventsWritten())
     if out_frag:
         summary["jet_frag"] = out_frag
+    if colour_totals is not None:
+        summary["jet_colour_totals"] = dict(colour_totals)
     if out_bulk:
         summary.update(bulk_bg=out_bulk, bulk_oversample=a.bulk_hadrons)
     if out_bulk_primary:

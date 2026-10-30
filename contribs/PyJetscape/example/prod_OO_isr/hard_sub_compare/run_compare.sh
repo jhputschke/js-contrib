@@ -29,9 +29,11 @@ B_MIN=${B_MIN:-0}             # impact parameter range [fm]: 0-5.6 is 0-80%,
 B_MAX=${B_MAX:-5.6}           # 0-12 every inelastic collision
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-2}
 
+# --matter-only: these campaigns ran with Matter alone (the default before 2026-10-21);
+# jobs added to them must too.  Matter + LBT is a new comparison in new directories.
 common=(--b-min "$B_MIN" --b-max "$B_MAX"
         --pthat-bins 10-20,20-30,30-40 --parton-ymax 0.6 --parton-y-mode both
-        --bulk-hadrons 10 --no-particlize --no-hydro-file --no-x)
+        --bulk-hadrons 10 --no-particlize --no-hydro-file --no-x --matter-only)
 
 # The two campaigns alternate in blocks of BLOCK jobs (run_jobs.sh skips complete jobs, so
 # growing NJOBS continues where the last block stopped): an interrupted run leaves about

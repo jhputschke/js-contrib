@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # launch_2gpu.sh: prod_AuAu_0_10_jet on both GPUs of this machine (2 x RTX 3090, 24 cores),
-# with the best measured setup (README_launch.md): one container per GPU, each running
-# run_jobs.sh -j 8 --mps with OMP_NUM_THREADS=4  (~520-535 events/h, ~87 GB host memory).
+# with the best measured setup as the default (README_launch.md): one container per GPU, each
+# running run_jobs.sh -j 10 --mps --stagger 12 with OMP_NUM_THREADS=3, MUSIC_CUDA_SYNC=block and
+# LBT's tables shared through one cache file (~2,160 events/h in the campaign setting with the
+# current image, ~105 GB host memory peak; docs/REPORT_FINAL_OPTIM.md).
 #
 #   ./launch_2gpu.sh [upload options] NJOBS EVENTS_PER_JOB [FIRST_SEED] [OUTBASE] [run_prod_jet.py args...]
 #   ./launch_2gpu.sh 64 25                        # 64 jobs x 25 events, unique seeds
@@ -14,15 +16,13 @@
 #                    # events (EVENTS must be a multiple of 15), |y| < 0.6 on the leading parton.
 #                    # Measured: ~810 events/h (vs 450 without bins), 97 GB host memory, ~0.25 GB
 #                    # disk per event (README_launch.md)
-#   IMAGE=jhputschke/xscape-prod:cu124-cuda-sync-mem-test JOBS_PER_GPU=10 OMP_THREADS=3 \
-#   MUSIC_CUDA_SYNC=block ./launch_2gpu.sh --lbt-cache /work/lbt_cache/lbt_tables_v1.bin \
-#       --stagger 12 60 45 0 /data/camp_pth3 --campaign pth3 --pthat-bins 10-20,20-30,30-40 \
+#   ./launch_2gpu.sh 60 45 0 /data/camp_pth3 --campaign pth3 --pthat-bins 10-20,20-30,30-40 \
 #       --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both
-#                    # the same campaign at 10 jobs/GPU: shared LBT tables, staggered start,
-#                    # blocking CUDA sync. Measured: ~805 events/h by makespan (+8 % over 8/GPU),
-#                    # ~105 GB host memory peak (docs/BENCHMARK_2x3090.md, 2026-10-10). Needs an image
-#                    # with LBT_TABLE_CACHE and run_jobs.sh --stagger (js-contrib 593fcc4 or later).
-#                    # NJOBS a multiple of 20: 60 x 45 = 2,700 events, ~3 h, ~0.6 TB
+#                    # the same campaign with NJOBS a multiple of 20 (10 jobs/GPU, the default):
+#                    # 60 x 45 = 2,700 events. The defaults need an image with LBT_TABLE_CACHE and
+#                    # run_jobs.sh --stagger (js-contrib 593fcc4 or later; the current images have
+#                    # them). For an older image: JOBS_PER_GPU=8 OMP_THREADS=4 ./launch_2gpu.sh
+#                    # --lbt-cache none --stagger 0 ... (the setup before 2026-10-10)
 #   ./launch_2gpu.sh --upload AuAu_pth3_c1 --delete pair 64 45 0 /data/c1 ...
 #                    # + upload finished jobs to osdf:///fno4hic/AuAu_pth3_c1/gpuN while running,
 #                    # deleting the verified pair files locally
@@ -38,13 +38,15 @@
 #
 # Memory options (before NJOBS; what lets 10 jobs/GPU with particlize fit, see above):
 #   --lbt-cache FILE     share LBT's 0.66 GB of tables read-only between all jobs and skip their
-#                        parsing (LBT_TABLE_CACHE). FILE is a host path (or /work/...); if it does
+#                        parsing (LBT_TABLE_CACHE; Au+Au default /work/lbt_cache/lbt_tables_v1.bin,
+#                        'none' turns it off). FILE is a host path (or /work/...); if it does
 #                        not exist, one 1-event job on GPU0 makes it first (~1 min, log FILE.init.log).
 #                        One file per LBT-tables version; a file that doesn't match is ignored by
 #                        the jobs (they parse the tables as before).
 #   --stagger S          each GPU starts its first JOBS_PER_GPU jobs S seconds apart, so their
 #                        memory peaks don't coincide (12 for 8-10 jobs/GPU). Per-event times then
 #                        look shorter than they are; use the makespan for events/h.
+#                        Au+Au default 12; 0 turns it off.
 #
 # Disk guard (before NJOBS):
 #   --min-free SIZE      stop the campaign (both containers) when OUTBASE's disk has less free than
@@ -59,13 +61,13 @@
 # recorded in OUTBASE/seeds_used.tsv (shared by both GPUs, file-locked).  Re-running the same
 # command resumes: completed jobs are skipped.  Ctrl-C stops both containers.
 #
-# Environment overrides: JOBS_PER_GPU (8), OMP_THREADS (4), IMAGE, WORKDIR ($HOME/prod_test).
+# Environment overrides: JOBS_PER_GPU (10; O+O 8), OMP_THREADS (3), IMAGE, WORKDIR ($HOME/prod_test).
 # TAG_PREFIX (default: the production's, AuAu_0_10_jet_seed / OO_isr_seed) names the files
 # <prefix><seed>.*, or <prefix without _seed>_<campaign>_... with --campaign, e.g.
 # TAG_PREFIX=PbPb_0_30_seed for Pb+Pb: letters, digits, '.', '_', '-', ending in _seed; it
 # needs an image whose run_jobs.sh keeps it (js-contrib of 2026-10-16 or later, checked).
-# MUSIC_CUDA_SYNC (block|yield|spin|auto) is passed to the jobs if set; block: ~30 % less CPU
-# per event, needed for 10 jobs/GPU to pay off.
+# MUSIC_CUDA_SYNC (block|yield|spin|auto; default block) is passed to the jobs; block: ~30 % less
+# CPU per event, needed for 10 jobs/GPU to pay off.
 # PROD=oo runs prod_OO_isr instead (use launch_2gpu_oo.sh, which sets it and the O+O defaults).
 # Why one container per GPU: two MPS daemons in one container hang the second GPU's jobs.
 # Options, campaign default and how to run a campaign: README_launch.md.
@@ -74,13 +76,15 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() { awk 'NR > 1 && /^set -u/ { exit } NR > 1' "${LAUNCH_HELP:-$0}"; exit 2; }
 PROD=${PROD:-auau}
 case $PROD in
-  auau) PROD_W=; PROD_SCRIPT=run_prod_jet.py; DEF_J=8; DEF_OMP=4 ;;
+  auau) PROD_W=; PROD_SCRIPT=run_prod_jet.py; DEF_J=10; DEF_OMP=3
+        DEF_STAGGER=12; DEF_LBT=/work/lbt_cache/lbt_tables_v1.bin ;;
   oo)   PROD_W=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_OO_isr
         PROD_SCRIPT=run_prod_oo_isr.py; DEF_J=8; DEF_OMP=3
-        export MUSIC_CUDA_SYNC=${MUSIC_CUDA_SYNC:-block} ;;
+        DEF_STAGGER=; DEF_LBT= ;;
   *)    echo "PROD must be auau or oo, got '$PROD'" >&2; exit 2 ;;
 esac
-REMOTE=; upargs=(); MINFREE=50G; LBTCACHE=; STAGGER=
+export MUSIC_CUDA_SYNC=${MUSIC_CUDA_SYNC:-block}
+REMOTE=; upargs=(); MINFREE=50G; LBTCACHE=$DEF_LBT; STAGGER=$DEF_STAGGER
 while [ $# -gt 0 ]; do
   case $1 in
     --upload)       [ $# -ge 2 ] || usage; REMOTE=$2; shift 2 ;;
@@ -97,6 +101,8 @@ done
 [ ${#upargs[@]} -eq 0 ] || [ -n "$REMOTE" ] || { echo "--delete/--keep-free/--verify-every need --upload" >&2; exit 2; }
 case $STAGGER in ''|[0-9]|[0-9][0-9]|[0-9][0-9][0-9]) ;;
   *) echo "--stagger needs whole seconds, got '$STAGGER'" >&2; exit 2 ;; esac
+[ "$STAGGER" != 0 ] || STAGGER=                  # --stagger 0: off
+[ "$LBTCACHE" != none ] || LBTCACHE=             # --lbt-cache none: off
 [ -z "$LBTCACHE" ] || [ "$PROD" = auau ] ||
   { echo "--lbt-cache: prod_OO_isr runs no LBT (Matter only)" >&2; exit 2; }
 [ $# -ge 2 ] || usage
@@ -169,7 +175,8 @@ if [ -n "$PROD_W" ] && ! docker run --rm --entrypoint test "$IMAGE" -f "$PROD_W/
 fi
 if [ -n "$STAGGER" ] && ! docker run --rm --entrypoint grep "$IMAGE" -q -e '--stagger)' \
        ../prod_AuAu_0_10/run_jobs.sh; then
-  echo "--stagger: run_jobs.sh in $IMAGE has no --stagger (needs js-contrib 64e39ba or later)" >&2
+  echo "--stagger: run_jobs.sh in $IMAGE has no --stagger (needs js-contrib 64e39ba or later);" \
+       "for an older image: JOBS_PER_GPU=8 OMP_THREADS=4 ... --lbt-cache none --stagger 0" >&2
   exit 1
 fi
 if [ -n "$TAG_PREFIX" ] && ! docker run --rm --entrypoint grep "$IMAGE" -qF 'TAG_PREFIX:-' \
@@ -186,7 +193,7 @@ if [ -n "$LBT_H" ] && [ ! -s "$LBT_H" ]; then  # make the cache once, before the
       --seed-registry none > "$LBT_H.init.log" 2>&1
   if ! grep -q "LBT: wrote the table cache" "$LBT_H.init.log" || [ ! -s "$LBT_H" ]; then
     echo "--lbt-cache: the cache was not written (an image without LBT_TABLE_CACHE?);" \
-         "see $LBT_H.init.log" >&2
+         "see $LBT_H.init.log; --lbt-cache none runs without it" >&2
     exit 1
   fi
   echo "LBT table cache written: $LBT_H ($(stat -c %s "$LBT_H") bytes)"

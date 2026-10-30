@@ -50,6 +50,14 @@ inline const std::vector<double> &PHI() {
 }
 constexpr int N_PT = 3, N_DY = 24, N_DPHI = 20, N_ETA = 48, N_PHI = 60;
 constexpr int N_Z = N_PT * N_DY * N_DPHI, N_LAB = N_PT * N_ETA * N_PHI;
+// the dijet proxy's per-event grid (zjet_mixing.DY_FINE): Delta y in 0.1, per side of the Z
+// (0: |Delta phi| < pi/2, the Z side; 1: the away side), and the lab eta per side
+inline const std::vector<double> &DY_FINE() {
+  static const auto v = linspace(-4.8, 4.8, 97);
+  return v;
+}
+constexpr int N_DYF = 96, N_SIDE = 2;
+constexpr int N_Y = N_PT * N_SIDE * N_DYF, N_LS = N_PT * N_SIDE * N_ETA;
 
 // ── the Z selection (zjet_wake.select; strict inequalities as there)
 struct ZCuts {
@@ -96,6 +104,28 @@ inline void z_hist(const std::vector<Track> &t, double y_z, double phi_z, std::v
     const int idp = bin_index(wrap_dphi(x.phi - phi_z), DPHI());
     if (idy < 0 || idp < 0) continue;
     h[(x.ipt * N_DY + idy) * N_DPHI + idp] += 1.0;
+  }
+}
+// the side of the Z (zjet_mixing._side): 0 for the DPHI bins of the Z side, 1 for the rest
+inline int side_of(double phi, double phi_z) {
+  return bin_index(wrap_dphi(phi - phi_z), DPHI()) >= N_DPHI / 2 ? 1 : 0;
+}
+// counts on the fine Delta y grid per side (N_Y, zjet_mixing.side_hist) and in lab eta per
+// side (N_LS, lab_side_hist)
+inline void side_hist(const std::vector<Track> &t, double y_z, double phi_z,
+                      std::vector<double> &h, int sample = -1) {
+  for (const Track &x : t) {
+    if (sample >= 0 && x.sample != sample) continue;
+    const int idy = bin_index(x.eta - y_z, DY_FINE());
+    if (idy < 0) continue;
+    h[(x.ipt * N_SIDE + side_of(x.phi, phi_z)) * N_DYF + idy] += 1.0;
+  }
+}
+inline void lab_side_hist(const std::vector<Track> &t, double phi_z, std::vector<double> &h) {
+  for (const Track &x : t) {
+    const int ie = bin_index(x.eta, ETA());
+    if (ie < 0) continue;
+    h[(x.ipt * N_SIDE + side_of(x.phi, phi_z)) * N_ETA + ie] += 1.0;
   }
 }
 inline void lab_hist(const std::vector<Track> &t, std::vector<double> &h) {

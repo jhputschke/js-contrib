@@ -28,10 +28,16 @@
  *                                       iSS on given surface cells (SURFACE_CELL_COLUMNS)
  *                                       outside the event loop -> soft_hadrons_numpy's
  *                                       dict; the primaries then via soft_primaries_numpy
+ *   jet_hadronization_colour_audit(module)
+ *                                       iColoredHadronization: the last event's colour audit
+ *   jet_hadronization_set_colour_closure(module, mode)
+ *                                       iColoredHadronization: <colour_closure> by hand
+ *   jet_hadronization_colour_totals(module)
+ *                                       iColoredHadronization: the audits of the run added up
  *
  * Capabilities: ISS_DECAYS_SMASH_LIST, SOFT_HAS_PRIMARIES, ICOLORED_HAS_INPUT_RECORD,
- * SOFT_HAS_SAMPLE_CELLS (False when this X-SCAPE predates them), PYTHIA_VERSION (e.g.
- * 8312).
+ * SOFT_HAS_SAMPLE_CELLS, ICOLORED_HAS_COLOUR_AUDIT, ICOLORED_HAS_COLOUR_CLOSURE (False
+ * when this X-SCAPE predates them), PYTHIA_VERSION (e.g. 8312).
  *
  * All are free functions taking a task: create_module() and GetTaskList() hand out
  * JetScapeTask / JetScapeModuleBase pointers whose dynamic types (iSpectraSamplerWrapper,
@@ -46,6 +52,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <cmath>
 #include <map>
 #include <memory>
 #include <stdexcept>
@@ -184,6 +191,16 @@ void bind_hadronization(py::module_ &m) {
   m.attr("ICOLORED_HAS_INPUT_RECORD") = true;
 #else
   m.attr("ICOLORED_HAS_INPUT_RECORD") = false;
+#endif
+#ifdef ICOLORED_HAS_COLOUR_AUDIT
+  m.attr("ICOLORED_HAS_COLOUR_AUDIT") = true;
+#else
+  m.attr("ICOLORED_HAS_COLOUR_AUDIT") = false;
+#endif
+#ifdef ICOLORED_HAS_COLOUR_CLOSURE
+  m.attr("ICOLORED_HAS_COLOUR_CLOSURE") = true;
+#else
+  m.attr("ICOLORED_HAS_COLOUR_CLOSURE") = false;
 #endif
 #ifdef PYTHIA_VERSION_INTEGER
   m.attr("PYTHIA_VERSION") = static_cast<int>(PYTHIA_VERSION_INTEGER);
@@ -360,6 +377,27 @@ void bind_hadronization(py::module_ &m) {
               "hadronize_partons: need an (N, 14) array, columns FINAL_PARTON_COLUMNS");
         auto a = partons.unchecked<2>();
 
+#ifdef ICOLORED_HAS_COLOUR_CLOSURE
+        // iColoredHadronization: the partons as stored (no beam remnants), with its
+        // pstat policy and <colour_closure>; massless, E = |p| as in the job
+        if (auto ic = std::dynamic_pointer_cast<iColoredHadronization>(module)) {
+          std::vector<iColoredHadronization::ShowerParton> in;
+          for (py::ssize_t i = 0; i < a.shape(0); ++i) {
+            const double px = a(i, kColPx), py = a(i, kColPy), pz = a(i, kColPz);
+            in.push_back({(int)a(i, kColShower), (int)a(i, kColPid), (int)a(i, kColPstat),
+                          (int)a(i, kColCol), (int)a(i, kColAcol), px, py, pz,
+                          std::sqrt(px * px + py * py + pz * pz)});
+          }
+          if (!seed.is_none())
+            ic->SetNextRandomSeed(seed.cast<unsigned int>());
+          std::vector<std::shared_ptr<Hadron>> hOut;
+          ic->HadronizePartons(in, hOut);
+          py::dict d = hadrons_to_dict(hOut);
+          d["n_partons_out"] = 0LL;
+          d["seed"] = (long long)ic->GetLastRandomSeed();
+          return d;
+        }
+#endif
         // Group by shower index, keeping the stored order within and across showers.
         std::map<long, std::vector<std::shared_ptr<Parton>>> by_shower;
         for (py::ssize_t i = 0; i < a.shape(0); ++i) {
@@ -394,7 +432,10 @@ void bind_hadronization(py::module_ &m) {
       "hadronization module, e.g. create_module('ColorlessHadronization') after a JetScape "
       "Init() that loaded the XML and after module.Init(). With `seed`, the "
       "ColorlessHadronization generators are reseeded with it first (exact replay of an "
-      "event hadronized with <reseed_per_event> 1). Returns the hadron dict plus "
+      "event hadronized with <reseed_per_event> 1). iColoredHadronization "
+      "(ICOLORED_HAS_COLOUR_CLOSURE) takes the partons in their stored order, without "
+      "beam remnants, through its pstat policy and <colour_closure> "
+      "(jet_hadronization_colour_audit afterwards). Returns the hadron dict plus "
       "n_partons_out and the seed used.",
       py::arg("module"), py::arg("partons"), py::arg("seed") = py::none());
 
@@ -497,5 +538,91 @@ void bind_hadronization(py::module_ &m) {
       "the job. Returns the hadron dict plus the seed used.",
       py::arg("module"), py::arg("pid"), py::arg("col"), py::arg("acol"), py::arg("p"),
       py::arg("mass"), py::arg("seed") = py::none());
+#endif
+
+#ifdef ICOLORED_HAS_COLOUR_AUDIT
+  m.def(
+      "jet_hadronization_colour_audit",
+      [](std::shared_ptr<JetScapeTask> module) {
+        auto c = find_module<iColoredHadronization>(module);
+        if (!c)
+          throw std::invalid_argument("no iColoredHadronization found in " +
+                                      module->GetId());
+        const auto &a = c->GetLastColourAudit();
+        py::dict d;
+        d["partons"] = a.partons;
+        d["remnants"] = a.remnants;
+        d["holes"] = a.holes;
+        d["hole_energy"] = a.hole_energy;
+        d["skipped"] = a.skipped;
+        d["unpaired_col"] = a.unpaired_col;
+        d["unpaired_acol"] = a.unpaired_acol;
+        d["duplicate_tags"] = a.duplicate_tags;
+        d["relabelled_tags"] = a.relabelled_tags;
+#ifdef ICOLORED_HAS_COLOUR_CLOSURE
+        d["reconnected"] = a.reconnected;
+        d["reconnected_cross"] = a.reconnected_cross;
+        d["partners"] = a.partners;
+        d["partner_energy"] = a.partner_energy;
+        d["fakes"] = a.fakes;
+        d["fake_energy"] = a.fake_energy;
+        d["retries"] = a.retries;
+#endif
+        return d;
+      },
+      "iColoredHadronization: the colour audit of the last event (PLAN_lbt_colour_tags.md, "
+      "C3): partons and remnants handed to Pythia, holes (pstat -1, dropped) and their "
+      "energy, other negative pstat skipped, unpaired colour / anticolour tags, duplicate "
+      "tags and how many were relabelled. Accepts the module, its parent or the "
+      "HadronizationManager.",
+      py::arg("module"));
+
+#ifdef ICOLORED_HAS_COLOUR_CLOSURE
+  m.def(
+      "jet_hadronization_colour_totals",
+      [](std::shared_ptr<JetScapeTask> module) {
+        auto c = find_module<iColoredHadronization>(module);
+        if (!c)
+          throw std::invalid_argument("no iColoredHadronization found in " +
+                                      module->GetId());
+        const auto &t = c->GetColourTotals();
+        py::dict d;
+        d["events"] = t.events;
+        d["failed"] = t.failed;
+        d["events_open"] = t.events_open;
+        d["holes"] = t.holes;
+        d["hole_energy"] = t.hole_energy;
+        d["open_ends"] = t.open_ends;
+        d["skipped"] = t.skipped;
+        d["duplicate_tags"] = t.duplicate_tags;
+        d["reconnected"] = t.reconnected;
+        d["reconnected_cross"] = t.reconnected_cross;
+        d["partners"] = t.partners;
+        d["partner_energy"] = t.partner_energy;
+        d["fakes"] = t.fakes;
+        d["fake_energy"] = t.fake_energy;
+        d["retries"] = t.retries;
+        return d;
+      },
+      "iColoredHadronization: the colour audits added up over the run (events hadronized, "
+      "failed = thrown, events with open lines, holes and their energy, open ends, joins, "
+      "partners, soft end partons, retries, duplicates); what the run's log summary prints.",
+      py::arg("module"));
+
+  m.def(
+      "jet_hadronization_set_colour_closure",
+      [](std::shared_ptr<JetScapeTask> module, const std::string &mode) {
+        auto c = find_module<iColoredHadronization>(module);
+        if (!c)
+          throw std::invalid_argument("no iColoredHadronization found in " +
+                                      module->GetId());
+        c->SetColourClosure(mode);
+        return c->GetColourClosure();
+      },
+      "iColoredHadronization: set the closure of open colour lines (reconnect, "
+      "reconnect_global, thermal, fake, none) instead of the XML's <colour_closure>; "
+      "returns it.",
+      py::arg("module"), py::arg("mode"));
+#endif
 #endif
 }

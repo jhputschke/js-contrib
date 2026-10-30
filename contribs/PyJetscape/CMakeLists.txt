@@ -15,8 +15,10 @@ message(STATUS "Python3: ${Python3_EXECUTABLE} (${Python3_VERSION})")
 #   1. User-supplied pybind11_DIR / CMAKE_PREFIX_PATH (system install, conda)
 #   2. pip-installed pybind11 — ask the active Python interpreter for its
 #      cmake dir (works with `pip install pybind11` or conda pybind11).
+# pybind11 3.0 or newer: the bindings use py::smart_holder (pybind11 2.x fails
+# with template errors deep in the build instead of a clear message here).
 # ---------------------------------------------------------------------------
-find_package(pybind11 CONFIG QUIET)
+find_package(pybind11 3.0 CONFIG QUIET)
 if(NOT pybind11_FOUND)
   execute_process(
     COMMAND "${Python3_EXECUTABLE}" -c
@@ -27,15 +29,15 @@ if(NOT pybind11_FOUND)
   )
   if(_pybind11_cmd_result EQUAL 0 AND _pybind11_cmake_dir)
     list(APPEND CMAKE_PREFIX_PATH "${_pybind11_cmake_dir}")
-    find_package(pybind11 CONFIG QUIET)
+    find_package(pybind11 3.0 CONFIG QUIET)
   endif()
 endif()
 
 if(NOT pybind11_FOUND)
   message(FATAL_ERROR
-    "Could not find pybind11. Install it with one of:\n"
-    "  pip install pybind11\n"
-    "  conda install -c conda-forge pybind11\n"
+    "Could not find pybind11 3.0 or newer (py::smart_holder). Install it with one of:\n"
+    "  pip install 'pybind11>=3.0'\n"
+    "  conda install -c conda-forge 'pybind11>=3.0'\n"
     "or set pybind11_DIR to the directory containing pybind11Config.cmake."
   )
 endif()
@@ -52,6 +54,9 @@ set(PYJETSCAPE_SOURCES
   src/bind_music.cc
   src/bind_root_bulk_writer.cc
   src/bind_jet.cc
+  src/bind_particles.cc
+  src/bind_stages.cc
+  src/bind_pipeline.cc
   src/bind_hadronization.cc
   src/bind_hard_process.cc
   src/bind_signal_manager.cc
@@ -78,12 +83,43 @@ if(DEFINED GSL_LIBRARIES AND GSL_LIBRARIES)
   target_link_libraries(pyjetscape_core PRIVATE ${GSL_LIBRARIES})
 endif()
 
+# Which MUSIC the module links (X-SCAPE's USE_METAL / USE_CUDA): MUSIC_BACKEND in Python.
+if(USE_METAL)
+  set(_pyjs_music_backend "music4gpu-metal")
+elseif(USE_CUDA)
+  set(_pyjs_music_backend "music4gpu-cuda")
+else()
+  set(_pyjs_music_backend "music")
+endif()
+target_compile_definitions(pyjetscape_core PRIVATE
+  PYJS_MUSIC_BACKEND="${_pyjs_music_backend}")
+
 # The compiled extension lives inside the contrib source tree so that the
 # jetscape Python package works directly via sys.path or PYTHONPATH without
-# any installation step.
+# any installation step.  A second build tree (the xscape wheel's) sets
+# PYJETSCAPE_CORE_OUTPUT_DIR elsewhere, so it does not replace that module.
+set(PYJETSCAPE_CORE_OUTPUT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape"
+    CACHE PATH "Where the build writes pyjetscape_core")
 set_target_properties(pyjetscape_core PROPERTIES
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/jetscape"
+  LIBRARY_OUTPUT_DIRECTORY "${PYJETSCAPE_CORE_OUTPUT_DIR}"
 )
+
+# The xscape wheel (macOS): installs the module into the wheel's xscape package, next to
+# lib/, as the component X-SCAPE's runtime install uses.  Off by default.
+set(PYJETSCAPE_INSTALL_DIR "" CACHE STRING
+    "Install pyjetscape_core here (relative to the prefix); empty: no install rule")
+if(PYJETSCAPE_INSTALL_DIR)
+  if(APPLE)
+    set_target_properties(pyjetscape_core PROPERTIES
+      INSTALL_RPATH "@loader_path/${CMAKE_INSTALL_LIBDIR}")
+  else()
+    set_target_properties(pyjetscape_core PROPERTIES
+      INSTALL_RPATH "$ORIGIN/${CMAKE_INSTALL_LIBDIR}")
+  endif()
+  install(TARGETS pyjetscape_core
+          LIBRARY DESTINATION "${PYJETSCAPE_INSTALL_DIR}"
+          COMPONENT xscape_runtime)
+endif()
 
 # Optional: install the jetscape package in editable mode so that
 # `import jetscape` works without any PYTHONPATH / sys.path setup.

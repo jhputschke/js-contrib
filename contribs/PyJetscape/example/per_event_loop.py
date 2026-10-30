@@ -10,11 +10,16 @@ This is the Python counterpart of X-SCAPE's examples/custom_examples/JetScapePer
 
 Run it from the X-SCAPE build directory, with PyJetscape built (-DUSE_JS_PYJETSCAPE=ON).
 --main and --user default to X-SCAPE's config/jetscape_main.xml and
-config/jetscape_user.xml, found from where js-contrib sits (X-SCAPE/external_packages).
+config/jetscape_user.xml, found through jetscape.paths ($XSCAPE, the checkout, the
+installed tree).
 
 Usage (Mode A — XML-driven task list; user XML has
        enableAutomaticTaskListDetermination = true):
     conda activate js_fno
+    # from the build tree as below, or from anywhere (a copy made by xscape-examples,
+    # the container's /work, the macOS wheel): then the defaults come from
+    # jetscape.paths and the run gets its own working directory
+    # (jetscape.workdir.build_or_job_dir)
     cd X-SCAPE/build_gpu
     python ../external_packages/js-contrib/contribs/PyJetscape/example/per_event_loop.py \\
         --main ../config/jetscape_main.xml \\
@@ -50,9 +55,10 @@ import sys
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # contribs/PyJetscape
 sys.path.insert(0, _REPO_ROOT)
 sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
-# the X-SCAPE checkout js-contrib sits in (X-SCAPE/external_packages/js-contrib), for the
-# default XMLs in its config/
-_XSCAPE = os.path.normpath(os.path.join(_REPO_ROOT, "..", "..", "..", ".."))
+# the X-SCAPE tree: $XSCAPE, the checkout, or the macOS wheel's installed tree (jetscape.paths),
+# for the default XMLs in its config/
+from jetscape import paths as _paths  # noqa: E402
+_XSCAPE = str(_paths.xscape_root())
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,6 +74,9 @@ def parse_args() -> argparse.Namespace:
                    help="Path to the user XML config.")
     p.add_argument("--events", type=int, default=None,
                    help="Override the number of events from the XML.")
+    p.add_argument("--outdir", default="per_event_loop_out",
+                   help="run directory when not started in a build tree: a JobDir "
+                        "(jetscape.workdir.build_or_job_dir); default ./per_event_loop_out")
     p.add_argument("--start-event", type=int, default=0, dest="start_event",
                    help="Starting event number for the global counter (default 0).")
     # ── Manual (Mode B) pipeline options ──────────────────────────────────────
@@ -115,31 +124,34 @@ def main() -> None:
         print("Manual pipeline: "
               + " -> ".join(m.GetId() for m in modules))
 
+    from jetscape.workdir import build_or_job_dir
+
     n_seen = 0
-    for js in per_event_loop(args.main, args.user,
-                             modules=modules,
-                             n_events=args.events,
-                             start_event=args.start_event):
-        # --- External access point: the current event's data is live here. ---
-        # 'js' is the JetScapePerEvent driver; GetCurrentEvent() is inherited
-        # (static) from JetScapeModuleBase and reflects any --start-event offset.
-        event = js.GetCurrentEvent()
-        sm = JetScapeSignalManager.Instance()
-        hydro = sm.GetHydroPointer()   # FluidDynamics or None
+    with build_or_job_dir(os.path.abspath(args.outdir), args.user, args.main) as job:
+        for js in per_event_loop(job.main_xml, job.user_xml,
+                                 modules=modules,
+                                 n_events=args.events,
+                                 start_event=args.start_event):
+            # --- External access point: the current event's data is live here. ---
+            # 'js' is the JetScapePerEvent driver; GetCurrentEvent() is inherited
+            # (static) from JetScapeModuleBase and reflects any --start-event offset.
+            event = js.GetCurrentEvent()
+            sm = JetScapeSignalManager.Instance()
+            hydro = sm.GetHydroPointer()   # FluidDynamics or None
 
-        msg = f"[event {event}] "
-        if hydro is not None:
-            try:
-                bulk = hydro.get_bulk_info()
-                msg += f"hydro bulk_info available ({type(bulk).__name__})"
-            except Exception as exc:  # module may not expose bulk info
-                msg += f"hydro present, bulk_info unavailable ({exc})"
-        else:
-            msg += "no hydro module registered"
-        print(msg)
+            msg = f"[event {event}] "
+            if hydro is not None:
+                try:
+                    bulk = hydro.get_bulk_info()
+                    msg += f"hydro bulk_info available ({type(bulk).__name__})"
+                except Exception as exc:  # module may not expose bulk info
+                    msg += f"hydro present, bulk_info unavailable ({exc})"
+            else:
+                msg += "no hydro module registered"
+            print(msg)
 
-        n_seen += 1
-        # ClearPerEvent() runs automatically when the loop resumes.
+            n_seen += 1
+            # ClearPerEvent() runs automatically when the loop resumes.
 
     print(f"Done. Processed {n_seen} event(s).")
 

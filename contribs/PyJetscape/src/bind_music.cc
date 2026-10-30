@@ -54,7 +54,7 @@ void bind_music(py::module_ &m) {
   //   * preserve_bulk_info_ is implemented natively in MusicWrapper.h/.cc.
   //   * The downcast in create_module() returns std::shared_ptr<MpiMusic> so
   //     that pybind11 resolves the Python type as MpiMusic (not FluidDynamics).
-  py::class_<MpiMusic, FluidDynamics, std::shared_ptr<MpiMusic>>(
+  py::class_<MpiMusic, FluidDynamics, py::smart_holder>(
       m, "MpiMusic",
       R"pbdoc(
         MUSIC viscous relativistic hydrodynamics module.
@@ -299,7 +299,7 @@ void bind_music(py::module_ &m) {
   //
   // The public `info_` member (EventInfo struct) is exposed as both a property
   // dict and individual named accessors for convenience.
-  py::class_<TrentoInitial, InitialState, std::shared_ptr<TrentoInitial>>(
+  py::class_<TrentoInitial, InitialState, py::smart_holder>(
       m, "TrentoInitial",
       R"pbdoc(
         TRENTo initial-condition module.

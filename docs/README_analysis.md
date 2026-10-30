@@ -22,7 +22,8 @@ the analysis in ROOT, again with FastJet. Running the productions is in
 ```
 
 None of the analysis needs X-SCAPE, a GPU or the container. A Python venv reads every HDF5
-file and writes the ROOT files. ROOT itself is needed only for the C++ side (§2). The O+O
+file and writes the ROOT files; the production image carries the same packages too, for
+those who use it anyway ([`README_Container_Usage.md`](../utils/README_Container_Usage.md#3-analysis-only)). ROOT itself is needed only for the C++ side (§2). The O+O
 production (one hydro per event, hadrons made in the job) has its own guide,
 [`README_OO.md`](README_OO.md).
 
@@ -113,8 +114,8 @@ cd js-contrib/utils/remote_transfer
 - **Measured:** ~69 MB/s down from a workstation (2026-10-05). On 2026-10-13 the namespace
   held `test/AuAu_0_10_jet_pth10-40_eta06_c1/` (68 ROOT files, 2.1 GB); `ls` and a download
   of its campaign file ran without a login.
-- **Reading in place,** without downloading, in the analysis venv made with `--with-pelican`
-  (§2). pelicanfs finds an OSDF cache (or the origin) for the path and hands back fsspec's
+- **Reading in place,** without downloading, in the analysis venv (pelicanfs is installed
+  by default, §2). pelicanfs finds an OSDF cache (or the origin) for the path and hands back fsspec's
   HTTP file, which reads by byte ranges: only the parts asked for travel. uproot takes the URL;
   h5py takes the file object, for every file kind here (pair, particlize, hadron files, Blosc
   included, with `hdf5plugin` imported):
@@ -221,9 +222,10 @@ python utils/analysis_env/check_env.py /path/to/campaign   # opens every file in
 | `--uv` | install with uv, much faster |
 | `--no-viz` | without pyvista/vtk/ffmpeg (~0.6 GB less) |
 | `--kernel NAME` | register a Jupyter kernel for the venv (for VS Code, another JupyterLab) |
-| `--with-pelican`, `--with-gcs` | read files in place over `osdf://` and `gs://` (fsspec) |
+| `--no-pelican` | without pelicanfs, which reads files in place over `osdf://` (fsspec) |
+| `--with-gcs` | read files in place over `gs://` (fsspec) |
 | `--system-site-packages` | see the packages of the Python the venv is made from, e.g. PyROOT (B) |
-| `--with-fasthydro` | FastHydro's readers (`fasthydro.browse.open_pair`); not needed for the production files |
+| `--with-fasthydro` | FastHydro's readers (`fasthydro.browse.PairBrowser`); not needed for the production files |
 
 The script also downloads MUSIC's hotQCD EoS table and sets `MUSIC_EOS_TABLE` (e → T, §3).
 All options and the tests: [`utils/analysis_env/README.md`](../utils/analysis_env/README.md).
@@ -345,7 +347,7 @@ with h5py.File("AuAu_0_10_jet_c1_0001.h5", "r") as f:
 | FNO4d `loc_libs.read_3d_hdf5.read_3d_data_hdf5(files, h5_key="arr"/"arr_bg", unique_bg=...)` | a lazy `MultiH5Array` over many files, as the FNO training reads them; `unique_bg` drops the repeated backgrounds of a reuse campaign (from `diag/bg_id`) |
 | `jetscape.fast_h5_bulk.read_fast_h5_bulk(path)` | hydro-only files: each event as `(ntau, nx, ny, neta, 4)`, trimmed at its freeze-out |
 | `python ../../python/jetscape/repad_h5.py FILES` | brings the files of a campaign to one τ length, in place (a metadata resize) |
-| `fasthydro.browse.open_pair` (`--with-fasthydro`) | FastHydro's `PairBrowser`: `p.diff(event, frame)`, `p.summary(event)` |
+| `fasthydro.browse.PairBrowser` (`--with-fasthydro`) | FastHydro's browser of a pair file: `p.diff(event, frame)`, `p.summary(event)` |
 | [`jet_wake.ipynb`](../contribs/PyJetscape/example/prod_AuAu_0_10_jet/jet_wake.ipynb) | one pair from e to hadrons, step by step (`WAKE_H5=<pair file>`) |
 | [`analysis/wake_observables.py`](../contribs/PyJetscape/example/analysis/README.md#6-wake-observables-script-then-notebook) | one pass over a campaign's pair files: P^μ and S of both legs through every τ, the jet-frame wake, the showers' path lengths → `wake_observables.h5` |
 | [`check_output.ipynb`](../contribs/PyJetscape/example/prod_AuAu_0_10/check_output.ipynb), [`oo_isr_overview.ipynb`](../contribs/PyJetscape/example/prod_OO_isr/oo_isr_overview.ipynb) | hydro-only and O+O files |
@@ -432,7 +434,7 @@ def dphi(ev, info):                             # azimuth relative to the leadin
 def soft_charged(ev, info):
     return ev.charged & (ev.pt > 0.2) & (ev.pt < 4) & (np.abs(ev.eta) < 1)
 
-with HadronFileReader("/path/to/campaign") as r:          # every *_particlize.h5 below it
+with HadronFileReader("/path/to/campaign") as r:          # every *_particlize.h5 in it (not in subdirectories)
     print(r.n_files, "files,", r.n_events, "events, tags", r.tags())
 
     # names of EventHadrons attributes: per-event sample means, averaged over events
@@ -450,6 +452,10 @@ with HadronFileReader("/path/to/campaign") as r:          # every *_particlize.h
     info = r.event_info(0)                      # stem, local_event, bg_unit, seed, pthat_bin, initiators()
 ```
 
+- **What it reads:** a directory (its `*_particlize.h5`, and the hadron files of
+  `--hadrons-only` jobs, which have no particlize file), a glob, or a list of files. A
+  directory is not searched below: for jobs in subdirectories pass a glob, e.g.
+  `HadronFileReader("OUTBASE/gpu*/*_particlize.h5")`.
 - **`values`, `mask`, `weights`** are names of `EventHadrons` attributes (`pid`, `pstat`,
   `p`, `x`, `E`, `px`, `py`, `pz`, `pt`, `eta`, `y`, `phi`, `charged`, `sample`), `"charged"`
   or a species name, or callables `f(ev, info)`. A tuple gives an N-d histogram.
@@ -732,8 +738,8 @@ if "windows" in c:                                # pT-hat-window campaigns only
 ```
 
 Read `events` as awkward (the default): `library="np"` fails on the jagged initiator columns.
-Files are also read in place over `gs://` and `osdf://` with the venv's `--with-gcs` /
-`--with-pelican`.
+Files are also read in place over `osdf://` in the venv (pelicanfs, by default) and over
+`gs://` with its `--with-gcs`.
 
 ### RDataFrame
 
@@ -916,6 +922,6 @@ fjcontrib, add `-lfastjetcontribfragile` (conda-forge `fastjet-contrib`) and e.g
 | `fastjet/ClusterSequenceArea.hh: No such file` (ACLiC) | `gSystem->AddIncludePath("-I$CONDA_PREFIX/include")`, or install `fastjet-cxx` |
 | `Error: You can only make one query at a time` | `fastjet-config --cxxflags --libs`: call it twice |
 | ROOT's C++ notebook kernel dies at start | `pip install metakernel` in the env; deactivate other venvs first |
-| no freeze-out contours, `wake_*.py` ask for `--eos` | `MUSIC_EOS_TABLE` unset: the venv sets it, else point it at `EOS/hotQCD/hrg_hotqcd_eos_binary.dat` of an X-SCAPE build |
+| no freeze-out contours, `wake_*.py` ask for `--eos` | `MUSIC_EOS_TABLE` unset, or no table of the file's EOS next to it (EOS 91 files need `hrg_hotqcd_eos_SMASH_binary.dat`): re-run `setup_analysis_env.sh`, which installs both, else point it at `EOS/hotQCD/` of an X-SCAPE build |
 | files with different `arr` shapes | two grids (64 × 64 × 32 and 65 × 65 × 33): keep them apart |
 | a campaign's events differ systematically from another's at the 1e-3 level | late-step vs constant-step files, or different images: check `<late_delta_tau>` (§1) |

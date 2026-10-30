@@ -1,7 +1,8 @@
 name: Build & push production images
 
 # Builds the production images of utils/Dockerfile.prod (see utils/BuildContainerProd.md):
-# X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape, precompiled, no ROOT/PyTorch.
+# X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape, precompiled, no ROOT/PyTorch, with
+# the analysis packages and Jupyter (utils/README_Container_Usage.md).
 #
 # Manual only: Actions -> "Build & push production images" -> "Run workflow", or
 #
@@ -10,6 +11,7 @@ name: Build & push production images
 #   gh workflow run docker-prod.yml -f variants=cu124                   # CUDA 12.4, amd64 only
 #   gh workflow run docker-prod.yml -f xscape_ref=<40-char hash> -f release_tag=2026.10
 #   gh workflow run docker-prod.yml -f with_gcs=true                    # + GCS, tags cu126-gcs, ...
+#   gh workflow run docker-prod.yml -f flavor=slim                      # production only, cu126-slim, ...
 #   gh workflow run docker-prod.yml --ref zjet -f xscape_ref=zjet -f js_contrib_ref=zjet \
 #       -f variants=cu124 -f release_tag=zjet -f moving_tag=false     # a branch's test image
 #   gh run watch                                                        # follow the run
@@ -37,7 +39,14 @@ name: Build & push production images
 # Google Cloud Storage for Python (WITH_GCS=1: gcsfs, google-cloud-storage) and puts "-gcs"
 # after the variant in every tag, so the images without it keep theirs.
 #
-# Tags pushed to Docker Hub as <DOCKERHUB_USERNAME>/xscape-prod (with_gcs: cu126-gcs, ...):
+# Flavors (flavor input; Dockerfile.prod's WITH_ANALYSIS / WITH_VIZ):
+#   full   the default: + the analysis environment's packages (awkward, fastjet, hist,
+#          matplotlib, Jupyter, ...), for scripts and notebooks of one's own and analysis
+#   slim   production only (the images before 2026-10-28); tags get "-slim"
+#   viz    full + pyvista/vtk with off-screen rendering (contribs/Visualization); "-viz"
+#
+# Tags pushed to Docker Hub as <DOCKERHUB_USERNAME>/xscape-prod (with_gcs: cu126-gcs, ...;
+# flavor slim/viz: cu126-slim, cu126-viz-gcs, ...):
 #   cu126, cu130, cu124             moving: the latest build of each variant (not with
 #                                   moving_tag=false: test images of a branch leave it, since
 #                                   launch_2gpu.sh and the docs default to it)
@@ -78,6 +87,11 @@ on:
         default: both
         type: choice
         options: [both, amd64, arm64]
+      flavor:
+        description: "full: + analysis packages and Jupyter (default); slim: production only, tags '-slim'; viz: full + pyvista, tags '-viz'"
+        default: full
+        type: choice
+        options: [full, slim, viz]
       with_gcs:
         description: "Add Google Cloud Storage for Python (gcsfs, google-cloud-storage); tags get '-gcs' (cu126-gcs, ...)"
         default: false
@@ -250,6 +264,8 @@ jobs:
             JS_CONTRIB_REPO=${{ env.JS_CONTRIB_REPO }}
             JS_CONTRIB_REF=${{ needs.setup.outputs.js_contrib_sha }}
             WITH_GCS=${{ inputs.with_gcs && '1' || '0' }}
+            WITH_ANALYSIS=${{ inputs.flavor == 'slim' && '0' || '1' }}
+            WITH_VIZ=${{ inputs.flavor == 'viz' && '1' || '0' }}
           # Pushed untagged, by digest; the merge job puts the tags on the multi-arch
           # manifest.  Without push the image is only built (a Dockerfile test).
           outputs: ${{ inputs.push && format('type=image,name={0}/xscape-prod,push-by-digest=true,name-canonical=true,push=true', secrets.DOCKERHUB_USERNAME) || 'type=cacheonly' }}
@@ -302,7 +318,7 @@ jobs:
         shell: bash
         env:
           IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/xscape-prod
-          V: ${{ matrix.variant }}${{ inputs.with_gcs && '-gcs' || '' }}
+          V: ${{ matrix.variant }}${{ inputs.flavor == 'slim' && '-slim' || inputs.flavor == 'viz' && '-viz' || '' }}${{ inputs.with_gcs && '-gcs' || '' }}
           XS: ${{ needs.setup.outputs.xscape_sha }}
           DATE: ${{ needs.setup.outputs.date }}
           RELEASE: ${{ inputs.release_tag }}
