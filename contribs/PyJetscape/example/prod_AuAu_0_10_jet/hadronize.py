@@ -30,6 +30,13 @@ Output, next to the input (or in --out-dir), one file per tag (jetscape.hadrons_
     <stem>_hadrons_bulk_jet.h5   iSS on surface/jet     bulk + wake        unit = event
     <stem>_hadrons_bulk_bg.h5    iSS on surface/bg      bulk               unit = background
     <stem>_hadrons_jet_frag.h5   Colorless on partons/  jet fragments      unit = event
+    <stem>_hadrons_extra_frag.h5 Colorless on the other hard scatterings' showers
+                                 (run_prod_jet.py --extra-hard)      unit = event
+
+With extra hard scatterings the partons are split by their shower's scattering
+(initiators/scatter): jet_frag gets the trigger's, with the seeds it has without extras,
+extra_frag the extras' (--extra-hadronize: together or one call per scattering).  A
+minimum-bias file (run_prod_jet.py --hard none) has no jet_frag.
 
 and with --keep-primaries N, for SMASH later (jetscape.hadrons_h5, PRIMARY_TAGS):
 
@@ -196,6 +203,11 @@ def parse_args(argv=None):
                         "for iSS)")
     p.add_argument("--n-frag", type=int, default=10, dest="n_frag",
                    help="Colorless fragmentations per event (default 10)")
+    p.add_argument("--extra-hadronize", choices=hz.EXTRA_HADRONIZE, default=None,
+                   dest="extra_hadronize",
+                   help="extra_frag: the extras' showers in one Colorless call (groups) or one "
+                        "per scattering (per_scattering, each hadron's scattering kept); "
+                        "default: the production job's, else groups")
     p.add_argument("--seed", type=int, default=1, help="base seed (default 1)")
     p.add_argument("--events", default=None,
                    help="event range a:b (python slice of the file's events; default all)")
@@ -604,6 +616,23 @@ def main(argv=None):
         elif asked != ["jet_frag"]:
             sys.exit(f"hadronize.py: {a.particlize} is a --hadrons-only jet file: it has no "
                      "surfaces, only --tags jet_frag")
+    # extra hard scatterings: extra_frag only if the file has them, jet_frag only with a
+    # trigger (a minimum-bias file has none)
+    extras = bool(getattr(pf, "extra_hard", False))
+    no_trigger = bool(pf.attrs.get("prod_extra_no_trigger", False))
+    if a.tags == ",".join(TAGS):
+        tags = [t for t in tags if (t != "extra_frag" or extras)
+                and (t != "jet_frag" or not no_trigger)]
+    elif "extra_frag" in tags and not extras:
+        sys.exit(f"hadronize.py: {a.particlize} has no extra hard scatterings: drop "
+                 "extra_frag from --tags")
+    elif "jet_frag" in tags and no_trigger:
+        sys.exit(f"hadronize.py: {a.particlize} is minimum bias (no trigger): drop jet_frag "
+                 "from --tags")
+    a.extra_hadronize = (a.extra_hadronize or str(pf.attrs.get("prod_extra_hadronize", ""))
+                         or "groups")
+    if a.extra_hadronize not in hz.EXTRA_HADRONIZE:
+        a.extra_hadronize = "groups"
     out_dir = os.path.abspath(a.out_dir or os.path.dirname(a.particlize))
     os.makedirs(out_dir, exist_ok=True)
     events = event_range(a.events, pf.nevents)
@@ -654,7 +683,7 @@ def main(argv=None):
         if t in ("bulk_jet", "bulk_bg") and t.split("_")[1] not in pf.legs:
             sys.exit(f"hadronize.py: {a.particlize} has no {t.split('_')[1]} surface "
                      f"(legs {pf.legs}); drop {t} from --tags")
-        if t == "jet_frag" and "partons" not in pf.f:
+        if t in ("jet_frag", "extra_frag") and "partons" not in pf.f:
             sys.exit(f"hadronize.py: {a.particlize} has no partons/")
         if t == "jet_frag" and pf.attrs.get("jet_frag_inline"):
             # e.g. prod_OO_isr: iColoredHadronization ran in the job (it needs the beam
@@ -820,7 +849,7 @@ def main(argv=None):
         iss = core.create_module("iSS")
         iss.Init()
     colorless = None
-    if "jet_frag" in tags:
+    if "jet_frag" in tags or "extra_frag" in tags:
         colorless = core.create_module("ColorlessHadronization")
         colorless.Init()
 
@@ -842,8 +871,13 @@ def main(argv=None):
         # bulk_bg (jet_frag's Pythia seeds are its own whatever these options)
         extra = hz.tag_attrs(t, core, decay_attrs, common_seeds=a.common_seeds,
                              correlated=a.correlated)
+        writer_kw = {}
         if t == "jet_frag":
             n = n_frag
+        elif t == "extra_frag":
+            n = n_frag
+            extra["extra_hadronize"] = a.extra_hadronize
+            writer_kw["hadron_scatter"] = a.extra_hadronize == "per_scattering"
         elif t == "bulk_bg" and a.oversample_bg is not None:
             per_unit = str(a.oversample_bg).lower() in PER_UNIT_OVERSAMPLE_BG
             n = 0 if per_unit else int(a.oversample_bg)  # 0: per unit, see units/n_samples
@@ -857,10 +891,15 @@ def main(argv=None):
                eta_max=a.eta_max, charged_only=a.charged, positions=not a.no_x,
                initiators=ini is not None and t in INITIATOR_TAGS,
                primary_tag=PRIMARY_OF.get(t), primary_path=pouts.get(t),
-               keep_primaries=a.keep_primaries)
+               keep_primaries=a.keep_primaries, **writer_kw)
 
     def initiators_of(e):
-        return None if ini is None else ini[0][int(ini[1][e]):int(ini[1][e + 1])]
+        """The event's initiators for bulk_jet and jet_frag: the trigger's (with extras,
+        those of scattering 0; the extras' go to extra_frag)."""
+        if ini is None:
+            return None
+        rows = ini[0][int(ini[1][e]):int(ini[1][e + 1])]
+        return rows[pf.initiator_scatter(e) == 0] if extras else rows
 
     t0 = time.time()
     finished = False
@@ -885,11 +924,25 @@ def main(argv=None):
                                     keep_primaries=a.keep_primaries)
                     bg_done.add(u)
                     msg.append(f"bulk_bg (unit {u}) {0 if had is None else len(had['pid'])}")
+            partons = x_partons = None
+            if "jet_frag" in tags or "extra_frag" in tags:
+                partons = pf.partons(e)
+                if extras:           # the trigger's showers -> jet_frag, the extras'
+                    from jetscape.particlize_h5 import split_by_scatter
+                    (partons, _), (x_partons, x_ini, x_scat) = split_by_scatter(
+                        partons, pf.initiators(e), pf.initiator_scatter(e))
             if "jet_frag" in tags:
                 seeds = ([int(pf.events("inline_pythia_seed")[e])] if a.use_stored_seeds
                          else [h.seed("jet_frag", e, s) for s in range(n_frag)])
-                samples = h.fragments(e, pf.partons(e), seeds, initiators=initiators_of(e))
+                samples = h.fragments(e, partons, seeds, initiators=initiators_of(e))
                 msg.append(f"jet_frag {sum(len(d['pid']) for d in samples) / n_frag:.1f}"
+                           "/sample")
+            if "extra_frag" in tags:
+                samples = h.extra_fragments(e, x_partons, n_frag, initiators=x_ini,
+                                            initiator_scatter=x_scat,
+                                            scatterings=pf.scatterings(e),
+                                            mode=a.extra_hadronize)
+                msg.append(f"extra_frag {sum(len(d['pid']) for d in samples) / n_frag:.1f}"
                            "/sample")
             print("  " + ", ".join(msg), flush=True)
         jetscape.Finish()

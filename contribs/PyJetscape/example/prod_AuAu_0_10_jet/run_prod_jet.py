@@ -35,6 +35,10 @@ grid YAMLs, grid checks and environment checks this reuses.
     python run_prod_jet.py --events 30 --seed 1 --reuse 3 --hadrons-only
                                      # only hadron files: iSS on both legs and the jet
                                      #   hadronization in the job (PLAN_AuAu_hadrons_only.md)
+    python run_prod_jet.py --events 10 --seed 1 --extra-hard     # + the event's other hard
+                                     #   scatterings (pTHat > the XML's <extraHard><pTHatMin>)
+    python run_prod_jet.py --events 10 --seed 1 --hard none --extra-hard --hadrons-only
+                                     # minimum bias: no trigger, the bulk + its Poisson extras
     python run_prod_jet.py --events 1 --seed 1 --dry-run         # check, print the plan
     python run_prod_jet.py --events 10 --seed 0 --campaign test  # unique seed from OS entropy,
                                                                  # -> out/AuAu_0_10_jet_test_0001.h5
@@ -76,6 +80,7 @@ BG_ID, JET_ID = "MUSIC_1", "MUSIC_2"
 HARD_VERTEX = {
     "pythia": "3dMCGlauber binary-collision points (PythiaGun uses x, y; z = t = 0)",
     "pgun": "origin: PGun samples a vertex and zeroes it (PGun.cc:117-120)",
+    "none": "no triggering scattering; the extras at 3dMCGlauber binary-collision points",
 }
 
 
@@ -107,9 +112,11 @@ def parse_args() -> argparse.Namespace:
                         "freeze-out energy density from the job XML (eps_switch, or "
                         "e(freezeout_temperature) from the build's EOS 9/91 table); 0: no "
                         "flag. diag/{bg,jet}_edge_e_max are recorded either way")
-    p.add_argument("--hard", choices=("pythia", "pgun"), default="pythia",
+    p.add_argument("--hard", choices=("pythia", "pgun", "none"), default="pythia",
                    help="hard process: PythiaGun (default; vertex from the Glauber "
-                        "collisions) or PGun (fixed pT, vertex at the origin)")
+                        "collisions), PGun (fixed pT, vertex at the origin), or none: no "
+                        "triggering scattering, with --extra-hard the minimum-bias event "
+                        "(the bulk and its Poisson extras, weight 1)")
     p.add_argument("--pthat-min", type=float, default=None, dest="pthat_min",
                    help="PythiaGun pTHatMin [GeV] (default: the XML's)")
     p.add_argument("--pthat-max", type=float, default=None, dest="pthat_max",
@@ -157,6 +164,26 @@ def parse_args() -> argparse.Namespace:
                    metavar="PT", help="trigger Z: both leptons with pT > PT [GeV]")
     p.add_argument("--lepton-etamax", type=float, default=None, dest="lepton_etamax",
                    metavar="ETA", help="trigger Z: both leptons with |eta| < ETA")
+    x = p.add_argument_group(
+        "extra hard scatterings", "the event's other hard scatterings (PythiaGun's "
+        "<extraHard>; docs/Plans/PLAN_multi_hard.md): N ~ Poisson(N_coll sigma/sigma_NN) "
+        "per jet event, each at its own binary collision, showered in the jet leg; their "
+        "hadrons go to the tag extra_frag, jet_frag stays the trigger's")
+    x.add_argument("--extra-hard", action="store_true", dest="extra_hard",
+                   help="switch them on (default off: the events are as without)")
+    x.add_argument("--extra-pthat-min", type=float, default=None, dest="extra_pthat_min",
+                   metavar="P0", help="their pTHat threshold [GeV] (default: the XML's "
+                                      "<extraHard><pTHatMin>, the system's)")
+    x.add_argument("--extra-n", type=int, default=None, dest="extra_n", metavar="N",
+                   help="exactly N per event instead of Poisson (tests)")
+    x.add_argument("--extra-warmup", type=int, default=None, dest="extra_warmup",
+                   metavar="N", help="Pythia events for their cross section at Init "
+                                     "(default: the XML's, 20000)")
+    x.add_argument("--extra-hadronize", choices=("groups", "per_scattering"),
+                   default="groups", dest="extra_hadronize",
+                   help="--hadrons-only: the extras' showers hadronized together in one "
+                        "Colorless call (groups, default) or one call per scattering "
+                        "(per_scattering; extra_frag then records each hadron's scattering)")
     p.add_argument("--bg-layout", choices=("auto", "full", "shared"), default="auto",
                    dest="bg_layout",
                    help="how arr_bg is stored: 'full' one copy per event; 'shared' each "
@@ -428,6 +455,61 @@ def check_trigger(a) -> None:
             raise ValueError(f"--{k.replace('_', '-')} must be > 0, got {getattr(a, k):g}")
 
 
+def check_extra_hard(a) -> None:
+    """--extra-hard and --hard none against the other options."""
+    given = [k for k in ("extra_pthat_min", "extra_n", "extra_warmup")
+             if getattr(a, k) is not None]
+    if not a.extra_hard:
+        if a.hard == "none":
+            raise ValueError("--hard none makes no triggering scattering: it needs "
+                             "--extra-hard (the minimum-bias event)")
+        if given or a.extra_hadronize != "groups":
+            raise ValueError("--" + ", --".join(k.replace("_", "-") for k in given
+                                                 or ["extra-hadronize"])
+                             + " need(s) --extra-hard")
+        return
+    if a.hard == "pgun":
+        raise ValueError("--extra-hard is PythiaGun's (--hard pythia or none)")
+    if a.extra_pthat_min is not None and not a.extra_pthat_min > 0:
+        raise ValueError("--extra-pthat-min must be > 0")
+    if a.extra_n is not None and a.extra_n < 0:
+        raise ValueError("--extra-n must be >= 0")
+    if a.extra_warmup is not None and a.extra_warmup < 1:
+        raise ValueError("--extra-warmup must be >= 1")
+    if a.hard == "none":
+        bad = [o for o, v in (("--pthat-bins", a.pthat_bins), ("--pthat-min", a.pthat_min),
+                              ("--pthat-max", a.pthat_max), ("--parton-ymax", a.parton_ymax),
+                              ("--trigger", a.trigger),
+                              *((f"--{k.replace('_', '-')}", getattr(a, k))
+                                for k in TRIGGER_CUTS)) if v is not None]
+        if bad:
+            raise ValueError(f"--hard none has no triggering scattering: drop {', '.join(bad)}")
+
+
+def configure_extra_hard(a, pg) -> list:
+    """<PythiaGun><extraHard> for this job, in place: on with --extra-hard (noTrigger with
+    --hard none), off otherwise whatever the template says; the threshold, N and warm-up
+    from the options, else the template's.  Sets ``a.extra_pthat_min_xml`` (the threshold
+    the job runs) -> the problems found."""
+    eh = pg.find("extraHard")
+    if eh is None:
+        eh = ET.SubElement(pg, "extraHard")
+    _set(eh, "on", 1 if a.extra_hard else 0)
+    _set(eh, "noTrigger", 1 if a.hard == "none" else 0)
+    if a.extra_pthat_min is not None:
+        _set(eh, "pTHatMin", f"{a.extra_pthat_min:g}")
+    if a.extra_n is not None:
+        _set(eh, "fixedN", a.extra_n)
+    elif eh.find("fixedN") is not None:          # a template's N: only with --extra-n
+        eh.remove(eh.find("fixedN"))
+    if a.extra_warmup is not None:
+        _set(eh, "warmup", a.extra_warmup)
+    a.extra_pthat_min_xml = _text(eh, "pTHatMin")
+    if a.extra_hard and a.extra_pthat_min_xml is None:
+        a.extra_pthat_min_xml = "15"             # PythiaGun's default (main XML)
+    return []
+
+
 def pthat_bins_text(windows) -> str:
     """The <pTHatBins> text: 'min max min max ...'."""
     return " ".join(f"{lo:g} {hi:g}" for lo, hi in windows)
@@ -529,12 +611,14 @@ def job_xml(a, out_h5: str):
     for child in list(hard):
         hard.remove(child)
     template = ET.parse(a.user_xml).getroot().find("Hard")
-    if a.hard == "pythia":
+    a.extra_pthat_min_xml = None
+    if a.hard in ("pythia", "none"):
         pg = template.find("PythiaGun")
         if pg is None:
             sys.exit(f"run_prod_jet.py: {a.user_xml} has no <Hard><PythiaGun>")
         hard.append(pg)
         problems += configure_pythia_gun(a, pg)
+        problems += configure_extra_hard(a, pg)
     else:
         pgun = ET.SubElement(hard, "PGun")
         _set(pgun, "name", "PGun")
@@ -606,7 +690,7 @@ PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_ea
                    "jet_edge_e_max", "bg_edge_e_max", "jet_edge_e_max_eta",
                    "bg_edge_e_max_eta", "pthat_bin", "pthat",
                    "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
-                   "parton_pt_sub", "n_coll")
+                   "parton_pt_sub", "n_coll", "n_extra", "extra_mu", "extra_E", "extra_pt")
 
 
 def check_bulk_info(a, jetscape):
@@ -710,6 +794,8 @@ def pthat_diag(gun, trigger="none") -> dict:
         # the partons handed to the framework (what --parton-ymax cuts on), hardest first:
         # pid, px, py, pz, E, pT, y; leptons (a trigger's) are not partons
         hp = core.hard_partons_numpy(gun)
+        if hp.shape[1] > 7:                      # the scatter column: the trigger's only
+            hp = hp[hp[:, 7] == 0]
         hp = hp[~np.isin(np.abs(hp[:, 0]), LEPTON_PIDS)]
         if len(hp):
             d.update(parton_y_lead=float(hp[0, 6]), parton_pt_lead=float(hp[0, 5]))
@@ -719,6 +805,69 @@ def pthat_diag(gun, trigger="none") -> dict:
         from jetscape.hadrons_h5 import z_record
         d.update(z_record(core.pythia_gun_trigger(gun)["leptons"]))
     return d
+
+
+def open_extra_hard(a, jetscape):
+    """--extra-hard: the PythiaGun task, after checking that it runs the extras as asked
+    (a build without <extraHard> would refuse the XML or ignore it) -> the task, or None."""
+    if not a.extra_hard:
+        return None
+    from jetscape import pyjetscape_core as core
+
+    if not getattr(core, "PYTHIA_GUN_HAS_EXTRA_HARD", False):
+        sys.exit("run_prod_jet.py: --extra-hard needs X-SCAPE's PythiaGun with <extraHard> "
+                 "(branch multi_hard) and PyJetscape built against it")
+    tasks = {t.GetId(): t for t in jetscape.GetTaskList()}
+    gun = tasks.get("PythiaGun")
+    if gun is None:
+        sys.exit(f"run_prod_jet.py: --extra-hard found no PythiaGun task (tasks: "
+                 f"{sorted(tasks)})")
+    info = core.extra_hard_info(gun)
+    want = {"on": True, "no_trigger": a.hard == "none",
+            "fixed_n": -1 if a.extra_n is None else a.extra_n}
+    got = {k: info[k] for k in want}
+    if got != want or abs(info["pthat_min"] - float(a.extra_pthat_min_xml)) > 1e-9:
+        sys.exit(f"run_prod_jet.py: PythiaGun runs the extras {got}, pTHat > "
+                 f"{info['pthat_min']:g}, not {want}, > {a.extra_pthat_min_xml}")
+    print(f"  extras   pTHat > {info['pthat_min']:g} GeV: sigma = {info['sigma']:.4g} +- "
+          f"{info['sigma_err']:.2g} mb ({info['warmup']} warm-up events, Pythia seed "
+          f"{info['pythia_seed']}), sigma_NN {info['sigma_nn']:.4g} mb, N ~ "
+          + (f"fixed {a.extra_n}" if a.extra_n is not None
+             else "Poisson(N_coll sigma/sigma_NN)")
+          + ("; NO trigger (minimum bias)" if a.hard == "none" else ""))
+    return gun
+
+
+def extra_hard_event(xgun):
+    """The current event's extras -> (diag scalars, scatterings rows, shower_scatter): the
+    number of extras, their Poisson mean and the summed energy and scalar pT of their
+    handed-over partons; the (S, 8) SCATTER_COLUMNS rows; the scattering of each shower."""
+    if xgun is None:
+        return {}, None, None
+    import numpy as np
+    from jetscape import pyjetscape_core as core
+
+    info = core.extra_hard_info(xgun)
+    sc = np.asarray(info["scatterings"], dtype=np.float64).reshape(-1, 8)
+    ex = sc[sc[:, 0] > 0]
+    d = {"n_extra": int(info["n_extra"]), "extra_mu": float(info["mu"]),
+         "extra_E": float(ex[:, 6].sum()), "extra_pt": float(ex[:, 7].sum())}
+    return d, sc, np.asarray(info["parton_scatter"], dtype=np.int64)
+
+
+def extra_hard_final(xgun) -> dict:
+    """The extras' settings and warm-up cross section, as file attributes."""
+    if xgun is None:
+        return {}
+    from jetscape import pyjetscape_core as core
+
+    info = core.extra_hard_info(xgun)
+    return {"extra_hard": True, "extra_no_trigger": bool(info["no_trigger"]),
+            "extra_pthat_min": float(info["pthat_min"]),
+            "extra_sigma": float(info["sigma"]), "extra_sigma_err": float(info["sigma_err"]),
+            "extra_sigma_nn": float(info["sigma_nn"]), "extra_warmup": int(info["warmup"]),
+            "extra_fixed_n": int(info["fixed_n"]), "extra_seed": int(info["pythia_seed"]),
+            "extra_rng_seed": int(info["rng_seed"])}
 
 
 def open_initial_state(jetscape):
@@ -896,6 +1045,13 @@ def check_hadrons_only(a) -> None:
         sys.exit("run_prod_jet.py: --correlated-block needs --correlated")
 
 
+def hadron_tags(a) -> tuple:
+    """The hadron files of a --hadrons-only job: no jet_frag without a trigger (--hard
+    none), extra_frag with --extra-hard."""
+    return (("bulk_jet", "bulk_bg") + (() if a.hard == "none" else ("jet_frag",))
+            + (("extra_frag",) if a.extra_hard else ()))
+
+
 def hadronize_xml_for_job(a):
     """--hadrons-only: hadronize.xml with this job's settings, eCMforHadronization the job's
     collision energy (``a.ecm``) -> (its text, recorded as the hadron files' hadronize_xml,
@@ -967,12 +1123,14 @@ class HadronsOnly:
         keep_bits = {"p": a.hadron_keep_bits_p, "x": a.hadron_keep_bits_x}
         per_unit = str(a.oversample_bg).lower() in hz.PER_UNIT_OVERSAMPLE_BG
         self.outs = {}
-        for t in hz.TAGS:
+        for t in hadron_tags(a):
             extra = hz.tag_attrs(t, core, decay, common_seeds=a.correlated,
                                  correlated=a.correlated)
-            if t == "jet_frag":
+            if t in ("jet_frag", "extra_frag"):
                 n = a.n_frag
                 extra["x_had"] = "none"
+                if t == "extra_frag":
+                    extra["extra_hadronize"] = a.extra_hadronize
             elif t == "bulk_bg":
                 n = 0 if per_unit else int(a.oversample_bg)
                 extra.update({"oversample_bg": str(a.oversample_bg),
@@ -988,8 +1146,11 @@ class HadronsOnly:
             self.h.open(t, self.outs[t], n_samples=n, attrs=dict(common, **extra),
                         keep_bits=keep_bits, eta_max=a.eta_max, charged_only=a.charged,
                         positions=not a.no_x, initiators=t != "bulk_bg",
-                        partons=t == "jet_frag", primary_tag=PRIMARY_OF.get(t),
-                        primary_path=ppath, keep_primaries=a.keep_primaries_n)
+                        partons=t in ("jet_frag", "extra_frag"),
+                        primary_tag=PRIMARY_OF.get(t), primary_path=ppath,
+                        keep_primaries=a.keep_primaries_n,
+                        **({"hadron_scatter": a.extra_hadronize == "per_scattering"}
+                           if t == "extra_frag" else {}))
         self.records = []
         self.seconds = 0.0
         self.n_capped = 0
@@ -1027,8 +1188,13 @@ class HadronsOnly:
         rec = self.records.pop()
         e, bg_unit = int(rec["event"]), int(rec["bg_unit"])
         scal = {k: v for k, v in rec["row"].items() if k not in self.RESERVED}
+        partons, ini = rec["partons"], rec["initiators"]
+        if a.extra_hard:                 # the trigger's showers -> jet_frag, the extras'
+            from jetscape.particlize_h5 import split_by_scatter
+            (partons, ini), (x_partons, x_ini, x_scat) = split_by_scatter(
+                partons, ini, rec["initiator_scatter"])
         had, _ = h.bulk("bulk_jet", e, rec["jet"], h.bulk_jet_seed(e, bg_unit), a.oversample,
-                        event=e, initiators=rec["initiators"],
+                        event=e, initiators=ini,
                         keep_primaries=a.keep_primaries_n, **scal)
         msg = f"bulk_jet {0 if had is None else len(had['pid'])}"
         if rec["bg"] is not None:
@@ -1039,13 +1205,19 @@ class HadronsOnly:
             bg, _ = h.bulk("bulk_bg", bg_unit, rec["bg"], h.seed("bulk_bg", bg_unit), n,
                            event=e, keep_primaries=a.keep_primaries_n)
             msg += f", bulk_bg (unit {bg_unit}, {n} samples) {0 if bg is None else len(bg['pid'])}"
-        frags = h.fragments(e, rec["partons"], [h.seed("jet_frag", e, s)
-                                                for s in range(a.n_frag)],
-                            initiators=rec["initiators"], **scal)
+        if a.hard != "none":
+            frags = h.fragments(e, partons, [h.seed("jet_frag", e, s)
+                                             for s in range(a.n_frag)],
+                                initiators=ini, **scal)
+            msg += f", jet_frag {sum(len(f['pid']) for f in frags) / a.n_frag:.1f}"
+        if a.extra_hard:
+            xf = h.extra_fragments(e, x_partons, a.n_frag, initiators=x_ini,
+                                   initiator_scatter=x_scat, scatterings=rec["scatterings"],
+                                   mode=a.extra_hadronize, **scal)
+            msg += f", extra_frag {sum(len(f['pid']) for f in xf) / a.n_frag:.1f}"
         dt = _time.time() - t0
         self.seconds += dt
-        return (msg + f", jet_frag {sum(len(f['pid']) for f in frags) / a.n_frag:.1f}"
-                f"/fragmentation, hadronized in {dt:.1f} s")
+        return msg + f" /fragmentation, hadronized in {dt:.1f} s"
 
     def finish(self, complete, attrs):
         self.h.set_attrs(dict(attrs, prod_hadronize_s_total=round(self.seconds, 2)))
@@ -1107,6 +1279,7 @@ def main() -> int:
         check_pthat_bins(a)
         check_parton_ycut(a)
         check_trigger(a)
+        check_extra_hard(a)
     except ValueError as exc:
         sys.exit(f"run_prod_jet.py: {exc}")
     check_hadrons_only(a)          # --hadrons-only: both surfaces, no pair file, a sink
@@ -1154,12 +1327,17 @@ def main() -> int:
     elif a.hard == "pythia":
         hard_desc = (f"PythiaGun pTHat {_text(root, 'Hard/PythiaGun/pTHatMin')}-"
                      f"{_text(root, 'Hard/PythiaGun/pTHatMax')} GeV")
+    elif a.hard == "none":
+        hard_desc = "no trigger (minimum bias)"
     else:
         hard_desc = f"PGun pT {a.pgun_pt:g} GeV"
     if a.parton_ymax is not None:
         hard_desc += f", partons |y| < {a.parton_ymax:g} ({a.parton_y_mode})"
     if a.trigger_kind != "none":
         hard_desc += f", trigger {trigger_desc(a)}"
+    if a.extra_hard:
+        hard_desc += (f", extra hard scatterings pTHat > {a.extra_pthat_min_xml} GeV"
+                      + (f" (exactly {a.extra_n})" if a.extra_n is not None else ""))
     print(f"prod_AuAu_0_10_jet: {a.events} event(s), seed {a.seed}"
           + (" (from OS entropy)" if a.seed_source == "os_entropy" else "")
           + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
@@ -1190,7 +1368,7 @@ def main() -> int:
     if out_particlize:
         print(f"  output   {out_particlize}")
     if a.hadrons_only:
-        print(f"  output   {stem}_hadrons_{{bulk_jet,bulk_bg,jet_frag}}.h5"
+        print(f"  output   {stem}_hadrons_{{{','.join(hadron_tags(a))}}}.h5"
               + (" + *_primary.h5" if a.keep_primaries_n > 0 else ""))
     if a.hadrons_only or a.validate_inline:
         print(f"  hadrons  {a.hadronize_xml}"
@@ -1232,6 +1410,11 @@ def main() -> int:
             **{k: getattr(a, k) for k in TRIGGER_CUTS if getattr(a, k) is not None}}
            if a.trigger_kind != "none" else {}),
         **({"min_partons": int(a.min_partons)} if a.min_partons is not None else {}),
+        **({"prod_extra_hard": True, "prod_extra_pthat_min": float(a.extra_pthat_min_xml),
+            "prod_extra_hadronize": a.extra_hadronize,
+            "prod_extra_no_trigger": a.hard == "none",
+            **({"prod_extra_n": a.extra_n} if a.extra_n is not None else {})}
+           if a.extra_hard else {}),
         "system": rp.collision_system(root, a.main_xml),
         "initial_state_kind": "3dMCGlauber_strings",
         "hydro": rp.hydro_label(a.build),
@@ -1249,7 +1432,8 @@ def main() -> int:
                                       "parametrization 3, second-order terms"},
         keep_surface=particlize_legs(a), extra_attrs=provenance, verbose=True,
         bg_layout=a.bg_layout, reuse=a.reuse, store_evolution=not a.particlize_only,
-        read_jet=not a.particlize_only, edge_e_threshold=a.edge_e_threshold)
+        read_jet=not a.particlize_only, edge_e_threshold=a.edge_e_threshold,
+        extra_hard=a.extra_hard)
     pwriter = None
     records = []                       # --hadrons-only: the particlize writer's memory sink
     if out_particlize or a.hadrons_only:
@@ -1258,7 +1442,8 @@ def main() -> int:
             out_particlize, legs=particlize_legs(a), bg_id=BG_ID, jet_id=JET_ID,
             T_fo=provenance["T_fo"], pair_file=None if a.particlize_only else out_h5,
             extra_attrs={k: v for k, v in provenance.items() if k != "T_fo"},
-            verbose=True, sink=records.append if a.hadrons_only else None)
+            verbose=True, sink=records.append if a.hadrons_only else None,
+            extra_hard=a.extra_hard)
 
     # MUSIC / 3dMCGlauber resolve their input files relative to the working directory:
     # a private one per job (rp.enter_workdir), so concurrent jobs share no file.
@@ -1279,7 +1464,8 @@ def main() -> int:
         pwriter.attach(jetscape)             # reads ./music_input: the job's own
     jet_leg = restart_legs(a, jetscape, writer)  # after both: their surface settings
     inline = open_inline(a, jetscape, stem) if a.validate_inline else None
-    gun = open_pthat_bins(a, jetscape)
+    gun = open_pthat_bins(a, jetscape) if a.hard != "none" else None   # no trigger: no pTHat
+    xgun = open_extra_hard(a, jetscape)
     ini = open_initial_state(jetscape)
     hadr = None
     if a.hadrons_only:
@@ -1288,6 +1474,7 @@ def main() -> int:
 
     late = 0
     droplets = e_late = 0.0
+    n_extra_total = 0
     t_job = time.time()
     finished = False
     windows = None
@@ -1297,11 +1484,15 @@ def main() -> int:
         for i in range(jetscape.GetNumberOfEvents()):
             t0 = time.time()
             jetscape.ExecPerEvent()
+            xd, scat, shower_scat = extra_hard_event(xgun)
             idx = writer.Exec(**pthat_diag(gun, a.trigger_kind),   # both legs are live
-                              **geometry_diag(ini), **eloss_diag(bg_hydro))
+                              **geometry_diag(ini), **eloss_diag(bg_hydro), **xd,
+                              **({"scatterings": scat} if a.extra_hard else {}))
             if idx is not None and pwriter is not None:
                 d = writer.last_event_diag
                 pwriter.Exec(idx, bg_id=d["bg_id"], bg_key=writer.last_bg_key,
+                             **({"scatterings": scat, "shower_scatter": shower_scat}
+                                if a.extra_hard else {}),
                              **{k: d[k] for k in particlize_diag if k in d})
                 if inline is not None:
                     pwriter.write_events(idx, **inline.capture(idx))
@@ -1317,6 +1508,7 @@ def main() -> int:
             d = writer.last_event_diag
             droplets += d["n_droplets"]
             e_late += d["E_droplets_late"]
+            n_extra_total += d.get("n_extra", 0)
             frames = (f"jet/bg frames {d['ntau_jet']}/{d['ntau_bg']}" if "ntau_jet" in d
                       else f"jet {d['ntau_jet_music']} MUSIC steps, bg {d['ntau_bg']} frames")
             msg = (f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} done in {wall:.1f} s, "
@@ -1341,10 +1533,15 @@ def main() -> int:
                     msg += f", hardest parton y {d['parton_y_lead']:+.2f}"
                 if "z_pt" in d:
                     msg += f", Z pT {d['z_pt']:.1f} GeV y {d['z_y']:+.2f}"
+            if "n_extra" in d:
+                msg += (f", {d['n_extra']} extra scattering(s) (mu {d['extra_mu']:.2f}, "
+                        f"{d['extra_E']:.0f} GeV)")
             print(msg)
             if hmsg:
                 print(f"prod_AuAu_0_10_jet: event {i + 1}/{a.events} hadrons: {hmsg}")
         windows = None if gun is None else pthat_windows_final(gun)
+        if xgun is not None:
+            windows = {**(windows or {}), **extra_hard_final(xgun)}
         jetscape.Finish()
         finished = True
     finally:
@@ -1410,7 +1607,13 @@ def main() -> int:
                        **{k: getattr(a, k) for k in TRIGGER_CUTS if getattr(a, k) is not None})
     if a.min_partons is not None:
         summary["min_partons"] = int(a.min_partons)
-    if windows is not None:
+    if windows is not None and "extra_hard" in windows:
+        summary.update({k: windows[k] for k in ("extra_pthat_min", "extra_sigma",
+                                                "extra_sigma_err", "extra_sigma_nn",
+                                                "extra_no_trigger")},
+                       extra_hard=True, extra_hadronize=a.extra_hadronize,
+                       n_extra_total=int(n_extra_total))
+    if windows is not None and "pthat_bins" in windows:
         if a.parton_ymax is not None:
             summary.update(parton_ymax=a.parton_ymax, parton_y_mode=a.parton_y_mode)
         if "pthat_bin_acceptance" in windows:

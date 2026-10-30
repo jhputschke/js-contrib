@@ -212,6 +212,9 @@ class PairH5Writer:
         ``bg_layout="full"`` and a file, which stores the background in every row.  True:
         read and resample it anyway and raise if the fingerprint matched a different
         background (a check for tests, at the old cost).
+    extra_hard : bool
+        The events have other hard scatterings (PythiaGun's <extraHard>): store each
+        event's ``scatterings/`` (:meth:`Exec`'s ``scatterings``, SCATTER_COLUMNS rows).
     """
 
     def __init__(self, out_file_name="pair_evo.h5", *, bg_id="MUSIC_1", jet_id="MUSIC_2",
@@ -220,7 +223,7 @@ class PairH5Writer:
                  store_showers=True, keep_surface=(), provenance=None, extra_attrs=None,
                  force=True, verbose=False, bg_layout="auto", reuse=1,
                  store_evolution=True, read_jet=True, edge_e_threshold=None,
-                 verify_bg_reuse=False):
+                 verify_bg_reuse=False, extra_hard=False):
         if grid_mode not in ("grid", "native"):
             raise ValueError(f"grid_mode must be 'grid' or 'native', got {grid_mode!r}")
         self._out_file_name = str(out_file_name)
@@ -263,6 +266,9 @@ class PairH5Writer:
         self._shape = None                      # (nx, ny, neta) of the first event
         self._finished = False
         self._g_drop = self._g_sh = None
+        self._extra_hard = bool(extra_hard)
+        self._g_scat = None
+        self._scat_rows = None
         self._drop_flux = False
         self._i = 0
         self._n_clipped = 0
@@ -337,14 +343,16 @@ class PairH5Writer:
               f"arr (native store), deposition {mode}, output -> {out}")
 
     # ── per event ───────────────────────────────────────────────────────────────
-    def Exec(self, **diag):
+    def Exec(self, *, scatterings=None, **diag):
         """Write the current event's pair.  Returns its index in the file, or None.
 
-        Extra keyword arguments are stored under ``diag/`` for this event.  Must run
+        Extra keyword arguments are stored under ``diag/`` for this event; with
+        ``extra_hard``, ``scatterings`` are the event's hard scatterings (S, 8).  Must run
         between ``ExecPerEvent()`` and ``ClearPerEvent()``.
         """
         if self._bg is None:
             raise RuntimeError("PairH5Writer: call attach() after JetScape.Init() first")
+        self._scat_rows = scatterings
         try:
             return self._write_event(diag)
         finally:
@@ -491,6 +499,11 @@ class PairH5Writer:
             self._g_drop.append(rows)
         else:
             d.pop("_rows")
+        if self._g_scat is not None:
+            from .particlize_h5 import SCATTER_COLUMNS
+            self._g_scat.append({"data": np.asarray(
+                np.zeros((0, len(SCATTER_COLUMNS))) if self._scat_rows is None
+                else self._scat_rows, dtype=np.float64).reshape(-1, len(SCATTER_COLUMNS))})
         d.update(self._shower_rows())
         d.update(tau0_music=float(jet_src.tau_min), ntau_bg=n_bg, bg_id=self._bg_first,
                  **jet_diag)
@@ -738,6 +751,11 @@ class PairH5Writer:
                            "MUSIC's grid (-1: never reached a hydro step); with root attr "
                            "liquefier_normalize_on_hydro_grid = 1 MUSIC received each droplet "
                            "exactly, otherwise flux times it.")})
+        if self._extra_hard:
+            from .particlize_h5 import SCATTER_COLUMNS, SCATTER_UNITS
+            self._g_scat = self._w.ragged(
+                "scatterings", "offsets", {"data": (np.float64, (len(SCATTER_COLUMNS),))},
+                attrs={"data_columns": list(SCATTER_COLUMNS), "units": SCATTER_UNITS})
         if self._store_showers:
             widths = {"partons": len(PARTON_COLUMNS), "vertices": len(VERTEX_COLUMNS),
                       "initiators": len(INITIATOR_COLUMNS)}
