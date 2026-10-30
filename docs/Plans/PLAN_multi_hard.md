@@ -1,13 +1,17 @@
 # PLAN: extra hard scatterings per event (stage 1)
 
-2026-10-19. Status: **decided, not implemented.** Today every event has exactly one hard
+2026-10-19, extended 2026-10-30 (D10–D17). Status: **decided, not implemented.** Today every
+event has exactly one hard
 scattering: PythiaGun at one binary collision of 3dMCGlauber, with the MPI partons of that one
 nucleon–nucleon collision. A Pb+Pb collision has many more: N_coll × σ(p̂_T > p₀)/σ_NN of them.
-Stage 1 adds the extra **hard** scatterings (p̂_T above p₀ = 15 GeV by default), as more showers
+Stage 1 adds the extra **hard** scatterings (p̂_T above p₀ = 10–15 GeV, per system), as more showers
 in the existing two-stage chain. They give the model the jet background its Pb+Pb events lack
 today: the fake/combinatorial jet2 of the dijet proxy (`PLAN_dijet_deta_wake.md` D2), the B of
 Z+jet (`zjet/ANA_Zjet.md`: "the model's background has no other hard scatterings"), CMS-like
-mixed events, and the hard tail of the 4–10 GeV underlying event. Stage 2 (semi-hard minijets,
+mixed events, and the hard tail of the 4–10 GeV underlying event. They also enter the **bulk
+observables** (Nch, [p_T], v_n; review P7 of 2026-10-30), so the extras are provided for **all
+analyses and systems**: Au+Au and Pb+Pb, the new LHC small systems O+O and Ne+Ne (§3.9), and a
+**minimum-bias mode** without a forced trigger (§3.8). Stage 2 (semi-hard minijets,
 p̂_T ~ 3–10 GeV, a change of the bulk model with string subtraction and a retune) is a later,
 separate plan (§6).
 
@@ -27,6 +31,19 @@ LO Pythia 8.3 at 5.02 TeV (HardQCD, ISR on, FSR and MPI off), per 0–30 % Pb+Pb
 0–10 %: × 1.55. Today an event has 2–18 showers (the trigger's Pythia event with its MPI). At
 p₀ = 15 the extras add ~2–3× that; their energy is a few per cent of the event's E_T.
 
+Per binary collision and energy (same settings, 20,000 events each, 2026-10-30; σ_NN 42 mb at
+200 GeV, 67.6 mb at 5.02 TeV, ~68 mb at 5.36 TeV):
+
+| √s_NN | σ(p̂_T > 10) | σ(p̂_T > 15) | extras per binary collision, p₀ = 10 / 15 |
+|---|---|---|---|
+| 200 GeV | 0.0058 mb | 0.00054 mb | 1.4·10⁻⁴ / 1.3·10⁻⁵ |
+| 5.02 TeV | 2.31 mb | 0.52 mb | 0.034 / 0.0077 |
+| 5.36 TeV | 2.54 mb | 0.58 mb | 0.037 / 0.0085 |
+
+So Au+Au 0–10 % at 200 GeV gets μ ≈ 0.13 at p₀ = 10, and O+O at 200 GeV (the ISR production)
+μ ≈ 0.007: at RHIC the extras barely matter. Central O+O / Ne+Ne at 5.36 TeV get ~1.9 at 10 GeV
+and ~0.4 at 15 GeV (for N_coll ≈ 50, a rough guess, not computed; V3 records the real N_coll).
+
 ## 2. Decisions (2026-10-19)
 
 | | question | decision |
@@ -40,6 +57,21 @@ p₀ = 15 the extras add ~2–3× that; their energy is a few per cent of the ev
 | D7 | hadronization | **two groups when extras are on**: the trigger (with its MPI partons) alone, the extras together in a second Colorless call; **per scattering** as an option. Extras off: unchanged |
 | D8 | output | the extras' hadrons in a **new tag `extra_frag`**; `jet_frag` stays the trigger's alone. Per-event and per-scattering records; the scattering index on the shower initiators |
 | D9 | validation | §4: off = bit-identical; on = the trigger's `jet_frag` and `bulk_bg` bit-identical to extras off; sampling, energy, physics, cost |
+
+Extended 2026-10-30 for the bulk observables and the small systems (D2 and D5 changed):
+
+| | question | decision |
+|---|---|---|
+| D2′ | threshold | **per system, in each XML**: p₀ = **10 GeV** for Au+Au, O+O, Ne+Ne (few extras), **15 GeV** for Pb+Pb; `--extra-pthat-min` overrides |
+| D5′ | random numbers | the extras use **their own engines** throughout: the Pythia instance, the Poisson draw, the vertex choice, and the **showers** (the extras' Matter/LBT clones get an engine seeded from (job seed, event, scattering)). The trigger's showers then draw exactly what they draw without extras, from every event on (today the clones share the module's engine across events, `JetScapeModuleBase.cc:67-73`, and 3dMCGlauber's `SampleABinaryCollisionPoint` draws from the wrapper's engine, `MCGlauberWrapper.cc:269-276`) |
+| D10 | small systems | **O+O and Ne+Ne at 5.36 TeV through the two-stage chain** (`run_prod_jet.py`, liquefier, MUSIC_2), new XMLs (§3.9). The 200 GeV O+O ISR chain (one MUSIC, no deposition) gets no extras |
+| D11 | small-system bulk | the production **Pb+Pb LHC set** (3dMCGlauber + MUSIC of the 2601.17234 family) with ¹⁶O / PGCM ²⁰Ne and eCM 5360, documented as untuned for small systems |
+| D12 | small-system centrality | **impact-parameter presets** (0–10 % default, minimum bias as an option), as the other XMLs; multiplicity classes come with the full flow tools (later project) |
+| D13 | minimum bias | **a mode with no forced trigger** in `run_prod_jet.py` (`--hard none --extra-hard`): an event = strings + Poisson extras (N may be 0), weight 1; the jet leg holds the extras, so bulk_jet − bulk_bg is their effect on Nch, [p_T], v_n. Events with N = 0 skip MUSIC_2 and are flagged |
+| D14 | legs | **two legs** (D3) now; a third leg (strings + extras) that isolates the trigger's wake is a later option, and the files are laid out so it adds a tag without changing the others |
+| D15 | flow tools | **a minimal set in this project**: per event Nch, [p_T], v_n{2} with an η gap (n = 2, 3), and the paired Δ (bulk_jet − bulk_bg); enough for V5. v_n{4}, ρ(v₂², [p_T]), symmetry planes and multiplicity centrality are a later project |
+| D16 | readers | **extra_frag included by default** when present: full event = bulk_jet + jet_frag + extra_frag, B = bulk_bg + extra_frag; a switch to exclude it. Files without extras read as today |
+| D17 | energy | **D4 kept** for all systems: no subtraction; extra_E and the extras' fraction of the event's E_T recorded (larger in central O+O / Ne+Ne at 10 GeV) |
 
 The trigger keeps everything it has: its window, cuts (`--trigger Z`, `--parton-ymax`), σ_k,
 `pthat`, `pthat_bin`, `event_weight`, and the event weight σ_k/N_k × N_coll. The extras are
@@ -57,7 +89,8 @@ behind an option: **off by default, and off is bit-identical to today** (§4 V1)
 The framework keeps one HardProcess pointer (`JetScape.cc:1217`, the last wins; a second
 `<Hard>` would read the same XML block and seed), so the extras live inside PythiaGun.
 
-- XML `<PythiaGun><extraHard>`: `<on>` (0), `<pTHatMin>` (15), `<sigmaNN>` (default: the PDG fit
+- XML `<PythiaGun><extraHard>`: `<on>` (0), `<pTHatMin>` (15; the production XMLs set their
+  system's p₀, D2′), `<sigmaNN>` (default: the PDG fit
   of 3dMCGlauber at `<eCM>`, `Glauber::compute_NN_inelastic_cross_section`), `<warmup>` (20000
   events), `<fixedN>` (−1: Poisson), `<LinesToRead>` (extra Pythia settings).
 - A dedicated Pythia instance (the `extraPythia_` pattern of the windows, `PythiaGun.cc:80-91`)
@@ -68,7 +101,9 @@ The framework keeps one HardProcess pointer (`JetScape.cc:1217`, the last wins; 
   kept fixed for the job and recorded.
 - ExecuteTask, after the trigger is accepted (`:515-639`) and its partons added (`:666-691`):
   μ = `ini->GetNcoll()` · σ_extra/σ_NN; N ~ Poisson(μ) from the extras' Pythia RNG (or
-  `<fixedN>`); for each: `py_extra.next()`, a vertex from `ini->SampleABinaryCollisionPoint`
+  `<fixedN>`); for each: `py_extra.next()`, a vertex drawn uniformly from the binary-collision
+  list **with the extras' engine** (D5′: a new `InitialState` accessor for the list, or
+  `SampleABinaryCollisionPoint` with an engine argument; 3dMCGlauber's engine is not touched)
   (x, y; z = t = 0 as the trigger), the status-62 partons above `softMomentumCutoff` as for the
   trigger, colour tags offset per scattering, `plabel` = the scattering index (0 the trigger,
   1… the extras), appended **after** the trigger's partons.
@@ -84,13 +119,15 @@ No structural change: `JetEnergyLossManager` clones one JetEnergyLoss per parton
 (`JetEnergyLossManager.cc:96-185`), all deposit into the one liquefier list, MUSIC_2 sums the
 droplets, and the MUSIC_2 restart stays valid (checkpoint at `tau_delay`).
 
-- **Order:** the trigger's partons first (3.1), so its showers run first and draw the same
-  random numbers as without extras (the clones share their module's engine; production seeds
-  are nonzero, so 3dMCGlauber's engine, which draws the extras' vertices, is a different one).
-- **Risk to check early (V2):** if the clones' task numbers come from a global counter, more
-  clones per event would shift the trigger's engine from the second event on. Fix if it shows:
-  seed the clones from (event, shower index), or shower the extras in a second manager after
-  the trigger's.
+- **Order:** the trigger's partons first (3.1), so its showers run first.
+- **Own engines for the extras' showers (D5′).** Checked 2026-10-30: a module's engine is made
+  once from its task number (`JetScapeModuleBase::GetMt19937Generator`, `JetScapeTaskSupport.cc:91-116`)
+  and the per-parton clones share it across events, so extras showered from the same engine
+  would shift the trigger's showers from the second event on. Fix in X-SCAPE: a
+  `SetMt19937Generator` on `JetScapeModuleBase`; `JetEnergyLoss` gives the clones of a parton
+  with `plabel` > 0 (Matter, LBT and their sub-clones) an engine seeded from (job seed, event,
+  scattering index) by the same splitmix as the gun; the trigger's clones keep the module's
+  engine. Off (no extras): nothing changes.
 - **Cost:** MUSIC_2's jet-source gather (all cells × active droplets, on the CPU even in the GPU
   build, `music4gpu advance.cpp:491-560`) grows with the droplets: ~2–3× at p₀ = 15. Measured in
   V6; the per-droplet scatter (or a GPU kernel) is not part of stage 1 unless V6 says so.
@@ -111,9 +148,10 @@ Colorless itself is unchanged; the binding calls it per group.
 
 ### 3.4 Production driver and files (js-contrib `example/prod_AuAu_0_10_jet/`)
 
-- `run_prod_jet.py`: `--extra-hard` (off), `--extra-pthat-min 15`, `--extra-n N`,
-  `--extra-hadronize groups|per_scattering`; written into `<PythiaGun><extraHard>` by
-  `configure_pythia_gun`. `run_prod_vacuum.py` rejects them (pp: one collision, Pythia's MPI).
+- `run_prod_jet.py`: `--extra-hard` (off), `--extra-pthat-min P` (default: the XML's),
+  `--extra-n N`, `--extra-hadronize groups|per_scattering`; written into
+  `<PythiaGun><extraHard>` by `configure_pythia_gun`. `run_prod_vacuum.py` rejects them (pp:
+  one collision, Pythia's MPI).
 - Per event (pair `diag/`, particlize `events/`, hadrons-only `units/`): `n_extra`, `extra_mu`,
   `extra_E`, `extra_pt` (`PARTICLIZE_DIAG`).
 - Per scattering: a ragged group `scatterings/` (offsets + data; columns scatter, role, pthat,
@@ -127,8 +165,10 @@ Colorless itself is unchanged; the binding calls it per group.
 ### 3.5 Readers (js-contrib)
 
 - `python/jetscape/hadrons_h5.py`: `TAGS` + `extra_frag` (optional tag: files without it read
-  as today); `JetEvents.jet_event` (the full event = bulk_jet k + jet_frag fk + extra_frag fk);
-  `EventInfo.scatterings()`; the sample checks and seeds.
+  as today); `JetEvents.jet_event` (the full event = bulk_jet k + jet_frag fk + extra_frag fk,
+  **included by default when present**, `extras=False` to leave it out, D16);
+  `EventInfo.scatterings()`; the sample checks and seeds. A minimum-bias file (D13) has no
+  `jet_frag`: the full event is bulk_jet + extra_frag.
 - C++ `example/analysis_root/HadronFileReader.h`: the tag in the enum, `bkg_dep_frag` adds
   extra_frag, a new `extra(e, j)`; `run_h5toROOT.py` converts it;
   `prod_AuAu_0_10_jet/root_export/check_h5_vs_root.py` checks it.
@@ -153,19 +193,57 @@ The rule: **extra_frag belongs to the event, not to the trigger.**
 ### 3.7 Documents
 
 `docs/README_2stage.md` (a section on extra scatterings), `prod_AuAu_0_10_jet/README.md`
-(options, files), `docs/README_analysis.md` (extra_frag, the full event), `zjet/ANA_*.md` and
-`dijet/ANA_Deta.md` (what changes with extras on), the config XMLs (`<extraHard>`, off).
+(options, files, the minimum-bias mode, the small systems), `docs/README_analysis.md`
+(extra_frag, the full event, the flow tools), `zjet/ANA_*.md` and `dijet/ANA_Deta.md` (what
+changes with extras on), the config XMLs (`<extraHard>`, off, with the system's p₀).
+
+### 3.8 Minimum-bias mode (D13)
+
+- `run_prod_jet.py --hard none --extra-hard`: PythiaGun skips the trigger (a `<trigger>off`
+  / `<noTrigger>` switch in `<PythiaGun>`, so σ_k windows, `pthat`, `pthat_bin` are absent and
+  `event_weight` = 1) and hands over only the extras; `--extra-hard` is required with
+  `--hard none`. `--pthat-bins`, `--trigger`, `--parton-ymax` are rejected.
+- The two legs as usual; an event with N = 0 has no droplets: MUSIC_2 is skipped and bulk_jet
+  is written as bulk_bg's copy with the flag `no_extras` (or a reference, decided in step 1 by
+  what the writers allow), so the per-event Δ is exactly 0 there.
+- The files carry `mode = "minbias"`; the readers and the flow tools (§3.10) accept them; the
+  jet analyses refuse them (no trigger).
+- The centrality range comes from the XML's b preset (D12), `--bmin/--bmax` if the driver has
+  them, else the XML.
+
+### 3.9 Small systems at the LHC (D10–D12)
+
+- New user XMLs in `example/config/`: `OO_5360_jet.xml` and `NeNe_5360_jet.xml`, copies of
+  `PbPb_0_10_jet.xml` (the production Pb+Pb set, D11) with 3dMCGlauber's ¹⁶O (α-cluster
+  configurations, as the O+O ISR XML) and PGCM ²⁰Ne (`Nucleus.cpp:507-528`), eCM 5360,
+  σ_NN at 5.36 TeV, `<extraHard><pTHatMin>` 10 (D2′), b presets for 0–10 % and minimum bias
+  (D12; the b edges from a 3dMCGlauber minimum-bias sample, recorded in the XML header).
+- The MUSIC grid and `grid_*.yaml` sized for the small fireball (as `grid_oo.yaml`), the
+  liquefier unchanged.
+- A short note in `prod_AuAu_0_10_jet/README.md`: untuned for small systems (no LHC O+O / Ne+Ne
+  tune; compare dNch/dη and v₂{2} with ALICE/CMS/ATLAS O+O and Ne+Ne before quoting numbers).
+
+### 3.10 Minimal flow and bulk tools (D15)
+
+- `example/analysis/bulk/` (Python; a C++ twin only if the ROOT path needs it): per event
+  Nch and [p_T] in |η| < 0.8 (and a configurable window), v_n{2} for n = 2, 3 from Q-vectors with
+  an η gap (two sub-events, |Δη| > 1 by default), for bulk_jet (+ jet_frag + extra_frag, the full
+  event), bulk_bg, and the paired Δ = full − bulk_bg.
+- Class averages: ⟨Nch⟩, ⟨[p_T]⟩, σ([p_T]), v_n{2} with jackknife errors; works on Pb+Pb,
+  Au+Au, O+O, Ne+Ne and minimum-bias files.
+- Tests on synthetic events with an imposed v₂ and a known [p_T].
 
 ## 4. Validation
 
 | | check | how |
 |---|---|---|
 | V1 | **off = today** | the prod regression recipe (Au+Au, 2 events, reuse 2, `--write-particlize both`) and one Pb+Pb Z+jet event, every dataset bit-identical to `contrib`/`main` |
-| V2 | **on: the trigger untouched** | the same jobs with `--extra-hard`: `jet_frag` and `bulk_bg` bit-identical to extras off; `bulk_jet` differs; `extra_frag` appears; checked on several events (the task-number risk of 3.2) |
-| V3 | sampling | n_extra against Poisson(μ) over many events; μ ∝ N_coll; the warm-up σ against Pythia's long-run 0.525 mb at 15 GeV; the vertices against the binary-collision density; the extras' p̂_T spectrum against Pythia's inclusive one |
+| V2 | **on: the trigger untouched** | the same jobs with `--extra-hard`: `jet_frag` and `bulk_bg` bit-identical to extras off **on every event** (the own engines of D5′); `bulk_jet` differs; `extra_frag` appears |
+| V3 | sampling | n_extra against Poisson(μ) over many events; μ ∝ N_coll; the warm-up σ against the table of §1 (5.02 / 5.36 TeV, 10 / 15 GeV); the vertices against the binary-collision density; the extras' p̂_T spectrum against Pythia's inclusive one; the same for O+O / Ne+Ne and the minimum-bias mode |
 | V4 | energy | `extra_E` per event; `E_droplets` growing with the extras' energy loss; the liquefier's normalization (`source/flux`), `E_droplets_early`/`late` |
-| V5 | physics | jets > 30 GeV (R = 0.4) in bulk_bg + extra_frag against N_coll-scaled pp inclusive jets; the dijet proxy's fake jet2 per class with extras; Z+jet B_own with extras against CMS 1702.01060's B; the 4–10 GeV underlying event in the Z–hadron noise budget |
-| V6 | cost | time and memory per event at p₀ = 10, 15, 20 GeV on the GB10 (MUSIC_2's source gather, the showers, the warm-up), against today |
+| V5 | physics | jets > 30 GeV (R = 0.4) in bulk_bg + extra_frag against N_coll-scaled pp inclusive jets; the dijet proxy's fake jet2 per class with extras; Z+jet B_own with extras against CMS 1702.01060's B; the 4–10 GeV underlying event in the Z–hadron noise budget; **bulk (§3.10)**: ΔNch, Δ[p_T], Δv_n{2} from the minimum-bias pairs in Pb+Pb, O+O, Ne+Ne against extra_E, and the full-event v_n{2} with and without extras |
+| V6 | cost | time and memory per event at p₀ = 10, 15, 20 GeV on the GB10 (MUSIC_2's source gather, the showers, the warm-up), against today; Pb+Pb at 10 GeV decides whether the source gather needs work in this project |
+| V7 | small systems | O+O / Ne+Ne 5.36 TeV, a few events each: the chain runs, dNch/dη and ⟨p_T⟩ at mid-rapidity sane against the published O+O / Ne+Ne values (untuned, D11), N_coll and μ recorded |
 
 Unit tests: the Poisson/vertex/colour bookkeeping (C++ via the binding on a small Glauber
 event), the two-group hadronization (trigger group = today's call), the readers with and
@@ -175,12 +253,13 @@ without `extra_frag`, the analysis contents with a synthetic extra_frag.
 
 | step | what | where |
 |---|---|---|
-| 1 | generator, binding, driver options and records; V1, V3 | X-SCAPE PythiaGun; js-contrib bind_hard_process, run_prod_jet, pair/particlize writers |
+| 1 | generator (extras, own engines for the Poisson draw and the vertices, the no-trigger switch), the shower engines (D5′), binding, driver options and records; V1, V3 | X-SCAPE PythiaGun, InitialState/MCGlauberWrapper, JetScapeModuleBase, JetEnergyLoss; js-contrib bind_hard_process, run_prod_jet, pair/particlize writers |
 | 2 | hadronization in groups, `extra_frag` in the hadron files; V2 | bind_hadronization, hadronizer, hadronize.py, HadronsOnly |
-| 3 | readers (Python, C++, converter) | hadrons_h5, HadronFileReader.h, run_h5toROOT |
-| 4 | analyses (Python + C++ twins, check_cxx) | zjet map steps, pools, QA, dijet |
-| 5 | V4–V6 on the GB10 (a few Pb+Pb Z+jet jobs, p₀ = 10/15/20) | |
-| 6 | documents; PRs (one per repo, against `contrib` / `main`); then an image and the RTX box | |
+| 3 | minimum-bias mode (§3.8) and the O+O / Ne+Ne 5.36 TeV XMLs (§3.9); V7 | run_prod_jet, config/ |
+| 4 | readers (Python, C++, converter), extra_frag by default | hadrons_h5, HadronFileReader.h, run_h5toROOT |
+| 5 | analyses (Python + C++ twins, check_cxx) and the minimal flow tools (§3.10) | zjet map steps, pools, QA, dijet, analysis/bulk |
+| 6 | V4–V6 on the GB10 (a few Pb+Pb Z+jet jobs at p₀ = 10/15/20; minimum-bias Pb+Pb, O+O, Ne+Ne) | |
+| 7 | documents; PRs (one per repo, against `contrib` / `main`); then an image and the RTX box | |
 
 ## 6. Stage 2 (later): semi-hard minijets
 
