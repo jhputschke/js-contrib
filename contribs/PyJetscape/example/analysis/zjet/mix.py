@@ -23,6 +23,11 @@ section / events x N_coll):
               backgrounds of that set; the error from the spread over the Z's
 pp: the factorized result (no fluid: every event its own background).
 
+Extra hard scatterings (files with extra_frag, docs/Plans/PLAN_multi_hard.md): the full event
+of the pools is bulk_jet + jet_frag + extra_frag, the Z-correlated yield the trigger's
+(zjet_mixing's module docstring); ``--no-extras`` builds the pools without them (as for files
+without extras; the pools' manifest records the choice, so switching rebuilds them).
+
 Pb+Pb backgrounds: every one rotated by its own random angle (a multiple of 6 degrees; the
 Z, its tracks and the background's lab densities together, an exact symmetry), because
 3dMCGlauber puts the impact parameter along x in every event and the event planes would all
@@ -70,21 +75,24 @@ COLORS = {"factorized": "C3", "all": "C0", "cms10": "C2", "strict": "C1"}
 
 
 # ── the map step ─────────────────────────────────────────────────────────────────
-def _pool_job(stem, local, glob_, w, bg, seed, path, rec):
+def _pool_job(stem, local, glob_, w, bg, seed, path, rec, extras=True):
     t0 = time.time()
-    d = zm.file_pool(stem, local, glob_, w, bg, seed=seed, record=rec)
+    d = zm.file_pool(stem, local, glob_, w, bg, seed=seed, record=rec, extras=extras)
     np.savez_compressed(path, **d)
     return os.path.basename(stem), len(d["event"]), time.time() - t0
 
 
-def build_pools(src, outdir, jobs, seed, rebuild):
+def build_pools(src, outdir, jobs, seed, rebuild, extras=True):
     """The pools of every production file of ``src`` in ``outdir`` (rebuilt when the
-    files, the selection, the seed or zjet_mixing's grid changed) -> their paths.  One
-    campaign per ``src``: the pools of several combine at load time (zjet_mixing.Pool.load)."""
+    files, the selection, the seed, zjet_mixing's grid or the extras changed) -> their paths.
+    One campaign per ``src``: the pools of several combine at load time
+    (zjet_mixing.Pool.load).  ``extras``: the extra hard scatterings' fragments in the full
+    event, when the files have them."""
     from jetscape.hadrons_h5 import HadronFileReader
     from jetcorr import weights as jw
 
     r = HadronFileReader(src)
+    zw.refuse_minimum_bias(r, "mix.py")
     t = zw.event_table(r)
     sel = zw.select(t, **zw.CMS_2507)
     w = zw.event_weights(t, sel)
@@ -101,6 +109,10 @@ def build_pools(src, outdir, jobs, seed, rebuild):
                 "n_selected": int(sel.sum()),
                 "files": [[os.path.basename(s), os.path.getmtime(f"{s}_hadrons_jet_frag.h5")]
                           for s in stems]}
+    if extras and bulk and r.has_extras():         # pools with the extras' fragments
+        manifest["extras"] = [[os.path.basename(s),
+                               os.path.getmtime(f"{s}_hadrons_extra_frag.h5")]
+                              for s in stems if os.path.exists(f"{s}_hadrons_extra_frag.h5")]
     os.makedirs(outdir, exist_ok=True)
     paths = [os.path.join(outdir, os.path.basename(s) + ".npz") for s in stems]
     mpath = os.path.join(outdir, "manifest.json")
@@ -119,7 +131,7 @@ def build_pools(src, outdir, jobs, seed, rebuild):
         for i, (stem, path) in enumerate(zip(stems, paths)):
             g = np.flatnonzero(sel & (loc[:, 0] == i))
             futs.append(ex.submit(_pool_job, stem, loc[g, 1], g, w[g], bgid[g], seed, path,
-                                  jw.file_record(r, i)))
+                                  jw.file_record(r, i), extras))
         for f in futs:
             name, n, dt = f.result()
             print(f"  {name}: {n} events, {dt:.0f} s", flush=True)
@@ -252,6 +264,9 @@ def main():
     ap.add_argument("--tag", default="", help="suffix of the output names")
     ap.add_argument("--jobs", type=int, default=2)
     ap.add_argument("--rebuild", action="store_true", help="remake the pools")
+    ap.add_argument("--no-extras", dest="extras", action="store_false",
+                    help="build the pools without the extra hard scatterings' fragments "
+                         "(files with extra_frag; default: in the full event)")
     ap.add_argument("--pools-only", action="store_true",
                     help="build the pools of --pbpb and --vacuum and stop (a campaign's map "
                          "step, e.g. for dijet/deta.py)")
@@ -290,7 +305,8 @@ def main():
                 print(f"pools: {len(found)} files from {g}", flush=True)
                 paths += found
             return paths
-        return build_pools(src, os.path.join(a.pools, sub), a.jobs, a.seed, a.rebuild)
+        return build_pools(src, os.path.join(a.pools, sub), a.jobs, a.seed, a.rebuild,
+                           a.extras)
 
     if a.pools_only:
         for given, src, sub in ((a.pbpb_pools, a.pbpb, "pbpb"),

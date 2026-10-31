@@ -43,7 +43,8 @@ full PbPb σ.
 
 The model's minimum-bias events are the `bulk_bg` samples: the fluid without any hard process.
 Its background has no other hard scatterings (the only one is the Z + jet with Pythia's MPI), so
-B holds the fake jets of the bulk's fluctuations only. Steps 2 and 3 come in four smearing
+B holds the fake jets of the bulk's fluctuations only, unless the production has the extra hard
+scatterings (*Extra hard scatterings*, below). Steps 2 and 3 come in four smearing
 variants (CMS's smearing being optional): `none`, `detector` (C, S of PbPb: the model's own
 fluctuations stand for N), `full` (C, S, N: counts them twice), `match` (C, S and
 √(N² − σ_RC²), σ_RC the random cones' width, so that the total is CMS's N). Step 2 − step 1 is
@@ -138,6 +139,43 @@ random cones and the Z cone of every oversample are unchanged; default all), `--
 off by default, 1.6× the time), `--qa-samples N`, `--files i:j`. Outputs of different
 `--samples`, `--emb-samples` and `--rho-m` combine in the final stage; R, the ghost area and
 `--ptmin` must agree ([README](README.md#combining-campaigns)).
+
+## Extra hard scatterings
+
+Productions with `run_prod_jet.py --extra-hard` (PythiaGun `<extraHard>`,
+[`docs/Plans/PLAN_multi_hard.md`](../../../../../docs/Plans/PLAN_multi_hard.md)) also have the
+event's **other hard scatterings** above p₀ (15 GeV for Pb+Pb): their hadrons are in
+`<stem>_hadrons_extra_frag.h5` (ROOT: the `extra_frag` ntuple, the events' `scat_*` and `xini_*`),
+and `jet_frag` stays the trigger's. The rule: **the extras belong to the event, not to the
+trigger**. With an `extra_frag` file, both map steps (`zjet_jets_map.py`, `zjets`) take them by
+default:
+
+- **S**: the whole event is `bulk_jet` k + `jet_frag` + `extra_frag` (both fragmentations k mod
+  their count), so its jets include the extras' jets;
+- **B**, the bulk without the trigger: `bulk_bg` k + the event's `extra_frag`. The extras are
+  drawn per jet event, so B is per event, not per background. It is the embedding's background
+  (`emb_*`; the no-wake twin `nw_*` and `zcone_nw_*` keep the extras: only the wake is taken
+  out), the random cones' (σ_RC then includes the extras), and a new per-oversample collection
+  **`bgx_*`**, B's jets above `--ptmin`;
+- **unchanged**: the reference jets (`emb_ref_*`: the trigger's fragments alone, step 1),
+  `bg_jets` (the bulk alone, per background), `jet_events`; `run_info` gains `extras` = 1.
+
+The final stage (`zjet_jets.py`) takes **B_own** from the row's own `bgx` and **B_mixed** from
+the `bgx` rows of the Z events on the `--n-nearest` other backgrounds (rotated as before), so
+S − B removes the extras' jets as CMS's minimum-bias events remove the other scatterings' jets;
+its summary says so ("B (steps 2, 3): bulk_bg + the events' extra hard scatterings (bgx)").
+Without `bgx` (no extras, or mapped without them) B is `bg_jets` as before. Outputs with and
+without `bgx` combine only without it (the column is dropped with a warning): map a campaign one
+way.
+
+**The switch**: `zjet_jets_map.py --no-extras` (or `--extras 0`), `zjets --extras 0`. Then the
+outputs are exactly those of files without extras, and files without `extra_frag` give the same
+outputs as before, bit for bit (checked 2026-10-30 on one Pb+Pb Z+jet event with and without
+extras: map steps, pools, QA, Python and C++; `check_cxx.py`: 0 differences with extras on).
+Minimum-bias files (`--hard none`: no trigger, no `jet_frag`) have no Z: the Python map steps
+refuse them (`zjet_wake.refuse_minimum_bias`), `zjets` finds no Z events. Not yet with the extras: `zjet_jets_qa.py`'s B_own and
+B_mixed panels use `qa_bg_jets` (the bulk alone), so with extras its fake fraction B / S and
+S − B_own lack the extras' jets.
 
 ## A. Python on the HDF5 files
 
@@ -382,8 +420,10 @@ step the χ² lines of Pb+Pb. All χ² use the model's jackknife and CMS's error
 - **Step 1 is not quite CMS's theory recipe**: the fragments' jets have no medium response (in
   the model it is in the bulk), and only the reference jets above 10 GeV are stored (the theory
   smearing can lift a 10-GeV jet above 30 GeV only rarely).
-- **B**: the model's background has no other hard scatterings, so B holds fluctuations only; CMS's
-  minimum-bias events also have minijets.
+- **B**: without extra hard scatterings the model's background has no other hard scatterings,
+  so B holds fluctuations only; with them (*Extra hard scatterings*) B has the scatterings above
+  p₀ but still no minijets below it, which CMS's minimum-bias events have (stage 2 of
+  `docs/Plans/PLAN_multi_hard.md`).
 - Particle level against data corrected to particle level except the resolution; φ smearing
   neglected (CMS: negligible); the model's hadron definition: the "Read first" note of the plan.
 

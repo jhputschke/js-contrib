@@ -1498,7 +1498,7 @@ class HadronFileReader:
 
     def _load_initiators(self, i):
         f = self._files[i]
-        for tag in INITIATOR_TAGS:
+        for tag in ("bulk_jet", "jet_frag"):     # the trigger's (extra_frag: the extras')
             path = f["tags"].get(tag)
             if path is None:
                 continue
@@ -1583,9 +1583,14 @@ class HadronFileReader:
                    for t in ("bulk_jet", "bulk_bg"))
 
     def jet_minus_background(self, values, bins, *, mask=None, weights=None, events=None,
-                             fragments=False, paired=None, per_event=None):
-        """<bulk_jet> (+ <jet_frag>) - <bulk_bg> over the events that have both surfaces,
-        each event against its own background.  -> (difference, error).
+                             fragments=False, paired=None, per_event=None, extras=True):
+        """<bulk_jet> (+ <jet_frag> + <extra_frag>) - <bulk_bg> over the events that have both
+        surfaces, each event against its own background.  -> (difference, error).
+
+        ``fragments``: add the event's fragments: jet_frag, and the extra hard scatterings'
+        extra_frag when the files have it (the full event; ``extras=False`` leaves them out).
+        A fragment tag no file has is left out (a minimum-bias campaign has no
+        jet_frag).
 
         ``paired``: the error of the bulk difference from the spread of the per-sample
         differences, sample k of the jet leg minus sample k of its background (the events
@@ -1610,8 +1615,11 @@ class HadronFileReader:
             hb, eb = self._accumulate("bulk_bg", values, bins, mask, weights, g, per_event)
             d, var = hj - hb, ej ** 2 + eb ** 2
         if fragments:
-            hf, ef = self._accumulate("jet_frag", values, bins, mask, weights, g, per_event)
-            d, var = d + hf, var + ef ** 2
+            for tag in ("jet_frag",) + (("extra_frag",) if extras else ()):
+                if not any(tag in f["tags"] for f in self._files):
+                    continue
+                hf, ef = self._accumulate(tag, values, bins, mask, weights, g, per_event)
+                d, var = d + hf, var + ef ** 2
         return d, np.sqrt(var)
 
     def _paired_difference(self, values, bins, mask, weights, g, per_event=None):

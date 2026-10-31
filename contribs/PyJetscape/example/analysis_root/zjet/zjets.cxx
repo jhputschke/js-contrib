@@ -8,6 +8,7 @@
 //
 //   ./zjets <root dir> <out dir> [--R 0.3] [--seed 1] [--files i:j] [--samples N]
 //           [--emb-samples N] [--cones 4] [--ptmin 5] [--qa-samples 1] [--rho-m 1]
+//           [--extras 0]
 //
 // Events: a Z with 60 < m < 120 GeV and p_T^Z > 30 GeV (the final stage applies the paper's
 // cuts).  Samples: k = 0 .. min(n, --samples) - 1, n the oversamples (vacuum: the
@@ -50,6 +51,15 @@
 // zjet_jets_map.py): rho(jet) once per strip content (StripRho), no rho for jets that cannot
 // pass the p_T cut, the background's particles and estimator kept per hydro background and
 // sample.
+// Extra hard scatterings (files with extra_frag, docs/Plans/PLAN_multi_hard.md): they belong
+// to the event, not to the trigger.  The full event is bulk_jet k + jet_frag + extra_frag
+// (HadronFileReader::bkg_dep_frag); B, the bulk without the trigger, is bulk_bg k + the
+// event's extra_frag (bkg_extra; per event, since the extras are drawn per jet event): the
+// embedding's background (emb_*, nw_*, zcone_nw_*), the random cones', and the per-sample
+// jets bgx_* (above --ptmin: the final stage's B_own); the reference jets stay the
+// trigger's fragments alone, bg_jets the bulk alone; run_info extras 1.  --extras 0 leaves
+// them out (HadronFileReader::set_extras(false)): the outputs of the files without extras.
+// Minimum-bias files (no trigger, no jet_frag) have no Z events.
 
 #include "ZJetCommon.h"
 #include "../common/JetMap.h"
@@ -89,7 +99,7 @@ int run(int argc, char **argv) {
   if (argc < 3) {
     std::fprintf(stderr, "usage: %s <root dir> <out dir> [--R 0.3] [--seed 1] [--files i:j] "
                          "[--samples N] [--emb-samples N] [--cones 4] [--ptmin 5] "
-                         "[--qa-samples 1] [--rho-m 1]\n", argv[0]);
+                         "[--qa-samples 1] [--rho-m 1] [--extras 0]\n", argv[0]);
     return 2;
   }
   const std::string in = argv[1], out = argv[2];
@@ -102,12 +112,14 @@ int run(int argc, char **argv) {
   const double R = o.count("--R") ? std::stod(o.at("--R")) : R_JET;
   const int emb_samples = o.count("--emb-samples") ? std::stoi(o.at("--emb-samples")) : 1 << 30;
   const bool rho_m = o.count("--rho-m") && std::stoi(o.at("--rho-m")) != 0;
+  const bool extras = !o.count("--extras") || std::stoi(o.at("--extras")) != 0;
   const double dr_match = R / 2;
   const double ALL = -std::numeric_limits<double>::infinity();
   gSystem->mkdir(out.c_str(), true);
   fj::ClusterSequence::print_banner();
 
   HadronFileReader r(in);
+  r.set_extras(extras);
   const long n = r.n_events();
   // sigma_k / N_k over every event of the window (zjet_wake.event_weights before N_coll)
   std::vector<long> nk(std::max(r.n_windows(), 1), 0);
@@ -121,6 +133,7 @@ int run(int argc, char **argv) {
     const auto t0 = std::chrono::steady_clock::now();
     const std::string name = stem_of(r.file(f));
     const std::string path = out + "/" + name + "_jets.root";
+    const bool xtra = extras && r.has_extras(f);        // extra hard scatterings
     TFile fo((path + ".part").c_str(), "RECREATE");
     // per event
     Long64_t ev = 0, bg = 0;
@@ -150,6 +163,7 @@ int run(int argc, char **argv) {
     // per (event, sample)
     int sample = 0, frag_sample = 0;
     JetColumns jc(rho_m), nwc(rho_m), qc(rho_m);   // nwc: the embedded event's jets (no wake)
+    JetColumns bxc(rho_m);                         // with extras: B's jets (B_own)
     std::vector<double> e_rpt, e_reta, e_rphi, e_pt, e_dr;
     std::vector<double> c_eta, c_phi, c_sum, c_rho, c_dpt;
     double zc[6];                                  // zcone_{sum,rho,dpt}, zcone_nw_{...}
@@ -160,6 +174,7 @@ int run(int argc, char **argv) {
     tj.Branch("frag_sample", &frag_sample);
     jc.branch(tj);
     nwc.branch(tj, "nw");
+    if (xtra) bxc.branch(tj, "bgx");
     for (auto &p : std::vector<std::pair<const char *, std::vector<double> *>>{
              {"emb_ref_pt", &e_rpt}, {"emb_ref_eta", &e_reta}, {"emb_ref_phi", &e_rphi},
              {"emb_pt", &e_pt}, {"emb_dr", &e_dr}, {"rc_eta", &c_eta}, {"rc_phi", &c_phi},
@@ -218,6 +233,7 @@ int run(int argc, char **argv) {
         jc.clear();
         nwc.clear();
         qc.clear();
+        bxc.clear();
         for (auto *v : {&e_rpt, &e_reta, &e_rphi, &e_pt, &e_dr, &c_eta, &c_phi, &c_sum, &c_rho,
                         &c_dpt})
           v->clear();
@@ -236,9 +252,11 @@ int run(int argc, char **argv) {
         if (k < qa_samples) tq.Fill();
         n_jets += long(jc.size());
         if (!info.vacuum) {
-          // embedding: the fragments alone, and in the background without the wake
+          // embedding: the fragments alone, and in the background without the wake (B:
+          // bulk_bg, with extras + the event's extra_frag)
           std::vector<fj::PseudoJet> frag, emb;
-          const Hadrons bkg = r.bkg(e, k);
+          const bool own_x = xtra && r.n_extra_frag(e) > 0;   // B is this event's alone
+          const Hadrons bkg = own_x ? r.bkg_extra(e, k) : r.bkg(e, k);
           to_pseudojets(bkg, z, emb);
           const std::size_t n_kept = emb.size();
           std::size_t n_all = 0;
@@ -266,11 +284,12 @@ int run(int argc, char **argv) {
           }
           // random cones in the background: its particles (the event's Z leptons removed)
           // and their rho, shared by the background's events if no Z lepton is among them
+          // (and no extras: B is then the event's own)
           const std::vector<fj::PseudoJet> *bpp;
           StripRho *bge;
           std::vector<fj::PseudoJet> own_bp;
           std::unique_ptr<StripRho> own_bge;
-          if (n_kept == n_all) {
+          if (n_kept == n_all && !own_x) {
             if (!bg_cache.empty() && bg_cache.begin()->first.first != info.bg_unit)
               bg_cache.clear();
             auto it = bg_cache.find({info.bg_unit, k});
@@ -288,6 +307,8 @@ int run(int argc, char **argv) {
             bpp = &own_bp;
             bge = own_bge.get();
           }
+          if (xtra)                               // B_own's jets
+            for (const Jet &x : jets_of(*bpp, true, ptmin, c, bge)) bxc.push(x);
           for (int q = 0; q < n_cones; ++q) {
             const std::uint64_t s = RC_SALT | (std::uint64_t(k) << 16) | std::uint64_t(q);
             const double eta = -ETA_RC + 2 * ETA_RC * key_uniform(key, 2 * s);
@@ -343,11 +364,12 @@ int run(int argc, char **argv) {
       tbq.Write();
     }
     write_file_info(fo, file_record(r, f));
-    write_run_info(fo, {{"R", R}, {"ghost_area", GHOST_AREA}, {"ptmin", ptmin}},
-                   {{"cones", n_cones}, {"seed", seed}, {"qa_samples", qa_samples},
-                    {"samples", max_samples}, {"emb_samples", emb_samples},
-                    {"rho_m", rho_m ? 1 : 0},
-                    {"version", MAP_VERSION}});
+    std::vector<std::pair<std::string, long long>> ints = {
+        {"cones", n_cones}, {"seed", seed}, {"qa_samples", qa_samples},
+        {"samples", max_samples}, {"emb_samples", emb_samples}, {"rho_m", rho_m ? 1 : 0},
+        {"version", MAP_VERSION}};
+    if (xtra) ints.push_back({"extras", 1});
+    write_run_info(fo, {{"R", R}, {"ghost_area", GHOST_AREA}, {"ptmin", ptmin}}, ints);
     fo.Close();
     gSystem->Rename((path + ".part").c_str(), path.c_str());
     const double dt =

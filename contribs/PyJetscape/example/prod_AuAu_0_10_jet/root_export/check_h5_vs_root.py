@@ -8,8 +8,10 @@ hadron (pid, pstat, E, px, py, pz; x if both have it) equal to the HDF5 file's, 
 after the float32 the ROOT files store; the ``events`` table equal to the event record
 (particlize file, or a --hadrons-only job's units/), the Z record and n_coll included;
 the ``windows`` table equal to the file's attributes; with ``--campaign``, the campaign
-windows equal to jetscape.hadrons_h5.HadronFileReader's cross sections.  Prints one line
-per check and exits 1 on any difference."""
+windows equal to jetscape.hadrons_h5.HadronFileReader's cross sections.  With extra hard
+scatterings (an extra_frag file) also the extra_frag ntuple, and the events table's
+scatterings (scat_*) and extras' initiators (xini_*) equal to the extra_frag file's.  Prints
+one line per check and exits 1 on any difference."""
 import argparse
 import json
 import os
@@ -109,6 +111,51 @@ def compare_events(stem, ev):
     z = [k for k in ref if k.startswith(("z_", "lep")) or k == "n_coll"]
     check(not bad, f"events: {len(ref)} columns equal, the Z record and n_coll among them "
                    f"({len(z)}){'; differ: ' + ', '.join(bad) if bad else ''}")
+    compare_extras(stem, arr)
+
+
+def compare_extras(stem, arr):
+    """The events table's extras (scat_*, xini_*, n_samples_extra) against the extra_frag
+    file: per event its scatterings and its extras' initiators (with their scattering)."""
+    import awkward as ak
+    import h5py
+    from jetscape.hadrons_h5 import INITIATOR_COLUMNS
+    from jetscape.particlize_h5 import SCATTER_COLUMNS
+    path = f"{stem}_hadrons_extra_frag.h5"
+    if not os.path.exists(path):
+        check(not any(k.startswith(("scat_", "xini_")) for k in arr.fields),
+              "events: no extras' columns without an extra_frag file")
+        return
+    with h5py.File(path) as f:
+        units = f["units/unit"][:]
+        n_s = dict(zip(units.tolist(), f["units/n_samples"][:].tolist()))
+        groups = {}
+        for prefix, g, cols in (("scat", "scatterings", SCATTER_COLUMNS),
+                                ("xini", "initiators", INITIATOR_COLUMNS)):
+            if g in f:
+                data, off = f[f"{g}/data"][:], f[f"{g}/offsets"][:]
+                if f"{g}/scatter" in f:
+                    data = np.column_stack([data, f[f"{g}/scatter"][:]])
+                    cols = tuple(cols) + ("scatter",)
+                groups[prefix] = ({int(u): data[off[i]:off[i + 1]] for i, u in enumerate(units)},
+                                  cols)
+    events = ak.to_numpy(arr["event"])
+    check("n_samples_extra" in arr.fields and np.array_equal(
+        ak.to_numpy(arr["n_samples_extra"]), [n_s.get(int(e), 0) for e in events]),
+        "events: n_samples_extra")
+    for prefix, (by_event, cols) in groups.items():
+        ok = all(f"{prefix}_{c}" in arr.fields for c in cols)
+        if ok:
+            for i, e in enumerate(events):
+                want = by_event.get(int(e), np.zeros((0, len(cols))))
+                got = np.column_stack([np.asarray(ak.to_numpy(arr[f"{prefix}_{c}"][i]), float)
+                                       for c in cols]) if len(want) else np.zeros((0, len(cols)))
+                if got.shape != want.shape or not np.array_equal(got, want):
+                    ok = False
+                    break
+        n = sum(len(v) for v in by_event.values())
+        check(ok, f"events: {prefix}_* ({len(cols)} columns, {n} rows) equal to extra_frag's "
+                  f"{'scatterings' if prefix == 'scat' else 'initiators'}")
 
 
 def main():

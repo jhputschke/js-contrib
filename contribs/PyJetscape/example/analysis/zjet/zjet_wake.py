@@ -58,6 +58,13 @@ CMS_2103 = dict(pt=(30.0, np.inf), ymax=None, mass=(60.0, 120.0), lep_pt=20.0, l
 
 
 # ── the event record ──────────────────────────────────────────────────────────────
+def refuse_minimum_bias(reader, who):
+    """SystemExit if a production file of ``reader`` has no jet_frag: a minimum-bias job
+    (run_prod_jet.py --hard none, docs/Plans/PLAN_multi_hard.md) has no trigger, so no Z."""
+    if any("jet_frag" not in reader.tags(i) for i in range(reader.n_files)):
+        raise SystemExit(f"{who}: files without jet_frag (minimum bias: no trigger) have no Z")
+
+
 def event_table(reader):
     """-> dict of per-event arrays over the campaign: event, z_pt, z_y, z_phi, z_m,
     lep{1,2}_{pid,pt,eta,phi} (NaN / 0 without a Z), n_coll (NaN if not recorded),

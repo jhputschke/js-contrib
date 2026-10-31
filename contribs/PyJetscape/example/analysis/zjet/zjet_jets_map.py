@@ -7,7 +7,7 @@ final stage of both.
 
     python zjet_jets_map.py <h5 dir or quoted glob> <out dir> [--R 0.3] [--seed 1]
                             [--samples N] [--emb-samples N] [--cones 4] [--ptmin 5]
-                            [--qa-samples 1] [--rho-m [1]] [--files i:j]
+                            [--qa-samples 1] [--rho-m [1]] [--files i:j] [--no-extras]
 
 --files i:j maps only production files i .. j-1 (in the reader's order), for several processes
 at once.  Every output stands alone: its ``file_info`` tree (the production file's name,
@@ -36,7 +36,17 @@ rho_m of its strip (jet_rho_m, for mass subtraction; off by default: with --emb-
 takes 1.5x the time).
 Exact shortcuts, the outputs unchanged: rho(jet) once per strip content (StripRho), no rho for
 jets that cannot pass the p_T cut, the background's particles and estimator kept per hydro
-background and sample, the random cones' particles preselected in numpy."""
+background and sample, the random cones' particles preselected in numpy.
+
+Extra hard scatterings (an extra_frag file, docs/Plans/PLAN_multi_hard.md): they belong to the
+event, not to the trigger.  The full event is bulk_jet k + jet_frag + extra_frag (both
+fragmentations k mod their count); B, the bulk without the trigger, is bulk_bg k + the event's
+extra_frag (drawn per jet event, so per event, not per background): the embedding's background
+(emb, nw, zcone_nw: the event without the wake keeps the extras), the random cones', and a
+per-sample collection ``bgx`` (its jets above --ptmin: the final stage's B_own); the reference
+jets stay the trigger's fragments alone, and bg_jets the bulk alone.  run_info ``extras`` 1.
+--no-extras (--extras 0, zjets: --extras 0) leaves them out: the outputs are then those of
+the files without extras.  Minimum-bias files (no trigger, no jet_frag) are refused."""
 import argparse
 import math
 import os
@@ -108,6 +118,11 @@ def main():
                     help="the first N samples' jets without the p_T cut "
                          "(trees qa_jets, qa_bg_jets)")
     ap.add_argument("--files", default=None, help="i:j, only production files i .. j-1")
+    ap.add_argument("--extras", type=int, nargs="?", const=1, default=1,
+                    help="with extra hard scatterings: their fragments in the full event and in "
+                         "B (default 1); 0 leaves them out")
+    ap.add_argument("--no-extras", dest="extras", action="store_const", const=0,
+                    help="the same as --extras 0")
     a = ap.parse_args()
     import awkward as ak
     import fastjet as fj
@@ -115,6 +130,7 @@ def main():
     from jetscape.hadrons_h5 import EventHadrons, HadronFileReader, Hadrons
 
     r = HadronFileReader(a.h5)
+    zw.refuse_minimum_bias(r, "zjet_jets_map.py")
     infos = [r.event_info(g) for g in range(r.n_events)]
     bulk = "bulk_jet" in r.tags()
     pbin = np.array([-1 if i.pthat_bin is None else i.pthat_bin for i in infos])
@@ -140,20 +156,26 @@ def main():
             continue
         t0 = time.time()
         name = os.path.basename(stem)
+        xtra = bool(a.extras) and bulk and "extra_frag" in r.tags(fi)   # extra scatterings
         h = {t: Hadrons.from_h5(f"{stem}_hadrons_{t}.h5")
-             for t in (("bulk_jet", "bulk_bg", "jet_frag") if bulk else ("jet_frag",))}
+             for t in (("bulk_jet", "bulk_bg", "jet_frag") if bulk else ("jet_frag",))
+             + (("extra_frag",) if xtra else ())}
 
         def sample(tag, unit, k):
             ev = EventHadrons(h[tag], h[tag].unit_index(unit))
             s = ev.sample == k
             return {"pid": ev.pid[s], "p": ev.p[s]}
 
+        def join(*evs):
+            return {"pid": np.concatenate([e["pid"] for e in evs]),
+                    "p": np.concatenate([e["p"] for e in evs])}
+
         evs = {k: [] for k in ("event", "local_event", "file", "bg", "bg_unit", "pthat_bin",
                                "weight_mb", "n_coll", "n_samples", "z_pt", "z_y", "z_phi", "z_m",
                                "lep1_pid", "lep1_pt", "lep1_eta", "lep1_phi", "lep2_pid",
                                "lep2_pt", "lep2_eta", "lep2_phi")}
         rows = {k: [] for k in ("event", "sample", "frag_sample")}
-        jet, nw, emb, rc = [], [], [], []
+        jet, nw, emb, rc, bgx = [], [], [], [], []
         zcone = {k: [] for k in ("zcone_sum", "zcone_rho", "zcone_dpt", "zcone_nw_sum",
                                  "zcone_nw_rho", "zcone_nw_dpt")}
         qa_rows, qa_jet = {"event": [], "sample": []}, []
@@ -184,6 +206,7 @@ def main():
                 continue
             le = info.local_event
             nf = h["jet_frag"].n_samples(le)
+            nx = h["extra_frag"].n_samples(le) if xtra else 0
             ns = h["bulk_jet"].n_samples(le) if bulk else nf
             if ns <= 0 or nf <= 0:
                 continue
@@ -204,10 +227,10 @@ def main():
                 rows["sample"].append(k)
                 rows["frag_sample"].append(fk)
                 frag = sample("jet_frag", le, fk)
+                xs = sample("extra_frag", le, k % nx) if nx else None   # the extras' fragments
                 if bulk:
                     bj = sample("bulk_jet", le, k)
-                    full = {"pid": np.concatenate([bj["pid"], frag["pid"]]),
-                            "p": np.concatenate([bj["p"], frag["p"]])}
+                    full = join(bj, frag) if xs is None else join(bj, frag, xs)
                 else:
                     full = frag
                 parts, py, pphi = with_rap_phi(fj, full, info)
@@ -229,6 +252,13 @@ def main():
                         zcone[col].append(math.nan)
                     continue
                 bp, b, by, bphi = background(info, k)
+                if xs is not None:          # B: bulk_bg + the event's extras, this event only
+                    xp, xy, xphi = with_rap_phi(fj, xs, info)
+                    bp = bp + xp
+                    b = c.bge(bp)
+                    by, bphi = np.concatenate([by, xy]), np.concatenate([bphi, xphi])
+                if xtra:                    # B_own's jets
+                    bgx.append(c.jets(bp, True, a.ptmin, bge=b))
                 if k < a.emb_samples:
                     fp, fy, fphi = with_rap_phi(fj, frag, info)
                     ref = c.jets(fp, False, PT_REF)
@@ -322,6 +352,8 @@ def main():
                     ("emb", emb, ("ref_pt", "ref_eta", "ref_phi", "pt", "dr")),
                     ("rc", rc, ("eta", "phi", "sum", "rho", "dpt"))):
                 out[gname] = jet_record(lists, names)
+            if xtra:
+                out["bgx"] = jet_record(bgx, c.names)
             for k, v in zcone.items():
                 out[k] = np.asarray(v, np.float64)
             fo["jets"] = out
@@ -332,7 +364,8 @@ def main():
                 fo["bg_jets"] = bg_tree(bgj, bg_rows)
                 fo["qa_bg_jets"] = bg_tree(qbj, qa_bg_rows)
             fo["file_info"] = mapio.file_info_tree(jw.file_record(r, fi))
-            fo["run_info"] = mapio.run_info_tree(run_info)
+            fo["run_info"] = mapio.run_info_tree(dict(run_info, extras=1) if xtra
+                                                 else run_info)
         print(f"{name}: {len(evs['event'])} Z events, {sum(len(j) for j in jet)} jets, "
               f"{time.time() - t0:.0f} s", flush=True)
 

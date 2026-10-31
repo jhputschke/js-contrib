@@ -8,14 +8,21 @@
 //   frag     jet_frag   ColorlessHadronization of the surviving partons
 //
 // and two sums of them: wake = bkgdep - bkg (the deposited energy at hadron level) and
-// full = bkgdep + frag (the whole jet event).
+// full = bkgdep + frag (the whole jet event).  With extra hard scatterings (files with an
+// extra_frag ntuple, docs/Plans/PLAN_multi_hard.md) a fourth source,
+//
+//   extra    extra_frag ColorlessHadronization of the event's other hard scatterings
+//
+// which belongs to the event: full = bkgdep + frag + extra (extras = false leaves it out;
+// files without extras give the same output as before).  A minimum-bias file (no trigger)
+// has no frag.
 //
 //   root -l -b -q 'hadron_distributions.C+("DIR")'                 // per event, all windows
 //   root -l -b -q 'hadron_distributions.C+("DIR", 2)'              // pTHat window 2 only
 //   root -l -b -q 'hadron_distributions.C+("DIR", -1, true)'       // cross-section weighted
 //   root -l -b -q 'hadron_distributions.C+("DIR", -1, false, false, 1.0, "out.root", 8)'
 //
-// Arguments: the directory with the <stem>_hadrons.root files (and <campaign>_campaign.root
+// Arguments (the last two: keep_flagged, extras): the directory with the <stem>_hadrons.root files (and <campaign>_campaign.root
 // for the cross sections; without it the files' own windows tables); the pTHat window
 // (-1: all); xsec: weigh each event with its window's cross section over its selected
 // events (distributions in mb) instead of the same weight for every event (distributions
@@ -193,7 +200,7 @@ void fill(const std::string &file, const char *tag, const char *key,
 void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
                           bool charged = true, double eta_cut = 1.0,
                           const char *out = "hadron_distributions.root", int threads = 1,
-                          bool keep_flagged = false) {
+                          bool keep_flagged = false, bool extras = true) {
   using namespace hd;
   if (threads > 1) ROOT::EnableImplicitMT(threads);
   if (gSystem->AccessPathName(dir)) {                 // (sic) true if it does NOT exist
@@ -237,12 +244,14 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
   }
   const char *what = charged ? "charged hadrons" : "hadrons";
   Hists bkg = make("bkg", what), dep = make("bkgdep", what), frag = make("frag", what);
+  Hists extra = make("extra", what);                // written only with extras
 
   // pass 1: the selected events of every file, and how many per window
-  struct Ev { int e, k, bg, ns_jet, ns_bg, ns_frag; };
+  struct Ev { int e, k, bg, ns_jet, ns_bg, ns_frag, ns_x; };
   std::vector<std::vector<Ev>> sel(files.size());
   std::map<int, long> n_window;
   long n_events = 0, n_flagged = 0;
+  bool any_x = false;                                // a file with extra hard scatterings
   for (size_t f = 0; f < files.size(); ++f) {
     ROOT::RDataFrame ev0("events", files[f]);
     // runs without --pthat-bins have no windows: all their events are "window 0"
@@ -258,7 +267,12 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
     auto bin = ev.Take<int>("bin_");
     auto ns_jet = ev.Take<int>("n_samples_jet");
     auto ns_bg = ev.Take<int>("n_samples_bg");
-    auto ns_frag = ev.Take<int>("n_samples_frag");
+    // a minimum-bias file has no jet_frag; extra_frag only with extra hard scatterings
+    const bool has_x = extras && ev0.HasColumn("n_samples_extra");
+    any_x |= has_x;
+    auto ns_frag = ev.Define("nsf_", ev0.HasColumn("n_samples_frag") ? "n_samples_frag" : "0")
+                       .Take<int>("nsf_");
+    auto ns_x = ev.Define("nsx_", has_x ? "n_samples_extra" : "0").Take<int>("nsx_");
     auto cells_jet = ev.Take<int>("n_cells_jet");
     auto cells_bg = ev.Take<int>("n_cells_bg");
     for (size_t i = 0; i < event->size(); ++i) {
@@ -271,7 +285,7 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
         continue;
       }
       sel[f].push_back({(*event)[i], k, (*bg_unit)[i], (*ns_jet)[i], (*ns_bg)[i],
-                        (*ns_frag)[i]});
+                        (*ns_frag)[i], (*ns_x)[i]});
       ++n_window[k];
       ++n_events;
     }
@@ -286,12 +300,13 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
 
   // pass 2: fill
   for (size_t f = 0; f < files.size(); ++f) {
-    std::map<int, double> w_jet, w_frag, w_bg;       // hadron weight per event / bg unit
+    std::map<int, double> w_jet, w_frag, w_bg, w_x;  // hadron weight per event / bg unit
     std::map<int, int> nbg;
     for (const Ev &x : sel[f]) {
       const double we = event_weight(x.k);
       w_jet[x.e] = we / x.ns_jet;
       if (x.ns_frag > 0) w_frag[x.e] = we / x.ns_frag;
+      if (x.ns_x > 0) w_x[x.e] = we / x.ns_x;
       w_bg[x.bg] += we;                              // a shared background: once per event
       nbg[x.bg] = x.ns_bg;
     }
@@ -300,6 +315,7 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
     fill(files[f], "bulk_jet", "event", w_jet, charged, eta_cut, dep);
     fill(files[f], "bulk_bg", "unit", w_bg, charged, eta_cut, bkg);
     if (!w_frag.empty()) fill(files[f], "jet_frag", "event", w_frag, charged, eta_cut, frag);
+    if (!w_x.empty()) fill(files[f], "extra_frag", "event", w_x, charged, eta_cut, extra);
     std::printf("  %s: %zu event(s)\n", gSystem->BaseName(files[f].c_str()), w_jet.size());
   }
   if (n_events == 0) {
@@ -310,7 +326,7 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
   // per bin width (the event weights already give per event, or mb)
   const double norm = 1.0;
   const char *ylab = xsec ? "d#sigma/dX [mb]" : "dN/dX per event";
-  for (Hists *h : {&bkg, &dep, &frag})
+  for (Hists *h : {&bkg, &dep, &frag, &extra})
     for (TH1D *x : {h->eta.get(), h->phi.get(), h->pt.get(), h->ptlog.get()}) {
       x->Scale(norm, "width");
       x->GetYaxis()->SetTitle(ylab);
@@ -321,9 +337,11 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
   const TH1D *F[4] = {frag.eta.get(), frag.phi.get(), frag.pt.get(), frag.ptlog.get()};
   TH1D *W[4] = {wake.eta.get(), wake.phi.get(), wake.pt.get(), wake.ptlog.get()};
   TH1D *T[4] = {full.eta.get(), full.phi.get(), full.pt.get(), full.ptlog.get()};
+  const TH1D *X[4] = {extra.eta.get(), extra.phi.get(), extra.pt.get(), extra.ptlog.get()};
   for (int i = 0; i < 4; ++i) {
     W[i]->Add(D[i], B[i], 1, -1);
     T[i]->Add(D[i], F[i], 1, 1);
+    if (any_x) T[i]->Add(X[i]);                       // the extras belong to the event
     W[i]->GetYaxis()->SetTitle(ylab);
     T[i]->GetYaxis()->SetTitle(ylab);
   }
@@ -336,12 +354,16 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
   std::printf("  %-7s N = %10.4g   (%s)\n", "bkg", yield(B[2]), xsec ? "mb" : "per event");
   std::printf("  %-7s N = %10.4g\n", "bkgdep", yield(D[2]));
   std::printf("  %-7s N = %10.4g\n", "frag", yield(F[2]));
+  if (any_x) std::printf("  %-7s N = %10.4g\n", "extra", yield(X[2]));
   std::printf("  %-7s N = %10.4g\n", "wake", yield(W[2]));
 
   // output: histograms + one page of plots
   std::unique_ptr<TFile> fo(TFile::Open(out, "RECREATE"));
   for (Hists *h : {&bkg, &dep, &frag, &wake, &full})
     for (TH1D *x : {h->eta.get(), h->phi.get(), h->pt.get(), h->ptlog.get()}) x->Write();
+  if (any_x)
+    for (TH1D *x : {extra.eta.get(), extra.phi.get(), extra.pt.get(), extra.ptlog.get()})
+      x->Write();
   fo->Close();
 
   // one page: columns eta, phi, pT; rows bkg and bkg + deposition, jet frag, wake
@@ -351,9 +373,11 @@ void hadron_distributions(const char *dir, int window = -1, bool xsec = false,
   const TH1D *rows[3][2][3] = {{{B[0], B[1], B[3]}, {D[0], D[1], D[3]}},
                                {{F[0], F[1], F[3]}, {nullptr, nullptr, nullptr}},
                                {{W[0], W[1], W[3]}, {nullptr, nullptr, nullptr}}};
-  const int col[3][2] = {{kBlue + 1, kGreen + 2}, {kRed + 1, 0}, {kBlack, 0}};
+  if (any_x)                                         // the extras next to the jet's fragments
+    for (int p = 0; p < 3; ++p) rows[1][1][p] = X[p == 2 ? 3 : p];
+  const int col[3][2] = {{kBlue + 1, kGreen + 2}, {kRed + 1, kMagenta + 1}, {kBlack, 0}};
   const char *lab[3][2] = {{"bkg (bulk_bg)", "bkg + deposition (bulk_jet)"},
-                           {"jet frag (jet_frag)", nullptr},
+                           {"jet frag (jet_frag)", "extra scatterings (extra_frag)"},
                            {"wake = bkg + deposition - bkg", nullptr}};
   for (int r = 0; r < 3; ++r)
     for (int p = 0; p < 3; ++p) {

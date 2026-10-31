@@ -1,6 +1,6 @@
 # PLAN: extra hard scatterings per event (stage 1)
 
-2026-10-19, extended 2026-10-30 (D10–D17). Status: **decided, not implemented.** Today every
+2026-10-19, extended 2026-10-30 (D10–D17). Status: **implemented 2026-10-30** (§7). Today every
 event has exactly one hard
 scattering: PythiaGun at one binary collision of 3dMCGlauber, with the MPI partons of that one
 nucleon–nucleon collision. A Pb+Pb collision has many more: N_coll × σ(p̂_T > p₀)/σ_NN of them.
@@ -271,3 +271,40 @@ scatterings' energy from the strings (3dMCGlauber's one-collision `Pick_and_subt
 for vacuum partons (`threshold_energy_switch` 1 liquefies below 2 GeV without a temperature
 check); MUSIC_2's source gather as a per-droplet scatter or a GPU kernel; a retune of the
 bulk observables.
+
+## 7. Status and validation (2026-10-30)
+
+Implemented on `multi_hard` in X-SCAPE (off `contrib` c7bcbe01) and js-contrib (off `main`
+5afbc7e). What differs from §3:
+
+- **Random streams (D5′), three leaks found and closed**, each checked by V2: (1) the clones
+  shared their module's engine; (2) Matter's `ran0` kept its state in function statics shared
+  by every Matter instance; (3) every clone registers a task number from the global counter,
+  and a module seeds its engine from it, so more clones in one event shifted the trigger's
+  engines from the next event on. X-SCAPE: `JetScapeModuleBase::UseOwnStreams(scatter, seed)`
+  (an engine; Matter overrides it for its `ran0` state, which is now a per-instance handle,
+  shared by default as before), called by `JetEnergyLossManager::SeparateExtraEngines` for
+  the extras' clones, and their copies take task numbers from a range of their own (from
+  2^28) with the counter put back. Colour tags are counted per scattering
+  (`HardProcess::NextColorTag(scatter)`), the trigger's floor from its own partons.
+- **N = 0 without a trigger:** the energy loss is skipped (`JetEnergyLossManager` would stop
+  the run without a parton); MUSIC_2 still runs (it restarts from MUSIC_1's checkpoint, so it
+  is cheap), the event is not flagged otherwise than by `n_extra` = 0 (§3.8 said "skipped").
+- **Vertices:** `InitialState::SampleABinaryCollisionPointWith(rng, ...)` (MCGlauberWrapper:
+  uniform over its binary-collision list) instead of a list accessor.
+- **Files:** `initiators/` keeps its 11 columns; the scattering of each initiator is a field
+  of its own, `initiators/scatter` (particlize and extra_frag files), so files without extras
+  are unchanged. `hard_partons_numpy` has the 8th column `scatter`.
+- **O+O / Ne+Ne:** 3dMCGlauber's name for neon is `Ne20`. The b edges from the 0–10 % quantile
+  of b in 80,000 minimum-bias events (the centrality tool's σ_inel line assumes every b < 10 fm
+  collides, which fails for small nuclei).
+
+| | result |
+|---|---|
+| V1 | extras off: every dataset of the pair and particlize files bit-identical to `contrib`/`main` (Au+Au 2 events reuse 2; Pb+Pb Z+jet 1 event; `source/flux` to 1e-12) |
+| V2 | `--extra-n 3`/`4`: the trigger's final partons (14 columns), initiators and the background surface bit-identical to extras off in every event (3 events reuse 1; 2 events reuse 2); hadron level (Pb+Pb Z+jet): `jet_frag` and `bulk_bg` identical, `bulk_jet` differs |
+| V3 | IS + PythiaGun only, 2,000 Pb+Pb 0–30 % (p₀ 15) and 3,000 O+O 0–10 % (p₀ 10) events: ⟨N⟩ − ⟨μ⟩ = +0.07 ± 0.06 / −0.02 ± 0.02, (N − μ)/√μ rms 1.01 / 1.00, P(N = k) χ² 22.6/22 / 2.5/7; μ/N_coll = σ/σ_NN exactly; warm-up σ 0.524 mb (5.02 TeV, > 15), 2.52 mb (5.36 TeV, > 10), as §1; fraction above 20 (Pb+Pb) / 15 GeV (O+O) 0.330 / 0.236 against Pythia's σ ratios 0.331 / 0.228; vertices: ⟨r⟩ 3.00 fm against the triggers' N_coll-weighted 2.98 ± 0.03 |
+| V4 | `extra_E`, `extra_pt` per event (E includes the extras' forward ISR partons: ~550 GeV per extra at 5 TeV, ΣpT ~60 GeV); droplets grow with the extras (below) |
+| V5 | the bulk tools (`example/analysis/bulk/`) and the analyses' extras (`extra_frag` in the full event, B = bulk_bg + extra_frag) are in place; the physics comparisons need a campaign |
+| V6 | Pb+Pb 0–10 %, 3 events, GB10, `--hadrons-only`: 32.1 s per event without extras; p₀ 20 / 15 / 10 GeV (μ ≈ 5 / 15 / 66): +8 / +13 / +42 %; droplets 45 → 195 / 464 / 1,300; peak memory 18.98 → 19.16 GB. MUSIC_2's source gather needs no work for stage 1 (table in `docs/README_2stage.md` §10) |
+| V7 | O+O / Ne+Ne 0–10 % at 5.36 TeV, 2 events each: the chain runs, dN_ch/dη(\|η\| < 0.5) ≈ 136 / 131, ⟨pT⟩ ≈ 0.59 / 0.65 GeV, N_coll 34–49, μ 1.3–1.8 (untuned; ATLAS 2606.20257 for the comparison) |

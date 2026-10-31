@@ -1027,6 +1027,73 @@ primaries ~0.7 of that.
 **Reading.** `HadronFileReader` and `run_h5toROOT.py` take a directory of hadrons-only jobs
 as they take hadronized campaigns; there is no particlize file to pass.
 
+### G. The event's other hard scatterings (`--extra-hard`), minimum bias (`--hard none`)
+
+A nucleus–nucleus collision has N_coll × σ(p̂T > p₀)/σ_NN hard scatterings, not one.
+`--extra-hard` adds them on top of the triggering one: per jet event N ~ Poisson(N_coll σ/σ_NN)
+"extras" above p₀ (the XML's `<PythiaGun><extraHard><pTHatMin>`: 10 GeV for Au+Au, O+O, Ne+Ne,
+15 GeV for Pb+Pb; `--extra-pthat-min` overrides), each at its own binary collision of the
+background's 3dMCGlauber event, from a Pythia instance of their own (HardQCD, ISR on, MPI off,
+FSR as `<FSR_on>`; σ from a 20,000-event warm-up at Init). Their partons shower in the jet
+leg like the trigger's and deposit into MUSIC_2 (two legs, so `bulk_jet − bulk_bg` is the
+response to all scatterings). Their energy is not taken out of the strings, as for the trigger
+([`PLAN_multi_hard.md`](../../../../docs/Plans/PLAN_multi_hard.md), decisions D1–D17).
+
+```bash
+python run_prod_jet.py --events 10 --seed 1 --extra-hard --hadrons-only
+python run_prod_jet.py --events 10 --seed 1 --user-xml ../config/PbPb_0_30_ZJet.xml \
+       --grid ../config/grid_PbPb.yaml --extra-hard --hadrons-only          # Z+jet + extras
+python run_prod_jet.py --events 30 --seed 1 --user-xml ../config/OO_5360_jet.xml \
+       --grid ../config/grid_oo.yaml --hard none --extra-hard --hadrons-only  # minimum bias
+```
+
+| option | |
+|---|---|
+| `--extra-hard` | switch them on (default off: the files are bit-identical to before) |
+| `--extra-pthat-min P0` | their p̂T threshold [GeV] (default: the XML's) |
+| `--extra-n N` | exactly N per event instead of Poisson (tests) |
+| `--extra-warmup N` | Pythia events for their σ at Init (default 20,000, ~1 s at the LHC) |
+| `--extra-hadronize {groups,per_scattering}` | the extras' showers in one Colorless call (default) or one per scattering (each hadron's scattering kept, `hadrons/scatter`) |
+| `--hard none` | no triggering scattering: the event is the bulk and its extras (N may be 0), weight 1 — the minimum-bias mode for the bulk observables (Nch, [pT], vₙ). Needs `--extra-hard`; refuses `--pthat-*`, `--parton-ymax`, `--trigger`. No `jet_frag`. |
+
+**The trigger is untouched.** The extras use their own random streams everywhere: their
+Pythia, the Poisson draw, the vertices (`InitialState::SampleABinaryCollisionPointWith`), and
+the showers: X-SCAPE's `JetEnergyLossManager` gives their Matter/LBT clones engines of their
+own and Matter its own `ran0` state (`JetScapeModuleBase::UseOwnStreams`), gives their copies
+task numbers from a range of their own (the global counter seeds later clones' engines), and
+counts their colour tags apart (`HardProcess::NextColorTag(scatter)`). Checked on the GB10
+(2026-10-30): with 3–4 extras per event the trigger's final partons (all 14 columns, colour
+tags included), its initiators and the background are bit-identical to extras off in every
+event, with and without `--reuse`; after hadronization `jet_frag` and `bulk_bg` are
+identical, only `bulk_jet` changes (the extras' wakes). Extras off: the pair and particlize
+files of Au+Au (2 events, reuse 2) and Pb+Pb Z+jet are bit-identical to `contrib`/`main`.
+
+**Files.** Per event (pair `diag/`, particlize `events/`, hadron `units/`): `n_extra`,
+`extra_mu` (N_coll σ/σ_NN), `extra_E`, `extra_pt` (the summed energy and scalar pT of the
+extras' handed-over partons; E includes their forward ISR partons, so it is large). Per
+scattering, a ragged `scatterings/` (columns `scatter, pthat, code, x, y, n_partons, E, pt`;
+the trigger's first, scatter 0) in the pair, particlize and `extra_frag` files; each
+initiator's scattering in `initiators/scatter`. Attributes: `extra_hard`, `extra_pthat_min`,
+`extra_sigma(_err)`, `extra_sigma_nn`, `extra_warmup`, `extra_seed`, `extra_rng_seed`,
+`extra_no_trigger`, and the `prod_extra_*` options. Hadrons: **`jet_frag` is the trigger's
+alone** (the same partons and seeds as without extras), the extras' fragments are the new tag
+**`<stem>_hadrons_extra_frag.h5`** (its own seeds; `partons/` in hadrons-only jobs).
+`hadronize.py` splits a particlize file's partons the same way (`--extra-hadronize`).
+
+**Reading.** The extras belong to the event, not to the trigger:
+`HadronFileReader.jet_event(e, k)` / `JetEvents.jet_event` give bulk_jet + jet_frag +
+extra_frag (`origin` 0, 1, 2; `extras=False` leaves them out), `EventInfo.scatterings()` the
+event's scatterings, `has_extras()` whether a file has them. A file without `extra_frag` reads
+as before.
+
+**Numbers** (LO Pythia 8.3, ISR on, MPI and FSR off): σ(p̂T > 10 / 15 GeV) = 0.0058 / 0.00054 mb
+at 200 GeV, 2.31 / 0.52 mb at 5.02 TeV, 2.54 / 0.58 mb at 5.36 TeV; per binary collision
+0.034 / 0.0077 extras at 5.02 TeV. Per event: Au+Au 0–10 % ~0.13 above 10 GeV, Pb+Pb 0–30 %
+~8 above 15 GeV (~35 above 10), O+O / Ne+Ne 0–10 % at 5.36 TeV ~1.5 / ~1.8 above 10 GeV
+(⟨N_coll⟩ 42 / 51). Sampling checked over 2,000–3,000 events (IS + PythiaGun only): N follows
+Poisson(μ) (χ² 22.6 / 22 bins in Pb+Pb), μ/N_coll = σ/σ_NN, the p̂T tail matches Pythia's σ
+ratios, the vertices follow the binary collisions (as the trigger's, weighted by N_coll).
+
 ### Planning numbers
 
 **With the current image** (`cu124-final_optim`; the 2026-10-14 `cu124-20261013-9e84450` is bit-identical for Au+Au; 2 × RTX 3090, the campaign setting with
@@ -1140,6 +1207,8 @@ processes keep up with a whole four-job GPU campaign.
 | `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
 | `--hadronize-xml FILE` | Settings for `--validate-inline` and `--hadrons-only` (default `hadronize.xml`). |
 | `--hadrons-only` (+ `--oversample`, `--n-frag`, `--keep-primaries` ...) | Only hadron files, made in the job: no pair or particlize file, no stage 2. See [F](#f-hadrons-only-one-job---hadrons-only). |
+| `--extra-hard` (+ `--extra-pthat-min`, `--extra-n`, `--extra-warmup`, `--extra-hadronize`) | The event's other hard scatterings, Poisson(N_coll σ/σ_NN) above the system's p₀, in the jet leg; their hadrons in `extra_frag`. See [G](#g-the-events-other-hard-scatterings---extra-hard-minimum-bias---hard-none). |
+| `--hard none` | With `--extra-hard`: no trigger, the minimum-bias event (bulk + extras). See G. |
 | `--surface {none,bg,jet,both}` | Which legs build MUSIC's freeze-out surface (`<freeze_out_surface>` in the first `<Hydro><MUSIC>` block, i.e. the background and the default, and in MUSIC_2's own block). On its own it produces nothing: only `--write-particlize` hands a surface to the framework and stores it, and it builds its legs itself. So a leg built but not stored costs ~3 s per MUSIC run (~6 s before MUSIC4GPU `5058545`) for no output, and the job warns about it. `none` (default) gives a bit-identical evolution. |
 
 The job XML always contains **one** hard process. The automatic task list would run every

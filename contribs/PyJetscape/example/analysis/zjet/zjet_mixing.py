@@ -51,6 +51,18 @@ exactly, the self pairs put 1/N_eff of the Z's own yield into B).  Errors: a
 delete-one-block jackknife over blocks of backgrounds (the independent units); ``strict``
 also the spread over its Z's.
 
+Extra hard scatterings
+----------------------
+With an extra_frag file (docs/Plans/PLAN_multi_hard.md) the extras belong to the event, not to
+the trigger: the full event (S_full, S_one and its tracks, Y_full, Y_one, L_full, the lab
+density R_full) is bulk_jet + jet_frag + extra_frag, the extras' fragmentation k mod their
+count with oversample k.  The Z-correlated yield (S_zc, Y_zc, L_zc, R_zc) stays the trigger's,
+bulk_jet - bulk_bg + jet_frag, so B, the bulk alone (Y_full - Y_zc), becomes bulk_bg +
+extra_frag, per event (the extras are drawn per jet event).  The pools then carry
+``bgw_R_extra`` (the extras' lab density, summed per background and window), which
+:func:`assemble` takes out of R_zc.  ``extras=False`` (mix.py --no-extras) builds the pools as
+for files without extras.
+
 Binning
 -------
 S is binned per track in the Z frame (compare.py's grid: track p_T classes, Delta y 0.4,
@@ -194,7 +206,7 @@ def _tracks(ev, info, mask):
 
 
 def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0,
-              eta_max=2.4, record=None):
+              eta_max=2.4, record=None, extras=True):
     """The pool of one production file (the map step), for its selected events
     ``local_events`` (their campaign indices ``global_events``, weights ``weights``,
     background ids ``backgrounds``: those of the directory it was built from, kept for the
@@ -217,7 +229,10 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
     (``bgr_*``).  The weights (window cross section / events x N_coll) factorize per window and
     background, so :meth:`Pool.load` rebuilds the weighted sums of any combination exactly
     (to rounding).  Vacuum files (jet_frag only): the event is its own background and the
-    contents are the same, stored once (``Pool`` aliases them)."""
+    contents are the same, stored once (``Pool`` aliases them).  With extra hard scatterings
+    (an extra_frag file and ``extras``) the full event and its one oversample include the
+    extras' fragments, the Z-correlated contents do not, and ``bgw_R_extra`` holds the extras'
+    lab density per (background, window) (module docstring)."""
     from jetscape.hadrons_h5 import EventHadrons, HadronFile, HadronFileReader, Hadrons
 
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -226,6 +241,7 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
     r = HadronFileReader([stem])
     tags = r.tags(0)
     bulk = "bulk_jet" in tags and "bulk_bg" in tags
+    xtra = bool(extras) and bulk and "extra_frag" in tags      # extra hard scatterings
     mask = zw.track_mask(eta_max)
     local_events = np.asarray(local_events, np.int64)
     infos = [r.event_info(int(e)) for e in local_events]
@@ -250,11 +266,13 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
     contents = CONTENTS if bulk else ("full",)
     name = os.path.basename(stem)
     if len(local_events) == 0:
-        return _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec)
+        return _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec, xtra)
     hfr = load("jet_frag", local_events)
     if bulk:
         hj = load("bulk_jet", local_events)
         hb = load("bulk_bg", {i.bg_unit for i in infos})
+    if xtra:
+        hx = load("extra_frag", local_events)
     bg_cache = {}
     for e, g, w, b, info in zip(local_events, global_events, weights, backgrounds, infos):
         z = info.z
@@ -277,6 +295,11 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
             tj = _tracks(J, info, mask)
         elif nf == 0:
             continue
+        nx = 0
+        if xtra:                                   # the extras' fragments
+            X = EventHadrons(hx, hx.unit_index(int(e)))
+            nx = X.n_samples
+            tx = _tracks(X, info, mask)
         n_s = K if bulk else nf
         k = zw.key_index(zw.event_key(seed, name, int(e)), n_s)
         SF, RF = z_hist(*tf[:3], y, ph) / nf, lab_hist(*tf[:3]) / nf
@@ -294,6 +317,14 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
             jk = tj[3] == k
             one = tuple(np.concatenate([a[jk], c[fk]]) for a, c in zip(tj[:3], tf[:3]))
             unit = info.bg_unit
+            RX = np.zeros((N_PT, N_ETA, N_PHI))
+            if nx:                                 # the extras: the full event, not zc
+                SX, RX = z_hist(*tx[:3], y, ph) / nx, lab_hist(*tx[:3]) / nx
+                S_full, R_full = SJ + SF + SX, RJ + RF + RX
+                Y["full"] = YJ + YF + side_hist(*tx[:3], y, ph) / nx
+                L["full"] = LJ + LF + lab_side_hist(*tx[:3], ph) / nx
+                xk = tx[3] == (k % nx)
+                one = tuple(np.concatenate([o, x[xk]]) for o, x in zip(one, tx[:3]))
         else:
             S_full = S_zc = SF
             R_full = RF
@@ -316,7 +347,8 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
             out[f"L_{c}"].append(L[c])
         s = per_bgw.setdefault((int(unit), kw), {
             "n": 0, "ncoll": nc, **{f"S_{c}": np.zeros((N_PT, N_DY, N_DPHI)) for c in contents},
-            "R_full": np.zeros((N_PT, N_ETA, N_PHI))})
+            "R_full": np.zeros((N_PT, N_ETA, N_PHI)),
+            **({"R_extra": np.zeros((N_PT, N_ETA, N_PHI))} if xtra else {})})
         if not (s["ncoll"] == nc or (np.isnan(s["ncoll"]) and np.isnan(nc))):
             raise ValueError(f"{stem}: N_coll differs inside background {unit}")
         s["n"] += 1
@@ -325,10 +357,12 @@ def file_pool(stem, local_events, global_events, weights, backgrounds, *, seed=0
             s["S_zc"] += S_zc
             per_bgr.setdefault(int(unit), RB)
         s["R_full"] += R_full
-    return _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec)
+        if xtra:
+            s["R_extra"] += RX
+    return _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec, xtra)
 
 
-def _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec):
+def _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec, xtra=False):
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from jetcorr import mapio
     shp_z, shp_l = (N_PT, N_DY, N_DPHI), (N_PT, N_ETA, N_PHI)
@@ -363,6 +397,9 @@ def _pack(out, per_bgw, per_bgr, contents, ycont, lcont, rec):
                            else np.zeros((0, *shp_z)))
     d["bgw_R_full"] = (np.array([per_bgw[x]["R_full"] for x in keys]) if keys
                        else np.zeros((0, *shp_l)))
+    if xtra:                                       # the extras' lab density (assemble)
+        d["bgw_R_extra"] = (np.array([per_bgw[x]["R_extra"] for x in keys]) if keys
+                            else np.zeros((0, *shp_l)))
     if "zc" in contents:
         units = sorted(per_bgr)
         d["bgr_unit"] = np.asarray(units, np.int64)
@@ -415,7 +452,8 @@ def read_root_pool(path):
     file_pool, S_*/Y_*/L_* flattened), ``pool_bgw`` (per background and window: unit, k, n,
     ncoll, S_<c>, R_full), ``pool_bgr`` (unit, RB; Pb+Pb), ``file_info``, ``pool_grid`` (one
     entry, the edges of :data:`GRID`; not in older pools); pools of version 3 have ``pool_bg``
-    (bg_id, W, W2, SW_<c>, T_<c>, R_<c>) instead."""
+    (bg_id, W, W2, SW_<c>, T_<c>, R_<c>) instead.  With extra hard scatterings pool_bgw also
+    has R_extra (``bgw_R_extra``)."""
     import awkward as ak
     import uproot
 
@@ -467,6 +505,8 @@ def read_root_pool(path):
         if f"S_{c}" in bg.fields:
             d[f"bgw_S_{c}"] = col(bg, f"S_{c}", float).reshape(nb, *shp_z)
     d["bgw_R_full"] = col(bg, "R_full", float).reshape(nb, *shp_l)
+    if "R_extra" in bg.fields:
+        d["bgw_R_extra"] = col(bg, "R_extra", float).reshape(nb, *shp_l)
     if bgr is not None:
         d["bgr_unit"] = col(bgr, "unit", np.int64)
         d["bgr_RB"] = col(bgr, "RB", float).reshape(len(bgr), *shp_l)
@@ -485,7 +525,8 @@ def assemble(parts):
     records (``jetcorr.weights.campaign_ids``, ``window_weights``: the rules of
     ``HadronFileReader``, so a campaign alone gets the ids and weights of mix.py's direct
     build); per background W, W2 and the weighted sums SW, T, R rebuilt from the unweighted
-    per-(background, window) sums (the same to rounding).  Parts binned on other edges than
+    per-(background, window) sums (the same to rounding); with extra hard scatterings R_zc
+    without the extras' lab density (``bgw_R_extra``).  Parts binned on other edges than
     :data:`GRID`: ValueError (:func:`check_grid`)."""
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from jetcorr import mapio
@@ -501,6 +542,7 @@ def assemble(parts):
     per = [(int(ids["event_offset"][i]), ids["units"][i]) for i in order]
     _same_contents(parts)
     bulk = "bgw_S_zc" in parts[0]
+    xtra = "bgw_R_extra" in parts[0]               # extra hard scatterings
 
     def base(k):
         k = np.asarray(k, np.int64)
@@ -539,7 +581,7 @@ def assemble(parts):
             n = float(p["bgw_n"][r_])
             s = sums.setdefault(b, {"W": 0.0, "W2": 0.0, "RB": rb.get(int(p["bgw_unit"][r_])),
                                     **{f"{q}_{c}": 0.0 for q in ("SW", "T") for c in contents},
-                                    "R_full": 0.0})
+                                    "R_full": 0.0, "R_extra": 0.0})
             s["W"] += n * wk
             s["W2"] += n * wk * wk
             for c in contents:
@@ -547,6 +589,8 @@ def assemble(parts):
                 s[f"SW_{c}"] = s[f"SW_{c}"] + wk * S_
                 s[f"T_{c}"] = s[f"T_{c}"] + wk * wk * S_
             s["R_full"] = s["R_full"] + wk * p["bgw_R_full"][r_]
+            if xtra:
+                s["R_extra"] = s["R_extra"] + wk * p["bgw_R_extra"][r_]
     bids = sorted(sums)
     d["bg_id"] = np.asarray(bids, np.int64)
     d["bg_W"] = np.array([sums[b]["W"] for b in bids], float)
@@ -560,6 +604,7 @@ def assemble(parts):
                       else np.zeros((0, *shp["R"])))
     if bulk:
         d["bg_R_zc"] = (np.array([sums[b]["R_full"] - sums[b]["W"] * sums[b]["RB"]
+                                  - (sums[b]["R_extra"] if xtra else 0.0)
                                   for b in bids]) if bids else np.zeros((0, *shp["R"])))
     return d
 
@@ -569,7 +614,8 @@ def _same_contents(parts):
     none, :func:`pool_grid`)."""
     keys = [{k for k in p if not k.startswith("grid_")} for p in parts]
     if any(k != keys[0] for k in keys):
-        raise ValueError("pool parts with different contents (vacuum and Pb+Pb mixed?)")
+        raise ValueError("pool parts with different contents (vacuum and Pb+Pb mixed? with "
+                         "and without extra hard scatterings?)")
 
 
 # ── the reduce step's input ─────────────────────────────────────────────────────

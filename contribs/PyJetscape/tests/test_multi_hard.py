@@ -303,3 +303,32 @@ def test_run_prod_jet_writes_the_extra_hard_block():
     a = _args(extra_hard=True)
     rpj.configure_extra_hard(a, pg)
     assert a.extra_pthat_min_xml == "15"      # PythiaGun's default
+
+
+# ── HadronFileReader ─────────────────────────────────────────────────────────────
+def test_jet_minus_background_adds_the_extras_to_the_fragments(tmp_path):
+    from extras_campaign import zjet_files
+    from jetscape.hadrons_h5 import HadronFileReader
+
+    zjet_files(tmp_path / "x", extras=True)
+    zjet_files(tmp_path / "n", extras=False)
+    zjet_files(tmp_path / "m", minbias=True)
+    bins = np.linspace(0, 50, 6)
+    rx, rn, rm = (HadronFileReader(str(tmp_path / d)) for d in "xnm")
+    full, _ = rx.jet_minus_background("pt", bins, fragments=True)
+    trig, _ = rx.jet_minus_background("pt", bins, fragments=True, extras=False)
+    bulk, _ = rx.jet_minus_background("pt", bins)
+    extra, _ = rx.hist("extra_frag", "pt", bins)
+    frag, _ = rx.hist("jet_frag", "pt", bins)
+    assert np.allclose(full, bulk + frag + extra) and np.allclose(trig, bulk + frag)
+    assert rx.has_extras() and not rn.has_extras()
+    # without extras as before; minimum bias: no jet_frag, the extras alone
+    assert np.allclose(rn.jet_minus_background("pt", bins, fragments=True)[0],
+                       rn.jet_minus_background("pt", bins)[0]
+                       + rn.hist("jet_frag", "pt", bins)[0])
+    assert np.allclose(rm.jet_minus_background("pt", bins, fragments=True)[0],
+                       rm.jet_minus_background("pt", bins)[0]
+                       + rm.hist("extra_frag", "pt", bins)[0])
+    # the trigger's initiators never come from extra_frag
+    ini = rx.event_info(0).initiators()
+    assert np.array_equal(ini, rn.event_info(0).initiators())

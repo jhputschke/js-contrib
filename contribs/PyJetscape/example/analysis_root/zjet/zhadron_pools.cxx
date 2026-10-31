@@ -5,7 +5,7 @@
 // <out>/<stem>_pool.root.  The final stage is example/analysis/zjet/mix.py
 // (--pbpb-pools / --vacuum-pools), which reads these with zjet_mixing.read_root_pool.
 //
-//   ./zhadron_pools <root dir> <out dir> [--seed 1] [--eta-max 2.4] [--files i:j]
+//   ./zhadron_pools <root dir> <out dir> [--seed 1] [--eta-max 2.4] [--files i:j] [--extras 0]
 //
 // Per selected event (CMS 2507.09307's Z selection, zjet_wake.CMS_2507): S in its Z frame,
 // the per-sample mean of the full event (bulk_jet + jet_frag) and one oversample k_one
@@ -20,6 +20,12 @@
 // zjet_mixing.assemble rebuilds the weights and the weighted sums of any set of pools, from
 // several campaigns.  Vacuum files: the fragments, one content.  The stored w (window cross
 // section / events x N_coll) is that of the input directory, for the record.
+// Extra hard scatterings (files with extra_frag, docs/Plans/PLAN_multi_hard.md): the full
+// event (S_full, S_one and its tracks, Y_full, Y_one, L_full, R_full) is bulk_jet + jet_frag +
+// extra_frag, the Z-correlated contents stay the trigger's (bulk_jet - bulk_bg + jet_frag), so
+// B, the bulk alone, is bulk_bg + extra_frag; pool_bgw also has R_extra (the extras' lab
+// density, which zjet_mixing.assemble takes out of R_zc).  --extras 0 leaves them out: the
+// pools of the files without extras.
 
 #include "ZJetCommon.h"
 
@@ -38,7 +44,7 @@ struct BgSums {                   // per (background, window), unweighted
   long n = 0;
   double ncoll = 0;
   std::vector<double> S_full = std::vector<double>(N_Z), S_zc = std::vector<double>(N_Z),
-                      R_full = std::vector<double>(N_LAB);
+                      R_full = std::vector<double>(N_LAB), R_extra = std::vector<double>(N_LAB);
 };
 
 struct BgCache {
@@ -63,16 +69,18 @@ void write_grid(TFile &fo) {
 int run(int argc, char **argv) {
   if (argc < 3) {
     std::fprintf(stderr, "usage: %s <root dir> <out dir> [--seed 1] [--eta-max 2.4] "
-                         "[--files i:j]\n", argv[0]);
+                         "[--files i:j] [--extras 0]\n", argv[0]);
     return 2;
   }
   const std::string in = argv[1], out = argv[2];
   const auto o = options(argc, argv, 3);
   const long seed = o.count("--seed") ? std::stol(o.at("--seed")) : 1;
   const double eta_max = o.count("--eta-max") ? std::stod(o.at("--eta-max")) : 2.4;
+  const bool extras = !o.count("--extras") || std::stoi(o.at("--extras")) != 0;
   gSystem->mkdir(out.c_str(), true);
 
   HadronFileReader r(in);
+  r.set_extras(extras);
   const long n = r.n_events();
   std::vector<char> sel(n, 0);
   for (long e = 0; e < n; ++e) sel[e] = select(r.info(e).z, CMS_2507);
@@ -83,6 +91,7 @@ int run(int argc, char **argv) {
   for (int f = range.first; f < range.second; ++f) {
     const auto t0 = std::chrono::steady_clock::now();
     const std::string name = stem_of(r.file(f));
+    const bool xtra = extras && r.has_extras(f);        // extra hard scatterings
     // the per-event output
     Long64_t ev_event = 0, ev_bg = 0;
     double ev_w = 0, ev_y = 0, ev_phi = 0;
@@ -163,6 +172,9 @@ int run(int argc, char **argv) {
       } else if (nf == 0) {
         continue;
       }
+      const int nx = xtra && !info.vacuum ? r.n_extra_frag(e) : 0;   // the extras' fragments
+      std::vector<Track> tx;
+      for (int j = 0; j < nx; ++j) add_tracks(r.extra(e, j), z, eta_max, j, tx);
       const int ns = info.vacuum ? nf : K;
       const int k_one = int(key_index(event_key(seed, name, info.local_event), ns));
       // S and rho, the per-sample means; the order of the operations as in file_pool
@@ -177,19 +189,32 @@ int run(int argc, char **argv) {
       for (auto &x : YF) x /= nf;
       for (auto &x : LF) x /= nf;
       std::vector<Track> one;
+      std::vector<double> RX(N_LAB, 0);
       if (!info.vacuum) {
+        // the extras: in the full event, not in the Z-correlated yield
+        std::vector<double> SX(N_Z, 0), YX(N_Y, 0), LX(N_LS, 0);
+        if (nx > 0) {
+          z_hist(tx, z.y, z.phi, SX);
+          lab_hist(tx, RX);
+          side_hist(tx, z.y, z.phi, YX);
+          lab_side_hist(tx, z.phi, LX);
+          for (auto &x : SX) x /= nx;
+          for (auto &x : RX) x /= nx;
+          for (auto &x : YX) x /= nx;
+          for (auto &x : LX) x /= nx;
+        }
         std::vector<double> SJ(N_Z, 0), RJ(N_LAB, 0), SB(N_Z, 0);
         z_hist(tj, z.y, z.phi, SJ);
         lab_hist(tj, RJ);
         z_hist(bc->tracks, z.y, z.phi, SB);
         for (int i = 0; i < N_Z; ++i) {
           const double sj = SJ[i] / K, sb = SB[i] / K;
-          Sf[i] = sj + SF[i];
+          Sf[i] = nx > 0 ? sj + SF[i] + SX[i] : sj + SF[i];
           Szc[i] = sj - sb + SF[i];
         }
         for (int i = 0; i < N_LAB; ++i) {
           const double rj = RJ[i] / K, rb = bc->R[i] / K;
-          Rf[i] = rj + RF[i];
+          Rf[i] = nx > 0 ? rj + RF[i] + RX[i] : rj + RF[i];
           Rzc[i] = rj - rb + RF[i];
         }
         std::vector<double> YJ(N_Y, 0), YB(N_Y, 0), LJ(N_LS, 0), LB(N_LS, 0);
@@ -199,16 +224,18 @@ int run(int argc, char **argv) {
         lab_side_hist(bc->tracks, z.phi, LB);
         for (int i = 0; i < N_Y; ++i) {
           const double yj = YJ[i] / K, yb = YB[i] / K;
-          Yf[i] = yj + YF[i];
+          Yf[i] = nx > 0 ? yj + YF[i] + YX[i] : yj + YF[i];
           Yz[i] = yj - yb + YF[i];
         }
         for (int i = 0; i < N_LS; ++i) {
           const double lj = LJ[i] / K, lb = LB[i] / K;
-          Lf[i] = lj + LF[i];
+          Lf[i] = nx > 0 ? lj + LF[i] + LX[i] : lj + LF[i];
           Lz[i] = lj - lb + LF[i];
         }
         for (const Track &x : tj) if (x.sample == k_one) one.push_back(x);
         for (const Track &x : tf) if (x.sample == k_one % nf) one.push_back(x);
+        if (nx > 0)
+          for (const Track &x : tx) if (x.sample == k_one % nx) one.push_back(x);
       } else {
         Sf = SF; Szc = SF; Rf = RF; Rzc = RF;
         Yf = YF; Yz = YF; Lf = LF; Lz = LF;
@@ -249,6 +276,8 @@ int run(int argc, char **argv) {
         s.S_zc[i] += Szc[i];
       }
       for (int i = 0; i < N_LAB; ++i) s.R_full[i] += Rf[i];
+      if (xtra)
+        for (int i = 0; i < N_LAB; ++i) s.R_extra[i] += RX[i];
       if (!info.vacuum && !bg_rb.count(unit)) {
         std::vector<double> rb(N_LAB);
         for (int i = 0; i < N_LAB; ++i) rb[i] = bc->R[i] / K;
@@ -259,7 +288,7 @@ int run(int argc, char **argv) {
     Long64_t b_unit = 0, b_n = 0;
     int b_k = 0;
     double b_ncoll = 0;
-    std::vector<double> Sfb(N_Z), Szb(N_Z), Rfb(N_LAB), RBb(N_LAB);
+    std::vector<double> Sfb(N_Z), Szb(N_Z), Rfb(N_LAB), RBb(N_LAB), Rxb(N_LAB);
     TTree tb("pool_bgw", "zjet_mixing pool: per hydro background and pTHat window, unweighted");
     tb.SetDirectory(&fo);
     tb.Branch("unit", &b_unit);
@@ -269,6 +298,7 @@ int run(int argc, char **argv) {
     tb.Branch("S_full", Sfb.data(), Form("S_full[%d]/D", N_Z));
     if (!vacuum_file) tb.Branch("S_zc", Szb.data(), Form("S_zc[%d]/D", N_Z));
     tb.Branch("R_full", Rfb.data(), Form("R_full[%d]/D", N_LAB));
+    if (xtra) tb.Branch("R_extra", Rxb.data(), Form("R_extra[%d]/D", N_LAB));
     for (auto &p : sums) {
       b_unit = p.first.first; b_k = p.first.second;
       b_n = p.second.n; b_ncoll = p.second.ncoll;
@@ -276,6 +306,7 @@ int run(int argc, char **argv) {
       std::copy(p.second.S_full.begin(), p.second.S_full.end(), Sfb.begin());
       std::copy(p.second.S_zc.begin(), p.second.S_zc.end(), Szb.begin());
       std::copy(p.second.R_full.begin(), p.second.R_full.end(), Rfb.begin());
+      std::copy(p.second.R_extra.begin(), p.second.R_extra.end(), Rxb.begin());
       tb.Fill();
     }
     TTree tr("pool_bgr", "zjet_mixing pool: per hydro background, bulk_bg's lab density");

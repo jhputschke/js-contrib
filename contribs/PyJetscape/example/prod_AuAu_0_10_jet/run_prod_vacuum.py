@@ -184,6 +184,8 @@ def job_xml(a, stem: str):
     ET.SubElement(ET.SubElement(root, "Random"), "seed").text = str(a.seed)
 
     pg = copy.deepcopy(pg)
+    if pg.find("extraHard") is not None:     # pp: one collision with Pythia's own MPI, so
+        pg.remove(pg.find("extraHard"))      # no extra hard scatterings (PLAN_multi_hard)
     ET.SubElement(root, "Hard").append(pg)
     problems = rj.configure_pythia_gun(a, pg)
     if problems:

@@ -33,6 +33,32 @@ event the fraction of its 40 oversamples in each class weighs its contents:
 | B | the bulk alone | closure: what the bulk leaks |
 | pp | the vacuum events | the baseline (F, O) |
 
+## Extra hard scatterings
+
+Productions with `run_prod_jet.py --extra-hard`
+([`docs/Plans/PLAN_multi_hard.md`](../../../../../docs/Plans/PLAN_multi_hard.md)) have the
+event's other hard scatterings above p₀ in `<stem>_hadrons_extra_frag.h5`; they belong to the
+event, not to the trigger. `deta.py` takes everything from the jet map step and the pools,
+which include them by default (`../zjet/ANA_Zjet.md` and `../zjet/ANA_Zhadron.md`, *Extra hard
+scatterings*), so with an `extra_frag` file:
+
+- **jet2** is the leading jet of the full event, `bulk_jet` + `jet_frag` + `extra_frag`: the
+  fake (combinatorial) jet2 of each class now counts the extras' jets as well as the bulk's
+  fluctuations (the plan's D2); jet1's `--jet1 zcone` variant uses the Z cone of the same full
+  event; the reference jets (`emb_ref_*`, `deta_cov.py` / `deta_null.py --ref-jets`) stay the
+  trigger's fragments alone;
+- **T** and **W** (`Y_zc`, `Y_frag`) do not change: the Z-correlated yield is the trigger's;
+- **F**, **O** (`Y_full`, `Y_one`) and the mixed event (the full events' `L_full`) include the
+  extras; **B** = `Y_full − Y_zc` becomes `bulk_bg` + `extra_frag` and **N** = `bulk_bg` +
+  `extra_frag` + the trigger's fragments. The closure's "B flat" and "N flat" (checks 2 and 3)
+  still hold on average, since the extras do not know the Z; they add to the noise.
+  `deta_bias.py`'s ρ_b (`L_full − L_zc`) is then the bulk with the extras.
+
+The switch is in the map steps: `zjet_jets_map.py --no-extras` / `zjets --extras 0` and
+`mix.py --no-extras` / `zhadron_pools --extras 0` give the outputs of files without extras;
+map the jets and the pools the same way. Files without `extra_frag` give the same results as
+before, bit for bit.
+
 ## 0. Set-up (once, on the RTX box)
 
 Only js-contrib changes (branch `dijet_deta`); X-SCAPE and its build stay as they are.

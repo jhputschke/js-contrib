@@ -33,10 +33,20 @@ three ntuples and returns their hadrons:
 | `r.bkg_dep(e, k)` | `bulk_jet` | the jet leg (MUSIC_2): background + deposition, sample k |
 | `r.bkg_dep_frag(e, k)` | `bulk_jet` + `jet_frag` | the whole jet event: `bkg_dep(e, k)` plus fragmentation k mod `n_frag(e)` |
 | `r.frag(e, j)` | `jet_frag` | fragmentation j of the surviving partons |
+| `r.extra(e, j)` | `extra_frag` | fragmentation j of the event's extra hard scatterings (files with extras only) |
+| `r.bkg_extra(e, k)` | `bulk_bg` + `extra_frag` | B, the bulk without the trigger: `bkg(e, k)` plus the extras' fragmentation k mod `n_extra_frag(e)` |
 
 `bkg_dep_frag(e, k, j)` takes fragmentation j instead. The fragments have
 `Hadron::origin == kFrag` and the bulk hadrons `kBulk`, as `origin` in `JetEvents.jet_event`.
 `jet_event` and `background_event` are the same calls under the Python reader's names.
+
+**Extra hard scatterings** (`run_prod_jet.py --extra-hard`, `docs/Plans/PLAN_multi_hard.md`).
+Their hadrons are the `extra_frag` ntuple; `jet_frag` stays the trigger's. They belong to the
+event: `bkg_dep_frag(e, k)` adds the extras' fragmentation k mod `n_extra_frag(e)` (with
+`Hadron::origin == kExtra`, 2) whenever the file has them, and `bkg_extra(e, k)` is the event's
+B. `r.set_extras(false)` (or `bkg_dep_frag(e, k, j, false)`) reads every event as without them;
+`has_extras(file)`, `with_extras(e)`. Files without `extra_frag` read as before. A minimum-bias
+file (`--hard none`) has no `jet_frag`: its full event is `bulk_jet` + `extra_frag`.
 
 ```cpp
 #include "HadronFileReader.h"
@@ -108,7 +118,11 @@ event's weight:
   trigger Z (`ZRecord`: `valid`, `pt`, `y`, `phi`, `m`, `lep_pid/pt/eta/phi[2]`;
   `is_lepton(h)` is true for the Z's two leptons, `zjet_wake.not_z_lepton`'s match);
 - `vacuum`: a `run_prod_vacuum.py` file (jet_frag only). `bkg_dep_frag(e, k)` is then
-  fragmentation k alone, and `hadronized()` asks for fragmentations instead of oversamples.
+  fragmentation k alone, and `hadronized()` asks for fragmentations instead of oversamples;
+- with extra hard scatterings: `has_extras`, `n_samples_extra`, `n_extra`, `extra_mu`,
+  `extra_E`, `extra_pt` (−1 / NaN if not recorded), `scatterings` (`Scattering`: `scatter`,
+  `pthat`, `code`, `x`, `y`, `n_partons`, `E`, `pt`; the trigger's first, scatter 0) and
+  `extra_initiators` (`Initiator` with its `scatter`); `initiators` stay the trigger's.
 
 **Cross sections** (`--pthat-bins` campaigns). The cross section of window k is the
 combination of all production files' Pythia estimates, weighted by their accepted events:
@@ -229,8 +243,9 @@ multithreaded:
 | `bkg` | `bulk_bg` | iSS on the background's surface (MUSIC_1) |
 | `bkgdep` | `bulk_jet` | iSS on the jet leg's surface (MUSIC_2): background + deposition |
 | `frag` | `jet_frag` | ColorlessHadronization of the surviving partons |
+| `extra` | `extra_frag` | with extra hard scatterings only: the fragments of the event's other hard scatterings |
 | `wake` | | `bkgdep` − `bkg` |
-| `full` | | `bkgdep` + `frag`, the whole jet event |
+| `full` | | `bkgdep` + `frag` (+ `extra`), the whole jet event; the macro's last argument `extras = false` leaves the extras out |
 
 ```bash
 cd example/analysis_root

@@ -23,6 +23,7 @@ Z–hadron wake, CMS 2507.09307) and [`ANA_Zjet.md`](zjet/ANA_Zjet.md) (Z+jet, C
 | [`zjet/`](zjet/README.md) | the Z+jet campaign workflow (QA, map steps, event mixing, jets); `zjet/test/` the first test and the campaign set-up checks |
 | [`dijet/`](dijet/ANA_Deta.md) | the η-separated dijet analysis ([`PLAN_dijet_deta_wake.md`](../../../../docs/Plans/PLAN_dijet_deta_wake.md)), first with the Z as jet1: `deta.py`, step by step in `ANA_Deta.md` |
 | [`tutorials/`](tutorials/hadron_distributions.ipynb) | reading the hadron files by example: `hadron_distributions.ipynb`, `jet_fastjet.ipynb`, `jet_fastjet_awkward.ipynb` (all notebooks: [`../README.md`](../README.md#notebooks)) |
+| [`bulk/`](bulk/README.md) | the bulk observables per event and per class: Nch, [pT] and its fluctuation, vₙ{2} with an η gap, and the paired difference full event − background (the effect of the jets and the extra hard scatterings; [`PLAN_multi_hard.md`](../../../../docs/Plans/PLAN_multi_hard.md) §3.10): `bulk_obs.py` |
 | [`jetcorr/`](jetcorr/__init__.py) | what `zjet/` and `dijet/` share: run paths, portable random choices, event weights, jet finding, figure data (C++: `../analysis_root/common`) |
 | `runs/<run>/` | `data/` and `figures/` of each campaign or test set (git-ignored) |
 

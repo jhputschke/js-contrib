@@ -19,7 +19,8 @@ Tests: `tests/test_hadrons_to_root.py`. The PyROOT writers are skipped without R
 ## Layout
 
 One tree (TTree) or ntuple (RNTuple) per file, named after the tag (`bulk_jet`, `bulk_bg`,
-`jet_frag`). **One entry is one oversample**, which is a complete sample of the event:
+`jet_frag`; `extra_frag` for productions with extra hard scatterings). **One entry is one
+oversample**, which is a complete sample of the event:
 
 | field | type | |
 |---|---|---|
@@ -76,7 +77,8 @@ hadron of the largest tag, ~3.5 GB for a 15-event file at 400 oversamples. The o
 | object | one entry per | content |
 |---|---|---|
 | `bulk_jet`, `bulk_bg`, `jet_frag` | sample | the hadron ntuples (layout above) |
-| `events` | event | every column of the particlize file's `events/`: `pthat_bin`, `pthat`, `event_weight`, `bg_unit`, `bg_id`, the leading and subleading parton pT and y, `n_showers`, `n_partons`, droplets and their energy, MUSIC frames, surface cells, boundary flags; `bg_key_hi`/`bg_key_lo` (the background's hash, two uint64). Then `sigma_file_mb`, this file's cross section of the event's window; `n_samples_jet/bg/frag` and `seed_jet/bg/frag` (its units' samples and seeds); and the shower initiators `ini_shower, ini_pid, ini_pstat, ini_px, ini_py, ini_pz, ini_E, ini_x, ini_y, ini_z, ini_t` |
+| `extra_frag` | sample | with extra hard scatterings (`run_prod_jet.py --extra-hard`, `docs/Plans/PLAN_multi_hard.md`): the fragments of the event's other hard scatterings, the same layout; a minimum-bias job (`--hard none`) has no `jet_frag` |
+| `events` | event | every column of the particlize file's `events/`: `pthat_bin`, `pthat`, `event_weight`, `bg_unit`, `bg_id`, the leading and subleading parton pT and y, `n_showers`, `n_partons`, droplets and their energy, MUSIC frames, surface cells, boundary flags; `bg_key_hi`/`bg_key_lo` (the background's hash, two uint64). Then `sigma_file_mb`, this file's cross section of the event's window; `n_samples_jet/bg/frag` and `seed_jet/bg/frag` (its units' samples and seeds); and the shower initiators `ini_shower, ini_pid, ini_pstat, ini_px, ini_py, ini_pz, ini_E, ini_x, ini_y, ini_z, ini_t`. With extra hard scatterings also `n_extra`, `extra_mu`, `extra_E`, `extra_pt` (from `events/`), `n_samples_extra`, `seed_extra`, the scatterings `scat_scatter, scat_pthat, scat_code, scat_x, scat_y, scat_n_partons, scat_E, scat_pt` (the trigger's first) and the extras' initiators `xini_*` (the `ini_` columns + `xini_scatter`) |
 | `windows` | pT̂ window | `pthat_lo`, `pthat_hi`, this file's `sigma_mb`, `sigma_err_mb`, `acceptance`, `n_tried`, `n_kept`, `n_accepted`, `seed` |
 | `provenance` | — | TObjString, JSON: every attribute of the particlize file and the three hadron files. That covers the production settings, seeds, XML, `music_input`, the pT̂ bookkeeping, and the hadronization settings, precision, `eta_max` and sampling (`correlated_sampling`). It also records the converter's settings and how the samples pair up |
 
