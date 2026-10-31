@@ -13,6 +13,12 @@ what the extras are: [`docs/README_extra_hard.md`](../../../../../docs/README_ex
 | [`flow.py`](flow.py) | the library: `Cuts`, `event_table(reader, cuts)`, `select(...)`, `class_averages(table, mask)`; the definitions are in its docstring |
 | [`bulk_obs.py`](bulk_obs.py) | the command line: a table per N_coll class, `--out` (.json / .npz), `--table` (per-event .npz) |
 | [`../../../tests/test_bulk_flow.py`](../../../tests/test_bulk_flow.py) | synthetic events with an imposed v₂, v₃ and [p_T] spread |
+| [`extra_hard_hists.py`](extra_hard_hists.py) | one pass over a minimum-bias extras campaign (`--prod`, default `~/prod/PbPb_0_10_v2x`): per event η, φ, φ − Ψ₂ and p_T of the charged hadrons, anti-kT R = 0.4 jets without subtraction (charged and all hadrons), the extras' scatterings and initiators, for bulk, bulk + wakes and bulk + extras → `../runs/pbpb_extra_hard/data/extra_hard_hists.npz` |
+| [`extra_hard_bulk_jets.ipynb`](extra_hard_bulk_jets.ipynb) | its figures and ratios, jackknife over the hydro backgrounds (numpy + matplotlib) |
+| [`extra_hard_bulk_jets_hist.ipynb`](extra_hard_bulk_jets_hist.ipynb) | the same with `hist` + mplhep: a jackknife `block` axis, rebinning, `hist.loc`, a `Mean` profile; writes the results as `Hist` objects |
+
+The notebooks are kept here without outputs; the executed copies and the results (not public
+yet) are in the campaign's git-ignored run folder `../runs/pbpb_extra_hard/`.
 
 ```sh
 python bulk_obs.py out_had/                                   # every production file in it
