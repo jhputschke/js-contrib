@@ -152,8 +152,49 @@ def test_default_cuts_give_the_same_flow_with_larger_errors(flow_job, flow_table
 def test_identical_legs_give_a_zero_difference(flow_table):
     res = flow.class_averages(flow_table)
     for dname in flow.DELTAS:
-        for q in ("dnch", "rdnch", "dpt", "dc2", "dc3", "dv2", "dv3"):
+        for q in ("dnch", "rdnch", "dpt", "dc2", "dc3", "dv2", "dv3", "kick22", "kick23",
+                  "align2", "align3"):
             assert res[f"{dname}/{q}"] == (0.0, 0.0), (dname, q)
+        for q in ("r2", "r3"):                       # the same flow vector: correlation 1
+            assert abs(res[f"{dname}/{q}"][0] - 1) < 1e-12, (dname, q)
+
+
+KICK = 0.03
+
+
+def test_a_random_kick_of_the_flow_vector_is_measured(tmp_path):
+    """bulk_jet's flow vector V2 + Delta V (|Delta V| = KICK, random direction per event),
+    bulk_bg's V2, both sampled independently: kick2 = KICK^2 (the sampling noise does not
+    enter: subevents A and B), the alignment 2 <V . Delta V> averages to 0, and the vectors'
+    correlation r2 = v2 / sqrt(v2^2 + KICK^2)."""
+    rng = np.random.default_rng(7)
+    n_ev, K, M = 150, 4, 1000
+    bulk, bg = [], {}
+    for e in range(n_ev):
+        psi2, psi3, phik = rng.uniform(-np.pi, np.pi, 3)
+        v = V2 * np.exp(2j * psi2) + KICK * np.exp(1j * phik)
+        bulk.append([_flow_sample(rng, M, abs(v), V3, np.angle(v) / 2, psi3, 0.8)
+                     for _ in range(K)])
+        bg[e] = [_flow_sample(rng, M, V2, V3, psi2, psi3, 0.8) for _ in range(K)]
+    _write_job(tmp_path / "AA_seed0001", bulk, bg=bg)
+    with HadronFileReader(str(tmp_path)) as r:
+        t = flow.event_table(r, flow.Cuts(flow_eta_max=2.5))
+    res = flow.class_averages(t)
+    k2, ek2 = res["delta_bulk_jet/kick22"]
+    assert abs(k2 - KICK ** 2) < 3 * ek2 + 0.15 * KICK ** 2, (k2, ek2)
+    a, ea = res["delta_bulk_jet/align2"]
+    assert abs(a) < 3 * ea, (a, ea)
+    r2, er2 = res["delta_bulk_jet/r2"]
+    want = V2 / np.hypot(V2, KICK)
+    assert abs(r2 - want) < 3 * er2 + 0.01, (r2, want)
+    rk, _ = res["delta_bulk_jet/rkick2"]
+    assert abs(rk - KICK / V2) < 0.1 * KICK / V2
+    # no kick in v3: kick2 of n = 3 consistent with 0
+    k3, ek3 = res["delta_bulk_jet/kick23"]
+    assert abs(k3) < 3 * ek3, (k3, ek3)
+    # the identity: the per-hadron <<2>> changes by align + kick2, event by event
+    d = "delta_bulk_jet"
+    assert np.allclose(t[f"{d}.cc"] - t[f"{d}.bb"], t[f"{d}.align"] + t[f"{d}.kick2"])
 
 
 def test_select_by_events_and_ncoll(flow_table):

@@ -68,6 +68,19 @@ and the **paired difference** to the background, `delta_full`, `delta_no_extras`
 | `dc2`, `dc3` | ⟨⟨2⟩⟩_n − ⟨⟨2⟩⟩_n,bg: the change of the correlator (additive, defined when v_n{2} is not) |
 | `dv2`, `dv3` | v_n{2} − v_n{2}_bg |
 
+and **the flow vector's kick** per paired difference: with q_n = Q_n / M the per-hadron flow
+vector of a subevent and Δq = q(composition) − q(bulk_bg), sample k against sample k,
+
+| | definition |
+|---|---|
+| `kick2{n}`, `kick{n}` | ⟨Re(Δq_n^A Δq_n^B*)⟩ = ⟨\|ΔV_n\|²⟩ and its root: how far the event's flow vector moves (size and direction); unbiased by the sampling noise, which is independent in A and B |
+| `rkick{n}` | kick / v_n{2} of bulk_bg |
+| `align{n}` | ⟨Re(q_bg^A Δq^B* + Δq^A q_bg^B*)⟩ = 2⟨V·ΔV⟩: the change along the existing flow (dilution, push); a random kick adds nothing here |
+| `r{n}` | ⟨Re(q^A q_bg^B*)⟩ / √(⟨Re(q^A q^B*)⟩ ⟨Re(q_bg^A q_bg^B*)⟩): the correlation of the flow vectors with and without (1: untouched) |
+
+The per-hadron ⟨⟨2⟩⟩ changes by exactly align + kick2, event by event. These weigh every
+event the same (per-hadron vectors). kick is NaN where kick2 ≤ 0 (consistent with no kick).
+
 With D13's minimum-bias mode bulk_jet − bulk_bg is the extras' effect (their wakes; `full`
 adds their fragments); in a triggered file it is the trigger's and the extras' together.
 

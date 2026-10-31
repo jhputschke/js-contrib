@@ -65,6 +65,24 @@ and per ``delta_<composition>`` over the events that have both legs:
     dv2, dv3          v_n{2}(composition) - v_n{2}(bulk_bg)
     rdnch             dnch / <nch_bg>
 
+**The flow vector's kick** (per ``delta_<composition>``; the paired samples k of the composition
+and of bulk_bg, as hadronize.py --correlated pairs them, the first min(K, K_bg) of each):
+with q_n^X = Q_n^X / M_X the per-hadron flow vector of subevent X and Delta q^X = q^X(composition)
+- q^X(bulk_bg) per sample,
+
+    kick2_n   mean_k Re(Delta q^A Delta q^B*): <|Delta V_n|^2>, the squared change of the event's
+              flow vector (size and direction).  A and B have independent sampling noise, so
+              it is unbiased by the oversampling (as v_n{2} is by the gap)
+    align_n   mean_k Re(q_bg^A Delta q^B* + Delta q^A q_bg^B*): 2 <V . Delta V>, the change
+              along the existing flow (dilution and push; the random part averages out)
+    xc_n, cc_n, bb_n  mean_k of Re(q^A q_bg^B*) (symmetrised), Re(q^A q^B*), Re(q_bg^A q_bg^B*)
+
+so that the per-hadron <<2>> changes by exactly align_n + kick2_n.  Per class: kick2{n}
+(the mean), kick{n} = sqrt(kick2{n}), rkick{n} = kick{n} / v_n{2} of bulk_bg (the kick
+relative to the flow), align{n}, and r{n} = <xc> / sqrt(<cc> <bb>), the correlation of the
+flow vectors with and without (1: untouched; 1 - r_n ~ kick2 / (2 v_n^2) for a random kick).
+Every event weighs the same here (per-hadron vectors), unlike the multiplicity-weighted c_n.
+
 dc_n is the primary quantity (additive, defined when v_n{2} is not); dv_n is what the plan's
 V5 compares.  Both are differences of class averages over the same events, so the errors
 (from the jackknife over the same blocks) keep the correlation of the two legs: with
@@ -112,6 +130,9 @@ DELTAS = tuple(f"delta_{c}" for c in JET_COMPOSITIONS)
 
 #: per-event columns of every composition (``<composition>.<column>`` in the table)
 EVENT_COLUMNS = ("K", "nch", "pt", "pt_var", "n_pt", "c", "w")
+#: per-event columns of every paired difference (``delta_<composition>.<column>``; one value
+#: per harmonic): the flow vector's kick (module docstring)
+KICK_COLUMNS = ("kick2", "align", "xc", "cc", "bb")
 
 
 @dataclass(frozen=True)
@@ -206,6 +227,29 @@ def event_values(s, n_harmonics):
             "n_pt": int(ok.sum()), "c": c, "w": float((s["MA"] * s["MB"]).mean())}
 
 
+def kick_values(s, sb, n_harmonics):
+    """The flow vector's kick of a composition against bulk_bg (KICK_COLUMNS, module
+    docstring) from their per-sample sums ``s`` and ``sb``, sample k against sample k (the
+    first min(K, K_bg)); NaN without a pair whose four subevents all have hadrons."""
+    nan = {c: np.full(n_harmonics, np.nan) for c in KICK_COLUMNS}
+    if s is None or sb is None:
+        return nan
+    K = min(len(s["N"]), len(sb["N"]))
+    ok = ((s["MA"][:K] > 0) & (s["MB"][:K] > 0) & (sb["MA"][:K] > 0) & (sb["MB"][:K] > 0))
+    if not ok.any():
+        return nan
+
+    def q(x, key, m):
+        return x[key][:K][ok] / x[m][:K][ok, None]
+    qa, qb, ra, rb = q(s, "QA", "MA"), q(s, "QB", "MB"), q(sb, "QA", "MA"), q(sb, "QB", "MB")
+    da, db = qa - ra, qb - rb
+    return {"kick2": np.real(da * np.conj(db)).mean(axis=0),
+            "align": np.real(ra * np.conj(db) + da * np.conj(rb)).mean(axis=0),
+            "xc": 0.5 * np.real(qa * np.conj(rb) + ra * np.conj(qb)).mean(axis=0),
+            "cc": np.real(qa * np.conj(qb)).mean(axis=0),
+            "bb": np.real(ra * np.conj(rb)).mean(axis=0)}
+
+
 # ── per event ───────────────────────────────────────────────────────────────────
 def _event_record(reader, e):
     """N_coll, the extras (count, energy, p_T) and the hydro background of event ``e``."""
@@ -249,10 +293,12 @@ def event_table(reader, cuts=None, events=None, progress=None):
             ev = reader.jet_event(int(e), k)
             per.append(sample_sums(ev["p"], ev["pid"], cuts, g_of[ev["origin"]],
                                    len(origins)))
+        stacks = {}
         for name, parts in JET_COMPOSITIONS.items():
             idx = [origins.index(ORIGIN[o]) for o in parts]
             s = ({key: np.stack([sum(x[key][j] for j in idx) for x in per]) for key in per[0]}
                  if per else None)
+            stacks[name] = s
             rec.update({f"{name}.{c}": v for c, v in event_values(s, nh).items()})
         key = (rec["file_index"], rec["bg_unit"] if rec["bg_unit"] >= 0 else -1 - int(e))
         if key not in bg_cache:
@@ -262,8 +308,11 @@ def event_table(reader, cuts=None, events=None, progress=None):
             Kb = reader.n_samples("bulk_bg", e) if has_bg else 0
             sb = _stack([sample_sums(ev["p"], ev["pid"], cuts)
                          for ev in (reader.background_event(int(e), k) for k in range(Kb))])
-            bg_cache[key] = event_values(sb, nh)
-        rec.update({f"{BG}.{c}": v for c, v in bg_cache[key].items()})
+            bg_cache[key] = (event_values(sb, nh), sb)
+        rec.update({f"{BG}.{c}": v for c, v in bg_cache[key][0].items()})
+        for name, s in stacks.items():
+            rec.update({f"delta_{name}.{c}": v
+                        for c, v in kick_values(s, bg_cache[key][1], nh).items()})
         rows.append(rec)
         if progress is not None:
             progress(i + 1, len(g))
@@ -271,6 +320,11 @@ def event_table(reader, cuts=None, events=None, progress=None):
     for c in COMPOSITIONS:
         if f"{c}.c" in t:
             t[f"{c}.c"] = np.asarray(t[f"{c}.c"], dtype=np.float64).reshape(len(rows), nh)
+    for d in DELTAS:
+        for c in KICK_COLUMNS:
+            if f"{d}.{c}" in t:
+                t[f"{d}.{c}"] = np.asarray(t[f"{d}.{c}"], dtype=np.float64).reshape(len(rows),
+                                                                                   nh)
     t["harmonics"] = np.asarray(cuts.harmonics, dtype=np.int64)
     t["cuts"] = cuts
     t["group"] = _groups(t)
@@ -279,7 +333,8 @@ def event_table(reader, cuts=None, events=None, progress=None):
 
 def _empty_keys():
     return (["event", "file_index", "local_event", "bg_unit", "n_coll", "n_extra", "extra_E",
-             "extra_pt"] + [f"{c}.{x}" for c in COMPOSITIONS for x in EVENT_COLUMNS])
+             "extra_pt"] + [f"{c}.{x}" for c in COMPOSITIONS for x in EVENT_COLUMNS]
+            + [f"{d}.{x}" for d in DELTAS for x in KICK_COLUMNS])
 
 
 def _groups(t):
@@ -378,6 +433,18 @@ def _stats(t, keep, cuts):
         for n in harm:
             d[f"dc{n}"] = a[f"c{n}"] - b[f"c{n}"]
             d[f"dv{n}"] = a[f"v{n}"] - b[f"v{n}"]
+        if f"delta_{c}.kick2" in t:                 # the flow vector's kick
+            kk = {x: t[f"delta_{c}.{x}"][both] for x in KICK_COLUMNS}
+            fin = np.all([np.isfinite(v).all(axis=1) for v in kk.values()], axis=0)
+            for j, n in enumerate(harm):
+                m = {x: v[fin, j].mean() if fin.any() else np.nan for x, v in kk.items()}
+                d[f"kick2{n}"] = m["kick2"]
+                d[f"kick{n}"] = np.sqrt(m["kick2"]) if m["kick2"] > 0 else np.nan
+                d[f"rkick{n}"] = (d[f"kick{n}"] / b[f"v{n}"] if b[f"v{n}"] > 0
+                                  else np.nan)
+                d[f"align{n}"] = m["align"]
+                den = m["cc"] * m["bb"]
+                d[f"r{n}"] = m["xc"] / np.sqrt(den) if den > 0 else np.nan
         d["n_events"] = float(both.sum())
         out.update({f"delta_{c}/{k}": v for k, v in d.items()})
     for c in COMPOSITIONS:

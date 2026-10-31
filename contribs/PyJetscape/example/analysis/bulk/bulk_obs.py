@@ -95,6 +95,17 @@ def print_class(label, res, harmonics, out=None):
         for h in harmonics:
             cells += [fmt(*res[f"{d}/dc{h}"]), fmt(*res[f"{d}/dv{h}"])]
         print(f"{d:<16}" + "".join(cells), file=out)
+    if f"{flow.DELTAS[0]}/kick{harmonics[0]}" not in res:
+        return
+    heads = []                           # the flow vector's kick (flow.py's docstring)
+    for h in harmonics:
+        heads += [f"|dV{h}|", f"|dV{h}|/v{h}", f"2<V.dV>{h}", f"r{h}"]
+    print(" " * 16 + "".join(x.center(19) for x in heads), file=out)
+    for d in flow.DELTAS:
+        cells = []
+        for h in harmonics:
+            cells += [fmt(*res[f"{d}/{q}{h}"]) for q in ("kick", "rkick", "align", "r")]
+        print(f"{d:<16}" + "".join(cells), file=out)
 
 
 def main(argv=None):

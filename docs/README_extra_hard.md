@@ -329,6 +329,15 @@ has no jet_frag.
 | `dc2`, `dc3` | ⟨⟨2⟩⟩ₙ − ⟨⟨2⟩⟩ₙ,bg: the change of the correlator; it adds up, and it exists where vₙ{2} does not |
 | `dv2`, `dv3` | vₙ{2} − vₙ{2}_bg |
 
+**The flow vector's kick.** The extras also move each event's flow vector in a random
+direction. Per paired difference the tools give `kick{n}` = √⟨|ΔVₙ|²⟩, measured as
+⟨Re(ΔqₙᴬΔqₙᴮ*)⟩ across the η gap so the sampling noise drops out, `rkick{n}` (relative to
+vₙ{2}), `align{n}` = 2⟨V·ΔV⟩ (the change along the existing flow: dilution or push) and `r{n}`,
+the correlation of the flow vectors with and without the extras. The per-hadron ⟨⟨2⟩⟩ changes by
+exactly align + kick², so the random part and the systematic part come apart. On the 60-event
+Pb+Pb 0–10 % pilot (p₀ = 15 GeV): kick₂² = (3.1 ± 3.0)·10⁻⁶ (|ΔV₂| ≈ 0.002, ~4 % of v₂),
+kick₃² consistent with 0, r₂ = 0.9991 ± 0.0009.
+
 What a difference means depends on the production:
 
 - **Minimum bias** (`--hard none --extra-hard`): `delta_bulk_jet` is the extras' wakes,
