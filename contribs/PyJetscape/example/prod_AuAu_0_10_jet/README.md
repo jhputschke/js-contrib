@@ -1046,8 +1046,12 @@ python run_prod_jet.py --events 10 --seed 1 --extra-hard --hadrons-only
 python run_prod_jet.py --events 10 --seed 1 --user-xml ../config/PbPb_0_30_ZJet.xml \
        --grid ../config/grid_PbPb.yaml --extra-hard --hadrons-only          # Z+jet + extras
 python run_prod_jet.py --events 30 --seed 1 --user-xml ../config/OO_5360_jet.xml \
-       --grid ../config/grid_oo.yaml --hard none --extra-hard --hadrons-only  # minimum bias
+       --grid ../config/grid_oo.yaml --hard none --extra-hard --hadrons-only \
+       --out OO_5360_mb_seed0001.h5                                     # minimum bias
 ```
+
+The default file name is `AuAu_0_10_jet_*` for every XML: name O+O, Ne+Ne and Pb+Pb jobs with
+`--out` (one job) or `TAG_PREFIX=OO_5360_seed ./run_jobs.sh ...` (a campaign).
 
 | option | |
 |---|---|

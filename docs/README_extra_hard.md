@@ -124,6 +124,26 @@ prod_AuAu_0_10_jet: event 1/1 done in 40.5 s, ..., N_coll 1294, ..., 10 extra sc
 The energy in that line, `extra_E`, includes the extras' forward ISR partons, which carry
 most of it. `extra_pt` is the better measure of what they bring to mid-rapidity.
 
+**File names.** The driver's default name is `AuAu_0_10_jet[_<campaign>]_seed<NNNN>`, whatever
+the XML, so the O+O, Ne+Ne and Pb+Pb runs above are written as `AuAu_0_10_jet_*`. Name them
+yourself, as for Pb+Pb ([`README_2stage.md`](README_2stage.md) §9): `--out` for a single job,
+`TAG_PREFIX` for a campaign through `run_jobs.sh` (it must end in `_seed`; one prefix per
+OUTDIR, which is how a campaign resumes):
+
+```bash
+python run_prod_jet.py --events 10 --seed 1 --user-xml ../config/OO_5360_jet.xml \
+    --grid ../config/grid_oo.yaml --extra-hard --hadrons-only --out OO_5360_seed0001.h5
+TAG_PREFIX=OO_5360_seed ./run_jobs.sh --campaign mb1 20 30 1 out_oo_mb1 \
+    --user-xml ../config/OO_5360_jet.xml --grid ../config/grid_oo.yaml \
+    --hard none --extra-hard --hadrons-only --oversample 10 --correlated
+                                                  # -> OO_5360_mb1_seed0001.* ...
+TAG_PREFIX=NeNe_5360_seed ./run_jobs.sh --campaign mb1 20 30 1 out_nene_mb1 \
+    --user-xml ../config/NeNe_5360_jet.xml --grid ../config/grid_oo.yaml \
+    --hard none --extra-hard --hadrons-only --oversample 10 --correlated
+```
+
+`launch_2gpu.sh` and `slurm_prod_array.sh` pass `TAG_PREFIX` into the container.
+
 **The O+O and Ne+Ne XMLs** (`example/config/OO_5360_jet.xml`, `NeNe_5360_jet.xml`) are copies
 of `PbPb_0_10_jet.xml`: 3dMCGlauber's ¹⁶O / PGCM ²⁰Ne configurations (`Ne20` is
 3dMCGlauber's name for neon), √s_NN = 5.36 TeV, MUSIC's transverse grid ±12 fm, b < 2.09 /
@@ -418,7 +438,7 @@ then the paired differences per N_coll class:
 
 ```bash
 cd example/prod_AuAu_0_10_jet
-./run_jobs.sh -j 4 --campaign mb_x 20 30 0 out_mb_x \
+TAG_PREFIX=PbPb_0_10_seed ./run_jobs.sh -j 4 --campaign mb_x 20 30 0 out_mb_x \
     --user-xml ../config/PbPb_0_10_jet.xml --grid ../config/grid_PbPb.yaml \
     --hard none --extra-hard --hadrons-only --oversample 10 --correlated
 cd ../analysis/bulk
@@ -479,7 +499,8 @@ Cost (Pb+Pb 0–10 %, 3 events, the same backgrounds, one job alone, `--hadrons-
 - Not from this option: iSS returns a few non-finite hadron momenta on Pb+Pb surfaces (~10 per
   115,000 hadrons). Hadron files written with `--eta-max` never store them; without a cut they
   crash FastJet.
-- O+O and Ne+Ne output files are still named `AuAu_0_10_jet_*` (the driver's prefix).
+- File names do not follow the XML: without `--out` or `TAG_PREFIX` every system is written
+  as `AuAu_0_10_jet_*` (§2).
 
 **References:** O+O / Ne+Ne charged-particle dn/dη and ⟨pT⟩: ATLAS,
 [arXiv:2606.20257](https://www.alphaxiv.org/abs/2606.20257); ALICE light-ion overview,

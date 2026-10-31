@@ -1379,6 +1379,8 @@ and Ne+Ne, 15 GeV for Pb+Pb.
   `b_max` 20 for minimum bias. The bulk is the Pb+Pb file's, **untuned** for small systems
   (two test events: dN_ch/dη(|η| < 0.5) ≈ 136 / 131, ⟨pT⟩ ≈ 0.59 / 0.65 GeV; compare with
   ATLAS 2606.20257 before quoting numbers). ~1.5–1.8 extras per 0–10 % event above 10 GeV.
+  Name the files with `TAG_PREFIX=OO_5360_seed` / `NeNe_5360_seed` (as `PbPb_0_10_seed` in
+  §9); without it they are `AuAu_0_10_jet_*`.
 - **Minimum bias** (`--hard none --extra-hard`): no trigger, an event is the bulk and its
   extras (N may be 0), weight 1. For the bulk observables (Nch, [pT], vₙ: `example/analysis/
   bulk/`); `bulk_jet − bulk_bg` is then the extras' effect on them.
