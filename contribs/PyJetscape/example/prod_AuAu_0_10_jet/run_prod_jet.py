@@ -1269,6 +1269,10 @@ def restart_legs(a, jetscape, writer):
 
 
 def main() -> int:
+    # line by line: run_jobs.sh sends the output to <stem>.log, which jobmon.py reads while
+    # the job runs; a file otherwise gets block buffering, and the progress lines came late
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
     a = parse_args()
     for k in ("build", "outdir", "main_xml", "user_xml", "grid"):
         setattr(a, k, os.path.abspath(getattr(a, k)))
