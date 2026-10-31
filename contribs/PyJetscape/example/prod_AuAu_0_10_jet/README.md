@@ -1029,6 +1029,8 @@ as they take hadronized campaigns; there is no particlize file to pass.
 
 ### G. The event's other hard scatterings (`--extra-hard`), minimum bias (`--hard none`)
 
+The full guide: [`docs/README_extra_hard.md`](../../../../docs/README_extra_hard.md).
+
 A nucleus–nucleus collision has N_coll × σ(p̂T > p₀)/σ_NN hard scatterings, not one.
 `--extra-hard` adds them on top of the triggering one: per jet event N ~ Poisson(N_coll σ/σ_NN)
 "extras" above p₀ (the XML's `<PythiaGun><extraHard><pTHatMin>`: 10 GeV for Au+Au, O+O, Ne+Ne,

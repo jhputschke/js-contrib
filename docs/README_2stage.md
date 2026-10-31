@@ -1352,6 +1352,8 @@ SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb_c1 \
 
 ## 10. The event's other hard scatterings; small systems; minimum bias
 
+The full guide (settings, files, analyses, the bulk and flow tools): [`README_extra_hard.md`](README_extra_hard.md).
+
 A Pb+Pb collision has N_coll × σ(p̂T > p₀)/σ_NN hard scatterings: ~8 above 15 GeV in 0–30 %,
 ~35 above 10 GeV. `--extra-hard` adds them to every jet event on top of the triggering one,
 showered in the jet leg (`prod_AuAu_0_10_jet/README.md` §G,

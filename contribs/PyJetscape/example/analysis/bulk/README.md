@@ -5,7 +5,8 @@ for the whole event, its parts and the paired difference to the jet-free backgro
 averages with jackknife errors. This is the minimal set of
 [`PLAN_multi_hard.md`](../../../../../docs/Plans/PLAN_multi_hard.md) (D15, §3.10), enough for
 its check V5: what the extra hard scatterings (and the trigger's wake) do to Nch, [p_T] and
-v_n{2}, in Pb+Pb, Au+Au, O+O, Ne+Ne and minimum-bias files.
+v_n{2}, in Pb+Pb, Au+Au, O+O, Ne+Ne and minimum-bias files. How to produce those files and
+what the extras are: [`docs/README_extra_hard.md`](../../../../../docs/README_extra_hard.md).
 
 | file | |
 |---|---|

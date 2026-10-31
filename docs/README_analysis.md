@@ -487,6 +487,8 @@ with HadronFileReader("/path/to/campaign") as r:
 
 ### The event's other hard scatterings (`extra_frag`)
 
+The full guide: [`README_extra_hard.md`](README_extra_hard.md).
+
 Productions with `run_prod_jet.py --extra-hard` ([`PLAN_multi_hard.md`](Plans/PLAN_multi_hard.md))
 have each event's other hard scatterings: their wakes are in `bulk_jet` (so `bulk_jet − bulk_bg`
 is the response to all scatterings), their fragments in `<stem>_hadrons_extra_frag.h5`;
