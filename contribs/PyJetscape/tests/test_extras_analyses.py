@@ -183,6 +183,43 @@ def test_jets_map_full_event_and_b_take_the_extras(prods, tmp_path):
     for col in ("jet", "nw"):
         assert ak.all(ak.sum(off["jets"][col]["pt"] > 30, axis=1) == 0), col
     assert ak.all(ak.sum(on["bg_jets"]["jet"]["pt"] > 30, axis=1) == 0)
+    # the QA rows carry the same samples' B (every jet, no p_T cut): bgx above --ptmin is the
+    # jets tree's bgx, and the extras' jet is in it; without extras no bgx in qa_jets
+    assert "bgx" in on["qa_jets"].fields and "bgx" not in off["qa_jets"].fields
+    qx, jx = on["qa_jets"], on["jets"]
+    for i, (g, k) in enumerate(zip(qx["event"], qx["sample"])):
+        j = np.flatnonzero((np.asarray(jx["event"]) == g) & (np.asarray(jx["sample"]) == k))[0]
+        above = [p for p in ak.to_list(qx["bgx"]["pt"][i]) if p > 5.0]
+        assert above == ak.to_list(jx["bgx"]["pt"][j])
+    assert ak.all(ak.sum(qx["bgx"]["pt"] > 30, axis=1) == 1)
+
+
+def test_jets_qa_takes_b_with_the_extras(prods, tmp_path):
+    """zjet_jets_qa.py: with the map's qa_jets bgx, B_own and B_mixed are bulk_bg + the
+    events' extras (as zjet_jets.py's), so the extras' jet is in B as in S; without, the
+    background's bulk alone."""
+    pytest.importorskip("fastjet")
+    pytest.importorskip("uproot")
+    pytest.importorskip("matplotlib")
+    env = dict(os.environ, PYTHONPATH=str(HERE.parent / "python"))
+    out = {}
+    for name, stem in (("on", prods["x"]), ("no", prods["n"])):
+        assert _map(os.path.dirname(stem), tmp_path / name).returncode == 0
+    for name in ("on", "no"):
+        res = subprocess.run([sys.executable, str(ANALYSIS / "zjet" / "zjet_jets_qa.py"),
+                              "--pbpb", str(tmp_path / name), "--pp", str(tmp_path / "no"),
+                              "--outdir", str(tmp_path / f"qa_{name}"), "--tag", "_t"],
+                             capture_output=True, text=True, env=env)
+        assert res.returncode == 0, res.stderr
+        out[name] = (tmp_path / f"qa_{name}" / "qa_jets_summary_t.txt").read_text()
+    assert "bulk_bg + the events' extra hard scatterings (bgx)" in out["on"]
+    assert "bgx" not in out["no"]
+
+    def per_z(text):
+        line = next(x for x in text.splitlines()
+                    if x.startswith("B_own") and "after the Z+jet cuts" in x)
+        return float(line.split()[-1])
+    assert per_z(out["on"]) > per_z(out["no"])        # B_own has the extras' jet
 
 
 def test_z_analyses_refuse_minimum_bias(prods, tmp_path):

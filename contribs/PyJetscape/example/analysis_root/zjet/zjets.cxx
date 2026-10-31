@@ -56,7 +56,8 @@
 // (HadronFileReader::bkg_dep_frag); B, the bulk without the trigger, is bulk_bg k + the
 // event's extra_frag (bkg_extra; per event, since the extras are drawn per jet event): the
 // embedding's background (emb_*, nw_*, zcone_nw_*), the random cones', and the per-sample
-// jets bgx_* (above --ptmin: the final stage's B_own); the reference jets stay the
+// jets bgx_* (above --ptmin: the final stage's B_own; in qa_jets every jet of the QA samples,
+// for zjet_jets_qa.py's B_own and B_mixed); the reference jets stay the
 // trigger's fragments alone, bg_jets the bulk alone; run_info extras 1.  --extras 0 leaves
 // them out (HadronFileReader::set_extras(false)): the outputs of the files without extras.
 // Minimum-bias files (no trigger, no jet_frag) have no Z events.
@@ -163,7 +164,7 @@ int run(int argc, char **argv) {
     // per (event, sample)
     int sample = 0, frag_sample = 0;
     JetColumns jc(rho_m), nwc(rho_m), qc(rho_m);   // nwc: the embedded event's jets (no wake)
-    JetColumns bxc(rho_m);                         // with extras: B's jets (B_own)
+    JetColumns bxc(rho_m), qxc(rho_m);             // with extras: B's jets (B_own; QA)
     std::vector<double> e_rpt, e_reta, e_rphi, e_pt, e_dr;
     std::vector<double> c_eta, c_phi, c_sum, c_rho, c_dpt;
     double zc[6];                                  // zcone_{sum,rho,dpt}, zcone_nw_{...}
@@ -189,6 +190,7 @@ int run(int argc, char **argv) {
     tq.Branch("event", &ev);
     tq.Branch("sample", &sample);
     qc.branch(tq);
+    if (xtra) qxc.branch(tq, "bgx");               // the same samples' B (bulk_bg + extras)
 
     long n_ev = 0, n_jets = 0;
     const ZRecord no_z;                            // a background has no Z leptons
@@ -234,6 +236,7 @@ int run(int argc, char **argv) {
         nwc.clear();
         qc.clear();
         bxc.clear();
+        qxc.clear();
         for (auto *v : {&e_rpt, &e_reta, &e_rphi, &e_pt, &e_dr, &c_eta, &c_phi, &c_sum, &c_rho,
                         &c_dpt})
           v->clear();
@@ -249,7 +252,6 @@ int run(int argc, char **argv) {
           if (info.vacuum ? j.pt >= ptmin : j.pt > ptmin) jc.push(j);
           if (k < qa_samples) qc.push(j);
         }
-        if (k < qa_samples) tq.Fill();
         n_jets += long(jc.size());
         if (!info.vacuum) {
           // embedding: the fragments alone, and in the background without the wake (B:
@@ -307,8 +309,11 @@ int run(int argc, char **argv) {
             bpp = &own_bp;
             bge = own_bge.get();
           }
-          if (xtra)                               // B_own's jets
-            for (const Jet &x : jets_of(*bpp, true, ptmin, c, bge)) bxc.push(x);
+          if (xtra)                               // B_own's jets (every jet for the QA)
+            for (const Jet &x : jets_of(*bpp, true, k < qa_samples ? ALL : ptmin, c, bge)) {
+              if (x.pt > ptmin) bxc.push(x);
+              if (k < qa_samples) qxc.push(x);
+            }
           for (int q = 0; q < n_cones; ++q) {
             const std::uint64_t s = RC_SALT | (std::uint64_t(k) << 16) | std::uint64_t(q);
             const double eta = -ETA_RC + 2 * ETA_RC * key_uniform(key, 2 * s);
@@ -318,6 +323,7 @@ int run(int argc, char **argv) {
             c_rho.push_back(rc.rho); c_dpt.push_back(rc.dpt);
           }
         }
+        if (k < qa_samples) tq.Fill();          // after B: the QA row has its bgx too
         tj.Fill();
       }
     }

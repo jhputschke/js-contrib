@@ -43,8 +43,9 @@ event, not to the trigger.  The full event is bulk_jet k + jet_frag + extra_frag
 fragmentations k mod their count); B, the bulk without the trigger, is bulk_bg k + the event's
 extra_frag (drawn per jet event, so per event, not per background): the embedding's background
 (emb, nw, zcone_nw: the event without the wake keeps the extras), the random cones', and a
-per-sample collection ``bgx`` (its jets above --ptmin: the final stage's B_own); the reference
-jets stay the trigger's fragments alone, and bg_jets the bulk alone.  run_info ``extras`` 1.
+per-sample collection ``bgx`` (its jets above --ptmin: the final stage's B_own; in qa_jets all
+jets of the QA samples: zjet_jets_qa.py's B_own and B_mixed); the reference jets stay the
+trigger's fragments alone, and bg_jets / qa_bg_jets the bulk alone.  run_info ``extras`` 1.
 --no-extras (--extras 0, zjets: --extras 0) leaves them out: the outputs are then those of
 the files without extras.  Minimum-bias files (no trigger, no jet_frag) are refused."""
 import argparse
@@ -178,7 +179,7 @@ def main():
         jet, nw, emb, rc, bgx = [], [], [], [], []
         zcone = {k: [] for k in ("zcone_sum", "zcone_rho", "zcone_dpt", "zcone_nw_sum",
                                  "zcone_nw_rho", "zcone_nw_dpt")}
-        qa_rows, qa_jet = {"event": [], "sample": []}, []
+        qa_rows, qa_jet, qa_bgx = {"event": [], "sample": []}, [], []
         bg_cache = {}            # (bg_unit, k) -> the background's particles, rho, rap, phi
 
         def background(info, k):
@@ -257,8 +258,11 @@ def main():
                     bp = bp + xp
                     b = c.bge(bp)
                     by, bphi = np.concatenate([by, xy]), np.concatenate([bphi, xphi])
-                if xtra:                    # B_own's jets
-                    bgx.append(c.jets(bp, True, a.ptmin, bge=b))
+                if xtra:                    # B_own's jets (every jet for the QA)
+                    every_x = c.jets(bp, True, ALL if k < a.qa_samples else a.ptmin, bge=b)
+                    bgx.append([x for x in every_x if x[1] > a.ptmin])
+                    if k < a.qa_samples:
+                        qa_bgx.append(every_x)
                 if k < a.emb_samples:
                     fp, fy, fphi = with_rap_phi(fj, frag, info)
                     ref = c.jets(fp, False, PT_REF)
@@ -357,9 +361,12 @@ def main():
             for k, v in zcone.items():
                 out[k] = np.asarray(v, np.float64)
             fo["jets"] = out
-            fo["qa_jets"] = {"event": np.asarray(qa_rows["event"], np.int64),
-                             "sample": np.asarray(qa_rows["sample"], np.int32),
-                             "jet": jet_record(qa_jet)}
+            qa = {"event": np.asarray(qa_rows["event"], np.int64),
+                  "sample": np.asarray(qa_rows["sample"], np.int32),
+                  "jet": jet_record(qa_jet)}
+            if xtra:                        # the same samples' B: bulk_bg + the extras
+                qa["bgx"] = jet_record(qa_bgx, c.names)
+            fo["qa_jets"] = qa
             if bg_rows:
                 fo["bg_jets"] = bg_tree(bgj, bg_rows)
                 fo["qa_bg_jets"] = bg_tree(qbj, qa_bg_rows)

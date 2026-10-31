@@ -173,9 +173,11 @@ outputs are exactly those of files without extras, and files without `extra_frag
 outputs as before, bit for bit (checked 2026-10-30 on one Pb+Pb Z+jet event with and without
 extras: map steps, pools, QA, Python and C++; `check_cxx.py`: 0 differences with extras on).
 Minimum-bias files (`--hard none`: no trigger, no `jet_frag`) have no Z: the Python map steps
-refuse them (`zjet_wake.refuse_minimum_bias`), `zjets` finds no Z events. Not yet with the extras: `zjet_jets_qa.py`'s B_own and
-B_mixed panels use `qa_bg_jets` (the bulk alone), so with extras its fake fraction B / S and
-S − B_own lack the extras' jets.
+refuse them (`zjet_wake.refuse_minimum_bias`), `zjets` finds no Z events. The jet QA (`zjet_jets_qa.py`) takes the same B: the map steps
+write every jet of the QA samples' bgx into `qa_jets` (`bgx_*`), and B_own / B_mixed are built
+from them as in `zjet_jets.py` (the Z's own rows; the Z events on the nearest other
+backgrounds), so its fake fraction B / S and S − B_own count the extras' jets on both sides.
+The ρ panels stay on the backgrounds' bulk alone (`qa_bg_jets`).
 
 ## A. Python on the HDF5 files
 

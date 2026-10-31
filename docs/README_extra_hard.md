@@ -259,6 +259,7 @@ the extras out. A campaign without `extra_frag` reads exactly as before.
 | Z+jet map step `zjet_jets_map.py` / `zjets` | S = bulk_jet + jet_frag + extra_frag; B per event = bulk_bg + extra_frag (collection `bgx`) | `--no-extras` / `--extras 0` |
 | Z–hadron pools `zjet_mixing.py`, `mix.py` / `zhadron_pools` | the full-event contents with the extras; B = bulk_bg + extra_frag (`R_extra`) | `--no-extras` / `--extras 0` |
 | QA `qa.py map` / `zqa` | `extra_frag` histograms, `nch*_extra`, `n_extra` | `--no-extras` / `--extras 0` |
+| jet QA `zjet_jets_qa.py` | B_own / B_mixed from `qa_jets`' `bgx_*` (every jet of the QA samples' B), as `zjet_jets.py` | via the map steps |
 | `wake_iso.py map` | the measured event's noise with the extras; the contents stay trigger truth | `--no-extras` |
 | `dijet/deta.py` | jet2 and the pools take the extras from the map steps (fake jet2 includes the extras' jets) | via the map steps |
 | `hadron_distributions.C` | a source `extra`; `full` includes it | `extras=false` |
@@ -492,8 +493,8 @@ Cost (Pb+Pb 0–10 %, 3 events, the same backgrounds, one job alone, `--hadrons-
   add noise. A third leg is a later option (D14).
 - No energy subtraction from the strings (D4); a stage-2 topic.
 - The O+O / Ne+Ne bulk is untuned; the 0–10 % b edges are geometric, not multiplicity classes.
-- `zjet_jets_qa.py`'s B panels still use the bulk alone; the per-hadron `hadrons/scatter`
-  is not exported to ROOT; event weights for `--pthat-bins` are not applied in the bulk tools.
+- The per-hadron `hadrons/scatter` is not exported to ROOT; event weights for `--pthat-bins`
+  are not applied in the bulk tools.
 - The Z+jet B_mixed takes the extras from other Z events on the nearest backgrounds (the
   extras are drawn per jet event): a choice worth a second look.
 - Not from this option: iSS returns a few non-finite hadron momenta on Pb+Pb surfaces (~10 per
