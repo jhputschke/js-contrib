@@ -11,7 +11,10 @@ the unweighted sums, per background bulk_bg's density, the file record, the grid
 version 3: per background W, W2, SW, T, rho for both contents).  jets: every
 (event, sample) entry's jets, embedding pairs, random cones and Z cone, every background
 sample's jets (bg_jets), the jet QA trees (qa_jets, qa_bg_jets), and the outputs' records
-(file_info, run_info).  Integers and the events
+(file_info, run_info).  With extra hard scatterings also the pools' bgw_R_extra, the jets'
+bgx_* (B_own: bulk_bg + extra_frag per sample), run_info's extras and the QA's extra_frag
+histograms and n_extra, nch*_extra (every array and column is compared, and both sides must
+have the same ones: mapped with and without extras do not pass).  Integers and the events
 must be equal; floats agree to float32 / float64 rounding (the C++ and numpy logarithms can
 differ in the last bit, which can move a track across a bin edge: such moves are counted).
 Exits 1 on a difference beyond that."""

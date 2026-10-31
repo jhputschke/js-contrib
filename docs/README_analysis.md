@@ -56,7 +56,8 @@ ROOT 6.36). The scripts behind them, and `run_doc_blocks.py` to re-run them, are
 | `<stem>_particlize.h5` | `prod_AuAu_0_10_jet --write-particlize`; `prod_OO_isr` (default) | the freeze-out surfaces (32 columns per cell), the final partons, the shower initiators, `events/` | ~90 MB (Au+Au, 15 jets per background); ~10 MB (O+O) | `ParticlizeFile` (§4) |
 | `<stem>_hadrons_bulk_jet.h5` | `hadronize.py` | iSS on the jet leg's surface: bulk + wake, N oversamples per event | ~0.2 MB per oversample at full precision; 58 % of that with `--keep-bits-p 12 --keep-bits-x 8` | `HadronFileReader` (§5) |
 | `<stem>_hadrons_bulk_bg.h5` | `hadronize.py`; O+O in the job with `--bulk-hadrons` | iSS on the background's surface, once per background | as above | `HadronFileReader`; O+O: `Hadrons`, `HadronFile` |
-| `<stem>_hadrons_jet_frag.h5` | `hadronize.py` (Colorless); O+O in the job (iColored) | the fragmented surviving partons, M fragmentations per event | small | as above |
+| `<stem>_hadrons_jet_frag.h5` | `hadronize.py` (Colorless); O+O in the job (iColored) | the fragmented surviving partons, M fragmentations per event; with extra hard scatterings the trigger's alone | small | as above |
+| `<stem>_hadrons_extra_frag.h5` | `hadronize.py` / `--hadrons-only`, only with `run_prod_jet.py --extra-hard` | the fragments of the event's other hard scatterings (Poisson(N_coll σ/σ_NN) above p₀), M fragmentations per event, with `scatterings/` | small | the full event = bulk_jet + jet_frag + extra_frag |
 | `<stem>_hadrons.root`, `<campaign>_campaign.root` | `run_h5toROOT.py` | the three hadron tags as RNTuple or TTree, one entry per oversample; `events`, `windows`, `provenance`; the campaign's cross sections | 0.9 × the HDF5 hadron files (RNTuple) | uproot, RDataFrame, `HadronFileReader.h` (§8) |
 | `AuAu_0_10_*.h5` | `prod_AuAu_0_10` (hydro only) | `arr` | ~140 MB | h5py, `read_fast_h5_bulk`, FNO4d |
 | `OO_isr_*.h5` | `prod_OO_isr` | MUSIC's evolution on `grid_oo.yaml`; `diag/` with the Glauber and ISR bookkeeping | ~17 MB | h5py |
@@ -445,6 +446,7 @@ with HadronFileReader("/path/to/campaign") as r:          # every *_particlize.h
     bins = np.linspace(-np.pi / 2, 3 * np.pi / 2, 17)
     wake, wake_err = r.jet_minus_background(dphi, bins, mask=soft_charged)
     full, _ = r.jet_minus_background(dphi, bins, mask=soft_charged, fragments=True)  # + jet_frag
+                                                    # (+ extra_frag; extras=False: without)
 
     # single events, numbered over all files
     ev = r.jet_event(0, 17)                     # dict: pid, pstat, p, x, origin (0 bulk, 1 fragment)
@@ -482,6 +484,24 @@ with HadronFileReader("/path/to/campaign") as r:
 
 `pthat_bin_sigma` combines the files' Pythia estimates weighted by their accepted events;
 `pthat_bin_acceptance(k)` gives the parton-y cut's acceptance.
+
+### The event's other hard scatterings (`extra_frag`)
+
+The full guide: [`README_extra_hard.md`](README_extra_hard.md).
+
+Productions with `run_prod_jet.py --extra-hard` ([`PLAN_multi_hard.md`](Plans/PLAN_multi_hard.md))
+have each event's other hard scatterings: their wakes are in `bulk_jet` (so `bulk_jet − bulk_bg`
+is the response to all scatterings), their fragments in `<stem>_hadrons_extra_frag.h5`;
+`jet_frag` stays the trigger's alone. **The extras belong to the event, not to the trigger:**
+`jet_event(e, k)` adds them (`origin` 2; `extras=False` leaves them out),
+`jet_minus_background(..., fragments=True)` too, `EventInfo.scatterings()` gives the event's
+scatterings (`scatter, pthat, code, x, y, n_partons, E, pt`, the trigger's first) and
+`has_extras()` tells whether a campaign has them. The Z+jet and dijet analyses take B (the
+event without the trigger) as `bulk_bg` + the event's `extra_frag` and switch the extras off
+with `--no-extras` ([`zjet/ANA_Zjet.md`](../contribs/PyJetscape/example/analysis/zjet/ANA_Zjet.md));
+the C++ reader has `extra(e, j)`, `bkg_extra(e, k)` and `set_extras(false)`. A minimum-bias
+production (`--hard none`) has no `jet_frag`. For the bulk observables (Nch, [pT], vₙ{2}) see
+[`example/analysis/bulk/`](../contribs/PyJetscape/example/analysis/bulk/README.md).
 
 ### Lower-level readers
 

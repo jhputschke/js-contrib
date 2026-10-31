@@ -3,6 +3,7 @@
 the total charged multiplicity.  Step 0 of ../ANA_Zhadron.md and ../ANA_Zjet.md.
 
     python qa.py map "<dir or glob of *_hadrons_jet_frag.h5>" <out dir> [--jobs 4] [--files i:j]
+                     [--no-extras]
     python qa.py plot --pbpb <map out> [--pp <map out>] [--outdir figures] [--tag _c00]
 
 The map step reads every production file once (Python on the HDF5 files; the same in C++ on
@@ -19,6 +20,14 @@ the ROOT files: ../../analysis_root/zjet/zqa) and writes ``<stem>_qa.npz`` (C++:
 * per-source hadron histograms (bulk_jet, bulk_bg, jet_frag; vacuum: jet_frag), p_T, eta, phi
   and the species, charged and all particles, per event (the mean over its oversamples)
   summed unweighted (``n``) and with w_s x N_coll (``sc``).
+
+Extra hard scatterings (files with extra_frag, docs/Plans/PLAN_multi_hard.md): they belong to
+the event, so the full event's multiplicity is bulk_jet + jet_frag + extra_frag (the extras'
+fragmentation k mod their count with oversample k), extra_frag gets its own histograms
+(``h_extra_frag_*``, ``s_extra_frag_*``) and the table its own columns (``nch05_extra``,
+``nch24_extra``: the mean over its fragmentations; ``n_extra``: the extras' number).  The
+background and the fragments' columns stay bulk_bg and jet_frag.  ``--no-extras`` (zqa:
+``--extras 0``) leaves them out: the outputs of the files without extras.
 
 The plot step sums the files of a directory (either format) and draws figures/qa_*{tag}.png
 and qa_summary{tag}.txt: the Z (p_T, y, phi, mass, the leptons' p_T and eta by flavour) for all
@@ -74,6 +83,8 @@ EVENT_COLUMNS = ("event", "file", "bg", "pthat_bin", "n_coll", "w_s", "n_samples
                  "lep2_pid", "lep2_pt", "lep2_eta", "lep2_phi",
                  "nch05_full", "nch24_full", "nch24_full_var", "nch05_bg", "nch24_bg",
                  "nch05_frag", "nch24_frag", "nzlep", "nzlep_min")
+#: the table's columns with extra hard scatterings
+EXTRA_COLUMNS = ("nch05_extra", "nch24_extra", "n_extra")
 
 
 def _index(v, edges):
@@ -115,20 +126,23 @@ def nch_per_sample(ev, keep, n_samples, eta_max):
     return np.bincount(ev.sample[m], minlength=n_samples).astype(float)
 
 
-def qa_file(stem, file_index, local_events, global_events, w_s, n_coll, bgid, out):
-    """The map step for one production file -> ``out`` (.npz)."""
+def qa_file(stem, file_index, local_events, global_events, w_s, n_coll, bgid, out,
+            extras=True):
+    """The map step for one production file -> ``out`` (.npz).  ``extras``: the extra hard
+    scatterings' fragments in the full event and their own histograms and columns, when the
+    file has them."""
     from jetscape.hadrons_h5 import EventHadrons, HadronFileReader, Hadrons
     t0 = time.time()
     r = HadronFileReader([stem])
     bulk = "bulk_jet" in r.tags(0)
-    h = {t: Hadrons.from_h5(f"{stem}_hadrons_{t}.h5")
-         for t in (SOURCES if bulk else ("jet_frag",))}
+    xtra = bool(extras) and bulk and "extra_frag" in r.tags(0)
+    sources = (SOURCES if bulk else ("jet_frag",)) + (("extra_frag",) if xtra else ())
+    h = {t: Hadrons.from_h5(f"{stem}_hadrons_{t}.h5") for t in sources}
     hist = {f"h_{s}_{v}_{c}_{w}": np.zeros(len(EDGES[v]) - 1)
-            for s in (SOURCES if bulk else ("jet_frag",)) for v in VARS for c in CHARGES
-            for w in WEIGHTS}
-    hist.update({f"s_{s}_{w}": np.zeros(len(SPECIES) + 1)
-                 for s in (SOURCES if bulk else ("jet_frag",)) for w in WEIGHTS})
-    cols = {k: [] for k in EVENT_COLUMNS}
+            for s in sources for v in VARS for c in CHARGES for w in WEIGHTS}
+    hist.update({f"s_{s}_{w}": np.zeros(len(SPECIES) + 1) for s in sources for w in WEIGHTS})
+    columns = EVENT_COLUMNS + (EXTRA_COLUMNS if xtra else ())
+    cols = {k: [] for k in columns}
     bg_cache = {}
     for e, g, ws, nc, b in zip(local_events, global_events, w_s, n_coll, bgid):
         info = r.event_info(int(e))
@@ -146,6 +160,10 @@ def qa_file(stem, file_index, local_events, global_events, w_s, n_coll, bgid, ou
             if K == 0:
                 continue
             per["bulk_jet"] = (J, np.ones(len(J), bool), K)
+            if xtra:                               # the extras' fragments
+                X = EventHadrons(h["extra_frag"], h["extra_frag"].unit_index(int(e)))
+                if X.n_samples:
+                    per["extra_frag"] = (X, np.ones(len(X), bool), X.n_samples)
             if info.bg_unit not in bg_cache:
                 B = EventHadrons(h["bulk_bg"], h["bulk_bg"].unit_index(info.bg_unit))
                 kb = np.ones(len(B), bool)
@@ -173,6 +191,12 @@ def qa_file(stem, file_index, local_events, global_events, w_s, n_coll, bgid, ou
             full05 = nch_per_sample(J, kj, K, 0.5) + nf05[np.arange(K) % nf]
             full24 = nch_per_sample(J, kj, K, 2.4) + nf24[np.arange(K) % nf]
             ns = K
+            x05 = x24 = np.zeros(1)
+            if "extra_frag" in per:                # the extras belong to the event
+                X, kx, nx = per["extra_frag"]
+                x05, x24 = (nch_per_sample(X, kx, nx, eta) for eta in (0.5, 2.4))
+                full05 = full05 + x05[np.arange(K) % nx]
+                full24 = full24 + x24[np.arange(K) % nx]
         else:
             b05 = b24 = 0.0
             full05, full24, ns = nf05, nf24, nf
@@ -185,11 +209,15 @@ def qa_file(stem, file_index, local_events, global_events, w_s, n_coll, bgid, ou
                "nch05_bg": b05, "nch24_bg": b24,
                "nch05_frag": nf05.mean(), "nch24_frag": nf24.mean(),
                "nzlep": zlep.mean(), "nzlep_min": zlep.min()}
-        for k in EVENT_COLUMNS:
+        if xtra:
+            sc = info.scatterings()
+            row.update({"nch05_extra": x05.mean(), "nch24_extra": x24.mean(),
+                        "n_extra": int(np.sum(sc[:, 0] > 0)) if sc is not None else 0})
+        for k in columns:
             cols[k].append(row[k])
     d = {f"ev_{k}": np.asarray(v, np.int64 if k in ("event", "file", "bg", "pthat_bin",
                                                      "n_coll", "n_samples", "lep1_pid",
-                                                     "lep2_pid") else float)
+                                                     "lep2_pid", "n_extra") else float)
          for k, v in cols.items()}
     d.update(hist)
     np.savez_compressed(out, **d)
@@ -199,6 +227,7 @@ def qa_file(stem, file_index, local_events, global_events, w_s, n_coll, bgid, ou
 def cmd_map(a):
     from jetscape.hadrons_h5 import HadronFileReader
     r = HadronFileReader(a.source)
+    zw.refuse_minimum_bias(r, "qa.py")
     n = r.n_events
     infos = [r.event_info(g) for g in range(n)]
     bulk = "bulk_jet" in r.tags()
@@ -228,7 +257,8 @@ def cmd_map(a):
             g = np.flatnonzero(has_z & (loc[:, 0] == fi))
             local = g - int(r._offsets[fi])
             futs.append(ex.submit(qa_file, stem, fi, local, g, w_s[g], n_coll[g], bgid[g],
-                                  os.path.join(a.out, f"{os.path.basename(stem)}_qa.npz")))
+                                  os.path.join(a.out, f"{os.path.basename(stem)}_qa.npz"),
+                                  a.extras))
         for f in futs:
             name, ne, dt = f.result()
             print(f"  {name}: {ne} events, {dt:.0f} s", flush=True)
@@ -367,9 +397,13 @@ def cmd_plot(a):
                 big, small = [], []
                 if name == "Pb+Pb" and get("bulk_jet") is not None:
                     j, b, f_ = get("bulk_jet"), get("bulk_bg"), get("jet_frag")
+                    x = get("extra_frag")              # extra hard scatterings
                     big = [("background (bulk_bg)", b), ("background + wake (bulk_jet)", j),
-                           ("full event (bulk_jet + fragments)", j + f_)]
+                           ("full event (bulk_jet + fragments)", j + f_) if x is None else
+                           ("full event (bulk_jet + fragments + extras)", j + f_ + x)]
                     small = [("fragments", f_), ("wake (bulk_jet − bulk_bg)", j - b)]
+                    if x is not None:
+                        small.append(("extras' fragments (extra_frag)", x))
                 elif get("jet_frag") is not None:
                     small = [("fragments", get("jet_frag"))]
                 for c, curves in ((col0, big), (col0 + 1, small)):
@@ -410,7 +444,11 @@ def cmd_plot(a):
         lines.append(f"{name}: total charged multiplicity of the full event (σ × N_coll-weighted): "
                      f"<N_ch(|η| < 2.4)> {mean24:.1f}, dN_ch/dη(|η| < 0.5) {mean05:.1f}; "
                      f"background {np.average(E['nch05_bg'], weights=w['σ × N_coll']):.1f}, "
-                     f"fragments {np.average(E['nch05_frag'], weights=w['σ × N_coll']):.2f}")
+                     f"fragments {np.average(E['nch05_frag'], weights=w['σ × N_coll']):.2f}"
+                     + (f", extras' fragments "
+                        f"{np.average(E['nch05_extra'], weights=w['σ × N_coll']):.2f} "
+                        f"(<n_extra> {np.average(E['n_extra'], weights=w['σ × N_coll']):.2f})"
+                        if "nch05_extra" in E else ""))
         if name == "Pb+Pb" and np.any(E["n_coll"] >= 0):
             ax[2].plot(E["n_coll"], E["nch05_full"], ".", ms=3, alpha=0.5, label="full event")
             ax[2].plot(E["n_coll"], E["nch05_bg"], ".", ms=3, alpha=0.5, label="background")
@@ -438,7 +476,8 @@ def cmd_plot(a):
     fig, ax = figdata.subplots(figsize=(13, 4.5))
     xs = np.arange(len(SPECIES_NAMES))
     bars = [(f"{n}: {s}", H[f"s_{s}_sc"]) for n, (E, H) in data.items()
-            for s in (SOURCES if n == "Pb+Pb" else ("jet_frag",)) if f"s_{s}_sc" in H]
+            for s in (SOURCES + ("extra_frag",) if n == "Pb+Pb" else ("jet_frag",))
+            if f"s_{s}_sc" in H]
     for i, (lab, x) in enumerate(bars):
         ax.bar(xs + (i - len(bars) / 2) * 0.8 / len(bars), x / max(x.sum(), 1e-300),
                0.8 / len(bars), label=lab)
@@ -464,6 +503,9 @@ def main():
     m.add_argument("out")
     m.add_argument("--jobs", type=int, default=2)
     m.add_argument("--files", default=None, help="i:j, only production files i .. j-1")
+    m.add_argument("--no-extras", dest="extras", action="store_false",
+                   help="leave the extra hard scatterings' fragments out (files with "
+                        "extra_frag; default: in the full event, and their own histograms)")
     p = sub.add_parser("plot", help="the figures and the summary")
     p.add_argument("--pbpb", required=True, help="the map step's Pb+Pb outputs (.npz or .root)")
     p.add_argument("--pp", default=None, help="the same for the vacuum reference")

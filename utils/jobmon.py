@@ -228,6 +228,9 @@ class Monitor:
                 if not NOT_JOB_LOGS.search(s):
                     stems.add(s)
             stems |= {os.path.basename(p)[:-5] for p in glob.glob(os.path.join(d, "*.json"))}
+            base = job_name_base(d)
+            if base:                    # run_jobs.sh names every job <base>_...: other logs
+                stems = {s for s in stems if s.startswith(base + "_")}   # are not jobs
             for s in stems:
                 key = os.path.join(d, s)
                 job = self.jobs.setdefault(key, Job(s, d))
@@ -381,6 +384,17 @@ class Monitor:
 
 
 # -- formatting -------------------------------------------------------------------------------
+def job_name_base(d):
+    """The name base of run_jobs.sh's jobs in OUTDIR ``d`` (its run_jobs.prefix without
+    '_seed': files <base>_seed<NNNN>.* or <base>_<campaign>_...), or None without the file."""
+    try:
+        with open(os.path.join(d, "run_jobs.prefix")) as f:
+            prefix = f.read().strip()
+    except OSError:
+        return None
+    return prefix[:-len("_seed")] if prefix.endswith("_seed") else prefix or None
+
+
 def fmt_dt(s):
     s = int(s)
     if s < 120:
@@ -388,6 +402,16 @@ def fmt_dt(s):
     if s < 7200:
         return f"{s // 60} min"
     return f"{s // 3600} h {s % 3600 // 60:02d} min"
+
+
+def gpu_memory(used, total):
+    """', used/total GB' of nvidia-smi's memory.used / memory.total [MiB]; '' where it reports
+    none: '[N/A]' on GPUs that share the host's memory (the GB10), whose use is then in the
+    host memory figure."""
+    try:
+        return f", {int(used) / 1024:.1f}/{int(total) / 1024:.0f} GB"
+    except ValueError:
+        return " (memory shared with the host)"
 
 
 def fmt_b(n):
@@ -421,8 +445,7 @@ def summary_lines(r):
                + f"; {fmt_b(d['free'])} free")
     m = r["machine"]
     if m:
-        parts = [f"GPU{i} {u} % busy, {int(mu) / 1024:.1f}/{int(mt) / 1024:.0f} GB"
-                 for i, u, mu, mt in m.get("gpus", [])]
+        parts = [f"GPU{i} {u} % busy" + gpu_memory(mu, mt) for i, u, mu, mt in m.get("gpus", [])]
         if "mem" in m:
             parts.append(f"host memory {m['mem'][0]:.0f}/{m['mem'][1]:.0f} GB")
         parts.append(f"load {m['load']:.1f} of {m['cores']} threads")

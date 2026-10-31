@@ -5,7 +5,9 @@ example/analysis_root/HadronFileReader.h (C++, through PyROOT) on the small --pt
 campaign of test_run_h5toROOT.py, converted by run_h5toROOT.py: every event, oversample
 and source (bkg, bkg_dep, frag, bkg_dep_frag) gives the hadrons that
 jetscape.hadrons_h5.HadronFileReader reads from the HDF5 files, for RNTuple and TTree,
-both writers, truncated floats and files without positions.  Skipped without PyROOT.
+both writers, truncated floats and files without positions.  With extra hard scatterings
+(extras_campaign.py): extra, bkg_dep_frag with and without them, bkg_extra, set_extras, the
+scatterings and the extras' initiators.  Skipped without PyROOT.
 
     pytest tests/test_analysis_root_reader.py -q
 """
@@ -29,7 +31,7 @@ ROOT = pytest.importorskip("ROOT")
 
 import run_h5toROOT as r2r  # noqa: E402
 from jetscape.hadrons_h5 import HadronFileReader  # noqa: E402
-from test_run_h5toROOT import SIGMA, _writers, campaign  # noqa: E402,F401
+from test_run_h5toROOT import SIGMA, _writers, campaign, extras_campaign  # noqa: E402,F401
 
 HEADER = HERE.parent / "example" / "analysis_root" / "HadronFileReader.h"
 
@@ -207,3 +209,56 @@ def test_cross_sections_without_campaign_file(campaign, tmp_path, cxx):  # noqa:
     if JIT_EXCEPTIONS:
         with pytest.raises(Exception, match="other pTHat windows"):
             cxx.HadronFileReader(str(out), False, str(tmp_path / "other_campaign.root"))
+
+
+@pytest.mark.parametrize("fmt", ["rntuple", "ttree"])
+def test_reader_with_extras(extras_campaign, tmp_path, cxx, fmt):  # noqa: F811
+    """A (extra_frag) and B (none): the full event takes the extras where the file has them,
+    B (bkg_extra) is bulk_bg + the event's extras; set_extras(false) and extras = false
+    read every event as without them."""
+    from jetscape.hadrons_h5 import HadronFile
+
+    out = tmp_path / "root"
+    assert r2r.main([str(extras_campaign), "--out-dir", str(out), "--format", fmt,
+                     "--writer", "uproot"]) == 0
+    h5 = HadronFileReader(str(extras_campaign))
+    r = cxx.HadronFileReader(str(out), True)
+    assert r.has_extras() and r.has_extras(0) and not r.has_extras(1) and r.extras()
+    assert cxx.kExtra == 2
+    xf = HadronFile(str(extras_campaign / "run_A_hadrons_extra_frag.h5"))
+    for e in range(h5.n_events):
+        info, want = r.info(e), h5.event_info(e)
+        x = want.file_index == 0
+        assert info.has_extras == x and r.with_extras(e) == x
+        assert r.n_extra_frag(e) == (2 if x else 0) and info.n_samples_extra == r.n_extra_frag(e)
+        sc = want.scatterings()
+        assert (sc is not None) == x and info.scatterings.size() == (len(sc) if x else 0)
+        if x:
+            got = np.array([[s.scatter, s.pthat, s.code, s.x, s.y, s.n_partons, s.E, s.pt]
+                            for s in info.scatterings])
+            assert np.array_equal(got, sc)
+            ini, xs = xf.initiators(want.local_event), xf.initiator_scatter(want.local_event)
+            assert [(p.scatter, p.pid) for p in info.extra_initiators] == list(
+                zip(xs.tolist(), ini[:, 1].astype(int).tolist()))
+            assert np.allclose([p.px for p in info.extra_initiators], ini[:, 3])
+            for j in range(r.n_extra_frag(e)):
+                _same(_arrays(r.extra(e, j), True), _expect(xf.sample_event(want.local_event, j), 2), 0)
+        assert info.initiators.size() == 1                   # the trigger's alone
+        for k in range(r.n_oversamples(e)):
+            _same(_arrays(r.bkg_dep_frag(e, k), True), _expect(h5.jet_event(e, k)), 0)
+            _same(_arrays(r.bkg_dep_frag(e, k, -1, False), True),
+                  _expect(h5.jet_event(e, k, extras=False)), 0)
+            bg = _expect(h5.background_event(e, k), 0)
+            if x:
+                xe = _expect(xf.sample_event(want.local_event, k % 2), 2)
+                bg = {c: np.concatenate([bg[c], xe[c]]) for c in bg}
+            _same(_arrays(r.bkg_extra(e, k), True), bg, 0)
+            r.set_extras(False)
+            _same(_arrays(r.jet_event(e, k), True), _expect(h5.jet_event(e, k, extras=False)), 0)
+            _same(_arrays(r.bkg_extra(e, k), True), _expect(h5.background_event(e, k), 0), 0)
+            assert not r.with_extras(e)
+            r.set_extras(True)
+    xf.close()
+    if JIT_EXCEPTIONS:
+        with pytest.raises(Exception, match="has no extra_frag"):
+            r.extra(2, 0)

@@ -9,6 +9,14 @@ hadronize.py::
     bulk_jet   iSS on the jet leg's surface     (bulk + wake)       unit = event
     bulk_bg    iSS on the background's surface  (bulk)              unit = background
     jet_frag   ColorlessHadronization on the final partons          unit = event
+               (with extra hard scatterings: the trigger's showers only)
+    extra_frag ColorlessHadronization on the showers of the event's  unit = event
+               other hard scatterings (PythiaGun's <extraHard>,
+               docs/Plans/PLAN_multi_hard.md); absent without them
+
+The full event is bulk_jet + jet_frag + extra_frag: the extras belong to the event, not to
+the trigger (:meth:`JetEvents.jet_event` adds extra_frag when the file exists).  A
+minimum-bias job (run_prod_jet.py --hard none) has no jet_frag.
 
 Layout::
 
@@ -45,6 +53,13 @@ Layout::
                                             hadronize.py can redo the jets from the jet file.
                                             Attribute x_had: "none" (the partons' production
                                             points only; hadronization points later)
+    extra_frag only:
+    hadrons/scatter        (N,)   int32     with --extra-hadronize per_scattering: the hard
+                                            scattering each hadron came from (1, 2, ...)
+    initiators/scatter     (K,)   int32     each initiator's hard scattering
+    scatterings/data       (S, 8) float64   the event's hard scatterings (SCATTER_COLUMNS of
+    scatterings/offsets    (U + 1,) int64   particlize_h5: scatter, pthat, code, x, y,
+                                            n_partons, E, pt; the trigger's first, scatter 0)
 
 Undecayed hadrons.  ``bulk_jet_primary`` and ``bulk_bg_primary`` (PRIMARY_TAGS) hold iSS's
 hadrons as sampled, before any decay, for the first N oversamples of each unit (hadronize.py
@@ -125,12 +140,14 @@ __all__ = ["FORMAT", "FORMAT_VERSION", "TAGS", "CHARGED", "SPECIES", "FIELDS", "
 FIELDS = ("pid", "pstat", "p", "x")
 
 #: JetEvents.jet_event(): value of the ``origin`` array per source
-ORIGIN = {"bulk": 0, "frag": 1}
+ORIGIN = {"bulk": 0, "frag": 1, "extra": 2}
 
 FORMAT = "xscape/hadrons"
 FORMAT_VERSION = 1
 
-TAGS = ("bulk_jet", "bulk_bg", "jet_frag")
+TAGS = ("bulk_jet", "bulk_bg", "jet_frag", "extra_frag")
+#: the fragment tags (ColorlessHadronization; one unit per event)
+FRAG_TAGS = ("jet_frag", "extra_frag")
 
 #: iSS's undecayed hadrons (hadronize.py --keep-primaries), one file per bulk tag
 PRIMARY_TAGS = ("bulk_jet_primary", "bulk_bg_primary")
@@ -187,7 +204,7 @@ SPECIES = {
 ROUNDABLE = ("p", "x")
 
 #: tags whose unit is an event, so they can carry the event's shower initiators
-INITIATOR_TAGS = ("bulk_jet", "jet_frag")
+INITIATOR_TAGS = ("bulk_jet", "jet_frag", "extra_frag")
 
 
 def _keep_bits_map(keep_bits):
@@ -287,12 +304,18 @@ class HadronH5Writer:
     ``partons=True`` (jet_frag only) adds the ``partons/`` group: every :meth:`append_unit`
     then takes the event's final partons, a (K, 14) array in ``PARTON_COLUMNS`` order, so
     the jets can be hadronized again from this file alone (run_prod_jet.py --hadrons-only).
-    ``x_had`` is recorded on the group: "none" for the partons' production points only."""
+    ``x_had`` is recorded on the group: "none" for the partons' production points only.
+
+    ``extra_frag`` files (the extra hard scatterings) also take ``scatterings`` (the event's
+    (S, 8) SCATTER_COLUMNS rows, group ``scatterings/``) and ``initiator_scatter`` (each
+    initiator's scattering, ``initiators/scatter``) in :meth:`append_unit`, and with
+    ``hadron_scatter=True`` each hadron's scattering (a ``scatter`` array in every sample,
+    ``hadrons/scatter``)."""
 
     def __init__(self, path, *, tag, n_samples, attrs=None, compression=DEFAULT_COMPRESSION,
                  force=True, keep_bits=None, initiators=False, eta_max=None,
                  charged_only=False, positions=True, hadronization_input=False,
-                 partons=False, x_had="none"):
+                 partons=False, x_had="none", hadron_scatter=False):
         import h5py
 
         if tag not in TAGS + PRIMARY_TAGS:
@@ -302,8 +325,11 @@ class HadronH5Writer:
                              f"not {tag!r}")
         if hadronization_input and tag != "jet_frag":
             raise ValueError(f"hadronization_input: only jet_frag, not {tag!r}")
-        if partons and tag != "jet_frag":
-            raise ValueError(f"partons: only jet_frag, not {tag!r}")
+        if partons and tag not in FRAG_TAGS:
+            raise ValueError(f"partons: only jet_frag and extra_frag, not {tag!r}")
+        if hadron_scatter and tag != "extra_frag":
+            raise ValueError(f"hadron_scatter: only extra_frag, not {tag!r}")
+        self._extra = tag == "extra_frag"
         if eta_max is not None and not float(eta_max) > 0:
             raise ValueError(f"eta_max must be > 0 (None: no cut), got {eta_max!r}")
         self.eta_max = None if eta_max is None else float(eta_max)
@@ -337,6 +363,8 @@ class HadronH5Writer:
         fields = {"pid": (np.int32, ()), "pstat": (np.int32, ()), "p": (np.float32, (4,))}
         if self.positions:
             fields["x"] = (np.float32, (4,))
+        if hadron_scatter:
+            fields["scatter"] = (np.int32, ())
         self._keys = tuple(fields)
         self._h = RaggedGroup(g, "sample_offsets", fields,
                               compression=compression, chunk_rows=1 << 17, unit="free")
@@ -352,13 +380,15 @@ class HadronH5Writer:
                                           maxshape=(None,), chunks=(4096,))
         from .particlize_h5 import _ScalarTable
         self._units = _ScalarTable(self.f.require_group("units"))
-        self._ini = _initiator_group(self.f) if initiators else None
+        self._ini = (_initiator_group(self.f, scatter=self._extra) if initiators
+                     else None)
         self._hin = _hadronization_input_group(self.f) if hadronization_input else None
         self._par = _parton_group(self.f, x_had) if partons else None
+        self._scat = _scatter_group(self.f) if self._extra else None
         self._u = 0
 
     def append_unit(self, samples, initiators=None, hadronization_input=None, partons=None,
-                    **unit_scalars):
+                    scatterings=None, initiator_scatter=None, **unit_scalars):
         """Append one unit.  ``samples`` is a list of hadron dicts (one per sample, keys
         pid, pstat, p, x), or one dict with ``sample_counts`` (as soft_hadrons_numpy
         returns); ``initiators`` the event's (K, 11) initiator rows, for a writer made with
@@ -403,7 +433,17 @@ class HadronH5Writer:
         # filled last chunk every time (most of hadronize.py's write time)
         self._h.append_many(rows, counts)
         if self._ini is not None:
-            self._ini.append(_initiator_rows(initiators))
+            rows = _initiator_rows(initiators)
+            if self._extra:
+                rows["scatter"] = np.asarray(
+                    np.zeros(len(rows["data"])) if initiator_scatter is None
+                    else initiator_scatter, dtype=np.int32).reshape(-1)
+            self._ini.append(rows)
+        if self._scat is not None:
+            from .particlize_h5 import SCATTER_COLUMNS
+            self._scat.append({"data": np.asarray(
+                np.zeros((0, len(SCATTER_COLUMNS))) if scatterings is None else scatterings,
+                dtype=np.float64).reshape(-1, len(SCATTER_COLUMNS))})
         if self._hin is not None:
             self._hin.append({"data": hadronization_input_rows(hadronization_input)})
         if self._par is not None:
@@ -647,6 +687,32 @@ class HadronFile:
         return self.f["partons/data"][int(off[u]):int(off[u + 1])]
 
     @property
+    def has_scatterings(self):
+        return "scatterings" in self.f
+
+    def scatterings(self, unit):
+        """The hard scatterings of recorded unit ``unit`` (an event), (S, 8) in
+        particlize_h5.SCATTER_COLUMNS order; None if the file has no ``scatterings/``
+        (extra_frag files have it)."""
+        if not self.has_scatterings:
+            return None
+        u = self.unit_index(unit)
+        off = self.f["scatterings/offsets"]
+        return self.f["scatterings/data"][int(off[u]):int(off[u + 1])]
+
+    def initiator_scatter(self, unit):
+        """Each initiator's hard scattering (aligned with :meth:`initiators`); zeros for a
+        file without ``initiators/scatter``."""
+        ini = self.initiators(unit)
+        if ini is None:
+            return None
+        if "initiators/scatter" not in self.f:
+            return np.zeros(len(ini), np.int32)
+        u = self.unit_index(unit)
+        off = self.f["initiators/offsets"]
+        return self.f["initiators/scatter"][int(off[u]):int(off[u + 1])]
+
+    @property
     def n_units(self):
         return len(self.unit_offsets) - 1
 
@@ -658,12 +724,17 @@ class HadronFile:
         return int(self.unit_offsets[u + 1] - self.unit_offsets[u])
 
     def sample_event(self, unit, k):
-        """Sample ``k`` of recorded unit ``unit``: dict of pid, pstat, p, x (see FIELDS)."""
+        """Sample ``k`` of recorded unit ``unit``: dict of pid, pstat, p, x (see FIELDS),
+        and ``scatter`` if the file has per-hadron scatterings (extra_frag,
+        per_scattering)."""
         u = self.unit_index(unit)
         s = _sample_of(self.unit_offsets, u, k, unit)
         a, b = int(self.sample_offsets[s]), int(self.sample_offsets[s + 1])
-        return {name: (self._g[name][a:b] if name in self._g else _no_positions(b - a))
-                for name in FIELDS}
+        out = {name: (self._g[name][a:b] if name in self._g else _no_positions(b - a))
+               for name in FIELDS}
+        if "scatter" in self._g:
+            out["scatter"] = self._g["scatter"][a:b]
+        return out
 
 
 class JetEvents:
@@ -682,17 +753,19 @@ class JetEvents:
     either only events that started a background can be looked up.
     """
 
-    def __init__(self, bulk_jet=None, jet_frag=None, bulk_bg=None, particlize=None):
+    def __init__(self, bulk_jet=None, jet_frag=None, bulk_bg=None, particlize=None,
+                 extra_frag=None):
         self.bulk_jet = HadronFile(bulk_jet) if bulk_jet else None
         self.jet_frag = HadronFile(jet_frag) if jet_frag else None
         self.bulk_bg = HadronFile(bulk_bg) if bulk_bg else None
+        self.extra_frag = HadronFile(extra_frag) if extra_frag else None
         self._bg_unit = None
         if particlize:
             from .particlize_h5 import ParticlizeFile
             with ParticlizeFile(particlize) as pf:
                 if pf.has_events("bg_unit"):
                     self._bg_unit = pf.events("bg_unit")
-        for name in ("bulk_jet", "jet_frag", "bulk_bg"):
+        for name in ("bulk_jet", "jet_frag", "bulk_bg", "extra_frag"):
             hf = getattr(self, name)
             if hf is not None and hf.tag != name:
                 raise ValueError(f"{hf.path} holds tag {hf.tag!r}, not {name!r}")
@@ -713,7 +786,8 @@ class JetEvents:
             return p if os.path.exists(p) else None
 
         return cls(have(f"{stem}_hadrons_bulk_jet.h5"), have(f"{stem}_hadrons_jet_frag.h5"),
-                   have(f"{stem}_hadrons_bulk_bg.h5"), have(f"{stem}_particlize.h5"))
+                   have(f"{stem}_hadrons_bulk_bg.h5"), have(f"{stem}_particlize.h5"),
+                   have(f"{stem}_hadrons_extra_frag.h5"))
 
     def __enter__(self):
         return self
@@ -723,7 +797,7 @@ class JetEvents:
         return False
 
     def close(self):
-        for hf in (self.bulk_jet, self.jet_frag, self.bulk_bg):
+        for hf in (self.bulk_jet, self.jet_frag, self.bulk_bg, self.extra_frag):
             if hf is not None:
                 hf.close()
 
@@ -752,17 +826,28 @@ class JetEvents:
                              "particlize file to look up reused backgrounds")
         return int(bg.units["unit"][hits[0]])
 
-    def jet_event(self, event, k, frag_sample=None, fragments=True):
+    def jet_event(self, event, k, frag_sample=None, fragments=True, extras=True):
         """Oversample ``k`` of ``event``'s jet-leg bulk plus one fragmentation of its
-        partons: dict of pid, pstat, p, x and origin (0 bulk, 1 fragment)."""
+        partons: dict of pid, pstat, p, x and origin (0 bulk, 1 fragment, 2 the fragments
+        of the event's other hard scatterings).  With an extra_frag file the extras are part
+        of the event (``extras=False`` leaves them out); they use the same fragmentation
+        index."""
         bulk = self._need("bulk_jet").sample_event(event, k)
         parts = [(bulk, ORIGIN["bulk"])]
-        if fragments and self.jet_frag is not None:
-            n = self.jet_frag.n_samples(event)
-            if n:
-                j = (k % n) if frag_sample is None else int(frag_sample)
-                parts.append((self.jet_frag.sample_event(event, j), ORIGIN["frag"]))
+        for name, origin, on in (("jet_frag", "frag", fragments),
+                                 ("extra_frag", "extra", fragments and extras)):
+            hf = getattr(self, name)
+            if on and hf is not None:
+                n = hf.n_samples(event)
+                if n:
+                    j = (k % n) if frag_sample is None else int(frag_sample)
+                    ev = hf.sample_event(event, j)
+                    parts.append(({f: ev[f] for f in FIELDS}, ORIGIN[origin]))
         return _concat(parts)
+
+    def scatterings(self, event):
+        """``event``'s hard scatterings (S, 8), SCATTER_COLUMNS; None without extras."""
+        return None if self.extra_frag is None else self.extra_frag.scatterings(event)
 
     def background_event(self, event, k):
         """Oversample ``k`` of the background ``event`` used: dict of pid, pstat, p, x."""
@@ -775,13 +860,25 @@ class JetEvents:
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────────
-def _initiator_group(f):
+def _initiator_group(f, scatter=False):
     g = f.require_group("initiators")
     g.attrs["columns"] = list(INITIATOR_COLUMNS)
     g.attrs["units"] = "p, E in GeV; x, y, z in fm; t in fm/c (Cartesian lab)"
     g.attrs["source"] = "pair file shower/initiators (jetscape.showers)"
-    return RaggedGroup(g, "offsets", {"data": (np.float64, (len(INITIATOR_COLUMNS),))},
-                       compression="gzip", chunk_rows=4096, unit="event")
+    fields = {"data": (np.float64, (len(INITIATOR_COLUMNS),))}
+    if scatter:
+        fields["scatter"] = (np.int32, ())
+    return RaggedGroup(g, "offsets", fields, compression="gzip", chunk_rows=4096,
+                       unit="event")
+
+
+def _scatter_group(f):
+    from .particlize_h5 import SCATTER_COLUMNS, SCATTER_UNITS
+    g = f.require_group("scatterings")
+    g.attrs["data_columns"] = list(SCATTER_COLUMNS)
+    g.attrs["units"] = SCATTER_UNITS
+    return RaggedGroup(g, "offsets", {"data": (np.float64, (len(SCATTER_COLUMNS),))},
+                       compression="gzip", chunk_rows=1024, unit="event")
 
 
 def _initiator_rows(ini):
@@ -997,8 +1094,15 @@ class EventInfo:
     def initiators(self):
         """This event's shower-initiating partons, as a (K, 11) array, columns ``shower,
         pid, pstat, px, py, pz, E, x, y, z, t``: from the hadron files' ``initiators/``
-        (hadronize.py copies them there), else from the pair file's ``shower/``."""
+        (hadronize.py copies them there), else from the pair file's ``shower/``.  With extra
+        hard scatterings these are the trigger's (bulk_jet's and jet_frag's initiators);
+        the extras' are in the extra_frag file."""
         return self._reader._initiators(self.file_index, self.local_event)
+
+    def scatterings(self):
+        """This event's hard scatterings, (S, 8) in particlize_h5.SCATTER_COLUMNS order
+        (the trigger's first, scatter 0); None without extra hard scatterings."""
+        return self._reader._scatterings(self.file_index, self.local_event)
 
     def __repr__(self):
         return (f"EventInfo(event={self.event}, stem={self.stem!r}, "
@@ -1394,7 +1498,7 @@ class HadronFileReader:
 
     def _load_initiators(self, i):
         f = self._files[i]
-        for tag in INITIATOR_TAGS:
+        for tag in ("bulk_jet", "jet_frag"):     # the trigger's (extra_frag: the extras')
             path = f["tags"].get(tag)
             if path is None:
                 continue
@@ -1417,6 +1521,17 @@ class HadronFileReader:
                 "hadron files; both need the pair file once)")
         return found[0], found[1], None
 
+    def _scatterings(self, i, local):
+        path = self._files[i]["tags"].get("extra_frag")
+        if path is None:
+            return None
+        return self._jet_events(i).scatterings(local)
+
+    def has_extras(self, file_index=None):
+        """True if the production file(s) have extra hard scatterings (extra_frag)."""
+        files = self._files if file_index is None else [self._files[file_index]]
+        return any("extra_frag" in f["tags"] for f in files)
+
     # ── single events ───────────────────────────────────────────────────────────
     def _jet_events(self, i):
         if self._je[0] != i:
@@ -1425,11 +1540,11 @@ class HadronFileReader:
             self._je = (i, JetEvents.from_stem(self._files[i]["stem"]))
         return self._je[1]
 
-    def jet_event(self, event, k, frag_sample=None, fragments=True):
-        """Oversample ``k`` of global ``event``'s jet-leg bulk plus a fragmentation
-        (see :meth:`JetEvents.jet_event`)."""
+    def jet_event(self, event, k, frag_sample=None, fragments=True, extras=True):
+        """Oversample ``k`` of global ``event``'s jet-leg bulk plus a fragmentation, and
+        the extras' fragments if there are any (see :meth:`JetEvents.jet_event`)."""
         i, local = self.locate(event)
-        return self._jet_events(i).jet_event(local, k, frag_sample, fragments)
+        return self._jet_events(i).jet_event(local, k, frag_sample, fragments, extras)
 
     def background_event(self, event, k):
         i, local = self.locate(event)
@@ -1468,9 +1583,14 @@ class HadronFileReader:
                    for t in ("bulk_jet", "bulk_bg"))
 
     def jet_minus_background(self, values, bins, *, mask=None, weights=None, events=None,
-                             fragments=False, paired=None, per_event=None):
-        """<bulk_jet> (+ <jet_frag>) - <bulk_bg> over the events that have both surfaces,
-        each event against its own background.  -> (difference, error).
+                             fragments=False, paired=None, per_event=None, extras=True):
+        """<bulk_jet> (+ <jet_frag> + <extra_frag>) - <bulk_bg> over the events that have both
+        surfaces, each event against its own background.  -> (difference, error).
+
+        ``fragments``: add the event's fragments: jet_frag, and the extra hard scatterings'
+        extra_frag when the files have it (the full event; ``extras=False`` leaves them out).
+        A fragment tag no file has is left out (a minimum-bias campaign has no
+        jet_frag).
 
         ``paired``: the error of the bulk difference from the spread of the per-sample
         differences, sample k of the jet leg minus sample k of its background (the events
@@ -1495,8 +1615,11 @@ class HadronFileReader:
             hb, eb = self._accumulate("bulk_bg", values, bins, mask, weights, g, per_event)
             d, var = hj - hb, ej ** 2 + eb ** 2
         if fragments:
-            hf, ef = self._accumulate("jet_frag", values, bins, mask, weights, g, per_event)
-            d, var = d + hf, var + ef ** 2
+            for tag in ("jet_frag",) + (("extra_frag",) if extras else ()):
+                if not any(tag in f["tags"] for f in self._files):
+                    continue
+                hf, ef = self._accumulate(tag, values, bins, mask, weights, g, per_event)
+                d, var = d + hf, var + ef ** 2
         return d, np.sqrt(var)
 
     def _paired_difference(self, values, bins, mask, weights, g, per_event=None):
