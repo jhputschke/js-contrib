@@ -380,3 +380,73 @@ def test_cli_workers(tmp_path, capsys):
     bulk_obs.main([str(tmp_path), "--out", str(one), "--quiet"])
     bulk_obs.main([str(tmp_path), "--out", str(two), "--quiet", "--workers", "2"])
     assert json.loads(one.read_text())["classes"] == json.loads(two.read_text())["classes"]
+
+
+# ── v2(pT): extra_hard_hists.v2_sums and v2pt ────────────────────────────────────
+
+def test_v2pt_resolution_round_trip():
+    import v2pt
+    for chi in (0.3, 1.0, 2.5):
+        r_sub = v2pt._r(chi)
+        assert v2pt.resolution(r_sub ** 2) == pytest.approx(v2pt._r(np.sqrt(2) * chi), rel=1e-6)
+    assert v2pt.resolution(0.999999) == pytest.approx(1.0, abs=1e-3)
+    assert np.isnan(v2pt.resolution(-0.01))
+
+
+def test_v2pt_estimators_recover_an_imposed_v2():
+    """Flow v2 = 0.08 about a random plane, flat in pT, in every |eta| < 2.6: all three
+    estimators give it back in every well-filled bin (no non-flow in these events)."""
+    import extra_hard_hists as xh
+    import v2pt
+    rng = np.random.default_rng(11)
+    d = {}
+    acc = {m: {k: [] for k in ("num", "den", "rnum", "rden")} for m in v2pt.METHODS}
+    res = []
+    for _ in range(40):                               # events, one sample each
+        psi = rng.uniform(-np.pi, np.pi)
+        n = 60000
+        phi = rng.uniform(-np.pi, np.pi, 3 * n)
+        phi = phi[rng.uniform(0, 1.16, 3 * n) < 1 + 0.16 * np.cos(2 * (phi - psi))][:n]
+        pt, eta = rng.exponential(0.8, n) + 0.2, rng.uniform(-2.6, 2.6, n)
+        ch = np.ones(n, bool)
+        # the plane from an independent "background" sample, as from bulk_bg
+        phib = rng.uniform(-np.pi, np.pi, 3 * n)
+        phib = phib[rng.uniform(0, 1.16, 3 * n) < 1 + 0.16 * np.cos(2 * (phib - psi))][:n]
+        etab = rng.uniform(-2.6, 2.6, n)
+        evs = [{"p": np.stack([np.ones(n), np.cos(phib), np.sin(phib), np.sinh(etab)], 1),
+                "pid": np.full(n, 211)}]
+        psi_est, r = xh.psi2_plane(evs)
+        res.append(r)
+        for m, sums in xh.v2_sums(pt, eta, phi, ch, psi_est).items():
+            for k, x in zip(("num", "den", "rnum", "rden"), sums):
+                acc[m][k].append(np.asarray(x, float))
+    d["psi2_res"] = np.array(res)
+    d["n_samples"] = np.ones(40)
+    for m in v2pt.METHODS:
+        for k, v in acc[m].items():
+            if v:
+                d[f"full.v2_{m}_{k}"] = np.array(v)
+    for m in v2pt.METHODS:
+        est = v2pt.estimator(d, "full", m)
+        v2 = est.f(*[a.mean(0) for a in est.arrays])
+        ok = v2pt.poi_counts(d, "full") > 20000
+        assert ok.sum() >= 8
+        np.testing.assert_allclose(v2[ok], 0.08, atol=0.008, err_msg=m)
+
+
+def test_hepdata_reader(tmp_path):
+    import v2pt
+    rec = tmp_path / "HEPData-insX-v1-yaml"
+    rec.mkdir()
+    (rec / "t.yaml").write_text(
+        "dependent_variables:\n- header: {name: v2}\n  values:\n"
+        "  - errors:\n    - {label: stat, symerror: 0.001}\n    - {label: sys, symerror: 0.002}\n"
+        "    value: 0.05\n  - errors:\n    - {label: stat, symerror: 0.003}\n    value: 0.07\n"
+        "independent_variables:\n- header: {name: PT}\n  values:\n  - {low: 1, high: 2}\n"
+        "  - {value: 3.5}\n")
+    t = v2pt.hepdata("insX", "t.yaml", base=str(tmp_path))
+    np.testing.assert_allclose(t["x"], [1.5, 3.5])
+    np.testing.assert_allclose(t["value"], [0.05, 0.07])
+    np.testing.assert_allclose(t["sys"], [0.002, 0.0])
+    with pytest.raises(FileNotFoundError, match="get_hepdata"):
+        v2pt.hepdata("insY", "t.yaml", base=str(tmp_path))

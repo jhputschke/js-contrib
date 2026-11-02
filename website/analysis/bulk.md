@@ -199,10 +199,18 @@ first ([O+O and Ne+Ne at 5.36 TeV](../run/extra-hard.md#oo-and-nene-at-536-tev))
 For figures beyond the class averages, `extra_hard_hists.py` makes one pass over a
 minimum-bias extras campaign and writes, per event, η, φ, φ − Ψ₂ and pT of the charged hadrons
 and anti-kT R = 0.4 jets without subtraction (charged and all hadrons), together with the
-extras' scatterings and initiators. It does this for the bulk, bulk + wakes and bulk + extras.
-Two notebooks draw them with jackknife errors over the hydro backgrounds:
+extras' scatterings and initiators. It does this for the bulk, bulk + wakes and bulk + extras,
+and it keeps the sums for v₂(p_T) of charged hadrons with three estimators: ALICE's
+v₂{2, |Δη| > 1} in |η| < 0.8, the same with |Δη| > 1.5, and ⟨cos 2(φ − Ψ₂)⟩ relative to the
+jet-free background's plane (no non-flow from the extras). Two notebooks draw them with
+jackknife errors over the hydro backgrounds, and compare v₂(p_T) in two N_coll halves of the
+0–10 % sample ("0–5 %", "5–10 %") with ALICE's v₂{2, |Δη| > 1}
+([arXiv:1804.02944](https://arxiv.org/abs/1804.02944)) and with CMS's v₂{SP} up to 100 GeV
+([arXiv:1702.00630](https://arxiv.org/abs/1702.00630)). `./get_hepdata.sh` fetches the data
+once into `../runs/hepdata/`; `v2pt.py` holds the estimators and the data readers.
 
 ```bash
+./get_hepdata.sh                                              # ALICE + CMS v2(pT), once
 python extra_hard_hists.py --prod /path/to/campaign --out hists.npz --workers 12
 ```
 
@@ -211,13 +219,14 @@ python extra_hard_hists.py --prod /path/to/campaign --out hists.npz --workers 12
 | `--prod` | the campaign directory (its `*_hadrons_bulk_jet.h5`) |
 | `--out` | the `.npz` (default `../runs/pbpb_extra_hard/data/extra_hard_hists.npz`) |
 | `--workers` | processes, one production file each (default 12) |
-| [`extra_hard_bulk_jets.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets.ipynb) | the figures and ratios (numpy + matplotlib) |
+| [`v2pt.py`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/v2pt.py) | v₂(p_T) from the sums, the event-plane resolution, the HEPData tables |
+| [`extra_hard_bulk_jets.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets.ipynb) | the figures and ratios (numpy + matplotlib), and v₂(p_T) against ALICE and CMS |
 | [`extra_hard_bulk_jets_hist.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets_hist.ipynb) | the same with `hist` + mplhep: a jackknife `block` axis, rebinning, a `Mean` profile |
 
 ## Not yet
 
 vₙ{4} and higher cumulants, ρ(v₂², [pT]), symmetry planes, multiplicity-based centrality,
-pT-differential vₙ(pT), the experiments' ⟨ΔpT ΔpT⟩ correlator, pairs across oversamples (the
+pT-differential vₙ(pT) in `bulk_obs.py` (v₂(p_T) is in `extra_hard_hists.py` and the notebooks), the experiments' ⟨ΔpT ΔpT⟩ correlator, pairs across oversamples (the
 fluid's vₙ without decay non-flow), event weights, and a C++ twin for the ROOT path.
 
 ## Next steps

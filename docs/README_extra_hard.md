@@ -438,7 +438,7 @@ res["delta_full/dnch"], res["delta_bulk_jet/dc2"]
 ### Not yet (a later project)
 
 vₙ{4} and higher cumulants, ρ(v₂², [pT]), symmetry planes, multiplicity-based centrality,
-pT-differential vₙ(pT), the experiments' ⟨ΔpT ΔpT⟩ correlator, pairs across oversamples (the
+pT-differential vₙ(pT) in `bulk_obs.py` (v₂(p_T) is in `extra_hard_hists.py` and the notebooks), the experiments' ⟨ΔpT ΔpT⟩ correlator, pairs across oversamples (the
 fluid's vₙ without decay non-flow), event weights, and a C++ twin for the ROOT path.
 
 ---

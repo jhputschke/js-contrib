@@ -26,6 +26,25 @@ and the extras: N_coll, the scatterings (pTHat, scalar pT sum of their partons) 
 initiators (shower-initiating partons: pT, eta, scatter).  Errors are left to the
 notebook (jackknife over the hydro backgrounds, ``group``).
 
+v2(pT) of charged hadrons in the bins ``edges_v2`` (ALICE's up to 17 GeV, then CMS-like to
+100 GeV), per composition, as sums the notebooks combine over events (means over the event's
+samples, like the histograms; the estimators are ratios of the sums over all events):
+
+    gap1    v2{2, |Delta eta| > 1}, ALICE's (arXiv:1804.02944): POIs and reference particles
+            (charged, 0.2 < pT < 5 GeV) in |eta| < 0.8, subevents eta < -0.5 and eta > 0.5;
+            v2(pT) = <<2'>> / sqrt(<<2>>), <<2'>> = sum Re(p_A Q_B* + p_B Q_A*) / sum (m_A M_B
+            + m_B M_A), <<2>> = sum Re(Q_A Q_B*) / sum M_A M_B
+    gap15   the same with POIs in |eta| < 1 (-1 < eta < 0 against reference particles at
+            1.5 < eta < 2.6, 0 < eta < 1 against -2.6 < eta < -1.5): |Delta eta| > 1.5, as
+            near to CMS's scalar product with the HF (|Delta eta| > 3) as |eta| < 2.6 allows
+    psi     <cos 2(phi - Psi_2,bg)> of the POIs in |eta| < 0.8, Psi_2 of the background from
+            all its samples (charged, 0.2 < pT < 3 GeV, 1 < |eta| < 2.6): no non-flow of the
+            extras; ``psi2_res`` = cos 2(Psi_A - Psi_B) of its two halves (eta < -1, eta > 1)
+            per event, for the resolution
+
+Keys: ``<c>.v2_<m>_num``, ``<c>.v2_<m>_den`` (per bin), ``<c>.v2_<m>_rnum``,
+``<c>.v2_<m>_rden`` (the reference, gap1 and gap15).
+
     python extra_hard_hists.py [--prod DIR] [--out ../runs/pbpb_extra_hard/data/extra_hard_hists.npz]
                                [--workers 12]
 """
@@ -62,6 +81,20 @@ EDGES = {
 }
 PT_MIN, ETA_CONST, ETA_JET, R = 0.15, 2.4, 2.0, 0.4
 
+#: v2(pT) bins: ALICE's (1804.02944, 5-10 %) to 17 GeV, then CMS-like (1702.00630) to 100 GeV
+EDGES["v2"] = np.array([0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.25, 1.5, 1.75, 2.0,
+                        2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.5, 5.0, 5.5, 6.0, 7.0,
+                        8.0, 9.0, 10.0, 12.0, 14.0, 17.0, 20.0, 25.0, 35.0, 45.0, 60.0, 80.0,
+                        100.0])
+#: the two-particle methods: (POI A, ref B), (POI B, ref A) as eta ranges, and the reference
+#: subevents A, B; reference particles charged with REF_PT[0] < pT < REF_PT[1]
+V2_METHODS = {
+    "gap1":  dict(poi_a=(-0.8, -0.5), poi_b=(0.5, 0.8), ref_a=(-0.8, -0.5), ref_b=(0.5, 0.8)),
+    "gap15": dict(poi_a=(-1.0, 0.0), poi_b=(0.0, 1.0), ref_a=(-2.6, -1.5), ref_b=(1.5, 2.6)),
+}
+REF_PT = (0.2, 5.0)
+PSI_POI_ETA, PSI_ETA = 0.8, (1.0, 2.6)
+
 
 def kin(p):
     pt = np.hypot(p[:, 1], p[:, 2])
@@ -80,6 +113,47 @@ def psi2(samples):
              & (np.abs(eta) < ETA_CONST))
         q += np.exp(2j * phi[m]).sum()
     return 0.5 * np.angle(q)
+
+
+def psi2_plane(samples):
+    """Psi_2 of the background from all its samples at 1 < |eta| < 2.6 (charged, 0.2 < pT <
+    3 GeV), and cos 2(Psi_A - Psi_B) of its halves eta < -1 and eta > 1 (the resolution)."""
+    qa = qb = 0j
+    for ev in samples:
+        pt, eta, phi = kin(ev["p"])
+        m = np.isin(np.abs(ev["pid"]), CHARGED) & (pt > 0.2) & (pt < 3.0)
+        e2 = np.exp(2j * phi)
+        qa += e2[m & (eta < -PSI_ETA[0]) & (eta > -PSI_ETA[1])].sum()
+        qb += e2[m & (eta > PSI_ETA[0]) & (eta < PSI_ETA[1])].sum()
+    return 0.5 * np.angle(qa + qb), float(np.cos(np.angle(qa) - np.angle(qb)))
+
+
+def v2_sums(pt, eta, phi, ch, psi):
+    """One sample's v2(pT) sums of every method (see the module docstring)."""
+    e = EDGES["v2"]
+    nb = len(e) - 1
+    ib = np.searchsorted(e, pt, side="right") - 1
+    inb = ch & (ib >= 0) & (ib < nb)
+    q2 = np.exp(2j * phi)
+    ref = ch & (pt > REF_PT[0]) & (pt < REF_PT[1])
+    out = {}
+
+    def within(r):
+        return (eta > r[0]) & (eta < r[1])
+
+    def binned(m, w):
+        return np.bincount(ib[m], weights=w[m], minlength=nb)
+
+    for name, mth in V2_METHODS.items():
+        ra, rb = ref & within(mth["ref_a"]), ref & within(mth["ref_b"])
+        Qa, Qb, Ma, Mb = q2[ra].sum(), q2[rb].sum(), ra.sum(), rb.sum()
+        pa, pb = inb & within(mth["poi_a"]), inb & within(mth["poi_b"])
+        num = (binned(pa, (q2 * np.conj(Qb)).real) + binned(pb, (q2 * np.conj(Qa)).real))
+        den = (np.bincount(ib[pa], minlength=nb) * Mb + np.bincount(ib[pb], minlength=nb) * Ma)
+        out[name] = (num, den.astype(float), float((Qa * np.conj(Qb)).real), float(Ma * Mb))
+    m = inb & (np.abs(eta) < PSI_POI_ETA)
+    out["psi"] = (binned(m, np.cos(2 * (phi - psi))), np.bincount(ib[m], minlength=nb).astype(float))
+    return out
 
 
 def cluster(evs, charged_only):
@@ -130,13 +204,18 @@ def one_file(stem_glob):
                "jet": [r.jet_event(g, k, extras=False) for k in range(K)],
                "full": [r.jet_event(g, k) for k in range(K)]}
         ps2 = psi2(evs["bg"])
+        psi_v2, res = psi2_plane(evs["bg"])
         row = {"seed": info.seed, "local": info.local_event, "bg_unit": info.bg_unit,
-               "n_coll": info.n_coll, "n_samples": K, "psi2": ps2}
+               "n_coll": info.n_coll, "n_samples": K, "psi2": ps2, "psi2_res": res}
         for c in COMPS:
             v = {"eta": [], "phi": [], "dphi2": [], "pt": []}
+            v2 = {}
             for ev in evs[c]:
                 pt, eta, phi = kin(ev["p"])
                 ch = np.isin(np.abs(ev["pid"]), CHARGED) & (pt > PT_MIN) & np.isfinite(eta)
+                for mth, sums in v2_sums(pt, eta, phi, ch, psi_v2).items():
+                    v2[mth] = sums if mth not in v2 else tuple(a + b for a, b in
+                                                               zip(v2[mth], sums))
                 v["eta"].append(eta[ch])
                 m = ch & (np.abs(eta) < ETA_CONST)
                 v["phi"].append(phi[m])
@@ -144,6 +223,9 @@ def one_file(stem_glob):
                 v["pt"].append(pt[ch & (np.abs(eta) < 0.8)])
             for q in v:
                 row[f"{c}.{q}"] = hist_samples(v[q], EDGES[q])
+            for mth, sums in v2.items():                  # means over the samples
+                for nm, x in zip(("num", "den", "rnum", "rden"), sums):
+                    row[f"{c}.v2_{mth}_{nm}"] = np.asarray(x, float) / max(K, 1)
             for kind in JET_KINDS:
                 jpt = cluster(evs[c], kind == "ch")
                 row[f"{c}.jet_{kind}"] = hist_samples(jpt, EDGES["jet"])
@@ -182,8 +264,8 @@ def main():
             print(f"  {i + 1}/{len(stems)} files, {len(rows)} events, "
                   f"{time.time() - t0:.0f} s", flush=True)
     out = {f"edges_{k}": v for k, v in EDGES.items()}
-    for key in ("seed", "local", "bg_unit", "n_coll", "n_samples", "psi2", "n_extra",
-                "n_initiators"):
+    for key in ("seed", "local", "bg_unit", "n_coll", "n_samples", "psi2", "psi2_res",
+                "n_extra", "n_initiators"):
         out[key] = np.array([r[key] for r in rows])
     for key in rows[0]:
         if "." in key:

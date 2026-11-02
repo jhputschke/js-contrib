@@ -13,8 +13,10 @@ what the extras are: [`docs/README_extra_hard.md`](../../../../../docs/README_ex
 | [`flow.py`](flow.py) | the library: `Cuts`, `event_table(reader, cuts)`, `select(...)`, `class_averages(table, mask)`; the definitions are in its docstring |
 | [`bulk_obs.py`](bulk_obs.py) | the command line: a table per N_coll class, `--out` (.json / .npz), `--table` (per-event .npz), `--workers` (processes) |
 | [`../../../tests/test_bulk_flow.py`](../../../tests/test_bulk_flow.py) | synthetic events with an imposed v₂, v₃ and [p_T] spread |
-| [`extra_hard_hists.py`](extra_hard_hists.py) | one pass over a minimum-bias extras campaign (`--prod`, default `~/prod/PbPb_0_10_v2x`): per event η, φ, φ − Ψ₂ and p_T of the charged hadrons, anti-kT R = 0.4 jets without subtraction (charged and all hadrons), the extras' scatterings and initiators, for bulk, bulk + wakes and bulk + extras → `../runs/pbpb_extra_hard/data/extra_hard_hists.npz` (`--out`); one file per process, `--workers` (default 12) processes |
-| [`extra_hard_bulk_jets.ipynb`](extra_hard_bulk_jets.ipynb) | its figures and ratios, jackknife over the hydro backgrounds (numpy + matplotlib) |
+| [`extra_hard_hists.py`](extra_hard_hists.py) | one pass over a minimum-bias extras campaign (`--prod`, default `~/prod/PbPb_0_10_v2x`): per event η, φ, φ − Ψ₂ and p_T of the charged hadrons, anti-kT R = 0.4 jets without subtraction (charged and all hadrons), the extras' scatterings and initiators, and the sums of v₂(p_T) (ALICE's v₂{2, |Δη| > 1}, |Δη| > 1.5, and relative to the background's Ψ₂), for bulk, bulk + wakes and bulk + extras → `../runs/pbpb_extra_hard/data/extra_hard_hists.npz` (`--out`); one file per process, `--workers` (default 12) processes |
+| [`extra_hard_bulk_jets.ipynb`](extra_hard_bulk_jets.ipynb) | its figures and ratios, jackknife over the hydro backgrounds (numpy + matplotlib); §5 v₂(p_T) of 0–5 % and 5–10 % (N_coll halves) against ALICE v₂{2, \|Δη\| > 1} (1804.02944) and CMS v₂{SP} to 100 GeV (1702.00630) |
+| [`v2pt.py`](v2pt.py) | v₂(p_T) from those sums (`estimator`, the event-plane `resolution`, `ncoll_classes`) and the HEPData tables (`alice`, `cms`) |
+| [`get_hepdata.sh`](get_hepdata.sh) | the ALICE and CMS HEPData records into `../runs/hepdata/` (once) |
 | [`extra_hard_bulk_jets_hist.ipynb`](extra_hard_bulk_jets_hist.ipynb) | the same with `hist` + mplhep: a jackknife `block` axis, rebinning, `hist.loc`, a `Mean` profile; writes the results as `Hist` objects |
 
 The notebooks are kept here without outputs; the executed copies and the results (not public
@@ -124,7 +126,8 @@ adds their fragments); in a triggered file it is the trigger's and the extras' t
 ## Limits (a later project, D15)
 
 v_n{4} and higher cumulants, ρ(v₂², [p_T]), symmetry planes and event-plane correlations,
-multiplicity-based centrality, p_T-differential v_n(p_T), the experiments' two-particle
+multiplicity-based centrality, p_T-differential v_n(p_T) here (v₂(p_T) is in
+`extra_hard_hists.py` / `v2pt.py` and the notebooks), the experiments' two-particle
 [p_T] correlator ⟨Δp_T Δp_T⟩ (here the noise is removed with the oversamples instead),
 cross-oversample pairs (A from one oversample, B from another: the fluid's v_n without the
 decays' non-flow), event weights, and a C++ twin for the ROOT path.
