@@ -39,7 +39,7 @@ pinned commits. When you update X-SCAPE, run them again so the pins take effect.
 
 | js-contrib | X-SCAPE | MUSIC4GPU | Mac wheel |
 |---|---|---|---|
-| `main` | `contrib` (head) | `XSCAPE` (pinned by `get_music4gpu.sh`) | v0.1.0 |
+| `main` | `contrib` (head) | `XSCAPE` (pinned by `get_music4gpu.sh`) | v0.2.0 |
 
 The container images and the Mac wheel are built from one consistent set of commits, so there
 is nothing to match by hand. With a source build, keep js-contrib `main` together with X-SCAPE

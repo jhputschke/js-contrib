@@ -84,13 +84,14 @@ recoils against the parton shower. Drawn by `wake_pyvista.py` from the
 
     ```bash
     curl -LsSf https://astral.sh/uv/install.sh | sh        # once; then open a new Terminal
-    VER=0.1.0                                              # latest: github.com/jhputschke/xscape-macos/releases
+    VER=0.2.0                                              # latest: github.com/jhputschke/xscape-macos/releases
     mkdir -p ~/xscape && cd ~/xscape
     curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
     uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
     source ~/.venvs/xscape-$VER/bin/activate
     uv pip sync xscape-$VER-cp313.lock.txt
     xscape-fetch-data lbt                                  # the LBT tables (240 MB download)
+    xscape-selftest                                        # checks the environment
     xscape-examples ~/xscape/examples
     cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
     ```
@@ -152,6 +153,7 @@ simulations in a publication, cite the papers listed in
 
 !!! info "Status"
     js-contrib follows the X-SCAPE `contrib` branch and MUSIC4GPU `XSCAPE`. The Mac wheel's
-    first regular release is **v0.1.0**. The production container images are tagged by CUDA
+    current release is **v0.2.0** (the extra hard scatterings, pelicanfs, the tool commands,
+    `xscape-run` for any XML). The production container images are tagged by CUDA
     version (`cu126`, `cu130`, `cu124`). See [Contribs and repositories](reference/contribs.md)
     for the full list of components.

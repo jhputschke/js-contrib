@@ -4,6 +4,21 @@ Tools around the js-contrib code: setting up an environment, building the contai
 images, running productions on a cluster, inspecting and moving the files. Each entry links
 to its own documentation.
 
+**In the macOS xscape wheel** (0.2.0 or later) this folder is installed, and the tools are
+commands of the environment, with the same options; `--help` shows them under the command's
+name. `xscape-utils DEST` copies the folder to read or adapt.
+
+| command | script |
+|---|---|
+| `xscape-prodwizard` | [`prodwizard.py`](prodwizard.py) (machine `mac_wheel`) |
+| `xscape-jobmon` | [`jobmon.py`](jobmon.py) |
+| `xscape-check-deposition` | [`check_deposition.py`](check_deposition.py) |
+| `xscape-h5-inspect` | [`h5_inspect.py`](h5_inspect.py) |
+| `xscape-osdf` | [`remote_transfer/js_osdf.py`](remote_transfer/js_osdf.py), in the wheel's environment (`JS_OSDF_NO_ENV=1`): none of its own in `~/.cache/js_osdf` |
+| `xscape-upload-follow` | [`upload_follow.py`](upload_follow.py), likewise |
+| `xscape-gcs` | [`remote_transfer/js_gcs.py`](remote_transfer/js_gcs.py), with its own environment in `~/.cache/js_gcs` (google-cloud-storage is not in the wheel) |
+| `xscape-selftest` | [`container/image_check.py`](container/image_check.py) `--analysis`, and the LBT tables |
+
 ## Environments
 
 | | what | docs |
@@ -19,7 +34,7 @@ to its own documentation.
 | [`Dockerfile.dev`](Dockerfile.dev), [`Dockerfile.dev.blackwell`](Dockerfile.dev.blackwell) | development images: the build and runtime environment without sources (CUDA 12.6 / 13.2) | [`BuildContainerDev.md`](BuildContainerDev.md) |
 | [`README_Container_Usage.md`](README_Container_Usage.md), [`README_Mac_Usage.md`](README_Mac_Usage.md) | the user guides: the production image (Linux, NVIDIA), and the xscape wheel on a Mac (Metal; built and released by [jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos)) | — |
 | [`Dockerfile.prod`](Dockerfile.prod) | production images: X-SCAPE, MUSIC4GPU, iSS, 3dMCGlauber and PyJetscape built in, ready for `prod_AuAu_0_10_jet` | [`BuildContainerProd.md`](BuildContainerProd.md); running them: [`docs/README_2stage.md`](../docs/README_2stage.md) |
-| [`prodwizard.py`](prodwizard.py) | plans a production: from a preset ([`prod_presets.json`](prod_presets.json): Au+Au pair + particlize, particlize-only or hadrons-only, O+O, Pb+Pb Z+jet) and a machine (2 × RTX 3090, GB10, M3 Max, SLURM with V100 / A40 / A100 / L40S) it writes the launch command with the measured settings, estimates events/h, duration, disk and memory (measured or estimated, with sources) and checks the plan; a wizard (Textual, [`prodwizard_tui.py`](prodwizard_tui.py), also `textual serve` for workshops) or `--preset … --machine …` on the command line; `--save` writes a launch script. Never starts jobs | [`docs/README_2stage.md`](../docs/README_2stage.md#launch-settings-for-several-jobs-per-gpu) |
+| [`prodwizard.py`](prodwizard.py) | plans a production: from a preset ([`prod_presets.json`](prod_presets.json): Au+Au pair + particlize, particlize-only or hadrons-only, O+O, Pb+Pb Z+jet) and a machine (2 × RTX 3090, GB10, M3 Max with a checkout and conda, a Mac with the xscape wheel (`mac_wheel`), SLURM with V100 / A40 / A100 / L40S) it writes the launch command with the measured settings, estimates events/h, duration, disk and memory (measured or estimated, with sources) and checks the plan; a wizard (Textual, [`prodwizard_tui.py`](prodwizard_tui.py), also `textual serve` for workshops) or `--preset … --machine …` on the command line; `--save` writes a launch script. Never starts jobs | [`docs/README_2stage.md`](../docs/README_2stage.md#launch-settings-for-several-jobs-per-gpu) |
 | [`slurm_prod_array.sh`](slurm_prod_array.sh) | stage 1 as a SLURM array in the production container, one GPU per task, ~10 jobs per GPU with the launch settings of the current image (`MUSIC_CUDA_SYNC=block`, shared LBT tables, staggered start); `PROD=oo` for O+O; a per-task deposition check at the end | [`BuildContainerProd.md`](BuildContainerProd.md), *SLURM* |
 | [`slurm_hadronize.sh`](slurm_hadronize.sh) | stage 2 as a SLURM array on a CPU partition: `run_hadronize.py` on each stage-1 task's directory, one process per core | [`BuildContainerProd.md`](BuildContainerProd.md), *SLURM* |
 | [`launch_2gpu.sh`](launch_2gpu.sh) | a campaign on both GPUs of one machine with Docker: one container per GPU, `run_jobs.sh -j 8 --mps` in each, a disk guard (`--min-free`), and optionally `upload_follow.py` uploading the finished jobs while it runs; tuned on a 2 × RTX 3090 workstation | [`README_launch.md`](README_launch.md) |
@@ -39,6 +54,7 @@ to its own documentation.
 python utils/h5_inspect.py out/AuAu_0_10_jet_seed0001.h5            # summary + tree
 utils/remote_transfer/js_gcs.py upload /data/AuAu_c1 --what root      # -> gs://test_fno/AuAu_c1/
 utils/remote_transfer/js_osdf.py download AuAu_c1 --what h5 --to /scratch   # osdf:///fno4hic/AuAu_c1/
+xscape-osdf download AuAu_c1 --what h5 --to ~/data                        # the same, macOS xscape wheel
 ```
 
 ## Notes

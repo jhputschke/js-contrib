@@ -48,13 +48,14 @@ images: [Container images](#container-images).
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh        # once; then open a new Terminal
-VER=0.1.0                                         # the latest: github.com/jhputschke/xscape-macos/releases
+VER=0.2.0                                         # the latest: github.com/jhputschke/xscape-macos/releases
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
 uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
 source ~/.venvs/xscape-$VER/bin/activate
 uv pip sync xscape-$VER-cp313.lock.txt
 xscape-fetch-data lbt                                  # the LBT tables (240 MB download)
+xscape-selftest                                        # checks the environment
 xscape-examples ~/xscape/examples
 cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 ```
@@ -70,7 +71,7 @@ python utils/analysis_env/check_env.py /path/to/out    # opens every file of a p
 ```
 
 Without a checkout, the same packages come with the pyjetscape wheel of a Mac release (pure
-Python, any platform): `uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.1.0/pyjetscape-1.3-py3-none-any.whl"`.
+Python, any platform): `uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.2.0/pyjetscape-1.4-py3-none-any.whl"`.
 The container is an analysis environment too, without `--gpus`.
 
 The venv's options: FastHydro (`--with-fasthydro`), PyROOT from a conda environment with ROOT

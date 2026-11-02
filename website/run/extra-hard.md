@@ -18,6 +18,10 @@ in the [Hadrons](../analysis/hadrons.md#the-events-other-hard-scatterings) page.
 !!! note "Needs the current code"
     The option needs X-SCAPE with PythiaGun `<extraHard>` and the current js-contrib. Check
     an image first: `python run_prod_jet.py --help` must list `--extra-hard`.
+    On a Mac, the [xscape wheel](../install/mac.md) has it from 0.2.0. A 0.1.0 environment
+    stops with `User XML tag <extraHard> is unrecognized`, also for the XMLs that carry the
+    block switched off (`AuAu_MCGlauber_MUSIC_0_10_jet.xml`, `PbPb_0_10_jet.xml`,
+    `PbPb_0_30_ZJet.xml`): install the current release next to it.
 
 ## How many extras
 
