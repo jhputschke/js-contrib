@@ -1,5 +1,10 @@
 # Notebooks
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 Every notebook sits next to the code or the production it belongs to; this page is the index.
 Each one reads its inputs from environment variables (the defaults are in its first code cell),
 so the same notebook runs on the shipped example files, on your own run or on a downloaded
@@ -52,6 +57,15 @@ JupyterLab). On the Mac, the xscape environment runs them too, from your copy of
 | [`analysis/zjet/zjet_wake.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/zjet/zjet_wake.ipynb) | the Z–hadron wake (paired truth) in Δφ and Δη, Pb+Pb − pp, the wake against pT,Z, one event's hydro wake and movie frames | `ZJET_HADRONS` (directory or glob), optional `ZJET_VACUUM`, `ZJET_PAIR`, `ZJET_PAIR_EVENT`, `ZJET_MOVIE` | venv |
 
 The campaign analyses themselves are scripts, not notebooks: [Jets with FastJet](jets.md#7-worked-examples-the-zjet-campaign-analyses).
+
+## Extra hard scatterings and the bulk
+
+| notebook | what it shows | input | environment |
+|---|---|---|---|
+| [`analysis/bulk/extra_hard_bulk_jets.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets.ipynb) | a minimum-bias extras campaign: the number of extras against the Poisson expectation, their p̂T and initiators; η, φ, φ − Ψ₂ and pT of bulk, bulk + wakes and bulk + extras; unsubtracted R = 0.4 jets; ratios with jackknife errors over the hydro backgrounds; v₂(p_T) against ALICE v₂{2, \|Δη\| > 1} and CMS v₂{SP} | `../runs/pbpb_extra_hard/data/extra_hard_hists.npz` of `extra_hard_hists.py` ([Bulk and flow](bulk.md#6-histograms-and-jets-of-a-minimum-bias-campaign)); the HEPData of `get_hepdata.sh` | venv |
+| [`analysis/bulk/extra_hard_bulk_jets_hist.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets_hist.ipynb) | the same with `hist` + mplhep: a jackknife `block` axis, rebinning, `hist.loc`, a `Mean` profile; writes the results as `Hist` objects | as above | venv |
+
+Nch, [pT] and vₙ2 per class are a script, `bulk_obs.py`: [Bulk and flow](bulk.md).
 
 ## O+O
 

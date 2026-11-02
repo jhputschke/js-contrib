@@ -4,7 +4,7 @@ the Z and around the recoiling parton: no mixed event, no mean subtraction
 (docs/Plans/PLAN_wake_isolated.md, step 1).
 
     python wake_iso.py map --src <dir> [<dir> ...] --out <run>.npz [--jobs 8] [--rec-eta 1.0]
-        [--zpt LO HI] [--rec-pt LO HI]
+        [--zpt LO HI] [--rec-pt LO HI] [--no-extras]
     python wake_iso.py check --src <dir> [--file 0]      # the Z frame against zjet_wake
 
 The contents, per Z (CMS 2507.09307's Z selection, zjet_wake.CMS_2507; every event weighted by
@@ -38,6 +38,12 @@ eta - eta_rec), and the full event's single-sample noise: ``nze_*`` per eta - et
 weighted sums of its per-event mean m, m^2 and sample variance v: the noise of one measured
 event is E[v] + Var[m]), ``nzr_*`` and ``nzc_*`` with full covariances (m, m m^T, the sample
 covariance C) for the annuli and for the core |eta - eta_rec| < DIP_CORE and ring DIP_RING.
+
+Extra hard scatterings (files with extra_frag, docs/Plans/PLAN_multi_hard.md): the contents
+stay the trigger's (frag is jet_frag alone; the paired wake holds the extras' wakes, which do
+not know the Z), but the measured event's noise (``nz*``) is that of the full event, bulk_jet +
+jet_frag + extra_frag (the extras' fragmentation k mod their count); ``--no-extras`` leaves
+them out (the meta records ``extras`` when they are in).
 
 Everything is stored as weighted sums per group: a hydro background in Pb+Pb, a block of
 --block events in vacuum.  The per-Z means are the summed contents over the summed weights, and
@@ -217,9 +223,10 @@ def _add(acc, key, x):
         acc[key] = np.array(x, dtype=float)
 
 
-def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
+def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None, extras=True):
     """The sums of one production file's selected events (the map step) -> dict: ``groups``
-    (key -> dict of sums), ``events`` (per-event table), ``vacuum``."""
+    (key -> dict of sums), ``events`` (per-event table), ``vacuum``.  ``extras``: the extra
+    hard scatterings' fragments in the full event's noise (``nz*``), when the file has them."""
     import h5py
 
     import jetscape.h5_compression  # noqa: F401  (Blosc)
@@ -228,6 +235,7 @@ def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
     r = HadronFileReader([stem])
     tags = r.tags(0)
     vacuum = not ("bulk_jet" in tags and "bulk_bg" in tags)
+    xtra = bool(extras) and not vacuum and "extra_frag" in tags     # extra hard scatterings
     local_events = np.asarray(local_events, np.int64)
     infos = [r.event_info(int(e)) for e in local_events]
 
@@ -245,6 +253,8 @@ def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
     if not vacuum:
         hj = load("bulk_jet", local_events)
         hb = load("bulk_bg", {i.bg_unit for i in infos})
+    if xtra:
+        hx = load("extra_frag", local_events)
     groups = {}
     cols = ("seed", "local_event", "group", "w", "z_pt", "z_y", "z_phi", "rec_pt", "rec_eta",
             "rec_phi", "in_j", "e_drop")
@@ -302,7 +312,8 @@ def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
         if in_j:
             # the Z-axis dipole: the contents' means, and the full event's single-sample mean
             # and variance (the noise of one measured event: bulk_jet sample k with
-            # fragmentation k mod n_frag; vacuum: the fragmentation)
+            # fragmentation k mod n_frag, and with extras their fragmentation k mod their
+            # count; vacuum: the fragmentation)
             dip = {id(F): z_dipole(F, z, rec, legs["frag"][0][2])}
             if not vacuum:
                 dip[id(J)], dip[id(B)] = z_dipole(J, z, rec), z_dipole(B, z, rec)
@@ -318,6 +329,11 @@ def file_job(stem, local_events, weights, rec_eta, block, rec_pt=None):
                 dJ = dip[id(J)]
                 idx = np.arange(J.n_samples) % nf
                 full = (dJ[0] + dF[0][idx], dJ[1] + dF[1][idx])
+                X = EventHadrons(hx, hx.unit_index(int(e))) if xtra else None
+                if X is not None and X.n_samples:  # the extras belong to the measured event
+                    dX = z_dipole(X, z, rec)
+                    ix = np.arange(J.n_samples) % X.n_samples
+                    full = (full[0] + dX[0][ix], full[1] + dX[1][ix])
             m = full[1].mean(0)                      # per bin of eta - eta_rec: m, m^2, v
             _add(acc, "nze_m", w * m)
             _add(acc, "nze_m2", w * m * m)
@@ -354,14 +370,17 @@ def stems_of(srcs):
     return out
 
 
-def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False, zpt=None, rec_pt=None):
+def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False, zpt=None, rec_pt=None,
+          extras=True):
     """The map step of the production files in ``srcs`` (directories or stems) -> ``out``
     (.npz), cached: rebuilt when the files or the settings changed.  ``zpt``: (lo, hi) of p_T^Z
-    instead of CMS 2507's 40-350 GeV; ``rec_pt``: (lo, hi) of the recoil's p_T (default any)."""
+    instead of CMS 2507's 40-350 GeV; ``rec_pt``: (lo, hi) of the recoil's p_T (default any);
+    ``extras``: the extra hard scatterings in the full event's noise (files with extra_frag)."""
     from jetscape.hadrons_h5 import HadronFileReader
 
     stems = stems_of(srcs)
     r = HadronFileReader(stems)
+    zw.refuse_minimum_bias(r, "wake_iso.py")
     t = zw.event_table(r)
     cuts = dict(zw.CMS_2507, **({"pt": tuple(zpt)} if zpt else {}))
     sel = zw.select(t, **cuts)
@@ -380,6 +399,10 @@ def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False, zpt=None, rec
             "dip_core": DIP_CORE, "dip_ring": list(DIP_RING), "zr_sides": ["jet2", "mirror"],
             "cms_dphi": CMS_DPHI.tolist(),
             "eta_max": r.eta_max()}
+    if extras and r.has_extras():                  # the full event's noise with the extras
+        meta["extras"] = [[os.path.basename(s),
+                           os.path.getmtime(f"{s}_hadrons_extra_frag.h5")]
+                          for s in r.stems if os.path.exists(f"{s}_hadrons_extra_frag.h5")]
     if not rebuild and os.path.exists(out):
         with np.load(out) as d:
             old = json.loads(str(d["meta"]))
@@ -393,7 +416,7 @@ def build(srcs, out, jobs=4, rec_eta=1.0, block=60, rebuild=False, zpt=None, rec
     args = []
     for i, stem in enumerate(r.stems):
         g = np.flatnonzero(sel & (loc[:, 0] == i))
-        args.append((stem, loc[g, 1], w[g], rec_eta, block, rec_pt))
+        args.append((stem, loc[g, 1], w[g], rec_eta, block, rec_pt, extras))
     results = []
     with ProcessPoolExecutor(max_workers=jobs) as ex:
         for name, n, dt, res in ex.map(_job, args):
@@ -629,13 +652,16 @@ def main():
     m.add_argument("--rec-pt", type=float, nargs=2, default=None, metavar=("LO", "HI"),
                    help="the recoil parton's p_T window (default any)")
     m.add_argument("--rebuild", action="store_true")
+    m.add_argument("--no-extras", dest="extras", action="store_false",
+                   help="the full event's noise (nz*) without the extra hard scatterings' "
+                        "fragments (files with extra_frag; default: with them)")
     c = sub.add_parser("check", help="the Z frame of one file against zjet_wake.z_frame_yields")
     c.add_argument("--src", required=True)
     c.add_argument("--file", type=int, default=0)
     c.add_argument("--tol", type=float, default=1e-9, help="relative to the largest bin")
     a = ap.parse_args()
     if a.cmd == "map":
-        build(a.src, a.out, a.jobs, a.rec_eta, a.block, a.rebuild, a.zpt, a.rec_pt)
+        build(a.src, a.out, a.jobs, a.rec_eta, a.block, a.rebuild, a.zpt, a.rec_pt, a.extras)
     else:
         worst = check(a.src, a.file)
         print(f"check: {'OK' if worst <= a.tol else 'FAILED'} (worst {worst:.2g} of the largest "

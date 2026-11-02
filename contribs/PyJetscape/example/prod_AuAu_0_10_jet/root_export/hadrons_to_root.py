@@ -13,7 +13,7 @@ ROOT.  Prototype of the converter compared in bench_formats.py (see README.md he
     python hadrons_to_root.py RUN_hadrons_bulk_jet.h5 -o out.root --writer uproot  # no ROOT
 
 One entry per sample (oversample), named after the tag (``bulk_jet``, ``bulk_bg``,
-``jet_frag``):
+``jet_frag``, ``extra_frag``):
 
     event, unit, sample, bg_unit     int       event (first event using the unit), unit,
                                                sample k within the unit, the event's

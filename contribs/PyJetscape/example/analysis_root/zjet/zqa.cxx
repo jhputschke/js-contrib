@@ -14,7 +14,12 @@
 //               the per-event mean over the oversamples, summed unweighted (n) and with
 //               w_s x N_coll (sc); the Z's leptons removed from the fragments
 //
-//   ./zqa <root dir> <out dir> [--files i:j]
+// Extra hard scatterings (files with extra_frag): the full event's multiplicity is bulk_jet +
+// jet_frag + extra_frag, extra_frag gets its own histograms (h_extra_frag_*, s_extra_frag_*)
+// and qa_events nch05_extra, nch24_extra (the mean over its fragmentations) and n_extra (the
+// extras' number); --extras 0 leaves them out (the outputs of the files without extras).
+//
+//   ./zqa <root dir> <out dir> [--files i:j] [--extras 0]
 //
 // `python qa.py plot --pbpb <out dir>` draws them (as the Python map step's .npz);
 // `python check_cxx.py qa <python dir> <C++ dir>` compares the two map steps.
@@ -119,13 +124,16 @@ double var1(const std::vector<double> &v) {        // numpy var(ddof=1)
 
 int run(int argc, char **argv) {
   if (argc < 3) {
-    std::fprintf(stderr, "usage: %s <root dir> <out dir> [--files i:j]\n", argv[0]);
+    std::fprintf(stderr, "usage: %s <root dir> <out dir> [--files i:j] [--extras 0]\n",
+                 argv[0]);
     return 2;
   }
   const std::string in = argv[1], out = argv[2];
   const auto o = options(argc, argv, 3);
+  const bool extras = !o.count("--extras") || std::stoi(o.at("--extras")) != 0;
   gSystem->mkdir(out.c_str(), true);
   HadronFileReader r(in);
+  r.set_extras(extras);
   const long n = r.n_events();
   std::vector<long> nk(std::max(r.n_windows(), 1), 0);
   for (long e = 0; e < n; ++e)
@@ -142,6 +150,8 @@ int run(int argc, char **argv) {
     std::vector<std::string> sources = vacuum ? std::vector<std::string>{"jet_frag"}
                                               : std::vector<std::string>{"bulk_jet", "bulk_bg",
                                                                          "jet_frag"};
+    const bool xtra = extras && !vacuum && r.has_extras(f);   // extra hard scatterings
+    if (xtra) sources.push_back("extra_frag");
     std::map<std::string, std::vector<double>> H;
     for (const auto &s : sources) {
       for (int v = 0; v < 3; ++v)
@@ -183,6 +193,13 @@ int run(int argc, char **argv) {
     te.Branch("lep1_pid", &c_pid1);
     te.Branch("lep2_pid", &c_pid2);
     for (int i = 0; i < 20; ++i) te.Branch(dn[i], &d[i]);
+    double x05m = 0, x24m = 0;                     // with extras: their multiplicity, number
+    int c_nextra = 0;
+    if (xtra) {
+      te.Branch("nch05_extra", &x05m);
+      te.Branch("nch24_extra", &x24m);
+      te.Branch("n_extra", &c_nextra);
+    }
     struct BgQA { Hists h; double n05, n24; };
     std::map<int, BgQA> bg_cache;
     long n_ev = 0;
@@ -194,10 +211,12 @@ int run(int argc, char **argv) {
       if (nf == 0) continue;
       std::vector<Hadrons> F;
       for (int j = 0; j < nf; ++j) F.push_back(r.frag(e, j));
-      std::vector<Hadrons> J;
+      std::vector<Hadrons> J, X;
       if (!info.vacuum) {
         if (info.n_samples_jet == 0) continue;
         for (int k = 0; k < info.n_samples_jet; ++k) J.push_back(r.bkg_dep(e, k));
+        if (xtra)
+          for (int j = 0; j < info.n_samples_extra; ++j) X.push_back(r.extra(e, j));
         if (!bg_cache.count(info.bg_unit)) {
           std::vector<Hadrons> B;
           for (int k = 0; k < info.n_samples_bg; ++k) B.push_back(r.bkg(e, k));
@@ -212,6 +231,7 @@ int run(int argc, char **argv) {
       // the order of qa.py: the fragments, then bulk_jet, then the background
       add("jet_frag", source_hists(F, &z), w_sc);
       if (!info.vacuum) add("bulk_jet", source_hists(J, nullptr), w_sc);
+      if (!X.empty()) add("extra_frag", source_hists(X, nullptr), w_sc);
       std::vector<double> zl;
       for (const Hadrons &hs : F) {
         double k = 0;
@@ -231,6 +251,18 @@ int run(int argc, char **argv) {
           full05.push_back(j05[k] + f05[k % nf]);
           full24.push_back(j24[k] + f24[k % nf]);
         }
+        x05m = x24m = 0;
+        if (!X.empty()) {                          // the extras belong to the event
+          const auto x05 = nch(X, nullptr, 0.5), x24 = nch(X, nullptr, 2.4);
+          for (size_t k = 0; k < J.size(); ++k) {
+            full05[k] += x05[k % X.size()];
+            full24[k] += x24[k % X.size()];
+          }
+          x05m = mean(x05);
+          x24m = mean(x24);
+        }
+        c_nextra = 0;
+        for (const auto &sc : info.scatterings) c_nextra += sc.scatter > 0;
       } else {
         full05 = f05;
         full24 = f24;

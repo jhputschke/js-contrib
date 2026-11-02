@@ -21,11 +21,19 @@ Per production file ``<stem>``: ``<stem>_hadrons.root`` with
     bulk_jet, bulk_bg, jet_frag   one entry per sample (oversample): event, unit, sample,
                                   bg_unit, pid[n], pstat[n], E/px/py/pz[n], t/x/y/z[n]
                                   (root_export/hadrons_to_root.py)
+    extra_frag                    the same for the fragments of the event's extra hard
+                                  scatterings (PythiaGun <extraHard>), when the production
+                                  file has them (docs/Plans/PLAN_multi_hard.md)
     events                        one entry per event: the particlize file's event columns
                                   (pthat_bin, pthat, event_weight, bg_unit, the partons'
-                                  pT and y, droplets, ...), this file's cross section of the
+                                  pT and y, droplets, ...; with extras n_extra, extra_mu,
+                                  extra_E, extra_pt), this file's cross section of the
                                   event's window (sigma_file_mb), the samples and seeds of
-                                  its units, and its shower initiators (ini_*[n_ini])
+                                  its units, and its shower initiators (ini_*[n_ini]); with
+                                  extras also the hard scatterings (scat_*[n_scat],
+                                  particlize_h5.SCATTER_COLUMNS, the trigger's first) and
+                                  the extras' initiators (xini_*[n_xini], with their
+                                  scattering xini_scatter)
     windows                       one entry per pTHat window: bounds, this file's cross
                                   section, acceptance and counts (--pthat-bins runs)
     provenance                    TObjString, JSON: every attribute of the particlize and
@@ -47,7 +55,10 @@ and ``<campaign>_campaign.root`` (--campaign-file) with
                                   campaign's |eta| cut, precision and sampling, the settings
 
 - **Only complete inputs.**  A production file is converted once its particlize file and
-  the hadron files of every --tags tag are complete; the others are reported and skipped.
+  the hadron files of every --tags tag it has are complete; the others are reported and
+  skipped.  extra_frag belongs to the production files with extra hard scatterings (their
+  ``extra_hard`` attribute), jet_frag to all but the minimum-bias ones (run_prod_jet.py
+  --hard none: ``extra_no_trigger``); the default tags add extra_frag when any input has it.
 - **Restarting.**  Outputs are written to ``.part`` and renamed when complete; existing
   outputs are kept (with a warning if they were made with other settings) unless --force.
   Re-running the same command finishes an interrupted pass.
@@ -77,7 +88,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "root_export"))
 sys.path.insert(0, os.path.join(HERE, "..", "..", "python"))
 
-TAGS = ("bulk_jet", "bulk_bg", "jet_frag")
+TAGS = ("bulk_jet", "bulk_bg", "jet_frag", "extra_frag")
+#: the tags converted by default; extra_frag is added when an input has extra hard
+#: scatterings
+DEFAULT_TAGS = ("bulk_jet", "bulk_bg", "jet_frag")
+#: the per-event columns of a tag's units: n_samples_<name>, seed_<name>
+TAG_NAME = {"bulk_jet": "jet", "bulk_bg": "bg", "jet_frag": "frag", "extra_frag": "extra"}
 #: settings recorded in provenance; an existing output made with others gets a warning
 SETTING_KEYS = ("tags", "format", "writer", "no_x", "eta_max", "charged", "bits_p", "bits_x",
                 "compression")
@@ -91,8 +107,9 @@ def parse_args(argv=None):
     p.add_argument("--out-dir", default=None, dest="out_dir",
                    help="output directory (default: next to each input)")
     p.add_argument("--tags", default=None,
-                   help=f"comma-separated subset of {', '.join(TAGS)} (default: all; jet_frag "
-                        "for run_prod_vacuum.py's files, which have no bulk)")
+                   help=f"comma-separated subset of {', '.join(TAGS)} (default: all the "
+                        "inputs have; jet_frag for run_prod_vacuum.py's files, which have no "
+                        "bulk)")
     p.add_argument("--format", choices=("rntuple", "ttree"), default="rntuple",
                    help="rntuple (default; ROOT >= 6.34 to read) or ttree (any ROOT)")
     p.add_argument("--writer", choices=("auto", "root", "uproot"), default="auto",
@@ -115,7 +132,7 @@ def parse_args(argv=None):
                    help="show what would be done and exit")
     a = p.parse_args(argv)
     a.tags_given = a.tags is not None
-    a.tags = [t.strip() for t in (a.tags or ",".join(TAGS)).split(",") if t.strip()]
+    a.tags = [t.strip() for t in (a.tags or ",".join(DEFAULT_TAGS)).split(",") if t.strip()]
     bad = set(a.tags) - set(TAGS)
     if bad:
         p.error(f"unknown tag(s) {sorted(bad)}")
@@ -185,12 +202,32 @@ def _is_vacuum(stem):
         return bool(f.attrs.get("vacuum", False))
 
 
+def has_extras(stem):
+    """True if ``stem``'s production had extra hard scatterings (its event record's
+    ``extra_hard``): it has an extra_frag file."""
+    a = _attrs(event_file(stem))
+    return bool(a.get("extra_hard", a.get("prod_extra_hard", False)))
+
+
+def stem_tags(stem, tags):
+    """The tags of ``tags`` that ``stem`` has: extra_frag only with extra hard scatterings,
+    jet_frag not in a minimum-bias job (run_prod_jet.py --hard none: no trigger, its event
+    record's ``extra_no_trigger``)."""
+    if "extra_frag" not in tags and "jet_frag" not in tags:
+        return list(tags)
+    a = _attrs(event_file(stem))
+    extras = bool(a.get("extra_hard", a.get("prod_extra_hard", False)))
+    minbias = bool(a.get("extra_no_trigger", a.get("prod_extra_no_trigger", False)))
+    return [t for t in tags if not (t == "extra_frag" and not extras)
+            and not (t == "jet_frag" and minbias)]
+
+
 def input_state(stem, tags):
     """'ready', or why not."""
     if not _complete(event_file(stem)):
         return "particlize incomplete" if event_file(stem).endswith("_particlize.h5") \
             else "hadrons-only jet file incomplete"
-    missing = [t for t in tags if not _complete(f"{stem}_hadrons_{t}.h5")]
+    missing = [t for t in stem_tags(stem, tags) if not _complete(f"{stem}_hadrons_{t}.h5")]
     if missing:
         return "hadrons missing or incomplete: " + ", ".join(missing)
     return "ready"
@@ -234,7 +271,8 @@ def _bg_key_words(keys):
 
 
 def event_table(stem, tags):
-    """-> ({column: per-event array}, {initiator column: (values, counts)} or None)."""
+    """-> ({column: per-event array}, {initiator column: (values, counts)} or None).  The
+    extras' per-event tables are :func:`extra_tables`'."""
     import h5py
 
     from jetscape import h5_compression  # noqa: F401
@@ -276,7 +314,7 @@ def event_table(stem, tags):
             continue
         with h5py.File(path, "r") as f:
             units = {k: f["units"][k][:] for k in f["units"]}
-            if ini is None and "initiators" in f:
+            if ini is None and "initiators" in f and t != "extra_frag":
                 # unit = event for bulk_jet and jet_frag; events without a unit (not
                 # hadronized, e.g. --events a:b) get no initiators
                 data, off = f["initiators/data"][:], f["initiators/offsets"][:]
@@ -289,7 +327,7 @@ def event_table(stem, tags):
                 ini = {c: (flat[:, j].astype(np.int32 if c in ("shower", "pid", "pstat")
                                              else np.float64), counts)
                        for j, c in enumerate(INITIATOR_COLUMNS)}
-        name = {"bulk_jet": "jet", "bulk_bg": "bg", "jet_frag": "frag"}[t]
+        name = TAG_NAME[t]
         key = cols["bg_unit"] if t == "bulk_bg" else cols["event"]
         n_s = dict(zip(units["unit"].tolist(), units["n_samples"].tolist()))
         seed = dict(zip(units["unit"].tolist(), units["seed"].tolist()))
@@ -298,6 +336,44 @@ def event_table(stem, tags):
     if ini is None and not hadrons_only:
         ini = _stored_initiators(stem, n, INITIATOR_COLUMNS)
     return cols, ini
+
+
+def extra_tables(stem, events):
+    """The extras' per-event jagged tables of ``stem``'s extra_frag file for the events
+    ``events`` (the events table's ``event``): ``scat`` (the hard scatterings,
+    particlize_h5.SCATTER_COLUMNS, the trigger's first) and ``xini`` (the extras' shower
+    initiators, INITIATOR_COLUMNS + scatter), each {column: (values, counts)}; events without
+    a unit (not hadronized) get none.  {} without an extra_frag file."""
+    import h5py
+
+    from jetscape import h5_compression  # noqa: F401
+    from jetscape.hadrons_h5 import INITIATOR_COLUMNS
+    from jetscape.particlize_h5 import SCATTER_COLUMNS
+
+    path = f"{stem}_hadrons_extra_frag.h5"
+    if not os.path.exists(path):
+        return {}
+    ints = ("shower", "pid", "pstat", "scatter", "code", "n_partons")
+    out = {}
+    with h5py.File(path, "r") as f:
+        units = f["units/unit"][:]
+        for prefix, group, columns in (("scat", "scatterings", SCATTER_COLUMNS),
+                                       ("xini", "initiators", INITIATOR_COLUMNS)):
+            if group not in f:
+                continue
+            data, off = f[f"{group}/data"][:], f[f"{group}/offsets"][:]
+            scatter = f[f"{group}/scatter"][:] if f"{group}/scatter" in f else None
+            if scatter is not None:
+                data = np.column_stack([data, scatter])
+                columns = tuple(columns) + ("scatter",)
+            by_event = {int(u): data[off[i]:off[i + 1]] for i, u in enumerate(units)}
+            empty = np.zeros((0, len(columns)))
+            rows = [by_event.get(int(e), empty) for e in events]
+            counts = np.array([len(r) for r in rows], np.int64)
+            flat = np.concatenate(rows) if rows else empty
+            out[prefix] = {c: (flat[:, j].astype(np.int32 if c in ints else np.float64), counts)
+                           for j, c in enumerate(columns)}
+    return out
 
 
 def _stored_initiators(stem, n, columns):
@@ -347,22 +423,24 @@ def window_table(attrs):
     return t
 
 
-def write_table(fo, name, cols, fmt, jagged=None, prefix="ini"):
-    """A flat table (+ optional jagged columns sharing one count) with uproot."""
+def write_table(fo, name, cols, fmt, jagged=None, prefix="ini", groups=None):
+    """A flat table (+ optional jagged columns sharing one count, ``<prefix>_<column>``;
+    ``groups``: more of them, {prefix: jagged}, each with its own count) with uproot."""
     import awkward as ak
 
-    jag = {}
-    if jagged:
-        jag = {f"{prefix}_{c}": ak.unflatten(v, counts) for c, (v, counts) in jagged.items()}
+    groups = {**({prefix: jagged} if jagged else {}), **(groups or {})}
+    jag = {p: {c: ak.unflatten(v, counts) for c, (v, counts) in g.items()}
+           for p, g in groups.items() if g}
     if fmt == "rntuple":
-        fo.mkrntuple(name, ak.zip({**cols, **jag}, depth_limit=1))
+        flat = {f"{p}_{c}": v for p, g in jag.items() for c, v in g.items()}
+        fo.mkrntuple(name, ak.zip({**cols, **flat}, depth_limit=1))
         return
     types = {k: v.dtype for k, v in cols.items()}
     data = dict(cols)
-    if jag:
-        rec = ak.zip({k[len(prefix) + 1:]: v for k, v in jag.items()})
-        types[prefix] = rec.type
-        data[prefix] = rec
+    for p, g in jag.items():
+        rec = ak.zip(g)
+        types[p] = rec.type
+        data[p] = rec
     tree = fo.mktree(name, types, counter_name=lambda counted: f"n_{counted}",
                      field_name=lambda outer, inner: f"{outer}_{inner}")
     tree.extend(data)
@@ -384,6 +462,7 @@ def convert_stem(stem, out, settings):
     t0 = time.time()
     tmp = out + ".part"
     s = settings
+    tags = stem_tags(stem, s["tags"])                  # the ones this production file has
     fmt, writer = s["format"], s["writer"]
     src = event_file(stem)
     part_attrs = _attrs(src)
@@ -392,30 +471,35 @@ def convert_stem(stem, out, settings):
                         "run_h5toROOT.py",
             "created": time.strftime("%Y-%m-%d %H:%M:%S"), "stem": os.path.basename(stem),
             "settings": s, "particlize": part_attrs, "event_record": os.path.basename(src),
-            "hadrons": {t: _attrs(f"{stem}_hadrons_{t}.h5") for t in s["tags"]},
+            "hadrons": {t: _attrs(f"{stem}_hadrons_{t}.h5") for t in tags},
             "layout": "one entry per sample in bulk_jet, bulk_bg, jet_frag; jet_frag sample "
                       "k % n_samples_frag goes with bulk_jet sample k (JetEvents.jet_event); "
                       "for correlated files bulk_bg (unit=bg_unit, sample=k) pairs with "
                       "bulk_jet sample k"}
-    ev, ini = event_table(stem, s["tags"])
+    if "extra_frag" in tags:
+        prov["layout_extra_frag"] = ("extra_frag sample k % n_samples_extra goes with bulk_jet "
+                                     "sample k too: the full event is bulk_jet + jet_frag + "
+                                     "extra_frag; B (the bulk alone) bulk_bg + extra_frag")
+    ev, ini = event_table(stem, tags)
+    extra = extra_tables(stem, ev["event"]) if "extra_frag" in tags else {}
     win = window_table(part_attrs)
     stats = {"stem": stem, "out": out, "n_events": int(len(ev["event"])), "tags": {}}
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     loads = dict(with_x=not s["no_x"], eta_max=s["eta_max"], charged=s["charged"])
     level = s["compression"] % 100
     with uproot.recreate(tmp, compression=uproot.ZSTD(level)) as fo:
-        write_table(fo, "events", ev, fmt, jagged=ini)
+        write_table(fo, "events", ev, fmt, jagged=ini, groups=extra)
         if win is not None:
             write_table(fo, "windows", win, fmt)
         fo["provenance"] = json.dumps(prov, default=str)
         if writer == "uproot":
-            for t in s["tags"]:
+            for t in tags:
                 cols = h2r.load_columns(f"{stem}_hadrons_{t}.h5", **loads, particlize=part)
                 h2r.write_uproot_into(fo, cols, fmt=fmt)
                 stats["tags"][t] = {"samples": len(cols["soff"]) - 1, "hadrons": len(cols["pid"])}
                 del cols
     if writer == "root":
-        for t in s["tags"]:
+        for t in tags:
             cols = h2r.load_columns(f"{stem}_hadrons_{t}.h5", **loads, particlize=part)
             h2r.write_root(tmp, cols, fmt=fmt, bits_p=s["bits_p"], bits_x=s["bits_x"],
                            compression=s["compression"], update=True)
@@ -538,6 +622,9 @@ def main(argv=None):
         elif any(vac):
             sys.exit("run_h5toROOT.py: vacuum (run_prod_vacuum.py) and medium files mixed: "
                      "convert them separately")
+        elif any(has_extras(st) for st in stems):        # extra hard scatterings
+            a.tags = list(DEFAULT_TAGS) + ["extra_frag"]
+            settings = settings_of(a, writer)
     plan, done, skipped = [], [], {}
     for st in stems:
         out = out_path(st, a.out_dir)

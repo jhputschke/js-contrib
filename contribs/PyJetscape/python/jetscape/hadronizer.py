@@ -19,7 +19,16 @@ partons and seeds (docs/Plans/PLAN_AuAu_hadrons_only.md).
            initiators=ini)
     h.fragments(e, partons, [h.seed("jet_frag", e, s) for s in range(n_frag)],
                 initiators=ini)
+    h.extra_fragments(e, extra_partons, n_frag, initiators=extra_ini,
+                      initiator_scatter=scat, scatterings=rows)   # extra hard scatterings
     h.close(complete=True)
+
+With extra hard scatterings (PythiaGun's <extraHard>, docs/Plans/PLAN_multi_hard.md) an
+event's final partons are split by their shower's scattering
+(:func:`jetscape.particlize_h5.split_by_scatter`): the trigger's go to ``jet_frag`` exactly
+as without extras (same partons, same seeds), the extras' to ``extra_frag``, with seeds of
+their own tag: all together in one Colorless call (mode ``groups``) or one call per
+scattering (``per_scattering``, each hadron's scattering kept).
 
 iSS runs on given cells through ``core.soft_sample_cells`` (X-SCAPE's
 ``SoftParticlization::SampleCells``): no framework event, so it also works inside a
@@ -34,13 +43,15 @@ import subprocess
 
 import numpy as np
 
-__all__ = ["TAGS", "TAG_INDEX", "SEED_SCHEMES", "PER_UNIT_OVERSAMPLE_BG", "HADRON_LIST",
+__all__ = ["TAGS", "TAG_INDEX", "EXTRA_HADRONIZE", "SEED_SCHEMES", "PER_UNIT_OVERSAMPLE_BG", "HADRON_LIST",
            "KEEP_ALL_PRIMARIES", "unit_seed", "uuid_key", "samples_per_background",
            "iss_commit", "iss_decay_attrs", "tag_attrs", "configure_hadronize_xml",
            "collision_ecm", "set_hadronization_ecm", "Hadronizer"]
 
-TAGS = ("bulk_jet", "bulk_bg", "jet_frag")
-TAG_INDEX = {t: k for k, t in enumerate(TAGS)}
+TAGS = ("bulk_jet", "bulk_bg", "jet_frag", "extra_frag")
+TAG_INDEX = {t: k for k, t in enumerate(TAGS)}      # the seeds' key: append new tags only
+#: how the extras' showers are hadronized (run_prod_jet.py / hadronize.py --extra-hadronize)
+EXTRA_HADRONIZE = ("groups", "per_scattering")
 
 #: ``seed_scheme`` attribute of the hadron files; files without it are "legacy"
 SEED_SCHEMES = ("production_file", "legacy")
@@ -218,7 +229,7 @@ def tag_attrs(tag, core, decay_attrs, *, common_seeds=False, correlated=False):
     """The tag-specific attributes of a hadron file (the generator, decayed, and for the
     bulk tags the hadron list, its decays and how the two legs were sampled relative to
     each other; for jet_frag the Pythia version)."""
-    if tag == "jet_frag":
+    if tag in ("jet_frag", "extra_frag"):
         return {"generator": "ColorlessHadronization (X-SCAPE)", "decayed": True,
                 "pythia_version": int(getattr(core, "PYTHIA_VERSION", 0))}
     out = {"common_seeds": bool(common_seeds), "correlated_sampling": bool(correlated)}
@@ -349,18 +360,75 @@ class Hadronizer:
                                            **scalars)
         return h, used
 
-    def fragments(self, unit, partons, seeds, *, event=None, initiators=None, **scalars):
-        """Colorless on ``partons`` once per seed into ``jet_frag`` (and the partons into its
-        ``partons/``, if the writer has one) -> the fragmentations."""
+    def fragments(self, unit, partons, seeds, *, event=None, initiators=None, tag="jet_frag",
+                  **scalars):
+        """Colorless on ``partons`` once per seed into ``tag`` (default ``jet_frag``; and the
+        partons into its ``partons/``, if the writer has one) -> the fragmentations."""
         samples = []
         for seed in seeds:
             if len(partons):
                 samples.append(self.core.hadronize_partons(self.colorless, partons, int(seed)))
             else:
                 samples.append(_empty_hadrons())
-        w = self.writers["jet_frag"]
+        w = self.writers[tag]
         kw = {"partons": partons} if getattr(w, "_par", None) is not None else {}
         w.append_unit(samples, initiators, **kw, unit=unit,
                       event=unit if event is None else event, seed=int(seeds[0]),
+                      n_partons=len(partons), **scalars)
+        return samples
+
+    def extra_seeds(self, unit, n_frag, scatters=None):
+        """The extras' Colorless seeds of one event: per fragmentation one (``scatters``
+        None, mode groups), or per fragmentation a list, one per scattering in
+        ``scatters`` (per_scattering)."""
+        if scatters is None:
+            return [self.seed("extra_frag", unit, s) for s in range(n_frag)]
+        return [[self.seed("extra_frag", unit, s * 100000 + int(k)) for k in scatters]
+                for s in range(n_frag)]
+
+    def extra_fragments(self, unit, partons, n_frag, *, initiators, initiator_scatter,
+                        scatterings=None, mode="groups", event=None, **scalars):
+        """Colorless on the extras' final partons into ``extra_frag``, ``n_frag`` times:
+        all together (``mode`` groups) or one call per scattering (per_scattering; every
+        hadron then carries its ``scatter``).  ``partons``/``initiators`` are the extras'
+        only (:func:`jetscape.particlize_h5.split_by_scatter`), ``initiator_scatter`` their
+        scatterings, ``scatterings`` the event's SCATTER_COLUMNS rows -> the fragmentations."""
+        if mode not in EXTRA_HADRONIZE:
+            raise ValueError(f"extra_fragments: mode is one of {EXTRA_HADRONIZE}, got {mode!r}")
+        partons = np.asarray(partons, dtype=np.float64).reshape(-1, 14)
+        ini = np.asarray(initiators, dtype=np.float64).reshape(-1, 11)
+        iscat = np.asarray(initiator_scatter, dtype=np.int64).reshape(-1)
+        samples = []
+        if mode == "groups":
+            seeds = self.extra_seeds(unit, n_frag)
+            for seed in seeds:
+                samples.append(self.core.hadronize_partons(self.colorless, partons, int(seed))
+                               if len(partons) else _empty_hadrons())
+            first = seeds[0] if seeds else 0
+        else:
+            scatters = sorted(set(int(k) for k in iscat))
+            shower_of = {k: ini[iscat == k, 0].astype(np.int64) for k in scatters}
+            seeds = self.extra_seeds(unit, n_frag, scatters)
+            for per in seeds:
+                parts = []
+                for k, seed in zip(scatters, per):
+                    p = partons[np.isin(partons[:, 0].astype(np.int64), shower_of[k])]
+                    h = (self.core.hadronize_partons(self.colorless, p, int(seed)) if len(p)
+                         else _empty_hadrons())
+                    h = {f: np.asarray(h[f]) for f in ("pid", "pstat", "p", "x")}
+                    h["scatter"] = np.full(len(h["pid"]), k, np.int32)
+                    parts.append(h)
+                if not parts:
+                    e = _empty_hadrons()
+                    parts = [dict(e, scatter=np.zeros(0, np.int32))]
+                samples.append({f: np.concatenate([np.asarray(q[f]).reshape(
+                    (-1, 4) if f in ("p", "x") else (-1,)) for q in parts])
+                    for f in ("pid", "pstat", "p", "x", "scatter")})
+            first = seeds[0][0] if seeds and seeds[0] else 0
+        w = self.writers["extra_frag"]
+        kw = {"partons": partons} if getattr(w, "_par", None) is not None else {}
+        w.append_unit(samples, ini if w._ini is not None else None, **kw,
+                      scatterings=scatterings, initiator_scatter=iscat, unit=unit,
+                      event=unit if event is None else event, seed=int(first),
                       n_partons=len(partons), **scalars)
         return samples

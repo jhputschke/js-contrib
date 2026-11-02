@@ -15,7 +15,10 @@ events x N_coll for Pb+Pb, normalised per Z).  Jets per Z: S the Z events' jets 
 fragments), B_own the jets of the Z's own background (bulk_bg, the same oversample index),
 B_mixed the jets of the --n-nearest other backgrounds closest in N_coll (zjet_jets.py's step 3,
 each background rotated by zjet_jets.py's random angle; --no-rotate as produced), pp the
-vacuum's.  The Z+jet cuts where a panel says so: |eta| < 1.6, Delta R > 0.4 from the Z's
+vacuum's.  With extra hard scatterings (map outputs whose qa_jets have bgx, PLAN_multi_hard) S
+holds the extras' jets and B is bulk_bg + the event's extras, per Z event as in zjet_jets.py:
+B_own the Z's own rows' bgx, B_mixed the bgx rows of the Z events on the nearest other
+backgrounds; the rho panels stay on the backgrounds' bulk_bg (qa_bg_jets).  The Z+jet cuts where a panel says so: |eta| < 1.6, Delta R > 0.4 from the Z's
 leptons, the subtracted p_T > 30 GeV (no smearing here).
 
   qa_jets_subtraction  p_T,raw, rho A, p_T = p_T,raw - rho A (the negative tail), p_T,raw vs
@@ -51,16 +54,17 @@ PT_CLASSES = ((-np.inf, 10), (10, 30), (30, np.inf))
 
 
 def flat(T, rows, row_w, row_ev, names=("pt_raw", "pt", "eta", "phi", "area", "rho", "m",
-                                         "nconst", "lead_pt"), row_dphi=None):
-    """The jets of the rows ``rows`` of a QA/jets tree -> dict of flat arrays (the jet_* columns,
-    their event row ``e`` and weight ``w``); ``row_dphi`` rotates each row's jets."""
+                                         "nconst", "lead_pt"), row_dphi=None, prefix="jet"):
+    """The jets of the rows ``rows`` of a QA/jets tree -> dict of flat arrays (the
+    <prefix>_* columns, jet_* by default, bgx_* for B with extras; their event row ``e`` and
+    weight ``w``); ``row_dphi`` rotates each row's jets."""
     import awkward as ak
     out = {}
-    first = T[f"jet_{names[0]}"][rows]
+    first = T[f"{prefix}_{names[0]}"][rows]
     counts = ak.to_numpy(ak.num(first))
     rep = np.repeat(np.arange(len(rows)), counts)
     for nm in names:
-        out[nm] = ak.to_numpy(ak.flatten(T[f"jet_{nm}"][rows])).astype(float)
+        out[nm] = ak.to_numpy(ak.flatten(T[f"{prefix}_{nm}"][rows])).astype(float)
     if row_dphi is not None:
         out["phi"] = out["phi"] + np.asarray(row_dphi, float)[rep]
     out["e"] = np.asarray(row_ev)[rep]
@@ -171,18 +175,32 @@ def main():
                  f"QA sample(s) per event, {len(np.unique(Eb['bg'][selb]))} background(s); "
                  f"pp: {int(selp.sum())} Z's")
 
-    # B_own and B_mixed per Z: the background QA rows, each Z's weight spread over them
+    # B_own and B_mixed per Z: the background QA rows, each Z's weight spread over them.  With
+    # extra hard scatterings (qa_jets' bgx: bulk_bg k + the event's extras, drawn per jet
+    # event) B is per Z event, as in zjet_jets.py: B_own the Z's own QA rows' bgx, B_mixed the
+    # bgx rows of the Z events on the --n-nearest other backgrounds; without, the backgrounds'
+    # bulk_bg rows (qa_bg_jets)
     B_own = B_mix = None
     nn_info = None
-    if QB:
-        rows_of_bg = {int(b): np.flatnonzero(QB["bg"] == b) for b in np.unique(QB["bg"])}
+    xtra = "bgx_pt" in Qb
+    if xtra:
+        q_ev = np.array([row_of_b[g] for g in Qb["event"]])
+        T, prefix, row_bg = Qb, "bgx", Eb["bg"][q_ev]
+        rows_of_ev = {int(e): np.flatnonzero(q_ev == e) for e in np.unique(q_ev)}
+        lines.append("B (B_own, B_mixed): bulk_bg + the events' extra hard scatterings (bgx)")
+    elif QB:
+        T, prefix, row_bg = QB, "jet", QB["bg"]
+    if xtra or QB:
+        rows_of_bg = {int(b): np.flatnonzero(row_bg == b) for b in np.unique(row_bg)}
         bgs = np.array(sorted(rows_of_bg))
-        ncoll_bg = np.array([QB["n_coll"][rows_of_bg[b][0]] for b in bgs], float)
+        ncoll_bg = np.array([Eb["n_coll"][q_ev[rows_of_bg[b][0]]] if xtra else
+                             QB["n_coll"][rows_of_bg[b][0]] for b in bgs], float)
         orow, oev, ow, mrow, mev, mw, dnc = [], [], [], [], [], [], []
         for e_ in zsel:
             b = int(Eb["bg"][e_])
-            if b in rows_of_bg:
-                r_ = rows_of_bg[b]
+            own = rows_of_ev.get(int(e_)) if xtra else rows_of_bg.get(b)
+            if own is not None and len(own):
+                r_ = own
                 orow.append(r_)
                 oev.append(np.full(len(r_), e_))
                 ow.append(np.full(len(r_), wb[e_] / len(r_)))
@@ -196,15 +214,16 @@ def main():
                 mw.append(np.full(len(r_), wb[e_] / len(r_)))
                 dnc.append(np.abs(ncoll_bg[np.searchsorted(bgs, near)] - Eb["n_coll"][e_]))
         if orow:
-            B_own = flat(QB, np.concatenate(orow), np.concatenate(ow), np.concatenate(oev))
+            B_own = flat(T, np.concatenate(orow), np.concatenate(ow), np.concatenate(oev),
+                         prefix=prefix)
         if mrow:
             mrow, mev = np.concatenate(mrow), np.concatenate(mev)
             turn = None
             if a.rotate:
-                angle = background_angles(np.concatenate([QB["bg"], Eb["bg"]]),
+                angle = background_angles(np.concatenate([row_bg, Eb["bg"]]),
                                           rotation_seed(SEED, a.rotate_seed))
-                turn = angle(QB["bg"][mrow]) - angle(Eb["bg"][mev])
-            B_mix = flat(QB, mrow, np.concatenate(mw), mev, row_dphi=turn)
+                turn = angle(row_bg[mrow]) - angle(Eb["bg"][mev])
+            B_mix = flat(T, mrow, np.concatenate(mw), mev, row_dphi=turn, prefix=prefix)
             lines.append("B_mixed: the backgrounds " + (
                 "rotated by zjet_jets.py's random angles" if a.rotate else
                 "as produced (--no-rotate): event planes all near phi = 0"))
@@ -541,8 +560,10 @@ def main():
     m = cuts(Eb, S)
     hh = ax[1, 2].hist2d(Eb["z_pt"][S["e"][m]], S["pt"][m], [np.linspace(40, 200, 33),
                                                            np.linspace(30, 200, 35)],
-                         weights=S["w"][m], cmin=1e-12, norm=matplotlib.colors.LogNorm())
-    fig.colorbar(hh[3], ax=ax[1, 2])
+                         weights=S["w"][m], cmin=1e-12,
+                         norm=matplotlib.colors.LogNorm() if np.any(m) else None)
+    if np.any(m):                                  # an empty log scale has no limits
+        fig.colorbar(hh[3], ax=ax[1, 2])
     ax[1, 2].plot([40, 200], [40, 200], "w--", lw=0.8, label="x_jZ = 1")
     ax[1, 2].set(xlabel="p_T^Z [GeV]", ylabel="p_T,jet [GeV]", title="S: jet against Z p_T")
     ax[1, 2].legend(fontsize=7)

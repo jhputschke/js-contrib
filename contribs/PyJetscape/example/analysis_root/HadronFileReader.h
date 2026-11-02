@@ -11,25 +11,43 @@
 //     for (int k = 0; k < r.n_oversamples(e); ++k) {
 //       auto bkg  = r.bkg(e, k);                     // bulk_bg:  background (MUSIC_1)
 //       auto dep  = r.bkg_dep(e, k);                 // bulk_jet: background + deposition
-//       auto full = r.bkg_dep_frag(e, k);            // bulk_jet + jet_frag: the jet event
+//       auto full = r.bkg_dep_frag(e, k);            // bulk_jet + jet_frag (+ extra_frag):
+//                                                    // the jet event
 //       for (const auto &h : full) if (h.charged() && std::fabs(h.eta()) < 1) ...
 //     }
 //   }
 //
-// The four sources of one oversample k of event e:
+// The sources of one oversample k of event e:
 //
 //   bkg(e, k)            bulk_bg    iSS on the background's surface; sample k of the
 //                                   background e used (shared by the events reusing it)
 //   bkg_dep(e, k)        bulk_jet   iSS on the jet leg's surface: background + deposition
-//   frag(e, j)           jet_frag   ColorlessHadronization of the surviving partons
-//   bkg_dep_frag(e, k)   bulk_jet sample k + jet_frag sample k mod n_frag (or frag_sample),
-//                        Hadron::origin 0 (bulk) or 1 (fragment), as JetEvents.jet_event
+//   frag(e, j)           jet_frag   ColorlessHadronization of the surviving partons (with
+//                                   extra hard scatterings: the trigger's showers only)
+//   extra(e, j)          extra_frag ColorlessHadronization of the showers of the event's
+//                                   other hard scatterings (PythiaGun <extraHard>,
+//                                   docs/Plans/PLAN_multi_hard.md); files without them have
+//                                   none
+//   bkg_dep_frag(e, k)   bulk_jet sample k + jet_frag sample k mod n_frag (or frag_sample)
+//                        + extra_frag sample k mod n_extra_frag (the same frag_sample),
+//                        Hadron::origin 0 (bulk), 1 (fragment) or 2 (extras' fragment), as
+//                        JetEvents.jet_event
+//   bkg_extra(e, k)      bulk_bg sample k + extra_frag sample k mod n_extra_frag: the event
+//                        without the trigger's jet and the wakes (B, the bulk alone, of the
+//                        jet analyses); bkg(e, k) without extras
+//
+// The extras belong to the event, not to the trigger: bkg_dep_frag and bkg_extra include
+// them whenever the file has them (EventInfo::has_extras); set_extras(false), or the
+// argument extras = false, leaves them out (the event as without extra hard scatterings).
+// Files without extra_frag read exactly as before.  A minimum-bias file (run_prod_jet.py
+// --hard none) has no jet_frag: its full event is bulk_jet + extra_frag.
 //
 // Events are numbered globally over the files (sorted by name), as HadronFileReader numbers
 // them when it reads the same production files: event_offset + events.event.  Oversamples
 // of one event share one fluid: they are not independent events.  Weigh each event's
 // samples with 1 / n_samples to get the per-event mean (hadron_distributions.C,
-// README.md): bkg uses n_bg_samples(e), bkg_dep n_oversamples(e), frag n_frag(e).
+// README.md): bkg uses n_bg_samples(e), bkg_dep n_oversamples(e), frag n_frag(e), extra
+// n_extra_frag(e).
 //
 // Cross sections of a --pthat-bins campaign come from the *_campaign.root next to the
 // files; without one, from the files' own windows tables, combined as the campaign file
@@ -76,6 +94,7 @@ namespace hadrons_root {
 // Hadron::origin, as jetscape.hadrons_h5.ORIGIN
 constexpr int kBulk = 0;
 constexpr int kFrag = 1;
+constexpr int kExtra = 2;                  // the fragments of the extra hard scatterings
 
 // |pid| of the charged hadrons that survive iSS's decays (plus leptons), hadrons_h5.CHARGED
 inline bool is_charged(int pid) {
@@ -98,7 +117,7 @@ struct Hadron {
   int pid = 0, pstat = 0;
   float E = 0, px = 0, py = 0, pz = 0;     // GeV
   float t = 0, x = 0, y = 0, z = 0;        // fm/c, fm (0 without positions)
-  int origin = kBulk;                      // kBulk or kFrag
+  int origin = kBulk;                      // kBulk, kFrag or kExtra
 
   double pt() const { return std::hypot(double(px), double(py)); }
   double p() const { return std::sqrt(double(px) * px + double(py) * py + double(pz) * pz); }
@@ -118,10 +137,12 @@ using Hadrons = std::vector<Hadron>;
 // which hadrons to keep (HadronFileReader::set_filter); empty: all
 using Filter = std::function<bool(const Hadron &)>;
 
-// a shower-initiating parton (events.ini_*, hadrons_h5.INITIATOR_COLUMNS)
+// a shower-initiating parton (events.ini_*, hadrons_h5.INITIATOR_COLUMNS; the extras':
+// events.xini_*)
 struct Initiator {
   int shower = 0, pid = 0, pstat = 0;
   double px = 0, py = 0, pz = 0, E = 0, x = 0, y = 0, z = 0, t = 0;
+  int scatter = 0;                         // its hard scattering: 0 the trigger, 1, 2, ...
 
   double pt() const { return std::hypot(px, py); }
   double eta() const {
@@ -162,6 +183,15 @@ struct ZRecord {
   }
 };
 
+// one hard scattering of an event with extra hard scatterings (events.scat_*,
+// particlize_h5.SCATTER_COLUMNS): the trigger's first (scatter 0; none in a minimum-bias
+// file), then the extras 1, 2, ...
+struct Scattering {
+  int scatter = 0, code = 0, n_partons = 0;    // code: Pythia's process code
+  double pthat = 0, x = 0, y = 0, E = 0, pt = 0;   // GeV; x, y [fm]: its binary collision;
+                                                   // E, pt: summed over its partons
+};
+
 // what is known about one event (the file's events table, plus the campaign weight)
 struct EventInfo {
   long event = -1;              // global index over the files
@@ -171,6 +201,7 @@ struct EventInfo {
   int pthat_bin = -1;           // its pTHat window (-1: not a --pthat-bins run)
   double pthat = std::numeric_limits<double>::quiet_NaN();
   int n_samples_jet = 0, n_samples_bg = 0, n_samples_frag = 0;
+  int n_samples_extra = 0;      // extra_frag's fragmentations (0: none, or no extras)
   int n_cells_jet = -1, n_cells_bg = -1;
   double sigma_file_mb = std::numeric_limits<double>::quiet_NaN();   // this file's estimate
   double weight_mb = std::numeric_limits<double>::quiet_NaN();       // weight_mb(pthat_bin)
@@ -178,6 +209,16 @@ struct EventInfo {
   ZRecord z;                    // the trigger Z (z.valid false: none)
   bool vacuum = false;          // a file without jet leg (run_prod_vacuum.py: jet_frag only)
   std::vector<Initiator> initiators;
+  // extra hard scatterings (PythiaGun <extraHard>): has_extras if the file has extra_frag;
+  // events.n_extra, extra_mu, extra_E, extra_pt (-1 / NaN if not recorded); the
+  // scatterings and the extras' shower initiators (empty without)
+  bool has_extras = false;
+  int n_extra = -1;
+  double extra_mu = std::numeric_limits<double>::quiet_NaN();
+  double extra_E = std::numeric_limits<double>::quiet_NaN();
+  double extra_pt = std::numeric_limits<double>::quiet_NaN();
+  std::vector<Scattering> scatterings;
+  std::vector<Initiator> extra_initiators;
 
   // hadronized: the jet leg has samples (vacuum files: the fragments)
   bool hadronized() const { return vacuum ? n_samples_frag > 0 : n_samples_jet > 0; }
@@ -495,6 +536,20 @@ class HadronFileReader {
   int n_oversamples(long event) const { return info(event).n_samples_jet; }
   int n_bg_samples(long event) const { return info(event).n_samples_bg; }
   int n_frag(long event) const { return info(event).n_samples_frag; }
+  int n_extra_frag(long event) const { return info(event).n_samples_extra; }
+
+  // extra hard scatterings: whether file i (-1: any file) has extra_frag
+  bool has_extras(int file = -1) const {
+    for (const auto &e : events_)
+      if ((file < 0 || e.file_index == file) && e.has_extras) return true;
+    return false;
+  }
+  // the extras' fragments in the full event and in bkg_extra (default), or not
+  // (set_extras(false): every event as without extra hard scatterings)
+  void set_extras(bool on) { extras_ = on; }
+  bool extras() const { return extras_; }
+  // the event's full event and B include extras: its file has them and set_extras is on
+  bool with_extras(long event) const { return extras_ && info(event).has_extras; }
 
   // pTHat windows (0 for a run without them, or without cross sections) and their cross
   // sections [mb]: from the campaign file, else combined from the files' windows tables
@@ -559,11 +614,23 @@ class HadronFileReader {
     append(e.file_index, kTagFrag, e.local_event, j, kFrag, out);
     return out;
   }
+  // extra_frag: fragmentation j of the showers of event's extra hard scatterings (origin
+  // kExtra); whatever set_extras says
+  Hadrons extra(long event, int j) {
+    const EventInfo &e = info(event);
+    if (!e.has_extras)
+      throw std::runtime_error("HadronFileReader: " + files_[e.file_index] +
+                               " has no extra_frag (no extra hard scatterings)");
+    Hadrons out;
+    append(e.file_index, kTagExtra, e.local_event, j, kExtra, out);
+    return out;
+  }
   // the whole jet event: bulk_jet sample k plus fragmentation k mod n_frag (frag_sample
-  // >= 0: that one); origin tells bulk (kBulk) and fragments (kFrag) apart.  No
-  // fragments if the event has none.
+  // >= 0: that one) plus, with extras (with_extras, and extras), the extras' fragmentation
+  // k mod n_extra_frag (frag_sample: the same index); origin tells bulk (kBulk), fragments
+  // (kFrag) and the extras' fragments (kExtra) apart.  No fragments if the event has none.
   // Vacuum files (no jet leg): fragmentation k mod n_frag (or frag_sample) alone.
-  Hadrons bkg_dep_frag(long event, int k, int frag_sample = -1) {
+  Hadrons bkg_dep_frag(long event, int k, int frag_sample = -1, bool extras = true) {
     const EventInfo &e = info(event);
     Hadrons out;
     if (!e.vacuum) append(e.file_index, kTagJet, e.local_event, k, kBulk, out);
@@ -571,20 +638,37 @@ class HadronFileReader {
       const int j = frag_sample >= 0 ? frag_sample : k % e.n_samples_frag;
       append(e.file_index, kTagFrag, e.local_event, j, kFrag, out);
     }
+    if (extras) append_extra(e, event, k, frag_sample, out);
+    return out;
+  }
+  // B, the bulk alone, of the jet analyses: bulk_bg sample k of the background event used
+  // plus, with extras (with_extras), the event's extras' fragmentation k mod n_extra_frag
+  // (extra_sample >= 0: that one).  The extras are drawn per jet event, so B is per event,
+  // not per background.  Without extras: bkg(event, k).
+  Hadrons bkg_extra(long event, int k, int extra_sample = -1) {
+    Hadrons out = bkg(event, k);
+    append_extra(info(event), event, k, extra_sample, out);
     return out;
   }
 
   // the names of jetscape.hadrons_h5.HadronFileReader
   Hadrons background_event(long event, int k) { return bkg(event, k); }
-  Hadrons jet_event(long event, int k, int frag_sample = -1) {
-    return bkg_dep_frag(event, k, frag_sample);
+  Hadrons jet_event(long event, int k, int frag_sample = -1, bool extras = true) {
+    return bkg_dep_frag(event, k, frag_sample, extras);
   }
 
  private:
-  enum { kTagJet = 0, kTagBg = 1, kTagFrag = 2 };
+  enum { kTagJet = 0, kTagBg = 1, kTagFrag = 2, kTagExtra = 3, kNTags = 4 };
   static const char *tag_name(int t) {
-    static const char *names[3] = {"bulk_jet", "bulk_bg", "jet_frag"};
+    static const char *names[kNTags] = {"bulk_jet", "bulk_bg", "jet_frag", "extra_frag"};
     return names[t];
+  }
+
+  // the extras' fragmentation k mod n_extra_frag (j >= 0: j) of event, if with_extras
+  void append_extra(const EventInfo &e, long event, int k, int j, Hadrons &out) {
+    if (!with_extras(event) || e.n_samples_extra <= 0) return;
+    append(e.file_index, kTagExtra, e.local_event, j >= 0 ? j : k % e.n_samples_extra,
+           kExtra, out);
   }
 
   size_t check(long event) const {
@@ -657,7 +741,13 @@ class HadronFileReader {
     auto event = df.Take<int>("event");
     auto bg_unit = ints("bg_unit"), bin = ints("pthat_bin"), nsj = ints("n_samples_jet"),
          nsb = ints("n_samples_bg"), nsf = ints("n_samples_frag"), ncj = ints("n_cells_jet"),
-         ncb = ints("n_cells_bg");
+         ncb = ints("n_cells_bg"), nsx = ints("n_samples_extra"), n_extra = ints("n_extra");
+    // the file's extra hard scatterings: its extra_frag ntuple (run_h5toROOT.py adds
+    // n_samples_extra with it); per event the extras' record, as doubles
+    const bool has_extras = df.HasColumn("n_samples_extra");
+    std::map<std::string, std::vector<double>> xc;
+    for (const char *c : {"extra_mu", "extra_E", "extra_pt"})
+      if (df.HasColumn(c)) xc[c] = detail::take_double(df, c);
     std::optional<ROOT::RDF::RResultPtr<std::vector<double>>> pthat, sigma;
     if (df.HasColumn("pthat")) pthat = df.Take<double>("pthat");
     if (df.HasColumn("sigma_file_mb")) sigma = df.Take<double>("sigma_file_mb");
@@ -680,6 +770,23 @@ class HadronFileReader {
       for (int c = 0; c < 3; ++c) ii[c] = df.Take<ROOT::RVecI>(ini_i[c]);
       for (int c = 0; c < 8; ++c) id[c] = df.Take<ROOT::RVecD>(ini_d[c]);
     }
+    // the scatterings (scat_*) and the extras' initiators (xini_*), jagged
+    const bool has_scat = df.HasColumn("scat_pthat"), has_xini = df.HasColumn("xini_px");
+    std::optional<ROOT::RDF::RResultPtr<std::vector<ROOT::RVecI>>> si[3], xi[4];
+    std::optional<ROOT::RDF::RResultPtr<std::vector<ROOT::RVecD>>> sd[5], xd[8];
+    static const char *scat_i[3] = {"scat_scatter", "scat_code", "scat_n_partons"};
+    static const char *scat_d[5] = {"scat_pthat", "scat_x", "scat_y", "scat_E", "scat_pt"};
+    static const char *xini_i[4] = {"xini_shower", "xini_pid", "xini_pstat", "xini_scatter"};
+    static const char *xini_d[8] = {"xini_px", "xini_py", "xini_pz", "xini_E",
+                                    "xini_x",  "xini_y",  "xini_z",  "xini_t"};
+    if (has_scat) {
+      for (int c = 0; c < 3; ++c) si[c] = df.Take<ROOT::RVecI>(scat_i[c]);
+      for (int c = 0; c < 5; ++c) sd[c] = df.Take<ROOT::RVecD>(scat_d[c]);
+    }
+    if (has_xini) {
+      for (int c = 0; c < 4; ++c) xi[c] = df.Take<ROOT::RVecI>(xini_i[c]);
+      for (int c = 0; c < 8; ++c) xd[c] = df.Take<ROOT::RVecD>(xini_d[c]);
+    }
     auto get = [](std::optional<IntCol> &c, size_t i, int dflt) {
       return c ? (**c)[i] : dflt;
     };
@@ -699,6 +806,34 @@ class HadronFileReader {
       e.n_cells_bg = get(ncb, i, -1);
       e.n_coll = get(n_coll, i, -1);
       e.vacuum = vacuum;
+      e.has_extras = has_extras;
+      e.n_samples_extra = get(nsx, i, 0);
+      e.n_extra = get(n_extra, i, -1);
+      if (xc.count("extra_mu")) e.extra_mu = xc["extra_mu"][i];
+      if (xc.count("extra_E")) e.extra_E = xc["extra_E"][i];
+      if (xc.count("extra_pt")) e.extra_pt = xc["extra_pt"][i];
+      if (has_scat) {
+        const size_t n = (**si[0])[i].size();
+        e.scatterings.resize(n);
+        for (size_t j = 0; j < n; ++j) {
+          Scattering &s = e.scatterings[j];
+          s.scatter = (**si[0])[i][j]; s.code = (**si[1])[i][j]; s.n_partons = (**si[2])[i][j];
+          s.pthat = (**sd[0])[i][j]; s.x = (**sd[1])[i][j]; s.y = (**sd[2])[i][j];
+          s.E = (**sd[3])[i][j];     s.pt = (**sd[4])[i][j];
+        }
+      }
+      if (has_xini) {
+        const size_t n = (**xi[0])[i].size();
+        e.extra_initiators.resize(n);
+        for (size_t j = 0; j < n; ++j) {
+          Initiator &p = e.extra_initiators[j];
+          p.shower = (**xi[0])[i][j]; p.pid = (**xi[1])[i][j]; p.pstat = (**xi[2])[i][j];
+          p.scatter = (**xi[3])[i][j];
+          p.px = (**xd[0])[i][j]; p.py = (**xd[1])[i][j]; p.pz = (**xd[2])[i][j];
+          p.E = (**xd[3])[i][j];  p.x = (**xd[4])[i][j];  p.y = (**xd[5])[i][j];
+          p.z = (**xd[6])[i][j];  p.t = (**xd[7])[i][j];
+        }
+      }
       if (has_z && std::isfinite(zc["z_pt"][i])) {
         ZRecord &z = e.z;
         z.valid = true;
@@ -763,8 +898,9 @@ class HadronFileReader {
   std::string sigma_source_;
   std::vector<long> n_window_;
   std::vector<double> weight_mb_;
-  std::vector<std::array<detail::Tag, 3>> tags_;
+  std::vector<std::array<detail::Tag, kNTags>> tags_;
   Filter keep_;
+  bool extras_ = true;
 };
 
 }  // namespace hadrons_root

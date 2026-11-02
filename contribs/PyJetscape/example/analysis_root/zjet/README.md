@@ -1,5 +1,10 @@
 # analysis_root/zjet — the Z+jet analyses in ROOT
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](../../../../../docs/README_analysis.md).
+
 The map steps of the two Z+jet analyses in C++, on the ROOT files of
 [`run_h5toROOT.py`](../../prod_AuAu_0_10_jet/run_h5toROOT.py):
 
@@ -8,6 +13,14 @@ The map steps of the two Z+jet analyses in C++, on the ROOT files of
   frame and one oversample's tracks; per hydro background the summed densities).
 - **Z+jet** (CMS 1702.01060): `zjets` clusters every oversample of every Z event with FastJet,
   ρA-subtracted in Pb+Pb, with an embedding check and random cones.
+
+With **extra hard scatterings** (an `extra_frag` ntuple) all three map steps take them into the
+full event by default and keep the trigger's truth as it is; `zjets` also writes B's jets per
+oversample (`bgx_*`: `bulk_bg` + the event's extras, the final stage's B_own and B_mixed),
+`zhadron_pools` the extras' lab density (`pool_bgw` `R_extra`), `zqa` their histograms and
+multiplicity. `--extras 0` leaves them out: the outputs of files without extras
+([`../../analysis/zjet/ANA_Zjet.md`](../../analysis/zjet/ANA_Zjet.md),
+[`ANA_Zhadron.md`](../../analysis/zjet/ANA_Zhadron.md), *Extra hard scatterings*).
 
 The **final stage is shared** with the Python map steps: `../../analysis/zjet/mix.py`
 (event mixing, HEPData, χ², jackknife, figures) and `zjet_jets.py` (selection, the optional

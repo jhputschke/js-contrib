@@ -1,5 +1,10 @@
 # ROOT and C++
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 Most analyses in the field are written in ROOT. This page shows how to turn a hadronized
 campaign into ROOT files, read them with or without ROOT (uproot, RDataFrame), loop over events
 in C++ with the header-only `HadronFileReader.h`, cluster jets with FastJet's C++ library, and run
@@ -48,7 +53,7 @@ python run_h5toROOT.py /data/c00/gpu0 /data/c00/gpu1 -j 8 --out-dir /data/root/c
 | `--writer {auto,root,uproot}` | `auto`: ROOT if PyROOT imports (16–24 % smaller files), else uproot |
 | `--out-dir DIR` | where the ROOT files go (default: next to the inputs) |
 | `--no-x`, `--charged`, `--eta-max X` | leave out positions (40 % of the bytes), neutral hadrons, \(|\eta| \ge X\) |
-| `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag` |
+| `--tags` | a subset of `bulk_jet,bulk_bg,jet_frag,extra_frag` (default: all a file has; `extra_frag` only with extra hard scatterings) |
 | `--campaign-file NAME` / `none` | the campaign file's name, or none |
 | `--force` | redo files already converted |
 
@@ -70,7 +75,8 @@ python root_export/check_h5_vs_root.py /path/to/campaign /path/to/root --campaig
 | object | one entry per | content |
 |---|---|---|
 | `bulk_jet`, `bulk_bg`, `jet_frag` | oversample | `event`, `unit`, `sample`, `bg_unit`, `n`, `pid[n]`, `pstat[n]`, `E/px/py/pz[n]` (GeV), `t/x/y/z[n]` (fm; not with `--no-x`) |
-| `events` | event | the particlize file's `events/`, `sigma_file_mb`, `n_samples_*`, `seed_*`, the initiators `ini_*[...]` |
+| `extra_frag` | fragmentation | with extra hard scatterings only: the fragments of the event's other hard scatterings, the same layout. A minimum-bias file (`--hard none`) has no `jet_frag` |
+| `events` | event | the particlize file's `events/`, `sigma_file_mb`, `n_samples_*`, `seed_*`, the initiators `ini_*[...]`; with extra hard scatterings also `n_extra`, `extra_mu`, `extra_E`, `extra_pt`, `n_samples_extra`, `seed_extra`, the scatterings `scat_*[...]` (the trigger's first) and the extras' initiators `xini_*[...]` |
 | `windows` | pT̂ window | `pthat_lo/hi`, this file's `sigma_mb`, `sigma_err_mb`, `acceptance`, counts |
 | `provenance` | – | JSON: every setting, seed, XML and EoS behind the file |
 
@@ -150,7 +156,9 @@ ntuples and returns their hadrons as `std::vector<Hadron>`:
 | `r.bkg(e, k)` | the background (MUSIC_1): sample k of the background event e used |
 | `r.bkg_dep(e, k)` | the jet leg (MUSIC_2): background + deposition |
 | `r.bkg_dep_frag(e, k)` | the whole jet event: `bkg_dep(e, k)` + fragmentation k mod `n_frag(e)` |
-| `r.frag(e, j)` | fragmentation j of the surviving partons |
+| `r.frag(e, j)` | fragmentation j of the surviving partons (with extra hard scatterings: the trigger's) |
+| `r.extra(e, j)` | fragmentation j of the event's extra hard scatterings (files with extras only) |
+| `r.bkg_extra(e, k)` | B, the event without its trigger: `bkg(e, k)` + the extras' fragmentation k mod `n_extra_frag(e)` |
 
 ```cpp
 #include "HadronFileReader.h"
@@ -179,6 +187,13 @@ for (long e : r.select_events()) {          // hadronized events, flagged ones l
   `bkg_dep(e, k)` with `bkg(e, k)`.
 - **Cross sections:** `sigma_mb(k)`, `weight_mb(k)` come from the campaign file, or are combined
   from the files' `windows` tables when there is none.
+- **Extra hard scatterings** ([Extra hard scatterings](../run/extra-hard.md)): they belong to
+  the event, so `bkg_dep_frag(e, k)` adds the extras' fragmentation (`Hadron::origin` 2,
+  `kExtra`) whenever the file has them. `r.set_extras(false)`, or
+  `bkg_dep_frag(e, k, j, false)`, reads every event as without them; `has_extras(file)`,
+  `with_extras(e)`. `EventInfo` gains `n_extra`, `extra_mu`, `extra_E`, `extra_pt`,
+  `scatterings` and `extra_initiators` (`initiators` stay the trigger's). A minimum-bias file
+  has no `jet_frag`: its full event is `bulk_jet` + `extra_frag`.
 - **PyROOT:** `ROOT.gInterpreter.Declare('#include "/path/HadronFileReader.h"')`, then
   `ROOT.hadrons_root.HadronFileReader(...)`.
 - **Speed:** the whole jet event of every oversample of one event with 500 oversamples (3.5 M
@@ -198,7 +213,7 @@ root -l -b -q 'hadron_distributions.C+("/path/to/campaign", -1, false, true, 1.0
 |---|---|
 | `read_hadrons.C` | the reader by example: pT spectra and Δφ to the leading initiator, per source (`bkg`, `bkgdep`, `full`, `frag`) and for the wake (`bkgdep − bkg`). Arguments: `dir, window = -1, xsec = false, eta_cut = 1.0, out, max_samples = -1` |
 | `read_hadrons.ipynb` | the same, one step per cell, in ROOT's C++ notebook kernel (`HADRON_DIR`, `HADRON_OUT`, `MAX_SAMPLES`); needs `pip install metakernel` in the env |
-| `hadron_distributions.C` | η, φ, pT of every source and of the wake, with RDataFrame, multithreaded. Arguments: `dir, window = -1, xsec = false, charged = true, eta_cut = 1.0, out, threads = 1, keep_flagged = false` |
+| `hadron_distributions.C` | η, φ, pT of every source and of the wake, with RDataFrame, multithreaded; with extra hard scatterings a source `extra`, and `full` includes it. Arguments: `dir, window = -1, xsec = false, charged = true, eta_cut = 1.0, out, threads = 1, keep_flagged = false, extras = true` |
 
 `hadron_distributions.C` reproduces `HadronFileReader.hist` / `jet_minus_background` on the HDF5
 files bin for bin: a 285-event campaign takes 21 s with 8 threads, against ~6 min in Python. Its
@@ -329,6 +344,12 @@ cd ../../analysis/zjet
 python zjet_jets.py --pbpb $ANA/jets_cxx/pbpb --pp $ANA/jets_cxx/pp --outdir $ANA/figures --tag _c00_cxx
 python check_cxx.py jets $ANA/jets_py/pbpb $ANA/jets_cxx/pbpb | tail -1      # against the Python map step
 ```
+
+With extra hard scatterings all three take them into the full event by default and keep the
+trigger's truth as it is; `zjets` also writes B's jets per oversample (`bgx_*`: `bulk_bg` + the
+event's extras), `zhadron_pools` the extras' density (`R_extra`), `zqa` their histograms.
+`--extras 0` gives the outputs of files without extras
+([Jets with FastJet](jets.md#with-the-events-other-hard-scatterings)).
 
 `zjets` took 0.12 s per Pb+Pb oversample on the test set, at ~0.35 GB per process. `make FASTJET_PY=<the
 fastjet wheel's package directory>` builds against the pip `fastjet` wheel instead of a system

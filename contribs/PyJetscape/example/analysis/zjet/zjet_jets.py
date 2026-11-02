@@ -40,6 +40,11 @@ without the wake is what the wake does to the observables, with the jackknife of
 difference (the two share their events) -> figures/zjet_jets_wake{tag}.png.  Step 1 and the
 'no wake' rows use the oversamples that have the embedded event (the map step's --emb-samples
 N: the first N; default all), each 1 / min(n_samples, N) of its event.
+Extra hard scatterings (map outputs with bgx_*, docs/Plans/PLAN_multi_hard.md): S holds the
+extras' jets, so B is the bulk with the event's extras, bulk_bg + extra_frag (the map step's
+per-sample bgx: the extras are drawn per jet event): B_own is the row's own bgx, B_mixed the
+bgx rows of the Z events of the --n-nearest other backgrounds; without bgx (no extras, or
+mapped with --no-extras) B is bulk_bg alone (bg_jets), as before.
 Steps 2 and 3 in four smearing variants (CMS's smearing being optional): none; detector (C, S
 of PbPb: the model's own fluctuations stand for N); full (C, S, N: counts them twice); match
 (C, S and sqrt(N^2 - sigma_RC^2), sigma_RC the random cones' width).  pp (every step's top
@@ -83,7 +88,7 @@ def _flat_tree(t):
     """A tree's arrays with the Python map step's records flattened (jet -> jet_pt, ...)."""
     out = {}
     for k in t.fields:
-        if k in ("njet", "nnw", "nemb", "nrc"):
+        if k in ("njet", "nnw", "nemb", "nrc", "nbgx"):
             continue
         x = t[k]
         if x.fields:
@@ -584,18 +589,26 @@ def main():
     lines.append(f"Pb+Pb: {int(selb.sum())} Z's of {len(selb)} on {n_bg} hydro background(s) in "
                  f"{" ".join(a.pbpb)}" + ("" if n_bg >= 2 else
                                 " (jackknife over events: errors underestimated)"))
-    # B_own: the Z's own background, sample k of bulk_bg against sample k of the event
+    # B_own: the Z's own background, sample k of bulk_bg against sample k of the event; with
+    # extra hard scatterings bulk_bg k + the event's extras (the map step's bgx, per row)
     B_own = B_mix = None
-    if Bb:
-        bmap = {(int(b), int(k)): i for i, (b, k) in enumerate(zip(Bb["bg"], Bb["sample"]))}
-        own = np.array([bmap.get((int(Eb["bg"][e_]), int(k)), -1)
-                        for e_, k in zip(ev, Jb["sample"])])
-        ok = own >= 0
-        B_own = flatten_rows(Eb, Bb, "jet", own[ok], w_row[ok], ev[ok])
+    xtra = "bgx_pt" in Jb
+    if Bb or xtra:
+        if xtra:
+            B_own = flatten_rows(Eb, Jb, "bgx", rows, w_row, ev)
+            T, row_bg = Jb, Eb["bg"][ev]            # B_mixed from other Z events' bgx rows
+            lines.append("B (steps 2, 3): bulk_bg + the events' extra hard scatterings (bgx)")
+        else:
+            bmap = {(int(b), int(k)): i for i, (b, k) in enumerate(zip(Bb["bg"], Bb["sample"]))}
+            own = np.array([bmap.get((int(Eb["bg"][e_]), int(k)), -1)
+                            for e_, k in zip(ev, Jb["sample"])])
+            ok = own >= 0
+            B_own = flatten_rows(Eb, Bb, "jet", own[ok], w_row[ok], ev[ok])
+            T, row_bg = Bb, Bb["bg"]
         # B_mixed: per Z event n_mixed bulk_bg samples of the n_nearest other backgrounds
-        bgs, first = np.unique(Bb["bg"], return_index=True)
-        ncoll_bg = Bb["n_coll"][first].astype(float)
-        by_bg = {int(b): np.flatnonzero(Bb["bg"] == b) for b in bgs}
+        bgs, first = np.unique(row_bg, return_index=True)
+        ncoll_bg = (Eb["n_coll"][ev[first]] if xtra else Bb["n_coll"][first]).astype(float)
+        by_bg = {int(b): np.flatnonzero(row_bg == b) for b in bgs}
         mrows, mev, mw = [], [], []
         for e_ in np.flatnonzero(selb):
             others = bgs != Eb["bg"][e_]
@@ -612,10 +625,11 @@ def main():
             mrows, mev = np.concatenate(mrows), np.concatenate(mev)
             turn = None
             if a.rotate:
-                angle = background_angles(np.concatenate([Bb["bg"], Eb["bg"]]),
+                angle = background_angles(np.concatenate([row_bg, Eb["bg"]]),
                                           rotation_seed(a.seed, a.rotate_seed))
-                turn = angle(Bb["bg"][mrows]) - angle(Eb["bg"][mev])
-            B_mix = flatten_rows(Eb, Bb, "jet", mrows, np.concatenate(mw), mev, turn)
+                turn = angle(row_bg[mrows]) - angle(Eb["bg"][mev])
+            B_mix = flatten_rows(Eb, T, "bgx" if xtra else "jet", mrows, np.concatenate(mw),
+                                 mev, turn)
             if not a.rotate:
                 how = "as produced (--no-rotate): event planes all near phi = 0"
             elif a.rotate_seed is not None:
@@ -668,7 +682,8 @@ def main():
                          f"p_T^Z classes: {np.round(r, 3).tolist()}; S alone R_jZ "
                          f"{np.round(s_only[0]['rjz'], 3).tolist()}")
     # the embedding and the random cones
-    lines.append(f"random cones (bulk_bg, R = {R:g}, |eta| < 1.6): {len(rc)}, delta p_T mean "
+    lines.append(f"random cones (bulk_bg{' + extras' if xtra else ''}, R = {R:g}, |eta| < 1.6): "
+                 f"{len(rc)}, delta p_T mean "
                  f"{np.mean(rc) if len(rc) else np.nan:+.2f} GeV, sigma_RC {sig_rc:.2f} GeV "
                  f"(CMS's PbPb N {N:.2f} GeV; 'match' smears with sqrt(N^2 - sigma_RC^2) = "
                  f"{np.sqrt(max(N ** 2 - sig_rc ** 2, 0)):.2f} GeV)")
@@ -692,6 +707,10 @@ def main():
     titles = {1: "step 1, the reference: the fragments' jets (no background, no medium response)",
               2: "step 2: S − B_own (the Z's own background, the model's twin)",
               3: "step 3: S − B_mixed (bulk_bg of the backgrounds closest in N_coll, as CMS)"}
+    if xtra:                                       # B with the events' extra scatterings
+        titles[2] = "step 2: S − B_own (the Z's own background + its extra scatterings)"
+        titles[3] = ("step 3: S − B_mixed (bulk_bg + extra scatterings of the backgrounds "
+                     "closest in N_coll)")
     os.makedirs(a.outdir, exist_ok=True)
     if cms_ok:
         pp_figure(a, res, xs, lines, plt)
@@ -739,8 +758,8 @@ def main():
         if B_mix is not None:
             nowake["S − B_mixed, none, no wake"] = result(NW_flat, B_mix, "none")
         wake = diff_with_errors(c_s, c_nw, groups, a.blocks)
-        lines.append("Without the wake: steps 2 and 3 on the embedded event (bulk_bg k + the same "
-                     "fragments), unsmeared")
+        lines.append("Without the wake: steps 2 and 3 on the embedded event (bulk_bg k "
+                     + ("+ the extras " if xtra else "") + "+ the same fragments), unsmeared")
         fw, aw = figdata.subplots(2, 4, figsize=(20, 8.5))
         for col, obs in enumerate(OBS):
             ti = TABLES[obs][1]

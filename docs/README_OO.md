@@ -7,6 +7,11 @@ and in ROOT. Running the production is in the folder's README and
 [`README_2stage.md`](README_2stage.md) §8; the environments, threads and FastJet installation
 are in [`README_analysis.md`](README_analysis.md) §2.
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](README_analysis.md).
+
 **Contents**
 1. [What an O+O event is](#1-what-an-oo-event-is)
 2. [The files](#2-the-files)

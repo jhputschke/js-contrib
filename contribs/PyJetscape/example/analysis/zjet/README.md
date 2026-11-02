@@ -7,6 +7,11 @@ correlations against CMS 2507.09307 and Z+jet against CMS 1702.01060, from the h
 step: [`ANA_Zhadron.md`](ANA_Zhadron.md) (QA, the pools, event mixing, the ROOT route) and
 [`ANA_Zjet.md`](ANA_Zjet.md) (the jets).
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](../../../../../docs/README_analysis.md).
+
 ## Layout
 
 ```

@@ -28,7 +28,10 @@ hemisphere or the other, reflected to eta_jet2 > 0.
 The contents (Pb+Pb; pp: F and O):  T  wake + fragments (Y_zc), the truth;  W  the wake
 (Y_zc - Y_frag);  F  the full event, 40 samples (Y_full);  O  one oversample (Y_one);  N  the
 no-wake twin, bulk_bg + the same fragments (Y_full - Y_zc + Y_frag);  B  the bulk alone
-(Y_full - Y_zc).  The observable (CMS): near side per trigger per unit Delta y, divided by the
+(Y_full - Y_zc).  With extra hard scatterings (extra_frag, docs/Plans/PLAN_multi_hard.md) the
+map step's jets and the pools' F, O, N and B include them (B = bulk_bg + extra_frag) and T, W
+do not: jet2's fakes then count the extras' jets (ANA_Deta.md; the map steps' --no-extras /
+--extras 0 leave them out).  The observable (CMS): near side per trigger per unit Delta y, divided by the
 mixed event (the triggers' rapidities folded with the pooled lab density of the sample's full
 events within --mix-classes classes of the backgrounds' N_coll, as CMS mixes within 0.5 % of
 centrality: the bulk's eta shape changes with centrality; T and W with the geometric

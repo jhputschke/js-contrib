@@ -10,12 +10,21 @@ production files in hand, your own or downloaded, and want physics out of them.
 None of the analysis needs X-SCAPE, a GPU or the production container. Everything on these
 pages runs in a plain Python environment; ROOT is needed only for the C++ route.
 
+!!! warning "Work in progress: examples, not vetted physics results"
+    The physics analysis scripts, notebooks and their implementations in this section (spectra,
+    jets and jet-hadron correlations, the wake observables, bulk and flow observables such as
+    vₙ{2} and v₂(p_T), the O+O and Z+jet analyses) are work in progress and need further vetting:
+    definitions, corrections, centrality selection and the comparisons with published data have
+    not been checked to the standard of a publication. They are meant mainly as **examples of
+    how to use the simulation outputs** for an analysis. Validate any result, against the
+    experiments' exact procedures and against independent code, before you rely on it.
+
 ```mermaid
 flowchart LR
   P["production job<br/>(GPU)"] --> PAIR["stem.h5<br/>hydro pair"]
   P --> PART["stem_particlize.h5<br/>surfaces, partons"]
   PART --> HAD["hadronize.py<br/>(CPU)"]
-  HAD --> H["stem_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5"]
+  HAD --> H["stem_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5<br/>(+ extra_frag with --extra-hard)"]
   H --> ROOT["run_h5toROOT.py"] --> R["stem_hadrons.root<br/>campaign_campaign.root"]
   PAIR --> A1["h5py, wake_observables.py,<br/>jet_wake.ipynb"]
   H --> A2["HadronFileReader,<br/>FastJet, notebooks"]
@@ -76,7 +85,8 @@ plt.savefig("pt_spectrum.png")
 
 `hist` returns, per bin, the count per event (each event first averaged over its own
 oversamples, then over the events) and its error. Replace `"bulk_bg"` with `"bulk_jet"` for
-the events with the jet's wake, or `"jet_frag"` for the jet's own hadrons.
+the events with the jet's wake, `"jet_frag"` for the jet's own hadrons, or `"extra_frag"` for
+the fragments of the event's other hard scatterings (productions with `--extra-hard`).
 [Hadrons](hadrons.md) explains all of it.
 
 ## 4. The pages of this section
@@ -88,6 +98,7 @@ the events with the jet's wake, or `"jet_frag"` for the jet's own hadrons.
 | [Jets with FastJet](jets.md) | the jet conventions, the classic and the awkward interface, areas and ρ subtraction, embedding, and the Z+jet, Z+hadron and dijet Δη analyses as worked examples |
 | [Hydro and hadrons together](hydro-hadrons.md) | the background/jet hydro pair, the wake in the fluid and in hadrons, matching hadron files to pair events, `jet_wake.ipynb`, and hadrons from the stored hydro history |
 | [O+O](oo.md) | the O+O event record, cross-section and Ncoll weights, multiplicity, centrality, flow from oversamples, jets |
+| [Bulk and flow](bulk.md) | Nch, [pT] and its fluctuation, vₙ{2} with an η gap, per N_coll class, and the paired difference to the background: what the extra hard scatterings and the wakes do to the bulk |
 | [ROOT and C++](root.md) | `run_h5toROOT.py`, uproot, RDataFrame, `HadronFileReader.h`, FastJet in C++, the ROOT Z+jet map steps |
 | [Notebooks](notebooks.md) | every analysis notebook, its input, its environment |
 

@@ -16,7 +16,9 @@ CPUs; analysis and ROOT export): [`README_2stage.md`](README_2stage.md).
 
 **Analysing the files** (environments, reading hydro, particlize and hadron files, FastJet in
 Python and in ROOT, the ROOT export, the notebooks): [`README_analysis.md`](README_analysis.md);
-for the O+O production, [`README_OO.md`](README_OO.md). The scripts behind their tested code:
+for the O+O production, [`README_OO.md`](README_OO.md); for the event's other hard
+scatterings (`--extra-hard`, minimum bias, O+O / Ne+Ne at 5.36 TeV) and the bulk and flow
+tools, [`README_extra_hard.md`](README_extra_hard.md). The scripts behind their tested code:
 [`analysis_snippets/`](analysis_snippets/README.md); the Pb+Pb 5.02 TeV input files of
 README_2stage §9 are with all the productions' XMLs and grid YAMLs in
 [`contribs/PyJetscape/example/config/`](../contribs/PyJetscape/example/config/).

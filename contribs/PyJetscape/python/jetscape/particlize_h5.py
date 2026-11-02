@@ -53,6 +53,14 @@ Layout
                                            n_showers, plus whatever the driver passes
                                            (droplet energies, MUSIC tau0, seeds ...)
 
+With the event's other hard scatterings (``extra_hard=True``, PythiaGun's <extraHard>;
+docs/Plans/PLAN_multi_hard.md)::
+
+    initiators/scatter   (J,) int32        the hard scattering of each initiator (0 the
+                                           trigger, 1, 2, ... the extras), so of each shower
+    scatterings/data     (S, 8) float64    SCATTER_COLUMNS: one row per hard scattering
+    scatterings/offsets  (nevents + 1,)    (the trigger's first, unless there is none)
+
 An event whose surface is empty (e.g. MUSIC stopped at the grid boundary) is an empty unit,
 never a missing one; ``events/n_cells_jet`` says so.
 
@@ -83,7 +91,8 @@ from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
 from .showers import INITIATOR_COLUMNS, initiators_from_manager
 
 __all__ = ["FORMAT", "FORMAT_VERSION", "SURFACE_COLUMNS", "FINAL_PARTON_COLUMNS",
-           "INITIATOR_COLUMNS", "ParticlizeH5Writer", "ParticlizeFile",
+           "INITIATOR_COLUMNS", "SCATTER_COLUMNS", "ParticlizeH5Writer", "ParticlizeFile",
+           "split_by_scatter",
            "add_initiators_from_pair"]
 
 FORMAT = "xscape/particlize_input"
@@ -96,6 +105,13 @@ SURFACE_COLUMNS = (
     "tau", "x", "y", "eta", "ds0", "ds1", "ds2", "ds3", "u0", "u1", "u2", "u3",
     "e", "T", "P", "nB", "nQ", "nS", "muB", "muQ", "muS",
     "pi00", "pi01", "pi02", "pi03", "pi11", "pi12", "pi13", "pi22", "pi23", "pi33", "Pi")
+
+#: columns of a ``scatterings/`` row (one hard scattering); mirrors
+#: pyjetscape_core.SCATTER_COLUMNS
+SCATTER_COLUMNS = ("scatter", "pthat", "code", "x", "y", "n_partons", "E", "pt")
+SCATTER_UNITS = ("scatter: 0 the triggering scattering, 1, 2, ... the extras; pthat, E, pt "
+                 "[GeV] (E, pt: the summed energy and scalar pT of the partons handed "
+                 "over); code: Pythia's process code; x, y [fm]: the binary collision")
 
 #: columns of a final-parton row; mirrors pyjetscape_core.FINAL_PARTON_COLUMNS
 FINAL_PARTON_COLUMNS = ("shower", "pid", "pstat", "E", "px", "py", "pz",
@@ -149,13 +165,20 @@ class ParticlizeH5Writer:
         Overwrite an existing file.
     sink : callable, optional
         No file: each event's record goes to ``sink(record)`` (see the module docstring).
+    extra_hard : bool
+        The events have other hard scatterings (PythiaGun's <extraHard>): store
+        ``scatterings/`` and ``initiators/scatter`` (:meth:`Exec`'s ``scatterings`` and
+        ``shower_scatter``).
     """
 
     def __init__(self, out_file_name="particlize.h5", *, legs=("jet", "bg"),
                  store_partons=True, bg_id="MUSIC_1", jet_id="MUSIC_2",
                  compression=DEFAULT_COMPRESSION, music_input=None, T_fo=None,
-                 pair_file=None, extra_attrs=None, force=True, verbose=False, sink=None):
+                 pair_file=None, extra_attrs=None, force=True, verbose=False, sink=None,
+                 extra_hard=False):
         self._sink = sink
+        self._extra_hard = bool(extra_hard)
+        self._scat = None
         self._path = None if sink is not None else str(out_file_name)
         self._legs = tuple(leg for leg in ("jet", "bg") if leg in set(legs))
         unknown = set(legs) - {"jet", "bg"}
@@ -284,17 +307,27 @@ class ParticlizeH5Writer:
                 compression="gzip", chunk_rows=16384)
             g.attrs["data_columns"] = list(FINAL_PARTON_COLUMNS)
             g = self.f.require_group("initiators")
-            self._initiators = RaggedGroup(g, "offsets", {
-                "data": (np.float64, (len(INITIATOR_COLUMNS),))},
-                compression="gzip", chunk_rows=1024)
+            fields = {"data": (np.float64, (len(INITIATOR_COLUMNS),))}
+            if self._extra_hard:
+                fields["scatter"] = (np.int32, ())
+            self._initiators = RaggedGroup(g, "offsets", fields, compression="gzip",
+                                           chunk_rows=1024)
             g.attrs["data_columns"] = list(INITIATOR_COLUMNS)
             g.attrs["source"] = ("JetEnergyLossManager shower-initiating partons "
                                  "(jetscape.showers.initiators_from_manager), the rows of "
                                  "the pair file's shower/initiators")
+        if self._extra_hard:
+            g = self.f.require_group("scatterings")
+            self._scat = RaggedGroup(g, "offsets", {
+                "data": (np.float64, (len(SCATTER_COLUMNS),))}, compression="gzip",
+                chunk_rows=1024)
+            g.attrs["data_columns"] = list(SCATTER_COLUMNS)
+            g.attrs["units"] = SCATTER_UNITS
         self._events = _ScalarTable(self.f.require_group("events"))
 
     # ── per event ───────────────────────────────────────────────────────────────
-    def Exec(self, i=None, *, bg_id=None, bg_key=None, **diag):
+    def Exec(self, i=None, *, bg_id=None, bg_key=None, scatterings=None,
+             shower_scatter=None, **diag):
         """Store this event.  Returns its index.
 
         ``i`` is the event's index in the pair file (default: the running count; the two
@@ -302,13 +335,16 @@ class ParticlizeH5Writer:
         ``bg_id`` names the background: the first event that used it (the pair writer's
         ``diag/bg_id``).  A new value stores the background surface; a repeated one (an
         event reusing its background) only records the reference.  Without a pair writer
-        pass ``bg_id=i``.  Extra keywords go to ``events/``.
+        pass ``bg_id=i``.  Extra keywords go to ``events/``.  With ``extra_hard``:
+        ``scatterings`` the event's (S, 8) rows (SCATTER_COLUMNS) and ``shower_scatter`` the
+        hard scattering of each shower (indexed by the shower index; extra_hard_info's
+        parton_scatter).
         """
         if self.f is None and not self.attrs:
             raise RuntimeError("ParticlizeH5Writer: call attach() after JetScape.Init()")
         sink = self._sink is not None
         rec = {"event": self._i, "jet": None, "bg": None, "bg_unit": None, "partons": None,
-               "initiators": None}
+               "initiators": None, "initiator_scatter": None, "scatterings": None}
         k = self._i
         if i is not None and int(i) != k:
             raise ValueError(f"ParticlizeH5Writer: event index {i} but {k} events written; "
@@ -364,11 +400,30 @@ class ParticlizeH5Writer:
                     warnings.warn(f"ParticlizeH5Writer: event {k}: shower initiators not "
                                   f"captured ({exc}); stored as an empty unit",
                                   RuntimeWarning, stacklevel=2)
+            ini = np.asarray(ini, dtype=np.float64).reshape(-1, len(INITIATOR_COLUMNS))
+            iscat = None
+            if self._extra_hard:
+                ss = np.asarray([] if shower_scatter is None else shower_scatter, np.int64)
+                sh = ini[:, 0].astype(np.int64)
+                if len(sh) and (sh.max() >= len(ss)):
+                    raise ValueError(f"ParticlizeH5Writer: event {k}: shower_scatter has "
+                                     f"{len(ss)} entries, the initiators reach shower "
+                                     f"{sh.max()}")
+                iscat = ss[sh].astype(np.int32)
             if sink:
-                rec["initiators"] = np.asarray(ini, dtype=np.float64).reshape(
-                    -1, len(INITIATOR_COLUMNS))
+                rec["initiators"] = ini
+                rec["initiator_scatter"] = iscat
             else:
-                self._initiators.append({"data": ini})
+                self._initiators.append({"data": ini} if iscat is None
+                                        else {"data": ini, "scatter": iscat})
+        if self._extra_hard:
+            sc = np.asarray(np.zeros((0, len(SCATTER_COLUMNS))) if scatterings is None
+                            else scatterings, dtype=np.float64).reshape(
+                -1, len(SCATTER_COLUMNS))
+            if sink:
+                rec["scatterings"] = sc
+            else:
+                self._scat.append({"data": sc})
         if bg_key is not None:
             row["bg_key"] = str(bg_key)
         row.update(diag)
@@ -509,11 +564,52 @@ class ParticlizeFile:
             return None
         return self.f["initiators/data"][:], self.f["initiators/offsets"][: self.nevents + 1]
 
+    @property
+    def extra_hard(self):
+        """True if the events have other hard scatterings (``scatterings/``)."""
+        return "scatterings" in self.f
+
+    def initiator_scatter(self, event):
+        """The hard scattering of each of ``event``'s initiators (0 the trigger), aligned
+        with :meth:`initiators`; all 0 for a file without extras."""
+        if "initiators/scatter" not in self.f:
+            ini = self.initiators(event)
+            return np.zeros(0 if ini is None else len(ini), np.int32)
+        off = self.f["initiators/offsets"]
+        return self.f["initiators/scatter"][int(off[event]):int(off[event + 1])]
+
+    def scatterings(self, event):
+        """``event``'s hard scatterings, (S, 8) in SCATTER_COLUMNS order; None for a file
+        without extras."""
+        if not self.extra_hard:
+            return None
+        off = self.f["scatterings/offsets"]
+        return self.f["scatterings/data"][int(off[event]):int(off[event + 1])]
+
     def music_input(self):
         return str(self.attrs.get("music_input", ""))
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────────
+def split_by_scatter(partons, initiators, initiator_scatter):
+    """An event's final partons and initiators split into the triggering scattering's and
+    the extras': -> ((partons, initiators) of scatter 0, (partons, initiators, the
+    initiators' scatter) of scatter > 0).  A shower's scattering is its initiator's
+    (``initiator_scatter``, aligned with ``initiators``); the rows keep their order and
+    shower index, so the trigger's are exactly what an event without extras holds."""
+    partons = np.asarray(partons, dtype=np.float64).reshape(-1, len(FINAL_PARTON_COLUMNS))
+    ini = np.asarray(initiators, dtype=np.float64).reshape(-1, len(INITIATOR_COLUMNS))
+    iscat = np.asarray(initiator_scatter, dtype=np.int64).reshape(-1)
+    if len(iscat) != len(ini):
+        raise ValueError(f"split_by_scatter: {len(iscat)} scatter values for {len(ini)} "
+                         "initiators")
+    extra_showers = ini[iscat > 0, 0].astype(np.int64)
+    p_extra = np.isin(partons[:, 0].astype(np.int64), extra_showers)
+    i_extra = iscat > 0
+    return ((partons[~p_extra], ini[~i_extra]),
+            (partons[p_extra], ini[i_extra], iscat[i_extra]))
+
+
 def _get_flag(obj, name):
     get = getattr(obj, name, None)
     return bool(get()) if get is not None else False

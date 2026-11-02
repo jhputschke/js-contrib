@@ -206,6 +206,43 @@ Only one oversample's tracks are kept per event (all 40 would be ~40× the size)
 and the S histograms average over all 40. Size: ~0.4–0.6 MB per test file (compressed), ~1 MB
 per campaign file and ~100 MB per campaign (estimated), against the campaign's ~35 GB of hadrons.
 
+## Extra hard scatterings
+
+Productions with `run_prod_jet.py --extra-hard`
+([`docs/Plans/PLAN_multi_hard.md`](../../../../../docs/Plans/PLAN_multi_hard.md)) also have the
+event's other hard scatterings above p₀: their hadrons are in `<stem>_hadrons_extra_frag.h5`
+(ROOT: the `extra_frag` ntuple), `jet_frag` stays the trigger's. **The extras belong to the
+event, not to the trigger**, so with an `extra_frag` file both map steps (`mix.py`'s
+`zjet_mixing.file_pool`, `zhadron_pools`) take them by default:
+
+- **the full event** is `bulk_jet` + `jet_frag` + `extra_frag` (the extras' fragmentation k mod
+  their count with oversample k): `S_full`, `S_one` and its tracks `trk_*` (so a mixing partner
+  brings its extras along, as CMS's partner events bring theirs), `Y_full`, `Y_one`, `L_full`,
+  `R_full`;
+- **the Z-correlated yield stays the trigger's**, `bulk_jet` − `bulk_bg` + `jet_frag`: `S_zc`,
+  `Y_zc`, `L_zc`, `Y_frag`, `L_frag` do not change (the paired wake holds the extras' wakes,
+  which do not know the Z). B, the bulk alone (`Y_full − Y_zc`), becomes `bulk_bg` +
+  `extra_frag`, per event (the extras are drawn per jet event);
+- the pools gain **`bgw_R_extra`** (`pool_bgw`'s `R_extra`: the extras' lab density, summed per
+  hydro background and window), which `assemble` takes out of the Z-correlated density:
+  R_zc = R_full − W·RB − Σ w·ρ_extra. Step 1 (factorized) is therefore unchanged; steps 2–4
+  mix full events with their extras, whose part of S − B averages to zero (they do not know the
+  Z) and adds to the noise. Pools with and without the extras do not combine (`assemble`:
+  ValueError); `mix.py`'s manifest records them (`extras`), so switching rebuilds the pools.
+
+The QA (`qa.py map`, `zqa`) adds `extra_frag` as a source (`h_extra_frag_*`, `s_extra_frag_*`;
+the plot step draws it and puts it in the full event) and per Z event `nch05_extra`,
+`nch24_extra` (its charged multiplicity) and `n_extra`; `nch*_full` includes the extras,
+`nch*_bg` and `nch*_frag` stay `bulk_bg` and `jet_frag`. `wake_iso.py` keeps its contents (the
+wake, the fragments) and takes the extras into the measured event's noise (`nz*`).
+
+**The switch**: `mix.py --no-extras`, `qa.py map --no-extras`, `wake_iso.py map --no-extras`;
+`zhadron_pools --extras 0`, `zqa --extras 0`. Then the outputs are exactly those of files
+without extras, and files without `extra_frag` give the same outputs as before, bit for bit
+(checked 2026-10-30 on one Pb+Pb Z+jet event with and without extras; `check_cxx.py pools`/`qa`:
+0 differences with the extras on). Minimum-bias files (no trigger, no `jet_frag`, no Z) are
+refused (`zjet_wake.refuse_minimum_bias`).
+
 ## 1. Set up (once)
 
 ```bash

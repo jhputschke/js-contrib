@@ -5,6 +5,11 @@ question: **does the energy of the initial partons come back as surviving parton
 energy deposited in the medium?** §6 covers the parton- and hydro-level wake analysis, §7 the
 same at hadron level, §8 points to the ROOT analyses in [`../analysis_root`](../analysis_root/README.md).
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](../../../../docs/README_analysis.md).
+
 | file | what it is for | writes? |
 |---|---|---|
 | [`jet_edep_balance_check.py`](jet_edep_balance_check.py) | checks the balance and finds partons that are counted twice | no |
@@ -23,6 +28,7 @@ Z–hadron wake, CMS 2507.09307) and [`ANA_Zjet.md`](zjet/ANA_Zjet.md) (Z+jet, C
 | [`zjet/`](zjet/README.md) | the Z+jet campaign workflow (QA, map steps, event mixing, jets); `zjet/test/` the first test and the campaign set-up checks |
 | [`dijet/`](dijet/ANA_Deta.md) | the η-separated dijet analysis ([`PLAN_dijet_deta_wake.md`](../../../../docs/Plans/PLAN_dijet_deta_wake.md)), first with the Z as jet1: `deta.py`, step by step in `ANA_Deta.md` |
 | [`tutorials/`](tutorials/hadron_distributions.ipynb) | reading the hadron files by example: `hadron_distributions.ipynb`, `jet_fastjet.ipynb`, `jet_fastjet_awkward.ipynb` (all notebooks: [`../README.md`](../README.md#notebooks)) |
+| [`bulk/`](bulk/README.md) | the bulk observables per event and per class: Nch, [pT] and its fluctuation, vₙ{2} with an η gap, and the paired difference full event − background (the effect of the jets and the extra hard scatterings; [`PLAN_multi_hard.md`](../../../../docs/Plans/PLAN_multi_hard.md) §3.10): `bulk_obs.py` |
 | [`jetcorr/`](jetcorr/__init__.py) | what `zjet/` and `dijet/` share: run paths, portable random choices, event weights, jet finding, figure data (C++: `../analysis_root/common`) |
 | `runs/<run>/` | `data/` and `figures/` of each campaign or test set (git-ignored) |
 

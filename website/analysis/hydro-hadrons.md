@@ -1,5 +1,10 @@
 # Hydro and hadrons together
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 The Au+Au and Pb+Pb jet productions store each event twice in the fluid, with and without the
 jet, and both legs again at hadron level. This page shows how to use that: read a hydro pair and
 take the difference as the wake, follow the wake through a whole campaign, connect the hadron

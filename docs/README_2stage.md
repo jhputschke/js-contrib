@@ -1349,3 +1349,51 @@ SIF=$PWD/xscape_prod.sif CAMPAIGN=PbPb_c1 \
   `--oversample-bg auto`: `--mem` ~3 GB × P.
 - **Everything else** (seeds, restart, late time step, checks) is as for Au+Au. Hydro-only
   Pb+Pb (`prod_AuAu_0_10/run_prod.py`) takes the same `<IS>` changes in a copy of its XML.
+
+## 10. The event's other hard scatterings; small systems; minimum bias
+
+The full guide (settings, files, analyses, the bulk and flow tools): [`README_extra_hard.md`](README_extra_hard.md).
+
+A Pb+Pb collision has N_coll × σ(p̂T > p₀)/σ_NN hard scatterings: ~8 above 15 GeV in 0–30 %,
+~35 above 10 GeV. `--extra-hard` adds them to every jet event on top of the triggering one,
+showered in the jet leg (`prod_AuAu_0_10_jet/README.md` §G,
+[`Plans/PLAN_multi_hard.md`](Plans/PLAN_multi_hard.md)). Without the option nothing changes.
+Their threshold p₀ is in each XML (`<PythiaGun><extraHard><pTHatMin>`): 10 GeV for Au+Au, O+O
+and Ne+Ne, 15 GeV for Pb+Pb.
+
+```bash
+# inside the container, as in §2-§4: add the options to the stage-1 arguments
+./run_jobs.sh -j 4 --stagger 12 --campaign PbPb_x1 20 15 0 /work/PbPb_x1 \
+    --user-xml /xml/PbPb_0_30_ZJet.xml --grid /xml/grid_PbPb.yaml \
+    --pthat-bins 20-30,30-35,35-45,45-55,55-70,70-200 --jets-per-bin 4 \
+    --lepton-ptmin 20 --lepton-etamax 2.5 --extra-hard --hadrons-only
+```
+
+- **What you get:** `jet_frag` stays the trigger's alone (bit-identical to a run without
+  extras of the same seed), the extras' fragments are `<stem>_hadrons_extra_frag.h5`,
+  `bulk_jet` holds the wakes of all scatterings. `HadronFileReader` adds `extra_frag` to the
+  event by default ([`README_analysis.md`](README_analysis.md)). `hadronize.py` handles
+  particlize files with extras by itself.
+- **Small systems at the LHC:** `OO_5360_jet.xml` and `NeNe_5360_jet.xml` (in the image's
+  `example/config/`), with `grid_oo.yaml`: 0–10 % (b < 2.09 / 2.41 fm, ⟨N_coll⟩ 42 / 51),
+  `b_max` 20 for minimum bias. The bulk is the Pb+Pb file's, **untuned** for small systems
+  (two test events: dN_ch/dη(|η| < 0.5) ≈ 136 / 131, ⟨pT⟩ ≈ 0.59 / 0.65 GeV; compare with
+  ATLAS 2606.20257 before quoting numbers). ~1.5–1.8 extras per 0–10 % event above 10 GeV.
+  Name the files with `TAG_PREFIX=OO_5360_seed` / `NeNe_5360_seed` (as `PbPb_0_10_seed` in
+  §9); without it they are `AuAu_0_10_jet_*`.
+- **Minimum bias** (`--hard none --extra-hard`): no trigger, an event is the bulk and its
+  extras (N may be 0), weight 1. For the bulk observables (Nch, [pT], vₙ: `example/analysis/
+  bulk/`); `bulk_jet − bulk_bg` is then the extras' effect on them.
+- **Cost:** see the table below (Pb+Pb 0–10 %, GB10, `--hadrons-only`).
+
+| Pb+Pb 0–10 %, 3 events | extras per event | droplets | s per event | peak memory |
+|---|---|---|---|---|
+| extras off | — | 45 | 32.1 | 18.98 GB |
+| p₀ = 20 GeV | 2–6 (μ ≈ 5) | 195 | 34.5 (+8 %) | 19.04 GB |
+| p₀ = 15 GeV (Pb+Pb default) | 11–22 (μ ≈ 15) | 464 | 36.4 (+13 %) | 19.08 GB |
+| p₀ = 10 GeV | 56–71 (μ ≈ 66) | 1,300 | 45.6 (+42 %) | 19.16 GB |
+
+Measured 2026-10-30 on the GB10, one job alone, the same seed (the same three backgrounds),
+`--hadrons-only` (hadronization ~5 s per event either way). The time grows with the showers and
+with MUSIC_2's jet source (all cells × the active droplets, on the CPU); the warm-up for σ adds
+~1 s per job. Memory hardly changes.

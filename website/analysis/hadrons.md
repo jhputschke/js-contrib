@@ -1,12 +1,18 @@
 # Hadrons
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 This page shows how to read the hadron files of a whole campaign as one data set, fill
 histograms with the right per-event statistics, pull out single events, weight pT̂ windows by
 their cross sections, and spot bad runs. The tool for almost all of it is `HadronFileReader`
 from `jetscape.hadrons_h5`; lower-level readers and the Pythonic `HadronArray` are at the end,
 for when you need one file, one sample or awkward arrays. It applies to the Au+Au jet
-productions (two stages or hadrons-only jobs) and the Z+jet productions; O+O hadron files made in
-the job are read differently ([O+O](oo.md)).
+productions (two stages or hadrons-only jobs), the Z+jet productions and the productions with
+extra hard scatterings or minimum bias; O+O hadron files made in the job by the O+O with ISR
+production are read differently ([O+O](oo.md)).
 
 The file layout and what an event is: [What a production writes](files.md#4-hadron-files).
 
@@ -87,7 +93,8 @@ with HadronFileReader("/path/to/campaign") as r:
   `per_event=False` for the same single pass; the result is identical.
 - **`events=`** restricts any of them to a subset, e.g. one pT̂ window.
 - **`jet_minus_background`** uses only events whose jet leg *and* background have samples, each
-  against its own background. `fragments=True` adds the jet's own hadrons.
+  against its own background. `fragments=True` adds the jet's own hadrons, and the extra hard
+  scatterings' if the campaign has them (`extras=False` leaves those out).
 
 !!! note "Which error"
     For files hadronized with `--correlated`, `jet_minus_background` takes its error from the
@@ -149,6 +156,39 @@ with HadronFileReader("/path/to/campaign") as r:
 `jet_event(e, k)` pairs oversample k with fragmentation k mod `n_frag(e)`; `frag_sample=` picks
 another, `fragments=False` leaves them out. These are the inputs for jet finding
 ([Jets with FastJet](jets.md)).
+
+### The event's other hard scatterings
+
+Campaigns made with `--extra-hard` ([Extra hard scatterings](../run/extra-hard.md)) have a
+fourth tag, `extra_frag`: the fragments of the event's other hard scatterings. **The extras
+belong to the event, not to the trigger.** By default the full event is
+`bulk_jet + jet_frag + extra_frag`, and "the event without its trigger" (B) is
+`bulk_bg + extra_frag`; the trigger's truth (e.g. the Z–hadron signal
+`bulk_jet − bulk_bg + jet_frag`) stays the trigger's. A campaign without `extra_frag` reads
+exactly as before.
+
+```python
+from jetscape.hadrons_h5 import HadronFileReader
+import numpy as np
+
+with HadronFileReader("/path/to/campaign") as r:
+    r.has_extras()                               # True: the campaign has extra_frag
+    sc = r.event_info(0).scatterings()           # (S, 8): scatter, pthat, code, x, y, n, E, pt
+    print(sc[sc[:, 0] > 0, 1])                   # the extras' pTHat (the trigger is scatter 0)
+    ev = r.jet_event(0, 0)                       # bulk_jet + jet_frag + extra_frag
+    extras_only = ev["origin"] == 2              # origin 0 bulk, 1 jet_frag, 2 extra_frag
+    bins = np.linspace(0, 20, 41)
+    full, err = r.jet_minus_background("pt", bins, mask="charged", fragments=True)
+    trig, err = r.jet_minus_background("pt", bins, mask="charged", fragments=True, extras=False)
+    h, e = r.hist("extra_frag", "pt", bins, mask="charged")      # the extras' fragments alone
+```
+
+`jet_event(..., extras=False)` leaves them out of a single event. A **minimum-bias**
+campaign (`--hard none`) has no `jet_frag` and no trigger; analyses that need a trigger
+(the Z+jet and Z–hadron map steps, `qa.py`, `wake_iso.py`) refuse it. For its bulk
+observables see [Bulk and flow](bulk.md). The per-analysis switches are on
+[Jets with FastJet](jets.md#7-worked-examples-the-zjet-campaign-analyses) and
+[ROOT and C++](root.md).
 
 ## 5. pT̂ windows and cross sections
 
@@ -252,5 +292,6 @@ h5py or `HadronArray` through `fsspec`.
 ## Next steps
 
 - Cluster the hadrons into jets: [Jets with FastJet](jets.md).
+- Nch, [pT] and vₙ{2}, and the paired difference to the background: [Bulk and flow](bulk.md).
 - The same events in the fluid: [Hydro and hadrons together](hydro-hadrons.md).
 - The same in ROOT: [ROOT and C++](root.md).

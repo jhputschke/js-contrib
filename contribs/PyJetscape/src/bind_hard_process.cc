@@ -27,6 +27,11 @@
  *                             <leptonEtaMax>); then pythia_gun_bins also gives these
  *   pythia_gun_trigger(task)  PythiaGun's trigger and the current event's trigger
  *                             leptons (the Z's pair): pid, px, py, pz, E, hardest first
+ *   PYTHIA_GUN_HAS_EXTRA_HARD True if PythiaGun has <extraHard> (the event's other hard
+ *                             scatterings, js-contrib docs/Plans/PLAN_multi_hard.md)
+ *   extra_hard_info(task)     PythiaGun's <extraHard> settings, its warm-up cross
+ *                             section, and the current event's scatterings
+ *                             (SCATTER_COLUMNS) and each hard parton's scattering
  ******************************************************************************/
 
 #include <pybind11/numpy.h>
@@ -79,6 +84,13 @@ void bind_hard_process(py::module_ &m) {
 #else
   m.attr("PYTHIA_GUN_HAS_Z_TRIGGER") = false;
 #endif
+#ifdef PYTHIAGUN_HAS_EXTRA_HARD
+  m.attr("PYTHIA_GUN_HAS_EXTRA_HARD") = true;
+#else
+  m.attr("PYTHIA_GUN_HAS_EXTRA_HARD") = false;
+#endif
+  m.attr("SCATTER_COLUMNS") = py::make_tuple("scatter", "pthat", "code", "x", "y",
+                                              "n_partons", "E", "pt");
 #ifdef PYTHIAISRGUN_HAS_PTHAT_BINS
   m.attr("PYTHIA_ISR_GUN_HAS_PTHAT_BINS") = true;
 #else
@@ -270,29 +282,91 @@ void bind_hard_process(py::module_ &m) {
       "hard_partons_numpy",
       [](std::shared_ptr<JetScapeTask> task) {
         auto h = as_hard(task);
-        std::vector<std::array<double, 7>> rows;
+        std::vector<std::array<double, 8>> rows;
         for (int i = 0; i < h->GetNHardPartons(); ++i) {
           auto p = h->GetPartonAt(i);
           const auto q = p->p_in();
           const double pt = std::hypot(q.x(), q.y());
           const double y = 0.5 * std::log((q.t() + q.z()) / (q.t() - q.z()));
-          rows.push_back({double(p->pid()), q.x(), q.y(), q.z(), q.t(), pt, y});
+          rows.push_back({double(p->pid()), q.x(), q.y(), q.z(), q.t(), pt, y,
+                          double(h->GetHardPartonScatter(i))});
         }
         std::stable_sort(rows.begin(), rows.end(),
                          [](const auto &a, const auto &b) { return a[5] > b[5]; });
-        py::array_t<double> out({py::ssize_t(rows.size()), py::ssize_t(7)});
+        py::array_t<double> out({py::ssize_t(rows.size()), py::ssize_t(8)});
         auto r = out.mutable_unchecked<2>();
         for (size_t i = 0; i < rows.size(); ++i)
-          for (int j = 0; j < 7; ++j)
+          for (int j = 0; j < 8; ++j)
             r(i, j) = rows[i][j];
         return out;
       },
       R"pbdoc(
         The partons the hard process handed to the framework this event (for
         PythiaGun: status 62 after ISR/MPI, or the final partons with FSR_on),
-        as an (n, 7) array pid, px, py, pz, E, pT, y, hardest first.  For
-        PythiaGun this is what <partonYMax> cuts on.  Call between
-        ExecPerEvent() and ClearPerEvent().
+        as an (n, 8) array pid, px, py, pz, E, pT, y, scatter, hardest first
+        (scatter: the hard scattering, 0 the event's triggering one, 1, 2, ... the
+        extras of PythiaGun's <extraHard>).  For PythiaGun the scatter-0 rows are what
+        <partonYMax> cuts on.  Call between ExecPerEvent() and ClearPerEvent().
+      )pbdoc",
+      py::arg("task"));
+  m.def(
+      "extra_hard_info",
+      [](std::shared_ptr<JetScapeTask> task) {
+        auto gun = std::dynamic_pointer_cast<PythiaGun>(task);
+        if (!gun)
+          throw std::invalid_argument("not a PythiaGun: " +
+                                      (task ? task->GetId() : std::string("None")));
+#ifdef PYTHIAGUN_HAS_EXTRA_HARD
+        py::dict d;
+        d["on"] = gun->GetExtraHardOn();
+        d["no_trigger"] = gun->GetExtraNoTrigger();
+        d["pthat_min"] = gun->GetExtraPtHatMin();
+        d["sigma"] = gun->GetExtraSigma();
+        d["sigma_err"] = gun->GetExtraSigmaErr();
+        d["sigma_nn"] = gun->GetExtraSigmaNN();
+        d["warmup"] = gun->GetExtraWarmup();
+        d["fixed_n"] = gun->GetExtraFixedN();
+        d["pythia_seed"] = gun->GetExtraPythiaSeed();
+        d["rng_seed"] = gun->GetExtraRngSeed();
+        d["n_extra"] = gun->GetNExtra();
+        d["mu"] = gun->GetExtraMu();
+        const auto &recs = gun->GetScatterRecords();
+        py::array_t<double> sc({py::ssize_t(recs.size()), py::ssize_t(8)});
+        auto r = sc.mutable_unchecked<2>();
+        for (size_t i = 0; i < recs.size(); ++i) {
+          const auto &x = recs[i];
+          r(i, 0) = x.scatter;
+          r(i, 1) = x.pthat;
+          r(i, 2) = x.code;
+          r(i, 3) = x.x;
+          r(i, 4) = x.y;
+          r(i, 5) = x.n_partons;
+          r(i, 6) = x.e;
+          r(i, 7) = x.pt;
+        }
+        d["scatterings"] = sc;
+        const int n = gun->GetNHardPartons();
+        py::array_t<int> ps(n);
+        auto q = ps.mutable_unchecked<1>();
+        for (int i = 0; i < n; ++i)
+          q(i) = gun->GetHardPartonScatter(i);
+        d["parton_scatter"] = ps;
+        return d;
+#else
+        throw std::runtime_error(
+            "extra_hard_info: X-SCAPE's PythiaGun has no <extraHard> (branch multi_hard "
+            "or later needed)");
+#endif
+      },
+      R"pbdoc(
+        PythiaGun's <extraHard>: ``on``, ``no_trigger``, ``pthat_min`` [GeV], the
+        warm-up cross section ``sigma`` +- ``sigma_err`` and ``sigma_nn`` [mb],
+        ``warmup``, ``fixed_n`` (< 0: Poisson), ``pythia_seed``, ``rng_seed``; the
+        current event's ``n_extra`` and Poisson mean ``mu`` (N_coll sigma/sigma_nn),
+        ``scatterings`` (S, 8) in SCATTER_COLUMNS (scatter, pthat, code, x, y,
+        n_partons, E, pt; the trigger's first, scatter 0, unless no_trigger) and
+        ``parton_scatter`` (int, one per hard parton in the framework's order, which
+        is the shower index).  Call between ExecPerEvent() and ClearPerEvent().
       )pbdoc",
       py::arg("task"));
 }

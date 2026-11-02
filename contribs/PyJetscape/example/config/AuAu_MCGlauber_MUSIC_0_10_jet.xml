@@ -173,6 +173,13 @@
       <LinesToRead>
         HardQCD:all = on
       </LinesToRead>
+      <!-- The event's other hard scatterings (run_prod_jet.py's extra-hard option switches them
+           on; js-contrib docs/Plans/PLAN_multi_hard.md, decision D2'): pTHatMin is this
+           system's threshold (at 200 GeV ~0.13 per 0-10 % event above 10 GeV). -->
+      <extraHard>
+        <on>0</on>
+        <pTHatMin>10</pTHatMin>
+      </extraHard>
     </PythiaGun>
   </Hard>
 

@@ -141,6 +141,7 @@ nav:
       - Au+Au jets (two stages): run/auau-jet.md
       - O+O with ISR: run/oo-isr.md
       - Z+jet and other systems: run/zjet-other.md
+      - Extra hard scatterings, O+O and Ne+Ne: run/extra-hard.md
       - Clusters, GPUs and monitoring: run/clusters.md
       - Data on the OSDF: run/osdf.md
   - Analyse:
@@ -150,6 +151,7 @@ nav:
       - Jets with FastJet: analysis/jets.md
       - Hydro and hadrons together: analysis/hydro-hadrons.md
       - O+O: analysis/oo.md
+      - Bulk and flow: analysis/bulk.md
       - ROOT and C++: analysis/root.md
       - Notebooks: analysis/notebooks.md
   - Python:

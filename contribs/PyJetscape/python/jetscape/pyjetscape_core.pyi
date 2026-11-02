@@ -28,7 +28,7 @@ from jetscape.pythonic import per_event
 import numpy
 import numpy.typing
 import typing
-__all__: list[str] = ['Afterburner', 'CausalLiquefier', 'Droplet', 'ERROR', 'EVOLVING', 'EvolutionHistory', 'FINAL_PARTON_COLUMNS', 'FINISHED', 'FastRootBulkWriter', 'FluidCellInfo', 'FluidDynamics', 'FourVector', 'HAS_GZIP_READER', 'HAS_NEXT_TASK_NUMBER', 'HAS_ROOT', 'Hadron', 'HadronArray', 'Hadronization', 'HadronizationManager', 'HardProcess', 'HydroStatus', 'ICOLORED_HAS_COLOUR_AUDIT', 'ICOLORED_HAS_COLOUR_CLOSURE', 'ICOLORED_HAS_INPUT_RECORD', 'INITIALIZED', 'ISS_DECAYS_SMASH_LIST', 'InitialState', 'IsrJet', 'IsrManager', 'IsrShowerPSG', 'JetEnergyLoss', 'JetEnergyLossManager', 'JetScape', 'JetScapeEventHeader', 'JetScapeModuleBase', 'JetScapeParticleBase', 'JetScapePerEvent', 'JetScapeReaderAscii', 'JetScapeReaderAsciiGZ', 'JetScapeSignalManager', 'JetScapeTask', 'JetScapeWriter', 'LiquefierBase', 'MUSIC_BACKEND', 'MpiMusic', 'Mt19937', 'NOT_START', 'PYTHIA_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_GUN_HAS_PTHAT_BINS', 'PYTHIA_GUN_HAS_Z_TRIGGER', 'PYTHIA_ISR_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_ISR_GUN_HAS_PTHAT_BINS', 'PYTHIA_VERSION', 'Parameter', 'Parton', 'PartonShower', 'PartonShowerGenerator', 'PartonShowerGeneratorDefault', 'Photon', 'PreequilibriumDynamics', 'SOFT_HAS_PRIMARIES', 'SOFT_HAS_SAMPLE_CELLS', 'SURFACE_CELL_COLUMNS', 'ShowerNode', 'SoftParticlization', 'SurfaceCellInfo', 'TrentoInitial', 'Vertex', 'create_module', 'hadronization_hadrons_numpy', 'hadronization_input_numpy', 'hadronize_input', 'hadronize_partons', 'hard_partons_numpy', 'hard_process_info', 'iMATTER', 'initial_state_info', 'isr_hard_momentum', 'jet_hadronization_colour_audit', 'jet_hadronization_colour_totals', 'jet_hadronization_last_random_seed', 'jet_hadronization_set_colour_closure', 'load_xml', 'make_hadron', 'make_parton', 'make_photon', 'module', 'next_task_number', 'per_event', 'pythia_gun_bins', 'pythia_gun_trigger', 'random_seed', 'register_module', 'registered_modules', 'select', 'set_next_task_number', 'set_writer_output_file', 'soft_hadrons_numpy', 'soft_last_random_seed', 'soft_primaries_numpy', 'soft_sample_cells', 'soft_set_compact_output', 'soft_set_next_random_seed', 'soft_set_number_of_samples', 'to_awkward', 'unregister_module', 'xml_add_user_blocks']
+__all__: list[str] = ['Afterburner', 'CausalLiquefier', 'Droplet', 'ERROR', 'EVOLVING', 'EvolutionHistory', 'FINAL_PARTON_COLUMNS', 'FINISHED', 'FastRootBulkWriter', 'FluidCellInfo', 'FluidDynamics', 'FourVector', 'HAS_GZIP_READER', 'HAS_NEXT_TASK_NUMBER', 'HAS_ROOT', 'Hadron', 'HadronArray', 'Hadronization', 'HadronizationManager', 'HardProcess', 'HydroStatus', 'ICOLORED_HAS_COLOUR_AUDIT', 'ICOLORED_HAS_COLOUR_CLOSURE', 'ICOLORED_HAS_INPUT_RECORD', 'INITIALIZED', 'ISS_DECAYS_SMASH_LIST', 'InitialState', 'IsrJet', 'IsrManager', 'IsrShowerPSG', 'JetEnergyLoss', 'JetEnergyLossManager', 'JetScape', 'JetScapeEventHeader', 'JetScapeModuleBase', 'JetScapeParticleBase', 'JetScapePerEvent', 'JetScapeReaderAscii', 'JetScapeReaderAsciiGZ', 'JetScapeSignalManager', 'JetScapeTask', 'JetScapeWriter', 'LiquefierBase', 'MUSIC_BACKEND', 'MpiMusic', 'Mt19937', 'NOT_START', 'PYTHIA_GUN_HAS_EXTRA_HARD', 'PYTHIA_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_GUN_HAS_PTHAT_BINS', 'PYTHIA_GUN_HAS_Z_TRIGGER', 'PYTHIA_ISR_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_ISR_GUN_HAS_PTHAT_BINS', 'PYTHIA_VERSION', 'Parameter', 'Parton', 'PartonShower', 'PartonShowerGenerator', 'PartonShowerGeneratorDefault', 'Photon', 'PreequilibriumDynamics', 'SCATTER_COLUMNS', 'SOFT_HAS_PRIMARIES', 'SOFT_HAS_SAMPLE_CELLS', 'SURFACE_CELL_COLUMNS', 'ShowerNode', 'SoftParticlization', 'SurfaceCellInfo', 'TrentoInitial', 'Vertex', 'create_module', 'extra_hard_info', 'hadronization_hadrons_numpy', 'hadronization_input_numpy', 'hadronize_input', 'hadronize_partons', 'hard_partons_numpy', 'hard_process_info', 'iMATTER', 'initial_state_info', 'isr_hard_momentum', 'jet_hadronization_colour_audit', 'jet_hadronization_colour_totals', 'jet_hadronization_last_random_seed', 'jet_hadronization_set_colour_closure', 'load_xml', 'make_hadron', 'make_parton', 'make_photon', 'module', 'next_task_number', 'per_event', 'pythia_gun_bins', 'pythia_gun_trigger', 'random_seed', 'register_module', 'registered_modules', 'select', 'set_next_task_number', 'set_writer_output_file', 'soft_hadrons_numpy', 'soft_last_random_seed', 'soft_primaries_numpy', 'soft_sample_cells', 'soft_set_compact_output', 'soft_set_next_random_seed', 'soft_set_number_of_samples', 'to_awkward', 'unregister_module', 'xml_add_user_blocks']
 class Mt19937:
     """
     A task's std::mt19937 engine (JetScapeModuleBase.GetMt19937Generator()).
@@ -3118,6 +3118,17 @@ def create_module(name: str) -> typing.Any:
               ValueError
                   If the name is not found in the module registry.
     """
+def extra_hard_info(task: JetScapeTask) -> dict:
+    """
+            PythiaGun's <extraHard>: ``on``, ``no_trigger``, ``pthat_min`` [GeV], the
+            warm-up cross section ``sigma`` +- ``sigma_err`` and ``sigma_nn`` [mb],
+            ``warmup``, ``fixed_n`` (< 0: Poisson), ``pythia_seed``, ``rng_seed``; the
+            current event's ``n_extra`` and Poisson mean ``mu`` (N_coll sigma/sigma_nn),
+            ``scatterings`` (S, 8) in SCATTER_COLUMNS (scatter, pthat, code, x, y,
+            n_partons, E, pt; the trigger's first, scatter 0, unless no_trigger) and
+            ``parton_scatter`` (int, one per hard parton in the framework's order, which
+            is the shower index).  Call between ExecPerEvent() and ClearPerEvent().
+    """
 def hadronization_hadrons_numpy(task: JetScapeTask) -> dict:
     """
     Output hadrons of a HadronizationManager (all its Hadronization tasks) or of one Hadronization task, as a dict of arrays. Call between ExecPerEvent() and ClearPerEvent().
@@ -3138,9 +3149,10 @@ def hard_partons_numpy(task: JetScapeTask) -> numpy.typing.NDArray[numpy.float64
     """
             The partons the hard process handed to the framework this event (for
             PythiaGun: status 62 after ISR/MPI, or the final partons with FSR_on),
-            as an (n, 7) array pid, px, py, pz, E, pT, y, hardest first.  For
-            PythiaGun this is what <partonYMax> cuts on.  Call between
-            ExecPerEvent() and ClearPerEvent().
+            as an (n, 8) array pid, px, py, pz, E, pT, y, scatter, hardest first
+            (scatter: the hard scattering, 0 the event's triggering one, 1, 2, ... the
+            extras of PythiaGun's <extraHard>).  For PythiaGun the scatter-0 rows are what
+            <partonYMax> cuts on.  Call between ExecPerEvent() and ClearPerEvent().
     """
 def hard_process_info(task: JetScapeTask) -> dict:
     """
@@ -3319,14 +3331,16 @@ ICOLORED_HAS_COLOUR_CLOSURE: bool = True
 ICOLORED_HAS_INPUT_RECORD: bool = True
 INITIALIZED: HydroStatus
 ISS_DECAYS_SMASH_LIST: bool = True
-MUSIC_BACKEND: str | None = 'music4gpu-metal'
+MUSIC_BACKEND: str = 'music4gpu-cuda'
 NOT_START: HydroStatus
+PYTHIA_GUN_HAS_EXTRA_HARD: bool = True
 PYTHIA_GUN_HAS_PARTON_Y_CUT: bool = True
 PYTHIA_GUN_HAS_PTHAT_BINS: bool = True
 PYTHIA_GUN_HAS_Z_TRIGGER: bool = True
 PYTHIA_ISR_GUN_HAS_PARTON_Y_CUT: bool = True
 PYTHIA_ISR_GUN_HAS_PTHAT_BINS: bool = True
 PYTHIA_VERSION: int = 8312
+SCATTER_COLUMNS: tuple = ('scatter', 'pthat', 'code', 'x', 'y', 'n_partons', 'E', 'pt')
 SOFT_HAS_PRIMARIES: bool = True
 SOFT_HAS_SAMPLE_CELLS: bool = True
 SURFACE_CELL_COLUMNS: tuple = ('tau', 'x', 'y', 'eta', 'ds0', 'ds1', 'ds2', 'ds3', 'u0', 'u1', 'u2', 'u3', 'e', 'T', 'P', 'nB', 'nQ', 'nS', 'muB', 'muQ', 'muS', 'pi00', 'pi01', 'pi02', 'pi03', 'pi11', 'pi12', 'pi13', 'pi22', 'pi23', 'pi33', 'Pi')
