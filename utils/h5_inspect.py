@@ -42,6 +42,9 @@ import sys
 
 import numpy as np
 
+#: --help: the command of the macOS xscape wheel (xscape-macos cli.py runs this script)
+WHEEL = "In the macOS xscape wheel this is the command xscape-h5-inspect, in the wheel's environment: xscape-h5-inspect FILE.h5 --stats"
+
 try:
     import h5py
 except ImportError:  # pragma: no cover
@@ -825,7 +828,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description="Show every HDF5 entry with its dimensions, storage and attributes, plus a "
                     "schema summary for the js-contrib hydro formats.",
-        formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__.split("Usage::")[1])
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__.split("Usage::")[1] + "\n" + WHEEL)
     ap.add_argument("files", nargs="+", help="HDF5 file(s)")
     ap.add_argument("--stats", action="store_true",
                     help="read numeric datasets and print min/max/mean, zero fraction, NaN/inf "

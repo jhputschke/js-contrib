@@ -72,8 +72,11 @@ def _stand_in(tmp_path):
     (build / "music_input").write_text("music\n")
     main = tmp_path / "xs" / "config" / "jetscape_main.xml"
     main.parent.mkdir(parents=True)
-    main.write_text("<jetscape><iSS><path>../external_packages/iSS/x</path></iSS>"
+    main.write_text("<jetscape><nEvents>1</nEvents><t>../external_packages/iSS/iSS_tables</t>"
+                    "<iSS><path>../external_packages/iSS/x</path></iSS>"
                     "<out>./FinalPartonsInfo.dat</out></jetscape>")
+    (tmp_path / "xs" / "external_packages" / "iSS" / "iSS_tables").mkdir(parents=True)
+    (tmp_path / "xs" / "external_packages" / "iSS" / "x").write_text("")
     user = tmp_path / "mine" / "my_job.xml"
     user.parent.mkdir()
     user.write_text("<jetscape><nEvents>3</nEvents>"

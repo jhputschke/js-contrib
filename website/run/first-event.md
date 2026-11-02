@@ -47,7 +47,7 @@ yours.
 === "Mac"
 
     ```bash
-    source ~/.venvs/xscape-0.1.0/bin/activate      # the environment of the installation
+    source ~/.venvs/xscape-0.2.0/bin/activate      # the environment of the installation
     xscape-examples ~/xscape/examples
     cd ~/xscape/examples/pythonic
     python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
@@ -135,6 +135,26 @@ and every oversample in one call. The interface is described in
     `oo_workflow.py` is also a template: change the XML (`--xml my_job.xml`) and the per-event
     block that decides what is stored. For a production with campaigns, seeds and restarts,
     use the O+O production itself: [O+O with ISR](oo-isr.md).
+
+### The same XML without Python: `xscape-run`
+
+The user XML runs with X-SCAPE's own executable too, without the Python layer: then X-SCAPE's
+writers decide what is stored (here none are on, so set e.g.
+`<JetScapeWriterFinalStateHadronsAscii> on </JetScapeWriterFinalStateHadronsAscii>` in a copy).
+On a Mac:
+
+```bash
+xscape-run -w ~/xscape/runs/oo -u ~/xscape/examples/pythonic/oo_workflow.xml
+```
+
+`xscape-run` copies both XMLs into the run directory with their `../` paths made absolute
+(your file is not changed), links the tables, and checks the XML before it starts: tags the
+main XML lacks, inputs that aren't there, modules the wheel doesn't have. Each stops it with
+the reason (exit code 3). Plain `runJetscape` in a directory of yours stops and points to
+`xscape-run`: 3dMCGlauber and MUSIC read their tables from the working directory. Details:
+[Mac, One XML](../install/mac.md#one-xml-xscape-run). In a
+source build the script behind it is `X-SCAPE/examples/run_in_workdir.sh -d BUILD -w RUN_DIR
+-u USER_XML`, with the tag and input checks (the module checks are the wheel's).
 
 ## 2. Two Au+Au jet events
 

@@ -25,7 +25,8 @@ HADRON_DIR=/path/to/campaign jupyter nbconvert --to notebook --execute --inplace
 The notebooks name the kernel they were saved with; in the venv choose `Python 3 (ipykernel)`, or
 the kernel registered with `setup_analysis_env.sh --kernel NAME` (for VS Code or another
 JupyterLab). On the Mac, the xscape environment runs them too, from your copy of the examples
-([Mac (xscape wheel)](../install/mac.md)).
+([Mac (xscape wheel)](../install/mac.md)); from 0.2.0 it has pelicanfs, so the notebooks that
+read from the OSDF need nothing extra.
 
 **Environments** in the tables: *venv* = the [analysis environment](../install/analysis-env.md)
 (no X-SCAPE, no ROOT); *venv + ROOT* = the same with ROOT ≥ 6.34 ([ROOT and C++](root.md#1-set-up));
@@ -73,7 +74,7 @@ Nch, [pT] and vₙ2 per class are a script, `bulk_obs.py`: [Bulk and flow](bulk.
 |---|---|---|---|
 | [`prod_OO_isr/oo_isr_overview.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_OO_isr/oo_isr_overview.ipynb) | one job: the medium at three τ with the freeze-out contour and the hard scattering; η, φ, pT and Δφ to the leading parton of bulk and jet hadrons | `OO_STEM`; `XSCAPE_BUILD` for the EoS | venv |
 | [`prod_OO_isr/hard_sub_compare/hard_sub_compare.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_OO_isr/hard_sub_compare/hard_sub_compare.ipynb) | two campaigns with and without the hard-momentum subtraction: the centrality bias of a multiplicity estimator, dN/dη, dE/dη and spectra, per window; N_coll-weighted | `HSC_DIR` (the output of `run_compare.sh`) | venv |
-| [`pythonic/oo_analysis.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/pythonic/oo_analysis.ipynb) | the O+O hadron files of a public test run, streamed from the OSDF: the job, the event record, nested awkward views, spectra, jets with FastJet | the OSDF (`osdf:///fno4hic/test/OO_test`), or `OO_DIR` for downloaded files | venv (with `pelicanfs`) |
+| [`pythonic/oo_analysis.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/pythonic/oo_analysis.ipynb) | the O+O hadron files of a public test run, streamed from the OSDF: the job, the event record, nested awkward views, spectra, jets with FastJet | the OSDF (`osdf:///fno4hic/test/OO_test`), or `OO_DIR` for downloaded files | venv (with `pelicanfs`), or the Mac wheel: nothing extra from 0.2.0 |
 | [`pythonic/oo_workflow.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/pythonic/oo_workflow.ipynb) | three O+O events through the full chain with the Pythonic interface, the hadron files written and read back, awkward views, FastJet on every oversample in one call, a jet embedded in the bulk | runs X-SCAPE; writes `OO_OUT` (default `out_oo`) | X-SCAPE |
 
 More on the Pythonic notebooks: [The Pythonic interface](../python/pythonic.md).

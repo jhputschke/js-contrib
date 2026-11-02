@@ -49,6 +49,10 @@ from dataclasses import dataclass, field
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from check_deposition import rows as deposition_rows  # noqa: E402
 
+
+#: --help: the command of the macOS xscape wheel (xscape-macos cli.py runs this script)
+WHEEL = "In the macOS xscape wheel this is the command xscape-jobmon, in the wheel's environment: xscape-jobmon ~/xscape/examples/prod_AuAu_0_10_jet/out/c1 --tui"
+
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
 EVENT_DONE = re.compile(r"^(\S+): event (\d+)/(\d+) done in ([0-9.]+) s")
 WARNING = re.compile(r"\[(Warning|Error)\]\s*(.*)")
@@ -541,7 +545,8 @@ def rich_view(r, a):
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[1],
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog=WHEEL)
     ap.add_argument("paths", nargs="+", help="OUTDIRs, or an OUTBASE whose subdirectories "
                     "hold the jobs (globs allowed)")
     ap.add_argument("--njobs", type=int, default=0,

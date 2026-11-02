@@ -4,6 +4,22 @@ The [`utils/`](https://github.com/jhputschke/js-contrib/tree/main/utils) folder 
 tools around the simulations. They help you plan a production, watch it run, check its files,
 and move them. Each one is a plain script, and `--help` lists all of its options.
 
+!!! info "On a Mac: commands of the xscape wheel"
+    From 0.2.0 the [xscape wheel](../install/mac.md) ships `utils/` and has the tools as
+    commands, run in the wheel's environment with the same options (`--help` shows them under
+    the command's name). `xscape-utils DEST` copies `utils/` to read or adapt.
+
+    | command | script |
+    |---|---|
+    | `xscape-prodwizard` | `prodwizard.py` (machine `mac_wheel`) |
+    | `xscape-jobmon` | `jobmon.py` |
+    | `xscape-check-deposition` | `check_deposition.py` |
+    | `xscape-h5-inspect` | `h5_inspect.py` |
+    | `xscape-osdf` | `remote_transfer/js_osdf.py`, in the wheel's environment (no `~/.cache/js_osdf`) |
+    | `xscape-upload-follow` | `upload_follow.py`, likewise |
+    | `xscape-gcs` | `remote_transfer/js_gcs.py`, with its own environment in `~/.cache/js_gcs` |
+    | `xscape-selftest` | `container/image_check.py --analysis`, plus the LBT tables |
+
 ## Planning: `prodwizard.py`
 
 You choose a production preset and a machine. The wizard writes the launch command with the
@@ -19,7 +35,17 @@ python utils/prodwizard_tui.py                                     # the same as
 
 | Presets | Machines |
 |---|---|
-| `auau_jet`, `auau_particlize_only`, `auau_hadrons_only`, `oo_hadrons`, `oo_full`, `pbpb_zjet` | `2x3090`, `gb10`, `m3max`, `slurm_v100`, `slurm_a40`, `slurm_a100`, `slurm_l40s` |
+| `auau_jet`, `auau_particlize_only`, `auau_hadrons_only`, `oo_hadrons`, `oo_full`, `pbpb_zjet` | `2x3090`, `gb10`, `m3max`, `mac_wheel`, `slurm_v100`, `slurm_a40`, `slurm_a100`, `slurm_l40s` |
+
+`m3max` is a Mac with a js-contrib checkout and the `fno_env_mlx` conda environment.
+`mac_wheel` is a Mac with the xscape wheel: the commands activate `$VIRTUAL_ENV` (default
+`~/.venvs/xscape`), run `run_jobs.sh` in your copy of the examples, `$XSCAPE_EXAMPLES`
+(default `~/xscape/examples`), and watch it with `xscape-jobmon`. Run inside the wheel's
+environment, the wizard picks `mac_wheel` by itself; the settings are the M3 Max's.
+
+```bash
+xscape-prodwizard --preset auau_jet --machine mac_wheel --events 300    # on a Mac with the wheel
+```
 
 ## Launching
 
@@ -43,6 +69,7 @@ jobs with their last log lines.
 python utils/jobmon.py out/                 # one summary; exit code 1 if a job failed or is flagged
 python utils/jobmon.py out/ --watch         # live view, refreshed every 10 s
 python utils/jobmon.py out/ --tui           # terminal UI: sortable job table, live log, problems tab
+xscape-jobmon out/ --tui                    # the same with the Mac wheel
 ```
 
 [`check_deposition.py`](https://github.com/jhputschke/js-contrib/blob/main/utils/check_deposition.py)
@@ -60,6 +87,7 @@ only h5py and numpy.
 python utils/h5_inspect.py out/AuAu_0_10_jet_seed0001.h5           # summary + tree
 python utils/h5_inspect.py FILE.h5 --stats [--event 0]              # per-feature min/max/mean, NaN/inf
 python utils/h5_inspect.py FILE.h5 --attr prod_user_xml             # one attribute in full
+xscape-h5-inspect FILE.h5                                           # the Mac wheel's command
 ```
 
 ## Moving files: OSDF and Google Cloud Storage
@@ -72,12 +100,14 @@ python utils/h5_inspect.py FILE.h5 --attr prod_user_xml             # one attrib
 
 Both transfer scripts select files by kind (`--what pair|h5|root|all`), skip files that are
 already there, and check every transfer by size and CRC32C. Each one builds its own Python
-environment on first use. See [Data on the OSDF](../run/osdf.md).
+environment on first use; the Mac wheel's `xscape-osdf` and `xscape-upload-follow` use the
+wheel's environment instead. See [Data on the OSDF](../run/osdf.md).
 
 ## Environments and builds
 
 | Tool | What it does |
 |---|---|
+| [`container/image_check.py`](https://github.com/jhputschke/js-contrib/blob/main/utils/container/image_check.py) | the production image's check: the bindings, HDF5 filters, pelicanfs, paths; `--analysis` the analysis packages, one synthetic event and MUSIC's EoS table (`$MUSIC_EOS_TABLE`, else the build's); `xscape-selftest` on the Mac |
 | [`analysis_env/setup_analysis_env.sh`](https://github.com/jhputschke/js-contrib/blob/main/utils/analysis_env/setup_analysis_env.sh), `check_env.py` | the analysis venv, and a check that opens every file of a production ([Analysis environment](../install/analysis-env.md)) |
 | [`conda_install/`](https://github.com/jhputschke/js-contrib/tree/main/utils/conda_install) | creates and checks the `js_fno` conda environment ([Source build](../install/source.md)) |
 | [`configure.sh`](https://github.com/jhputschke/js-contrib/blob/main/utils/configure.sh) | interactive CMake configurator for X-SCAPE + js-contrib (needs `dialog`) |

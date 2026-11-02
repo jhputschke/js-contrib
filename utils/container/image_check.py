@@ -10,7 +10,8 @@ also runnable in a running container or any environment with the X-SCAPE build:
 Production part: pyjetscape_core imports (no GPU needed), the HDF5 filters, pyyaml,
 pelicanfs, jetscape.paths finds the build and the main XML.  --analysis: the packages of
 utils/analysis_env/requirements.txt, then one synthetic event through HadronArray ->
-to_awkward -> select -> FastJet -> hist -> an mplhep plot (Agg), and MUSIC's EoS table.
+to_awkward -> select -> FastJet -> hist -> an mplhep plot (Agg), and MUSIC's EoS table
+($MUSIC_EOS_TABLE, else the build's EOS/hotQCD).  In the macOS wheel it is xscape-selftest.
 --viz: pyvista renders off screen.  Exits 1 on the first failure.
 """
 
@@ -85,8 +86,14 @@ def analysis():
     with tempfile.TemporaryDirectory() as d:
         fig.savefig(os.path.join(d, "check.png"))
         check(os.path.getsize(os.path.join(d, "check.png")) > 0, "hist + mplhep plot (Agg)")
+    # the image sets MUSIC_EOS_TABLE; elsewhere (the macOS wheel, a build) the build's own
     eos = os.environ.get("MUSIC_EOS_TABLE", "")
-    check(os.path.isfile(eos), f"MUSIC_EOS_TABLE {eos}")
+    if eos:
+        check(os.path.isfile(eos), f"MUSIC_EOS_TABLE {eos}")
+    else:
+        from jetscape import paths
+        eos = str(paths.build_dir() / "EOS" / "hotQCD" / "hrg_hotqcd_eos_binary.dat")
+        check(os.path.isfile(eos), f"MUSIC's EoS table {eos} (MUSIC_EOS_TABLE unset)")
 
 
 def viz():

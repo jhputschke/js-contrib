@@ -136,6 +136,25 @@
                      "note": "not measured; at ~14-16 GB per job only 2-3 fit in 64 GB", "source": "docs/BENCHMARK_PbPb_vs_AuAu.md"}
       }
     },
+    "mac_wheel": {
+      "title": "Apple Silicon Mac with the xscape wheel (run_jobs.sh from an xscape-examples copy, Metal; the M3 Max 64 GB settings)",
+      "kind": "native", "wheel": true, "mps": false, "mac": true, "gpus": 1, "cores": 16, "mem_gb": 64,
+      "settings": {
+        "auau_jet": {"jobs_per_gpu": 3, "omp": 5, "rate": null, "measured": false,
+                     "note": "not measured at this setting; 284 events/h with -j 3 at the plain setting (a new background every event, pT-hat 50-70) on the code before C4/D1",
+                     "source": "docs/BENCHMARK_M3MAX.md"},
+        "auau_particlize_only": {"jobs_per_gpu": 3, "omp": 5, "rate": null, "measured": false,
+                     "note": "not measured", "source": "docs/BENCHMARK_M3MAX.md"},
+        "auau_hadrons_only": {"jobs_per_gpu": 3, "omp": 5, "rate": null, "measured": false,
+                     "note": "not measured", "source": "docs/BENCHMARK_M3MAX.md"},
+        "oo_hadrons": {"jobs_per_gpu": 4, "omp": 4, "rate": null, "measured": false,
+                     "note": "not measured on the Mac (one O+O job: -48 % with final_optim)", "source": "docs/BENCHMARK_M3MAX.md"},
+        "oo_full": {"jobs_per_gpu": 4, "omp": 4, "rate": null, "measured": false,
+                     "note": "not measured", "source": "docs/BENCHMARK_M3MAX.md"},
+        "pbpb_zjet": {"jobs_per_gpu": 2, "omp": 8, "rate": null, "measured": false,
+                     "note": "not measured; at ~14-16 GB per job only 2-3 fit in 64 GB", "source": "docs/BENCHMARK_PbPb_vs_AuAu.md"}
+      }
+    },
     "slurm_v100": {
       "title": "SLURM cluster, V100 per array task", "kind": "slurm",
       "cpus": 16,

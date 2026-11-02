@@ -7,11 +7,13 @@ GPU, so on a Mac the wheel takes the place of the [production container](contain
 scripts, notebooks and outputs are the same. The environment holds X-SCAPE with MUSIC
 (MUSIC4GPU, Metal), iSS, 3dMCGlauber, Matter, LBT, iColored and Pythia, PyJetscape and its
 Pythonic layer, and the analysis packages (awkward, vector, fastjet, particle, hist, mplhep,
-matplotlib, scipy, pandas, uproot, JupyterLab).
+matplotlib, scipy, pandas, uproot, JupyterLab), pelicanfs for `osdf://` paths, and js-contrib's
+production tools as commands (`xscape-prodwizard`, `xscape-jobmon`, `xscape-osdf`, ...).
 
 **What it can't do:** rebuild X-SCAPE or the bindings (that needs the
 [source build](source.md)), ROOT/PyROOT (uproot, included, reads ROOT files), and PyTorch (not
-in the environment). Intel Macs are not supported.
+in the environment). Some modules and data are not in it: [What runs with the
+wheel](#what-runs-with-the-wheel). Intel Macs are not supported.
 
 ## Requirements
 
@@ -25,7 +27,7 @@ You do **not** need Xcode, Homebrew, conda, Docker, git or an Apple developer ac
 !!! info "Releases"
     The wheels are published on the
     [Releases page of jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos/releases).
-    The current release is **v0.1.0**; check that page for the latest. Each release is a set
+    The current release is **v0.2.0**; check that page for the latest. Each release is a set
     of three files: the `xscape` wheel (X-SCAPE, 175 MB), the `pyjetscape` wheel (the Python
     package), and a **lock file** `xscape-<version>-cp313.lock.txt`, which names every package
     of the environment with its exact version and checksum. You install from the lock file,
@@ -45,7 +47,7 @@ Homebrew, `brew install uv` works too.
 ## Step 2: create the environment from the lock file
 
 ```bash
-VER=0.1.0                     # the latest: github.com/jhputschke/xscape-macos/releases
+VER=0.2.0                     # the latest: github.com/jhputschke/xscape-macos/releases
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
 uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
@@ -60,7 +62,7 @@ depending on the connection.
   that happens to be installed, so nothing outside the environment is used.
 - `uv pip sync` installs exactly what the lock lists, hash-checked, and removes anything else.
 - `source ~/.venvs/xscape-$VER/bin/activate` is needed in **every new Terminal window** where
-  you use X-SCAPE. Your prompt then starts with `(xscape-0.1.0)`.
+  you use X-SCAPE. Your prompt then starts with `(xscape-0.2.0)`.
 
 ## Step 3: fetch the LBT tables
 
@@ -75,16 +77,21 @@ It checks every file against the release's checksums and ends with
 `xscape-fetch-data: LBT tables ... (checked) -> ...`. If you already have the tables on disk,
 `xscape-fetch-data lbt --from DIR` uses them instead of downloading.
 
-## Step 4: check that the Metal GPU is used
+## Step 4: check the environment
 
 ```bash
+xscape-selftest
+# ... image_check: all ok
 python -c "import jetscape as js; print(js.HAS_CORE, js.pyjetscape_core.MUSIC_BACKEND)"
 # -> True music4gpu-metal
 ```
 
-`True` means the compiled bindings load; `music4gpu-metal` means they were built with the Metal
-MUSIC. The first `import` after the installation takes a little longer, because matplotlib
-builds its font cache once.
+`xscape-selftest` checks the bindings, the HDF5 filters, pelicanfs, the paths to the installed
+X-SCAPE, the analysis packages, MUSIC's EoS table and the LBT tables, and sends one synthetic
+event through awkward, FastJet and mplhep. It stops at the first failure. `True` means the
+compiled bindings load; `music4gpu-metal` means they were built with the Metal MUSIC. The first
+`import` after the installation takes a little longer, because matplotlib builds its font cache
+once.
 
 When an event runs, MUSIC prints the GPU it uses when it starts:
 `[MUSIC-GPU] Metal device: <your chip>`. There is nothing to switch on. If instead you see
@@ -95,6 +102,7 @@ inside a virtual machine or a container, so run natively in Terminal.
 
 ```bash
 xscape-examples ~/xscape/examples
+xscape-utils ~/xscape/utils          # optional: js-contrib's utils/, to read or adapt
 cd ~/xscape/examples/pythonic
 python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 ```
@@ -102,7 +110,10 @@ python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 `xscape-examples` copies every example into a directory of yours: the production scripts, the
 Pythonic examples (`pythonic/`), the toy Python modules (`python_modules/`), the analysis
 notebooks and their XMLs. The examples write next to themselves, so they run from this copy.
-It never overwrites: for a fresh copy, give it a new directory.
+`xscape-utils` does the same for js-contrib's `utils/` (`jobmon.py`, `prodwizard.py`,
+`h5_inspect.py`, `remote_transfer/`, ...); you don't need the copy to use them, they are
+commands of the environment ([Command reference](#command-reference)). Neither ever
+overwrites: for a fresh copy, give a new directory.
 
 The event is one O+O collision through the whole chain: 3dMCGlauber, Pythia with initial-state
 radiation, MUSIC on the GPU, Matter + LBT, iColored + iSS. It takes under a minute (27 s on an
@@ -129,8 +140,45 @@ M3 Max) and writes two hadron files to `~/xscape/out_oo/`. What it did:
 | the environment | `~/.venvs/xscape-VER` |
 | the installed X-SCAPE (data, `config/`, `BUILD_INFO.txt`) | `python -c "import xscape; print(xscape.TREE)"` |
 | X-SCAPE's default parameters | `config/jetscape_main.xml` in that tree |
-| the examples | your copy, e.g. `~/xscape/examples` |
+| the examples | your copy, e.g. `~/xscape/examples` (`xscape-examples`) |
+| js-contrib's `utils/` | inside the installed tree (`utils/`); your copy with `xscape-utils` |
 | the LBT tables | `~/Library/Caches/xscape/LBT-tables-<commit>` |
+
+## One XML: `xscape-run`
+
+`xscape-run` runs X-SCAPE's `runJetscape` on a user XML in a directory of its own, and takes any
+XML as it is: one of the installed X-SCAPE's `config/`, one of the examples, or your own.
+
+```bash
+xscape-run -w ~/xscape/runs/oo -u ~/xscape/examples/pythonic/oo_workflow.xml
+xscape-run -w ~/xscape/runs/pp -u "$(python -c 'import xscape; print(xscape.TREE)')/config/jetscape_user.xml"
+```
+
+- It copies both XMLs into the run directory (`jetscape_main.xml`, `<name>.run.xml`; your file
+  is not changed), with every `../` path made absolute. A `../` path with no file behind it is
+  looked up in the installed X-SCAPE by its last parts: `../external_packages/iSS/iSS_tables`
+  becomes its `iSS_tables`, `../config/HH_LightExcitedMesons.xml` its `config/...`. Give inputs
+  of your own as absolute paths.
+- It links the tables 3dMCGlauber and LBT read from the working directory and gives the run a
+  private `music_input`, so several runs can go at once.
+- **Before anything runs it checks the XML** and stops (exit code 3) with the reason:
+    - a tag the main XML lacks: X-SCAPE would stop at the first with `User XML tag <...> is
+      unrecognized`. Either the tag is misspelled or the XML is newer than the environment
+      (`<extraHard>` in an environment before 0.2.0);
+    - an input with no file behind it (the test hydro files, SMASH's configuration);
+    - a module this wheel does not have ([below](#what-runs-with-the-wheel)), which X-SCAPE would
+      only warn about and then run without;
+    - automatic module setup turned off (`<enableAutomaticTaskListDetermination> false`): such
+      XMLs are written for C++ test programs, and `runJetscape` would run nothing;
+    - an LHAPDF6 set for Pythia (`PDF:pSet = LHAPDF6:...`), which the wheel's Pythia can't load.
+
+  `xscape-run -f ...` runs anyway.
+
+`runJetscape USER_XML` runs X-SCAPE in the current directory, as it is. When the XML needs
+files there that the directory lacks (3dMCGlauber's `tables/`, MUSIC's `music_input`, `../`
+paths), it stops and points to `xscape-run`, rather than failing in the middle with
+`sh: ./Metropolis.e: No such file or directory` (`XSCAPE_RUN_HERE=1` runs it anyway). Use
+`xscape-run`.
 
 ## Running the productions
 
@@ -167,8 +215,32 @@ python run_prod_oo_isr.py --events 2 --seed 5 --outdir ~/xscape/prod/out_oo
 - **ROOT output** (`run_h5toROOT.py` with ROOT) needs PyROOT, which this environment does not
   have; uproot writes and reads the ROOT files instead.
 
+- **The extra hard scatterings, minimum bias, O+O and Ne+Ne at 5.36 TeV**
+  (`run_prod_jet.py --extra-hard`, `--hard none`, `../config/OO_5360_jet.xml`,
+  `NeNe_5360_jet.xml`) need the 0.2.0 environment or later. An older one stops with the
+  unknown-tag message for `<extraHard>`: install the new release next to it.
+
+**Plan, watch and upload with the tools.** `xscape-prodwizard` writes the launch commands for
+this Mac with the measured settings (machine `mac_wheel`: this environment, your copy of the
+examples, `run_jobs.sh`) and estimates the duration, disk and memory; it never starts jobs.
+`xscape-jobmon` watches the campaign.
+
+```bash
+xscape-prodwizard --preset auau_jet --machine mac_wheel --events 300 --campaign test
+xscape-prodwizard --preset oo_hadrons --machine mac_wheel --events 1000 --save launch_oo.sh
+xscape-jobmon ~/xscape/examples/prod_AuAu_0_10_jet/out/test --tui     # while it runs
+xscape-check-deposition ~/xscape/examples/prod_AuAu_0_10_jet/out/test
+xscape-upload-follow ~/xscape/examples/prod_AuAu_0_10_jet/out AuAu_test --follow   # to the OSDF
+```
+
+`mac_wheel` takes the environment from `$VIRTUAL_ENV` (default `~/.venvs/xscape`) and the
+examples from `$XSCAPE_EXAMPLES` (default `~/xscape/examples`); inside this environment the
+wizard picks it by itself. The rates are the M3 Max's. The tools and their options:
+[Tools](../reference/tools.md); the OSDF: [Data on the OSDF](../run/osdf.md#on-a-mac-the-xscape-wheel).
+
 The productions themselves: [Au+Au jets (two stages)](../run/auau-jet.md),
-[O+O with ISR](../run/oo-isr.md), [Z+jet and other systems](../run/zjet-other.md).
+[O+O with ISR](../run/oo-isr.md), [Z+jet and other systems](../run/zjet-other.md),
+[Extra hard scatterings](../run/extra-hard.md).
 
 ## Your own scripts and Python modules
 
@@ -214,10 +286,15 @@ from, in your copy of the examples:
 | notebook | reads |
 |---|---|
 | `pythonic/oo_workflow.ipynb` (sections 4–6) | the hadron files of your own run |
-| `pythonic/oo_analysis.ipynb` | the O+O hadron files streamed from the OSDF (first `uv pip install pelicanfs`) |
+| `pythonic/oo_analysis.ipynb` | the O+O hadron files streamed from the OSDF (pelicanfs is in the environment) |
 | `analysis/tutorials/hadron_distributions.ipynb`, `jet_fastjet*.ipynb` | a production directory |
 | `prod_AuAu_0_10_jet/jet_wake.ipynb` | a pair file and its hadron files |
 | `prod_OO_isr/oo_isr_overview.ipynb` | an O+O production |
+| `analysis/bulk/` (`bulk_obs.py`, notebooks) | Nch, [pT] and vₙ of extras or minimum-bias files |
+
+`osdf://` paths work as they are (`fsspec`, `uproot`, `h5py` through pelicanfs), and
+`xscape-osdf download` fetches whole productions: [Data on the OSDF](../run/osdf.md).
+`xscape-h5-inspect FILE.h5` shows any HDF5 file, with js-contrib's formats decoded.
 
 To analyse on another computer (Linux, an Intel Mac, a cluster) you need only the Python
 package, not X-SCAPE: see [the analysis environment](analysis-env.md#without-a-checkout-the-pyjetscape-wheel).
@@ -252,15 +329,34 @@ In the activated environment:
 | command | does |
 |---|---|
 | `xscape-fetch-data lbt [--from DIR]` | the LBT tables into `~/Library/Caches/xscape` (or `$XSCAPE_CACHE`), checked and linked into this environment |
+| `xscape-selftest` | checks the environment: bindings, HDF5 filters, pelicanfs, paths, analysis packages, EoS table, LBT tables, one synthetic event |
 | `xscape-examples [DEST]` | copies the examples to `DEST` (default `./examples`); never overwrites |
-| `xscape-run -w RUN_DIR -u USER_XML` | X-SCAPE's `runJetscape` on a user XML, in a directory of its own |
-| `runJetscape USER_XML` | X-SCAPE's executable with this environment's data, in the current directory |
+| `xscape-utils [DEST]` | copies js-contrib's `utils/` to `DEST` (default `./utils`); never overwrites |
+| `xscape-run -w RUN_DIR -u USER_XML [-f]` | X-SCAPE's `runJetscape` on any user XML, in a directory of its own; checks the XML first ([above](#one-xml-xscape-run)) |
+| `runJetscape USER_XML` | X-SCAPE's executable with this environment's data, in the current directory; stops if the directory lacks what the XML needs |
+| `xscape-prodwizard` | plans a production (`utils/prodwizard.py`; `--machine mac_wheel`) |
+| `xscape-jobmon OUTDIR` | watches a `run_jobs.sh` production (`utils/jobmon.py`; `--watch`, `--tui`) |
+| `xscape-check-deposition DIR` | flags Au+Au jet jobs with far too little deposition (`utils/check_deposition.py`) |
+| `xscape-h5-inspect FILE.h5` | any HDF5 file, js-contrib's formats decoded (`utils/h5_inspect.py`) |
+| `xscape-osdf` | `ls`, `du`, `download`, `upload`, `rm` on the OSDF, `osdf:///fno4hic` (`utils/remote_transfer/js_osdf.py`), in this environment |
+| `xscape-upload-follow OUTBASE REMOTE` | uploads a running production's finished jobs to the OSDF (`utils/upload_follow.py`) |
+| `xscape-gcs` | the same transfers for Google Cloud Storage (`utils/remote_transfer/js_gcs.py`); makes its own environment in `~/.cache/js_gcs` on first use; needs a service-account key |
 
-For example, two proton-proton events with X-SCAPE's default user XML:
+The tool commands run the copies of the `utils/` scripts installed with the wheel, with the
+same options; `--help` shows them under the command's name.
 
-```bash
-xscape-run -w ~/xscape/runs/pp -u "$(python -c 'import xscape; print(xscape.TREE)')/config/jetscape_user.xml"
-```
+## What runs with the wheel
+
+The wheel is built without ROOT, HepMC, SMASH, FreestreamMilne, CLVisc, IPGlasma and the FNO
+hydro (PyTorch); its Pythia has no LHAPDF6, and Martini's data and X-SCAPE's test hydro files
+are not installed. `xscape-run` names what an XML needs of these and stops. For them use the
+[production container](container.md) or a [source build](source.md).
+
+| | runs | does not run (why) |
+|---|---|---|
+| **productions** | `prod_AuAu_0_10/run_prod.py`, `prod_AuAu_0_10_jet/run_prod_jet.py` (also `--extra-hard`, `--hard none`, the 5.36 TeV O+O and Ne+Ne XMLs), `run_prod_vacuum.py`, `hadronize.py`, `run_hadronize.py`, `prod_OO_isr/run_prod_oo_isr.py`, `run_jobs.sh` | `run_h5toROOT.py` with ROOT (PyROOT) |
+| **examples** | `pythonic/` (scripts and both notebooks), `python_modules/`, `per_event_loop.py`, `python_bulk_h5_writer.py`, `inspect_bulk_info.py`, `python_bulk_root_writer.py` (uproot), `analysis/` | `python_fno_test.py` (PyTorch), `python_fast_bulk_root_writer.py`, `validate_h5_vs_root.py`, `analysis_root/` (ROOT), `prod_AuAu_0_10_jet/music_cpu_gpu_hydro.py` (a CPU MUSIC), `prod_OO_isr/hadro_compare/run_hadro_compare.sh` (two builds), the movie step of `analysis/zjet/test/make_data.sh` (Visualization) |
+| **X-SCAPE's test XMLs** (installed `config/`) | `jetscape_user.xml`, `_MUSIC`, `_DIS`, `_photoproduction`, `_twostagehydro`, `_brick_hybrid_hadronization`, `_OO_ISR_MatterLBT_iColored` | the rest: the HepMC writer (`_rMatterLbt`, `_root_test`; `-f` runs them without it), ROOT writers (`BulkFastTest/`, `_dAu3d`), SMASH, FreestreamMilne (`_AA_dukeTune*`, `_FSFileTest`, `_sims`), CLVisc, IPGlasma, test hydro files (`_HydroFile`, `_PbPb_hard_nPDF`), LHAPDF6 (`_nPDF_test`), automatic module setup off (`FVvsMUSIC/`, `_iMATTERMCGlauber*`, `_MUSICMainClockTest`, `_SMASH*`, `_test`); `_MCGlauberMUSIC` and `3D/` use a tag no main XML has (`<nEvents_MCGla>`) |
 
 ## Updating and removing
 
@@ -301,6 +397,13 @@ rm ~/.local/bin/uv ~/.local/bin/uvx      # uv itself
 | `python: can't open file 'run_prod_jet.py'` | run it from your copy, `~/xscape/examples/prod_AuAu_0_10_jet` |
 | MUSIC slow, no GPU | inside a virtual machine or a container there is no Metal GPU: run natively in Terminal |
 | `ModuleNotFoundError: ROOT` | ROOT is not part of this environment; uproot reads ROOT files |
+| `sh: ./Metropolis.e: No such file or directory` (3dMCGlauber), from `runJetscape` | an environment before 0.2.0, run in a directory without `tables/`: use `xscape-run -w RUN_DIR -u USER_XML` |
+| `runJetscape: ... reads files relative to the current directory` | the same, caught: use `xscape-run` |
+| `User XML tag <extraHard> is unrecognized`, or `xscape-run: tags of ... that the main XML lacks` | the XML is newer than the environment (the extra hard scatterings need 0.2.0), or a tag is misspelled: install the current release |
+| `xscape-run: ... needs modules this xscape wheel does not have` | the XML uses ROOT, SMASH, FreestreamMilne, CLVisc, IPGlasma or HepMC: [What runs with the wheel](#what-runs-with-the-wheel) |
+| `xscape-run: ... turns automatic module setup off` | an XML of an X-SCAPE C++ test program: run it with its program in a source build |
+| `JobDir` / `enter_workdir` raise `XMLProblem` | the same checks from Python, before X-SCAPE starts: the message names the tags or inputs |
+| `ValueError: Protocol not known: osdf` | an environment before 0.2.0 has no pelicanfs: install the current release (or `uv pip install pelicanfs`) |
 
 The same guide, with every detail:
 [`utils/README_Mac_Usage.md`](https://github.com/jhputschke/js-contrib/blob/main/utils/README_Mac_Usage.md)

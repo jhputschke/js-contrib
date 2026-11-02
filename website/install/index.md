@@ -50,8 +50,11 @@ containers in a Linux VM without Metal.
 
 **[xscape wheel](mac.md)** (Apple Silicon). The same software as the container, installed
 natively from a lock file with uv, with MUSIC on the Mac's GPU through Metal. There is no
-compiler, Xcode, Homebrew, conda or Docker to install. It does not include ROOT or PyTorch,
-and it can't rebuild X-SCAPE. Intel Macs are not supported.
+compiler, Xcode, Homebrew, conda or Docker to install. It has js-contrib's production tools
+as commands (`xscape-prodwizard`, `xscape-jobmon`, `xscape-osdf`, ...) and pelicanfs. It does
+not include ROOT, PyTorch, SMASH and a few other modules
+([what runs with it](mac.md#what-runs-with-the-wheel)), and it can't rebuild X-SCAPE. Intel
+Macs are not supported.
 
 **[Analysis environment](analysis-env.md)**. A plain Python venv with the HDF5 readers,
 uproot, awkward, FastJet, the notebooks and pelicanfs for files on the OSDF. It needs no GPU,

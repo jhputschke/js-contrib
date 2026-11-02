@@ -36,7 +36,8 @@ from types import SimpleNamespace
 
 from . import paths
 
-__all__ = ["JobDir", "WORKDIR_LINKS", "enter_workdir", "job_workdir", "leave_workdir",
+__all__ = ["JobDir", "WORKDIR_LINKS", "XMLProblem", "xml_problems", "resolve_parent_path",
+           "enter_workdir", "job_workdir", "leave_workdir",
            "add_workdir_args", "SEED_MAX", "add_seed_args", "seed_args_problems",
            "output_name", "seed_registry", "resolve_seed", "seed_provenance",
            "pythia_data_problem", "hydro_label", "build_or_job_dir"]
@@ -187,36 +188,138 @@ def add_workdir_args(p: argparse.ArgumentParser) -> None:
 
 
 #: what an installed tree keeps directly in its data folder that jetscape_main.xml finds
-#: through ../external_packages/iSS/ (see _absolute_parent_paths)
+#: through ../external_packages/iSS/ (see _absolute_parent_paths); config/ is there too
 INSTALLED_ASSETS = ("iSS_tables", "iSS_parameters.dat")
 
 
-def _absolute_parent_paths(src: str, dst: str, build: str) -> None:
-    """Copy an XML, making every element text that starts with '../' absolute.
+class XMLProblem(FileNotFoundError):
+    """The job's XMLs can't run with this X-SCAPE: a user XML tag the main XML lacks, or an
+    input of the run with no file behind it. Raised before anything runs. ``problems``
+    lists them; the message says what to do."""
+
+    def __init__(self, problems):
+        self.problems = list(problems)
+        super().__init__("\n".join(self.problems))
+
+
+def _exists_exact(path: str) -> bool:
+    """``path`` exists with exactly this spelling in its last part. macOS file systems
+    ignore case and would match MUSIC_input to the build's music_input."""
+    if not os.path.exists(path):
+        return False
+    parent, name = os.path.split(path.rstrip("/"))
+    try:
+        return name in os.listdir(parent or ".")
+    except OSError:
+        return False
+
+
+def resolve_parent_path(text: str, build: str) -> tuple:
+    """A '../' path of an XML -> (absolute path, whether it exists).
+
+    The path relative to ``build`` (the working directory of an in-build run); if that's
+    missing, ``build`` joined with each tail of its parts, longest first. An installed
+    tree (the xscape wheel's share/xscape) has no ../external_packages or ../config, and
+    keeps iSS_tables, iSS_parameters.dat and config/ directly in it. So
+    ../external_packages/iSS/iSS_tables resolves to <build>/iSS_tables and
+    ../config/HH_LightExcitedMesons.xml to <build>/config/HH_LightExcitedMesons.xml.
+    The same rule as X-SCAPE's examples/run_xml.py, which run_in_workdir.sh uses."""
+    path = os.path.normpath(os.path.join(build, text))
+    if _exists_exact(path):
+        return path, True
+    parts = [p for p in os.path.normpath(text).split(os.sep) if p not in ("", "..", ".")]
+    for i in range(len(parts)):
+        cand = os.path.join(build, *parts[i:])
+        if _exists_exact(cand):
+            return cand, True
+    return path, False
+
+
+def _elements(root):
+    """(element, its tag path below the root), depth first, for every element."""
+    stack = [(child, (child.tag,)) for child in reversed(list(root))]
+    while stack:
+        el, path = stack.pop()
+        yield el, path
+        stack.extend((c, path + (c.tag,)) for c in reversed(list(el)))
+
+
+def _used(path: tuple, user_paths) -> bool:
+    """A main-XML element (<Stage><Module><...>) that the run reads: the user XML has its
+    module block and doesn't set the element itself."""
+    return len(path) >= 3 and path[:2] in user_paths and path not in user_paths
+
+
+def _absolute_parent_paths(src: str, dst: str, build: str, user_paths=None) -> list:
+    """Copy an XML, making every element text that starts with '../' absolute -> the
+    paths the run uses that have no file behind them ("<Stage><...> ../path").
 
     Such paths (iSS, SMASH, hydro-from-file, Martini, ... in jetscape_main.xml) are
     relative to the build tree, which is the working directory only with --in-build.
     './' paths (outputs such as ./FinalPartonsInfo.dat, iSS_working_path '.') stay
-    relative: they belong in the job's own directory.
+    relative: they belong in the job's own directory. A '../' target that doesn't exist
+    is looked up in the build by its trailing parts (resolve_parent_path).
 
-    iSS's '../' paths with no target fall back to the build's iSS_tables and
-    iSS_parameters.dat (INSTALLED_ASSETS) if those exist: an installed tree (the xscape
-    wheel's share/xscape) has them but no ../external_packages/iSS -- X-SCAPE's
-    run_in_workdir.sh points the iSS entries there too.  In a checkout or the image the
-    '../' targets exist.  Only these names: another missing target (the test hydro files)
-    stays as it was, and macOS would match MUSIC_input to the build's music_input.
+    ``user_paths``: None for the user XML, whose every '../' path is checked; for the main
+    XML, the user XML's tag paths, so only the blocks the job switches on are checked.
     """
     tree = ET.parse(src)
-    for el in tree.iter():
+    missing = []
+    for el, path in _elements(tree.getroot()):
         text = (el.text or "").strip()
         if text.startswith("../"):
-            path = os.path.normpath(os.path.join(build, text))
-            name = os.path.basename(path)
-            beside = os.path.join(build, name)
-            if name in INSTALLED_ASSETS and not os.path.exists(path) and os.path.exists(beside):
-                path = beside
-            el.text = path
+            el.text, ok = resolve_parent_path(text, build)
+            if not ok and (user_paths is None or _used(path, user_paths)):
+                missing.append(f"<{'><'.join(path)}> {text}")
     tree.write(dst)
+    return missing
+
+
+def xml_problems(main_xml: str, user_xml: str, build: str) -> list:
+    """What would stop the job: user XML tags the main XML lacks (X-SCAPE exits the
+    process at the first one, Python included), and the run's '../' inputs with no file
+    behind them, in the build or by their trailing parts in it. Nothing is written.
+    The inputs are not checked when the XML turns automatic module setup off."""
+    main = ET.parse(main_xml).getroot()
+    user = ET.parse(user_xml).getroot()
+    problems = []
+    known = {el.tag for el in main.iter()}
+    unknown, seen = [], set()
+    for el, path in _elements(user):
+        # Python modules (@js.module, register_module) add their CustomModule* block to
+        # the main XML when they are registered, i.e. after this check
+        if any("CustomModule" in t for t in path):
+            continue
+        if el.tag not in known and el.tag not in seen:
+            seen.add(el.tag)
+            unknown.append(f"<{el.tag}> (in <{'><'.join(path)}>)")
+    if unknown:
+        problems.append(
+            f"tags of {user_xml} that the main XML {main_xml} lacks (X-SCAPE would stop at "
+            "the first: 'User XML tag <...> is unrecognized'). Either the tag is misspelled "
+            "or the XML is newer than this X-SCAPE: use an X-SCAPE whose "
+            "config/jetscape_main.xml has the tag, or remove it: " + ", ".join(unknown))
+    # with automatic module setup off the script builds the pipeline, and the XML's blocks
+    # say nothing about which modules run: only the tags are checked
+    auto = (user.findtext("enableAutomaticTaskListDetermination") or
+            main.findtext("enableAutomaticTaskListDetermination") or "true")
+    if "false" in auto:
+        return problems
+    user_paths = {path for _, path in _elements(user)}
+    missing = []
+    for root, paths_ in ((user, None), (main, user_paths)):
+        for el, path in _elements(root):
+            text = (el.text or "").strip()
+            if text.startswith("../") and not resolve_parent_path(text, build)[1] \
+                    and (paths_ is None or _used(path, paths_)):
+                missing.append(f"<{'><'.join(path)}> {text}")
+    if missing:
+        problems.append(
+            f"inputs with no file behind them, neither relative to the build {build} nor "
+            "in it: this X-SCAPE does not have them (a module or test data not built or "
+            "installed), or the path is wrong; give inputs of your own as absolute paths: "
+            + ", ".join(missing))
+    return problems
 
 
 def enter_workdir(a, workdir: str, job_xml_path: str) -> str:
@@ -236,8 +339,15 @@ def enter_workdir(a, workdir: str, job_xml_path: str) -> str:
     * ``LBT_TABLES_PATH`` -> LBT tables
     * symlinks for the dirs still opened relative to the working directory (WORKDIR_LINKS)
     * '../' paths in the main and job XML made absolute (see _absolute_parent_paths)
+
+    Before any of it, the XMLs are checked (xml_problems): XMLProblem, a
+    FileNotFoundError, names the user XML tags the main XML lacks and the inputs with no
+    file behind them.
     """
     build = a.build
+    problems = xml_problems(a.main_xml, job_xml_path, build)
+    if problems:
+        raise XMLProblem(problems)
     os.makedirs(workdir, exist_ok=True)
     shutil.copyfile(os.path.join(build, "music_input"), os.path.join(workdir, "music_input"))
     for name in WORKDIR_LINKS:

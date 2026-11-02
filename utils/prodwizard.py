@@ -4,7 +4,8 @@ utils/prodwizard.py -- plan a production: the launch command, its sizing and the
 
 Pick a production preset and a machine; it writes the command that launches the campaign
 there (utils/launch_2gpu.sh on the 2 x RTX 3090 box, run_jobs.sh on the GB10 and the Mac,
-utils/slurm_prod_array.sh on a cluster) with the settings measured for that machine, and
+utils/slurm_prod_array.sh on a cluster; mac_wheel: run_jobs.sh in the macOS xscape wheel's
+environment, from a copy of the examples, watched with xscape-jobmon) with the settings measured for that machine, and
 estimates events/h, duration, disk and memory, each marked measured or estimated, with its
 source.  It checks the plan before anything runs: events per job a multiple of the pT-hat
 windows x jets, memory, disk and upload rate, the image, the campaign name.  It never starts
@@ -16,6 +17,10 @@ jobs: print the plan, or save it as a launch script to read and run.
         --out /data/AuAu_c5                               # print the plan
     utils/prodwizard.py --preset oo_hadrons --machine slurm_a40 --events 200000 --gpus 20 \\
         --campaign OO_c3 --save launch_OO_c3.sh           # a script to submit
+    xscape-prodwizard --preset auau_jet --machine mac_wheel --events 300   # the macOS wheel
+
+mac_wheel takes the environment from $VIRTUAL_ENV (default ~/.venvs/xscape) and the copy of
+the examples from $XSCAPE_EXAMPLES (default ~/xscape/examples, as xscape-examples makes it).
 
 The presets are utils/prod_presets.json: productions (driver arguments, events per job,
 memory per job, disk per event) and machines (launch settings and rates per production, with
@@ -35,6 +40,10 @@ import sys
 import time
 from dataclasses import dataclass, field
 
+
+#: --help: the command of the macOS xscape wheel (xscape-macos cli.py runs this script)
+WHEEL = "In the macOS xscape wheel this is the command xscape-prodwizard, in the wheel's environment: xscape-prodwizard --preset auau_jet --machine mac_wheel --events 300"
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 PRESETS = os.path.join(HERE, "prod_presets.json")
@@ -44,6 +53,24 @@ LBT_CONTAINER = "/work/lbt_cache/lbt_tables_v1.bin"
 UPLOAD_GB_H = 290          # the OSDF upload measured ~80 MB/s (REPORT_SUMMARY_CLUSTER.md)
 NODE_BASE_GB = 8           # per machine or node besides the jobs
 NAME_OK = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9._-]*$")
+
+
+def in_xscape_wheel() -> bool:
+    """This Python has the macOS xscape wheel (found without importing it)."""
+    import importlib.util
+    try:
+        return importlib.util.find_spec("xscape") is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def wheel_paths():
+    """(the environment, the examples copy) for mac_wheel: $VIRTUAL_ENV, $XSCAPE_EXAMPLES."""
+    venv = os.environ.get("VIRTUAL_ENV") or "~/.venvs/xscape"
+    examples = os.environ.get("XSCAPE_EXAMPLES") or "~/xscape/examples"
+    home = os.path.expanduser("~")
+    tilde = lambda p: "~" + p[len(home):] if p == home or p.startswith(home + "/") else p
+    return tilde(venv), tilde(examples)
 
 
 def load_presets(path=PRESETS):
@@ -105,6 +132,8 @@ def rng(lo, hi, f=lambda x: f"{x:,.0f}"):
 def this_machine():
     """The preset machine the wizard runs on, as far as it can tell (None if none)."""
     if sys.platform == "darwin":
+        if in_xscape_wheel():
+            return "mac_wheel"
         return "m3max" if "Max" in os.popen("sysctl -n machdep.cpu.brand_string").read() else None
     try:
         out = os.popen("nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null").read()
@@ -233,19 +262,33 @@ def build(o: Options, presets=None) -> Plan:
         if prod.get("stagger") and not mach.get("mac"):
             rj += ["--stagger", str(prod["stagger"])]
         rj += ["--campaign", camp, str(njobs), str(epj), str(o.first_seed), out]
-        plan.commands = [
-            f"conda activate {mach['env']}",
-            f"cd ${{JS_CONTRIB:-{REPO}}}/contribs/PyJetscape/example/{PROD_DIRS[prod['prod']]}",
-            "export " + " ".join(exports),
-            " ".join(map(q, rj)) + cont(args)]
-        where = out if os.path.isabs(out) else f"{PROD_DIRS[prod['prod']]}/{out}"
-        watch = out if os.path.isabs(out) else os.path.join(
-            "contribs/PyJetscape/example", PROD_DIRS[prod["prod"]], out)
+        pdir = PROD_DIRS[prod["prod"]]
+        if mach.get("wheel"):                # the macOS wheel: its venv, a copy of examples
+            venv, examples = wheel_paths()
+            plan.commands = [
+                f"source {venv}/bin/activate",
+                f"cd {examples}/{pdir}",
+                "export " + " ".join(exports),
+                " ".join(map(q, rj)) + cont(args)]
+            where = out if os.path.isabs(out) else f"{examples}/{pdir}/{out}"
+            watch = where
+            plan.prereq = [f"xscape-examples {examples}   # if there is no copy yet",
+                           "xscape-fetch-data lbt"]
+        else:
+            plan.commands = [
+                f"conda activate {mach['env']}",
+                f"cd ${{JS_CONTRIB:-{REPO}}}/contribs/PyJetscape/example/{pdir}",
+                "export " + " ".join(exports),
+                " ".join(map(q, rj)) + cont(args)]
+            where = out if os.path.isabs(out) else f"{pdir}/{out}"
+            watch = out if os.path.isabs(out) else os.path.join(
+                "contribs/PyJetscape/example", pdir, out)
         plan.notes.append("run it in tmux; the same command resumes (finished jobs are "
                           "skipped)")
         if o.upload:
+            follow = "xscape-upload-follow" if mach.get("wheel") else "utils/upload_follow.py"
             chk(("warn", "upload while running is wired into launch_2gpu.sh only; here run "
-                         f"utils/upload_follow.py {out} {o.upload} --follow next to it"))
+                         f"{follow} {where} {o.upload} --follow next to it"))
         if mach.get("mac") and prod["prod"] == "auau":
             plan.notes.append("macOS: run_jobs.sh runs under bash 3.2; --mps is CUDA-only")
     else:                                            # slurm
@@ -281,8 +324,12 @@ def build(o: Options, presets=None) -> Plan:
         if hours > 48:
             chk(("warn", f"a task needs ~{fmt_h(hours)}: more GPUs (--gpus) or fewer events, or "
                          "a longer --time if the site allows it"))
-    plan.commands.append(f"utils/jobmon.py {watch} --tui --njobs {njobs}"
-                         "    # watch it (from the js-contrib checkout)")
+    if mach.get("wheel"):
+        plan.commands.append(f"xscape-jobmon {watch} --tui --njobs {njobs}"
+                             "    # watch it (in the same environment)")
+    else:
+        plan.commands.append(f"utils/jobmon.py {watch} --tui --njobs {njobs}"
+                             "    # watch it (from the js-contrib checkout)")
     plan.estimates.append(("output", where, ""))
 
     # -- estimates -------------------------------------------------------------------------
@@ -399,7 +446,8 @@ def script(plan: Plan, o: Options) -> str:
     if plan.prereq:
         lines += ["#", "# Once, before the campaign:"] + [f"#   {p}" for p in plan.prereq]
     lines += ["", "set -e"]
-    body = [c for c in plan.commands if not c.startswith("utils/jobmon.py")]
+    body = [c for c in plan.commands
+            if not c.startswith(("utils/jobmon.py", "xscape-jobmon"))]
     if body and body[0].startswith("conda activate"):
         lines += ['eval "$(conda shell.bash hook)"']
     lines += body
@@ -431,7 +479,8 @@ def show(plan: Plan):
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[1],
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog=WHEEL)
     d = Options()
     ap.add_argument("--list", action="store_true", help="the presets and machines")
     ap.add_argument("--preset", dest="production", help="a production preset (--list)")

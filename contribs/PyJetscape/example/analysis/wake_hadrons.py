@@ -109,10 +109,18 @@ from wake_observables import EoS, find_eos
 
 def _h5_compression():
     """jetscape/h5_compression.py by its path: importing the jetscape package would load
-    pyjetscape_core, which this script does not need (the module is self-contained)."""
+    pyjetscape_core, which this script does not need (the module is self-contained).
+    The checkout's, else the installed package's (a copy of the examples: xscape-examples),
+    found without running the package's __init__."""
     import importlib.util
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "python",
                         "jetscape", "h5_compression.py")
+    if not os.path.isfile(path):
+        pkg = importlib.util.find_spec("jetscape")
+        if pkg is None or not pkg.submodule_search_locations:
+            raise ImportError("wake_hadrons.py: jetscape/h5_compression.py not found: run it "
+                              "from js-contrib's example/analysis, or install pyjetscape")
+        path = os.path.join(list(pkg.submodule_search_locations)[0], "h5_compression.py")
     spec = importlib.util.spec_from_file_location("_js_h5_compression", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

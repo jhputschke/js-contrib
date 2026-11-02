@@ -202,7 +202,7 @@ of every [xscape-macos release](https://github.com/jhputschke/xscape-macos/relea
 installs on any platform, in any Python 3.10+ environment:
 
 ```bash
-uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.1.0/pyjetscape-1.3-py3-none-any.whl"
+uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.2.0/pyjetscape-1.4-py3-none-any.whl"
 ```
 
 Quote the argument: zsh treats `[...]` as a pattern. The readers, `HadronArray`, the awkward

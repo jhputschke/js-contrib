@@ -39,6 +39,23 @@ cd js-contrib/utils/remote_transfer
 Keep it next to `transfer_core.py`, which it imports. Every command takes remote names as
 `NAME`, `osdf:///fno4hic/NAME` or `/fno4hic/NAME`.
 
+### On a Mac: the xscape wheel
+
+The [xscape wheel](../install/mac.md) (0.2.0 or later) has the tool as a command,
+`xscape-osdf`, with the same commands and options, and `upload_follow.py` as
+`xscape-upload-follow`. They run in the wheel's environment, which has pelicanfs and
+google-crc32c: no checkout, no environment in `~/.cache/js_osdf`, nothing to install.
+
+```bash
+source ~/.venvs/xscape-0.2.0/bin/activate
+xscape-osdf ls test                                    # as ./js_osdf.py ls test below
+xscape-osdf download AuAu_c1 --what h5 --to ~/data
+xscape-osdf login                                      # once, for uploads
+xscape-upload-follow ~/xscape/examples/prod_AuAu_0_10_jet/out AuAu_c1 --follow
+```
+
+In the examples below, `xscape-osdf` stands for `./js_osdf.py` on the Mac.
+
 ## Browsing
 
 ```bash
@@ -80,7 +97,8 @@ The kinds go by file name:
 ## Reading files in place
 
 In the [analysis environment](../install/analysis-env.md) (pelicanfs is installed by
-default) and in the production container, `osdf://` paths can be read without downloading:
+default), in the production container and in the [xscape wheel](../install/mac.md) (from
+0.2.0), `osdf://` paths can be read without downloading:
 pelicanfs finds a cache for the path and reads by byte ranges, so only the parts asked for
 travel. Both examples read public test files and run as they are:
 
@@ -166,7 +184,8 @@ touch /data/AuAu_a/.upload_final       # when the campaign is done: a last pass,
   the local file, and every Nth file was downloaded and compared. The `.json`, `.log` and `.xml`
   files are never deleted (`run_jobs.sh` needs the `.json` to skip finished jobs).
 - **It runs on the host**, next to Docker or on a node that sees a SLURM campaign's
-  directories, from a js-contrib checkout; any directory of `run_jobs.sh` output directories
+  directories, from a js-contrib checkout (on a Mac with the xscape wheel:
+  `xscape-upload-follow`, no checkout); any directory of `run_jobs.sh` output directories
   works (`OUTBASE/<sub>/` → `REMOTE/<sub>/`). Its state survives restarts
   (`OUTBASE/upload_state.json`, log in `OUTBASE/upload.log`).
 - **With `launch_2gpu.sh`**, `--upload REMOTE --delete pair` starts it with the campaign
@@ -192,12 +211,16 @@ service-account JSON key (`--key-file`, `$JS_GCS_KEY_FILE` or
 ./js_gcs.py download AuAu_a --what root --to /scratch
 ```
 
+On a Mac with the xscape wheel the command is `xscape-gcs`. Unlike `xscape-osdf` it keeps
+its own environment in `~/.cache/js_gcs` (google-cloud-storage is not in the wheel), made on
+its first run.
+
 All options, credentials and the tests:
 [`utils/remote_transfer/README.md`](https://github.com/jhputschke/js-contrib/blob/main/utils/remote_transfer/README.md).
 
 ## Next steps
 
 - [Analysis environment](../install/analysis-env.md): the venv that reads these files, with
-  pelicanfs.
+  pelicanfs; on a Mac the [xscape wheel](../install/mac.md) reads them too.
 - [Notebooks](../analysis/notebooks.md): `oo_analysis.ipynb` streams the O+O test files from
   the OSDF.

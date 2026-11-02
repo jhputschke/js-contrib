@@ -16,7 +16,8 @@ Run from the X-SCAPE build directory:
 
 The XMLs (MAIN_XML, USER_XML below) are X-SCAPE's config/jetscape_main.xml and FnoHydro's
 config/jetscape_user_root_bulk_test.xml, found from where js-contrib sits
-(X-SCAPE/external_packages/js-contrib).
+(X-SCAPE/external_packages/js-contrib); without FnoHydro (a copy of the examples, the macOS
+wheel) config/bulk_info_test.xml next to this script, the same without its FNO blocks.
 
 Prerequisites:
     uproot    (pip install uproot)     — for ROOT output (without it: an .npz)
@@ -68,6 +69,9 @@ except ImportError:
 MAIN_XML = os.path.join(_XSCAPE, "config", "jetscape_main.xml")
 USER_XML = os.path.join(_XSCAPE, "external_packages", "js-contrib", "contribs", "FnoHydro", "config",
                         "jetscape_user_root_bulk_test.xml")
+if not os.path.isfile(USER_XML):     # no FnoHydro (a copy of the examples, the macOS wheel)
+    USER_XML = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config",
+                            "bulk_info_test.xml")
 OUTPUT   = os.path.abspath("bulk_root_writer_python_test.root")   # where the script is started
 
 # User-resolution grid parameters (mirrors bulkRootWriter.cc defaults)

@@ -23,8 +23,8 @@ import importlib.util
 import os
 from pathlib import Path
 
-__all__ = ["pyjetscape_dir", "examples_dir", "xscape_root", "build_dir", "main_xml",
-           "installed_package", "installed_tree"]
+__all__ = ["pyjetscape_dir", "examples_dir", "utils_dir", "xscape_root", "build_dir",
+           "main_xml", "installed_package", "installed_tree"]
 
 
 def pyjetscape_dir() -> Path:
@@ -66,6 +66,24 @@ def examples_dir() -> Path:
     tree = installed_tree()
     if tree is not None and (tree / "examples").is_dir():
         return tree / "examples"
+    return local
+
+
+def utils_dir() -> Path:
+    """js-contrib's utils/ (jobmon.py, prodwizard.py, h5_inspect.py, remote_transfer/, ...):
+    the checkout's, else the one in $XSCAPE's js-contrib (the production image), else the
+    copy in the xscape wheel's installed tree (share/xscape/utils)."""
+    local = pyjetscape_dir().parents[1] / "utils"
+    if local.is_dir():
+        return local
+    env = os.environ.get("XSCAPE")
+    if env:
+        cand = Path(os.path.abspath(env)) / "external_packages" / "js-contrib" / "utils"
+        if cand.is_dir():
+            return cand
+    tree = installed_tree()
+    if tree is not None and (tree / "utils").is_dir():
+        return tree / "utils"
     return local
 
 

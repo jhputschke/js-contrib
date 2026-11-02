@@ -29,6 +29,10 @@ import statistics
 import sys
 
 
+#: --help: the command of the macOS xscape wheel (xscape-macos cli.py runs this script)
+WHEEL = "In the macOS xscape wheel this is the command xscape-check-deposition, in the wheel's environment: xscape-check-deposition ~/xscape/examples/prod_AuAu_0_10_jet/out/c1"
+
+
 def rows(dirs):
     out = []
     for d in dirs:
@@ -46,7 +50,8 @@ def rows(dirs):
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[1],
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+                                 formatter_class=argparse.RawDescriptionHelpFormatter,
+                                 epilog=WHEEL)
     ap.add_argument("dirs", nargs="+", help="campaign directories (searched recursively)")
     ap.add_argument("--fraction", type=float, default=0.5,
                     help="flag jobs below this fraction of the median (default 0.5)")

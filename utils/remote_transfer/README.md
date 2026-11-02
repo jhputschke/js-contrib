@@ -15,6 +15,14 @@ in [`transfer_core.py`](transfer_core.py); keep the three files together. Each s
 its own Python environment on its first run and from then on runs itself in it, so neither
 needs a conda env, venv, uv or pipx. A `python3` (≥ 3.9, with `venv`) is all.
 
+**In the macOS xscape wheel** (0.2.0 or later) both are commands: `xscape-osdf` (and
+`xscape-upload-follow` for [`upload_follow.py`](#uploading-while-a-production-runs-upload_followpy))
+runs in the wheel's environment, which has pelicanfs, google-crc32c and h5py, and makes no
+environment in `~/.cache/js_osdf` (`JS_OSDF_NO_ENV=1`). `xscape-gcs` keeps its own in
+`~/.cache/js_gcs`, as here, since google-cloud-storage is not in the wheel. The commands and
+options are the same: `xscape-osdf login`, `xscape-osdf ls`, `xscape-osdf download AuAu_c1
+--what h5 --to ~/data`, ...
+
 ```bash
 cd utils/remote_transfer
 ./js_gcs.py ls                                                   # the bucket (gs://test_fno)
@@ -201,6 +209,7 @@ restarts (`OUTBASE/upload_state.json`).
 utils/upload_follow.py /data/c1 AuAu_c1                          # one pass, upload only
 utils/upload_follow.py /data/c1 AuAu_c1 --follow --delete pair   # while the campaign runs,
 touch /data/c1/.upload_final                                     # until this: a last pass, exit
+xscape-upload-follow ~/xscape/prod AuAu_c1 --follow              # the macOS xscape wheel
 ```
 
 `launch_2gpu.sh --upload` starts it next to a campaign. All options and the checks:
@@ -322,6 +331,8 @@ upload needs one that lasts.
   ([`BuildContainerProd.md`](../BuildContainerProd.md)): they have pelicanfs,
   `google-cloud-storage`, `google-crc32c` and h5py, so both scripts run there as they are.
   The other images lack `google-crc32c`, so there the scripts make their environments.
+  The macOS xscape wheel's `xscape-osdf` and `xscape-upload-follow` set `JS_OSDF_NO_ENV=1`:
+  the wheel has pelicanfs, google-crc32c and h5py.
 
 ## Tested
 
