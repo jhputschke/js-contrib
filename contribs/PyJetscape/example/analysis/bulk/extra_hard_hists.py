@@ -46,7 +46,11 @@ Keys: ``<c>.v2_<m>_num``, ``<c>.v2_<m>_den`` (per bin), ``<c>.v2_<m>_rnum``,
 ``<c>.v2_<m>_rden`` (the reference, gap1 and gap15).
 
     python extra_hard_hists.py [--prod DIR] [--out ../runs/pbpb_extra_hard/data/extra_hard_hists.npz]
-                               [--workers 12]
+                               [--workers 12] [--chunks-per-worker 4]
+
+The events go to the processes in contiguous ranges within a file (about --chunks-per-worker
+ranges per process), so the cores stay busy to the end; the output is the same, row for
+row, as with one range per file.
 """
 
 from __future__ import annotations
@@ -192,12 +196,15 @@ def hist_samples(values_per_sample, edges):
     return h / max(len(values_per_sample), 1)
 
 
-def one_file(stem_glob):
+def one_file(task):
+    """The rows of one event range: ``task`` = (production file, its local events) or just
+    the file (all its events)."""
     import warnings
     warnings.filterwarnings("ignore")
+    stem_glob, events = task if isinstance(task, tuple) else (task, None)
     r = HadronFileReader(stem_glob)
     rows = []
-    for g in r.events():
+    for g in r.events(events):
         info = r.event_info(g)
         K = r.n_oversamples(g)
         evs = {"bg": [r.background_event(g, k) for k in range(K)],
@@ -249,19 +256,43 @@ def one_file(stem_glob):
     return rows
 
 
+def event_ranges(stems, workers, per_worker=4):
+    """(file, local events) tasks: each file's events in contiguous ranges of about
+    total / (workers * per_worker) events, in file order."""
+    import warnings
+    counts = []
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for st in stems:
+            r = HadronFileReader(st)
+            counts.append(r.n_events)
+            r.close()
+    size = max(1, int(np.ceil(sum(counts) / max(1, workers * per_worker))))
+    tasks = []
+    for st, n in zip(stems, counts):
+        for part in np.array_split(np.arange(n), max(1, int(np.ceil(n / size)))):
+            if len(part):
+                tasks.append((st, part))
+    return tasks
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--prod", default=PROD)
     ap.add_argument("--out", default=os.path.join(RUN, "data", "extra_hard_hists.npz"))
     ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--chunks-per-worker", type=int, default=4,
+                    help="event ranges per process (1 per file: 0)")
     a = ap.parse_args()
     stems = sorted(glob.glob(os.path.join(a.prod, "*_hadrons_bulk_jet.h5")))
     t0 = time.time()
+    tasks = (event_ranges(stems, a.workers, a.chunks_per_worker) if a.chunks_per_worker > 0
+             else stems)
     rows = []
     with Pool(a.workers) as pool:
-        for i, rr in enumerate(pool.imap(one_file, stems)):
+        for i, rr in enumerate(pool.imap(one_file, tasks)):
             rows += rr
-            print(f"  {i + 1}/{len(stems)} files, {len(rows)} events, "
+            print(f"  {i + 1}/{len(tasks)} ranges of {len(stems)} files, {len(rows)} events, "
                   f"{time.time() - t0:.0f} s", flush=True)
     out = {f"edges_{k}": v for k, v in EDGES.items()}
     for key in ("seed", "local", "bg_unit", "n_coll", "n_samples", "psi2", "psi2_res",

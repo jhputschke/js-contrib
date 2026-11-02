@@ -218,7 +218,7 @@ python extra_hard_hists.py --prod /path/to/campaign --out hists.npz --workers 12
 |---|---|
 | `--prod` | the campaign directory (its `*_hadrons_bulk_jet.h5`) |
 | `--out` | the `.npz` (default `../runs/pbpb_extra_hard/data/extra_hard_hists.npz`) |
-| `--workers` | processes, one production file each (default 12) |
+| `--workers` | processes (default 12); they take contiguous event ranges, about `--chunks-per-worker` (default 4) each, so the cores stay busy to the end. The output is the same as with one range per file (`--chunks-per-worker 0`). 1,000 Pb+Pb events × 40 oversamples: 302 s with 20 workers on the GB10 (10 fast and 10 efficiency cores) |
 | [`v2pt.py`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/v2pt.py) | v₂(p_T) from the sums, the event-plane resolution, the HEPData tables |
 | [`extra_hard_bulk_jets.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets.ipynb) | the figures and ratios (numpy + matplotlib), and v₂(p_T) against ALICE and CMS |
 | [`extra_hard_bulk_jets_hist.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets_hist.ipynb) | the same with `hist` + mplhep: a jackknife `block` axis, rebinning, a `Mean` profile |
