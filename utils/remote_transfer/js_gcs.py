@@ -6,7 +6,8 @@ Upload and download production directories and files to / from Google Cloud Stor
 service-account key.  Standalone: on its first run the script makes its own virtual
 environment (``~/.cache/js_gcs/venv``, plain ``python3 -m venv`` + pip) and from then on
 runs itself in it, whatever environment it is started from.  It needs transfer_core.py next
-to it.  js_osdf.py is the same for Pelican/OSDF.
+to it.  js_osdf.py is the same for Pelican/OSDF.  In the macOS xscape wheel this is the
+command xscape-gcs (with its own environment, as here).
 
     ./js_gcs.py upload /data/AuAu_c1 --what root          # -> gs://test_fno/AuAu_c1/
     ./js_gcs.py upload /data/AuAu_a /data/AuAu_b --what pair,h5 --prefix productions -j 8

@@ -26,6 +26,10 @@ transfer_core.py next to it.
     ./js_osdf.py status                                # who, scopes, time left
     ./js_osdf.py logout                                # forget the browser login
 
+In the macOS xscape wheel the same is the command xscape-osdf (xscape-osdf login, xscape-osdf
+ls, xscape-osdf download AuAu_c1 --what h5 --to ~/data, ...): it runs in the wheel's
+environment, which has pelicanfs, and makes none in ~/.cache/js_osdf.
+
 What (``--what``, a comma list; default all) -- by file name, as for js_gcs.py:
 
     pair    <stem>.h5, the hydro pair file, with its <stem>.json, .xml, .log
@@ -77,6 +81,10 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import transfer_core as core  # noqa: E402
+
+#: how to start this tool again, for the hints: ./js_osdf.py, or the command it was started
+#: as (xscape-osdf in the macOS wheel)
+CMD = "./js_osdf.py" if sys.argv[0].endswith(".py") else os.path.basename(sys.argv[0])
 
 ENV = core.Env("js_osdf", ("pelicanfs>=1.4", "google-crc32c>=1.5", "h5py>=3.0"),
                "JS_OSDF_ENV")
@@ -427,7 +435,7 @@ class WebLogin:
             refresh = (f"valid until {when(rexp)} ({_left(rexp)}); renewals don't extend "
                        "it: login again before then"
                        if rexp > time.time() else
-                       f"expired {when(rexp)}: ./js_osdf.py login")
+                       f"expired {when(rexp)}: {CMD} login")
         else:
             refresh = "kept (its expiry is the issuer's)"
         return [
@@ -577,7 +585,7 @@ class OsdfStore:
             raise OSError(f"{self.label}/{name}/ is not empty")
         if st in (401, 403):
             raise PermissionError(f"HTTP {st}: no right to remove {self.label}/{name} "
-                                  "(./js_osdf.py login, or a token that may modify)")
+                                  f"({CMD} login, or a token that may modify)")
         raise OSError(f"HTTP {st} removing {self.label}/{name}: {body[:200]!r}")
 
 
@@ -627,7 +635,7 @@ def cmd_status(a):
                  + (f", {_left(exp)} left" if exp else ""))
     w = WebLogin(a.namespace, a.federation)
     if not w.exists():
-        core.say(f"no browser login for {a.namespace}: ./js_osdf.py login"
+        core.say(f"no browser login for {a.namespace}: {CMD} login"
                  + ("" if token else "  (reading a public namespace needs none)"))
         return 0 if token else 1
     core.say(f"browser login for {a.namespace}:")
@@ -658,7 +666,7 @@ def credential(a):
         return None
     try:
         if w.token(interactive=a.web) is None:
-            core.say(f"the browser login for {a.namespace} has expired: ./js_osdf.py login "
+            core.say(f"the browser login for {a.namespace} has expired: {CMD} login "
                      "(going on without a token)")
             return None
     except (OSError, RuntimeError) as e:
@@ -668,7 +676,7 @@ def credential(a):
         t = w.token(interactive=a.web)
         if t is None:
             raise RuntimeError(f"the browser login for {a.namespace} has expired and could "
-                               "not be renewed: ./js_osdf.py login, then run again")
+                               f"not be renewed: {CMD} login, then run again")
         return t
     current.login = w
     return current

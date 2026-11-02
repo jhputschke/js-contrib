@@ -3,6 +3,8 @@
 runs, and optionally delete the uploaded HDF5 files locally.
 
     ./upload_follow.py OUTBASE REMOTE [options]
+    xscape-upload-follow OUTBASE REMOTE [options]     # the macOS xscape wheel's command, in
+                                                      # the wheel's environment
 
 OUTBASE is the production's output root on the host (launch_2gpu.sh: OUTBASE/gpu0, OUTBASE/gpu1;
 any subdirectory holding run_jobs.sh output is taken).  Each subdirectory SUB goes to
