@@ -15,7 +15,7 @@
         <link rel="prev" href="../oo-isr/">
       
       
-        <link rel="next" href="../clusters/">
+        <link rel="next" href="../extra-hard/">
       
       
         
@@ -900,6 +900,8 @@
       
         
       
+        
+      
     
     
     
@@ -1256,6 +1258,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../clusters/" class="md-nav__link">
         
   
@@ -1323,6 +1353,8 @@
       
         
           
+        
+      
         
       
         
@@ -1520,6 +1552,34 @@
     
   
     O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
   
 
     
@@ -2173,7 +2233,8 @@
 process is mostly a copy of an XML with a few lines changed. This page covers the two cases
 that already exist: the <strong>Z+jet production</strong> in Pb+Pb at 5.02 TeV, made for the CMS and ATLAS
 Z–hadron and Z+jet measurements, and <strong>Pb+Pb jets at the LHC</strong> from your own XML, with the
-steps to take for any other system. Both run through the Au+Au jet production's driver
+steps to take for any other system. O+O and Ne+Ne at 5.36 TeV, and the event's other hard
+scatterings, which matter at the LHC, are on <a href="../extra-hard/">Extra hard scatterings</a>. Both run through the Au+Au jet production's driver
 <code>run_prod_jet.py</code>, so everything in <a href="../auau-jet/">Au+Au jets</a> applies. At the end, the
 production wizard plans the launch command for any of the productions.</p>
 <h2 id="zjet-in-pbpb-at-502-tev">Z+jet in Pb+Pb at 5.02 TeV<a class="headerlink" href="#zjet-in-pbpb-at-502-tev" title="Permanent link">¶</a></h2>
@@ -2230,6 +2291,12 @@ background), the Z's leptons inside the detector acceptance, and hadron files ma
 </table>
 <p><code>--trigger Z</code> comes from the XML; <code>--trigger-ymax Y</code> would add a Z rapidity cut (the
 campaigns apply |y_Z| offline). There is no cut on the recoiling parton.</p>
+<p><strong>The event's other hard scatterings.</strong> A 0–30 % Pb+Pb event has ~8 other hard scatterings
+above 15 GeV (the XML's <code>&lt;extraHard&gt;&lt;pTHatMin&gt;</code>). Add <code>--extra-hard</code> to the options above to
+have them: their fragments then form the B of the Z+jet analysis as CMS's minimum-bias events
+do, and the Z, its recoil and the background stay bit-identical for the same seed. See
+<a href="../extra-hard/">Extra hard scatterings</a> and, for the analyses,
+<a href="../../analysis/jets/#with-the-events-other-hard-scatterings">Jets with FastJet</a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">A current image</p>
 <p>The Z trigger, <code>--hadrons-only</code> and <code>TAG_PREFIX</code> need an image built from the current code.
@@ -2592,6 +2659,8 @@ interactive wizard needs <code>textual</code> (in the analysis venv), and runs i
 <code>utils/prod_presets.json</code>.</p>
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">¶</a></h2>
 <ul>
+<li><a href="../extra-hard/">Extra hard scatterings, O+O and Ne+Ne</a>: the event's other hard scatterings,
+  minimum bias, the light ions at 5.36 TeV.</li>
 <li><a href="../clusters/">Clusters, GPUs and monitoring</a>: SLURM, several GPUs, <code>jobmon.py</code>.</li>
 <li><a href="../../analysis/hadrons/">Hadrons</a> and <a href="../../analysis/jets/">Jets with FastJet</a>: reading
   the outputs.</li>
@@ -2650,13 +2719,13 @@ interactive wizard needs <code>textual</code> (in the analysis venv), and runs i
         
         
           
-          <a href="../clusters/" class="md-footer__link md-footer__link--next" aria-label="Next: Clusters, GPUs and monitoring">
+          <a href="../extra-hard/" class="md-footer__link md-footer__link--next" aria-label="Next: Extra hard scatterings, O+O and Ne+Ne">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Clusters, GPUs and monitoring
+                Extra hard scatterings, O+O and Ne+Ne
               </div>
             </div>
             <div class="md-footer__button md-icon">

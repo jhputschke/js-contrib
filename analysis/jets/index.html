@@ -898,6 +898,8 @@
       
         
       
+        
+      
     
     
     
@@ -1071,6 +1073,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../run/extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../run/clusters/" class="md-nav__link">
         
   
@@ -1140,6 +1170,8 @@
       
         
           
+        
+      
         
       
         
@@ -1446,6 +1478,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#with-the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        With the event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1514,6 +1557,34 @@
     
   
     O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
   
 
     
@@ -2115,6 +2186,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#with-the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        With the event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2157,6 +2239,12 @@
 
 
 <h1 id="jets-with-fastjet">Jets with FastJet<a class="headerlink" href="#jets-with-fastjet" title="Permanent link">¶</a></h1>
+<div class="admonition warning">
+<p class="admonition-title">Work in progress</p>
+<p>The analysis scripts and notebooks on this page are work in progress and need further
+vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+<a href="../">note on the analysis section</a>.</p>
+</div>
 <p>This page shows how to find jets in the production hadrons with FastJet from Python: the
 conventions the notebooks and analyses share, the classic (SWIG) interface with jet areas and
 ρA background subtraction, embedding a jet into a background it never touched, charged and full
@@ -2423,6 +2511,7 @@ background fluctuations, is subtracted:</p>
 </tr>
 </tbody>
 </table>
+<p>With extra hard scatterings, B also holds their jets (<a href="#with-the-events-other-hard-scatterings">below</a>).</p>
 <p>Steps 2 and 3 are the model's version of the measured observable. Step 2 repeated on the
 embedded event (the same fragments in <code>bulk_bg</code> sample k, no wake) gives "what the wake does to
 the jets" with very small errors, since both share everything else. In short (route A):</p>
@@ -2511,6 +2600,51 @@ and closure contents that must come out flat, next to CMS's HEPData. With the Z 
 comparison with CMS is a shape reference, not like for like. Full walk-through, including the
 map steps at R = 0.4:
 <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/dijet/ANA_Deta.md"><code>ANA_Deta.md</code></a>.</p>
+<h3 id="with-the-events-other-hard-scatterings">With the event's other hard scatterings<a class="headerlink" href="#with-the-events-other-hard-scatterings" title="Permanent link">¶</a></h3>
+<p>A campaign made with <code>--extra-hard</code> (<a href="../../run/extra-hard/">Extra hard scatterings</a>) has the
+event's other hard scatterings above p₀ (15 GeV for Pb+Pb) in <code>extra_frag</code>. Without them, B
+holds only the fake jets of the bulk's fluctuations, while CMS's minimum-bias events also hold
+the other scatterings' jets. <strong>The extras belong to the event, not to the trigger</strong>, so every
+map step takes them by default:</p>
+<table>
+<thead>
+<tr>
+<th>analysis</th>
+<th>with the extras (default)</th>
+<th>without</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Z+jet (<code>zjet_jets_map.py</code>, <code>zjets</code>)</td>
+<td>S = <code>bulk_jet</code> + <code>jet_frag</code> + <code>extra_frag</code>; B = <code>bulk_bg</code> + the event's <code>extra_frag</code> (per event, collection <code>bgx_*</code>), for B_own (step 2) and B_mixed (step 3, the Z events on the nearest backgrounds), the embedding and the random cones; the reference jets of step 1 stay the trigger's</td>
+<td><code>--no-extras</code> / <code>--extras 0</code></td>
+</tr>
+<tr>
+<td>Z–hadron (<code>mix.py</code>, <code>zhadron_pools</code>)</td>
+<td>the full events (and so the mixing partners) carry their extras; the Z-correlated yield <code>bulk_jet − bulk_bg + jet_frag</code> stays the trigger's; step 1 is unchanged, steps 2–4 get the extras' noise</td>
+<td><code>--no-extras</code> / <code>--extras 0</code></td>
+</tr>
+<tr>
+<td>QA (<code>qa.py map</code>, <code>zqa</code>), <code>wake_iso.py</code></td>
+<td><code>extra_frag</code> as a source, <code>n_extra</code>, <code>nch*_extra</code>; the measured event's noise includes the extras</td>
+<td><code>--no-extras</code> / <code>--extras 0</code></td>
+</tr>
+<tr>
+<td>dijet Δη (<code>deta.py</code>)</td>
+<td>jet2 is the leading jet of the full event, so the fake jet2 includes the extras' jets; takes everything from the map steps</td>
+<td>via the map steps</td>
+</tr>
+</tbody>
+</table>
+<p>Map a campaign one way: pools and jet outputs with and without the extras do not combine. With
+<code>--no-extras</code> the outputs are exactly those of files without extras, and files without
+<code>extra_frag</code> give the same outputs as before, bit for bit. Minimum-bias files (<code>--hard none</code>)
+have no Z and are refused. B now has the scatterings above p₀ but still no minijets below it.
+Details: the <em>Extra hard scatterings</em> sections of
+<a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/zjet/ANA_Zjet.md"><code>ANA_Zjet.md</code></a>,
+<a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/zjet/ANA_Zhadron.md"><code>ANA_Zhadron.md</code></a>
+and <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/dijet/ANA_Deta.md"><code>ANA_Deta.md</code></a>.</p>
 <div class="admonition warning">
 <p class="admonition-title">Results not public yet</p>
 <p>The Z+jet and dijet results are not public: write their outputs (<code>--outdir</code>, <code>runs/</code>)

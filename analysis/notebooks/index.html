@@ -898,6 +898,8 @@
       
         
       
+        
+      
     
     
     
@@ -1071,6 +1073,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../run/extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../run/clusters/" class="md-nav__link">
         
   
@@ -1140,6 +1170,8 @@
       
         
           
+        
+      
         
       
         
@@ -1360,6 +1392,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../root/" class="md-nav__link">
         
   
@@ -1485,6 +1545,17 @@
     <span class="md-ellipsis">
       
         Z+jet
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extra-hard-scatterings-and-the-bulk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extra hard scatterings and the bulk
       
     </span>
   </a>
@@ -2010,6 +2081,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#extra-hard-scatterings-and-the-bulk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extra hard scatterings and the bulk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#oo" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2079,6 +2161,12 @@
 
 
 <h1 id="notebooks">Notebooks<a class="headerlink" href="#notebooks" title="Permanent link">¶</a></h1>
+<div class="admonition warning">
+<p class="admonition-title">Work in progress</p>
+<p>The analysis scripts and notebooks on this page are work in progress and need further
+vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+<a href="../">note on the analysis section</a>.</p>
+</div>
 <p>Every notebook sits next to the code or the production it belongs to; this page is the index.
 Each one reads its inputs from environment variables (the defaults are in its first code cell),
 so the same notebook runs on the shipped example files, on your own run or on a downloaded
@@ -2193,6 +2281,32 @@ JupyterLab). On the Mac, the xscape environment runs them too, from your copy of
 </tbody>
 </table>
 <p>The campaign analyses themselves are scripts, not notebooks: <a href="../jets/#7-worked-examples-the-zjet-campaign-analyses">Jets with FastJet</a>.</p>
+<h2 id="extra-hard-scatterings-and-the-bulk">Extra hard scatterings and the bulk<a class="headerlink" href="#extra-hard-scatterings-and-the-bulk" title="Permanent link">¶</a></h2>
+<table>
+<thead>
+<tr>
+<th>notebook</th>
+<th>what it shows</th>
+<th>input</th>
+<th>environment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets.ipynb"><code>analysis/bulk/extra_hard_bulk_jets.ipynb</code></a></td>
+<td>a minimum-bias extras campaign: the number of extras against the Poisson expectation, their p̂T and initiators; η, φ, φ − Ψ₂ and pT of bulk, bulk + wakes and bulk + extras; unsubtracted R = 0.4 jets; ratios with jackknife errors over the hydro backgrounds; v₂(p_T) against ALICE v₂{2, |Δη| &gt; 1} and CMS v₂{SP}</td>
+<td><code>../runs/pbpb_extra_hard/data/extra_hard_hists.npz</code> of <code>extra_hard_hists.py</code> (<a href="../bulk/#6-histograms-and-jets-of-a-minimum-bias-campaign">Bulk and flow</a>); the HEPData of <code>get_hepdata.sh</code></td>
+<td>venv</td>
+</tr>
+<tr>
+<td><a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets_hist.ipynb"><code>analysis/bulk/extra_hard_bulk_jets_hist.ipynb</code></a></td>
+<td>the same with <code>hist</code> + mplhep: a jackknife <code>block</code> axis, rebinning, <code>hist.loc</code>, a <code>Mean</code> profile; writes the results as <code>Hist</code> objects</td>
+<td>as above</td>
+<td>venv</td>
+</tr>
+</tbody>
+</table>
+<p>Nch, [pT] and vₙ2 per class are a script, <code>bulk_obs.py</code>: <a href="../bulk/">Bulk and flow</a>.</p>
 <h2 id="oo">O+O<a class="headerlink" href="#oo" title="Permanent link">¶</a></h2>
 <table>
 <thead>

@@ -898,6 +898,8 @@
       
         
       
+        
+      
     
     
     
@@ -1071,6 +1073,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../run/extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../run/clusters/" class="md-nav__link">
         
   
@@ -1140,6 +1170,8 @@
       
         
           
+        
+      
         
       
         
@@ -1352,6 +1384,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1509,6 +1552,34 @@
     
   
     O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
   
 
     
@@ -2072,6 +2143,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2202,7 +2284,14 @@ files, and the readers open them side by side as one data set.</p>
 <tr>
 <td><code>&lt;stem&gt;_hadrons_jet_frag.h5</code></td>
 <td><code>hadronize.py</code></td>
-<td>the fragmented surviving partons, M fragmentations per event</td>
+<td>the fragmented surviving partons, M fragmentations per event; with extra hard scatterings the trigger's alone</td>
+<td>small</td>
+<td><code>HadronFileReader</code></td>
+</tr>
+<tr>
+<td><code>&lt;stem&gt;_hadrons_extra_frag.h5</code></td>
+<td><code>hadronize.py</code>, only with <code>--extra-hard</code></td>
+<td>the fragments of the event's other hard scatterings, M fragmentations per event, with <code>scatterings/</code></td>
 <td>small</td>
 <td><code>HadronFileReader</code></td>
 </tr>
@@ -2249,6 +2338,10 @@ with <code>--particlize-only</code> (no pair file).</p>
 <tr>
 <td>Z+jet (Pb+Pb)</td>
 <td>hadrons-only jobs, as above, with the Z and its leptons in the event record; see <a href="../../run/zjet-other/">Z+jet and other systems</a></td>
+</tr>
+<tr>
+<td>any jet production with <code>--extra-hard</code></td>
+<td>the same files plus <code>&lt;stem&gt;_hadrons_extra_frag.h5</code> and the extras' records; minimum bias (<code>--hard none</code>) has no <code>jet_frag</code>; see <a href="#the-events-other-hard-scatterings">below</a> and <a href="../../run/extra-hard/">Extra hard scatterings</a></td>
 </tr>
 </tbody>
 </table>
@@ -2435,7 +2528,12 @@ CPUs, as often as needed (<code>jetscape.particlize_h5</code>):</p>
 </tr>
 <tr>
 <td><code>jet_frag</code></td>
-<td>Colorless hadronization of the surviving partons (O+O: iColored, in the job)</td>
+<td>Colorless hadronization of the surviving partons (O+O: iColored, in the job); with <code>--extra-hard</code> the trigger's alone</td>
+<td>an event</td>
+</tr>
+<tr>
+<td><code>extra_frag</code></td>
+<td>only with <code>--extra-hard</code>: Colorless hadronization of the other hard scatterings' surviving partons</td>
 <td>an event</td>
 </tr>
 </tbody>
@@ -2512,6 +2610,49 @@ list: <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJet
   readers skip such events.</li>
 </ul>
 <p>The ROOT files have the same structure, one entry per oversample: <a href="../root/">ROOT and C++</a>.</p>
+<h3 id="the-events-other-hard-scatterings">The event's other hard scatterings<a class="headerlink" href="#the-events-other-hard-scatterings" title="Permanent link">¶</a></h3>
+<p>Productions with <code>--extra-hard</code> (<a href="../../run/extra-hard/">Extra hard scatterings</a>) have each
+event's other hard scatterings, the <strong>extras</strong>. Their wakes are in <code>bulk_jet</code>, so
+<code>bulk_jet − bulk_bg</code> is the response to all scatterings; their fragments are in <code>extra_frag</code>;
+<code>jet_frag</code> stays the trigger's alone. A jet event at hadron level is then oversample k of
+<code>bulk_jet</code> + fragmentation k mod M of <code>jet_frag</code> + fragmentation k mod M of <code>extra_frag</code>.</p>
+<table>
+<thead>
+<tr>
+<th>where</th>
+<th>what</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>per event: pair <code>diag/</code>, particlize <code>events/</code>, hadron <code>units/</code></td>
+<td><code>n_extra</code>, <code>extra_mu</code> (= N_coll σ/σ_NN), <code>extra_E</code>, <code>extra_pt</code> (summed E and scalar pT of the extras' handed-over partons)</td>
+</tr>
+<tr>
+<td><code>scatterings/data</code> + <code>offsets</code> (pair, particlize, <code>extra_frag</code>)</td>
+<td>one row per scattering, columns <code>scatter, pthat, code, x, y, n_partons, E, pt</code>; the trigger's first (scatter 0; none with <code>--hard none</code>); <code>code</code> is Pythia's process code, x, y [fm] the binary collision</td>
+</tr>
+<tr>
+<td><code>initiators/scatter</code> (particlize, <code>extra_frag</code>)</td>
+<td>each shower initiator's scattering, aligned with <code>initiators/data</code></td>
+</tr>
+<tr>
+<td><code>&lt;stem&gt;_hadrons_extra_frag.h5</code></td>
+<td>the layout of <code>jet_frag</code> (unit = event, <code>--n-frag</code> samples), plus <code>scatterings/</code>, the extras' <code>initiators/</code>, <code>partons/</code> (hadrons-only jobs) and <code>hadrons/scatter</code> (with <code>--extra-hadronize per_scattering</code>)</td>
+</tr>
+<tr>
+<td>attributes</td>
+<td><code>extra_hard</code>, <code>extra_no_trigger</code>, <code>extra_pthat_min</code>, <code>extra_sigma</code>, <code>extra_sigma_err</code>, <code>extra_sigma_nn</code>, <code>extra_warmup</code>, <code>extra_fixed_n</code>, <code>extra_seed</code>, <code>extra_rng_seed</code>; <code>prod_extra_*</code>; <code>extra_hadronize</code> on <code>extra_frag</code></td>
+</tr>
+<tr>
+<td><code>&lt;stem&gt;.json</code></td>
+<td><code>extra_hard</code>, <code>extra_pthat_min</code>, <code>extra_sigma(_err)</code>, <code>extra_sigma_nn</code>, <code>n_extra_total</code></td>
+</tr>
+</tbody>
+</table>
+<p>A minimum-bias file (<code>--hard none</code>) has no <code>jet_frag</code> and no trigger row in <code>scatterings/</code>.
+Files without extras have none of these: their layout is unchanged. Do not combine files with
+and without extras, or with different thresholds (<code>extra_pthat_min</code>), in one data set.</p>
 <h2 id="5-provenance-the-job-record">5. Provenance: the job record<a class="headerlink" href="#5-provenance-the-job-record" title="Permanent link">¶</a></h2>
 <p>Every job keeps its exact inputs, so a file can always be traced and reproduced:</p>
 <table>

@@ -900,6 +900,8 @@
       
         
       
+        
+      
     
     
     
@@ -1076,6 +1078,34 @@
   
   
     <li class="md-nav__item">
+      <a href="extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="clusters/" class="md-nav__link">
         
   
@@ -1143,6 +1173,8 @@
       
         
           
+        
+      
         
       
         
@@ -1340,6 +1372,34 @@
     
   
     O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../analysis/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
   
 
     
@@ -1966,6 +2026,12 @@ for campaigns. In the container they are under
 <td>as <code>prod_AuAu_0_10_jet</code></td>
 <td><a href="zjet-other/#another-collision-system-pbpb-at-the-lhc">Z+jet and other systems</a></td>
 </tr>
+<tr>
+<td>extra hard scatterings, minimum bias, O+O and Ne+Ne at 5.36 TeV</td>
+<td>any jet production plus the event's other hard scatterings (<code>--extra-hard</code>), or the bulk and its hard scatterings alone (<code>--hard none</code>); <code>OO_5360_jet.xml</code>, <code>NeNe_5360_jet.xml</code></td>
+<td>as <code>prod_AuAu_0_10_jet</code>, plus <code>&lt;stem&gt;_hadrons_extra_frag.h5</code></td>
+<td><a href="extra-hard/">Extra hard scatterings</a></td>
+</tr>
 </tbody>
 </table>
 <p>The Pythonic example
@@ -2058,6 +2124,11 @@ What the files hold: <a href="../analysis/files/">What a production writes</a>.<
 <td>the hadrons: iSS on the jet-leg surface (bulk + wake), on the background, and the fragmented jet partons</td>
 </tr>
 <tr>
+<td><code>&lt;stem&gt;_hadrons_extra_frag.h5</code></td>
+<td>as above, only with <code>--extra-hard</code></td>
+<td>the fragments of the event's other hard scatterings</td>
+</tr>
+<tr>
 <td><code>&lt;stem&gt;.xml</code>, <code>.json</code>, <code>.log</code></td>
 <td>stage 1</td>
 <td>the job XML as run, a summary (seed, events, cross sections, checks), the log</td>
@@ -2073,6 +2144,8 @@ with <code>OO_isr_</code>. The formats are described in <a href="../analysis/fil
   jet events.</li>
 <li><a href="auau-jet/">Au+Au jets (two stages)</a>: the main production, from the first job to a
   campaign.</li>
+<li><a href="extra-hard/">Extra hard scatterings, O+O and Ne+Ne</a>: the event's other hard
+  scatterings, minimum bias, the light ions at the LHC.</li>
 <li><a href="clusters/">Clusters, GPUs and monitoring</a>: SLURM, several GPUs, <code>jobmon.py</code>.</li>
 <li><a href="osdf/">Data on the OSDF</a>: download existing productions or share yours.</li>
 </ul>

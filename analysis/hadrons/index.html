@@ -898,6 +898,8 @@
       
         
       
+        
+      
     
     
     
@@ -1071,6 +1073,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../run/extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../run/clusters/" class="md-nav__link">
         
   
@@ -1140,6 +1170,8 @@
       
         
           
+        
+      
         
       
         
@@ -1349,6 +1381,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="4. Single events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1503,6 +1552,34 @@
     
   
     O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
   
 
     
@@ -2035,6 +2112,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="4. Single events">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -2135,13 +2229,20 @@
 
 
 <h1 id="hadrons">Hadrons<a class="headerlink" href="#hadrons" title="Permanent link">¶</a></h1>
+<div class="admonition warning">
+<p class="admonition-title">Work in progress</p>
+<p>The analysis scripts and notebooks on this page are work in progress and need further
+vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+<a href="../">note on the analysis section</a>.</p>
+</div>
 <p>This page shows how to read the hadron files of a whole campaign as one data set, fill
 histograms with the right per-event statistics, pull out single events, weight pT̂ windows by
 their cross sections, and spot bad runs. The tool for almost all of it is <code>HadronFileReader</code>
 from <code>jetscape.hadrons_h5</code>; lower-level readers and the Pythonic <code>HadronArray</code> are at the end,
 for when you need one file, one sample or awkward arrays. It applies to the Au+Au jet
-productions (two stages or hadrons-only jobs) and the Z+jet productions; O+O hadron files made in
-the job are read differently (<a href="../oo/">O+O</a>).</p>
+productions (two stages or hadrons-only jobs), the Z+jet productions and the productions with
+extra hard scatterings or minimum bias; O+O hadron files made in the job by the O+O with ISR
+production are read differently (<a href="../oo/">O+O</a>).</p>
 <p>The file layout and what an event is: <a href="../files/#4-hadron-files">What a production writes</a>.</p>
 <h2 id="1-open-a-campaign">1. Open a campaign<a class="headerlink" href="#1-open-a-campaign" title="Permanent link">¶</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
@@ -2213,7 +2314,8 @@ per event, added over events).</p>
   <code>per_event=False</code> for the same single pass; the result is identical.</li>
 <li><strong><code>events=</code></strong> restricts any of them to a subset, e.g. one pT̂ window.</li>
 <li><strong><code>jet_minus_background</code></strong> uses only events whose jet leg <em>and</em> background have samples, each
-  against its own background. <code>fragments=True</code> adds the jet's own hadrons.</li>
+  against its own background. <code>fragments=True</code> adds the jet's own hadrons, and the extra hard
+  scatterings' if the campaign has them (<code>extras=False</code> leaves those out).</li>
 </ul>
 <div class="admonition note">
 <p class="admonition-title">Which error</p>
@@ -2268,19 +2370,47 @@ one-bin array. For a 2D map in the jet frame, pass a callable returning a tuple,
 <p><code>jet_event(e, k)</code> pairs oversample k with fragmentation k mod <code>n_frag(e)</code>; <code>frag_sample=</code> picks
 another, <code>fragments=False</code> leaves them out. These are the inputs for jet finding
 (<a href="../jets/">Jets with FastJet</a>).</p>
+<h3 id="the-events-other-hard-scatterings">The event's other hard scatterings<a class="headerlink" href="#the-events-other-hard-scatterings" title="Permanent link">¶</a></h3>
+<p>Campaigns made with <code>--extra-hard</code> (<a href="../../run/extra-hard/">Extra hard scatterings</a>) have a
+fourth tag, <code>extra_frag</code>: the fragments of the event's other hard scatterings. <strong>The extras
+belong to the event, not to the trigger.</strong> By default the full event is
+<code>bulk_jet + jet_frag + extra_frag</code>, and "the event without its trigger" (B) is
+<code>bulk_bg + extra_frag</code>; the trigger's truth (e.g. the Z–hadron signal
+<code>bulk_jet − bulk_bg + jet_frag</code>) stays the trigger's. A campaign without <code>extra_frag</code> reads
+exactly as before.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFileReader</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="n">r</span><span class="o">.</span><span class="n">has_extras</span><span class="p">()</span>                               <span class="c1"># True: the campaign has extra_frag</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>    <span class="n">sc</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">event_info</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span><span class="o">.</span><span class="n">scatterings</span><span class="p">()</span>           <span class="c1"># (S, 8): scatter, pthat, code, x, y, n, E, pt</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">sc</span><span class="p">[</span><span class="n">sc</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>                   <span class="c1"># the extras' pTHat (the trigger is scatter 0)</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>    <span class="n">ev</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">jet_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>                       <span class="c1"># bulk_jet + jet_frag + extra_frag</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>    <span class="n">extras_only</span> <span class="o">=</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"origin"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">2</span>              <span class="c1"># origin 0 bulk, 1 jet_frag, 2 extra_frag</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">bins</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">41</span><span class="p">)</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">full</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">jet_minus_background</span><span class="p">(</span><span class="s2">"pt"</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="s2">"charged"</span><span class="p">,</span> <span class="n">fragments</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>    <span class="n">trig</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">jet_minus_background</span><span class="p">(</span><span class="s2">"pt"</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="s2">"charged"</span><span class="p">,</span> <span class="n">fragments</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">extras</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>    <span class="n">h</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="s2">"extra_frag"</span><span class="p">,</span> <span class="s2">"pt"</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="s2">"charged"</span><span class="p">)</span>      <span class="c1"># the extras' fragments alone</span>
+</code></pre></div>
+<p><code>jet_event(..., extras=False)</code> leaves them out of a single event. A <strong>minimum-bias</strong>
+campaign (<code>--hard none</code>) has no <code>jet_frag</code> and no trigger; analyses that need a trigger
+(the Z+jet and Z–hadron map steps, <code>qa.py</code>, <code>wake_iso.py</code>) refuse it. For its bulk
+observables see <a href="../bulk/">Bulk and flow</a>. The per-analysis switches are on
+<a href="../jets/#7-worked-examples-the-zjet-campaign-analyses">Jets with FastJet</a> and
+<a href="../root/">ROOT and C++</a>.</p>
 <h2 id="5-pt-windows-and-cross-sections">5. pT̂ windows and cross sections<a class="headerlink" href="#5-pt-windows-and-cross-sections" title="Permanent link">¶</a></h2>
 <p>Campaigns with several pT̂ windows per background (<code>--pthat-bins</code>) have one Pythia, and one
 cross section, per window. Each window's histogram is a per-event average, so the windows can
 have different event counts; multiply each by its cross section to stitch them:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>    <span class="n">r</span><span class="o">.</span><span class="n">pthat_bins</span>                                   <span class="c1"># (K, 2): the windows</span>
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">41</span><span class="p">)</span>
-<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="n">spec</span><span class="p">,</span> <span class="n">var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">40</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">40</span><span class="p">)</span>
-<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">pthat_bins</span><span class="p">)):</span>
-<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>        <span class="n">h</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="s2">"jet_frag"</span><span class="p">,</span> <span class="s2">"pt"</span><span class="p">,</span> <span class="n">edges</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="s2">"charged"</span><span class="p">,</span> <span class="n">events</span><span class="o">=</span><span class="n">r</span><span class="o">.</span><span class="n">pthat_bin_events</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
-<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>        <span class="n">sigma</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">pthat_bin_sigma</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>            <span class="c1"># mb, after the parton-y cut</span>
-<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>        <span class="n">spec</span> <span class="o">+=</span> <span class="n">sigma</span> <span class="o">*</span> <span class="n">h</span>                          <span class="c1"># each window: per-event mean x its sigma</span>
-<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>        <span class="n">var</span> <span class="o">+=</span> <span class="p">(</span><span class="n">sigma</span> <span class="o">*</span> <span class="n">e</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>                    <span class="c1"># jet_frag: windows independent</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">r</span><span class="o">.</span><span class="n">pthat_bins</span>                                   <span class="c1"># (K, 2): the windows</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">41</span><span class="p">)</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">spec</span><span class="p">,</span> <span class="n">var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">40</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">40</span><span class="p">)</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">pthat_bins</span><span class="p">)):</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>        <span class="n">h</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="s2">"jet_frag"</span><span class="p">,</span> <span class="s2">"pt"</span><span class="p">,</span> <span class="n">edges</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="s2">"charged"</span><span class="p">,</span> <span class="n">events</span><span class="o">=</span><span class="n">r</span><span class="o">.</span><span class="n">pthat_bin_events</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>        <span class="n">sigma</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">pthat_bin_sigma</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>            <span class="c1"># mb, after the parton-y cut</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>        <span class="n">spec</span> <span class="o">+=</span> <span class="n">sigma</span> <span class="o">*</span> <span class="n">h</span>                          <span class="c1"># each window: per-event mean x its sigma</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>        <span class="n">var</span> <span class="o">+=</span> <span class="p">(</span><span class="n">sigma</span> <span class="o">*</span> <span class="n">e</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span>                    <span class="c1"># jet_frag: windows independent</span>
 </code></pre></div>
 <p><code>spec</code> is then dσ/dpT per bin [mb]. <code>pthat_bin_sigma(k)</code> combines the files' Pythia estimates,
 weighted by their accepted events; <code>pthat_bin_acceptance(k)</code> is the parton-rapidity cut's
@@ -2298,22 +2428,22 @@ windows are correlated: the simple sum of variances above is right for <code>jet
   fall far below the campaign's. <code>utils/check_deposition.py</code> reads every job summary and flags
   it (exit code 1):</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>utils/check_deposition.py<span class="w"> </span>/path/to/campaign<span class="w">              </span><span class="c1"># every &lt;stem&gt;.json below it</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>python<span class="w"> </span>utils/check_deposition.py<span class="w"> </span>/data/c1/gpu0<span class="w"> </span>/data/c1/gpu1<span class="w">    </span><span class="c1"># one campaign, two directories</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>utils/check_deposition.py<span class="w"> </span>/path/to/campaign<span class="w">              </span><span class="c1"># every &lt;stem&gt;.json below it</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python<span class="w"> </span>utils/check_deposition.py<span class="w"> </span>/data/c1/gpu0<span class="w"> </span>/data/c1/gpu1<span class="w">    </span><span class="c1"># one campaign, two directories</span>
 </code></pre></div>
 <p>Move a flagged job's files away and rerun the campaign command, which redoes the job.</p>
 <h2 id="7-lower-level-readers">7. Lower-level readers<a class="headerlink" href="#7-lower-level-readers" title="Permanent link">¶</a></h2>
 <p>For one file, one sample, or a whole small file in memory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFile</span><span class="p">,</span> <span class="n">JetEvents</span><span class="p">,</span> <span class="n">Hadrons</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="k">with</span> <span class="n">HadronFile</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_jet.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">hf</span><span class="p">:</span>       <span class="c1"># random access, nothing loaded</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>    <span class="n">one</span> <span class="o">=</span> <span class="n">hf</span><span class="o">.</span><span class="n">sample_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>                            <span class="c1"># unit (event) 0, sample 17: pid, pstat, p, x</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">ini</span> <span class="o">=</span> <span class="n">hf</span><span class="o">.</span><span class="n">initiators</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>                                  <span class="c1"># the event's shower initiators</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="k">with</span> <span class="n">JetEvents</span><span class="o">.</span><span class="n">from_stem</span><span class="p">(</span><span class="s2">"&lt;stem&gt;"</span><span class="p">)</span> <span class="k">as</span> <span class="n">je</span><span class="p">:</span>                   <span class="c1"># the three files + particlize of one job</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>    <span class="n">ev</span> <span class="o">=</span> <span class="n">je</span><span class="o">.</span><span class="n">jet_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>                                <span class="c1"># bulk_jet sample 17 + a fragmentation</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="n">h</span> <span class="o">=</span> <span class="n">Hadrons</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_bg.h5"</span><span class="p">)</span>            <span class="c1"># a whole file in memory</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="n">dn</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">eta</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">h</span><span class="o">.</span><span class="n">charged</span><span class="p">)</span>   <span class="c1"># per sample</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFile</span><span class="p">,</span> <span class="n">JetEvents</span><span class="p">,</span> <span class="n">Hadrons</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">with</span> <span class="n">HadronFile</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_jet.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">hf</span><span class="p">:</span>       <span class="c1"># random access, nothing loaded</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">one</span> <span class="o">=</span> <span class="n">hf</span><span class="o">.</span><span class="n">sample_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>                            <span class="c1"># unit (event) 0, sample 17: pid, pstat, p, x</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">ini</span> <span class="o">=</span> <span class="n">hf</span><span class="o">.</span><span class="n">initiators</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>                                  <span class="c1"># the event's shower initiators</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="k">with</span> <span class="n">JetEvents</span><span class="o">.</span><span class="n">from_stem</span><span class="p">(</span><span class="s2">"&lt;stem&gt;"</span><span class="p">)</span> <span class="k">as</span> <span class="n">je</span><span class="p">:</span>                   <span class="c1"># the three files + particlize of one job</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>    <span class="n">ev</span> <span class="o">=</span> <span class="n">je</span><span class="o">.</span><span class="n">jet_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>                                <span class="c1"># bulk_jet sample 17 + a fragmentation</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="n">h</span> <span class="o">=</span> <span class="n">Hadrons</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_bg.h5"</span><span class="p">)</span>            <span class="c1"># a whole file in memory</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">dn</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">eta</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">h</span><span class="o">.</span><span class="n">charged</span><span class="p">)</span>   <span class="c1"># per sample</span>
 </code></pre></div>
 <p><code>Hadrons</code> carries <code>pt</code>, <code>eta</code>, <code>y</code>, <code>phi</code>, <code>charged</code>, <code>sample</code>, <code>unit</code> as arrays (in float64,
 about 2.4 times the file's memory) and <code>hist</code> / <code>total</code> averaged per sample. <code>units=</code> reads only
@@ -2322,12 +2452,12 @@ some units.</p>
 <p><code>jetscape.HadronArray</code> holds a hadron file as flat arrays with sample offsets, without derived
 columns, and turns it into awkward arrays of <code>vector</code> four-momenta on demand, for selections and
 FastJet's array interface:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">bulk</span> <span class="o">=</span> <span class="n">js</span><span class="o">.</span><span class="n">HadronArray</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_bg.h5"</span><span class="p">)</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">had</span> <span class="o">=</span> <span class="n">bulk</span><span class="o">.</span><span class="n">to_awkward</span><span class="p">(</span><span class="n">by_unit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>            <span class="c1"># units x samples x hadrons, Momentum4D records</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">charged</span> <span class="o">=</span> <span class="n">had</span><span class="p">[</span><span class="n">js</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">had</span><span class="p">,</span> <span class="s2">"charged"</span><span class="p">)]</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">mid</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">charged</span><span class="o">.</span><span class="n">eta</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.5</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">bulk</span> <span class="o">=</span> <span class="n">js</span><span class="o">.</span><span class="n">HadronArray</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_bg.h5"</span><span class="p">)</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">had</span> <span class="o">=</span> <span class="n">bulk</span><span class="o">.</span><span class="n">to_awkward</span><span class="p">(</span><span class="n">by_unit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>            <span class="c1"># units x samples x hadrons, Momentum4D records</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">charged</span> <span class="o">=</span> <span class="n">had</span><span class="p">[</span><span class="n">js</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">had</span><span class="p">,</span> <span class="s2">"charged"</span><span class="p">)]</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">mid</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">charged</span><span class="o">.</span><span class="n">eta</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.5</span>
 </code></pre></div>
 <p>It needs no X-SCAPE build and also reads file objects (e.g. a file streamed from the OSDF).
 More in <a href="../../python/pythonic/">The Pythonic interface</a>.</p>
@@ -2361,6 +2491,7 @@ h5py or <code>HadronArray</code> through <code>fsspec</code>.</p>
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">¶</a></h2>
 <ul>
 <li>Cluster the hadrons into jets: <a href="../jets/">Jets with FastJet</a>.</li>
+<li>Nch, [pT] and vₙ{2}, and the paired difference to the background: <a href="../bulk/">Bulk and flow</a>.</li>
 <li>The same events in the fluid: <a href="../hydro-hadrons/">Hydro and hadrons together</a>.</li>
 <li>The same in ROOT: <a href="../root/">ROOT and C++</a>.</li>
 </ul>

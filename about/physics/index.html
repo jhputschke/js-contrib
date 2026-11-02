@@ -797,6 +797,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#15-the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. The event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#approximations-and-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1137,6 +1148,8 @@
       
         
       
+        
+      
     
     
     
@@ -1310,6 +1323,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../run/extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../run/clusters/" class="md-nav__link">
         
   
@@ -1377,6 +1418,8 @@
       
         
           
+        
+      
         
       
         
@@ -1574,6 +1617,34 @@
     
   
     O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
   
 
     
@@ -2230,6 +2301,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#15-the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        15. The event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#approximations-and-limits" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2340,8 +2422,19 @@ settings. Publications are linked where each model appears and collected in
 <td>background/jet pair</td>
 <td>iSS + Colorless</td>
 </tr>
+<tr>
+<td>O+O, Ne+Ne with a jet</td>
+<td>O+O, Ne+Ne, 5.36 TeV</td>
+<td>0–10 % (<span class="arithmatex">\(b &lt; 2.09\)</span> / 2.41 fm), or minimum bias</td>
+<td>PYTHIA 8 dijet (the RHIC bulk fit, not refitted)</td>
+<td>background/jet pair</td>
+<td>iSS + Colorless</td>
+</tr>
 </tbody>
 </table>
+<p>Any of the jet setups can add the event's <strong>other hard scatterings</strong> above a threshold
+<span class="arithmatex">\(p_0\)</span> (<code>--extra-hard</code>), or run them alone as minimum-bias events: section
+<a href="#15-the-events-other-hard-scatterings">15</a>.</p>
 <p>The Au+Au jet chain, which the other setups vary:</p>
 <pre class="mermaid"><code>flowchart LR
   IS["3D MC-Glauber&lt;br/&gt;nucleons, strings"] --&gt; HARD["PYTHIA 8&lt;br/&gt;hard scattering&lt;br/&gt;at a binary collision"]
@@ -2416,6 +2509,9 @@ it, partons propagate as in vacuum.</p>
   stored cross sections are corrected by the kept/tried fraction.</li>
 <li><strong>A pp reference:</strong> <code>run_prod_vacuum.py</code> runs the same PythiaGun and MATTER in vacuum, with
   no medium.</li>
+<li><strong>The event's other hard scatterings (optional):</strong> <code>--extra-hard</code> adds
+  <span class="arithmatex">\(N \sim\)</span> Poisson<span class="arithmatex">\((N_{\rm coll}\,\sigma(\hat p_T &gt; p_0)/\sigma_{NN})\)</span> more, each at
+  its own binary collision: section <a href="#15-the-events-other-hard-scatterings">15</a>.</li>
 </ul>
 <p>For O+O the hard process is <code>PythiaIsrGun</code> (section <a href="#12-oo-with-initial-state-radiation">12</a>),
 for Z+jet a Z + parton process (section <a href="#13-zjet-in-pbpb">13</a>).</p>
@@ -2518,9 +2614,15 @@ part of the bulk and cannot be separated.</p>
 (<a href="https://arxiv.org/abs/1004.1408">arXiv:1004.1408</a>,
 <a href="https://arxiv.org/abs/1009.3244">arXiv:1009.3244</a>,
 <a href="https://arxiv.org/abs/1509.06738">arXiv:1509.06738</a>), here through its GPU port MUSIC4GPU
-(the same equations and numerical scheme; see <a href="../gpu/">GPU acceleration</a>). The settings are
-the tuned 3D-Glauber + MUSIC set of X-SCAPE, tuned at <span class="arithmatex">\(\sqrt{s_{NN}}\)</span> = 200 GeV; the Pb+Pb
-inputs use it unchanged.</p>
+(the same equations and numerical scheme; see <a href="../gpu/">GPU acceleration</a>). The bulk settings
+(strings, η/s(T), ζ/s(T)) are the RHIC best fit (MAP) of the JETSCAPE 3D Bayesian calibration
+of 3D Glauber + MUSIC + iSS + UrQMD, fitted to Au+Au and d+Au at 200 GeV (<a href="https://arxiv.org/abs/2601.17234">arXiv:2601.17234</a>, Table IV); it
+reached the productions through X-SCAPE's <code>BulkFastTest</code> configs. Three differences from that
+fit: the productions freeze out at T_fo = 150 MeV rather than on the paper's energy density,
+α_shift (MUSIC's transverse string shift, 0.477 in the fit) stays 0 because X-SCAPE does not
+pass it to MUSIC, and no afterburner runs after iSS. The Pb+Pb, Z+jet, O+O and Ne+Ne inputs use
+the RHIC set unchanged; the paper's Pb+Pb 5.02 TeV refit (Table V: e_sw = 0.120 GeV/fm³,
+T ≈ 136 MeV, and y_loss(y = 10) = 2.800) is not applied.</p>
 <table>
 <thead>
 <tr>
@@ -2721,6 +2823,46 @@ MUSIC's own surface for 100 Au+Au events
 <p>The fast finite-volume solver <a href="../../python/fasthydro/">FastHydro</a> agrees with MUSIC to about
 0.3 % (relative L2 of the energy density at freeze-out) on the same initial condition. It
 samples hadrons with ideal Cooper–Frye only.</p>
+<h2 id="15-the-events-other-hard-scatterings">15. The event's other hard scatterings<a class="headerlink" href="#15-the-events-other-hard-scatterings" title="Permanent link">¶</a></h2>
+<p>Without <code>--extra-hard</code> every event has one hard scattering, the trigger, at one binary
+collision. A nucleus–nucleus collision has
+<span class="arithmatex">\(N_{\rm coll}\,\sigma(\hat p_T &gt; p_0)/\sigma_{NN}\)</span> of them above a threshold <span class="arithmatex">\(p_0\)</span>: about 15
+above 15 GeV in 0–10 % Pb+Pb at 5.02 TeV, 1.5–2 above 10 GeV in 0–10 % O+O and Ne+Ne at
+5.36 TeV, and about 0.1 above 10 GeV in 0–10 % Au+Au at 200 GeV, where they barely matter.
+Their fragments are the jet background of a real event (fake jets, the B of Z+jet), and their
+wakes are part of the bulk. The option adds them (stage 1 of the design in
+<a href="https://github.com/jhputschke/js-contrib/blob/main/docs/Plans/PLAN_multi_hard.md"><code>PLAN_multi_hard.md</code></a>):</p>
+<ul>
+<li><strong>How many:</strong> <span class="arithmatex">\(N \sim\)</span> Poisson<span class="arithmatex">\((\mu)\)</span>, <span class="arithmatex">\(\mu = N_{\rm coll}\,\sigma/\sigma_{NN}\)</span>, with
+  <span class="arithmatex">\(N_{\rm coll}\)</span> of the event's 3D MC-Glauber collision, <span class="arithmatex">\(\sigma(\hat p_T &gt; p_0)\)</span> from
+  20,000 PYTHIA 8 warm-up events at the start of the job, and <span class="arithmatex">\(\sigma_{NN}^{\rm inel}\)</span> from
+  3dMCGlauber's own parametrization at <span class="arithmatex">\(\sqrt{s_{NN}}\)</span> (<span class="arithmatex">\(\sigma_{\rm tot} - \sigma_{\rm el}\)</span>,
+  each a fit <span class="arithmatex">\(a + b\ln s + c\ln^2 s\)</span> to pp data: 40.8 mb at 200 GeV, 67.6 mb at 5.02 TeV,
+  68.3 mb at 5.36 TeV), so that <span class="arithmatex">\(\mu\)</span> is consistent with the Glauber collision.</li>
+<li><strong>Each extra:</strong> one PYTHIA 8 event of an instance of its own, <code>HardQCD:all</code> above <span class="arithmatex">\(p_0\)</span>,
+  ISR on, MPI off, FSR off (MATTER showers), at a binary collision drawn from the event's
+  collisions. Its partons above 2 GeV, typically 4–5 with <span class="arithmatex">\(\sum p_T\)</span> 40–60 GeV, shower in
+  MATTER and LBT with the trigger's.</li>
+<li><strong>Thresholds:</strong> 10 GeV in the Au+Au, O+O and Ne+Ne inputs, 15 GeV in the Pb+Pb ones.
+  Below ~10 GeV the extras' energy becomes a sizeable part of what the strings already carry,
+  and semi-hard minijets would have to take their energy out of the strings and come with a
+  retuned bulk; that is a later stage.</li>
+<li><strong>The two legs:</strong> the background leg (MUSIC_1) stays the strings alone; the jet leg
+  (MUSIC_2) gets the droplets of all scatterings. So the jet leg minus the background is the
+  response to the trigger and the extras together.</li>
+<li><strong>The trigger is untouched:</strong> the extras run on random-number streams of their own, so with
+  the same seed the trigger's showers, its hadrons and the background are bit-identical with
+  and without them. Running the same seeds twice is a paired measurement of their effect.</li>
+<li><strong>Minimum bias</strong> (<code>--hard none</code>): no trigger, only the extras (N may be 0), every event with
+  weight 1. This is the setup for the bulk observables (<span class="arithmatex">\(N_{\rm ch}\)</span>, <span class="arithmatex">\([p_T]\)</span>, <span class="arithmatex">\(v_n\{2\}\)</span>)
+  and for what the extras do to them (<a href="../../analysis/bulk/">Bulk and flow</a>).</li>
+<li><strong>O+O and Ne+Ne at 5.36 TeV:</strong> copies of the Pb+Pb jet input with <span class="arithmatex">\(^{16}\)</span>O and PGCM
+  <span class="arithmatex">\(^{20}\)</span>Ne nuclei; the bulk is the RHIC fit of <a href="https://arxiv.org/abs/2601.17234">arXiv:2601.17234</a> (section <a href="#7-hydrodynamics-music">7</a>),
+  neither refitted at the LHC nor for small systems.</li>
+</ul>
+<p>One trigger plus Poisson extras is the right event when the trigger is rare
+(<span class="arithmatex">\(N_{\rm coll}\,\sigma_{\rm trigger}/\sigma_{NN} \ll 1\)</span>: a Z, dijets above ~50 GeV); for low
+trigger windows (10–30 GeV) it is an approximation.</p>
 <h2 id="approximations-and-limits">Approximations and limits<a class="headerlink" href="#approximations-and-limits" title="Permanent link">¶</a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Keep these in mind when interpreting the output</p>
@@ -2729,10 +2871,15 @@ samples hadrons with ideal Cooper–Frye only.</p>
 <li><strong>No hadronic rescattering:</strong> iSS decays resonances, but nothing like SMASH runs after
   particlization.</li>
 <li><strong>No pre-equilibrium dynamics</strong> beyond the decelerating string sources.</li>
-<li><strong>One hard scattering per event:</strong> the event samples are hard-triggered; use the
-  recorded <span class="arithmatex">\(N_{\rm coll}\)</span> and the per-window cross sections as weights.</li>
+<li><strong>One hard scattering per event</strong> unless <code>--extra-hard</code> adds the others above
+  <span class="arithmatex">\(p_0\)</span>: the event samples are hard-triggered; use the recorded <span class="arithmatex">\(N_{\rm coll}\)</span> and the
+  per-window cross sections as weights.</li>
+<li><strong>No energy subtraction</strong> from the strings for the hard scatterings, nor minijets below
+  <span class="arithmatex">\(p_0\)</span> (section <a href="#15-the-events-other-hard-scatterings">15</a>).</li>
 <li><strong>Centrality from <span class="arithmatex">\(b\)</span></strong>, not from an event-activity class.</li>
-<li><strong>Pb+Pb and Z+jet use parameters tuned at 200 GeV.</strong></li>
+<li><strong>The LHC inputs use the RHIC bulk fit</strong> of <a href="https://arxiv.org/abs/2601.17234">arXiv:2601.17234</a>, without its Pb+Pb refit (freeze-out,
+  y_loss at y = 10), with T_fo = 150 MeV, α_shift = 0 and no UrQMD/SMASH afterburner
+  (section <a href="#7-hydrodynamics-music">7</a>).</li>
 <li><strong>Droplets after the jet leg's freeze-out are lost</strong> (recorded per event).</li>
 <li><strong>The stored hydro history has no viscous fields</strong> and is resampled onto a coarser grid
   (section <a href="#14-hadrons-from-a-stored-hydro-history">14</a>).</li>
@@ -2745,7 +2892,8 @@ samples hadrons with ideal Cooper–Frye only.</p>
   and <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_OO_isr/README.md">O+O with ISR</a>,
   and the <a href="https://github.com/jhputschke/js-contrib/blob/main/utils/zjet/README.md">Z+jet campaigns</a>.</li>
 <li>Run them: <a href="../../run/auau-jet/">Au+Au jets</a>, <a href="../../run/oo-isr/">O+O with ISR</a>,
-  <a href="../../run/zjet-other/">Z+jet and other systems</a>.</li>
+  <a href="../../run/zjet-other/">Z+jet and other systems</a>,
+  <a href="../../run/extra-hard/">Extra hard scatterings</a>.</li>
 <li>What the files contain: <a href="../../analysis/files/">What a production writes</a>.</li>
 <li>Cite the modules you use: <a href="../references/">Publications and citing</a>.</li>
 </ul>

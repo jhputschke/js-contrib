@@ -900,6 +900,8 @@
       
         
       
+        
+      
     
     
     
@@ -1140,6 +1142,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1267,6 +1280,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../clusters/" class="md-nav__link">
         
   
@@ -1334,6 +1375,8 @@
       
         
           
+        
+      
         
       
         
@@ -1531,6 +1574,34 @@
     
   
     O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../analysis/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
   
 
     
@@ -2110,6 +2181,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-events-other-hard-scatterings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The event's other hard scatterings
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2406,6 +2488,14 @@ Y ≈ η_max + 1 with <code>any</code>.</p>
 <li><strong>The output grid</strong> of the pair file is <code>example/config/grid_fno.yaml</code> (64 × 64 × 32 cells,
   x, y ±12.2 fm, η_s ±4.84); <code>--grid FILE</code> for another. Never mix grids in one training set.</li>
 </ul>
+<h3 id="the-events-other-hard-scatterings">The event's other hard scatterings<a class="headerlink" href="#the-events-other-hard-scatterings" title="Permanent link">¶</a></h3>
+<p><code>--extra-hard</code> adds the event's other hard scatterings above a threshold p₀ (the XML's
+<code>&lt;extraHard&gt;&lt;pTHatMin&gt;</code>, 10 GeV for Au+Au) to every jet event, showered in the jet leg with
+the trigger; <code>--hard none --extra-hard</code> gives minimum-bias events. At 200 GeV they are rare
+(~0.13 per 0–10 % event above 10 GeV), at the LHC they are not (~15 per 0–10 % Pb+Pb event
+above 15 GeV). Without the option nothing changes, and with it the trigger, <code>jet_frag</code> and
+<code>bulk_bg</code> stay bit-identical for the same seed. Everything about it:
+<a href="../extra-hard/">Extra hard scatterings</a>.</p>
 <p>Every option of <code>run_prod_jet.py</code>: the <em>Options</em> table of the
 <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#options">folder's README</a>.</p>
 <h2 id="3-stage-2-hadronization-on-cpus">3. Stage 2: hadronization on CPUs<a class="headerlink" href="#3-stage-2-hadronization-on-cpus" title="Permanent link">¶</a></h2>
@@ -2627,7 +2717,8 @@ image made them. Run the whole campaign on GPUs: MUSIC's CPU path differs system
   <code>--what pair</code> for FNO training: <a href="../osdf/">Data on the OSDF</a>.</li>
 <li><strong>Analyse:</strong> <a href="../../analysis/hadrons/">Hadrons</a> (<code>HadronFileReader</code>, cross-section weights,
   jet − background), <a href="../../analysis/jets/">Jets with FastJet</a>,
-  <a href="../../analysis/root/">ROOT and C++</a> (<code>run_h5toROOT.py</code>).</li>
+  <a href="../../analysis/root/">ROOT and C++</a> (<code>run_h5toROOT.py</code>), <a href="../../analysis/bulk/">Bulk and flow</a>
+  (Nch, [pT], vₙ{2}).</li>
 </ul>
 <p>Full details, every option and the measurements:
 <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md"><code>prod_AuAu_0_10_jet/README.md</code></a>

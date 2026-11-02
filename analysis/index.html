@@ -898,6 +898,8 @@
       
         
       
+        
+      
     
     
     
@@ -1071,6 +1073,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../run/extra-hard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Extra hard scatterings, O+O and Ne+Ne
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../run/clusters/" class="md-nav__link">
         
   
@@ -1140,6 +1170,8 @@
       
         
           
+        
+      
         
       
         
@@ -1340,6 +1372,34 @@
     
   
     O+O
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk and flow
   
 
     
@@ -1919,11 +1979,21 @@ there to spectra, jets, the jet-induced wake and the O+O observables. Start here
 production files in hand, your own or downloaded, and want physics out of them.</p>
 <p>None of the analysis needs X-SCAPE, a GPU or the production container. Everything on these
 pages runs in a plain Python environment; ROOT is needed only for the C++ route.</p>
+<div class="admonition warning">
+<p class="admonition-title">Work in progress: examples, not vetted physics results</p>
+<p>The physics analysis scripts, notebooks and their implementations in this section (spectra,
+jets and jet-hadron correlations, the wake observables, bulk and flow observables such as
+vₙ{2} and v₂(p_T), the O+O and Z+jet analyses) are work in progress and need further vetting:
+definitions, corrections, centrality selection and the comparisons with published data have
+not been checked to the standard of a publication. They are meant mainly as <strong>examples of
+how to use the simulation outputs</strong> for an analysis. Validate any result, against the
+experiments' exact procedures and against independent code, before you rely on it.</p>
+</div>
 <pre class="mermaid"><code>flowchart LR
   P["production job&lt;br/&gt;(GPU)"] --&gt; PAIR["stem.h5&lt;br/&gt;hydro pair"]
   P --&gt; PART["stem_particlize.h5&lt;br/&gt;surfaces, partons"]
   PART --&gt; HAD["hadronize.py&lt;br/&gt;(CPU)"]
-  HAD --&gt; H["stem_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5"]
+  HAD --&gt; H["stem_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5&lt;br/&gt;(+ extra_frag with --extra-hard)"]
   H --&gt; ROOT["run_h5toROOT.py"] --&gt; R["stem_hadrons.root&lt;br/&gt;campaign_campaign.root"]
   PAIR --&gt; A1["h5py, wake_observables.py,&lt;br/&gt;jet_wake.ipynb"]
   H --&gt; A2["HadronFileReader,&lt;br/&gt;FastJet, notebooks"]
@@ -2001,7 +2071,8 @@ for converting energy density to temperature.</p>
 </code></pre></div>
 <p><code>hist</code> returns, per bin, the count per event (each event first averaged over its own
 oversamples, then over the events) and its error. Replace <code>"bulk_bg"</code> with <code>"bulk_jet"</code> for
-the events with the jet's wake, or <code>"jet_frag"</code> for the jet's own hadrons.
+the events with the jet's wake, <code>"jet_frag"</code> for the jet's own hadrons, or <code>"extra_frag"</code> for
+the fragments of the event's other hard scatterings (productions with <code>--extra-hard</code>).
 <a href="hadrons/">Hadrons</a> explains all of it.</p>
 <h2 id="4-the-pages-of-this-section">4. The pages of this section<a class="headerlink" href="#4-the-pages-of-this-section" title="Permanent link">¶</a></h2>
 <table>
@@ -2031,6 +2102,10 @@ the events with the jet's wake, or <code>"jet_frag"</code> for the jet's own had
 <tr>
 <td><a href="oo/">O+O</a></td>
 <td>the O+O event record, cross-section and Ncoll weights, multiplicity, centrality, flow from oversamples, jets</td>
+</tr>
+<tr>
+<td><a href="bulk/">Bulk and flow</a></td>
+<td>Nch, [pT] and its fluctuation, vₙ{2} with an η gap, per N_coll class, and the paired difference to the background: what the extra hard scatterings and the wakes do to the bulk</td>
 </tr>
 <tr>
 <td><a href="root/">ROOT and C++</a></td>
