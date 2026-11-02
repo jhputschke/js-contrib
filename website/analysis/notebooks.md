@@ -1,5 +1,10 @@
 # Notebooks
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 Every notebook sits next to the code or the production it belongs to; this page is the index.
 Each one reads its inputs from environment variables (the defaults are in its first code cell),
 so the same notebook runs on the shipped example files, on your own run or on a downloaded

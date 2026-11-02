@@ -1,5 +1,10 @@
 # Bulk and flow
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 The bulk tools in
 [`example/analysis/bulk/`](https://github.com/jhputschke/js-contrib/tree/main/contribs/PyJetscape/example/analysis/bulk)
 compute, per event, the charged multiplicity Nch, the mean transverse momentum [pT] and the

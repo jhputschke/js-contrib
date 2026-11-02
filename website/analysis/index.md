@@ -10,6 +10,15 @@ production files in hand, your own or downloaded, and want physics out of them.
 None of the analysis needs X-SCAPE, a GPU or the production container. Everything on these
 pages runs in a plain Python environment; ROOT is needed only for the C++ route.
 
+!!! warning "Work in progress: examples, not vetted physics results"
+    The physics analysis scripts, notebooks and their implementations in this section (spectra,
+    jets and jet-hadron correlations, the wake observables, bulk and flow observables such as
+    vₙ{2} and v₂(p_T), the O+O and Z+jet analyses) are work in progress and need further vetting:
+    definitions, corrections, centrality selection and the comparisons with published data have
+    not been checked to the standard of a publication. They are meant mainly as **examples of
+    how to use the simulation outputs** for an analysis. Validate any result, against the
+    experiments' exact procedures and against independent code, before you rely on it.
+
 ```mermaid
 flowchart LR
   P["production job<br/>(GPU)"] --> PAIR["stem.h5<br/>hydro pair"]

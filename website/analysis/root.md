@@ -1,5 +1,10 @@
 # ROOT and C++
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 Most analyses in the field are written in ROOT. This page shows how to turn a hadronized
 campaign into ROOT files, read them with or without ROOT (uproot, RDataFrame), loop over events
 in C++ with the header-only `HadronFileReader.h`, cluster jets with FastJet's C++ library, and run

@@ -1,5 +1,10 @@
 # O+O
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 This page is for the analysis of O+O collisions at 200 GeV with initial-state radiation, from
 the `prod_OO_isr` production: what one event is, what its per-event record holds, how to load a
 campaign, how to weight it (pT̂-window cross sections, N_coll), the checks to run, and recipes for

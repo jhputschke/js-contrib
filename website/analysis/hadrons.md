@@ -1,5 +1,10 @@
 # Hadrons
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 This page shows how to read the hadron files of a whole campaign as one data set, fill
 histograms with the right per-event statistics, pull out single events, weight pT̂ windows by
 their cross sections, and spot bad runs. The tool for almost all of it is `HadronFileReader`

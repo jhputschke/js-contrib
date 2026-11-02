@@ -118,7 +118,9 @@ From there, the site follows the order you work in:
    [Z+jet in Pb+Pb](run/zjet-other.md), and [at scale on clusters](run/clusters.md).
 3. **[Analyse](analysis/index.md):** [hadrons](analysis/hadrons.md),
    [jets with FastJet](analysis/jets.md), [hydro and hadrons together](analysis/hydro-hadrons.md)
-   (the jet wake), [O+O](analysis/oo.md), and [ROOT](analysis/root.md).
+   (the jet wake), [O+O](analysis/oo.md), and [ROOT](analysis/root.md). The physics analysis
+   scripts are work in progress and need further vetting: examples of how to use the outputs,
+   not validated results.
 4. **[Extend in Python](python/index.md):** the [Pythonic interface](python/pythonic.md),
    [your own modules](python/modules.md), and the [live PyTorch FNO hydro](python/fno.md).
 

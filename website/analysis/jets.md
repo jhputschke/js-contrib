@@ -1,5 +1,10 @@
 # Jets with FastJet
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks on this page are work in progress and need further
+    vetting; they are meant mainly as examples of how to use the simulation outputs. See the
+    [note on the analysis section](index.md).
+
 This page shows how to find jets in the production hadrons with FastJet from Python: the
 conventions the notebooks and analyses share, the classic (SWIG) interface with jet areas and
 ρA background subtraction, embedding a jet into a background it never touched, charged and full
