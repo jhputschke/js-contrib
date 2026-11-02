@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyjetscape"
-version = "1.3"
+version = "1.4"
 description = "Python bindings for the JETSCAPE/X-SCAPE framework"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -60,6 +60,8 @@ analysis = [
 [project.scripts]
 # a writable copy of example/ (the installed or image tree is read-only)
 xscape-examples = "jetscape.copy_examples:main"
+# a writable copy of js-contrib's utils/ (jobmon, prodwizard, h5_inspect, remote_transfer)
+xscape-utils = "jetscape.copy_examples:utils_main"
 
 [tool.setuptools.packages.find]
 where = ["python"]

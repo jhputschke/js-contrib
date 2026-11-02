@@ -82,13 +82,78 @@ def test_parent_paths_fall_back_to_the_build(tmp_path):
     assert root.find("t").text == str(build / "iSS_tables")              # fallback
     assert root.find("p").text == str(tmp_path / "share" / "present")     # target exists
     assert root.find("m").text == str(tmp_path / "share" / "external_packages" / "nothing")
-    # only iSS's assets: another name with no target stays, even if the build has it
-    (build / "MUSIC_input").write_text("")
+    # a name matches only with exactly its spelling: macOS file systems ignore case, and
+    # the build's music_input is not ../examples/test_hydro_files/MUSIC_input
+    (build / "music_input").write_text("")
     src.write_text("<a><h>../examples/test_hydro_files/MUSIC_input</h></a>")
-    workdir._absolute_parent_paths(str(src), str(dst), str(build))
+    missing = workdir._absolute_parent_paths(str(src), str(dst), str(build))
     assert ET.parse(dst).getroot().find("h").text == str(
         tmp_path / "share" / "examples" / "test_hydro_files" / "MUSIC_input")
+    assert missing == ["<h> ../examples/test_hydro_files/MUSIC_input"]
     assert root.find("o").text == "./out.dat"
+
+
+def test_parent_paths_find_config_in_the_build(tmp_path):
+    """../config/... of the main XML (hybrid hadronization's HH_LightExcitedMesons.xml):
+    an installed tree has config/ in it, not beside it."""
+    build = tmp_path / "share" / "xscape"
+    (build / "config").mkdir(parents=True)
+    (build / "config" / "HH_LightExcitedMesons.xml").write_text("<x/>")
+    src = tmp_path / "main.xml"
+    src.write_text("<a><J><p>../config/HH_LightExcitedMesons.xml</p></J></a>")
+    workdir._absolute_parent_paths(str(src), str(tmp_path / "out.xml"), str(build))
+    assert ET.parse(tmp_path / "out.xml").getroot().find("J/p").text == str(
+        build / "config" / "HH_LightExcitedMesons.xml")
+
+
+def test_xml_problems(tmp_path):
+    build = tmp_path / "share" / "xscape"
+    (build / "iSS_tables").mkdir(parents=True)
+    main = tmp_path / "main.xml"
+    main.write_text(
+        "<jetscape><nEvents>1</nEvents>"
+        "<Hard><PythiaGun><pTHatMin>1</pTHatMin></PythiaGun></Hard>"
+        "<SoftParticlization><iSS><iSS_table_path>../external_packages/iSS/iSS_tables"
+        "</iSS_table_path></iSS></SoftParticlization>"
+        "<Afterburner><SMASH><SMASH_config_file>../external_packages/smash/c.yaml"
+        "</SMASH_config_file></SMASH></Afterburner></jetscape>")
+    user = tmp_path / "user.xml"
+    # iSS is found in the build, SMASH isn't used: nothing to report
+    user.write_text("<jetscape><SoftParticlization><iSS/></SoftParticlization></jetscape>")
+    assert workdir.xml_problems(str(main), str(user), str(build)) == []
+    # SMASH switched on, its config missing; and a tag the main XML lacks (an XML newer
+    # than the X-SCAPE: <extraHard> before multi_hard)
+    user.write_text("<jetscape><Hard><PythiaGun><extraHard><on>0</on></extraHard>"
+                    "</PythiaGun></Hard><Afterburner><SMASH/></Afterburner></jetscape>")
+    problems = workdir.xml_problems(str(main), str(user), str(build))
+    assert len(problems) == 2
+    assert "<extraHard> (in <Hard><PythiaGun><extraHard>)" in problems[0]
+    assert "<on> (in" in problems[0]
+    assert "<Afterburner><SMASH><SMASH_config_file> ../external_packages/smash/c.yaml" \
+        in problems[1]
+    # the user's own value wins over the main XML's, and is the one checked
+    user.write_text(f"<jetscape><Afterburner><SMASH><SMASH_config_file>{main}"
+                    "</SMASH_config_file></SMASH></Afterburner></jetscape>")
+    assert workdir.xml_problems(str(main), str(user), str(build)) == []
+    # Python modules add their CustomModule* block to the main XML when registered
+    user.write_text("<jetscape><Hard><CustomModuleToyGun><E>50</E></CustomModuleToyGun>"
+                    "</Hard></jetscape>")
+    assert workdir.xml_problems(str(main), str(user), str(build)) == []
+
+
+def test_enter_workdir_stops_before_running(tmp_path):
+    build = tmp_path / "share" / "xscape"
+    build.mkdir(parents=True)
+    (build / "music_input").write_text("")
+    main = tmp_path / "main.xml"
+    main.write_text("<jetscape><nEvents>1</nEvents></jetscape>")
+    job = tmp_path / "job.xml"
+    job.write_text("<jetscape><nEventz>1</nEventz></jetscape>")
+    a = types.SimpleNamespace(build=str(build), main_xml=str(main))
+    start = os.getcwd()
+    with pytest.raises(workdir.XMLProblem, match="<nEventz>"):
+        workdir.enter_workdir(a, str(tmp_path / "work"), str(job))
+    assert os.getcwd() == start and not (tmp_path / "work").exists()
 
 
 def test_hydro_label(monkeypatch):
@@ -124,6 +189,25 @@ def test_copy_examples(monkeypatch, tmp_path):
     assert not (dest / "pythonic" / "out_oo").exists()
     assert not (dest / "pythonic" / "run.h5").exists()
     assert copy_examples.main([str(dest)]) == 1          # never overwrites
+
+
+def test_utils_dir_and_copy_utils(installed, monkeypatch, tmp_path):
+    # the wheel's copy, when the package is not in a checkout
+    (installed / "utils" / "remote_transfer").mkdir(parents=True)
+    (installed / "utils" / "jobmon.py").write_text("")
+    (installed / "utils" / "remote_transfer" / "js_osdf.py").write_text("")
+    (installed / "utils" / "__pycache__").mkdir()
+    assert paths.utils_dir() == installed / "utils"
+    dest = tmp_path / "u"
+    assert copy_examples.utils_main([str(dest)]) == 0
+    assert (dest / "jobmon.py").is_file() and (dest / "remote_transfer" / "js_osdf.py").is_file()
+    assert not (dest / "__pycache__").exists()
+    assert copy_examples.utils_main([str(dest)]) == 1          # never overwrites
+    # the image's: $XSCAPE's js-contrib
+    xs = tmp_path / "xs"
+    (xs / "external_packages" / "js-contrib" / "utils").mkdir(parents=True)
+    monkeypatch.setenv("XSCAPE", str(xs))
+    assert paths.utils_dir() == xs / "external_packages" / "js-contrib" / "utils"
 
 
 def test_hadronize_xml_iss_paths(tmp_path):
@@ -182,3 +266,18 @@ def test_build_or_job_dir(monkeypatch, tmp_path):
         assert os.getcwd() == job.path == str(tmp_path / "out" / "work" / "u")
         assert os.path.isfile(job.main_xml)
     assert os.getcwd() == str(tmp_path)
+
+
+def test_example_xmls_parse():
+    """Every XML the examples ship parses (an XML comment may not hold '--'): xscape-run,
+    JobDir and X-SCAPE's run_xml.py read them with ElementTree before X-SCAPE does."""
+    example = Path(__file__).resolve().parents[1] / "example"
+    bad = []
+    for xml in sorted(example.rglob("*.xml")):
+        if "runs" in xml.relative_to(example).parts:       # campaign outputs, not shipped
+            continue
+        try:
+            ET.parse(xml)
+        except ET.ParseError as e:
+            bad.append(f"{xml.relative_to(example)}: {e}")
+    assert not bad, bad

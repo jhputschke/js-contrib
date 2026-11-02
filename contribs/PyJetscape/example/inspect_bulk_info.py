@@ -16,8 +16,9 @@ from the XML, and the script reads the first hydro, which got no cells ("bulk_in
 empty").  The XML must also not set MUSIC's <dump_hydro_only> 1, which hands no copy of
 the evolution to the framework.  The default, FnoHydro's
 config/jetscape_user_root_bulk_test.xml, meets both; config/jetscape_user_MUSIC.xml and
-BulkFastTest/OO_one_event_fast.xml do not work here.  The macOS wheel does not ship the
-FnoHydro contrib: pass that XML (or your copy of it) with --user.
+BulkFastTest/OO_one_event_fast.xml do not work here.  Without FnoHydro (a copy of the
+examples, the macOS wheel) the default is config/bulk_info_test.xml next to this script:
+the same XML without its FNO blocks, so MUSIC only.
 
 Usage (two modes):
 
@@ -70,6 +71,12 @@ sys.path.insert(0, os.path.join(_REPO_ROOT, "python"))
 from jetscape import paths as _paths  # noqa: E402
 _XSCAPE = str(_paths.xscape_root())
 _FNOHYDRO = os.path.join(_XSCAPE, "external_packages", "js-contrib", "contribs", "FnoHydro")
+# FnoHydro's XML where it is (a checkout, the image), else the examples' copy without the FNO
+# blocks (a copy of the examples, the macOS wheel, which has no FnoHydro)
+_DEFAULT_USER = os.path.join(_FNOHYDRO, "config", "jetscape_user_root_bulk_test.xml")
+if not os.path.isfile(_DEFAULT_USER):
+    _DEFAULT_USER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config",
+                                 "bulk_info_test.xml")
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,12 +85,12 @@ def parse_args() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     p.add_argument("--main",   default=os.path.join(_XSCAPE, "config", "jetscape_main.xml"))
-    p.add_argument("--user",   default=os.path.join(_FNOHYDRO, "config",
-                                                    "jetscape_user_root_bulk_test.xml"),
+    p.add_argument("--user",   default=_DEFAULT_USER,
                    help="user XML with <enableAutomaticTaskListDetermination> false and "
                         "no MUSIC <dump_hydro_only> 1 (this script builds the pipeline "
-                        "itself); default: FnoHydro's jetscape_user_root_bulk_test.xml, "
-                        "which the macOS wheel does not ship: pass it with --user there")
+                        "itself); default: FnoHydro's jetscape_user_root_bulk_test.xml in a "
+                        "checkout, else config/bulk_info_test.xml of the examples (the "
+                        "same without the FNO blocks; MUSIC only)")
     p.add_argument("--load",   default=None,
                    help="Load bulk_info from a previously saved .npy file.")
     p.add_argument("--save",   default=None,

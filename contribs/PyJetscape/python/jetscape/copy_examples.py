@@ -5,6 +5,9 @@ python/jetscape/copy_examples.py
 console script of the installed package (the xscape wheel), the Python twin of the
 production image's utils/container/xscape-examples.
 
+``xscape-utils [DEST]`` -- the same for js-contrib's utils/ (jobmon.py, prodwizard.py,
+h5_inspect.py, remote_transfer/, ...), to read or adapt; jetscape.paths.utils_dir().
+
 The examples write next to themselves, and an installed or image tree is read-only, so
 they run from a copy:
 
@@ -60,13 +63,13 @@ def _tracked_files(src: str) -> list[str] | None:
     return [f for f in r.stdout.decode().split("\0") if f]
 
 
-def copy_examples(dest: str) -> str:
-    """Copy the examples into ``dest`` (new or empty) -> the source directory."""
-    src = str(paths.examples_dir())
+def copy_tree(src: str, dest: str, prog: str = "xscape-examples") -> str:
+    """Copy ``src`` into ``dest`` (new or empty) -> ``src``: in a git checkout the tracked
+    files only, else everything but outputs and caches (_EXCLUDE)."""
     if not os.path.isdir(src):
-        raise FileNotFoundError(f"xscape-examples: no examples at {src}")
+        raise FileNotFoundError(f"{prog}: nothing to copy at {src}")
     if os.path.exists(dest) and os.listdir(dest):
-        raise FileExistsError(f"xscape-examples: {dest} exists and is not empty; give another "
+        raise FileExistsError(f"{prog}: {dest} exists and is not empty; give another "
                               "directory (nothing is overwritten)")
     os.makedirs(dest, exist_ok=True)
     tracked = _tracked_files(src)
@@ -80,6 +83,16 @@ def copy_examples(dest: str) -> str:
             return {n for n in names if any(fnmatch.fnmatch(n, p) for p in _EXCLUDE)}
         shutil.copytree(src, dest, ignore=ignore, dirs_exist_ok=True)
     return src
+
+
+def copy_examples(dest: str) -> str:
+    """Copy the examples into ``dest`` (new or empty) -> the source directory."""
+    return copy_tree(str(paths.examples_dir()), dest, "xscape-examples")
+
+
+def copy_utils(dest: str) -> str:
+    """Copy js-contrib's utils/ into ``dest`` (new or empty) -> the source directory."""
+    return copy_tree(str(paths.utils_dir()), dest, "xscape-utils")
 
 
 def main(argv=None) -> int:
@@ -98,6 +111,26 @@ def main(argv=None) -> int:
         return 1
     print(f"xscape-examples: {src} -> {dest}")
     print(f"  e.g. cd {os.path.join(dest, 'pythonic')} && python oo_workflow.py --events 1")
+    return 0
+
+
+def utils_main(argv=None) -> int:
+    default = "/work/utils" if os.path.isdir("/work") else "utils"
+    p = argparse.ArgumentParser(
+        prog="xscape-utils",
+        description="Copy js-contrib's utils/ (production, monitoring, transfer and "
+                    "inspection tools) into a writable directory, to read or adapt.")
+    p.add_argument("dest", nargs="?", default=default,
+                   help=f"new or empty directory (default: {default})")
+    a = p.parse_args(argv)
+    dest = os.path.abspath(os.path.expanduser(a.dest))
+    try:
+        src = copy_utils(dest)
+    except (FileNotFoundError, FileExistsError) as e:
+        print(e, file=sys.stderr)
+        return 1
+    print(f"xscape-utils: {src} -> {dest}")
+    print(f"  e.g. python {os.path.join(dest, 'h5_inspect.py')} --help")
     return 0
 
 
