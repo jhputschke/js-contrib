@@ -264,7 +264,7 @@ def _event_record(reader, e):
             "extra_pt": float(ex[:, 7].sum())}
 
 
-def event_table(reader, cuts=None, events=None, progress=None):
+def event_table(reader, cuts=None, events=None, progress=None, workers=1):
     """One row per event of ``reader`` (a jetscape.hadrons_h5.HadronFileReader) -> dict of
     arrays: the event record (event, file_index, local_event, bg_unit (-1: unknown), n_coll
     (NaN: unknown), n_extra, extra_E, extra_pt: the extras' count and summed E and p_T from
@@ -272,17 +272,37 @@ def event_table(reader, cuts=None, events=None, progress=None):
     ``<composition>.<column>`` (``.c`` is (n_events, n_harmonics)), ``group`` (the jackknife
     unit), ``harmonics`` and ``cuts``.  ``events``: global event indices (default all).
     ``progress``: a callable(i, n) or None.  A background reused by several events is read
-    once while they follow each other."""
+    once while they follow each other.
+
+    ``workers`` > 1: the events in contiguous chunks over that many processes, each with its
+    own reader of the same production files (``reader.stems``); the table is the same as with
+    one process, row for row.  The chunks end where the hydro background changes, so a
+    shared background is still read once.  ``progress`` is then called per chunk.  The
+    processes are started with "spawn" (no forked HDF5 state), so a script calling this needs
+    the usual ``if __name__ == "__main__":`` guard."""
     cuts = cuts or Cuts()
     stored = reader.eta_max()
     if stored is not None and stored < cuts.eta_reach:
         raise ValueError(f"the hadron files keep only |eta| < {stored} (hadronize.py "
                          f"--eta-max), the cuts reach |eta| = {cuts.eta_reach}")
+    g = reader.events(events)
+    workers = max(1, int(workers or 1))
+    if workers > 1 and len(g) > 1:
+        t = _parallel_rows(reader, cuts, g, progress, workers)
+    else:
+        t = _rows(reader, cuts, g, progress)
+    t["harmonics"] = np.asarray(cuts.harmonics, dtype=np.int64)
+    t["cuts"] = cuts
+    t["group"] = _groups(t)
+    return t
+
+
+def _rows(reader, cuts, g, progress=None):
+    """event_table's per-event columns for the global events ``g`` (one process)."""
     nh = len(cuts.harmonics)
     origins = [ORIGIN[o] for o in ("bulk", "frag", "extra")]
     g_of = np.full(max(origins) + 1, -1, np.int64)
     g_of[origins] = np.arange(len(origins))
-    g = reader.events(events)
     rows = []
     bg_cache = {}
     for i, e in enumerate(g):
@@ -300,7 +320,7 @@ def event_table(reader, cuts=None, events=None, progress=None):
                  if per else None)
             stacks[name] = s
             rec.update({f"{name}.{c}": v for c, v in event_values(s, nh).items()})
-        key = (rec["file_index"], rec["bg_unit"] if rec["bg_unit"] >= 0 else -1 - int(e))
+        key = _bg_key(rec, e)
         if key not in bg_cache:
             if len(bg_cache) > 8:
                 bg_cache.clear()
@@ -325,10 +345,55 @@ def event_table(reader, cuts=None, events=None, progress=None):
             if f"{d}.{c}" in t:
                 t[f"{d}.{c}"] = np.asarray(t[f"{d}.{c}"], dtype=np.float64).reshape(len(rows),
                                                                                    nh)
-    t["harmonics"] = np.asarray(cuts.harmonics, dtype=np.int64)
-    t["cuts"] = cuts
-    t["group"] = _groups(t)
     return t
+
+
+def _bg_key(rec, e):
+    """The hydro background of an event: (file, bg_unit), or the event itself if unknown."""
+    return (rec["file_index"], rec["bg_unit"] if rec["bg_unit"] >= 0 else -1 - int(e))
+
+
+def _chunks(reader, g, n_chunks):
+    """``g`` cut into about ``n_chunks`` contiguous pieces, each cut moved forward to where
+    the hydro background changes (events sharing one stay in one chunk)."""
+    def key(e):
+        info = reader.event_info(int(e))
+        bg = -1 if info.bg_unit is None else int(info.bg_unit)
+        return (info.file_index, bg if bg >= 0 else -1 - int(e))
+
+    cuts = []
+    for c in np.linspace(0, len(g), n_chunks + 1)[1:-1].round().astype(int):
+        c = max(c, cuts[-1] if cuts else 0)
+        while 0 < c < len(g) and key(g[c]) == key(g[c - 1]):
+            c += 1
+        if 0 < c < len(g) and (not cuts or c > cuts[-1]):
+            cuts.append(c)
+    return [p for p in np.split(g, cuts) if len(p)]
+
+
+def _rows_of_files(args):
+    """A worker process: its own reader of the parent's files, the rows of its events."""
+    from jetscape.hadrons_h5 import HadronFileReader
+    stems, cuts, g = args
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")              # the parent's reader has warned already
+        with HadronFileReader(list(stems), check_uuid=False) as reader:
+            return _rows(reader, cuts, g)
+
+
+def _parallel_rows(reader, cuts, g, progress, workers):
+    import multiprocessing as mp
+
+    parts = _chunks(reader, g, min(len(g), 4 * workers))
+    stems = list(reader.stems)
+    tables, done = [], 0
+    with mp.get_context("spawn").Pool(min(workers, len(parts))) as pool:
+        for p, t in zip(parts, pool.imap(_rows_of_files, [(stems, cuts, p) for p in parts])):
+            tables.append(t)
+            done += len(p)
+            if progress is not None:
+                progress(done, len(g))
+    return {k: np.concatenate([t[k] for t in tables]) for k in tables[0]}
 
 
 def _empty_keys():

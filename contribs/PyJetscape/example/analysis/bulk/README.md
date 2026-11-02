@@ -11,7 +11,7 @@ what the extras are: [`docs/README_extra_hard.md`](../../../../../docs/README_ex
 | file | |
 |---|---|
 | [`flow.py`](flow.py) | the library: `Cuts`, `event_table(reader, cuts)`, `select(...)`, `class_averages(table, mask)`; the definitions are in its docstring |
-| [`bulk_obs.py`](bulk_obs.py) | the command line: a table per N_coll class, `--out` (.json / .npz), `--table` (per-event .npz) |
+| [`bulk_obs.py`](bulk_obs.py) | the command line: a table per N_coll class, `--out` (.json / .npz), `--table` (per-event .npz), `--workers` (processes) |
 | [`../../../tests/test_bulk_flow.py`](../../../tests/test_bulk_flow.py) | synthetic events with an imposed v₂, v₃ and [p_T] spread |
 | [`extra_hard_hists.py`](extra_hard_hists.py) | one pass over a minimum-bias extras campaign (`--prod`, default `~/prod/PbPb_0_10_v2x`): per event η, φ, φ − Ψ₂ and p_T of the charged hadrons, anti-kT R = 0.4 jets without subtraction (charged and all hadrons), the extras' scatterings and initiators, for bulk, bulk + wakes and bulk + extras → `../runs/pbpb_extra_hard/data/extra_hard_hists.npz` (`--out`); one file per process, `--workers` (default 12) processes |
 | [`extra_hard_bulk_jets.ipynb`](extra_hard_bulk_jets.ipynb) | its figures and ratios, jackknife over the hydro backgrounds (numpy + matplotlib) |
@@ -25,7 +25,14 @@ python bulk_obs.py out_had/                                   # every production
 python bulk_obs.py "OUTBASE/gpu*/*_hadrons_bulk_jet.h5" --ncoll-classes 0 10 30 50 100 \
        --out bulk.json --table bulk_events.npz
 python bulk_obs.py out_had/ --eta-max 0.5 --flow-eta-max 2.4 --eta-gap 2 --harmonics 2 3 4
+python bulk_obs.py out_had/ --workers 8                      # 8 processes (0: all CPUs)
 ```
+
+`--workers N` (`event_table(..., workers=N)`) reads the events in N processes, in contiguous
+chunks cut where the hydro background changes; the table and every result are the same as with
+one process (`test_workers_give_the_serial_table`). 200 Pb+Pb 0–10 % events × 40 oversamples
+on the GB10: 87 s with one process, 14 s with 8. The processes are spawned, so a script calling
+`event_table` with workers needs the `if __name__ == "__main__":` guard.
 
 ```python
 from flow import Cuts, event_table, select, class_averages

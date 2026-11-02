@@ -4,7 +4,7 @@ event, without extras, bulk_jet, bulk_bg) and as the paired difference to bulk_b
 of N_coll.  The definitions are in flow.py's docstring and README.md.
 
     python bulk_obs.py <dir | glob | files ...> [--ncoll-classes 0 10 30 50 100]
-                       [--out results.json | results.npz] [--table events.npz]
+                       [--out results.json | results.npz] [--table events.npz] [--workers N]
 
 Sources: a directory (every production file in it), a quoted glob of particlize or hadron
 files, or several of either (as jetscape.hadrons_h5.HadronFileReader reads them; a
@@ -14,7 +14,9 @@ minimum-bias files (run_prod_jet.py --hard none: no jet_frag).
 
 ``--out`` writes the class results (.json: {class: {composition: {quantity: [value,
 error]}}}, .npz: one [value, error] array per "class|composition/quantity"), ``--table`` the
-per-event table (.npz; flow.event_table's columns with "." written as "__").
+per-event table (.npz; flow.event_table's columns with "." written as "__").  ``--workers N``
+reads the events in N processes (contiguous chunks, cut where the hydro background changes);
+the results are the same as with one.
 """
 import argparse
 import glob
@@ -129,6 +131,8 @@ def main(argv=None):
     ap.add_argument("--out", default=None, help="class results, .json or .npz")
     ap.add_argument("--table", default=None, help="per-event table, .npz")
     ap.add_argument("--quiet", action="store_true")
+    ap.add_argument("--workers", type=int, default=1,
+                    help="processes for the per-event pass (default 1; 0: all CPUs)")
     a = ap.parse_args(argv)
 
     cuts = flow.Cuts(eta_max=a.eta_max, pt_min=a.pt_min, pt_max=a.pt_max, eta_gap=a.eta_gap,
@@ -141,12 +145,17 @@ def main(argv=None):
         correlated = reader.correlated
         n_all = reader.n_events
 
-        def progress(i, n):
-            if not a.quiet and (i % 50 == 0 or i == n):
+        shown = [0]
+
+        def progress(i, n):                       # per event, or per chunk with --workers
+            if not a.quiet and (i - shown[0] >= 50 or i == n):
+                shown[0] = i
                 print(f"\r  {i}/{n} events  {time.time() - t0:.0f} s", end="",
                       file=sys.stderr, flush=True)
 
-        t = flow.event_table(reader, cuts, parse_events(a.events), progress=progress)
+        workers = a.workers if a.workers > 0 else (os.cpu_count() or 1)
+        t = flow.event_table(reader, cuts, parse_events(a.events), progress=progress,
+                             workers=workers)
     if not a.quiet:
         print(file=sys.stderr)
 

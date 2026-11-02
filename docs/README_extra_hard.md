@@ -380,6 +380,7 @@ python bulk_obs.py out_had/                                  # every production 
 python bulk_obs.py "OUTBASE/gpu*/*_hadrons_bulk_jet.h5" --ncoll-classes 0 10 30 50 100 \
        --out bulk.json --table bulk_events.npz
 python bulk_obs.py out_had/ --eta-max 0.5 --flow-eta-max 2.4 --eta-gap 2 --harmonics 2 3 4
+python bulk_obs.py out_had/ --workers 8                     # 8 processes, the same results
 ```
 
 | option | default | |
@@ -397,6 +398,7 @@ python bulk_obs.py out_had/ --eta-max 0.5 --flow-eta-max 2.4 --eta-gap 2 --harmo
 | `--out` | | the class results, `.json` or `.npz` |
 | `--table` | | the per-event table, `.npz` |
 | `--quiet` | | no table on the screen |
+| `--workers` | 1 | processes for the per-event pass (0: all CPUs); the same results as with one |
 
 The output on the 3-event minimum-bias O+O test job (one oversample, uncorrelated, so σ_dyn
 is NaN and the vₙ are noise; it shows the layout, not physics):

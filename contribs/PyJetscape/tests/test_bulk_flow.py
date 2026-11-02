@@ -334,3 +334,49 @@ def test_cli_writes_json_npz_and_the_event_table(tmp_path, capsys):
                    "--quiet", "--events", "0:2"])
     z = np.load(npz)
     assert z["all|full/n_events"][0] == 2
+
+
+def _assert_same_table(a, b):
+    assert set(a) == set(b)
+    for k in a:
+        if k == "cuts":
+            assert a[k] == b[k]
+        else:
+            np.testing.assert_array_equal(a[k], b[k], err_msg=k)
+
+
+@pytest.mark.parametrize("reuse", [False, True])
+def test_workers_give_the_serial_table(tmp_path, reuse):
+    """Several processes give the one-process table row for row, also when a chunk would cut
+    through a shared background (reuse: events 0 and 1 share background 0), and over two
+    production files."""
+    _fragment_job(tmp_path, reuse=reuse)
+    rng = np.random.default_rng(3)
+    bulk = [[_flow_sample(rng, 200, V2, V3, 0.3 * e, 0.0, 0.8) for _ in range(3)]
+            for e in range(5)]
+    _write_job(tmp_path / "T_seed0002", bulk, bg={e: bulk[e] for e in range(5)})
+    with HadronFileReader(str(tmp_path)) as r:
+        serial = flow.event_table(r)
+        assert len(serial["event"]) == 9
+        ticks = []
+        par = flow.event_table(r, workers=3, progress=lambda i, n: ticks.append((i, n)))
+        sub = flow.event_table(r, events=[1, 2, 6], workers=2)
+    _assert_same_table(serial, par)
+    assert ticks[-1] == (9, 9)
+    with HadronFileReader(str(tmp_path)) as r:
+        _assert_same_table(flow.event_table(r, events=[1, 2, 6]), sub)
+    a, b = flow.class_averages(serial), flow.class_averages(par)
+    for k in a:
+        np.testing.assert_array_equal(a[k], b[k], err_msg=k)
+    if reuse:
+        with HadronFileReader(str(tmp_path)) as r:
+            parts = flow._chunks(r, r.events(), 9)
+        assert not any(p[0] == 1 for p in parts)         # never between events 0 and 1
+
+
+def test_cli_workers(tmp_path, capsys):
+    _fragment_job(tmp_path, reuse=True)
+    one, two = tmp_path / "one.json", tmp_path / "two.json"
+    bulk_obs.main([str(tmp_path), "--out", str(one), "--quiet"])
+    bulk_obs.main([str(tmp_path), "--out", str(two), "--quiet", "--workers", "2"])
+    assert json.loads(one.read_text())["classes"] == json.loads(two.read_text())["classes"]

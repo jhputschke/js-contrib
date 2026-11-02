@@ -106,6 +106,7 @@ python bulk_obs.py out_had/                                  # every production 
 python bulk_obs.py "OUTBASE/gpu*/*_hadrons_bulk_jet.h5" --ncoll-classes 0 10 30 50 100 \
        --out bulk.json --table bulk_events.npz
 python bulk_obs.py out_had/ --eta-max 0.5 --flow-eta-max 2.4 --eta-gap 2 --harmonics 2 3 4
+python bulk_obs.py out_had/ --workers 8                     # 8 processes, the same results
 ```
 
 | option | default | |
@@ -123,6 +124,15 @@ python bulk_obs.py out_had/ --eta-max 0.5 --flow-eta-max 2.4 --eta-gap 2 --harmo
 | `--out` | | the class results, `.json` or `.npz` |
 | `--table` | | the per-event table, `.npz` |
 | `--quiet` | | no table on the screen |
+| `--workers` | 1 | processes for the per-event pass (0: all CPUs); the same results as with one |
+
+**In parallel.** The per-event pass is the slow part; `--workers N` (in Python
+`event_table(..., workers=N)`) reads the events in N processes, in contiguous chunks cut where
+the hydro background changes, so a shared background is still read once. The table, and so
+every result, is the same as with one process. On the GB10, 200 Pb+Pb 0–10 % events with 40
+oversamples took 87 s with one process and 14 s with `--workers 8`. Scripts that call
+`event_table` with workers need the `if __name__ == "__main__":` guard (the processes are
+spawned).
 
 The output on a 3-event minimum-bias O+O test job (one oversample, uncorrelated, so σ_dyn is
 NaN and the vₙ are noise; it shows the layout, not physics):
@@ -154,6 +164,7 @@ from jetscape.hadrons_h5 import HadronFileReader
 
 with HadronFileReader("out_had") as r:
     t = event_table(r, Cuts(eta_max=0.8, pt_min=0.2, pt_max=3.0, eta_gap=1.0))
+    # t = event_table(r, Cuts(), workers=8)    # the same table from 8 processes
 res = class_averages(t, select(t, n_coll_percent=(0, 10)))
 res["full/v2"], res["bulk_bg/v2"]               # (value, jackknife error)
 res["delta_full/dnch"], res["delta_bulk_jet/dc2"]
