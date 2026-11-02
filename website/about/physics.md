@@ -20,7 +20,7 @@ settings. Publications are linked where each model appears and collected in
 | O+O with ISR | O+O, 200 GeV | \(b < 3\) fm (about 0–24 %) | PYTHIA 8 + iMATTER initial-state radiation, \(\hat p_T\) 20–40 GeV by default | one MUSIC run | iColored in the job; iSS in the job or afterwards |
 | Pb+Pb with a jet | Pb+Pb, 5.02 TeV | 0–10 % (\(b < 4.95\) fm) | PYTHIA 8 dijet | background/jet pair | iSS + Colorless |
 | Pb+Pb Z+jet | Pb+Pb, 5.02 TeV | 0–30 % (\(b < 8.57\) fm) | PYTHIA 8 Z + parton, Z → ee, μμ | background/jet pair | iSS + Colorless |
-| O+O, Ne+Ne with a jet | O+O, Ne+Ne, 5.36 TeV | 0–10 % (\(b < 2.09\) / 2.41 fm), or minimum bias | PYTHIA 8 dijet (untuned bulk) | background/jet pair | iSS + Colorless |
+| O+O, Ne+Ne with a jet | O+O, Ne+Ne, 5.36 TeV | 0–10 % (\(b < 2.09\) / 2.41 fm), or minimum bias | PYTHIA 8 dijet (the RHIC bulk fit, not refitted) | background/jet pair | iSS + Colorless |
 
 Any of the jet setups can add the event's **other hard scatterings** above a threshold
 \(p_0\) (`--extra-hard`), or run them alone as minimum-bias events: section
@@ -228,9 +228,15 @@ The fluid is evolved by MUSIC, a 3+1D second-order viscous hydrodynamics code
 ([arXiv:1004.1408](https://arxiv.org/abs/1004.1408),
 [arXiv:1009.3244](https://arxiv.org/abs/1009.3244),
 [arXiv:1509.06738](https://arxiv.org/abs/1509.06738)), here through its GPU port MUSIC4GPU
-(the same equations and numerical scheme; see [GPU acceleration](gpu.md)). The settings are
-the tuned 3D-Glauber + MUSIC set of X-SCAPE, tuned at \(\sqrt{s_{NN}}\) = 200 GeV; the Pb+Pb
-inputs use it unchanged.
+(the same equations and numerical scheme; see [GPU acceleration](gpu.md)). The bulk settings
+(strings, η/s(T), ζ/s(T)) are the RHIC best fit (MAP) of the JETSCAPE 3D Bayesian calibration
+of 3D Glauber + MUSIC + iSS + UrQMD, fitted to Au+Au and d+Au at 200 GeV ([arXiv:2601.17234](https://arxiv.org/abs/2601.17234), Table IV); it
+reached the productions through X-SCAPE's `BulkFastTest` configs. Three differences from that
+fit: the productions freeze out at T_fo = 150 MeV rather than on the paper's energy density,
+α_shift (MUSIC's transverse string shift, 0.477 in the fit) stays 0 because X-SCAPE does not
+pass it to MUSIC, and no afterburner runs after iSS. The Pb+Pb, Z+jet, O+O and Ne+Ne inputs use
+the RHIC set unchanged; the paper's Pb+Pb 5.02 TeV refit (Table V: e_sw = 0.120 GeV/fm³,
+T ≈ 136 MeV, and y_loss(y = 10) = 2.800) is not applied.
 
 | | setting |
 |---|---|
@@ -458,7 +464,8 @@ wakes are part of the bulk. The option adds them (stage 1 of the design in
   weight 1. This is the setup for the bulk observables (\(N_{\rm ch}\), \([p_T]\), \(v_n\{2\}\))
   and for what the extras do to them ([Bulk and flow](../analysis/bulk.md)).
 - **O+O and Ne+Ne at 5.36 TeV:** copies of the Pb+Pb jet input with \(^{16}\)O and PGCM
-  \(^{20}\)Ne nuclei; the bulk is not tuned for small systems.
+  \(^{20}\)Ne nuclei; the bulk is the RHIC fit of [arXiv:2601.17234](https://arxiv.org/abs/2601.17234) (section [7](#7-hydrodynamics-music)),
+  neither refitted at the LHC nor for small systems.
 
 One trigger plus Poisson extras is the right event when the trigger is rare
 (\(N_{\rm coll}\,\sigma_{\rm trigger}/\sigma_{NN} \ll 1\): a Z, dijets above ~50 GeV); for low
@@ -477,7 +484,9 @@ trigger windows (10–30 GeV) it is an approximation.
     - **No energy subtraction** from the strings for the hard scatterings, nor minijets below
       \(p_0\) (section [15](#15-the-events-other-hard-scatterings)).
     - **Centrality from \(b\)**, not from an event-activity class.
-    - **Pb+Pb and Z+jet use parameters tuned at 200 GeV.**
+    - **The LHC inputs use the RHIC bulk fit** of [arXiv:2601.17234](https://arxiv.org/abs/2601.17234), without its Pb+Pb refit (freeze-out,
+      y_loss at y = 10), with T_fo = 150 MeV, α_shift = 0 and no UrQMD/SMASH afterburner
+      (section [7](#7-hydrodynamics-music)).
     - **Droplets after the jet leg's freeze-out are lost** (recorded per event).
     - **The stored hydro history has no viscous fields** and is resampled onto a coarser grid
       (section [14](#14-hadrons-from-a-stored-hydro-history)).

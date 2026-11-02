@@ -124,6 +124,10 @@ of the jet hadronization.
   transport coefficients of QCD matter*, Phys. Rev. C 103, 054904 (2021),
   [arXiv:2011.01430](https://arxiv.org/abs/2011.01430) (the \(\eta/s(T)\) and \(\zeta/s(T)\)
   parametrizations).
+- The JETSCAPE Collaboration (B. Mankolli, C. Shen *et al.*), the 3D Bayesian calibration of
+  3D Glauber + MUSIC + iSS + UrQMD at 200 GeV, with a Pb+Pb 5.02 TeV refit,
+  [arXiv:2601.17234](https://arxiv.org/abs/2601.17234) (the bulk settings of the productions:
+  its RHIC best fit, Table IV).
 
 **The GPU port.** MUSIC4GPU, the CUDA and Metal port of MUSIC that the productions run, has no
 publication of its own; it ports MUSIC's CPU algorithms without changing the physics. Cite the

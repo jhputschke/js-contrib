@@ -148,7 +148,9 @@ TAG_PREFIX=NeNe_5360_seed ./run_jobs.sh --campaign mb1 20 30 1 out_nene_mb1 \
 of `PbPb_0_10_jet.xml`: 3dMCGlauber's ¹⁶O / PGCM ²⁰Ne configurations (`Ne20` is
 3dMCGlauber's name for neon), √s_NN = 5.36 TeV, MUSIC's transverse grid ±12 fm, b < 2.09 /
 2.41 fm for 0–10 %. Those edges are the 10 % quantile of b in 80,000 minimum-bias 3dMCGlauber
-events; set `b_max` to 20 for minimum bias. The bulk is **untuned** for small systems. Two
+events; set `b_max` to 20 for minimum bias. The bulk is the RHIC best fit of the JETSCAPE 3D
+calibration (arXiv:2601.17234, Table IV), **not refitted** at the LHC (the paper's Pb+Pb refit:
+e_sw 0.120 GeV/fm³, y_loss(y = 10) 2.800; here T_fo = 150 MeV, 2.95; no afterburner) nor for small systems. Two
 test events give dN_ch/dη(|η| < 0.5) ≈ 136 (O+O) and 131 (Ne+Ne), ⟨pT⟩ ≈ 0.59 / 0.65 GeV:
 compare with ATLAS (arXiv:2606.20257) and ALICE before quoting numbers.
 
@@ -503,7 +505,8 @@ Cost (Pb+Pb 0–10 %, 3 events, the same backgrounds, one job alone, `--hadrons-
   They are uncorrelated with the trigger and average out in trigger-relative correlations, but
   add noise. A third leg is a later option (D14).
 - No energy subtraction from the strings (D4); a stage-2 topic.
-- The O+O / Ne+Ne bulk is untuned; the 0–10 % b edges are geometric, not multiplicity classes.
+- The O+O / Ne+Ne bulk is the RHIC fit of arXiv:2601.17234, not refitted; the 0–10 % b edges
+  are geometric, not multiplicity classes.
 - The per-hadron `hadrons/scatter` is not exported to ROOT; event weights for `--pthat-bins`
   are not applied in the bulk tools.
 - The Z+jet B_mixed takes the extras from other Z events on the nearest backgrounds (the

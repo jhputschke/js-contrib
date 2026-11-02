@@ -173,8 +173,10 @@ are copies of `PbPb_0_10_jet.xml` for the LHC's light-ion run:
   minimum-bias 3dMCGlauber events, ⟨N_coll⟩ 42 / 51; set `b_max` to 20 for minimum bias;
 - `<extraHard><pTHatMin>` 10 GeV.
 
-!!! warning "Untuned for small systems"
-    The bulk settings are the Pb+Pb file's. Two test events give dN_ch/dη(|η| < 0.5) ≈ 136
+!!! warning "Not refitted for the LHC or for small systems"
+    The bulk settings are the Pb+Pb file's: the RHIC best fit of the JETSCAPE 3D calibration
+    ([arXiv:2601.17234](https://arxiv.org/abs/2601.17234)), without the paper's Pb+Pb refit and without an afterburner
+    ([The physics](../about/physics.md#7-hydrodynamics-music)). Two test events give dN_ch/dη(|η| < 0.5) ≈ 136
     (O+O) and 131 (Ne+Ne), ⟨pT⟩ ≈ 0.59 / 0.65 GeV. Compare dN_ch/dη and v₂{2} with ATLAS
     ([arXiv:2606.20257](https://arxiv.org/abs/2606.20257)) and ALICE
     ([arXiv:2604.07184](https://arxiv.org/abs/2604.07184)) before quoting numbers. The 0–10 %
