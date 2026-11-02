@@ -898,10 +898,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-4-check-that-the-metal-gpu-is-used" class="md-nav__link">
+  <a href="#step-4-check-the-environment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 4: check that the Metal GPU is used
+        Step 4: check the environment
       
     </span>
   </a>
@@ -924,6 +924,17 @@
     <span class="md-ellipsis">
       
         The rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-xml-xscape-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One XML: xscape-run
       
     </span>
   </a>
@@ -979,6 +990,17 @@
     <span class="md-ellipsis">
       
         Command reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-runs-with-the-wheel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What runs with the wheel
       
     </span>
   </a>
@@ -2147,10 +2169,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#step-4-check-that-the-metal-gpu-is-used" class="md-nav__link">
+  <a href="#step-4-check-the-environment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Step 4: check that the Metal GPU is used
+        Step 4: check the environment
       
     </span>
   </a>
@@ -2173,6 +2195,17 @@
     <span class="md-ellipsis">
       
         The rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#one-xml-xscape-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        One XML: xscape-run
       
     </span>
   </a>
@@ -2228,6 +2261,17 @@
     <span class="md-ellipsis">
       
         Command reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-runs-with-the-wheel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What runs with the wheel
       
     </span>
   </a>
@@ -2300,10 +2344,12 @@ GPU, so on a Mac the wheel takes the place of the <a href="../container/">produc
 scripts, notebooks and outputs are the same. The environment holds X-SCAPE with MUSIC
 (MUSIC4GPU, Metal), iSS, 3dMCGlauber, Matter, LBT, iColored and Pythia, PyJetscape and its
 Pythonic layer, and the analysis packages (awkward, vector, fastjet, particle, hist, mplhep,
-matplotlib, scipy, pandas, uproot, JupyterLab).</p>
+matplotlib, scipy, pandas, uproot, JupyterLab), pelicanfs for <code>osdf://</code> paths, and js-contrib's
+production tools as commands (<code>xscape-prodwizard</code>, <code>xscape-jobmon</code>, <code>xscape-osdf</code>, ...).</p>
 <p><strong>What it can't do:</strong> rebuild X-SCAPE or the bindings (that needs the
 <a href="../source/">source build</a>), ROOT/PyROOT (uproot, included, reads ROOT files), and PyTorch (not
-in the environment). Intel Macs are not supported.</p>
+in the environment). Some modules and data are not in it: <a href="#what-runs-with-the-wheel">What runs with the
+wheel</a>. Intel Macs are not supported.</p>
 <h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">¶</a></h2>
 <ul>
 <li>A Mac with Apple Silicon (M1 or later) on <strong>macOS 26</strong> or later (Apple menu → About This
@@ -2316,7 +2362,7 @@ in the environment). Intel Macs are not supported.</p>
 <p class="admonition-title">Releases</p>
 <p>The wheels are published on the
 <a href="https://github.com/jhputschke/xscape-macos/releases">Releases page of jhputschke/xscape-macos</a>.
-The current release is <strong>v0.1.0</strong>; check that page for the latest. Each release is a set
+The current release is <strong>v0.2.0</strong>; check that page for the latest. Each release is a set
 of three files: the <code>xscape</code> wheel (X-SCAPE, 175 MB), the <code>pyjetscape</code> wheel (the Python
 package), and a <strong>lock file</strong> <code>xscape-&lt;version&gt;-cp313.lock.txt</code>, which names every package
 of the environment with its exact version and checksum. You install from the lock file,
@@ -2329,7 +2375,7 @@ so every Mac gets exactly the same software.</p>
 <p>Then open a new Terminal window (or run <code>source ~/.local/bin/env</code>) so that <code>uv</code> is found. With
 Homebrew, <code>brew install uv</code> works too.</p>
 <h2 id="step-2-create-the-environment-from-the-lock-file">Step 2: create the environment from the lock file<a class="headerlink" href="#step-2-create-the-environment-from-the-lock-file" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">VER</span><span class="o">=</span><span class="m">0</span>.1.0<span class="w">                     </span><span class="c1"># the latest: github.com/jhputschke/xscape-macos/releases</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">VER</span><span class="o">=</span><span class="m">0</span>.2.0<span class="w">                     </span><span class="c1"># the latest: github.com/jhputschke/xscape-macos/releases</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/xscape<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/xscape
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>curl<span class="w"> </span>-LO<span class="w"> </span>https://github.com/jhputschke/xscape-macos/releases/download/v<span class="nv">$VER</span>/xscape-<span class="nv">$VER</span>-cp313.lock.txt
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>uv<span class="w"> </span>venv<span class="w"> </span>--managed-python<span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span><span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13
@@ -2343,7 +2389,7 @@ depending on the connection.</p>
   that happens to be installed, so nothing outside the environment is used.</li>
 <li><code>uv pip sync</code> installs exactly what the lock lists, hash-checked, and removes anything else.</li>
 <li><code>source ~/.venvs/xscape-$VER/bin/activate</code> is needed in <strong>every new Terminal window</strong> where
-  you use X-SCAPE. Your prompt then starts with <code>(xscape-0.1.0)</code>.</li>
+  you use X-SCAPE. Your prompt then starts with <code>(xscape-0.2.0)</code>.</li>
 </ul>
 <h2 id="step-3-fetch-the-lbt-tables">Step 3: fetch the LBT tables<a class="headerlink" href="#step-3-fetch-the-lbt-tables" title="Permanent link">¶</a></h2>
 <p>LBT, the jet energy-loss module, needs its scattering tables: a 240 MB download, 1.1 GB on
@@ -2353,26 +2399,35 @@ disk. They are kept in <code>~/Library/Caches/xscape</code> and shared by all yo
 <p>It checks every file against the release's checksums and ends with
 <code>xscape-fetch-data: LBT tables ... (checked) -&gt; ...</code>. If you already have the tables on disk,
 <code>xscape-fetch-data lbt --from DIR</code> uses them instead of downloading.</p>
-<h2 id="step-4-check-that-the-metal-gpu-is-used">Step 4: check that the Metal GPU is used<a class="headerlink" href="#step-4-check-that-the-metal-gpu-is-used" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import jetscape as js; print(js.HAS_CORE, js.pyjetscape_core.MUSIC_BACKEND)"</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># -&gt; True music4gpu-metal</span>
+<h2 id="step-4-check-the-environment">Step 4: check the environment<a class="headerlink" href="#step-4-check-the-environment" title="Permanent link">¶</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>xscape-selftest
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1"># ... image_check: all ok</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import jetscape as js; print(js.HAS_CORE, js.pyjetscape_core.MUSIC_BACKEND)"</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># -&gt; True music4gpu-metal</span>
 </code></pre></div>
-<p><code>True</code> means the compiled bindings load; <code>music4gpu-metal</code> means they were built with the Metal
-MUSIC. The first <code>import</code> after the installation takes a little longer, because matplotlib
-builds its font cache once.</p>
+<p><code>xscape-selftest</code> checks the bindings, the HDF5 filters, pelicanfs, the paths to the installed
+X-SCAPE, the analysis packages, MUSIC's EoS table and the LBT tables, and sends one synthetic
+event through awkward, FastJet and mplhep. It stops at the first failure. <code>True</code> means the
+compiled bindings load; <code>music4gpu-metal</code> means they were built with the Metal MUSIC. The first
+<code>import</code> after the installation takes a little longer, because matplotlib builds its font cache
+once.</p>
 <p>When an event runs, MUSIC prints the GPU it uses when it starts:
 <code>[MUSIC-GPU] Metal device: &lt;your chip&gt;</code>. There is nothing to switch on. If instead you see
 <code>[MUSIC-GPU] Metal init failed, falling back to CPU.</code>, MUSIC runs on the CPU; that happens
 inside a virtual machine or a container, so run natively in Terminal.</p>
 <h2 id="step-5-copy-the-examples-and-run-one-event">Step 5: copy the examples and run one event<a class="headerlink" href="#step-5-copy-the-examples-and-run-one-event" title="Permanent link">¶</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>xscape-examples<span class="w"> </span>~/xscape/examples
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic
-<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>xscape-utils<span class="w"> </span>~/xscape/utils<span class="w">          </span><span class="c1"># optional: js-contrib's utils/, to read or adapt</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
 </code></pre></div>
 <p><code>xscape-examples</code> copies every example into a directory of yours: the production scripts, the
 Pythonic examples (<code>pythonic/</code>), the toy Python modules (<code>python_modules/</code>), the analysis
 notebooks and their XMLs. The examples write next to themselves, so they run from this copy.
-It never overwrites: for a fresh copy, give it a new directory.</p>
+<code>xscape-utils</code> does the same for js-contrib's <code>utils/</code> (<code>jobmon.py</code>, <code>prodwizard.py</code>,
+<code>h5_inspect.py</code>, <code>remote_transfer/</code>, ...); you don't need the copy to use them, they are
+commands of the environment (<a href="#command-reference">Command reference</a>). Neither ever
+overwrites: for a fresh copy, give a new directory.</p>
 <p>The event is one O+O collision through the whole chain: 3dMCGlauber, Pythia with initial-state
 radiation, MUSIC on the GPU, Matter + LBT, iColored + iSS. It takes under a minute (27 s on an
 M3 Max) and writes two hadron files to <code>~/xscape/out_oo/</code>. What it did:
@@ -2414,7 +2469,11 @@ M3 Max) and writes two hadron files to <code>~/xscape/out_oo/</code>. What it di
 </tr>
 <tr>
 <td>the examples</td>
-<td>your copy, e.g. <code>~/xscape/examples</code></td>
+<td>your copy, e.g. <code>~/xscape/examples</code> (<code>xscape-examples</code>)</td>
+</tr>
+<tr>
+<td>js-contrib's <code>utils/</code></td>
+<td>inside the installed tree (<code>utils/</code>); your copy with <code>xscape-utils</code></td>
 </tr>
 <tr>
 <td>the LBT tables</td>
@@ -2422,24 +2481,57 @@ M3 Max) and writes two hadron files to <code>~/xscape/out_oo/</code>. What it di
 </tr>
 </tbody>
 </table>
+<h2 id="one-xml-xscape-run">One XML: <code>xscape-run</code><a class="headerlink" href="#one-xml-xscape-run" title="Permanent link">¶</a></h2>
+<p><code>xscape-run</code> runs X-SCAPE's <code>runJetscape</code> on a user XML in a directory of its own, and takes any
+XML as it is: one of the installed X-SCAPE's <code>config/</code>, one of the examples, or your own.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>xscape-run<span class="w"> </span>-w<span class="w"> </span>~/xscape/runs/oo<span class="w"> </span>-u<span class="w"> </span>~/xscape/examples/pythonic/oo_workflow.xml
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>xscape-run<span class="w"> </span>-w<span class="w"> </span>~/xscape/runs/pp<span class="w"> </span>-u<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import xscape; print(xscape.TREE)'</span><span class="k">)</span><span class="s2">/config/jetscape_user.xml"</span>
+</code></pre></div>
+<ul>
+<li>It copies both XMLs into the run directory (<code>jetscape_main.xml</code>, <code>&lt;name&gt;.run.xml</code>; your file
+  is not changed), with every <code>../</code> path made absolute. A <code>../</code> path with no file behind it is
+  looked up in the installed X-SCAPE by its last parts: <code>../external_packages/iSS/iSS_tables</code>
+  becomes its <code>iSS_tables</code>, <code>../config/HH_LightExcitedMesons.xml</code> its <code>config/...</code>. Give inputs
+  of your own as absolute paths.</li>
+<li>It links the tables 3dMCGlauber and LBT read from the working directory and gives the run a
+  private <code>music_input</code>, so several runs can go at once.</li>
+<li><strong>Before anything runs it checks the XML</strong> and stops (exit code 3) with the reason:<ul>
+<li>a tag the main XML lacks: X-SCAPE would stop at the first with <code>User XML tag &lt;...&gt; is
+  unrecognized</code>. Either the tag is misspelled or the XML is newer than the environment
+  (<code>&lt;extraHard&gt;</code> in an environment before 0.2.0);</li>
+<li>an input with no file behind it (the test hydro files, SMASH's configuration);</li>
+<li>a module this wheel does not have (<a href="#what-runs-with-the-wheel">below</a>), which X-SCAPE would
+  only warn about and then run without;</li>
+<li>automatic module setup turned off (<code>&lt;enableAutomaticTaskListDetermination&gt; false</code>): such
+  XMLs are written for C++ test programs, and <code>runJetscape</code> would run nothing;</li>
+<li>an LHAPDF6 set for Pythia (<code>PDF:pSet = LHAPDF6:...</code>), which the wheel's Pythia can't load.</li>
+</ul>
+</li>
+</ul>
+<p><code>xscape-run -f ...</code> runs anyway.</p>
+<p><code>runJetscape USER_XML</code> runs X-SCAPE in the current directory, as it is. When the XML needs
+files there that the directory lacks (3dMCGlauber's <code>tables/</code>, MUSIC's <code>music_input</code>, <code>../</code>
+paths), it stops and points to <code>xscape-run</code>, rather than failing in the middle with
+<code>sh: ./Metropolis.e: No such file or directory</code> (<code>XSCAPE_RUN_HERE=1</code> runs it anyway). Use
+<code>xscape-run</code>.</p>
 <h2 id="running-the-productions">Running the productions<a class="headerlink" href="#running-the-productions" title="Permanent link">¶</a></h2>
 <p>The productions run from your copy of the examples, with the same options as on a GPU server
 or in the container.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># Au+Au 0-10 % with a jet: 2 events (about 40 s on an M3 Max)</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>~/xscape/prod/out
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="c1"># a campaign: 20 jobs x 25 events, unique seeds, 3 jobs at a time on the GPU</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="nv">OMP_WAIT_POLICY</span><span class="o">=</span>passive<span class="w"> </span><span class="nv">KMP_BLOCKTIME</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span>./run_jobs.sh<span class="w"> </span>-j<span class="w"> </span><span class="m">3</span><span class="w"> </span>--campaign<span class="w"> </span><span class="nb">test</span><span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>~/xscape/prod/out
-<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
-<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="c1"># stage 2 (hadronization) on the CPU</span>
-<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>~/xscape/prod/out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
-<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
-<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="c1"># O+O with initial-state radiation</span>
-<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/prod_OO_isr
-<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>python<span class="w"> </span>run_prod_oo_isr.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">5</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/prod/out_oo
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># Au+Au 0-10 % with a jet: 2 events (about 40 s on an M3 Max)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>~/xscape/prod/out
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># a campaign: 20 jobs x 25 events, unique seeds, 3 jobs at a time on the GPU</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="nv">OMP_WAIT_POLICY</span><span class="o">=</span>passive<span class="w"> </span><span class="nv">KMP_BLOCKTIME</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span>./run_jobs.sh<span class="w"> </span>-j<span class="w"> </span><span class="m">3</span><span class="w"> </span>--campaign<span class="w"> </span><span class="nb">test</span><span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>~/xscape/prod/out
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a><span class="c1"># stage 2 (hadronization) on the CPU</span>
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>~/xscape/prod/out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
+<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>
+<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a><span class="c1"># O+O with initial-state radiation</span>
+<a id="__codelineno-6-14" name="__codelineno-6-14" href="#__codelineno-6-14"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/prod_OO_isr
+<a id="__codelineno-6-15" name="__codelineno-6-15" href="#__codelineno-6-15"></a>python<span class="w"> </span>run_prod_oo_isr.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">5</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/prod/out_oo
 </code></pre></div>
 <ul>
 <li><strong>Put OUTDIR one level inside a directory of yours</strong> (<code>~/xscape/prod/out</code>): every job records
@@ -2451,28 +2543,51 @@ or in the container.</p>
   number of performance cores. Without <code>passive</code>, idle OpenMP threads spin and slow the other
   jobs down.</li>
 <li><strong>Long campaigns:</strong> keep the Mac awake, e.g. <code>caffeinate -i ./run_jobs.sh ...</code>.</li>
-<li><strong>ROOT output</strong> (<code>run_h5toROOT.py</code> with ROOT) needs PyROOT, which this environment does not
-  have; uproot writes and reads the ROOT files instead.</li>
+<li>
+<p><strong>ROOT output</strong> (<code>run_h5toROOT.py</code> with ROOT) needs PyROOT, which this environment does not
+  have; uproot writes and reads the ROOT files instead.</p>
+</li>
+<li>
+<p><strong>The extra hard scatterings, minimum bias, O+O and Ne+Ne at 5.36 TeV</strong>
+  (<code>run_prod_jet.py --extra-hard</code>, <code>--hard none</code>, <code>../config/OO_5360_jet.xml</code>,
+  <code>NeNe_5360_jet.xml</code>) need the 0.2.0 environment or later. An older one stops with the
+  unknown-tag message for <code>&lt;extraHard&gt;</code>: install the new release next to it.</p>
+</li>
 </ul>
+<p><strong>Plan, watch and upload with the tools.</strong> <code>xscape-prodwizard</code> writes the launch commands for
+this Mac with the measured settings (machine <code>mac_wheel</code>: this environment, your copy of the
+examples, <code>run_jobs.sh</code>) and estimates the duration, disk and memory; it never starts jobs.
+<code>xscape-jobmon</code> watches the campaign.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>xscape-prodwizard<span class="w"> </span>--preset<span class="w"> </span>auau_jet<span class="w"> </span>--machine<span class="w"> </span>mac_wheel<span class="w"> </span>--events<span class="w"> </span><span class="m">300</span><span class="w"> </span>--campaign<span class="w"> </span><span class="nb">test</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>xscape-prodwizard<span class="w"> </span>--preset<span class="w"> </span>oo_hadrons<span class="w"> </span>--machine<span class="w"> </span>mac_wheel<span class="w"> </span>--events<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--save<span class="w"> </span>launch_oo.sh
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>xscape-jobmon<span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet/out/test<span class="w"> </span>--tui<span class="w">     </span><span class="c1"># while it runs</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>xscape-check-deposition<span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet/out/test
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>xscape-upload-follow<span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet/out<span class="w"> </span>AuAu_test<span class="w"> </span>--follow<span class="w">   </span><span class="c1"># to the OSDF</span>
+</code></pre></div>
+<p><code>mac_wheel</code> takes the environment from <code>$VIRTUAL_ENV</code> (default <code>~/.venvs/xscape</code>) and the
+examples from <code>$XSCAPE_EXAMPLES</code> (default <code>~/xscape/examples</code>); inside this environment the
+wizard picks it by itself. The rates are the M3 Max's. The tools and their options:
+<a href="../../reference/tools/">Tools</a>; the OSDF: <a href="../../run/osdf/#on-a-mac-the-xscape-wheel">Data on the OSDF</a>.</p>
 <p>The productions themselves: <a href="../../run/auau-jet/">Au+Au jets (two stages)</a>,
-<a href="../../run/oo-isr/">O+O with ISR</a>, <a href="../../run/zjet-other/">Z+jet and other systems</a>.</p>
+<a href="../../run/oo-isr/">O+O with ISR</a>, <a href="../../run/zjet-other/">Z+jet and other systems</a>,
+<a href="../../run/extra-hard/">Extra hard scatterings</a>.</p>
 <h2 id="your-own-scripts-and-python-modules">Your own scripts and Python modules<a class="headerlink" href="#your-own-scripts-and-python-modules" title="Permanent link">¶</a></h2>
 <p>Put your script and its user XML in a directory of yours, starting from a copy of
 <code>examples/pythonic/oo_workflow.py</code> and <code>oo_workflow.xml</code> (<code>oo_workflow.py</code> takes any user XML
 with <code>--xml</code>). The skeleton every such script has:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># ~/xscape/mine/my_job.py</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronH5Writer</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">out</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">"~/xscape/out_mine"</span><span class="p">)</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="k">with</span> <span class="n">js</span><span class="o">.</span><span class="n">JobDir</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">"~/xscape/mine/my_job.xml"</span><span class="p">))</span> <span class="k">as</span> <span class="n">job</span><span class="p">:</span>  <span class="c1"># private working dir</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>    <span class="k">with</span> <span class="n">js</span><span class="o">.</span><span class="n">per_event</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">main_xml</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">user_xml</span><span class="p">)</span> <span class="k">as</span> <span class="n">driver</span><span class="p">,</span> \
-<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>         <span class="n">HadronH5Writer</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">out</span><span class="si">}</span><span class="s2">/my_job_hadrons.h5"</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">"jet_frag"</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="k">as</span> <span class="n">h5</span><span class="p">:</span>
-<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">driver</span><span class="o">.</span><span class="n">events</span><span class="p">():</span>                                         <span class="c1"># one iteration per event</span>
-<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>            <span class="n">jets</span> <span class="o">=</span> <span class="n">driver</span><span class="o">.</span><span class="n">hadronization_manager</span><span class="o">.</span><span class="n">hadron_array</span><span class="p">()</span>
-<a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>            <span class="n">h5</span><span class="o">.</span><span class="n">append_unit</span><span class="p">(</span><span class="n">jets</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
-<a id="__codelineno-6-13" name="__codelineno-6-13" href="#__codelineno-6-13"></a>            <span class="nb">print</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">jets</span><span class="p">),</span> <span class="s2">"jet hadrons"</span><span class="p">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># ~/xscape/mine/my_job.py</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronH5Writer</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="n">out</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">"~/xscape/out_mine"</span><span class="p">)</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="k">with</span> <span class="n">js</span><span class="o">.</span><span class="n">JobDir</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s2">"~/xscape/mine/my_job.xml"</span><span class="p">))</span> <span class="k">as</span> <span class="n">job</span><span class="p">:</span>  <span class="c1"># private working dir</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="k">with</span> <span class="n">js</span><span class="o">.</span><span class="n">per_event</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">main_xml</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">user_xml</span><span class="p">)</span> <span class="k">as</span> <span class="n">driver</span><span class="p">,</span> \
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>         <span class="n">HadronH5Writer</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">out</span><span class="si">}</span><span class="s2">/my_job_hadrons.h5"</span><span class="p">,</span> <span class="n">tag</span><span class="o">=</span><span class="s2">"jet_frag"</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="k">as</span> <span class="n">h5</span><span class="p">:</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">driver</span><span class="o">.</span><span class="n">events</span><span class="p">():</span>                                         <span class="c1"># one iteration per event</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>            <span class="n">jets</span> <span class="o">=</span> <span class="n">driver</span><span class="o">.</span><span class="n">hadronization_manager</span><span class="o">.</span><span class="n">hadron_array</span><span class="p">()</span>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>            <span class="n">h5</span><span class="o">.</span><span class="n">append_unit</span><span class="p">(</span><span class="n">jets</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a>            <span class="nb">print</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">jets</span><span class="p">),</span> <span class="s2">"jet hadrons"</span><span class="p">)</span>
 </code></pre></div>
 <p><code>js.JobDir(out_dir, user_xml)</code> copies your XML to <code>out_dir/</code>, points it at the installed
 X-SCAPE's tables, runs the job in a private directory <code>out_dir/work/&lt;name&gt;</code> and removes it
@@ -2502,7 +2617,7 @@ from, in your copy of the examples:</p>
 </tr>
 <tr>
 <td><code>pythonic/oo_analysis.ipynb</code></td>
-<td>the O+O hadron files streamed from the OSDF (first <code>uv pip install pelicanfs</code>)</td>
+<td>the O+O hadron files streamed from the OSDF (pelicanfs is in the environment)</td>
 </tr>
 <tr>
 <td><code>analysis/tutorials/hadron_distributions.ipynb</code>, <code>jet_fastjet*.ipynb</code></td>
@@ -2516,8 +2631,15 @@ from, in your copy of the examples:</p>
 <td><code>prod_OO_isr/oo_isr_overview.ipynb</code></td>
 <td>an O+O production</td>
 </tr>
+<tr>
+<td><code>analysis/bulk/</code> (<code>bulk_obs.py</code>, notebooks)</td>
+<td>Nch, [pT] and vₙ of extras or minimum-bias files</td>
+</tr>
 </tbody>
 </table>
+<p><code>osdf://</code> paths work as they are (<code>fsspec</code>, <code>uproot</code>, <code>h5py</code> through pelicanfs), and
+<code>xscape-osdf download</code> fetches whole productions: <a href="../../run/osdf/">Data on the OSDF</a>.
+<code>xscape-h5-inspect FILE.h5</code> shows any HDF5 file, with js-contrib's formats decoded.</p>
 <p>To analyse on another computer (Linux, an Intel Mac, a cluster) you need only the Python
 package, not X-SCAPE: see <a href="../analysis-env/#without-a-checkout-the-pyjetscape-wheel">the analysis environment</a>.</p>
 <div class="admonition important">
@@ -2530,9 +2652,9 @@ the jet wake and the hadrons, clone js-contrib and create the
 installed by default. <a href="../../python/visualization/#requirements">How, step by step</a>.</p>
 </div>
 <h2 id="jupyter-and-vs-code">Jupyter and VS Code<a class="headerlink" href="#jupyter-and-vs-code" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-VER/bin/activate
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>jupyter<span class="w"> </span>lab
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-VER/bin/activate
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>jupyter<span class="w"> </span>lab
 </code></pre></div>
 <p>JupyterLab opens in your browser. Notebooks run with the environment's Python ("Python 3
 (ipykernel)"), and simulations in a notebook use the GPU as scripts do. Stop it with Ctrl-C
@@ -2554,38 +2676,104 @@ twice in the Terminal.</p>
 <td>the LBT tables into <code>~/Library/Caches/xscape</code> (or <code>$XSCAPE_CACHE</code>), checked and linked into this environment</td>
 </tr>
 <tr>
+<td><code>xscape-selftest</code></td>
+<td>checks the environment: bindings, HDF5 filters, pelicanfs, paths, analysis packages, EoS table, LBT tables, one synthetic event</td>
+</tr>
+<tr>
 <td><code>xscape-examples [DEST]</code></td>
 <td>copies the examples to <code>DEST</code> (default <code>./examples</code>); never overwrites</td>
 </tr>
 <tr>
-<td><code>xscape-run -w RUN_DIR -u USER_XML</code></td>
-<td>X-SCAPE's <code>runJetscape</code> on a user XML, in a directory of its own</td>
+<td><code>xscape-utils [DEST]</code></td>
+<td>copies js-contrib's <code>utils/</code> to <code>DEST</code> (default <code>./utils</code>); never overwrites</td>
+</tr>
+<tr>
+<td><code>xscape-run -w RUN_DIR -u USER_XML [-f]</code></td>
+<td>X-SCAPE's <code>runJetscape</code> on any user XML, in a directory of its own; checks the XML first (<a href="#one-xml-xscape-run">above</a>)</td>
 </tr>
 <tr>
 <td><code>runJetscape USER_XML</code></td>
-<td>X-SCAPE's executable with this environment's data, in the current directory</td>
+<td>X-SCAPE's executable with this environment's data, in the current directory; stops if the directory lacks what the XML needs</td>
+</tr>
+<tr>
+<td><code>xscape-prodwizard</code></td>
+<td>plans a production (<code>utils/prodwizard.py</code>; <code>--machine mac_wheel</code>)</td>
+</tr>
+<tr>
+<td><code>xscape-jobmon OUTDIR</code></td>
+<td>watches a <code>run_jobs.sh</code> production (<code>utils/jobmon.py</code>; <code>--watch</code>, <code>--tui</code>)</td>
+</tr>
+<tr>
+<td><code>xscape-check-deposition DIR</code></td>
+<td>flags Au+Au jet jobs with far too little deposition (<code>utils/check_deposition.py</code>)</td>
+</tr>
+<tr>
+<td><code>xscape-h5-inspect FILE.h5</code></td>
+<td>any HDF5 file, js-contrib's formats decoded (<code>utils/h5_inspect.py</code>)</td>
+</tr>
+<tr>
+<td><code>xscape-osdf</code></td>
+<td><code>ls</code>, <code>du</code>, <code>download</code>, <code>upload</code>, <code>rm</code> on the OSDF, <code>osdf:///fno4hic</code> (<code>utils/remote_transfer/js_osdf.py</code>), in this environment</td>
+</tr>
+<tr>
+<td><code>xscape-upload-follow OUTBASE REMOTE</code></td>
+<td>uploads a running production's finished jobs to the OSDF (<code>utils/upload_follow.py</code>)</td>
+</tr>
+<tr>
+<td><code>xscape-gcs</code></td>
+<td>the same transfers for Google Cloud Storage (<code>utils/remote_transfer/js_gcs.py</code>); makes its own environment in <code>~/.cache/js_gcs</code> on first use; needs a service-account key</td>
 </tr>
 </tbody>
 </table>
-<p>For example, two proton-proton events with X-SCAPE's default user XML:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>xscape-run<span class="w"> </span>-w<span class="w"> </span>~/xscape/runs/pp<span class="w"> </span>-u<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import xscape; print(xscape.TREE)'</span><span class="k">)</span><span class="s2">/config/jetscape_user.xml"</span>
-</code></pre></div>
+<p>The tool commands run the copies of the <code>utils/</code> scripts installed with the wheel, with the
+same options; <code>--help</code> shows them under the command's name.</p>
+<h2 id="what-runs-with-the-wheel">What runs with the wheel<a class="headerlink" href="#what-runs-with-the-wheel" title="Permanent link">¶</a></h2>
+<p>The wheel is built without ROOT, HepMC, SMASH, FreestreamMilne, CLVisc, IPGlasma and the FNO
+hydro (PyTorch); its Pythia has no LHAPDF6, and Martini's data and X-SCAPE's test hydro files
+are not installed. <code>xscape-run</code> names what an XML needs of these and stops. For them use the
+<a href="../container/">production container</a> or a <a href="../source/">source build</a>.</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>runs</th>
+<th>does not run (why)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>productions</strong></td>
+<td><code>prod_AuAu_0_10/run_prod.py</code>, <code>prod_AuAu_0_10_jet/run_prod_jet.py</code> (also <code>--extra-hard</code>, <code>--hard none</code>, the 5.36 TeV O+O and Ne+Ne XMLs), <code>run_prod_vacuum.py</code>, <code>hadronize.py</code>, <code>run_hadronize.py</code>, <code>prod_OO_isr/run_prod_oo_isr.py</code>, <code>run_jobs.sh</code></td>
+<td><code>run_h5toROOT.py</code> with ROOT (PyROOT)</td>
+</tr>
+<tr>
+<td><strong>examples</strong></td>
+<td><code>pythonic/</code> (scripts and both notebooks), <code>python_modules/</code>, <code>per_event_loop.py</code>, <code>python_bulk_h5_writer.py</code>, <code>inspect_bulk_info.py</code>, <code>python_bulk_root_writer.py</code> (uproot), <code>analysis/</code></td>
+<td><code>python_fno_test.py</code> (PyTorch), <code>python_fast_bulk_root_writer.py</code>, <code>validate_h5_vs_root.py</code>, <code>analysis_root/</code> (ROOT), <code>prod_AuAu_0_10_jet/music_cpu_gpu_hydro.py</code> (a CPU MUSIC), <code>prod_OO_isr/hadro_compare/run_hadro_compare.sh</code> (two builds), the movie step of <code>analysis/zjet/test/make_data.sh</code> (Visualization)</td>
+</tr>
+<tr>
+<td><strong>X-SCAPE's test XMLs</strong> (installed <code>config/</code>)</td>
+<td><code>jetscape_user.xml</code>, <code>_MUSIC</code>, <code>_DIS</code>, <code>_photoproduction</code>, <code>_twostagehydro</code>, <code>_brick_hybrid_hadronization</code>, <code>_OO_ISR_MatterLBT_iColored</code></td>
+<td>the rest: the HepMC writer (<code>_rMatterLbt</code>, <code>_root_test</code>; <code>-f</code> runs them without it), ROOT writers (<code>BulkFastTest/</code>, <code>_dAu3d</code>), SMASH, FreestreamMilne (<code>_AA_dukeTune*</code>, <code>_FSFileTest</code>, <code>_sims</code>), CLVisc, IPGlasma, test hydro files (<code>_HydroFile</code>, <code>_PbPb_hard_nPDF</code>), LHAPDF6 (<code>_nPDF_test</code>), automatic module setup off (<code>FVvsMUSIC/</code>, <code>_iMATTERMCGlauber*</code>, <code>_MUSICMainClockTest</code>, <code>_SMASH*</code>, <code>_test</code>); <code>_MCGlauberMUSIC</code> and <code>3D/</code> use a tag no main XML has (<code>&lt;nEvents_MCGla&gt;</code>)</td>
+</tr>
+</tbody>
+</table>
 <h2 id="updating-and-removing">Updating and removing<a class="headerlink" href="#updating-and-removing" title="Permanent link">¶</a></h2>
 <p><strong>A new release</strong> goes into a new environment next to the old one, so a running campaign keeps
 its software:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">VER</span><span class="o">=</span>&lt;new<span class="w"> </span>version&gt;
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nb">cd</span><span class="w"> </span>~/xscape
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>curl<span class="w"> </span>-LO<span class="w"> </span>https://github.com/jhputschke/xscape-macos/releases/download/v<span class="nv">$VER</span>/xscape-<span class="nv">$VER</span>-cp313.lock.txt
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>uv<span class="w"> </span>venv<span class="w"> </span>--managed-python<span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span><span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span>/bin/activate
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>uv<span class="w"> </span>pip<span class="w"> </span>sync<span class="w"> </span>xscape-<span class="nv">$VER</span>-cp313.lock.txt
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>xscape-fetch-data<span class="w"> </span>lbt<span class="w">                    </span><span class="c1"># reuses the cached tables when they match</span>
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>xscape-examples<span class="w"> </span>~/xscape/examples-<span class="nv">$VER</span><span class="w">   </span><span class="c1"># the examples of this release</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nv">VER</span><span class="o">=</span>&lt;new<span class="w"> </span>version&gt;
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="nb">cd</span><span class="w"> </span>~/xscape
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>curl<span class="w"> </span>-LO<span class="w"> </span>https://github.com/jhputschke/xscape-macos/releases/download/v<span class="nv">$VER</span>/xscape-<span class="nv">$VER</span>-cp313.lock.txt
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>uv<span class="w"> </span>venv<span class="w"> </span>--managed-python<span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span><span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span>/bin/activate
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>uv<span class="w"> </span>pip<span class="w"> </span>sync<span class="w"> </span>xscape-<span class="nv">$VER</span>-cp313.lock.txt
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>xscape-fetch-data<span class="w"> </span>lbt<span class="w">                    </span><span class="c1"># reuses the cached tables when they match</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>xscape-examples<span class="w"> </span>~/xscape/examples-<span class="nv">$VER</span><span class="w">   </span><span class="c1"># the examples of this release</span>
 </code></pre></div>
 <p><strong>Removing:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/.venvs/xscape-VER<span class="w">               </span><span class="c1"># one environment</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/Library/Caches/xscape<span class="w">           </span><span class="c1"># the LBT tables</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>uv<span class="w"> </span>cache<span class="w"> </span>clean<span class="w">                           </span><span class="c1"># uv's downloads</span>
-<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>rm<span class="w"> </span>~/.local/bin/uv<span class="w"> </span>~/.local/bin/uvx<span class="w">      </span><span class="c1"># uv itself</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/.venvs/xscape-VER<span class="w">               </span><span class="c1"># one environment</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/Library/Caches/xscape<span class="w">           </span><span class="c1"># the LBT tables</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>uv<span class="w"> </span>cache<span class="w"> </span>clean<span class="w">                           </span><span class="c1"># uv's downloads</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>rm<span class="w"> </span>~/.local/bin/uv<span class="w"> </span>~/.local/bin/uvx<span class="w">      </span><span class="c1"># uv itself</span>
 </code></pre></div>
 <h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Permanent link">¶</a></h2>
 <table>
@@ -2639,6 +2827,34 @@ its software:</p>
 <tr>
 <td><code>ModuleNotFoundError: ROOT</code></td>
 <td>ROOT is not part of this environment; uproot reads ROOT files</td>
+</tr>
+<tr>
+<td><code>sh: ./Metropolis.e: No such file or directory</code> (3dMCGlauber), from <code>runJetscape</code></td>
+<td>an environment before 0.2.0, run in a directory without <code>tables/</code>: use <code>xscape-run -w RUN_DIR -u USER_XML</code></td>
+</tr>
+<tr>
+<td><code>runJetscape: ... reads files relative to the current directory</code></td>
+<td>the same, caught: use <code>xscape-run</code></td>
+</tr>
+<tr>
+<td><code>User XML tag &lt;extraHard&gt; is unrecognized</code>, or <code>xscape-run: tags of ... that the main XML lacks</code></td>
+<td>the XML is newer than the environment (the extra hard scatterings need 0.2.0), or a tag is misspelled: install the current release</td>
+</tr>
+<tr>
+<td><code>xscape-run: ... needs modules this xscape wheel does not have</code></td>
+<td>the XML uses ROOT, SMASH, FreestreamMilne, CLVisc, IPGlasma or HepMC: <a href="#what-runs-with-the-wheel">What runs with the wheel</a></td>
+</tr>
+<tr>
+<td><code>xscape-run: ... turns automatic module setup off</code></td>
+<td>an XML of an X-SCAPE C++ test program: run it with its program in a source build</td>
+</tr>
+<tr>
+<td><code>JobDir</code> / <code>enter_workdir</code> raise <code>XMLProblem</code></td>
+<td>the same checks from Python, before X-SCAPE starts: the message names the tags or inputs</td>
+</tr>
+<tr>
+<td><code>ValueError: Protocol not known: osdf</code></td>
+<td>an environment before 0.2.0 has no pelicanfs: install the current release (or <code>uv pip install pelicanfs</code>)</td>
 </tr>
 </tbody>
 </table>

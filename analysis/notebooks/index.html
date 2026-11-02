@@ -2182,7 +2182,8 @@ anything.</p>
 <p>The notebooks name the kernel they were saved with; in the venv choose <code>Python 3 (ipykernel)</code>, or
 the kernel registered with <code>setup_analysis_env.sh --kernel NAME</code> (for VS Code or another
 JupyterLab). On the Mac, the xscape environment runs them too, from your copy of the examples
-(<a href="../../install/mac/">Mac (xscape wheel)</a>).</p>
+(<a href="../../install/mac/">Mac (xscape wheel)</a>); from 0.2.0 it has pelicanfs, so the notebooks that
+read from the OSDF need nothing extra.</p>
 <p><strong>Environments</strong> in the tables: <em>venv</em> = the <a href="../../install/analysis-env/">analysis environment</a>
 (no X-SCAPE, no ROOT); <em>venv + ROOT</em> = the same with ROOT ≥ 6.34 (<a href="../root/#1-set-up">ROOT and C++</a>);
 <em>X-SCAPE</em> = an environment that runs X-SCAPE: the <a href="../../install/mac/">Mac wheel</a> or a
@@ -2334,7 +2335,7 @@ JupyterLab). On the Mac, the xscape environment runs them too, from your copy of
 <td><a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/pythonic/oo_analysis.ipynb"><code>pythonic/oo_analysis.ipynb</code></a></td>
 <td>the O+O hadron files of a public test run, streamed from the OSDF: the job, the event record, nested awkward views, spectra, jets with FastJet</td>
 <td>the OSDF (<code>osdf:///fno4hic/test/OO_test</code>), or <code>OO_DIR</code> for downloaded files</td>
-<td>venv (with <code>pelicanfs</code>)</td>
+<td>venv (with <code>pelicanfs</code>), or the Mac wheel: nothing extra from 0.2.0</td>
 </tr>
 <tr>
 <td><a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/pythonic/oo_workflow.ipynb"><code>pythonic/oo_workflow.ipynb</code></a></td>

@@ -2191,7 +2191,11 @@ use the simulation outputs. See the <a href="../../analysis/">note on the analys
 <div class="admonition note">
 <p class="admonition-title">Needs the current code</p>
 <p>The option needs X-SCAPE with PythiaGun <code>&lt;extraHard&gt;</code> and the current js-contrib. Check
-an image first: <code>python run_prod_jet.py --help</code> must list <code>--extra-hard</code>.</p>
+an image first: <code>python run_prod_jet.py --help</code> must list <code>--extra-hard</code>.
+On a Mac, the <a href="../../install/mac/">xscape wheel</a> has it from 0.2.0. A 0.1.0 environment
+stops with <code>User XML tag &lt;extraHard&gt; is unrecognized</code>, also for the XMLs that carry the
+block switched off (<code>AuAu_MCGlauber_MUSIC_0_10_jet.xml</code>, <code>PbPb_0_10_jet.xml</code>,
+<code>PbPb_0_30_ZJet.xml</code>): install the current release next to it.</p>
 </div>
 <h2 id="how-many-extras">How many extras<a class="headerlink" href="#how-many-extras" title="Permanent link">¶</a></h2>
 <p>Per binary collision (LO Pythia 8.3, HardQCD, ISR on, MPI and FSR off):</p>

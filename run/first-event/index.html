@@ -1059,6 +1059,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-same-xml-without-python-xscape-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same XML without Python: xscape-run
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2032,6 +2043,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-same-xml-without-python-xscape-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The same XML without Python: xscape-run
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2123,7 +2145,7 @@ image's own and starts where you launched it. On a cluster run this on a GPU nod
 batch script, or after <code>salloc</code>).</p>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.1.0/bin/activate<span class="w">      </span><span class="c1"># the environment of the installation</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate<span class="w">      </span><span class="c1"># the environment of the installation</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>xscape-examples<span class="w"> </span>~/xscape/examples
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
@@ -2251,6 +2273,21 @@ and every oversample in one call. The interface is described in
 block that decides what is stored. For a production with campaigns, seeds and restarts,
 use the O+O production itself: <a href="../oo-isr/">O+O with ISR</a>.</p>
 </div>
+<h3 id="the-same-xml-without-python-xscape-run">The same XML without Python: <code>xscape-run</code><a class="headerlink" href="#the-same-xml-without-python-xscape-run" title="Permanent link">¶</a></h3>
+<p>The user XML runs with X-SCAPE's own executable too, without the Python layer: then X-SCAPE's
+writers decide what is stored (here none are on, so set e.g.
+<code>&lt;JetScapeWriterFinalStateHadronsAscii&gt; on &lt;/JetScapeWriterFinalStateHadronsAscii&gt;</code> in a copy).
+On a Mac:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>xscape-run<span class="w"> </span>-w<span class="w"> </span>~/xscape/runs/oo<span class="w"> </span>-u<span class="w"> </span>~/xscape/examples/pythonic/oo_workflow.xml
+</code></pre></div>
+<p><code>xscape-run</code> copies both XMLs into the run directory with their <code>../</code> paths made absolute
+(your file is not changed), links the tables, and checks the XML before it starts: tags the
+main XML lacks, inputs that aren't there, modules the wheel doesn't have. Each stops it with
+the reason (exit code 3). Plain <code>runJetscape</code> in a directory of yours stops and points to
+<code>xscape-run</code>: 3dMCGlauber and MUSIC read their tables from the working directory. Details:
+<a href="../../install/mac/#one-xml-xscape-run">Mac, One XML</a>. In a
+source build the script behind it is <code>X-SCAPE/examples/run_in_workdir.sh -d BUILD -w RUN_DIR
+-u USER_XML</code>, with the tag and input checks (the module checks are the wheel's).</p>
 <h2 id="2-two-auau-jet-events">2. Two Au+Au jet events<a class="headerlink" href="#2-two-auau-jet-events" title="Permanent link">¶</a></h2>
 <p>Now the main production's driver, <code>run_prod_jet.py</code>: two 0–10 % Au+Au events at 200 GeV,
 each a background and a jet leg (two MUSIC runs), with the freeze-out surfaces and the
@@ -2259,39 +2296,39 @@ hadrons on the CPU.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="2:4"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio"><input id="__tabbed_2_2" name="__tabbed_2" type="radio"><input id="__tabbed_2_3" name="__tabbed_2" type="radio"><input id="__tabbed_2_4" name="__tabbed_2" type="radio"><div class="tabbed-labels"><label for="__tabbed_2_1">Docker</label><label for="__tabbed_2_2">Apptainer</label><label for="__tabbed_2_3">Mac</label><label for="__tabbed_2_4">Source build</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">IMG</span><span class="o">=</span>jhputschke/xscape-prod:cu126
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>prod
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="c1"># stage 1 (Docker starts in prod_AuAu_0_10_jet)</span>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/prod:/work"</span><span class="w"> </span><span class="nv">$IMG</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>/work/out
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="c1"># stage 2: no GPU</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/prod:/work"</span><span class="w"> </span><span class="nv">$IMG</span><span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>/work/out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
-</code></pre></div>
-</div>
-<div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">EX</span><span class="o">=</span>/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">W</span><span class="o">=</span><span class="nv">$SCRATCH</span>/xscape<span class="p">;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$W</span>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># stage 1</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--pwd<span class="w"> </span><span class="nv">$EX</span>/prod_AuAu_0_10_jet<span class="w"> </span>--bind<span class="w"> </span><span class="nv">$W</span>:/work<span class="w"> </span>xscape_prod.sif<span class="w"> </span><span class="se">\</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nv">IMG</span><span class="o">=</span>jhputschke/xscape-prod:cu126
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>prod
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># stage 1 (Docker starts in prod_AuAu_0_10_jet)</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/prod:/work"</span><span class="w"> </span><span class="nv">$IMG</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>/work/out
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># stage 2: no GPU, no --nv</span>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--pwd<span class="w"> </span><span class="nv">$EX</span>/prod_AuAu_0_10_jet<span class="w"> </span>--bind<span class="w"> </span><span class="nv">$W</span>:/work<span class="w"> </span>xscape_prod.sif<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="c1"># stage 2: no GPU</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/prod:/work"</span><span class="w"> </span><span class="nv">$IMG</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>/work/out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="c1"># stage 1: about 40 s on an M3 Max</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>~/xscape/prod/out
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># stage 2, on the CPU</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>~/xscape/prod/out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">EX</span><span class="o">=</span>/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">W</span><span class="o">=</span><span class="nv">$SCRATCH</span>/xscape<span class="p">;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$W</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># stage 1</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--pwd<span class="w"> </span><span class="nv">$EX</span>/prod_AuAu_0_10_jet<span class="w"> </span>--bind<span class="w"> </span><span class="nv">$W</span>:/work<span class="w"> </span>xscape_prod.sif<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>/work/out
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># stage 2: no GPU, no --nv</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--pwd<span class="w"> </span><span class="nv">$EX</span>/prod_AuAu_0_10_jet<span class="w"> </span>--bind<span class="w"> </span><span class="nv">$W</span>:/work<span class="w"> </span>xscape_prod.sif<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>/work/out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>out
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># stage 1: about 40 s on an M3 Max</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>~/xscape/prod/out
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="c1"># stage 2, on the CPU</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>~/xscape/prod/out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>out
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>python<span class="w"> </span>run_hadronize.py<span class="w"> </span>out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--oversample<span class="w"> </span><span class="m">500</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">50</span>
 </code></pre></div>
 </div>
 </div>

@@ -2098,6 +2098,54 @@
 <p>The <a href="https://github.com/jhputschke/js-contrib/tree/main/utils"><code>utils/</code></a> folder holds the
 tools around the simulations. They help you plan a production, watch it run, check its files,
 and move them. Each one is a plain script, and <code>--help</code> lists all of its options.</p>
+<div class="admonition info">
+<p class="admonition-title">On a Mac: commands of the xscape wheel</p>
+<p>From 0.2.0 the <a href="../../install/mac/">xscape wheel</a> ships <code>utils/</code> and has the tools as
+commands, run in the wheel's environment with the same options (<code>--help</code> shows them under
+the command's name). <code>xscape-utils DEST</code> copies <code>utils/</code> to read or adapt.</p>
+<table>
+<thead>
+<tr>
+<th>command</th>
+<th>script</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xscape-prodwizard</code></td>
+<td><code>prodwizard.py</code> (machine <code>mac_wheel</code>)</td>
+</tr>
+<tr>
+<td><code>xscape-jobmon</code></td>
+<td><code>jobmon.py</code></td>
+</tr>
+<tr>
+<td><code>xscape-check-deposition</code></td>
+<td><code>check_deposition.py</code></td>
+</tr>
+<tr>
+<td><code>xscape-h5-inspect</code></td>
+<td><code>h5_inspect.py</code></td>
+</tr>
+<tr>
+<td><code>xscape-osdf</code></td>
+<td><code>remote_transfer/js_osdf.py</code>, in the wheel's environment (no <code>~/.cache/js_osdf</code>)</td>
+</tr>
+<tr>
+<td><code>xscape-upload-follow</code></td>
+<td><code>upload_follow.py</code>, likewise</td>
+</tr>
+<tr>
+<td><code>xscape-gcs</code></td>
+<td><code>remote_transfer/js_gcs.py</code>, with its own environment in <code>~/.cache/js_gcs</code></td>
+</tr>
+<tr>
+<td><code>xscape-selftest</code></td>
+<td><code>container/image_check.py --analysis</code>, plus the LBT tables</td>
+</tr>
+</tbody>
+</table>
+</div>
 <h2 id="planning-prodwizardpy">Planning: <code>prodwizard.py</code><a class="headerlink" href="#planning-prodwizardpy" title="Permanent link">¶</a></h2>
 <p>You choose a production preset and a machine. The wizard writes the launch command with the
 settings measured on that machine. It estimates events per hour, duration, disk and memory
@@ -2117,10 +2165,17 @@ settings measured on that machine. It estimates events per hour, duration, disk 
 <tbody>
 <tr>
 <td><code>auau_jet</code>, <code>auau_particlize_only</code>, <code>auau_hadrons_only</code>, <code>oo_hadrons</code>, <code>oo_full</code>, <code>pbpb_zjet</code></td>
-<td><code>2x3090</code>, <code>gb10</code>, <code>m3max</code>, <code>slurm_v100</code>, <code>slurm_a40</code>, <code>slurm_a100</code>, <code>slurm_l40s</code></td>
+<td><code>2x3090</code>, <code>gb10</code>, <code>m3max</code>, <code>mac_wheel</code>, <code>slurm_v100</code>, <code>slurm_a40</code>, <code>slurm_a100</code>, <code>slurm_l40s</code></td>
 </tr>
 </tbody>
 </table>
+<p><code>m3max</code> is a Mac with a js-contrib checkout and the <code>fno_env_mlx</code> conda environment.
+<code>mac_wheel</code> is a Mac with the xscape wheel: the commands activate <code>$VIRTUAL_ENV</code> (default
+<code>~/.venvs/xscape</code>), run <code>run_jobs.sh</code> in your copy of the examples, <code>$XSCAPE_EXAMPLES</code>
+(default <code>~/xscape/examples</code>), and watch it with <code>xscape-jobmon</code>. Run inside the wheel's
+environment, the wizard picks <code>mac_wheel</code> by itself; the settings are the M3 Max's.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>xscape-prodwizard<span class="w"> </span>--preset<span class="w"> </span>auau_jet<span class="w"> </span>--machine<span class="w"> </span>mac_wheel<span class="w"> </span>--events<span class="w"> </span><span class="m">300</span><span class="w">    </span><span class="c1"># on a Mac with the wheel</span>
+</code></pre></div>
 <h2 id="launching">Launching<a class="headerlink" href="#launching" title="Permanent link">¶</a></h2>
 <table>
 <thead>
@@ -2154,9 +2209,10 @@ settings measured on that machine. It estimates events per hour, duration, disk 
 (logs and <code>.json</code>). It reports jobs done, running and failed, events per hour, ETA, disk per
 event, the machine's GPUs and memory, and the most frequent warnings. It also flags failed
 jobs with their last log lines.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w">                 </span><span class="c1"># one summary; exit code 1 if a job failed or is flagged</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w"> </span>--watch<span class="w">         </span><span class="c1"># live view, refreshed every 10 s</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w"> </span>--tui<span class="w">           </span><span class="c1"># terminal UI: sortable job table, live log, problems tab</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w">                 </span><span class="c1"># one summary; exit code 1 if a job failed or is flagged</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w"> </span>--watch<span class="w">         </span><span class="c1"># live view, refreshed every 10 s</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w"> </span>--tui<span class="w">           </span><span class="c1"># terminal UI: sortable job table, live log, problems tab</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>xscape-jobmon<span class="w"> </span>out/<span class="w"> </span>--tui<span class="w">                    </span><span class="c1"># the same with the Mac wheel</span>
 </code></pre></div>
 <p><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/check_deposition.py"><code>check_deposition.py</code></a>
 flags Au+Au jet jobs whose deposited droplets per event fall below half the campaign's median.
@@ -2166,9 +2222,10 @@ This is a rare failure that leaves no log message.</p>
 and attributes. For the js-contrib hydro formats it also summarises the grid, the axes, the
 freeze-out, the <code>shower/</code>, <code>source/</code> and <code>diag/</code> tables, and flags inconsistencies. It needs
 only h5py and numpy.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>out/AuAu_0_10_jet_seed0001.h5<span class="w">           </span><span class="c1"># summary + tree</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>FILE.h5<span class="w"> </span>--stats<span class="w"> </span><span class="o">[</span>--event<span class="w"> </span><span class="m">0</span><span class="o">]</span><span class="w">              </span><span class="c1"># per-feature min/max/mean, NaN/inf</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>FILE.h5<span class="w"> </span>--attr<span class="w"> </span>prod_user_xml<span class="w">             </span><span class="c1"># one attribute in full</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>out/AuAu_0_10_jet_seed0001.h5<span class="w">           </span><span class="c1"># summary + tree</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>FILE.h5<span class="w"> </span>--stats<span class="w"> </span><span class="o">[</span>--event<span class="w"> </span><span class="m">0</span><span class="o">]</span><span class="w">              </span><span class="c1"># per-feature min/max/mean, NaN/inf</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>FILE.h5<span class="w"> </span>--attr<span class="w"> </span>prod_user_xml<span class="w">             </span><span class="c1"># one attribute in full</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>xscape-h5-inspect<span class="w"> </span>FILE.h5<span class="w">                                           </span><span class="c1"># the Mac wheel's command</span>
 </code></pre></div>
 <h2 id="moving-files-osdf-and-google-cloud-storage">Moving files: OSDF and Google Cloud Storage<a class="headerlink" href="#moving-files-osdf-and-google-cloud-storage" title="Permanent link">¶</a></h2>
 <table>
@@ -2195,7 +2252,8 @@ only h5py and numpy.</p>
 </table>
 <p>Both transfer scripts select files by kind (<code>--what pair|h5|root|all</code>), skip files that are
 already there, and check every transfer by size and CRC32C. Each one builds its own Python
-environment on first use. See <a href="../../run/osdf/">Data on the OSDF</a>.</p>
+environment on first use; the Mac wheel's <code>xscape-osdf</code> and <code>xscape-upload-follow</code> use the
+wheel's environment instead. See <a href="../../run/osdf/">Data on the OSDF</a>.</p>
 <h2 id="environments-and-builds">Environments and builds<a class="headerlink" href="#environments-and-builds" title="Permanent link">¶</a></h2>
 <table>
 <thead>
@@ -2205,6 +2263,10 @@ environment on first use. See <a href="../../run/osdf/">Data on the OSDF</a>.</p
 </tr>
 </thead>
 <tbody>
+<tr>
+<td><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/container/image_check.py"><code>container/image_check.py</code></a></td>
+<td>the production image's check: the bindings, HDF5 filters, pelicanfs, paths; <code>--analysis</code> the analysis packages, one synthetic event and MUSIC's EoS table (<code>$MUSIC_EOS_TABLE</code>, else the build's); <code>xscape-selftest</code> on the Mac</td>
+</tr>
 <tr>
 <td><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/analysis_env/setup_analysis_env.sh"><code>analysis_env/setup_analysis_env.sh</code></a>, <code>check_env.py</code></td>
 <td>the analysis venv, and a check that opens every file of a production (<a href="../../install/analysis-env/">Analysis environment</a>)</td>
