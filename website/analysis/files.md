@@ -23,7 +23,8 @@ The Au+Au jet production (two hydro legs per event) writes, per job:
 | `<stem>_particlize.h5` | the job, with `--write-particlize` | both freeze-out surfaces (32 columns per cell), the final partons, the shower initiators, the event table | ~90 MB (15 jets per background) | `ParticlizeFile` |
 | `<stem>_hadrons_bulk_jet.h5` | `hadronize.py` | iSS on the jet leg's surface: bulk + wake, N oversamples per event | ~0.2 MB per oversample at full precision | `HadronFileReader` |
 | `<stem>_hadrons_bulk_bg.h5` | `hadronize.py` | iSS on the background's surface, once per background | as above | `HadronFileReader` |
-| `<stem>_hadrons_jet_frag.h5` | `hadronize.py` | the fragmented surviving partons, M fragmentations per event | small | `HadronFileReader` |
+| `<stem>_hadrons_jet_frag.h5` | `hadronize.py` | the fragmented surviving partons, M fragmentations per event; with extra hard scatterings the trigger's alone | small | `HadronFileReader` |
+| `<stem>_hadrons_extra_frag.h5` | `hadronize.py`, only with `--extra-hard` | the fragments of the event's other hard scatterings, M fragmentations per event, with `scatterings/` | small | `HadronFileReader` |
 | `<stem>_hadrons.root`, `<campaign>_campaign.root` | `run_h5toROOT.py` | the three hadron tags as RNTuple or TTree, one entry per oversample; event table, cross sections, provenance | 0.9 × the HDF5 hadron files | uproot, RDataFrame, `HadronFileReader.h` |
 | `<stem>.json`, `.xml`, `.log` | every job | the job summary (seed, events, droplets, edge hits), the exact job XML, the log | | `json`, an editor |
 
@@ -39,6 +40,7 @@ Other productions write a subset or a variant:
 | Au+Au **hadrons only** (`run_prod_jet.py --hadrons-only`) | the three hadron files and the undecayed `_primary` bulk files, written in the job; no pair and no particlize file; the event record sits in the jet files' `units/` |
 | O+O with ISR (`prod_OO_isr`) | one hydro per event (`OO_isr_*.h5`, ~17 MB), a particlize file (~10 MB), the jet hadrons and optionally the bulk hadrons made in the job; see [O+O](oo.md) |
 | Z+jet (Pb+Pb) | hadrons-only jobs, as above, with the Z and its leptons in the event record; see [Z+jet and other systems](../run/zjet-other.md) |
+| any jet production with `--extra-hard` | the same files plus `<stem>_hadrons_extra_frag.h5` and the extras' records; minimum bias (`--hard none`) has no `jet_frag`; see [below](#the-events-other-hard-scatterings) and [Extra hard scatterings](../run/extra-hard.md) |
 
 ### Which files an analysis needs
 
@@ -136,7 +138,8 @@ Particlize files from before the initiators were added have no `initiators/` gro
 |---|---|---|
 | `bulk_jet` | iSS on the jet leg's surface: bulk + wake | an event |
 | `bulk_bg` | iSS on the background's surface: bulk | a background (shared by the events that reused it) |
-| `jet_frag` | Colorless hadronization of the surviving partons (O+O: iColored, in the job) | an event |
+| `jet_frag` | Colorless hadronization of the surviving partons (O+O: iColored, in the job); with `--extra-hard` the trigger's alone | an event |
+| `extra_frag` | only with `--extra-hard`: Colorless hadronization of the other hard scatterings' surviving partons | an event |
 
 Each file keeps every sample apart:
 
@@ -187,6 +190,27 @@ flowchart TB
   readers skip such events.
 
 The ROOT files have the same structure, one entry per oversample: [ROOT and C++](root.md).
+
+### The event's other hard scatterings
+
+Productions with `--extra-hard` ([Extra hard scatterings](../run/extra-hard.md)) have each
+event's other hard scatterings, the **extras**. Their wakes are in `bulk_jet`, so
+`bulk_jet − bulk_bg` is the response to all scatterings; their fragments are in `extra_frag`;
+`jet_frag` stays the trigger's alone. A jet event at hadron level is then oversample k of
+`bulk_jet` + fragmentation k mod M of `jet_frag` + fragmentation k mod M of `extra_frag`.
+
+| where | what |
+|---|---|
+| per event: pair `diag/`, particlize `events/`, hadron `units/` | `n_extra`, `extra_mu` (= N_coll σ/σ_NN), `extra_E`, `extra_pt` (summed E and scalar pT of the extras' handed-over partons) |
+| `scatterings/data` + `offsets` (pair, particlize, `extra_frag`) | one row per scattering, columns `scatter, pthat, code, x, y, n_partons, E, pt`; the trigger's first (scatter 0; none with `--hard none`); `code` is Pythia's process code, x, y [fm] the binary collision |
+| `initiators/scatter` (particlize, `extra_frag`) | each shower initiator's scattering, aligned with `initiators/data` |
+| `<stem>_hadrons_extra_frag.h5` | the layout of `jet_frag` (unit = event, `--n-frag` samples), plus `scatterings/`, the extras' `initiators/`, `partons/` (hadrons-only jobs) and `hadrons/scatter` (with `--extra-hadronize per_scattering`) |
+| attributes | `extra_hard`, `extra_no_trigger`, `extra_pthat_min`, `extra_sigma`, `extra_sigma_err`, `extra_sigma_nn`, `extra_warmup`, `extra_fixed_n`, `extra_seed`, `extra_rng_seed`; `prod_extra_*`; `extra_hadronize` on `extra_frag` |
+| `<stem>.json` | `extra_hard`, `extra_pthat_min`, `extra_sigma(_err)`, `extra_sigma_nn`, `n_extra_total` |
+
+A minimum-bias file (`--hard none`) has no `jet_frag` and no trigger row in `scatterings/`.
+Files without extras have none of these: their layout is unchanged. Do not combine files with
+and without extras, or with different thresholds (`extra_pthat_min`), in one data set.
 
 ## 5. Provenance: the job record
 

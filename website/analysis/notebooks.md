@@ -53,6 +53,15 @@ JupyterLab). On the Mac, the xscape environment runs them too, from your copy of
 
 The campaign analyses themselves are scripts, not notebooks: [Jets with FastJet](jets.md#7-worked-examples-the-zjet-campaign-analyses).
 
+## Extra hard scatterings and the bulk
+
+| notebook | what it shows | input | environment |
+|---|---|---|---|
+| [`analysis/bulk/extra_hard_bulk_jets.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets.ipynb) | a minimum-bias extras campaign: the number of extras against the Poisson expectation, their p̂T and initiators; η, φ, φ − Ψ₂ and pT of bulk, bulk + wakes and bulk + extras; unsubtracted R = 0.4 jets; ratios with jackknife errors over the hydro backgrounds | `../runs/pbpb_extra_hard/data/extra_hard_hists.npz` of `extra_hard_hists.py` ([Bulk and flow](bulk.md#6-histograms-and-jets-of-a-minimum-bias-campaign)) | venv |
+| [`analysis/bulk/extra_hard_bulk_jets_hist.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/extra_hard_bulk_jets_hist.ipynb) | the same with `hist` + mplhep: a jackknife `block` axis, rebinning, `hist.loc`, a `Mean` profile; writes the results as `Hist` objects | as above | venv |
+
+Nch, [pT] and vₙ2 per class are a script, `bulk_obs.py`: [Bulk and flow](bulk.md).
+
 ## O+O
 
 | notebook | what it shows | input | environment |

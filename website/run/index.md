@@ -25,6 +25,7 @@ for campaigns. In the container they are under
 | `prod_OO_isr` | O+O at 200 GeV with initial-state radiation (PythiaIsrGun + iMATTER), one MUSIC run per event, Matter + LBT, iColored jet hadronization | the hydro evolution, the jet hadrons, the bulk hadrons (in the job or later) | [O+O with ISR](oo-isr.md) |
 | Z+jet (`utils/zjet/`) | Pb+Pb at 5.02 TeV, 0–30 %, with a Z → ee/μμ trigger, through the jet production's driver | hadron files with the Z and its leptons recorded per event | [Z+jet and other systems](zjet-other.md) |
 | your own system | e.g. Pb+Pb at the LHC: a copy of the jet XML with the collision changed | as `prod_AuAu_0_10_jet` | [Z+jet and other systems](zjet-other.md#another-collision-system-pbpb-at-the-lhc) |
+| extra hard scatterings, minimum bias, O+O and Ne+Ne at 5.36 TeV | any jet production plus the event's other hard scatterings (`--extra-hard`), or the bulk and its hard scatterings alone (`--hard none`); `OO_5360_jet.xml`, `NeNe_5360_jet.xml` | as `prod_AuAu_0_10_jet`, plus `<stem>_hadrons_extra_frag.h5` | [Extra hard scatterings](extra-hard.md) |
 
 The Pythonic example
 [`pythonic/oo_workflow.py`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/pythonic/oo_workflow.py)
@@ -109,6 +110,7 @@ What the files hold: [What a production writes](../analysis/files.md).
 | `<stem>.h5` | stage 1 | the hydro evolution (Au+Au jet: the background and jet-leg pair) on the output grid |
 | `<stem>_particlize.h5` | stage 1 (`--write-particlize`; O+O by default) | the freeze-out surfaces, the final partons and the shower initiators: the input to hadronization |
 | `<stem>_hadrons_{bulk_jet,bulk_bg,jet_frag}.h5` | stage 2, or the job itself | the hadrons: iSS on the jet-leg surface (bulk + wake), on the background, and the fragmented jet partons |
+| `<stem>_hadrons_extra_frag.h5` | as above, only with `--extra-hard` | the fragments of the event's other hard scatterings |
 | `<stem>.xml`, `.json`, `.log` | stage 1 | the job XML as run, a summary (seed, events, cross sections, checks), the log |
 
 The stem is `AuAu_0_10_jet_seedNNNN` for an explicit seed and
@@ -121,5 +123,7 @@ with `OO_isr_`. The formats are described in [What a production writes](../analy
   jet events.
 - [Au+Au jets (two stages)](auau-jet.md): the main production, from the first job to a
   campaign.
+- [Extra hard scatterings, O+O and Ne+Ne](extra-hard.md): the event's other hard
+  scatterings, minimum bias, the light ions at the LHC.
 - [Clusters, GPUs and monitoring](clusters.md): SLURM, several GPUs, `jobmon.py`.
 - [Data on the OSDF](osdf.md): download existing productions or share yours.

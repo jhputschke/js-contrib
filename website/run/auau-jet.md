@@ -164,6 +164,16 @@ Y ≈ η_max + 1 with `any`.
 - **The output grid** of the pair file is `example/config/grid_fno.yaml` (64 × 64 × 32 cells,
   x, y ±12.2 fm, η_s ±4.84); `--grid FILE` for another. Never mix grids in one training set.
 
+### The event's other hard scatterings
+
+`--extra-hard` adds the event's other hard scatterings above a threshold p₀ (the XML's
+`<extraHard><pTHatMin>`, 10 GeV for Au+Au) to every jet event, showered in the jet leg with
+the trigger; `--hard none --extra-hard` gives minimum-bias events. At 200 GeV they are rare
+(~0.13 per 0–10 % event above 10 GeV), at the LHC they are not (~15 per 0–10 % Pb+Pb event
+above 15 GeV). Without the option nothing changes, and with it the trigger, `jet_frag` and
+`bulk_bg` stay bit-identical for the same seed. Everything about it:
+[Extra hard scatterings](extra-hard.md).
+
 Every option of `run_prod_jet.py`: the *Options* table of the
 [folder's README](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#options).
 
@@ -340,7 +350,8 @@ On a cluster, the sizing per GPU type and a 12,000-event SLURM example are in
   `--what pair` for FNO training: [Data on the OSDF](osdf.md).
 - **Analyse:** [Hadrons](../analysis/hadrons.md) (`HadronFileReader`, cross-section weights,
   jet − background), [Jets with FastJet](../analysis/jets.md),
-  [ROOT and C++](../analysis/root.md) (`run_h5toROOT.py`).
+  [ROOT and C++](../analysis/root.md) (`run_h5toROOT.py`), [Bulk and flow](../analysis/bulk.md)
+  (Nch, [pT], vₙ{2}).
 
 Full details, every option and the measurements:
 [`prod_AuAu_0_10_jet/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md)

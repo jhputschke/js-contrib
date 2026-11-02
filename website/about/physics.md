@@ -20,6 +20,11 @@ settings. Publications are linked where each model appears and collected in
 | O+O with ISR | O+O, 200 GeV | \(b < 3\) fm (about 0–24 %) | PYTHIA 8 + iMATTER initial-state radiation, \(\hat p_T\) 20–40 GeV by default | one MUSIC run | iColored in the job; iSS in the job or afterwards |
 | Pb+Pb with a jet | Pb+Pb, 5.02 TeV | 0–10 % (\(b < 4.95\) fm) | PYTHIA 8 dijet | background/jet pair | iSS + Colorless |
 | Pb+Pb Z+jet | Pb+Pb, 5.02 TeV | 0–30 % (\(b < 8.57\) fm) | PYTHIA 8 Z + parton, Z → ee, μμ | background/jet pair | iSS + Colorless |
+| O+O, Ne+Ne with a jet | O+O, Ne+Ne, 5.36 TeV | 0–10 % (\(b < 2.09\) / 2.41 fm), or minimum bias | PYTHIA 8 dijet (untuned bulk) | background/jet pair | iSS + Colorless |
+
+Any of the jet setups can add the event's **other hard scatterings** above a threshold
+\(p_0\) (`--extra-hard`), or run them alone as minimum-bias events: section
+[15](#15-the-events-other-hard-scatterings).
 
 The Au+Au jet chain, which the other setups vary:
 
@@ -106,6 +111,9 @@ The hard scattering comes from PYTHIA 8 ([arXiv:1410.3012](https://arxiv.org/abs
   stored cross sections are corrected by the kept/tried fraction.
 - **A pp reference:** `run_prod_vacuum.py` runs the same PythiaGun and MATTER in vacuum, with
   no medium.
+- **The event's other hard scatterings (optional):** `--extra-hard` adds
+  \(N \sim\) Poisson\((N_{\rm coll}\,\sigma(\hat p_T > p_0)/\sigma_{NN})\) more, each at
+  its own binary collision: section [15](#15-the-events-other-hard-scatterings).
 
 For O+O the hard process is `PythiaIsrGun` (section [12](#12-oo-with-initial-state-radiation)),
 for Z+jet a Z + parton process (section [13](#13-zjet-in-pbpb)).
@@ -415,6 +423,47 @@ The fast finite-volume solver [FastHydro](../python/fasthydro.md) agrees with MU
 0.3 % (relative L2 of the energy density at freeze-out) on the same initial condition. It
 samples hadrons with ideal Cooper–Frye only.
 
+## 15. The event's other hard scatterings
+
+Without `--extra-hard` every event has one hard scattering, the trigger, at one binary
+collision. A nucleus–nucleus collision has
+\(N_{\rm coll}\,\sigma(\hat p_T > p_0)/\sigma_{NN}\) of them above a threshold \(p_0\): about 15
+above 15 GeV in 0–10 % Pb+Pb at 5.02 TeV, 1.5–2 above 10 GeV in 0–10 % O+O and Ne+Ne at
+5.36 TeV, and about 0.1 above 10 GeV in 0–10 % Au+Au at 200 GeV, where they barely matter.
+Their fragments are the jet background of a real event (fake jets, the B of Z+jet), and their
+wakes are part of the bulk. The option adds them (stage 1 of the design in
+[`PLAN_multi_hard.md`](https://github.com/jhputschke/js-contrib/blob/main/docs/Plans/PLAN_multi_hard.md)):
+
+- **How many:** \(N \sim\) Poisson\((\mu)\), \(\mu = N_{\rm coll}\,\sigma/\sigma_{NN}\), with
+  \(N_{\rm coll}\) of the event's 3D MC-Glauber collision, \(\sigma(\hat p_T > p_0)\) from
+  20,000 PYTHIA 8 warm-up events at the start of the job, and \(\sigma_{NN}^{\rm inel}\) from
+  3dMCGlauber's own parametrization at \(\sqrt{s_{NN}}\) (\(\sigma_{\rm tot} - \sigma_{\rm el}\),
+  each a fit \(a + b\ln s + c\ln^2 s\) to pp data: 40.8 mb at 200 GeV, 67.6 mb at 5.02 TeV,
+  68.3 mb at 5.36 TeV), so that \(\mu\) is consistent with the Glauber collision.
+- **Each extra:** one PYTHIA 8 event of an instance of its own, `HardQCD:all` above \(p_0\),
+  ISR on, MPI off, FSR off (MATTER showers), at a binary collision drawn from the event's
+  collisions. Its partons above 2 GeV, typically 4–5 with \(\sum p_T\) 40–60 GeV, shower in
+  MATTER and LBT with the trigger's.
+- **Thresholds:** 10 GeV in the Au+Au, O+O and Ne+Ne inputs, 15 GeV in the Pb+Pb ones.
+  Below ~10 GeV the extras' energy becomes a sizeable part of what the strings already carry,
+  and semi-hard minijets would have to take their energy out of the strings and come with a
+  retuned bulk; that is a later stage.
+- **The two legs:** the background leg (MUSIC_1) stays the strings alone; the jet leg
+  (MUSIC_2) gets the droplets of all scatterings. So the jet leg minus the background is the
+  response to the trigger and the extras together.
+- **The trigger is untouched:** the extras run on random-number streams of their own, so with
+  the same seed the trigger's showers, its hadrons and the background are bit-identical with
+  and without them. Running the same seeds twice is a paired measurement of their effect.
+- **Minimum bias** (`--hard none`): no trigger, only the extras (N may be 0), every event with
+  weight 1. This is the setup for the bulk observables (\(N_{\rm ch}\), \([p_T]\), \(v_n\{2\}\))
+  and for what the extras do to them ([Bulk and flow](../analysis/bulk.md)).
+- **O+O and Ne+Ne at 5.36 TeV:** copies of the Pb+Pb jet input with \(^{16}\)O and PGCM
+  \(^{20}\)Ne nuclei; the bulk is not tuned for small systems.
+
+One trigger plus Poisson extras is the right event when the trigger is rare
+(\(N_{\rm coll}\,\sigma_{\rm trigger}/\sigma_{NN} \ll 1\): a Z, dijets above ~50 GeV); for low
+trigger windows (10–30 GeV) it is an approximation.
+
 ## Approximations and limits
 
 !!! warning "Keep these in mind when interpreting the output"
@@ -422,8 +471,11 @@ samples hadrons with ideal Cooper–Frye only.
     - **No hadronic rescattering:** iSS decays resonances, but nothing like SMASH runs after
       particlization.
     - **No pre-equilibrium dynamics** beyond the decelerating string sources.
-    - **One hard scattering per event:** the event samples are hard-triggered; use the
-      recorded \(N_{\rm coll}\) and the per-window cross sections as weights.
+    - **One hard scattering per event** unless `--extra-hard` adds the others above
+      \(p_0\): the event samples are hard-triggered; use the recorded \(N_{\rm coll}\) and the
+      per-window cross sections as weights.
+    - **No energy subtraction** from the strings for the hard scatterings, nor minijets below
+      \(p_0\) (section [15](#15-the-events-other-hard-scatterings)).
     - **Centrality from \(b\)**, not from an event-activity class.
     - **Pb+Pb and Z+jet use parameters tuned at 200 GeV.**
     - **Droplets after the jet leg's freeze-out are lost** (recorded per event).
@@ -437,6 +489,7 @@ samples hadrons with ideal Cooper–Frye only.
   and [O+O with ISR](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_OO_isr/README.md),
   and the [Z+jet campaigns](https://github.com/jhputschke/js-contrib/blob/main/utils/zjet/README.md).
 - Run them: [Au+Au jets](../run/auau-jet.md), [O+O with ISR](../run/oo-isr.md),
-  [Z+jet and other systems](../run/zjet-other.md).
+  [Z+jet and other systems](../run/zjet-other.md),
+  [Extra hard scatterings](../run/extra-hard.md).
 - What the files contain: [What a production writes](../analysis/files.md).
 - Cite the modules you use: [Publications and citing](references.md).

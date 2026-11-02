@@ -4,7 +4,8 @@ The physics of a production is in its user XML, so a new collision system or a d
 process is mostly a copy of an XML with a few lines changed. This page covers the two cases
 that already exist: the **Z+jet production** in Pb+Pb at 5.02 TeV, made for the CMS and ATLAS
 Z–hadron and Z+jet measurements, and **Pb+Pb jets at the LHC** from your own XML, with the
-steps to take for any other system. Both run through the Au+Au jet production's driver
+steps to take for any other system. O+O and Ne+Ne at 5.36 TeV, and the event's other hard
+scatterings, which matter at the LHC, are on [Extra hard scatterings](extra-hard.md). Both run through the Au+Au jet production's driver
 `run_prod_jet.py`, so everything in [Au+Au jets](auau-jet.md) applies. At the end, the
 production wizard plans the launch command for any of the productions.
 
@@ -40,6 +41,13 @@ background), the Z's leptons inside the detector acceptance, and hadron files ma
 
 `--trigger Z` comes from the XML; `--trigger-ymax Y` would add a Z rapidity cut (the
 campaigns apply \|y_Z\| offline). There is no cut on the recoiling parton.
+
+**The event's other hard scatterings.** A 0–30 % Pb+Pb event has ~8 other hard scatterings
+above 15 GeV (the XML's `<extraHard><pTHatMin>`). Add `--extra-hard` to the options above to
+have them: their fragments then form the B of the Z+jet analysis as CMS's minimum-bias events
+do, and the Z, its recoil and the background stay bit-identical for the same seed. See
+[Extra hard scatterings](extra-hard.md) and, for the analyses,
+[Jets with FastJet](../analysis/jets.md#with-the-events-other-hard-scatterings).
 
 !!! warning "A current image"
     The Z trigger, `--hadrons-only` and `TAG_PREFIX` need an image built from the current code.
@@ -298,6 +306,8 @@ interactive wizard needs `textual` (in the analysis venv), and runs in a browser
 
 ## Next steps
 
+- [Extra hard scatterings, O+O and Ne+Ne](extra-hard.md): the event's other hard scatterings,
+  minimum bias, the light ions at 5.36 TeV.
 - [Clusters, GPUs and monitoring](clusters.md): SLURM, several GPUs, `jobmon.py`.
 - [Hadrons](../analysis/hadrons.md) and [Jets with FastJet](../analysis/jets.md): reading
   the outputs.

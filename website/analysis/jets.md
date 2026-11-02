@@ -228,6 +228,8 @@ background fluctuations, is subtracted:
 | 2 | the whole event, ρA-subtracted | the jets of the Z's **own** background (`bulk_bg`, sample k against sample k) |
 | 3 | the whole event, ρA-subtracted | the jets of 40 `bulk_bg` samples of the 20 other backgrounds closest in N_coll: CMS's minimum-bias mixing |
 
+With extra hard scatterings, B also holds their jets ([below](#with-the-events-other-hard-scatterings)).
+
 Steps 2 and 3 are the model's version of the measured observable. Step 2 repeated on the
 embedded event (the same fragments in `bulk_bg` sample k, no wake) gives "what the wake does to
 the jets" with very small errors, since both share everything else. In short (route A):
@@ -305,6 +307,30 @@ and closure contents that must come out flat, next to CMS's HEPData. With the Z 
 comparison with CMS is a shape reference, not like for like. Full walk-through, including the
 map steps at R = 0.4:
 [`ANA_Deta.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/dijet/ANA_Deta.md).
+
+### With the event's other hard scatterings
+
+A campaign made with `--extra-hard` ([Extra hard scatterings](../run/extra-hard.md)) has the
+event's other hard scatterings above p₀ (15 GeV for Pb+Pb) in `extra_frag`. Without them, B
+holds only the fake jets of the bulk's fluctuations, while CMS's minimum-bias events also hold
+the other scatterings' jets. **The extras belong to the event, not to the trigger**, so every
+map step takes them by default:
+
+| analysis | with the extras (default) | without |
+|---|---|---|
+| Z+jet (`zjet_jets_map.py`, `zjets`) | S = `bulk_jet` + `jet_frag` + `extra_frag`; B = `bulk_bg` + the event's `extra_frag` (per event, collection `bgx_*`), for B_own (step 2) and B_mixed (step 3, the Z events on the nearest backgrounds), the embedding and the random cones; the reference jets of step 1 stay the trigger's | `--no-extras` / `--extras 0` |
+| Z–hadron (`mix.py`, `zhadron_pools`) | the full events (and so the mixing partners) carry their extras; the Z-correlated yield `bulk_jet − bulk_bg + jet_frag` stays the trigger's; step 1 is unchanged, steps 2–4 get the extras' noise | `--no-extras` / `--extras 0` |
+| QA (`qa.py map`, `zqa`), `wake_iso.py` | `extra_frag` as a source, `n_extra`, `nch*_extra`; the measured event's noise includes the extras | `--no-extras` / `--extras 0` |
+| dijet Δη (`deta.py`) | jet2 is the leading jet of the full event, so the fake jet2 includes the extras' jets; takes everything from the map steps | via the map steps |
+
+Map a campaign one way: pools and jet outputs with and without the extras do not combine. With
+`--no-extras` the outputs are exactly those of files without extras, and files without
+`extra_frag` give the same outputs as before, bit for bit. Minimum-bias files (`--hard none`)
+have no Z and are refused. B now has the scatterings above p₀ but still no minijets below it.
+Details: the *Extra hard scatterings* sections of
+[`ANA_Zjet.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/zjet/ANA_Zjet.md),
+[`ANA_Zhadron.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/zjet/ANA_Zhadron.md)
+and [`ANA_Deta.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/dijet/ANA_Deta.md).
 
 !!! warning "Results not public yet"
     The Z+jet and dijet results are not public: write their outputs (`--outdir`, `runs/`)
