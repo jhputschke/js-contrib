@@ -6,6 +6,16 @@ environments, how to read each file in Python, jets with FastJet, the conversion
 the analysis in ROOT, again with FastJet. Running the productions is in
 [`README_2stage.md`](README_2stage.md).
 
+> [!WARNING]
+> **Work in progress: examples, not vetted physics results.** The physics analysis scripts,
+> notebooks and their implementations in this repository (spectra, jets and jet-hadron
+> correlations, the wake observables, bulk and flow observables such as vₙ{2} and v₂(p_T), the
+> O+O and Z+jet analyses) are work in progress and need further vetting: definitions,
+> corrections, centrality selection and the comparisons with published data have not been
+> checked to the standard of a publication. They are meant mainly as **examples of how to use
+> the simulation outputs** for an analysis. Validate any result, against the experiments' exact
+> procedures and against independent code, before you rely on it.
+
 ```
  production (GPU, container)          stage 2 (CPU, container)             analysis (this guide)
  ───────────────────────────          ────────────────────────             ─────────────────────

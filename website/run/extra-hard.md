@@ -10,6 +10,11 @@ new inputs run **O+O and Ne+Ne at 5.36 TeV**. Everything on [Au+Au jets](auau-je
 this page adds what is new. The analysis side is on [Bulk and flow](../analysis/bulk.md) and
 in the [Hadrons](../analysis/hadrons.md#the-events-other-hard-scatterings) page.
 
+!!! warning "Work in progress"
+    The analysis scripts and notebooks for these files (bulk and flow, v₂(p_T) against data)
+    are work in progress and need further vetting; they are meant mainly as examples of how to
+    use the simulation outputs. See the [note on the analysis section](../analysis/index.md).
+
 !!! note "Needs the current code"
     The option needs X-SCAPE with PythiaGun `<extraHard>` and the current js-contrib. Check
     an image first: `python run_prod_jet.py --help` must list `--extra-hard`.

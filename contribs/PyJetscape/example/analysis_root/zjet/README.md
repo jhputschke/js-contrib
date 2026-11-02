@@ -1,5 +1,10 @@
 # analysis_root/zjet — the Z+jet analyses in ROOT
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](../../../../../docs/README_analysis.md).
+
 The map steps of the two Z+jet analyses in C++, on the ROOT files of
 [`run_h5toROOT.py`](../../prod_AuAu_0_10_jet/run_h5toROOT.py):
 

@@ -8,6 +8,11 @@ its check V5: what the extra hard scatterings (and the trigger's wake) do to Nch
 v_n{2}, in Pb+Pb, Au+Au, O+O, Ne+Ne and minimum-bias files. How to produce those files and
 what the extras are: [`docs/README_extra_hard.md`](../../../../../docs/README_extra_hard.md).
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](../../../../../docs/README_analysis.md).
+
 | file | |
 |---|---|
 | [`flow.py`](flow.py) | the library: `Cuts`, `event_table(reader, cuts)`, `select(...)`, `class_averages(table, mask)`; the definitions are in its docstring |

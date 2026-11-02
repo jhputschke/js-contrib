@@ -112,6 +112,11 @@ The scripts behind the guides' tested code are in
 [`docs/analysis_snippets/`](docs/analysis_snippets/README.md); every design note and benchmark
 is listed in [`docs/README.md`](docs/README.md).
 
+> [!WARNING]
+> The physics analysis scripts are work in progress and need further vetting: examples of how
+> to use the outputs, not validated results
+> ([`docs/README_analysis.md`](docs/README_analysis.md)).
+
 ## Available contribs
 
 | Contrib | Description | Extra deps |

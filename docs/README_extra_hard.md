@@ -9,6 +9,11 @@ design decisions and the full validation are in
 [`README_2stage.md`](README_2stage.md), reading the files in
 [`README_analysis.md`](README_analysis.md).
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](README_analysis.md).
+
 Needs X-SCAPE with PythiaGun `<extraHard>` (JETSCAPE/X-SCAPE#187, branch `multi_hard`) and
 js-contrib from jhputschke/js-contrib#83 (branch `multi_hard`).
 

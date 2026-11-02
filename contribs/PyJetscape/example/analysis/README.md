@@ -5,6 +5,11 @@ question: **does the energy of the initial partons come back as surviving parton
 energy deposited in the medium?** §6 covers the parton- and hydro-level wake analysis, §7 the
 same at hadron level, §8 points to the ROOT analyses in [`../analysis_root`](../analysis_root/README.md).
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](../../../../docs/README_analysis.md).
+
 | file | what it is for | writes? |
 |---|---|---|
 | [`jet_edep_balance_check.py`](jet_edep_balance_check.py) | checks the balance and finds partons that are counted twice | no |

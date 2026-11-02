@@ -6,6 +6,11 @@ hadronized campaign (layout in
 [`../prod_AuAu_0_10_jet/root_export/README.md`](../prod_AuAu_0_10_jet/root_export/README.md)).
 The Python analyses of the HDF5 files are in [`../analysis`](../analysis/README.md).
 
+> [!WARNING]
+> **Work in progress.** The analysis scripts and notebooks described here are work in progress
+> and need further vetting; they are meant mainly as examples of how to use the simulation
+> outputs. See the [note on the analyses](../../../../docs/README_analysis.md).
+
 | file | what it is for | writes? |
 |---|---|---|
 | [`HadronFileReader.h`](HadronFileReader.h) | header-only reader: the hadrons of an event's oversample as `std::vector<Hadron>`, for background, background + deposition, the whole jet event and the fragments (§1) | no |
