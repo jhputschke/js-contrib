@@ -2068,26 +2068,35 @@ account, either by downloading them or by opening them in place over <code>osdf:
 <a href="install/container/">Production container</a>.</p>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh<span class="w">        </span><span class="c1"># once; then open a new Terminal</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">VER</span><span class="o">=</span><span class="m">0</span>.2.0<span class="w">                                              </span><span class="c1"># latest: github.com/jhputschke/xscape-macos/releases</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/xscape<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/xscape
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>curl<span class="w"> </span>-LO<span class="w"> </span>https://github.com/jhputschke/xscape-macos/releases/download/v<span class="nv">$VER</span>/xscape-<span class="nv">$VER</span>-cp313.lock.txt
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>uv<span class="w"> </span>venv<span class="w"> </span>--managed-python<span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span><span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span>/bin/activate
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>uv<span class="w"> </span>pip<span class="w"> </span>sync<span class="w"> </span>xscape-<span class="nv">$VER</span>-cp313.lock.txt
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>xscape-fetch-data<span class="w"> </span>lbt<span class="w">                                  </span><span class="c1"># the LBT tables (240 MB download)</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>xscape-selftest<span class="w">                                        </span><span class="c1"># checks the environment</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>xscape-examples<span class="w"> </span>~/xscape/examples
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate<span class="w">              </span><span class="c1"># the line the script printed</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>xscape-examples<span class="w"> </span>~/xscape/examples
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
 </code></pre></div>
-<p>The same event runs on the Mac's GPU in under a minute. See
+<p>The script installs uv, the environment of the latest release, and the LBT tables, then
+runs the self-test. The same event then runs on the Mac's GPU in under a minute. See
 <a href="install/mac/">Mac (xscape wheel)</a>.</p>
+<details class="note">
+<summary>The same by hand</summary>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh<span class="w">        </span><span class="c1"># once; then open a new Terminal</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">VER</span><span class="o">=</span><span class="m">0</span>.2.0<span class="w">                                              </span><span class="c1"># latest: github.com/jhputschke/xscape-macos/releases</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/xscape<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/xscape
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>curl<span class="w"> </span>-LO<span class="w"> </span>https://github.com/jhputschke/xscape-macos/releases/download/v<span class="nv">$VER</span>/xscape-<span class="nv">$VER</span>-cp313.lock.txt
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>uv<span class="w"> </span>venv<span class="w"> </span>--managed-python<span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span><span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span>/bin/activate
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>uv<span class="w"> </span>pip<span class="w"> </span>sync<span class="w"> </span>xscape-<span class="nv">$VER</span>-cp313.lock.txt
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>xscape-fetch-data<span class="w"> </span>lbt<span class="w">                                  </span><span class="c1"># the LBT tables (240 MB download)</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>xscape-selftest<span class="w">                                        </span><span class="c1"># checks the environment</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>xscape-examples<span class="w"> </span>~/xscape/examples
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
+</code></pre></div>
+</details>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jhputschke/js-contrib.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>js-contrib
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./utils/analysis_env/setup_analysis_env.sh<span class="w">             </span><span class="c1"># venv in ~/.venvs/js_analysis</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis/bin/activate
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>python<span class="w"> </span>utils/analysis_env/check_env.py<span class="w"> </span>/path/to/out<span class="w">    </span><span class="c1"># opens every file of a production</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jhputschke/js-contrib.git<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>js-contrib
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./utils/analysis_env/setup_analysis_env.sh<span class="w">             </span><span class="c1"># venv in ~/.venvs/js_analysis</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis/bin/activate
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>python<span class="w"> </span>utils/analysis_env/check_env.py<span class="w"> </span>/path/to/out<span class="w">    </span><span class="c1"># opens every file of a production</span>
 </code></pre></div>
 <p>This gives you no GPU and no X-SCAPE build, only what you need to read and analyse the
 files, including files on the OSDF. See <a href="install/analysis-env/">Analysis environment</a>.</p>
