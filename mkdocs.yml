@@ -165,4 +165,5 @@ nav:
       - reference/index.md
       - Contribs and repositories: reference/contribs.md
       - Tools: reference/tools.md
+      - X-SCAPE changes since 2.1: reference/changes.md
       - Building this site: reference/site.md
