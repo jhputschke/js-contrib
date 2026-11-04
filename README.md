@@ -47,6 +47,16 @@ images: [Container images](#container-images).
 **xscape wheel** (Mac, Apple Silicon): the same event on the Mac's GPU, in under a minute:
 
 ```bash
+curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh
+source ~/.venvs/xscape-0.2.0/bin/activate              # the line the script printed
+xscape-examples ~/xscape/examples
+cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
+```
+
+The script installs uv, the environment of the latest release and the LBT tables, then runs
+the self-test. The same by hand, step by step:
+
+```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh        # once; then open a new Terminal
 VER=0.2.0                                         # the latest: github.com/jhputschke/xscape-macos/releases
 mkdir -p ~/xscape && cd ~/xscape
@@ -59,6 +69,9 @@ xscape-selftest                                        # checks the environment
 xscape-examples ~/xscape/examples
 cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 ```
+
+Options (`--version`, `--examples DIR`, ...) and details: the
+[Mac guide](utils/README_Mac_Usage.md#one-command).
 
 **Analysis environment** (any computer, from a checkout of this repository): a venv with
 the readers, uproot, awkward, FastJet, the notebooks and pelicanfs:

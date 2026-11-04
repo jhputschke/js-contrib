@@ -33,6 +33,48 @@ You do **not** need Xcode, Homebrew, conda, Docker, git or an Apple developer ac
     of the environment with its exact version and checksum. You install from the lock file,
     so every Mac gets exactly the same software.
 
+## Install with one command
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh
+```
+
+The script, [`install.sh`](https://github.com/jhputschke/xscape-macos/blob/main/install.sh),
+does steps 1–4 below for the latest release:
+
+1. checks the Mac (Apple Silicon, macOS 26 or later, 3 GB free) before downloading anything;
+2. installs uv, unless a recent one is already there;
+3. creates the environment `~/.venvs/xscape-VER` from the release's lock file;
+4. fetches the LBT tables and runs `xscape-selftest`.
+
+It takes a few minutes (93 s on an M3 Max with a fast connection, everything downloaded) and ends with `xscape VER is installed in ...` and
+the line that activates the environment. Then run your first event (step 5):
+
+```bash
+source ~/.venvs/xscape-0.2.0/bin/activate     # the line it printed; in every new Terminal window
+xscape-examples ~/xscape/examples
+cd ~/xscape/examples/pythonic
+python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
+```
+
+Options go after `sh -s --`, for example
+`... | sh -s -- --version 0.2.0 --examples ~/xscape/examples`:
+
+| option | does |
+|---|---|
+| `--version VER` | installs this release (default: the latest on the Releases page) |
+| `--venv DIR` | puts the environment in `DIR` (default: `~/.venvs/xscape-VER`) |
+| `--examples DIR` | also copies the examples to `DIR` (never overwrites) |
+| `--force` | deletes an existing environment first |
+| `--no-lbt`, `--no-selftest` | skips the LBT tables, the self-test |
+
+Running it again is safe: it reuses the environment and the LBT tables, and the lock file
+makes the environment exactly the release again (`--force` builds it new). Apart from the
+environment it writes only uv (in `~/.local/bin`; uv's installer adds that directory to your
+shell's `PATH`), uv's cache and Python, and the LBT tables in `~/Library/Caches/xscape`.
+
+The steps below do the same by hand.
+
 ## Step 1: install uv
 
 uv is Astral's Python package manager: a single program in `~/.local/bin`.
@@ -361,7 +403,15 @@ are not installed. `xscape-run` names what an XML needs of these and stops. For 
 ## Updating and removing
 
 **A new release** goes into a new environment next to the old one, so a running campaign keeps
-its software:
+its software. With the script (the latest release, or `sh -s -- --version VER`):
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh
+source ~/.venvs/xscape-<new version>/bin/activate
+xscape-examples ~/xscape/examples-<new version>   # the examples of this release
+```
+
+or by hand:
 
 ```bash
 VER=<new version>
@@ -387,6 +437,8 @@ rm ~/.local/bin/uv ~/.local/bin/uvx      # uv itself
 | symptom | cause and fix |
 |---|---|
 | `zsh: command not found: uv` | open a new Terminal window, or `source ~/.local/bin/env` |
+| `install.sh: this shell runs under Rosetta (x86_64)` | Terminal is set to open using Rosetta: Finder → Applications → Utilities → Terminal → Get Info → untick "Open using Rosetta" |
+| `install.sh: ... exists but is no environment` | `--venv` names a directory that is not an environment: give another directory, or `--force` to replace it |
 | `... has no wheels with a matching platform tag` | macOS older than 26, or an Intel Mac: update macOS; Intel Macs are not supported |
 | `zsh: no matches found: pyjetscape[analysis]...` | quote the argument: `"pyjetscape[analysis] @ ..."` |
 | `ModuleNotFoundError: No module named 'jetscape'` | the environment is not active: `source ~/.venvs/xscape-VER/bin/activate` |

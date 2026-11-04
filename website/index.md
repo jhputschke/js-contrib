@@ -83,21 +83,31 @@ recoils against the parton shower. Drawn by `wake_pyvista.py` from the
 === "Mac, Apple Silicon (wheel)"
 
     ```bash
-    curl -LsSf https://astral.sh/uv/install.sh | sh        # once; then open a new Terminal
-    VER=0.2.0                                              # latest: github.com/jhputschke/xscape-macos/releases
-    mkdir -p ~/xscape && cd ~/xscape
-    curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
-    uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
-    source ~/.venvs/xscape-$VER/bin/activate
-    uv pip sync xscape-$VER-cp313.lock.txt
-    xscape-fetch-data lbt                                  # the LBT tables (240 MB download)
-    xscape-selftest                                        # checks the environment
+    curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh
+    source ~/.venvs/xscape-0.2.0/bin/activate              # the line the script printed
     xscape-examples ~/xscape/examples
     cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
     ```
 
-    The same event runs on the Mac's GPU in under a minute. See
+    The script installs uv, the environment of the latest release, and the LBT tables, then
+    runs the self-test. The same event then runs on the Mac's GPU in under a minute. See
     [Mac (xscape wheel)](install/mac.md).
+
+    ??? note "The same by hand"
+
+        ```bash
+        curl -LsSf https://astral.sh/uv/install.sh | sh        # once; then open a new Terminal
+        VER=0.2.0                                              # latest: github.com/jhputschke/xscape-macos/releases
+        mkdir -p ~/xscape && cd ~/xscape
+        curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
+        uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
+        source ~/.venvs/xscape-$VER/bin/activate
+        uv pip sync xscape-$VER-cp313.lock.txt
+        xscape-fetch-data lbt                                  # the LBT tables (240 MB download)
+        xscape-selftest                                        # checks the environment
+        xscape-examples ~/xscape/examples
+        cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
+        ```
 
 === "Any computer (analysis only)"
 

@@ -37,6 +37,46 @@ Contents: [Get started](#get-started) · [The rules](#the-rules) ·
 ( → About This Mac), about 3 GB of disk (1 GB of it uv's download cache, `uv cache clean`), internet for the installation. Not needed: Xcode,
 Homebrew, conda, Docker, git, an Apple developer account.
 
+### One command
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh
+```
+
+[`install.sh`](https://github.com/jhputschke/xscape-macos/blob/main/install.sh) does steps
+1–4 below for the latest release: it installs uv (unless a recent one is already there),
+creates the environment `~/.venvs/xscape-VER` from the release's lock file, fetches the LBT
+tables and runs `xscape-selftest`. It takes a few minutes (93 s on an M3 Max with a fast connection, everything downloaded), checks the Mac
+first (Apple Silicon, macOS 26, 3 GB free) and ends with `xscape VER is installed in ...`
+and the line that activates the environment. Then your first event (step 5):
+
+```bash
+source ~/.venvs/xscape-0.2.0/bin/activate     # the line it printed; in every new Terminal window
+xscape-examples ~/xscape/examples
+cd ~/xscape/examples/pythonic
+python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
+```
+
+Options go after `sh -s --`, e.g.
+`curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh -s -- --version 0.2.0 --examples ~/xscape/examples`:
+
+| option | |
+|---|---|
+| `--version VER` | the release to install (default: the latest on the Releases page) |
+| `--venv DIR` | the environment (default: `~/.venvs/xscape-VER`) |
+| `--examples DIR` | also copy the examples to `DIR` (`xscape-examples`; never overwrites) |
+| `--force` | delete an existing environment first |
+| `--no-lbt`, `--no-selftest` | skip the LBT tables, the self-test |
+
+Running it again is safe: it reuses the environment and the LBT tables, and the lock file
+makes the environment exactly the release again (`--force` builds it new). Besides the
+environment it writes only uv (`~/.local/bin`, whose installer adds that directory to your
+shell's `PATH`), uv's cache and Python, and the LBT tables in `~/Library/Caches/xscape`.
+
+### Step by step
+
+The same by hand, what the script does:
+
 **Releases** are on the [Releases page of jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos/releases), the repository that builds the wheel.
 Each one is a set of three files: the `xscape` wheel (X-SCAPE, 175 MB), the `pyjetscape`
 wheel (the Python package) and a **lock file**, `xscape-<version>-cp313.lock.txt`, which
@@ -458,7 +498,15 @@ The analysis notebooks and scripts need production output: yours, or files from 
 ## Updating and removing
 
 **A new release:** a new environment next to the old one, so a running campaign keeps its
-software:
+software. With the script (the latest release, or `sh -s -- --version VER`):
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh
+source ~/.venvs/xscape-<new version>/bin/activate
+xscape-examples ~/xscape/examples-<new version>   # the examples of this release
+```
+
+or by hand:
 
 ```bash
 VER=<new version>
@@ -483,6 +531,8 @@ uv itself: `rm ~/.local/bin/uv ~/.local/bin/uvx`.
 | symptom | cause, fix |
 |---|---|
 | `zsh: command not found: uv` | open a new Terminal window, or `source ~/.local/bin/env` |
+| `install.sh: this shell runs under Rosetta (x86_64)` | the Terminal is set to open using Rosetta: Finder → Applications → Utilities → Terminal → Get Info → untick "Open using Rosetta" |
+| `install.sh: ... exists but is no environment` | `--venv` names a directory that is not an environment: another directory, or `--force` to replace it |
 | `... has no wheels with a matching platform tag` | the Mac runs macOS older than 26, or has an Intel processor: update macOS; Intel Macs are not supported |
 | `zsh: no matches found: pyjetscape[analysis]...` | quote the argument: `"pyjetscape[analysis] @ ..."` |
 | `ModuleNotFoundError: No module named 'jetscape'` | the environment is not active: `source ~/.venvs/xscape-VER/bin/activate` |
