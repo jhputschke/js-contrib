@@ -14,6 +14,11 @@ The notebooks run on your own computer: in the production container, with the xs
 on a Mac, or in the analysis environment. The analysis tutorials also run in Google Colab.
 The pages here show them with their outputs. To run them, see [Setting up](setup.md).
 
+The outputs shown were produced on an Apple Silicon Mac, in the environment the xscape wheel
+0.2.0 is built in, with the hydro on the GPU through Metal. A notebook that needed something
+else says so at its top. Where a tutorial reads fixed example files, your numbers should
+match the ones shown. Where it runs X-SCAPE, they can differ slightly from setup to setup.
+
 !!! info "In progress"
     The tutorials are being written. The list below shows which ones are ready.
 

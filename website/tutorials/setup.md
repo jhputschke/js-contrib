@@ -12,8 +12,9 @@ from the setup itself, comes with the tutorials or is fetched by them.
 | analysis environment | no | – | yes | [Analysis environment](../install/analysis-env.md) |
 | Google Colab | no | – | yes | nothing: open a notebook from GitHub |
 
-ROOT's C++ (tutorial 10) needs ROOT next to the analysis environment
-([ROOT and C++](../analysis/root.md#1-set-up)); neither the container nor the wheel has it.
+ROOT's C++ (tutorial 10) needs a ROOT installation next to the setup, for example from conda
+or, on a Mac, from Homebrew ([ROOT and C++](../analysis/root.md#1-set-up)). Neither the
+container nor the wheel brings ROOT.
 
 ## 1. Get the tutorials
 

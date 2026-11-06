@@ -31,6 +31,7 @@ import importlib.util
 import json
 import os
 import platform as _platform
+import shutil
 import subprocess
 import sys
 import time
@@ -57,7 +58,7 @@ REQUIREMENTS = {
     "analysis": ["jetscape", "h5py", "hdf5plugin", "numpy", "matplotlib", "hist", "mplhep"],
     "fastjet": ["fastjet", "awkward"],
     "xscape": ["core"],
-    "root": ["pyroot"],
+    "root": ["root"],
     "torch": ["torch"],
     "viz": ["pyvista"],
 }
@@ -65,7 +66,7 @@ NEEDS_TEXT = {
     "analysis": "the jetscape readers",
     "fastjet": "FastJet (Python)",
     "xscape": "X-SCAPE (container, Mac wheel or source build)",
-    "root": "ROOT with PyROOT (analysis env + conda ROOT)",
+    "root": "ROOT (C++): an installation next to the setup, e.g. conda or Homebrew",
     "torch": "PyTorch (source build)",
     "viz": "PyVista (analysis env, or the -viz image)",
 }
@@ -79,6 +80,12 @@ def _has(mod: str) -> bool:
         return importlib.util.find_spec(mod) is not None
     except (ImportError, ValueError):
         return False
+
+
+def short(path) -> str:
+    """``path`` with the home directory written as ~ (for output that gets shared)."""
+    s, home = str(path), str(Path.home())
+    return "~" + s[len(home):] if home not in ("", "/") and s.startswith(home) else s
 
 
 def in_colab() -> bool:
@@ -110,7 +117,7 @@ def capabilities(check_root: bool = True) -> dict:
         import jetscape
         core = bool(getattr(jetscape, "HAS_CORE", False))
         loc = Path(jetscape.__file__).parent
-        caps["jetscape"] = (True, str(loc))
+        caps["jetscape"] = (True, short(loc))
         caps["core"] = (core, "runs X-SCAPE" if core else "readers only (no compiled core)")
     except Exception as e:                           # noqa: BLE001
         caps["jetscape"] = (False, f"{type(e).__name__}: {e}")
@@ -127,6 +134,7 @@ def capabilities(check_root: bool = True) -> dict:
             except Exception:                        # noqa: BLE001
                 ver = "installed"
         caps[name] = (ok, ver or "not installed")
+    caps["root"] = root_cpp()
     if check_root:
         ok, detail = False, "not installed"
         if _has("ROOT"):
@@ -135,8 +143,20 @@ def capabilities(check_root: bool = True) -> dict:
                 ok, detail = True, ROOT.gROOT.GetVersion()
             except Exception as e:                   # noqa: BLE001
                 detail = f"import failed: {e}"
-        caps["pyroot"] = (ok, detail)
+        caps["pyroot"] = (ok, detail + " (Python)" if ok else detail)
     return caps
+
+
+def root_cpp() -> tuple[bool, str]:
+    """ROOT for C++ macros (root-config on the PATH) -> (available, version)."""
+    exe = shutil.which("root-config")
+    if exe is None:
+        return False, "not installed (root-config not on the PATH)"
+    try:
+        v = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=20)
+        return True, f"{v.stdout.strip()} (C++)"
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, f"root-config failed: {e}"
 
 
 def hydro_gpu() -> tuple[bool, str]:
@@ -199,7 +219,7 @@ def setup(quiet: bool = False, check_root: bool = False) -> Env:
                 if _env.caps["core"][0] else
                 "analysis only" if _env.caps["jetscape"][0] else "no jetscape package")
         print(f"tutorials {version()} | setup: {_env.platform} ({core}) | Python "
-              f"{_platform.python_version()} | data: {_env.data_dir}")
+              f"{_platform.python_version()} | data: {short(_env.data_dir)}")
         if not _env.caps["hdf5plugin"][0]:
             print("  warning: hdf5plugin is missing -- h5py cannot read the compressed "
                   "datasets (pip install hdf5plugin)")
