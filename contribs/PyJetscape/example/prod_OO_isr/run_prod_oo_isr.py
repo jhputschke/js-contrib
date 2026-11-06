@@ -726,13 +726,17 @@ def main() -> int:
             verbose=True)
         pwriter.attach(jetscape, bg=hydro, manager=mgr)   # reads ./music_input: the job's
     from jetscape.hadrons_h5 import HadronH5Writer
+    # the link the readers check (HadronFileReader, run_h5toROOT.py): every hadron file names
+    # the file_uuid of its job's particlize file, as run_prod_jet.py's do
+    uuid_attr = ({"source_uuid": str(pwriter.attrs["file_uuid"])}
+                 if pwriter is not None else {})
     bwriter = pbwriter = iss = None
     if out_bulk:
         iss = tasks["iSS"]
         core.soft_set_compact_output(iss, True)   # arrays, ~8x less memory per oversample
         bwriter = HadronH5Writer(
             out_bulk, tag="bulk_bg", n_samples=a.bulk_hadrons, **selection,
-            attrs={"inline": True, "source": os.path.basename(stem) + ".h5",
+            attrs={"inline": True, "source": os.path.basename(stem) + ".h5", **uuid_attr,
                    "generator": "iSS (X-SCAPE iSpectraSamplerWrapper), in the job",
                    "hadronize_xml": ET.tostring(root.find("SoftParticlization"),
                                                 encoding="unicode"),
@@ -760,7 +764,7 @@ def main() -> int:
                                  hadronization_input=a.store_hadronization_input,
                                  **selection,
                                  attrs={"inline": True, "module": "iColoredHadronization",
-                                        "source": os.path.basename(stem) + ".h5",
+                                        "source": os.path.basename(stem) + ".h5", **uuid_attr,
                                         "pythia_version": int(getattr(core, "PYTHIA_VERSION",
                                                                       0)),
                                         "reseed_per_event": int(getattr(

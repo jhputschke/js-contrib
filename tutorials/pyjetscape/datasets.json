@@ -1,0 +1,67 @@
+{
+  "format": "js-contrib tutorial data sets",
+  "comment": "The OSDF folders the tutorials read. 'path' is below the public namespace /fno4hic; each folder holds the .js_transfer_crc32c.json manifest of js_osdf.py, from which get_data.py lists and checks the files. 'include' picks files by glob (default: all). The tutorial sets live under tutorials/v2/ (data_recipes/make_v2.sh says how each was made) and are never overwritten: the OSDF caches keep a replaced file for a long time, so a changed set is a new version. The other sets are earlier examples.",
+  "osdf_https": "https://osdf-director.osg-htc.org",
+  "namespace": "/fno4hic",
+  "sets": {
+    "oo_test": {
+      "path": "test/OO_test",
+      "size": "1.5 MB",
+      "status": "available",
+      "description": "Three O+O events of the Pythonic workflow (oo_workflow.xml): the bulk hadrons (20 oversamples each) and the jet fragments."
+    },
+    "hadron_read_test": {
+      "path": "test/h5_read_test",
+      "size": "2.8 MB",
+      "status": "available",
+      "description": "One Au+Au 0-10% bulk_jet hadron file, for reader tests."
+    },
+    "auau_jet_event": {
+      "path": "RHIC/AuAu_dijet_viz",
+      "include": [
+        "*.h5",
+        "*.json",
+        "*.xml"
+      ],
+      "size": "0.4 GB",
+      "status": "available",
+      "description": "One Au+Au 0-10% jet event at 200 GeV: the hydro pair (arr, arr_bg), the particlize file, bulk_jet and jet_frag hadrons (no bulk_bg)."
+    },
+    "auau_hadrons_root": {
+      "path": "test/AuAu_0_10_jet_pth10-40_eta06_c1",
+      "size": "2.1 GB",
+      "status": "available",
+      "description": "A Au+Au 0-10% jet campaign (pT-hat 10-40 GeV) converted to ROOT: 60 per-job files and the campaign file. Use --max-files to take a few."
+    },
+    "auau_pair_mini": {
+      "path": "tutorials/v2/AuAu_pair_mini",
+      "size": "1.9 GB",
+      "status": "available",
+      "description": "One 0-10% Au+Au background at 200 GeV with 5 jets (PYTHIA pTHat 30-40 GeV, hard partons at |y| < 0.6): the hydro pair (arr, arr_bg), the particlize file, bulk_jet and bulk_bg with correlated sampling (200 samples each, paired), jet_frag (20 per event), the ROOT files, the job record. The tutorials stream the hydro and fetch the hadron files."
+    },
+    "auau_stats": {
+      "path": "tutorials/v2/AuAu_stats",
+      "size": "0.4 GB",
+      "status": "available",
+      "description": "120 hadron-level 0-10% Au+Au events on 20 backgrounds, 40 in each pTHat window 10-20, 20-30, 30-50 GeV (hard partons at |y| < 0.6): bulk_jet (10 samples per event), bulk_bg (20 per background), jet_frag (10 per event), no positions; the ROOT files and the campaign file with the cross sections."
+    },
+    "pp_ref": {
+      "path": "tutorials/v2/pp_ref",
+      "size": "80 MB",
+      "status": "available",
+      "description": "The vacuum (p+p) reference of auau_stats: 4500 events, 1500 in each pTHat window, the same parton cut, Matter's shower in vacuum and Colorless hadronization (10 fragmentations per event); HDF5 and ROOT."
+    },
+    "oo_mini": {
+      "path": "tutorials/v2/OO_mini",
+      "size": "0.5 GB",
+      "status": "available",
+      "description": "15 O+O events at 200 GeV (b < 3 fm) with initial-state radiation and a hard scattering (pTHat > 20 GeV): the hydro file, the particlize file, the bulk hadrons (50 samples per event) and the jet hadrons, the ROOT file."
+    },
+    "derived": {
+      "path": "tutorials/v2/derived",
+      "size": "4 MB",
+      "status": "available",
+      "description": "Summaries the tutorials read instead of a campaign: wake_observables.h5 and wake_hadrons.h5 of auau_pair_mini; extra_hard_hists.npz, campaign_events.npz and campaign_bulk.json of a minimum-bias Pb+Pb campaign with extra hard scatterings."
+    }
+  }
+}

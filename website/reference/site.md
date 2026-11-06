@@ -34,6 +34,25 @@ static site into `_site/` and stop on any broken link or anchor:
   diagrams, and math (`\( … \)`). See the
   [Material reference](https://squidfunk.github.io/mkdocs-material/reference/).
 
+## The tutorials' notebooks
+
+The [tutorials](../tutorials/index.md) are notebooks in
+[`tutorials/<contrib>/`](https://github.com/jhputschke/js-contrib/tree/main/tutorials), outside
+`website/`. The plugin `mkdocs-jupyter` adds them to the site:
+
+- **How they get in.** Its `notebook_dirs` option mounts each contrib's folder at the same
+  path (`tutorials/pyjetscape/...`).
+- **Not executed here.** The pages show the outputs stored in the notebooks; the build never
+  runs them.
+- **What stays out.** `exclude_docs` leaves out the folders' `README.md` and any downloaded
+  `data/`.
+- **A new notebook** needs an entry under `Tutorials` in the `nav:` of `mkdocs.yml`, and
+  one in its `tutorials.json`.
+
+To execute the tutorials and store their outputs, run
+`python tutorials/run_notebooks.py pyjetscape --inplace`. Do this from a setup without
+paths of your own in it, such as the production container.
+
 ## Publish
 
 Building the site does not publish anything. One way to put it on GitHub Pages at

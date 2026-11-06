@@ -1,0 +1,21 @@
+{
+ "comment": "06_hydro_pair.ipynb on tutorials/v2/AuAu_pair_mini and derived (fixed files).",
+ "de_tau5_max_min": [
+  0.4718261957168579,
+  -0.07764581590890884
+ ],
+ "freezeout_delay": [
+  2.8000001907348633,
+  0.0,
+  0.6000003814697266,
+  2.0,
+  1.1000003814697266
+ ],
+ "ratio_window": [
+  0.665858,
+  0.990874,
+  0.967802,
+  0.887951,
+  0.821702
+ ]
+}

@@ -1,0 +1,12 @@
+{
+ "comment": "11_python_module.ipynb: X-SCAPE runs with fixed seeds (brick, PGun, thermal_loss, LBT, Matter).",
+ "thermal_dE_L5": 10.123122730742903,
+ "lbt_dE_vs_L": [
+  1.5797977351565464,
+  4.515442018714836,
+  7.27998956112603,
+  10.380067397784458,
+  13.127288918583929
+ ],
+ "no_vertex_E_lead": 99.79433067693148
+}
