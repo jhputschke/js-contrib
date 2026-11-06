@@ -88,6 +88,15 @@ def short(path) -> str:
     return "~" + s[len(home):] if home not in ("", "/") and s.startswith(home) else s
 
 
+def _data_label(path) -> str:
+    """The data folder as shown to the reader: relative to the tutorials when it is inside
+    them (the default), else with ~ for the home directory."""
+    try:
+        return str(Path(path).relative_to(HERE)) + "/"
+    except ValueError:
+        return short(path)
+
+
 def in_colab() -> bool:
     return "google.colab" in sys.modules
 
@@ -219,7 +228,7 @@ def setup(quiet: bool = False, check_root: bool = False) -> Env:
                 if _env.caps["core"][0] else
                 "analysis only" if _env.caps["jetscape"][0] else "no jetscape package")
         print(f"tutorials {version()} | setup: {_env.platform} ({core}) | Python "
-              f"{_platform.python_version()} | data: {short(_env.data_dir)}")
+              f"{_platform.python_version()} | data: {_data_label(_env.data_dir)}")
         if not _env.caps["hdf5plugin"][0]:
             print("  warning: hdf5plugin is missing -- h5py cannot read the compressed "
                   "datasets (pip install hdf5plugin)")
@@ -228,7 +237,7 @@ def setup(quiet: bool = False, check_root: bool = False) -> Env:
 
 def version() -> str:
     try:
-        return (HERE / "VERSION").read_text().strip()
+        return (HERE / "VERSION.txt").read_text().strip()
     except OSError:
         return "unknown"
 

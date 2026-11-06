@@ -18,4 +18,4 @@ git cat-file -e "$REF:tutorials/$CONTRIB" 2>/dev/null \
 mkdir -p dist
 OUT="dist/$CONTRIB-tutorials.tar.gz"
 git archive --format=tar.gz --prefix="$CONTRIB-tutorials/" -o "$OUT" "$REF:tutorials/$CONTRIB"
-echo "$OUT: $(tar tzf "$OUT" | wc -l | tr -d ' ') entries, $(du -h "$OUT" | cut -f1), version $(git show "$REF:tutorials/$CONTRIB/VERSION")"
+echo "$OUT: $(tar tzf "$OUT" | wc -l | tr -d ' ') entries, $(du -h "$OUT" | cut -f1), version $(git show "$REF:tutorials/$CONTRIB/VERSION.txt")"

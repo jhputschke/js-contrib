@@ -100,4 +100,4 @@ it otherwise.
 | `get_data.py` | downloads data sets (Python standard library only) |
 | `_common/tutorial_env.py` | the helpers each notebook loads first: detects the setup, registers the HDF5 compression filters, finds the data |
 | `expected/` | the reference results the "check your result" cells compare against |
-| `VERSION` | the version of the tutorials, printed by every notebook |
+| `VERSION.txt` | the version of the tutorials, printed by every notebook (not `VERSION`: on macOS ROOT's compiler would take it for the C++ header `<version>`) |

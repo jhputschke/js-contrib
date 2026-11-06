@@ -10,7 +10,7 @@ name: Tutorials
 #     tarball per contrib (tutorials/make_tarball.sh), downloaded by
 #       curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-vN/pyjetscape-tutorials.tar.gz | tar xz
 #     The release is never marked "latest": that belongs to js-contrib's code releases (v1.x).
-#     Each contrib's VERSION file must read vN, the tag's version.
+#     Each contrib's VERSION.txt must read vN, the tag's version.
 #
 #   git tag tutorials-v1 && git push origin tutorials-v1
 
@@ -59,14 +59,14 @@ jobs:
       - name: Check the versions against the tag
         run: |
           want="${GITHUB_REF_NAME#tutorials-}"
-          for v in tutorials/*/VERSION; do
+          for v in tutorials/*/VERSION.txt; do
             have=$(tr -d '[:space:]' < "$v")
             [ "$have" = "$want" ] || { echo "::error::$v reads '$have', the tag wants '$want'"; exit 1; }
           done
       - name: Build the tarballs
         run: |
           for d in tutorials/*/; do
-            [ -f "$d/VERSION" ] && tutorials/make_tarball.sh "$(basename "$d")"
+            [ -f "$d/VERSION.txt" ] && tutorials/make_tarball.sh "$(basename "$d")"
           done
           ls -l dist
       - name: Create the release (not "latest")

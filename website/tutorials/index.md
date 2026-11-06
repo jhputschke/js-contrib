@@ -28,17 +28,17 @@ match the ones shown. Where it runs X-SCAPE, they can differ slightly from setup
 |---|---|---|---|
 | **Set up and run** ||||
 | 01 | [Check your setup](pyjetscape/01_check_setup.ipynb): what your setup can do, the data, a first file and plot | any setup | ready |
-| 02 | Your first events in Python: three O+O events with the Pythonic interface; change one parameter and see what it does | X-SCAPE | planned |
-| 03 | The production scripts: a background with its jets, the user XML, seeds, p̂<sub>T</sub> windows, hadronization, ROOT conversion, provenance; a mini campaign, then scaling up | X-SCAPE | planned |
+| 02 | [Your first events in Python](pyjetscape/02_first_events.ipynb): three O+O events with the Pythonic interface, the stages of an event, its partons and hadrons; then η/s changed, with everything else kept the same | X-SCAPE | ready |
+| 03 | [The production scripts](pyjetscape/03_production_scripts.ipynb): a real Au+Au job with a reused background, the user and job XML, seeds, p̂<sub>T</sub> windows and cross sections, hadronization, ROOT conversion; campaigns, monitoring and the OSDF | X-SCAPE | ready |
 | **Analysis** ||||
 | 04 | [The files and their provenance](pyjetscape/04_files_and_provenance.ipynb): pair, particlize, hadron and ROOT files of one job, the job record, what to check before combining files | analysis | ready |
-| 05 | Hadrons: spectra and dN/dη, oversamples and events, cross-section weights over p̂<sub>T</sub> windows | analysis | planned |
+| 05 | [Hadrons](pyjetscape/05_hadrons.ipynb): units and oversamples, dN/dη and identified spectra, the event record and bad runs, combining p̂<sub>T</sub> windows with their cross sections, the error budget | analysis | ready |
 | 06 | [**The hydro pair**](pyjetscape/06_hydro_pair.ipynb): where a jet deposits its energy, the wake in the fluid (Mach cone, diffusion wake), whether the fluid keeps the energy, the freeze-out delay | analysis | ready |
 | 07 | [**The hadron pair**](pyjetscape/07_hadron_pair.ipynb): `bulk_jet − bulk_bg (+ jet_frag)` with correlated sampling; the wake around the jets, its energy, spectrum and chemistry | analysis | ready |
-| 08 | Jets with FastJet: ρA subtraction, δp<sub>T</sub> from embedding, the ratio to a pp reference, SoftDrop | analysis | planned |
+| 08 | [Jets with FastJet](pyjetscape/08_jets_fastjet.ipynb): ρA subtraction, random cones and embedding, fake jets, Au+Au against the p+p reference, SoftDrop z<sub>g</sub>, the medium response in the jet cone | analysis | ready |
 | **ROOT** ||||
-| 09 | ROOT files from Python: what `run_h5toROOT.py` writes, uproot, RDataFrame | analysis | planned |
-| 10 | ROOT C++ macros: `HadronFileReader.h`, ACLiC, FastJet in C++ | ROOT | planned |
+| 09 | [ROOT files from Python](pyjetscape/09_root_from_python.ipynb): what `run_h5toROOT.py` writes, uproot (also streamed), the campaign's cross sections, weighted spectra; RDataFrame for PyROOT users | analysis | ready |
+| 10 | [ROOT C++ macros](pyjetscape/10_root_cpp_macros.ipynb): `HadronFileReader.h` with ACLiC, normalised spectra, RDataFrame on RNTuples, anti-k<sub>T</sub> jets with FastJet in C++ | ROOT | ready |
 | **Extending** ||||
 | 11 | Write an energy-loss module in Python, and check it against the C++ module | X-SCAPE | planned |
 | 12 | Write your own in-run writer | X-SCAPE | planned |

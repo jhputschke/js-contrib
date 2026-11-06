@@ -22,7 +22,7 @@
         "xscape"
       ],
       "data": [],
-      "status": "planned"
+      "status": "ready"
     },
     {
       "id": "03",
@@ -32,8 +32,11 @@
       "needs": [
         "xscape"
       ],
-      "data": [],
-      "status": "planned"
+      "data": [
+        "auau_pair_mini",
+        "auau_stats"
+      ],
+      "status": "ready"
     },
     {
       "id": "04",
@@ -59,7 +62,7 @@
       "data": [
         "auau_stats"
       ],
-      "status": "planned"
+      "status": "ready"
     },
     {
       "id": "06",
@@ -102,7 +105,7 @@
         "auau_stats",
         "pp_ref"
       ],
-      "status": "planned"
+      "status": "ready"
     },
     {
       "id": "09",
@@ -113,9 +116,10 @@
         "analysis"
       ],
       "data": [
-        "auau_hadrons_root"
+        "auau_stats",
+        "pp_ref"
       ],
-      "status": "planned"
+      "status": "ready"
     },
     {
       "id": "10",
@@ -126,9 +130,10 @@
         "root"
       ],
       "data": [
-        "auau_hadrons_root"
+        "auau_stats",
+        "pp_ref"
       ],
-      "status": "planned"
+      "status": "ready"
     },
     {
       "id": "11",

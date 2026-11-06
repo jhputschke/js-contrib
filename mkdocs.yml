@@ -179,9 +179,15 @@ nav:
       - Setting up: tutorials/setup.md
       - PyJetscape:
           - 01 Check your setup: tutorials/pyjetscape/01_check_setup.ipynb
+          - 02 Your first events: tutorials/pyjetscape/02_first_events.ipynb
+          - 03 The production scripts: tutorials/pyjetscape/03_production_scripts.ipynb
           - 04 The files and their provenance: tutorials/pyjetscape/04_files_and_provenance.ipynb
+          - 05 Hadrons: tutorials/pyjetscape/05_hadrons.ipynb
           - 06 The hydro pair: tutorials/pyjetscape/06_hydro_pair.ipynb
           - 07 The hadron pair: tutorials/pyjetscape/07_hadron_pair.ipynb
+          - 08 Jets with FastJet: tutorials/pyjetscape/08_jets_fastjet.ipynb
+          - 09 ROOT files from Python: tutorials/pyjetscape/09_root_from_python.ipynb
+          - 10 ROOT C++ macros: tutorials/pyjetscape/10_root_cpp_macros.ipynb
   - Reference:
       - reference/index.md
       - Contribs and repositories: reference/contribs.md

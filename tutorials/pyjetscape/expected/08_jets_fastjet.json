@@ -1,0 +1,22 @@
+{
+ "comment": "08_jets_fastjet.ipynb on tutorials/v2/AuAu_stats and pp_ref. rho, random cones and the embedding use FastJet's ghosts, whose positions are random in the Python bindings: checked with tolerances.",
+ "n_frag_jets": [
+  970,
+  67196
+ ],
+ "ratio_aa_pp": [
+  0.11797275730242532,
+  0.05754031726859229,
+  0.14469432137267174,
+  0.36150615077641024,
+  0.09484581830037311
+ ],
+ "mean_zg": [
+  0.22875046472148933,
+  0.2440635534968038
+ ],
+ "medium_pt_in_cone": 1.1190789731844841,
+ "rho_bkg": 61.25995858755862,
+ "random_cone_width": 5.552725091789826,
+ "dpt_emb_mean": 0.1848790593291721
+}
