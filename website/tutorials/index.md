@@ -31,10 +31,10 @@ match the ones shown. Where it runs X-SCAPE, they can differ slightly from setup
 | 02 | Your first events in Python: three O+O events with the Pythonic interface; change one parameter and see what it does | X-SCAPE | planned |
 | 03 | The production scripts: a background with its jets, the user XML, seeds, p̂<sub>T</sub> windows, hadronization, ROOT conversion, provenance; a mini campaign, then scaling up | X-SCAPE | planned |
 | **Analysis** ||||
-| 04 | The files and their provenance: pair, particlize and hadron files, the job record, what to check before combining files | analysis | planned |
+| 04 | [The files and their provenance](pyjetscape/04_files_and_provenance.ipynb): pair, particlize, hadron and ROOT files of one job, the job record, what to check before combining files | analysis | ready |
 | 05 | Hadrons: spectra and dN/dη, oversamples and events, cross-section weights over p̂<sub>T</sub> windows | analysis | planned |
-| 06 | **The hydro pair**: the jet and background fluids, Δε, the wake (Mach cone, diffusion wake), deposited against lost energy | analysis | planned |
-| 07 | **The hadron pair**: jet-induced hadrons, `bulk_jet − bulk_bg + jet_frag`, the depletion behind the jet, Δφ and ΔR profiles | analysis | planned |
+| 06 | [**The hydro pair**](pyjetscape/06_hydro_pair.ipynb): where a jet deposits its energy, the wake in the fluid (Mach cone, diffusion wake), whether the fluid keeps the energy, the freeze-out delay | analysis | ready |
+| 07 | [**The hadron pair**](pyjetscape/07_hadron_pair.ipynb): `bulk_jet − bulk_bg (+ jet_frag)` with correlated sampling; the wake around the jets, its energy, spectrum and chemistry | analysis | ready |
 | 08 | Jets with FastJet: ρA subtraction, δp<sub>T</sub> from embedding, the ratio to a pp reference, SoftDrop | analysis | planned |
 | **ROOT** ||||
 | 09 | ROOT files from Python: what `run_h5toROOT.py` writes, uproot, RDataFrame | analysis | planned |
@@ -43,12 +43,15 @@ match the ones shown. Where it runs X-SCAPE, they can differ slightly from setup
 | 11 | Write an energy-loss module in Python, and check it against the C++ module | X-SCAPE | planned |
 | 12 | Write your own in-run writer | X-SCAPE | planned |
 | **Advanced** ||||
-| 13 | Bulk and flow: N<sub>ch</sub>, ⟨p<sub>T</sub>⟩, v₂(p<sub>T</sub>) against data | analysis | planned |
-| 14 | Machine-learned hydro: the live FNO and FastHydro against MUSIC | source build with PyTorch | planned |
-| 15 | 3D visualization of an event | PyVista | planned |
+| 13 | Bulk and flow: N<sub>ch</sub>, ⟨p<sub>T</sub>⟩, v₂(p<sub>T</sub>) against data | analysis | later |
+| 14 | Machine-learned hydro: the live FNO and FastHydro against MUSIC | source build with PyTorch | later |
+| 15 | 3D visualization of an event | PyVista | later |
 
 *X-SCAPE*: the production container or the Mac wheel (or a source build). *Analysis*: any
-setup, Colab included. Tutorial 01 tells you which tutorials run where you are.
+setup, Colab included. Tutorial 01 tells you which tutorials run where you are. The advanced
+tutorials (*later*) follow once the comparisons with measured data have been tested further;
+until then the tutorials compare the model only with itself (jet against background, Au+Au
+against p+p).
 
 ## The data
 

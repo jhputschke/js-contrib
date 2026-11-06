@@ -124,8 +124,10 @@ python get_data.py auau_hadrons_root --max-files 3 # the first three files of a 
 - To keep the data elsewhere, use `--to DIR` and set `JS_TUTORIAL_DATA=DIR` for the
   notebooks.
 
-The data sets for the planned tutorials (a complete Au+Au pair set, a small O+O campaign,
-a pp reference) will go to `osdf:///fno4hic/tutorials/v1/`. They will never be
+The tutorials' data sets (a complete Au+Au pair set, a hadron-level Au+Au campaign in three
+p̂<sub>T</sub> windows, its p+p reference, a small O+O campaign) are in
+`osdf:///fno4hic/tutorials/v2/`; `data_recipes/make_v2.sh` in the tutorial folder says how
+each was made. They will never be
 overwritten, so a tutorial release and its data stay together.
 
 ## Troubleshooting
