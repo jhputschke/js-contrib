@@ -393,7 +393,10 @@ The orientation triad sits above the lower-left read-out, not in the corner wher
 overlapped the text.
 
 **Test event.** `out_viz/AuAu_0_10_jet_seed0003.h5` (Au+Au 0–10 %, pT̂ 30–40 GeV, wake on;
-tested on an M3 Max on 2026-11-06):
+tested on an M3 Max on 2026-11-06). The event, its hadron and particlize files, and the four
+movies are on the OSDF in `osdf:///fno4hic/RHIC/AuAu_dijet_viz/`. Get them with
+`utils/remote_transfer/js_osdf.py download RHIC/AuAu_dijet_viz --to ~` (all of it, 0.4 GB), or
+see the docs site's "Example data" for the pieces. Made with:
 
 ```bash
 cd ../PyJetscape/example/prod_AuAu_0_10_jet

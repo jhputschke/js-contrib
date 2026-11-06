@@ -117,6 +117,64 @@ python hydro_jet_particles_pyvista.py --file ~/zjet_viz/AuAu_0_10_jet_seed0201.h
 - The two scripts are described below: [the jet wake](#the-jet-wake-wake_pyvistapy) and
   [hadrons after freeze-out](#hadrons-after-freeze-out-hydro_jet_particles_pyvistapy).
 
+## Example data: an Au+Au dijet event on the OSDF
+
+The example for [`full_event_pyvista.py`](#the-whole-event-full_event_pyvistapy) is
+**`osdf:///fno4hic/RHIC/AuAu_dijet_viz/`**: one central Au+Au event with a dijet, from the two
+nuclei to the hadrons. It holds the full hydro evolution with and without the jet's deposit,
+the hadrons, and the four movies made from them.
+
+![The whole event at t = 6 fm/c, with the wake inset](../assets/img/auau_dijet_full_event_frame.jpg)
+
+*t = 6.0 fm/c in `full_event_species_wake.mp4`: the medium (MUSIC_2) with the two jets (s quark
+in yellow, u quark in magenta), the spectator nucleons flying off along the beam, the first
+hadrons by species, and in the inset the jet wake, Δe = e(with deposit) − e(without).*
+
+| file | size | content | needed by |
+|---|---|---|---|
+| `AuAu_0_10_jet_seed0003.h5` | 233 MB | the pair file: both MUSIC legs (the medium without and with the jet's deposit) frame by frame on the 3+1D grid, with the shower | all the movies |
+| `AuAu_0_10_jet_seed0003.json`, `.xml` | 9 kB | the run's settings and its X-SCAPE XML | |
+| `…_hadrons_bulk_jet.h5`, `…_hadrons_jet_frag.h5` | 4.4 MB | the hadrons: iSS on the jet leg's freeze-out surface (20 samples), and the jet's fragmentation (20) | the hadron phase |
+| `…_particlize.h5` | 161 MB | the freeze-out surfaces of both legs, to run iSS again with `hadronize.py` (e.g. for `bulk_bg`) | not needed for the movies |
+| `full_event_species.mp4`, `full_event_pt.mp4`, `full_event_species_wake.mp4`, `full_event_pt_wake.mp4`, and a `_frame.png` of each | 8.4 MB | the four movies: hadrons by species and jet leg, or by pT; with and without the wake inset | |
+
+**The event:** Au+Au at √s<sub>NN</sub> = 200 GeV, 0–10 %, from the
+[Au+Au jet production](../run/auau-jet.md) (`run_prod_jet.py --seed 3 --pthat-min 30
+--pthat-max 40 --write-particlize both`): 3D MC-Glauber strings, PythiaGun p̂<sub>T</sub>
+30–40 GeV, Matter + LBT, the CausalLiquefier into MUSIC_2, EOS 91. The dijet runs along ±y:
+an s quark of p<sub>T</sub> 35.9 GeV and a u quark of 34.2 GeV, which leave 5 droplets in the
+medium. The movies show bulk sample 9 (7258 hadrons) and fragmentation 10 (16 jet hadrons), with
+synthetic nuclei at b = 3.5 fm (`--glauber-seed 7`).
+
+**Download and render.** As for the Z+jet example: `js_osdf.py` needs no environment of its
+own, and the script runs in the [analysis environment](../install/analysis-env.md):
+
+```bash
+cd js-contrib/utils/remote_transfer
+./js_osdf.py download 'RHIC/AuAu_dijet_viz/*.mp4' --to ~/AuAu_dijet_viz     # only the movies (6.8 MB)
+./js_osdf.py download RHIC/AuAu_dijet_viz --what pair --to ~                # the pair file -> ~/AuAu_dijet_viz/ (233 MB)
+./js_osdf.py download 'RHIC/AuAu_dijet_viz/*_hadrons_*' --to ~/AuAu_dijet_viz   # its hadron files (4.4 MB)
+
+cd ../../contribs/Visualization
+F=~/AuAu_dijet_viz/AuAu_0_10_jet_seed0003.h5
+# the movies on the OSDF (each ~1 min on an M3 Max; drop --wake-inset for the plain ones)
+python full_event_pyvista.py --file $F --nt 120 --z-oversample 3 --framerate 10 \
+    --glauber-seed 7 --sample 9 --frag-sample 10 --wake-inset --movie full_event_species_wake.mp4
+python full_event_pyvista.py --file $F --nt 120 --z-oversample 3 --framerate 10 \
+    --glauber-seed 7 --sample 9 --frag-sample 10 --wake-inset --color-by pt --movie full_event_pt_wake.mp4
+# try your own: another sampling, thicker nuclei, a mid-rapidity cut, an interactive window
+python full_event_pyvista.py --file $F --gamma-vis 8 --hadron-eta-max 1.5 --interactive
+```
+
+- **Memory.** 120 frames with `--z-oversample 3` peak at about 18 GB, because every frame is kept.
+  On a smaller machine use `--nt 60` or leave out `--z-oversample`. A 6-frame test takes a few
+  seconds.
+- **Other samples.** Leave out `--sample`/`--frag-sample`/`--glauber-seed` for a fresh random
+  choice; the run prints how to reproduce it. The other hadron files (`bulk_bg`, more samples)
+  can be made from the particlize file with `hadronize.py`.
+- **The EoS table** is EOS 91's, as for the Z+jet example ([see there](#example-data-a-pbpb-zjet-event-on-the-osdf)).
+- The same pair file also works with `wake_pyvista.py` and `hydro_jet_particles_pyvista.py`.
+
 ## From Milne to the lab frame
 
 For each lab time \(t\) the script sweeps \(z\) and maps back to Milne, as X-SCAPE's

@@ -21,6 +21,7 @@ The test data named in this documentation:
 | `test/h5_read_test/` | a small Au+Au hadron file, to try reading in place |
 | `test/OO_test/` | the hadron files of an O+O `oo_workflow` run, read in place by the notebook `pythonic/oo_analysis.ipynb` |
 | `LHC/zjet_viz/` | two Pb+Pb Z+jet events with their full hydro evolution (pair file, 0.93 GB), hadron files and movies: the example for [3D visualization](../python/visualization.md#example-data-a-pbpb-zjet-event-on-the-osdf) of the medium and the jet wake |
+| `RHIC/AuAu_dijet_viz/` | one Au+Au 0–10 % dijet event (p̂<sub>T</sub> 30–40 GeV) with its full hydro evolution (pair file, 233 MB), hadron files and four movies: the example for [`full_event_pyvista.py`](../python/visualization.md#example-data-an-auau-dijet-event-on-the-osdf), from the colliding nuclei to the hadrons |
 
 ## The transfer tool: `js_osdf.py`
 
