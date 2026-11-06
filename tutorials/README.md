@@ -1,5 +1,10 @@
 # js-contrib tutorials
 
+> [!WARNING]
+> Work in progress: the tutorials are examples of how to run the simulation and use its
+> outputs, not vetted physics results. Their data sets are small, so the statistics are
+> low, and their analyses have not been checked to the standard of a publication.
+
 Step-by-step tutorials, one folder per contrib:
 
 | folder | contrib | status |

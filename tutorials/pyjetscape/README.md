@@ -9,6 +9,11 @@ Hands-on tutorials for X-SCAPE with js-contrib:
 Each tutorial explains the physics behind what it shows, and ends with a check of its
 results and suggestions for what to try next.
 
+> [!WARNING]
+> Work in progress: the tutorials are examples of how to run the simulation and use its
+> outputs, not vetted physics results. Their data sets are small, so the statistics are
+> low, and their analyses have not been checked to the standard of a publication.
+
 Start with **`01_check_setup.ipynb`**. It runs anywhere, tells you which of the other
 tutorials run in your setup, and reads a first file. The full list is in
 [`tutorials.json`](tutorials.json).

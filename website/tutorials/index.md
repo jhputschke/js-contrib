@@ -19,8 +19,13 @@ The outputs shown were produced on an Apple Silicon Mac, in the environment the 
 else says so at its top. Where a tutorial reads fixed example files, your numbers should
 match the ones shown. Where it runs X-SCAPE, they can differ slightly from setup to setup.
 
-!!! info "In progress"
-    The tutorials are being written. The list below shows which ones are ready.
+!!! warning "Work in progress: examples, not vetted physics results"
+    The tutorials and their analyses are work in progress and need further vetting. They are
+    meant mainly as **examples of how to run the simulation and use its outputs**. The data
+    sets are small (one background with five jets, a hundred-odd events, a few O+O events), so
+    the statistics are low, and the definitions and procedures have not been checked to the
+    standard of a publication. Treat every number and figure as an illustration, not as a
+    physics result, and see the [note on the analysis section](../analysis/index.md).
 
 ## PyJetscape
 
