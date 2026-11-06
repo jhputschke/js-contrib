@@ -188,6 +188,8 @@ nav:
           - 08 Jets with FastJet: tutorials/pyjetscape/08_jets_fastjet.ipynb
           - 09 ROOT files from Python: tutorials/pyjetscape/09_root_from_python.ipynb
           - 10 ROOT C++ macros: tutorials/pyjetscape/10_root_cpp_macros.ipynb
+          - 11 An energy-loss module in Python: tutorials/pyjetscape/11_python_module.ipynb
+          - 12 Your own in-run writer: tutorials/pyjetscape/12_python_writer.ipynb
   - Reference:
       - reference/index.md
       - Contribs and repositories: reference/contribs.md

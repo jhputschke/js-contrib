@@ -40,8 +40,8 @@ match the ones shown. Where it runs X-SCAPE, they can differ slightly from setup
 | 09 | [ROOT files from Python](pyjetscape/09_root_from_python.ipynb): what `run_h5toROOT.py` writes, uproot (also streamed), the campaign's cross sections, weighted spectra; RDataFrame for PyROOT users | analysis | ready |
 | 10 | [ROOT C++ macros](pyjetscape/10_root_cpp_macros.ipynb): `HadronFileReader.h` with ACLiC, normalised spectra, RDataFrame on RNTuples, anti-k<sub>T</sub> jets with FastJet in C++ | ROOT | ready |
 | **Extending** ||||
-| 11 | Write an energy-loss module in Python, and check it against the C++ module | X-SCAPE | planned |
-| 12 | Write your own in-run writer | X-SCAPE | planned |
+| 11 | [Write an energy-loss module in Python](pyjetscape/11_python_module.ipynb): how X-SCAPE calls a module, a temperature-dependent energy loss in a brick, named in the XML, compared with LBT and MATTER + LBT; cost and pitfalls | X-SCAPE | ready |
+| 12 | [Write your own in-run writer](pyjetscape/12_python_writer.ipynb): code that sees each event while it runs; the cooling and flow of O+O fireballs written to HDF5 and compared with Bjorken's picture | X-SCAPE | ready |
 | **Advanced** ||||
 | 13 | Bulk and flow: N<sub>ch</sub>, ⟨p<sub>T</sub>⟩, v₂(p<sub>T</sub>) against data | analysis | later |
 | 14 | Machine-learned hydro: the live FNO and FastHydro against MUSIC | source build with PyTorch | later |
