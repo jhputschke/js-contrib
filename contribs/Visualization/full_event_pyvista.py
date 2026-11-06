@@ -105,8 +105,8 @@ NUCLEON_STYLE = {
 }
 
 #: species classes: (key, legend label, colour)
-SPECIES = (("pion", "pions", "#4f9dff"),
-           ("kaon", "kaons", "#3ddc84"),
+SPECIES = (("pion", "pions (pi\u00b1, pi0)", "#4f9dff"),
+           ("kaon", "kaons (K\u00b1, K0)", "#3ddc84"),
            ("proton", "(anti)protons", "#ff5a5a"),
            ("resonance", "resonances", "#ffb13d"),
            ("other", "other", "#b8b8c8"))
@@ -412,7 +412,7 @@ def _set_legend(plotter, entries):
     except Exception:          # no legend yet
         pass
     if entries:
-        h = 0.026 * len(entries) + 0.01
+        h = 0.024 * len(entries) + 0.01
         leg = plotter.add_legend(labels=[list(e) for e in entries], bcolor=hp.PANEL_GREY,
                                  border=False, size=(0.26, h), loc="upper right",
                                  face="circle", background_opacity=0.6)
@@ -433,23 +433,22 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
     pt_mode = args.color_by == "pt"
     clim = info["pt_clim"]
     state = {"legend": None, "bar": False, "anchor": False}
-    species_legend_n = {}
-    if bulk is not None:
-        species_legend_n = {k: int((bulk.cls == i).sum()) for i, (k, _, _) in
-                            enumerate(SPECIES)}
+    n_sample = (np.bincount(bulk.cls, minlength=len(SPECIES)) if bulk is not None
+                else np.zeros(len(SPECIES), dtype=int))
 
     def leg_color(i):
         return legs[i][1] if 0 <= i < len(legs) else UNASSIGNED
 
-    def legend_entries(phase):
-        out = []
-        if phase == "nuclei":
-            out += [(lab.format(info["nucleus"]), col) for lab, col in
-                    (NUCLEON_STYLE[k] for k in ("proj_part", "proj_spec",
-                                                "targ_part", "targ_spec"))]
-        if phase == "hadrons" and not pt_mode:
-            out += [(f"{lab} ({species_legend_n.get(k, 0)})", col)
-                    for k, lab, col in SPECIES]
+    def legend_entries(nuc_drawn, shown):
+        """The nucleon classes on screen, then (once any bulk hadron is) the species with
+        `shown / in the sample` -- most of a sample is emitted after the last frame or far
+        along the beam, so the totals alone overstate what is drawn."""
+        out = [(NUCLEON_STYLE[k][0].format(info["nucleus"]), NUCLEON_STYLE[k][1])
+               for k in ("proj_part", "proj_spec", "targ_part", "targ_spec")
+               if k in nuc_drawn]
+        if shown.sum() and not pt_mode:
+            out += [(f"{lab}  {n} / {n_tot}", col) for (_, lab, col), n, n_tot
+                    in zip(SPECIES, shown, n_sample)]
         if not pt_mode and not args.jet_color:
             out += list(legs)
         return out
@@ -468,7 +467,7 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
             state["bar"] = True
 
         # ── nuclei ───────────────────────────────────────────────────────────
-        n_nuc = 0
+        nuc_drawn = []
         for key, (pos, alpha) in (nuclei.at(t).items() if nuclei is not None else ()):
             if len(pos) and key.endswith("_spec"):
                 pos = pos[np.abs(pos[:, 2]) < info["z_box"]]       # gone once out of the box
@@ -476,7 +475,7 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
             if alpha <= 0.0 or not len(pos):
                 plotter.remove_actor(name, reset_camera=False)
                 continue
-            n_nuc += len(pos)
+            nuc_drawn.append(key)
             g = pv.PolyData(np.ascontiguousarray(pos)).glyph(geom=glyph, scale=False,
                                                             orient=False)
             plotter.add_mesh(g, name=name, color=NUCLEON_STYLE[key][1], opacity=alpha,
@@ -521,13 +520,13 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
             on, pos = bulk.state(t)
             n_bulk = len(pos)
             cls = bulk.cls[on]
+            shown = np.bincount(cls, minlength=len(SPECIES))
             if pt_mode:
                 _add_points(plotter, "bulk", pos, args.bulk_size, pT=bulk.pT[on],
                             cmap=args.jet_cmap, clim=clim, opacity=args.bulk_opacity)
             else:
                 for i, (k, _, col) in enumerate(SPECIES):
                     m = cls == i
-                    shown[i] = int(m.sum())
                     _add_points(plotter, "bulk_" + k, pos[m], args.bulk_size, color=col,
                                 opacity=args.bulk_opacity)
 
@@ -550,17 +549,17 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
                                 color=leg_color(i))
 
         # ── legend, read-outs ────────────────────────────────────────────────
-        phase = "nuclei" if n_nuc else ("hadrons" if n_bulk or n_frag else "partons")
-        if phase != state["legend"]:
-            _set_legend(plotter, legend_entries(phase))
-            state["legend"] = phase
+        entries = legend_entries(nuc_drawn, shown)
+        if entries != state["legend"]:            # the counts change every frame
+            _set_legend(plotter, entries)
+            state["legend"] = entries
 
         if t < 0:
             stage = "approach"
         elif t < info["tau0"]:
             stage = "collision, hard scattering, pre-equilibrium"
         elif t <= info["tau_end"]:
-            stage = "QGP: MUSIC_2 (medium + jet wake), hadrons emitted at freeze-out"
+            stage = "QGP: MUSIC_2 (medium + wake), freeze-out"
         else:
             stage = "hadrons free-streaming"
         # under hydro_pyvista's "event / t =" label (the window is 1008 x 800 pixels)
@@ -568,11 +567,9 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
                          color="#ffe9a8", shadow=True)
 
         lines = [info["header"]]
-        if n_bulk and not pt_mode:
-            lines.append("bulk hadrons shown " + ", ".join(
-                f"{lab} {n}" for (_, lab, _), n in zip(SPECIES, shown) if n))
-        elif n_bulk:
-            lines.append(f"bulk hadrons shown {n_bulk}")
+        if n_bulk:
+            lines.append(f"bulk hadrons shown {n_bulk} / {int(n_sample.sum())}: " + ", ".join(
+                f"{k} {n}" for (k, _, _), n in zip(SPECIES, shown) if n))
         if frag is not None:
             lines.append(f"jet hadrons shown {n_frag} / {len(frag)}"
                          + ("  (large points)" if pt_mode else ""))

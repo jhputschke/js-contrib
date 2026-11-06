@@ -367,7 +367,14 @@ partons, and `jet_frag` has no hadron→parton link. `--leg-dr-max R` leaves had
 than R from every leg white, and `--jet-hadron-color species` colours the jet hadrons by
 species instead (they stay the larger points). The files hold **final-state** hadrons, so
 the resonance class only holds what iSS leaves undecayed: η and Σ⁰ (electromagnetic
-decays), 272 of 7258 hadrons on the test event. `--color-by pt` puts every hadron and
+decays), 272 of 7258 hadrons on the test event. The legend counts per frame,
+`shown / in the sample`, because most of a sample never appears: at t = 21 fm/c 3263 of
+the 7258 are drawn, while the rest are emitted later or far along the beam. The lower-left
+read-out lists the same counts, in `pt` mode too. "Kaons" are K± and K⁰/K̄⁰: iSS keeps the
+neutral kaons as K⁰ (pid ±311), not as K⁰_S/K⁰_L. On the test sample that gives all K / all π =
+0.24 (four kaon states against three pion states), while K⁺/π⁺ = 0.18 (averaged over all
+20 samples), the thermal value at T_fo = 150 MeV without a hadronic afterburner. STAR
+measures about 0.16 in 0–5 % Au+Au. `--color-by pt` puts every hadron and
 parton on **one** logarithmic pT scale (`--jet-cmap`, from `--pt-scale-min` = 0.1 GeV up to
 the hardest parton or hadron), and the jet hadrons are told apart by their larger points.
 
