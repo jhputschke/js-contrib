@@ -56,6 +56,6 @@ Both commands create a folder `pyjetscape-tutorials/`. To start Jupyter in each 
   version (`v3`); fixes to the notebooks on the same data are `v2.1`, `v2.2`, ... (There
   was no `tutorials-v1`: the data v1 was withdrawn before a release.)
 - **Website.** The site renders the notebooks with their stored outputs
-  (`mkdocs-jupyter`; the hook `utils/mkdocs_hooks/tutorials.py` adds them to the site).
+  (`mkdocs-jupyter`, whose `notebook_dirs` in `mkdocs.yml` adds them to the site).
   Commit a notebook either without outputs, or executed with outputs that do not depend
   on your machine.
