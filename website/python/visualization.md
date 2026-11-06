@@ -284,6 +284,8 @@ python full_event_pyvista.py --file <out>/AuAu_0_10_jet_seed0003.h5 --color-by p
   holds what iSS leaves undecayed (η, Σ⁰).
 - **`--color-by pt`**: every hadron and parton on one logarithmic pT scale; jet hadrons are the
   larger points.
+- **`--wake-inset`** (opt-in): a small view in the lower right with the jet wake
+  Δe = e(MUSIC_2) − e(MUSIC_1) and the partons during the hydro phase.
 
 The full documentation, with the reasoning behind every visual choice:
 [`contribs/Visualization/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/Visualization/README.md).

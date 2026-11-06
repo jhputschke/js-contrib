@@ -378,6 +378,20 @@ measures about 0.16 in 0–5 % Au+Au. `--color-by pt` puts every hadron and
 parton on **one** logarithmic pT scale (`--jet-cmap`, from `--pt-scale-min` = 0.1 GeV up to
 the hardest parton or hadron), and the jet hadrons are told apart by their larger points.
 
+**Wake inset (`--wake-inset`, opt-in).** It adds a small view in the lower right that shows
+the jet wake Δe = e(MUSIC_2) − e(MUSIC_1) during the hydro phase (τ₀ ≤ t ≤ τ_end), with the
+partons drawn in it. This reads the background leg `arr_bg` too. The wake is a signed volume
+in `wake_pyvista.py`'s style: `--wake-cmap` (default coolwarm, red = more energy, blue =
+less) and an opacity ramp that is transparent at zero. The colour limit is the 99.9th
+percentile of |Δe| (0.09 GeV/fm³ on the test event; `--wake-clim` sets it). The inset is
+a second VTK renderer drawn over the main one, with the same camera orientation, fitted
+to the medium box. It is resampled on its own coarser grid (`--inset-n`, default 64³) at
+the movie's hydro-phase frames, which adds about 4 s to a 120-frame movie. The inset
+is not drawn outside the hydro phase.
+
+The orientation triad sits above the lower-left read-out, not in the corner where it
+overlapped the text.
+
 **Test event.** `out_viz/AuAu_0_10_jet_seed0003.h5` (Au+Au 0–10 %, pT̂ 30–40 GeV, wake on;
 tested on an M3 Max on 2026-11-06):
 
@@ -398,7 +412,8 @@ or drop `--z-oversample` on a smaller machine.
 
 Options beyond `hydro_jet_particles_pyvista.py`'s: `--nucleus`, `--sqrt-s`, `--impact-b`,
 `--glauber-seed`, `--gamma-vis`, `--nucleon-radius`, `--participant-fade`, `--no-align`,
-`--no-nuclei` (start at t = 0 without the initial state), `--flash-time`, `--color-by`,
+`--no-nuclei` (start at t = 0 without the initial state), `--flash-time`, `--wake-inset`,
+`--inset-n`, `--wake-cmap`, `--wake-clim`, `--color-by`,
 `--jet-hadron-color`, `--leg-colors`, `--leg-dr-max`, `--pt-scale-min`. The default parton
 radius is 0.1 fm (`--jet-radius`), thicker than `hydro_jet_pyvista.py`'s, since the arrows
 cross a lit medium here.

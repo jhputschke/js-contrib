@@ -154,3 +154,23 @@ def test_no_medium_before_it_forms_and_none_mirrored_at_negative_t():
         f = hp.cartesian_frame(interp, t, axes, meta, want_velocity=True)
         assert f["e"].max() == 0.0 and f["v"].shape == (5, 5, 9, 3)
     assert hp.cartesian_frame(interp, 2.0, axes, meta, False)["e"].max() > 0.0
+
+
+# ── wake inset ────────────────────────────────────────────────────────────────
+
+def test_wake_frames_only_in_the_hydro_phase_and_a_symmetric_clim():
+    from types import SimpleNamespace
+    meta = dict(tau_min=0.5, dtau=0.5, ntau=6, x_min=-2.0, dx=1.0, nx=5, y_min=-2.0,
+                dy=1.0, ny=5, eta_min=-2.0, deta=1.0, neta=5, has_eta=True)
+    diff = np.zeros((6, 5, 5, 5, 5), np.float32)
+    diff[..., 2, 2, 2, 0] = 0.3                     # a wake at the centre, every frame
+    diff[3, 1, 1, 2, 0] = -0.2
+    args = SimpleNamespace(nxy=96, nz=96, inset_n=9, z_max=2.0, t_max=6.0, jobs=1,
+                           wake_clim=None)
+    ts = np.linspace(-3.0, 6.0, 10)                 # tau_end = 3
+    frames, axes, clim = fe.wake_frames(diff, meta, args, ts, 2.0)
+    assert sorted(frames) == [float(t) for t in ts if 0.5 <= t <= 3.0]
+    assert len(axes[0]) == 9 and len(axes[2]) == 9
+    assert clim[0] == -clim[1] and 0 < clim[1] <= 0.3 + 1e-6
+    args.wake_clim = -0.05
+    assert fe.wake_frames(diff, meta, args, ts, 2.0)[2] == (-0.05, 0.05)

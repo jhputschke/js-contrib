@@ -72,10 +72,12 @@ leave next to each other (see `hydro_jet_particles_pyvista.py`).
 
 from __future__ import annotations
 
+import copy
 import os
 import re
 import secrets
 import sys
+from contextlib import contextmanager
 
 import numpy as np
 
@@ -120,6 +122,11 @@ LONG_LIVED_HADRONS = (111, 211, 130, 310, 311, 321, 2112, 2212, 3122, 3112, 3222
 #: default jet-leg colours (leading leg first); white = not assigned (--leg-dr-max)
 LEG_COLORS = "#ffd400,#ff4fd8,#7cfc00,#ff6b3d"
 UNASSIGNED = "#ffffff"
+#: where the orientation triad goes (normalized viewport): above the lower-left read-out,
+#: which hydro_pyvista's default corner (0, 0, 0.2, 0.2) runs into
+TRIAD_VIEWPORT = (0.0, 0.15, 0.16, 0.31)
+#: the wake inset (normalized viewport): lower right, left of the energy-density bar
+INSET_VIEWPORT = (0.585, 0.015, 0.865, 0.315)
 QUARK_NAMES = {1: "d", 2: "u", 3: "s", 4: "c", 5: "b", 6: "t", 21: "g"}
 
 
@@ -423,16 +430,76 @@ def _set_legend(plotter, entries):
         leg.SetPosition2(0.27, h)
 
 
-def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
+# ──────────────────────────────────────────────────────────────────────────────
+# The wake inset (--wake-inset)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def wake_frames(diff, meta, args, ts, xy_max):
+    """Resample the wake de = e(MUSIC_2) - e(MUSIC_1) at the movie's hydro-phase times.
+
+    -> (dict {t: (nx, ny, nz) de}, the inset's Cartesian axes, symmetric clim).  On a
+    coarser grid than the main view (--inset-n), and only at tau_0 <= t <= tau_end: the
+    inset is not drawn outside that window.  The colour limit is the 99.9th percentile of
+    |de| over the non-zero cells, as in wake_pyvista.py, so the first droplets' spike
+    does not wash the wake out (--wake-clim sets it by hand).
+    """
+    ia = copy.copy(args)
+    ia.nxy = ia.nz = args.inset_n
+    axes = hp.cartesian_axes(meta, ia, args.t_max, xy_max)
+    tau0 = meta["tau_min"]
+    tau_end = tau0 + (meta["ntau"] - 1) * meta["dtau"]
+    hyd = [float(t) for t in ts if tau0 <= t <= tau_end]
+    frames = hp.resample_frames(hp.build_interpolator(diff, meta), hyd, axes, meta, False,
+                                max(1, min(args.jobs, len(hyd) or 1)))
+    out = {t: f["e"] for t, f in zip(hyd, frames)}
+    if args.wake_clim is not None:
+        m = abs(args.wake_clim)
+    else:
+        vals = (np.concatenate([np.abs(e)[np.abs(e) > 0].ravel() for e in out.values()])
+                if out else np.zeros(0))
+        m = float(np.percentile(vals, 99.9)) if vals.size else 1.0
+    return out, axes, (-m, m)
+
+
+@contextmanager
+def _on_renderer(plotter, index):
+    """Make renderer `index` the plotter's active one (add_mesh, add_text ... go there)."""
+    old = plotter.renderers._active_index
+    plotter.renderers._active_index = index
+    try:
+        yield
+    finally:
+        plotter.renderers._active_index = old
+
+
+def add_inset_renderer(plotter, viewport):
+    """A second renderer over part of the window -> its index in plotter.renderers.
+
+    pyvista lays subplots side by side and has no inset; this adds a vtkRenderer with its
+    own viewport and camera on top of the main one (same layer, added later, so it draws
+    over it with its own background).  It is registered with pyvista's renderer list, so
+    `_on_renderer` can make it active and the usual add_* calls work on it.
+    """
+    import pyvista as pv
+    ren = pv.Renderer(plotter, border=True, border_color="#5a6470", border_width=1.5)
+    ren.SetViewport(*viewport)
+    ren.set_background(hp.PANEL_GREY)
+    plotter.ren_win.AddRenderer(ren)
+    plotter.renderers._renderers.append(ren)
+    return len(plotter.renderers._renderers) - 1
+
+
+def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info, wake=None):
     """overlay(plotter, t) for hydro_pyvista.render_event.
 
     `legs`: list of (label, colour) per initiator; `seg["leg"]` is each parton's leg.
     `info`: dict with t_vertex, vertex, t_off (partons off), tau0, tau_end, box, anchor,
     pt_clim, header, z_box, nucleus.
+    `wake`: None, or (frames {t: de}, axes, clim) from `wake_frames` for the inset.
     """
     pt_mode = args.color_by == "pt"
     clim = info["pt_clim"]
-    state = {"legend": None, "bar": False, "anchor": False}
+    state = {"legend": None, "bar": False, "anchor": False, "inset": None}
     n_sample = (np.bincount(bulk.cls, minlength=len(SPECIES)) if bulk is not None
                 else np.zeros(len(SPECIES), dtype=int))
 
@@ -461,6 +528,27 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
                                 for z in (lo[2], hi[2])], float)
             plotter.add_mesh(pv.PolyData(corners), opacity=0.0, name="cam_anchor",
                              reset_camera=False, show_scalar_bar=False)
+            # the orientation triad, moved off the read-out text
+            plotter.renderer.hide_axes()
+            plotter.add_axes(xlabel="x", ylabel="y", zlabel="z", line_width=3,
+                             labels_off=False, color="white", viewport=TRIAD_VIEWPORT)
+            if wake is not None:
+                state["inset"] = add_inset_renderer(plotter, INSET_VIEWPORT)
+                wbox = hp._scene_bounds(wake[1])
+                with _on_renderer(plotter, state["inset"]):
+                    plotter.add_mesh(pv.Box(bounds=wbox).outline(), color="#7d8a96",
+                                     name="wake_box", reset_camera=False,
+                                     show_scalar_bar=False)
+                    plotter.add_text(f"jet wake  de = e(jet) - e(no jet)\n"
+                                     f"+-{wake[2][1]:.2g} GeV/fm³  (red +, blue -)",
+                                     name="wake_title", position="upper_left",
+                                     font_size=8, color="white", shadow=False)
+                    plotter.camera_position = [(1.0, 0.0, 0.0), (0.0, 0.0, 0.0),
+                                               (0.0, 1.0, 0.0)]
+                    plotter.camera.azimuth = args.azimuth
+                    plotter.camera.elevation = args.elevation
+                    plotter.renderer.reset_camera(bounds=wbox)
+                    plotter.camera.zoom(1.4)
             state["anchor"] = True
         if pt_mode and not state["bar"]:
             _add_pt_bar(plotter, clim, args.jet_cmap)
@@ -495,23 +583,44 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
 
         # ── partons ──────────────────────────────────────────────────────────
         n_legs_drawn = max(len(legs), 1)
-        if seg is not None and t < info["t_off"]:
+        on_partons = seg is not None and t < info["t_off"]
+        if on_partons:
             tips = parton_tips(seg, t)
             draw = (t >= seg["t0"]) & (np.linalg.norm(tips - seg["starts"], axis=1) > 1e-4)
-            if pt_mode:
+
+        def partons(prefix):
+            if not on_partons:
+                for i in range(-1, n_legs_drawn):
+                    _add_partons(plotter, f"{prefix}_{i}", [], [], [], args.jet_radius)
+                _add_partons(plotter, prefix, [], [], [], args.jet_radius)
+            elif pt_mode:
                 d = draw
-                _add_partons(plotter, "partons", seg["starts"][d], tips[d], seg["dirs"][d],
+                _add_partons(plotter, prefix, seg["starts"][d], tips[d], seg["dirs"][d],
                              args.jet_radius, pT=seg["pT"][d], cmap=args.jet_cmap, clim=clim)
             else:
                 for i in range(-1, n_legs_drawn):
                     d = draw & (seg["leg"] == i)
-                    col = args.jet_color or leg_color(i)
-                    _add_partons(plotter, f"partons_{i}", seg["starts"][d], tips[d],
-                                 seg["dirs"][d], args.jet_radius, color=col)
-        else:
-            for i in range(-1, n_legs_drawn):
-                _add_partons(plotter, f"partons_{i}", [], [], [], args.jet_radius)
-            _add_partons(plotter, "partons", [], [], [], args.jet_radius)
+                    _add_partons(plotter, f"{prefix}_{i}", seg["starts"][d], tips[d],
+                                 seg["dirs"][d], args.jet_radius,
+                                 color=args.jet_color or leg_color(i))
+
+        partons("partons")
+
+        # ── wake inset: drawn only in the hydro phase ───────────────────────
+        if state["inset"] is not None:
+            ren = plotter.renderers._renderers[state["inset"]]
+            de = min(wake[0], key=lambda s: abs(s - t), default=None)
+            if de is not None and abs(de - t) < 1e-6:
+                ren.SetDraw(True)
+                grid = hp.make_image_data({"e": wake[0][de], "T": wake[0][de]}, wake[1])
+                with _on_renderer(plotter, state["inset"]):
+                    plotter.add_volume(grid, scalars="e", cmap=args.wake_cmap,
+                                       clim=wake[2], opacity=wp.DIVERGING_OPACITY,
+                                       name="wake_vol", reset_camera=False,
+                                       show_scalar_bar=False)
+                    partons("wake_partons")
+            else:
+                ren.SetDraw(False)
 
         # ── bulk hadrons ─────────────────────────────────────────────────────
         shown = np.zeros(len(SPECIES), dtype=int)
@@ -568,7 +677,8 @@ def make_overlay(*, nuclei, glyph, seg, legs, bulk, frag, args, info):
 
         lines = [info["header"]]
         if n_bulk:
-            lines.append(f"bulk hadrons shown {n_bulk} / {int(n_sample.sum())}: " + ", ".join(
+            lines.append(f"bulk hadrons shown {n_bulk} / {int(n_sample.sum())}:")
+            lines.append("  " + ", ".join(
                 f"{k} {n}" for (k, _, _), n in zip(SPECIES, shown) if n))
         if frag is not None:
             lines.append(f"jet hadrons shown {n_frag} / {len(frag)}"
@@ -632,6 +742,18 @@ def build_parser():
     c.add_argument("--leg-dr-max", type=float, default=None, dest="leg_dr_max",
                    help="jet hadrons further than this from every initiator in "
                         "(eta, phi) are drawn white (default: all assigned)")
+    w = p.add_argument_group("wake inset (opt-in)")
+    w.add_argument("--wake-inset", action="store_true", dest="wake_inset",
+                   help="add an inset (lower right) with the jet wake de = e(MUSIC_2) - "
+                        "e(MUSIC_1) and the partons during the hydro phase; reads the "
+                        "background leg arr_bg too")
+    w.add_argument("--inset-n", type=int, default=64, dest="inset_n",
+                   help="the inset's Cartesian grid points per axis (default 64)")
+    w.add_argument("--wake-cmap", default="coolwarm", dest="wake_cmap",
+                   help="diverging colour map of the wake (default coolwarm)")
+    w.add_argument("--wake-clim", type=float, default=None, dest="wake_clim",
+                   help="|de| at full colour in GeV/fm^3 (default: the 99.9th percentile "
+                        "of |de|, as wake_pyvista.py)")
     c.add_argument("--pt-scale-min", type=float, default=0.1, dest="pt_scale_min",
                    help="lower end of the log pT scale in GeV (default 0.1)")
     # thicker parton arrows than hydro_jet_pyvista's 0.04 fm: they cross a lit medium here
@@ -656,7 +778,8 @@ def main(argv=None):
         args.outdir = os.path.join(_THIS_DIR, args.outdir)
 
     print(f"=== {args.file}  event {args.event} ===")
-    panels, meta, attrs = wp.load_pair(args.file, args.event, ("jet",),
+    panels, meta, attrs = wp.load_pair(args.file, args.event,
+                                       ("jet", "diff") if args.wake_inset else ("jet",),
                                        eos_table=args.eos_table)
     arr = panels["jet"]
     tau0 = meta["tau_min"]
@@ -786,13 +909,20 @@ def main(argv=None):
     if nuclei is not None:
         header += f"\nsynthetic nuclei: b = {b:.1f} fm, N_part = {nuclei.n_part}"
     header += (f"\nbulk sample {had['k']}/{had['n_k']}, fragmentation "
-               f"{had['j']}/{had['n_j']};  partons -> jet hadrons at t = {t_frag:.1f} fm/c")
+               f"{had['j']}/{had['n_j']}\npartons -> jet hadrons at t = {t_frag:.1f} fm/c")
     info = dict(t_vertex=float(had["t_vertex"]), vertex=np.asarray(had["vertex"], float),
                 t_off=t_off, tau0=tau0, tau_end=tau_max, box=box, anchor=(lo, hi),
                 pt_clim=(args.pt_scale_min, pt_max), header=header, z_box=args.z_max,
                 nucleus=nucleus)
+    wake = None
+    if args.wake_inset:
+        nt = args.nt if args.nt is not None else min(meta["ntau"], 50)
+        ts = np.linspace(args.t_min, args.t_max, max(1, nt))     # = render_event's frames
+        wake = wake_frames(panels.pop("diff"), meta, args, ts, xy_max)
+        print(f"  wake inset: {len(wake[0])} hydro-phase frames on a {args.inset_n}^3 grid, "
+              f"|de| colour limit {wake[2][1]:.3g} GeV/fm^3")
     overlay = make_overlay(nuclei=nuclei, glyph=glyph, seg=seg, legs=legs, bulk=bulk,
-                           frag=frag, args=args, info=info)
+                           frag=frag, args=args, info=info, wake=wake)
     hp.render_event(args.event, arr, meta, args, overlay=overlay)
     print(f"Done. Outputs in {os.path.abspath(args.outdir)}/")
     return 0
