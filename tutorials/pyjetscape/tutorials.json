@@ -1,0 +1,198 @@
+{
+  "format": "js-contrib tutorial index",
+  "comment": "The PyJetscape tutorials in learning order. 'needs' names what a tutorial requires (see _common/tutorial_env.py, REQUIREMENTS); 'data' names sets of datasets.json. 01_check_setup.ipynb reads this file to say which tutorials run where.",
+  "tutorials": [
+    {
+      "id": "01",
+      "file": "01_check_setup.ipynb",
+      "title": "Check your setup",
+      "track": "Set up and run",
+      "needs": [],
+      "data": [
+        "oo_test"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "02",
+      "file": "02_first_events.ipynb",
+      "title": "Your first events in Python",
+      "track": "Set up and run",
+      "needs": [
+        "xscape"
+      ],
+      "data": [],
+      "status": "ready"
+    },
+    {
+      "id": "03",
+      "file": "03_production_scripts.ipynb",
+      "title": "The production scripts",
+      "track": "Set up and run",
+      "needs": [
+        "xscape"
+      ],
+      "data": [
+        "auau_pair_mini",
+        "auau_stats"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "04",
+      "file": "04_files_and_provenance.ipynb",
+      "title": "The files and their provenance",
+      "track": "Analysis",
+      "needs": [
+        "analysis"
+      ],
+      "data": [
+        "auau_pair_mini"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "05",
+      "file": "05_hadrons.ipynb",
+      "title": "Hadrons: spectra, dN/deta, oversamples and weights",
+      "track": "Analysis",
+      "needs": [
+        "analysis"
+      ],
+      "data": [
+        "auau_stats"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "06",
+      "file": "06_hydro_pair.ipynb",
+      "title": "The hydro pair: the wake in the fluid",
+      "track": "Analysis",
+      "needs": [
+        "analysis"
+      ],
+      "data": [
+        "auau_pair_mini",
+        "derived"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "07",
+      "file": "07_hadron_pair.ipynb",
+      "title": "The hadron pair: the wake in hadrons",
+      "track": "Analysis",
+      "needs": [
+        "analysis"
+      ],
+      "data": [
+        "auau_pair_mini"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "08",
+      "file": "08_jets_fastjet.ipynb",
+      "title": "Jets with FastJet",
+      "track": "Analysis",
+      "needs": [
+        "analysis",
+        "fastjet"
+      ],
+      "data": [
+        "auau_stats",
+        "pp_ref"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "09",
+      "file": "09_root_from_python.ipynb",
+      "title": "ROOT files from Python: uproot and RDataFrame",
+      "track": "ROOT",
+      "needs": [
+        "analysis"
+      ],
+      "data": [
+        "auau_stats",
+        "pp_ref"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "10",
+      "file": "10_root_cpp_macros.ipynb",
+      "title": "ROOT C++ macros and FastJet in C++",
+      "track": "ROOT",
+      "needs": [
+        "root"
+      ],
+      "data": [
+        "auau_stats",
+        "pp_ref"
+      ],
+      "status": "ready"
+    },
+    {
+      "id": "11",
+      "file": "11_python_module.ipynb",
+      "title": "Write an energy-loss module in Python",
+      "track": "Extending",
+      "needs": [
+        "xscape"
+      ],
+      "data": [],
+      "status": "ready"
+    },
+    {
+      "id": "12",
+      "file": "12_python_writer.ipynb",
+      "title": "Write your own in-run writer",
+      "track": "Extending",
+      "needs": [
+        "xscape"
+      ],
+      "data": [],
+      "status": "ready"
+    },
+    {
+      "id": "13",
+      "file": "13_bulk_flow.ipynb",
+      "title": "Bulk and flow",
+      "track": "Advanced",
+      "needs": [
+        "analysis"
+      ],
+      "data": [
+        "derived"
+      ],
+      "status": "planned"
+    },
+    {
+      "id": "14",
+      "file": "14_ml_hydro.ipynb",
+      "title": "Machine-learned hydro: FNO and FastHydro",
+      "track": "Advanced",
+      "needs": [
+        "xscape",
+        "torch"
+      ],
+      "data": [],
+      "status": "planned"
+    },
+    {
+      "id": "15",
+      "file": "15_visualization.ipynb",
+      "title": "3D visualization of an event",
+      "track": "Advanced",
+      "needs": [
+        "viz"
+      ],
+      "data": [
+        "auau_jet_event"
+      ],
+      "status": "planned"
+    }
+  ]
+}
