@@ -297,6 +297,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, Matter/LBT")
+    rp.add_eloss_threads_arg(p)
     rp.add_workdir_args(p)
     rp.add_h5_args(p)
     return p.parse_args()
@@ -674,6 +675,7 @@ def job_xml(a, out_h5: str):
                             "come from hadronize.py; --validate-inline adds its own blocks)")
     if a.validate_inline and not problems:
         add_inline_hadronization(root, a.hadronize_xml)
+    problems += rp.apply_eloss_threads(a, root, a.main_xml)
     if problems:
         sys.exit(f"run_prod_jet.py: {a.user_xml}:\n  " + "\n  ".join(problems))
 
@@ -1354,6 +1356,10 @@ def main() -> int:
           + (", HADRONS ONLY (no pair or particlize file)" if a.hadrons_only else ""))
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
+    if a.eloss_threads:
+        print(f"  showers  in parallel, <Eloss><nThreads> {a.eloss_threads}"
+              + (f" (OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS', 'unset')})"
+                 if a.eloss_threads < 0 else ""))
     print(f"  grid     {a.grid}")
     if a.native:
         print("  grid     MUSIC native: " + ", ".join(
@@ -1402,6 +1408,7 @@ def main() -> int:
         "prod_surface": a.surface,
         "prod_write_particlize": a.write_particlize,
         "prod_bulk_info": a.bulk_info,
+        "prod_eloss_threads": a.eloss_threads,
         **({"prod_particlize_only": True, "prod_jet_leg_read": False}
            if a.particlize_only else {}),
         **({"prod_hadrons_only": True} if a.hadrons_only else {}),

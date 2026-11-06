@@ -10,6 +10,8 @@
 #   ./run_jobs.sh 20 25 0                              # unique seeds -> ./out/OO_isr_<start time>_00NN.*
 #   ./run_jobs.sh 20 25 1                              # seeds 1..20 -> ./out/OO_isr_seed00NN.*
 #   ./run_jobs.sh -j 4 --mps 20 25 0 out_b5 --b-max 5  # 4 at a time, GPU shared via CUDA MPS
+#   OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out_par --eloss-threads -1
+#                                                    # showers in parallel, 5 threads per job
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROD_SCRIPT="$HERE/run_prod_oo_isr.py"
 export TAG_PREFIX="${TAG_PREFIX:-OO_isr_seed}"   # or the caller's (TAG_PREFIX=..._seed)

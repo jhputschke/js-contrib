@@ -244,6 +244,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, iMATTER, Matter")
+    rp.add_eloss_threads_arg(p)
     rp.add_workdir_args(p)
     rp.add_h5_args(p)
     return p.parse_args()
@@ -364,6 +365,7 @@ def job_xml(a, out_h5: str):
         if root.find(tag) is not None:
             problems.append(f"remove <{tag}>: iSS runs offline on the stored surface "
                             "(hadronize.py), and there is no deposition")
+    problems += rp.apply_eloss_threads(a, root, a.main_xml)
     if problems:
         sys.exit(f"run_prod_oo_isr.py: {a.user_xml}:\n  " + "\n  ".join(problems))
     if a.bulk_hadrons > 0:
@@ -564,6 +566,10 @@ def main() -> int:
           + (", NO SUBTRACTION (reference)" if a.no_subtraction else ""))
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
+    if a.eloss_threads:
+        print(f"  showers  in parallel, <Eloss><nThreads> {a.eloss_threads}"
+              + (f" (OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS', 'unset')})"
+                 if a.eloss_threads < 0 else ""))
     print(f"  grid     {a.grid}")
     print(rp.describe(grid, max_ntau))
     for path in (None if a.no_hydro_file else out_h5, out_particlize, out_bulk,
@@ -624,6 +630,7 @@ def main() -> int:
         "prod_grid_yaml": grid_text,
         "prod_hard": hard,
         "prod_bulk_info": a.bulk_info,
+        "prod_eloss_threads": a.eloss_threads,
         "system": system,
         "initial_state_kind": "3dMCGlauber_strings_after_ISR",
         "hydro": rp.hydro_label(a.build),
@@ -773,7 +780,7 @@ def main() -> int:
                                         **{k: v for k, v in provenance.items()
                                            if k in ("prod", "prod_seed", "system",
                                                     "prod_hard", "subtract_hard_momentum",
-                                                    "eos", "eloss")}})
+                                                    "eos", "eloss", "prod_eloss_threads")}})
 
     n = n_hydro = no_medium = 0
     colour_totals = None          # iColored's colour audits added up (the log summary)

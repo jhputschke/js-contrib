@@ -262,6 +262,10 @@
        also the ISR range: iMATTER showers back to -maxT and the final-state shower starts
        there (as in PythiaIsrMUSIC). -->
   <Eloss>
+    <!-- <nThreads> -1 </nThreads>: the showers of an event in parallel (OpenMP), as many
+         threads as OMP_NUM_THREADS; X-SCAPE's main XML documents it.  Default 0 (serial).
+         Changes the events (own random streams per shower): one setting per campaign,
+         best set per job with the eloss-threads option of run_prod_*.py, which records it. -->
     <deltaT> 0.1 </deltaT>
     <maxT> 50 </maxT>
     <!-- With a hydro (MUSIC) Matter and LBT replace tStart by the hydro's start time,

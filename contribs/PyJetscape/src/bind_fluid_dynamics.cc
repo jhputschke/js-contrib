@@ -24,6 +24,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <atomic>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -244,7 +245,8 @@ public:
   //   * a Python exception raised here would propagate through sigslot out of
   //     JetEnergyLoss::DoExecTime(), where nothing catches it.
   // The body is fully general because a Python hydro owns bulk_info completely.
-  mutable std::size_t n_out_of_range_ = 0;
+  // atomic: with <Eloss><nThreads> the showers query the medium from several threads
+  mutable std::atomic<std::size_t> n_out_of_range_{0};
 
   // Snap a query coordinate that sits a hair outside the grid back onto the boundary.
   //

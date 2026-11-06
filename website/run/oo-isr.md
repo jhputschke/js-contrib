@@ -137,12 +137,14 @@ the bulk file; the bulk's N oversamples share one fluid.
 | `--store-hadronization-input` | | keep what was handed to Pythia, so `rehadronize_jets.py` can redo the jet hadrons later |
 | `--no-subtraction` | | the reference without the hard-momentum subtraction (counts the hard pair's energy twice, on purpose); keep it in its own OUTDIR |
 | `--late-dtau 0` | late step on | MUSIC at a constant 0.02 fm/c; keep one setting per campaign |
+| `--eloss-threads -1` | 0 (serial) | the final-state showers of an event in parallel, `OMP_NUM_THREADS` threads: events ~13 % faster (GB10, 4 threads). Changes the showers of a seed, not with the thread count: one setting per campaign |
 | `--max-skipped N` | 3 | stop the job when more events fail |
 
 !!! note "Choices that change the jets of a seed"
     X-SCAPE seeds each module from the order it was made. `--bulk-hadrons` and
     `--no-hydro-file` change that order, so the same seed gives other, equally valid jet
-    showers (the hydro is identical). Keep one choice per campaign if jets of different jobs
+    showers (the hydro is identical). `--eloss-threads` (any value but 0) does the same: every
+    shower gets streams of its own. Keep one choice per campaign if jets of different jobs
     are to be compared event by event.
 
 Before combining files, check the settings every file records (subtraction, b range,
