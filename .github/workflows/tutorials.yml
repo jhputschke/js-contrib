@@ -6,9 +6,10 @@ name: Tutorials
 #     (tutorials/make_tarball.sh), downloaded by
 #       curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-vN/pyjetscape-tutorials.tar.gz | tar xz
 #     The release is never marked "latest": that belongs to js-contrib's code releases (v1.x).
-#     Each contrib's VERSION.txt must read vN, the tag's version.
+#     Each contrib's VERSION.txt must read vN, the tag's version. The major version is the
+#     data's (osdf:///fno4hic/tutorials/vN/); notebook fixes on the same data are vN.1, ...
 #
-#   git tag tutorials-v1 && git push origin tutorials-v1
+#   git tag tutorials-v2 && git push origin tutorials-v2
 #
 # The tutorials are checked by hand for now, before tagging:
 #

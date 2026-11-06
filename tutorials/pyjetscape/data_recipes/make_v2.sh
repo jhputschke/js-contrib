@@ -10,7 +10,7 @@
 # Apple Silicon Mac (M3 Max), in the environment the xscape wheel 0.2.0 is built in, with
 # MUSIC on the GPU (Metal).  Each set is one directory below $OUT; the seeds are fixed, so
 # the same build gives the same events.  Uploaded sets are never overwritten: a changed set
-# is a new version (v3, ...): the OSDF caches keep a replaced file for a long time.  (v1 was
+# is a new version (v3, ..., and tutorials-v3): the OSDF caches keep a replaced file for a long time.  (v1 was
 # withdrawn before any release: its pair set's hadrons were remade with correlated sampling.)
 set -euo pipefail
 

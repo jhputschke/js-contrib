@@ -24,10 +24,11 @@ with curl:
 === "A release"
 
     ```bash
-    curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v1/pyjetscape-tutorials.tar.gz | tar xz
+    curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz | tar xz
     ```
 
-    A release (`tutorials-vN`) is fixed, and goes with a fixed version of the data.
+    A release (`tutorials-vN`) is fixed, and goes with a fixed version of the data:
+    `tutorials-v2` reads the data in `tutorials/v2/` on the OSDF.
 
 === "The main branch"
 
@@ -50,7 +51,7 @@ the wheel will also carry the tutorials.
     but not `curl`). Then start JupyterLab in the image with `xscape-jupyter`:
 
     ```bash
-    mkdir -p work && (cd work && curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v1/pyjetscape-tutorials.tar.gz | tar xz)
+    mkdir -p work && (cd work && curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz | tar xz)
     docker run --rm -it --gpus all --user "$(id -u):$(id -g)" -p 8888:8888 \
       -v "$PWD/work:/work" jhputschke/xscape-prod:cu126 xscape-jupyter /work/pyjetscape-tutorials
     ```

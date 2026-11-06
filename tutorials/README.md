@@ -24,7 +24,7 @@ version:
 
 ```bash
 # a release
-curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v1/pyjetscape-tutorials.tar.gz | tar xz
+curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz | tar xz
 
 # the main branch
 mkdir pyjetscape-tutorials && curl -L https://codeload.github.com/jhputschke/js-contrib/tar.gz/refs/heads/main \
@@ -51,6 +51,10 @@ Both commands create a folder `pyjetscape-tutorials/`. To start Jupyter in each 
   `dist/<contrib>-tutorials.tar.gz`. Pushing a tag `tutorials-vN` publishes the tarballs
   as a GitHub release (`.github/workflows/tutorials.yml`). That release is never marked
   "latest", which belongs to js-contrib's code releases.
+- **Versions.** The tutorials' version follows their data: `tutorials-v2` reads the data
+  in `osdf:///fno4hic/tutorials/v2/`. A new data set is a new OSDF folder and a new major
+  version (`v3`); fixes to the notebooks on the same data are `v2.1`, `v2.2`, ... (There
+  was no `tutorials-v1`: the data v1 was withdrawn before a release.)
 - **Website.** The site renders the notebooks with their stored outputs
   (`mkdocs-jupyter`; the hook `utils/mkdocs_hooks/tutorials.py` adds them to the site).
   Commit a notebook either without outputs, or executed with outputs that do not depend

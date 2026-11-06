@@ -21,7 +21,7 @@ tutorials run in your setup, and reads a first file. The full list is in
 ## 1. Get the tutorials
 
 ```bash
-curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v1/pyjetscape-tutorials.tar.gz | tar xz
+curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz | tar xz
 cd pyjetscape-tutorials
 ```
 
@@ -38,7 +38,7 @@ tutorials on the host, into the directory you mount; the image has `wget` but no
 
 ```bash
 mkdir -p work && cd work
-curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v1/pyjetscape-tutorials.tar.gz | tar xz
+curl -L https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz | tar xz
 cd ..
 docker run --rm -it --gpus all --user "$(id -u):$(id -g)" -p 8888:8888 \
   -v "$PWD/work:/work" jhputschke/xscape-prod:cu126 xscape-jupyter /work/pyjetscape-tutorials
