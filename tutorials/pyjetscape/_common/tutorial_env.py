@@ -290,6 +290,38 @@ def h5(set_name: str, filename: str, stream: bool | None = None, block_mb: int =
     return h5py.File(src, "r")
 
 
+def files(set_name: str) -> dict:
+    """{filename: size in bytes} of a set, from its OSDF manifest (local files if the set
+    is downloaded and the OSDF cannot be reached)."""
+    sys.path.insert(0, str(HERE))
+    import get_data
+    try:
+        return {k: v["size"] for k, v in get_data.manifest(datasets(), set_name).items()}
+    except Exception:                                # noqa: BLE001
+        d = data_dir() / set_name
+        return {p.name: p.stat().st_size for p in sorted(d.iterdir()) if p.is_file()}
+
+
+def read_text(set_name: str, filename: str) -> str:
+    """A small text file of a set (a job's .json or .xml): local, else over HTTPS."""
+    src = data(set_name, filename)
+    if src.startswith("https://"):
+        req = urllib.request.Request(src, headers={"User-Agent": "js-contrib-tutorials"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.read().decode()
+    return Path(src).read_text()
+
+
+def fetch(set_name: str, include=None, quiet: bool = False) -> Path:
+    """Download the files of a set that a tutorial reads from local disk (``include``: globs,
+    default all) into the data directory, once -> the set's local directory.  Files already
+    there are kept; get_data.py does the work."""
+    sys.path.insert(0, str(HERE))
+    import get_data
+    return get_data.fetch_set(set_name, data_dir(), include=include, quiet=quiet,
+                              cfg=datasets())
+
+
 def check_osdf(timeout: float = 30) -> dict:
     """Fetch the namespace's test object over HTTPS -> {ok, cache, seconds, error}."""
     cfg = datasets()

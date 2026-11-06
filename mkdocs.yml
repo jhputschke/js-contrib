@@ -179,6 +179,9 @@ nav:
       - Setting up: tutorials/setup.md
       - PyJetscape:
           - 01 Check your setup: tutorials/pyjetscape/01_check_setup.ipynb
+          - 04 The files and their provenance: tutorials/pyjetscape/04_files_and_provenance.ipynb
+          - 06 The hydro pair: tutorials/pyjetscape/06_hydro_pair.ipynb
+          - 07 The hadron pair: tutorials/pyjetscape/07_hadron_pair.ipynb
   - Reference:
       - reference/index.md
       - Contribs and repositories: reference/contribs.md

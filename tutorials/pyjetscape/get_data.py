@@ -7,6 +7,7 @@ get_data.py -- download the tutorials' data from the OSDF, with nothing but Pyth
     python get_data.py auau_jet_event --to ~/data     # -> ~/data/auau_jet_event/
     python get_data.py auau_hadrons_root --max-files 3
     python get_data.py auau_jet_event --dry-run       # what would be fetched
+    python get_data.py auau_pair_mini --include '*_hadrons_*.h5' '*_particlize.h5' 
 
 The sets are listed in datasets.json next to this script.  The files come over plain
 HTTPS from the OSDF director, which redirects to a nearby cache: no login, no curl, no
@@ -98,6 +99,12 @@ def _crc32c_of(path: Path) -> str | None:
     return base64.b64encode(digest()).decode()
 
 
+def _short(path) -> str:
+    """``path`` with the home directory written as ~ (output gets shared in notebooks)."""
+    s, home = str(path), str(Path.home())
+    return "~" + s[len(home):] if home not in ("", "/") and s.startswith(home) else s
+
+
 def _fmt(n: float) -> str:
     for unit in ("B", "kB", "MB", "GB", "TB"):
         if n < 1000 or unit == "TB":
@@ -148,8 +155,10 @@ def fetch_file(url: str, dest: Path, size: int, crc: str | None = None,
 
 
 def fetch_set(set_name: str, dest_root: Path | None = None, max_files: int | None = None,
-              dry_run: bool = False, cfg: dict | None = None, quiet: bool = False) -> Path:
-    """Download a set into ``dest_root/set_name`` -> that directory."""
+              dry_run: bool = False, cfg: dict | None = None, quiet: bool = False,
+              include: list | None = None) -> Path:
+    """Download a set into ``dest_root/set_name`` -> that directory.  ``include``: only the
+    files matching one of these globs."""
     cfg = cfg or load_sets()
     if set_name not in cfg["sets"]:
         raise KeyError(f"no set {set_name!r}; known: {', '.join(cfg['sets'])}")
@@ -158,11 +167,13 @@ def fetch_set(set_name: str, dest_root: Path | None = None, max_files: int | Non
         raise RuntimeError(f"{set_name} is planned, not uploaded yet ({info['path']})")
     dest = (dest_root or default_dest()) / set_name
     files = manifest(cfg, set_name)
+    if include:
+        files = {k: v for k, v in files.items() if any(fnmatch.fnmatch(k, p) for p in include)}
     if max_files:
         files = dict(list(files.items())[:max_files])
     total = sum(v["size"] for v in files.values())
     if not quiet:
-        print(f"{set_name}: {len(files)} file(s), {_fmt(total)} -> {dest}")
+        print(f"{set_name}: {len(files)} file(s), {_fmt(total)} -> {_short(dest)}")
     for name, meta in files.items():
         if dry_run:
             print(f"  would fetch {name}  ({_fmt(meta['size'])})")
@@ -182,6 +193,8 @@ def main(argv=None) -> int:
     p.add_argument("--list", action="store_true", help="list the sets and exit")
     p.add_argument("--to", type=Path, help="destination directory (one folder per set)")
     p.add_argument("--max-files", type=int, help="take only the first N files of each set")
+    p.add_argument("--include", nargs="+", metavar="GLOB",
+                   help="only the files matching one of these patterns (quote them)")
     p.add_argument("--dry-run", action="store_true", help="show what would be fetched")
     a = p.parse_args(argv)
     cfg = load_sets()
@@ -194,7 +207,8 @@ def main(argv=None) -> int:
         return 0
     try:
         for name in a.sets:
-            fetch_set(name, a.to.expanduser() if a.to else None, a.max_files, a.dry_run, cfg)
+            fetch_set(name, a.to.expanduser() if a.to else None, a.max_files, a.dry_run, cfg,
+                      include=a.include)
     except (KeyError, RuntimeError, IOError, urllib.error.URLError) as e:
         print(f"get_data.py: {e}", file=sys.stderr)
         return 1
