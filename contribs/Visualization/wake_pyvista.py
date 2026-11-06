@@ -427,7 +427,8 @@ def load_shower(path, event=0, min_energy=0.0):
         t0=start[:, 3], t1=np.where(splits, end[:, 3], start[:, 3]),
         energy=par[:, 8], pT=np.hypot(p[:, 0], p[:, 1]),
         dirs=dirs, vel=velocities(par),
-        is_leaf=~splits & ~absorbed)
+        is_leaf=~splits & ~absorbed,
+        shower=par[:, 0].astype(int))       # = the initiator's `shower` column
 
 
 def leading_parton(path, event=0):

@@ -14,6 +14,7 @@ The output is a GIF or MP4 movie, a ParaView time series, or an interactive wind
 | `hydro_jet_pyvista.py` | the medium plus the jet's parton shower as growing arrows | a build (live), or a dump + an ASCII output file |
 | `wake_pyvista.py` | three panels: medium without the deposit, with it, and the difference | a pair file (FastHydro or the Au+Au jet production) |
 | `hydro_jet_particles_pyvista.py` | one production event from the hard scattering to the free-streaming hadrons | a pair file and its hadron files |
+| `full_event_pyvista.py` | the same event from two nuclei approaching at t < 0 to the hadrons, hadrons coloured by species and jet leg, or by pT | a pair file and its hadron files |
 
 ## Requirements
 
@@ -258,6 +259,31 @@ It reads the pair file and, next to it, the hadron files that `hadronize.py` wri
 More options: `--stream-time`, `--hadron-pt-min`, `--parton-off`, `--no-bulk`, `--no-frag`,
 `--no-jet`, `--hadron-stem`, `--bulk-color`, `--bulk-size`, `--bulk-opacity`, `--frag-size`,
 `--eos-table`.
+
+## The whole event: `full_event_pyvista.py`
+
+The same event and files, starting before the collision. Two Lorentz-contracted nuclei approach
+at t < 0 and collide at t = 0: the participants fade out, the spectators fly on, and a flash
+marks the hard scattering. Then come the shower, the medium (MUSIC_2: background + wake) and the
+hadrons.
+
+```bash
+python full_event_pyvista.py --file <out>/AuAu_0_10_jet_seed0003.h5 \
+    --nt 120 --z-oversample 3 --framerate 10 --movie full_event.mp4
+python full_event_pyvista.py --file <out>/AuAu_0_10_jet_seed0003.h5 --color-by pt \
+    --nt 120 --z-oversample 3 --framerate 10 --movie full_event_pt.mp4
+```
+
+- **The nuclei are synthetic**: the production files hold no nucleon positions. The script
+  samples Woods–Saxon nuclei at an impact parameter from the file's centrality class, with `b`
+  turned along the medium's participant plane. `--impact-b`, `--glauber-seed` and
+  `--gamma-vis` (draw them thicker than the true γ ≈ 107) control it.
+- **`--color-by species`** (default): bulk hadrons as pions, kaons, (anti)protons, resonances
+  and other; partons and jet hadrons by jet leg (each jet hadron takes the colour of the
+  initiator nearest to it in (η, φ)). The files hold final-state hadrons, so "resonances" only
+  holds what iSS leaves undecayed (η, Σ⁰).
+- **`--color-by pt`**: every hadron and parton on one logarithmic pT scale; jet hadrons are the
+  larger points.
 
 The full documentation, with the reasoning behind every visual choice:
 [`contribs/Visualization/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/Visualization/README.md).
