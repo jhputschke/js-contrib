@@ -1,0 +1,63 @@
+{
+  "format": "js-contrib tutorial data sets",
+  "comment": "The OSDF folders the tutorials read. 'path' is below the public namespace /fno4hic; each folder holds the .js_transfer_crc32c.json manifest of js_osdf.py, from which get_data.py lists and checks the files. 'include' picks files by glob (default: all). 'planned' sets are not uploaded yet. The v1 sets will live under tutorials/v1/ and are never overwritten; the interim sets point at the existing test and example folders.",
+  "osdf_https": "https://osdf-director.osg-htc.org",
+  "namespace": "/fno4hic",
+  "sets": {
+    "oo_test": {
+      "path": "test/OO_test",
+      "size": "1.5 MB",
+      "status": "available",
+      "description": "Three O+O events of the Pythonic workflow (oo_workflow.xml): the bulk hadrons (20 oversamples each) and the jet fragments."
+    },
+    "hadron_read_test": {
+      "path": "test/h5_read_test",
+      "size": "2.8 MB",
+      "status": "available",
+      "description": "One Au+Au 0-10% bulk_jet hadron file, for reader tests."
+    },
+    "auau_jet_event": {
+      "path": "RHIC/AuAu_dijet_viz",
+      "include": ["*.h5", "*.json", "*.xml"],
+      "size": "0.4 GB",
+      "status": "available",
+      "description": "One Au+Au 0-10% jet event at 200 GeV: the hydro pair (arr, arr_bg), the particlize file, bulk_jet and jet_frag hadrons (no bulk_bg)."
+    },
+    "auau_hadrons_root": {
+      "path": "test/AuAu_0_10_jet_pth10-40_eta06_c1",
+      "size": "2.1 GB",
+      "status": "available",
+      "description": "A Au+Au 0-10% jet campaign (pT-hat 10-40 GeV) converted to ROOT: 60 per-job files and the campaign file. Use --max-files to take a few."
+    },
+    "auau_pair_mini": {
+      "path": "tutorials/v1/AuAu_pair_mini",
+      "size": "~0.5 GB",
+      "status": "planned",
+      "description": "One Au+Au 0-10% background with ~5 jets, every file of the jobs: pair, particlize, bulk_jet, bulk_bg, jet_frag, ROOT, records."
+    },
+    "oo_mini": {
+      "path": "tutorials/v1/OO_mini",
+      "size": "~0.3 GB",
+      "status": "planned",
+      "description": "10-20 O+O events with every file, ROOT included."
+    },
+    "auau_stats": {
+      "path": "tutorials/v1/AuAu_stats",
+      "size": "~1 GB",
+      "status": "planned",
+      "description": "50-100 Au+Au hadron-level events in 2-3 pT-hat windows, HDF5 and ROOT."
+    },
+    "pp_ref": {
+      "path": "tutorials/v1/pp_ref",
+      "size": "~50 MB",
+      "status": "planned",
+      "description": "The vacuum (pp) jet reference in the same pT-hat windows as auau_stats."
+    },
+    "derived": {
+      "path": "tutorials/v1/derived",
+      "size": "a few MB",
+      "status": "planned",
+      "description": "Precomputed campaign summaries: wake_observables.h5, wake_hadrons.h5, extra_hard_hists.npz."
+    }
+  }
+}

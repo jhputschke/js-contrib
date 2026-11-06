@@ -19,6 +19,10 @@ site_dir: _site
 exclude_docs: |
   requirements.txt
   README.md
+  data/
+  out/
+  *.part
+  __pycache__/
 
 theme:
   name: material
@@ -96,6 +100,15 @@ extra_javascript:
 
 plugins:
   - search
+  # The tutorials' notebooks, rendered with their stored outputs (never executed here).
+  # notebook_dirs mounts tutorials/<contrib>/ at the same path in the site without copying it
+  # into website/; its README.md and downloaded data/ are left out by exclude_docs above.
+  - mkdocs-jupyter:
+      include: ["*.ipynb"]
+      execute: false
+      include_source: true
+      notebook_dirs:
+        tutorials/pyjetscape: tutorials/pyjetscape
   - glightbox:
       touchNavigation: true
       loop: false
@@ -135,6 +148,11 @@ nav:
       - Mac (xscape wheel): install/mac.md
       - Analysis environment: install/analysis-env.md
       - Source build (conda): install/source.md
+  - Tutorials:
+      - tutorials/index.md
+      - Setting up: tutorials/setup.md
+      - PyJetscape:
+          - 01 Check your setup: tutorials/pyjetscape/01_check_setup.ipynb
   - Run:
       - run/index.md
       - Your first event: run/first-event.md

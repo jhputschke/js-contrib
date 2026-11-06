@@ -38,3 +38,6 @@ utils/remote_transfer/*token*
 
 # MkDocs site (website/), built by mkdocs build
 /_site/
+
+# mkdocs-jupyter conversion cache (mkdocs build / serve)
+.cache/
