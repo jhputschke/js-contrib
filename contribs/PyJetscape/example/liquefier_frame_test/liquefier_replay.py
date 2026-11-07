@@ -13,6 +13,8 @@ The job's own user XML (the pair file's prod_user_xml) without <Hard> and <Eloss
 attached to MUSIC_2 by hand and given the event's droplets (source/droplets).  --ideal sets
 eta/s and zeta/s to zero in both legs.  The liquefier's frame is the XML's
 (<CausalLiquefier><frame>, bjorken by default; lab in an X-SCAPE without it); --frame sets it.
+With --frame fluid each droplet takes the background fluid where it was made: the file's
+source/fluid, or for older files interpolated from arr_bg (liquefier_kernel.fluid_of).
 
 The energy is that of the ideal part of T^{mu nu} through the tau surface, in the lab frame
 (tutorial 06): E = sum tau dx dy deta [cosh(eta) T^00 - sinh(eta) T^03], with
@@ -92,6 +94,11 @@ def run(a):
         x = x.decode() if isinstance(x, bytes) else x
         off = f["source/offsets"][:]
         drops = f["source/droplets"][off[a.event]:off[a.event + 1]].astype(np.float64)
+        if a.frame == "fluid":
+            from liquefier_kernel import fluid_of
+            fluid, origin = fluid_of(f)
+            drops = np.hstack([drops, fluid[off[a.event]:off[a.event + 1]]])
+            print(f"the droplets' fluid from {origin}")
         tau_delay = float(f.attrs["liquefier_tau_delay"])
         bg_ref = None
         if not a.ideal and "arr_bg" in f and f.attrs.get("nx") == f.attrs.get("nX_MUSIC"):
@@ -151,7 +158,7 @@ def run(a):
     n = min(len(curves["bg"]), len(curves["jet"]))
     tau = curves["bg_tau"][:n]
     dE = curves["jet"][:n] - curves["bg"][:n]
-    np.savez(out, tau=tau, dE_full=dE[:, 0], dE_win=dE[:, 1], drops=drops,
+    np.savez(out, tau=tau, dE_full=dE[:, 0], dE_win=dE[:, 1], drops=drops[:, :8],
              tau_delay=tau_delay,
              flux=flux if flux is not None else np.array([]), ideal=a.ideal, window=a.window,
              frame=a.frame or "")
@@ -187,7 +194,7 @@ def main(argv=None):
     p.add_argument("pair", nargs="?")
     p.add_argument("--event", type=int, default=0)
     p.add_argument("--ideal", action="store_true", help="eta/s = zeta/s = 0 in both legs")
-    p.add_argument("--frame", choices=("bjorken", "lab"), default=None,
+    p.add_argument("--frame", choices=("bjorken", "lab", "fluid"), default=None,
                    help="<CausalLiquefier><frame> (an X-SCAPE build with the option)")
     p.add_argument("--window", type=float, default=1.0)
     p.add_argument("--out", default="replay.npz")

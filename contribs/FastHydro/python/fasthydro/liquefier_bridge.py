@@ -54,7 +54,16 @@ def params_from_liquefier(liq):
     from jetscape.liquefier_io import liquefier_params
     p = liquefier_params(liq)
     # X-SCAPE's <CausalLiquefier><frame> (a build without it: the lab frame)
-    frame = "bjorken" if getattr(liq, "bjorken_frame", False) else "lab"
+    frame = getattr(liq, "frame", None)
+    if not isinstance(frame, str):
+        frame = "bjorken" if getattr(liq, "bjorken_frame", False) else "lab"
+    if frame not in ("bjorken", "lab"):
+        # fast_data has no fluid frame yet: its deposit (support_box, the per-cell
+        # quadrature) assumes a kernel bounded along eta_s, which the rest frame of a
+        # transversely flowing fluid is not.  Mapping it to another frame would be silent.
+        raise NotImplementedError(
+            f"<CausalLiquefier><frame>{frame}</frame>: FastHydro's deposit (fast_data) "
+            "supports the bjorken and lab frames only; use one of them for FastHydro")
     return LiquefierParams(dtau=p["dtau"], tau_delay=p["tau_delay"],
                            time_relax=p["time_relax"], d_diff=p["d_diff"],
                            width_delta=p["width_delta"], frame=frame)

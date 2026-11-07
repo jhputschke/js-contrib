@@ -126,3 +126,19 @@ def test_bjorken_frame_matches_the_cpp():
         n_nonzero += int(np.abs(c).max() > 0)
     assert n_nonzero > 5
     cpp.ClearTask()
+
+
+@pytest.mark.needs_xscape
+def test_fluid_frame_is_refused_not_mapped():
+    """X-SCAPE's <frame>fluid</frame> has no fast_data counterpart yet: the bridge refuses it
+    rather than treating it as lab (bjorken_frame is False for it)."""
+    core = pytest.importorskip("jetscape.pyjetscape_core")
+    from fasthydro.liquefier_bridge import params_from_liquefier
+    cpp = core.CausalLiquefier(0.02, 0.3, 0.3, 0.2)
+    if not hasattr(cpp, "frame"):
+        pytest.skip("X-SCAPE without the fluid frame")
+    cpp.frame = "fluid"
+    with pytest.raises(NotImplementedError):
+        params_from_liquefier(cpp)
+    cpp.frame = "lab"
+    assert params_from_liquefier(cpp).frame == "lab"

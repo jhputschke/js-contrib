@@ -196,11 +196,25 @@ by about 0.7 units, with an rms of 0.03 in \(\eta_s\), far narrower than a cell.
 momentum than energy; MUSIC then keeps the cell's previous state and the deposit is lost. In the
 Bjorken frame the same droplet spreads over about a hundred cells around its own \(\eta_s\).
 The midrapidity wake changes too, because the lab frame pulled droplets from
-\(|\eta_s| \gtrsim 0.5\) toward it: in a test with five Au+Au events, the wake at
-\(|\eta_s| < 1\) holds 6 % less energy in the Bjorken frame at \(\tau\) = 8 fm/c (from 0 to
-16 % per event), and its charged hadrons there carry 3 % less \(p_T\), within that sample's
-errors. The pair files record the frame (`liquefier_frame`); files without it were made in the
-lab frame. Campaigns made in different frames should not be mixed in a wake analysis.
+\(|\eta_s| \gtrsim 0.3\) toward it. In a test with 25 Au+Au jets, the wake at
+\(|\eta_s| < 1\) holds 3 % less energy in the Bjorken frame at \(\tau\) = 8 fm/c. In the
+lab frame 3.5 % of the droplets' energy went into cells MUSIC cannot invert; in the Bjorken
+frame, 0.4 %.
+
+A third choice, `<frame>fluid</frame>`, solves the equation in the **rest frame of the
+background fluid** where the droplet was made. It uses the cell of MUSIC_1 that Matter and LBT
+see, transverse flow included; this is the condition the paper states, met with the actual
+flow. The kernel is first boosted by \(\eta_d\), as in the Bjorken frame, and then by the
+fluid's velocity relative to the Bjorken flow; the current is boosted back, and its flux
+through the \(\tau\) slice is deposited. A droplet with no fluid around it (made before the
+hydro starts) takes the Bjorken frame. In the same test, the fluid and Bjorken frames agree
+along \(\eta_s\), in the energy kept, and in the midrapidity wake's energy (within 1 %). The
+fluid frame carries late deposits outward with the radial flow, by up to 0.8 fm, and
+contracts them along it. That changes the local wake by 20–30 %; the charged hadrons of the
+wake carry 6 % less \(p_T\) in this sample, with the same multiplicity. The test, its data
+and a notebook are in `example/liquefier_frame_test/`. The pair files record the frame
+(`liquefier_frame`); files without it were made in the lab frame. Campaigns made in
+different frames should not be mixed in a wake analysis.
 
 The jet leg's hydro equations are then
 

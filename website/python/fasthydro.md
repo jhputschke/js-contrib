@@ -77,7 +77,8 @@ The solver settings cannot go into the XML: X-SCAPE stops on any user-XML tag th
 | energy-loss start | `<Eloss><tStart>` | | must not precede `time.tau0` |
 
 The liquefier's deposit parameters (`tau_delay`, `time_relax`, `d_diff`, `width_delta`, and the
-`frame` of the diffusion, `bjorken` by default or `lab`; see
+`frame` of the diffusion, `bjorken` by default or `lab`; X-SCAPE's `fluid` frame is not
+supported by FastHydro yet and is refused; see
 [The physics](../about/physics.md#5-energymomentum-deposition-the-causalliquefier)) live only in
 `<Liquefier><CausalLiquefier>`; FastHydro reads them from the C++ object and records them in the
 output (`liquefier_frame` among them). Any YAML key can be overridden on the command line with `--set`, routed by its

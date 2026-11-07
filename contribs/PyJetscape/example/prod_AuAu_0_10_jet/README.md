@@ -1598,59 +1598,25 @@ tau_drop + tau_delay goes wrong: for a droplet at eta_s = 2.4 it lands 0.6 units
 lower, 0.03 wide in eta_s (MUSIC's cells are 0.2), and diffused for 0.34 fm instead of 1 fm.
 On MUSIC's grid such a near-point deposit loses energy, with viscous and ideal hydro alike.
 
-An X-SCAPE with `<CausalLiquefier><frame>` evaluates the kernel by default in the frame of
-the Bjorken flow at the droplet's eta_s (`bjorken`): every droplet deposits as one at
-midrapidity does, and the normalization on the grid stays exact. `--liquefier-frame lab`
-reproduces campaigns made before. The two agree only for droplets at eta_s = 0: the lab frame
-pulls the others toward midrapidity (by 0.4 units already at eta_s = 1), so campaigns made in
-different frames must not be mixed in a wake analysis, at midrapidity either. The pair file
-records the frame (`liquefier_frame`; files without it were made in the lab frame).
+`<CausalLiquefier><frame>` (`--liquefier-frame`) has three values:
 
-The same 5 events (`--events 5 --reuse 5 --seed 101 --pthat-min 30 --pthat-max 40
---parton-ymax 0.6 --write-particlize both`, hadronized `--correlated --oversample 200`) in both
-frames; backgrounds and droplets are bit-identical, only the deposit differs:
+- **`bjorken`** (the default): the frame of the Bjorken flow at the droplet's eta_s. Every
+  droplet deposits as one at midrapidity does.
+- **`lab`**: reproduces campaigns made before 2026-11.
+- **`fluid`**: the rest frame of the background fluid where the droplet was made (MUSIC_1's
+  cell, transverse flow included; `<fluid_e_min>`, `<fluid_v_max>`). The pair file then also
+  stores that fluid per droplet (`source/fluid`).
 
-| | lab | bjorken |
-|---|---|---|
-| wake energy at \|eta_s\| < 1, tau = 8 fm/c, sum over the events | 98.1 GeV | 92.6 GeV (-6 %; per event 0 to -16 %) |
-| the same at tau = 4 fm/c | 56.6 GeV | 51.4 GeV (-9 %) |
-| charged-hadron wake at \|eta\| < 1, N per event | 9.10 +- 0.67 | 8.90 +- 0.66 |
-| the same, sum pT per event | 7.51 +- 0.39 GeV | 7.25 +- 0.39 GeV |
+The pair file records the frame in `liquefier_frame`; files without it were made in the lab
+frame. Campaigns made in different frames must not be mixed in a wake analysis, at midrapidity
+either:
+- The lab frame pulls droplets toward midrapidity (by 0.4 units already at eta_s = 1), which
+  gives a 3 % larger midrapidity wake than bjorken.
+- The fluid frame moves late deposits outward with the radial flow.
 
-The event whose droplets all sit near eta_s = 0 is unchanged (its midrapidity wake maps differ
-by 2 %). The hadron-level differences go the same way but are within this sample's errors
-(each frame's own; the frames share sampling seeds, so the error of the difference is smaller).
-
-
-Replaying event 0 of a native-grid job (p̂T 30–40 GeV, seed 101) with its recorded
-droplets (`liquefier_replay.py`), the fluid's gain over the deposited energy, full grid:
-
-| tau [fm/c] | 2 | 3 | 4 | 8 | end |
-|---|---|---|---|---|---|
-| lab, viscous | 0.25 | 0.57 | 0.62 | 0.70 | 0.73 |
-| lab, ideal | 0.25 | 0.56 | 0.59 | | |
-| bjorken, viscous | 1.14 | 1.06 | 1.02 | 1.00 | 0.98 |
-| bjorken, ideal | 1.00 | 1.03 | 1.00 | | |
-
-(Ideal hydro pushes matter off the grid's edges late, so its full-grid count stops there.)
-
-The job's other four events keep 99-107% over the full grid in both frames: the loss needs a
-large droplet (here 12.8 GeV) squeezed into a few cells. At |eta_s| < 1 their ratios fall to
-0.7-0.9 at late times in both frames as well; that is the wake carrying energy out of the
-window, not a loss. The late excess of a few percent over the full grid is the shear stress,
-which this count (the ideal part of T^{mu nu}) leaves out: it is absent with ideal hydro.
-
-```bash
-python liquefier_kernel.py shapes               # one droplet at eta_s = 0, 1, 1.8, 2.4, both frames
-python liquefier_kernel.py check PAIR.h5        # the C++ normalization's flux, reproduced
-python liquefier_kernel.py window PAIR.h5       # energy made in / deposited in |eta_s| < 1
-python liquefier_replay.py PAIR.h5 --event 0 [--ideal] [--frame lab|bjorken] --out r.npz
-```
-
-`liquefier_kernel.py` is the kernel in Python (it reproduces the C++ flux of every droplet
-of a pair file to 1e-5); `liquefier_replay.py` reruns an event's two MUSIC legs with its
-recorded droplets, so that only the hydro or the liquefier changes.
-`tests/test_liquefier_frame.py` checks the C++ option against both.
+[`../liquefier_frame_test/`](../liquefier_frame_test/README.md) compares the three on the same 25
+events (tutorial 06's, extended): the data script, the summary, a notebook, the kernel in Python
+(`liquefier_kernel.py`) and the replay of an event's MUSIC legs (`liquefier_replay.py`).
 
 ## Choices worth knowing
 
