@@ -1982,13 +1982,52 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-can-i-reach-the-data" class="md-nav__link">
+  <a href="#2-the-data-on-the-osdf" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Can I reach the data?
+        2. The data on the OSDF
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="2. The data on the OSDF">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#browsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-in-place" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading in place
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#downloading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Downloading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2606,13 +2645,52 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#2-can-i-reach-the-data" class="md-nav__link">
+  <a href="#2-the-data-on-the-osdf" class="md-nav__link">
     <span class="md-ellipsis">
       
-        2. Can I reach the data?
+        2. The data on the OSDF
       
     </span>
   </a>
+  
+    <nav class="md-nav" aria-label="2. The data on the OSDF">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#browsing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Browsing
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reading-in-place" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading in place
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#downloading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Downloading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
   
 </li>
       
@@ -2917,11 +2995,11 @@ span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h1 id="01-check-your-setup">01 · Check your setup<a class="anchor-link" href="#01-check-your-setup">¶</a></h1><p><a href="https://colab.research.google.com/github/jhputschke/js-contrib/blob/main/tutorials/pyjetscape/01_check_setup.ipynb"><img alt="Open In Colab" src="https://colab.research.google.com/assets/colab-badge.svg"></a></p>
-<p><strong>Time:</strong> 5 minutes · <strong>Needs:</strong> any of the setups below · <strong>Data:</strong> <code>oo_test</code> (1.5 MB, streamed)</p>
+<p><strong>Time:</strong> 5 minutes · <strong>Needs:</strong> any of the setups below · <strong>Data:</strong> <code>oo_test</code> (1.5 MB) and a few kB of <code>pp_ref</code>, streamed</p>
 <p>This first tutorial runs anywhere and checks four things:</p>
 <ol>
 <li>what your setup can do: run X-SCAPE, or only analyse files;</li>
-<li>whether the example data on the OSDF can be reached;</li>
+<li>how the example data are read from the OSDF, with pelicanfs, and whether they can be reached;</li>
 <li>whether a production file can be read, with a first plot from it;</li>
 <li>which of the following tutorials run here.</li>
 </ol>
@@ -3181,8 +3259,8 @@ says where MUSIC runs.</p>
 </tr>
 <tr>
 <td>pelicanfs</td>
-<td>no</td>
-<td>not installed</td>
+<td>yes</td>
+<td>1.5.0</td>
 </tr>
 <tr>
 <td>torch</td>
@@ -3254,10 +3332,19 @@ dataset. <code>te.setup()</code> loads it for you.</p>
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<h2 id="2-can-i-reach-the-data">2. Can I reach the data?<a class="anchor-link" href="#2-can-i-reach-the-data">¶</a></h2><p>The example files live on the <a href="https://osg-htc.org/services/osdf">Open Science Data Federation</a>
-(OSDF), in the public namespace <code>/fno4hic</code>. Reading needs no account. Here they are read over
-plain HTTPS: the OSDF <em>director</em> redirects each request to a cache near you, so the first
-read of a file may be slower than the next ones.</p>
+<h2 id="2-the-data-on-the-osdf">2. The data on the OSDF<a class="anchor-link" href="#2-the-data-on-the-osdf">¶</a></h2><p>The example files live on the <a href="https://osg-htc.org/services/osdf">Open Science Data Federation</a>
+(OSDF), in the public namespace <code>/fno4hic</code>. Reading them needs no account.</p>
+<p>They are read with <strong><a href="https://github.com/PelicanPlatform/pelicanfs">pelicanfs</a></strong>, the OSDF's
+client for Python. For each file it asks the OSDF <em>director</em> which caches hold it, reads from
+the nearest one, and moves on to the next cache when one fails. A file is named by its path in
+the federation, and <code>osdf://</code> in front makes its URL:</p>
+<pre><code>osdf:///fno4hic/tutorials/v2/pp_ref/ppref_campaign.root
+</code></pre>
+<p>pelicanfs is an <a href="https://filesystem-spec.readthedocs.io">fsspec</a> file system, so such URLs work
+wherever Python reads files through fsspec: in uproot, in h5py (through <code>fs.open</code>), in pandas.
+The production container, the Mac wheel and the analysis environment have it; in Colab the
+first cell installs it. Where it is missing, the tutorials read the same files over plain HTTPS.</p>
+<p>First, can the OSDF be reached, and how?</p>
 </div>
 </div>
 </div>
@@ -3282,10 +3369,12 @@ read of a file may be slower than the next ones.</p>
 </clipboard-copy>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">r</span> <span class="o">=</span> <span class="n">te</span><span class="o">.</span><span class="n">check_osdf</span><span class="p">()</span>
-<span class="nb">print</span><span class="p">(</span><span class="s2">"OSDF reachable:"</span><span class="p">,</span> <span class="n">r</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">],</span> <span class="sa">f</span><span class="s2">"via </span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">'cache'</span><span class="p">]</span><span class="si">}</span><span class="s2"> in </span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">'seconds'</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> s"</span> <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="k">else</span> <span class="n">r</span><span class="p">[</span><span class="s2">"error"</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"OSDF reachable:"</span><span class="p">,</span> <span class="n">r</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  with </span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">'via'</span><span class="p">]</span><span class="si">}</span><span class="s2">, from the cache </span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">'cache'</span><span class="p">]</span><span class="si">}</span><span class="s2">, in </span><span class="si">{</span><span class="n">r</span><span class="p">[</span><span class="s1">'seconds'</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> s"</span> <span class="k">if</span> <span class="n">r</span><span class="p">[</span><span class="s2">"ok"</span><span class="p">]</span> <span class="k">else</span> <span class="n">r</span><span class="p">[</span><span class="s2">"error"</span><span class="p">])</span>
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-3">r = te.check_osdf()
-print("OSDF reachable:", r["ok"], f"via {r['cache']} in {r['seconds']:.2f} s" if r["ok"] else r["error"])</div>
+print("OSDF reachable:", r["ok"])
+print(f"  with {r['via']}, from the cache {r['cache']}, in {r['seconds']:.2f} s" if r["ok"] else r["error"])</div>
 </div>
 </div>
 </div>
@@ -3297,10 +3386,202 @@ print("OSDF reachable:", r["ok"], f"via {r['cache']} in {r['seconds']:.2f} s" if
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>OSDF reachable: True via osdf-cache-01.gwave.ics.psu.edu:8443 in 0.66 s
+<pre>OSDF reachable: True
+  with pelicanfs 1.5.0, from the cache mghpcc-cache.nationalresearchplatform.org:8443, in 0.43 s
 </pre>
 </div>
 </div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=bca8a0c0">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="browsing">Browsing<a class="anchor-link" href="#browsing">¶</a></h3><p><code>te.osdf()</code> returns pelicanfs's file system, <code>fsspec.filesystem("osdf")</code>. Like a local file
+system, it lists folders. The tutorials' data sets are the folders below
+<code>/fno4hic/tutorials/v2</code>; <code>pp_ref</code> holds the files of a p+p reference production:</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=9fdae66a">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[4]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="CodeMirror cm-s-jupyter">
+<div class="zeroclipboard-container">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-4">
+<div>
+<span class="notice" hidden="">Copied!</span>
+<svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
+<path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z" fill="currentColor" fill-rule="evenodd"></path>
+<path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+</clipboard-copy>
+</div>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="n">fs</span> <span class="o">=</span> <span class="n">te</span><span class="o">.</span><span class="n">osdf</span><span class="p">()</span>                       <span class="c1"># = fsspec.filesystem("osdf"); None without pelicanfs</span>
+<span class="k">if</span> <span class="n">fs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">"pelicanfs is not installed here: the tutorials read over plain HTTPS"</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">fs</span><span class="o">.</span><span class="n">ls</span><span class="p">(</span><span class="s2">"/fno4hic/tutorials/v2"</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="kc">False</span><span class="p">)):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">d</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">fs</span><span class="o">.</span><span class="n">ls</span><span class="p">(</span><span class="s2">"/fno4hic/tutorials/v2/pp_ref"</span><span class="p">,</span> <span class="n">detail</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">f</span><span class="p">:</span> <span class="n">f</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s2">"name"</span><span class="p">]</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">".root"</span><span class="p">):</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'size'</span><span class="p">]</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e6</span><span class="si">:</span><span class="s2">5.1f</span><span class="si">}</span><span class="s2"> MB"</span> <span class="k">if</span> <span class="n">f</span><span class="p">[</span><span class="s2">"size"</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mf">1e6</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'size'</span><span class="p">]</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e3</span><span class="si">:</span><span class="s2">5.1f</span><span class="si">}</span><span class="s2"> kB"</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">size</span><span class="si">}</span><span class="s2">  </span><span class="si">{</span><span class="n">f</span><span class="p">[</span><span class="s1">'name'</span><span class="p">]</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s1">'/'</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+<div class="clipboard-copy-txt" id="cell-4">fs = te.osdf()                       # = fsspec.filesystem("osdf"); None without pelicanfs
+if fs is None:
+    print("pelicanfs is not installed here: the tutorials read over plain HTTPS")
+else:
+    for d in sorted(fs.ls("/fno4hic/tutorials/v2", detail=False)):
+        print(d)
+    print()
+    for f in sorted(fs.ls("/fno4hic/tutorials/v2/pp_ref", detail=True), key=lambda f: f["name"]):
+        if f["name"].endswith(".root"):
+            size = f"{f['size'] / 1e6:5.1f} MB" if f["size"] &gt; 1e6 else f"{f['size'] / 1e3:5.1f} kB"
+            print(f"{size}  {f['name'].rsplit('/', 1)[-1]}")</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child">
+<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
+<pre>/fno4hic/tutorials/v2/AuAu_pair_mini/
+/fno4hic/tutorials/v2/AuAu_stats/
+/fno4hic/tutorials/v2/OO_mini/
+/fno4hic/tutorials/v2/derived/
+/fno4hic/tutorials/v2/pp_ref/
+
+</pre>
+</div>
+</div>
+<div class="jp-OutputArea-child">
+<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
+<pre>  6.6 kB  ppref_campaign.root
+ 12.0 MB  vacuum_jet_ppref_seed0401_hadrons.root
+ 12.0 MB  vacuum_jet_ppref_seed0402_hadrons.root
+ 11.9 MB  vacuum_jet_ppref_seed0403_hadrons.root
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=9bedd45f">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<h3 id="reading-in-place">Reading in place<a class="anchor-link" href="#reading-in-place">¶</a></h3><p>uproot opens an <code>osdf://</code> URL like a local path, and fetches only the parts it reads, by byte
+ranges. The campaign file of <code>pp_ref</code> has a table <code>windows</code> with the cross section of each
+<span class="arithmatex">\(\hat p_T\)</span> window of the production (tutorial 05 explains them):</p>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell">
+<div class="jp-Cell jp-CodeCell jp-Notebook-cell" id="cell-id=b0df0139">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[5]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="CodeMirror cm-s-jupyter">
+<div class="zeroclipboard-container">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-5">
+<div>
+<span class="notice" hidden="">Copied!</span>
+<svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
+<path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 010 1.5h-1.5a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-1.5a.75.75 0 011.5 0v1.5A1.75 1.75 0 019.25 16h-7.5A1.75 1.75 0 010 14.25v-7.5z" fill="currentColor" fill-rule="evenodd"></path>
+<path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0114.25 11h-7.5A1.75 1.75 0 015 9.25v-7.5zm1.75-.25a.25.25 0 00-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 00.25-.25v-7.5a.25.25 0 00-.25-.25h-7.5z" fill="currentColor" fill-rule="evenodd"></path>
+</svg>
+</div>
+</clipboard-copy>
+</div>
+<div class="highlight-ipynb hl-python"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">uproot</span>
+
+<span class="n">src</span> <span class="o">=</span> <span class="n">te</span><span class="o">.</span><span class="n">data</span><span class="p">(</span><span class="s2">"pp_ref"</span><span class="p">,</span> <span class="s2">"ppref_campaign.root"</span><span class="p">,</span> <span class="n">stream</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>   <span class="c1"># its osdf:// URL, with pelicanfs</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">src</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">uproot</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">src</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"windows"</span><span class="p">]</span><span class="o">.</span><span class="n">arrays</span><span class="p">([</span><span class="s2">"pthat_lo"</span><span class="p">,</span> <span class="s2">"pthat_hi"</span><span class="p">,</span> <span class="s2">"sigma_mb"</span><span class="p">],</span> <span class="n">library</span><span class="o">=</span><span class="s2">"np"</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"read </span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">num_requested_bytes</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e3</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> kB of the "</span>
+          <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">source</span><span class="o">.</span><span class="n">num_bytes</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e3</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> kB file"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">lo</span><span class="p">,</span> <span class="n">hi</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">w</span><span class="p">[</span><span class="s2">"pthat_lo"</span><span class="p">],</span> <span class="n">w</span><span class="p">[</span><span class="s2">"pthat_hi"</span><span class="p">],</span> <span class="n">w</span><span class="p">[</span><span class="s2">"sigma_mb"</span><span class="p">]):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  pT-hat </span><span class="si">{</span><span class="n">lo</span><span class="si">:</span><span class="s2">4.0f</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">hi</span><span class="si">:</span><span class="s2">4.0f</span><span class="si">}</span><span class="s2"> GeV: sigma = </span><span class="si">{</span><span class="n">s</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="s2"> mb"</span><span class="p">)</span>
+</pre></div>
+<div class="clipboard-copy-txt" id="cell-5">import uproot
+
+src = te.data("pp_ref", "ppref_campaign.root", stream=True)   # its osdf:// URL, with pelicanfs
+print(src)
+with uproot.open(src) as f:
+    w = f["windows"].arrays(["pthat_lo", "pthat_hi", "sigma_mb"], library="np")
+    print(f"read {f.file.source.num_requested_bytes / 1e3:.0f} kB of the "
+          f"{f.file.source.num_bytes / 1e3:.0f} kB file")
+for lo, hi, s in zip(w["pthat_lo"], w["pthat_hi"], w["sigma_mb"]):
+    print(f"  pT-hat {lo:4.0f}-{hi:4.0f} GeV: sigma = {s:.3e} mb")</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child">
+<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
+<pre>osdf:///fno4hic/tutorials/v2/pp_ref/ppref_campaign.root
+</pre>
+</div>
+</div>
+<div class="jp-OutputArea-child">
+<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
+<pre>read 2 kB of the 7 kB file
+  pT-hat   10-  20 GeV: sigma = 2.290e-03 mb
+  pT-hat   20-  30 GeV: sigma = 4.244e-05 mb
+  pT-hat   30-  50 GeV: sigma = 2.198e-06 mb
+</pre>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell" id="cell-id=2a1b5640">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>In your own code this is simply <code>uproot.open("osdf:///fno4hic/...")</code>. For HDF5, pelicanfs
+opens the file and h5py reads from it; <code>te.h5()</code> does that in the tutorials:</p>
+<div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">fsspec</span><span class="o">,</span><span class="w"> </span><span class="nn">h5py</span>
+<span class="n">fs</span> <span class="o">=</span> <span class="n">fsspec</span><span class="o">.</span><span class="n">filesystem</span><span class="p">(</span><span class="s2">"osdf"</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">fs</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"/fno4hic/tutorials/v2/pp_ref/vacuum_jet_ppref_seed0401_hadrons_jet_frag.h5"</span><span class="p">,</span> <span class="s2">"rb"</span><span class="p">,</span>
+             <span class="n">cache_type</span><span class="o">=</span><span class="s2">"blockcache"</span><span class="p">,</span> <span class="n">block_size</span><span class="o">=</span><span class="mi">2</span><span class="o">**</span><span class="mi">20</span><span class="p">)</span> <span class="k">as</span> <span class="n">fo</span><span class="p">,</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">fo</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">pid</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"hadrons/pid"</span><span class="p">][:</span><span class="mi">1000</span><span class="p">]</span>
+</pre></div>
+<p>Streaming suits a first look and single parts of a file. A file you read in full, or more than
+once, is better downloaded.</p>
 </div>
 </div>
 </div>
@@ -3323,10 +3604,10 @@ is there, and streamed from the OSDF otherwise:</p>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[4]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[6]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-4">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-6">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
@@ -3338,7 +3619,7 @@ is there, and streamed from the OSDF otherwise:</p>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">te</span><span class="o">.</span><span class="n">report_datasets</span><span class="p">()</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-4">te.report_datasets()</div>
+<div class="clipboard-copy-txt" id="cell-6">te.report_datasets()</div>
 </div>
 </div>
 </div>
@@ -3373,15 +3654,21 @@ is there, and streamed from the OSDF otherwise:</p>
 </div>
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
-<p>To download a set, for example for working offline or for the larger files, run
-<code>get_data.py</code> in the tutorial folder (in a terminal, or here with <code>!</code>). It needs nothing but
-Python, and resumes interrupted downloads:</p>
+<h3 id="downloading">Downloading<a class="anchor-link" href="#downloading">¶</a></h3><p>To download a set, for working offline or for the larger files, run <code>get_data.py</code> in the
+tutorial folder (in a terminal, or here with <code>!</code>). It downloads with pelicanfs (over HTTPS
+where pelicanfs is missing), checks every file's size, and resumes interrupted downloads:</p>
 <div class="highlight"><pre><span></span>python<span class="w"> </span>get_data.py<span class="w"> </span>--list<span class="w">                 </span><span class="c1"># the sets</span>
 python<span class="w"> </span>get_data.py<span class="w"> </span>oo_test<span class="w">                </span><span class="c1"># -&gt; data/oo_test/</span>
 python<span class="w"> </span>get_data.py<span class="w"> </span>auau_jet_event<span class="w"> </span>--to<span class="w"> </span>~/xscape_data<span class="w">    </span><span class="c1"># elsewhere; then set JS_TUTORIAL_DATA</span>
 </pre></div>
 <p><code>JS_TUTORIAL_DATA</code> tells the tutorials where the data folder is (default: <code>data/</code> next to the
 notebooks).</p>
+<p>In your own scripts, pelicanfs copies a file with <code>fs.get("/fno4hic/.../file.h5", "file.h5")</code>.
+For whole productions, uploads and protected namespaces, js-contrib has the transfer tool
+<code>js_osdf.py</code> (<code>xscape-osdf</code> with the Mac wheel). The website's page
+<a href="https://jhputschke.github.io/js-contrib/run/osdf/">Data on the OSDF</a> covers all of it,
+<a href="https://jhputschke.github.io/js-contrib/run/osdf/#reading-files-in-place">reading files in place</a>
+included.</p>
 </div>
 </div>
 </div>
@@ -3414,10 +3701,10 @@ Glauber impact parameter <span class="arithmatex">\(b\)</span> and the numbers o
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[5]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[7]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-5">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-7">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
@@ -3444,7 +3731,7 @@ Glauber impact parameter <span class="arithmatex">\(b\)</span> and the numbers o
           <span class="sa">f</span><span class="s2">"Npart = </span><span class="si">{</span><span class="n">units</span><span class="p">[</span><span class="s1">'glauber_npart'</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2">, Ncoll = </span><span class="si">{</span><span class="n">units</span><span class="p">[</span><span class="s1">'glauber_ncoll'</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2">, "</span>
           <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">units</span><span class="p">[</span><span class="s1">'n_samples'</span><span class="p">][</span><span class="n">i</span><span class="p">]</span><span class="si">}</span><span class="s2"> oversamples"</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-5">import numpy as np
+<div class="clipboard-copy-txt" id="cell-7">import numpy as np
 
 with te.h5("oo_test", "OO_workflow_hadrons_bulk_bg.h5") as f:
     print("source :", "local" if te.local("oo_test", "OO_workflow_hadrons_bulk_bg.h5") else "streamed from the OSDF")
@@ -3502,10 +3789,10 @@ event each hadron belongs to:</p>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[6]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[8]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-6">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-8">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
@@ -3529,7 +3816,7 @@ event each hadron belongs to:</p>
 <span class="n">event_of</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n_events</span><span class="p">),</span> <span class="n">per_event</span><span class="p">)</span>
 <span class="n">hadrons_per_sample</span> <span class="o">=</span> <span class="n">per_event</span> <span class="o">/</span> <span class="n">n_samp</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-6">from jetscape.hadrons_h5 import CHARGED     # the |pid| of the charged hadrons (and e, mu)
+<div class="clipboard-copy-txt" id="cell-8">from jetscape.hadrons_h5 import CHARGED     # the |pid| of the charged hadrons (and e, mu)
 
 pt = np.hypot(p[:, 1], p[:, 2])
 ok = pt &gt; 0                                    # eta is undefined along the beam axis
@@ -3572,10 +3859,10 @@ adds them up:</p>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[7]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[9]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-7">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-9">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
@@ -3600,7 +3887,7 @@ adds them up:</p>
     <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"event </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">hadrons_per_sample</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> hadrons per oversample, "</span>
           <span class="sa">f</span><span class="s2">"dNch/deta(|eta|&lt;0.5) = </span><span class="si">{</span><span class="n">dnch_deta</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> +- </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">mid</span><span class="o">.</span><span class="n">variances</span><span class="p">()[</span><span class="n">i</span><span class="p">])</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-7">import hist
+<div class="clipboard-copy-txt" id="cell-9">import hist
 
 h_eta = (hist.Hist.new
          .Integer(0, n_events, name="event", label="event")
@@ -3653,10 +3940,10 @@ the species. <a href="https://mplhep.readthedocs.io">mplhep</a> draws hist histo
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[8]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[10]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-8">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-10">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
@@ -3695,7 +3982,7 @@ the species. <a href="https://mplhep.readthedocs.io">mplhep</a> draws hist histo
 <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
 <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-8">import matplotlib.pyplot as plt
+<div class="clipboard-copy-txt" id="cell-10">import matplotlib.pyplot as plt
 import mplhep as mh
 
 species = {r"$\pi^\pm$": 211, r"$K^\pm$": 321, r"$p, \bar p$": 2212}
@@ -3775,10 +4062,10 @@ Au+Au (tutorial 05).</li>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[9]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[11]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-9">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-11">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
@@ -3795,7 +4082,7 @@ Au+Au (tutorial 05).</li>
 <span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">dnch_deta</span><span class="p">,</span> <span class="n">exp</span><span class="p">[</span><span class="s2">"dnch_deta_mid"</span><span class="p">],</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="s2">"All numbers match: reading production files works in this setup."</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-9">import json
+<div class="clipboard-copy-txt" id="cell-11">import json
 exp = json.load(open("expected/01_check_setup.json"))
 assert n_events == exp["n_events"] and len(pid) == exp["n_hadrons"], "wrong file?"
 np.testing.assert_allclose(hadrons_per_sample, exp["hadrons_per_sample"], rtol=1e-6)
@@ -3838,10 +4125,10 @@ run. Tutorials marked <em>planned</em> are still being written.</p>
 <div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
 </div>
 <div class="jp-InputArea jp-Cell-inputArea">
-<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[10]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="jp-InputPrompt jp-InputArea-prompt">In&nbsp;[12]:</div><div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
 <div class="CodeMirror cm-s-jupyter">
 <div class="zeroclipboard-container">
-<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-10">
+<clipboard-copy ,="" aria-label="Copy to Clipboard" for="cell-12">
 <div>
 <span class="notice" hidden="">Copied!</span>
 <svg aria-hidden="true" class="clipboard-copy-icon" data-view-component="true" height="20" version="1.1" viewBox="0 0 16 16" width="20">
@@ -3853,7 +4140,7 @@ run. Tutorials marked <em>planned</em> are still being written.</p>
 </div>
 <div class="highlight-ipynb hl-python"><pre><span></span><span class="n">te</span><span class="o">.</span><span class="n">report_tutorials</span><span class="p">(</span><span class="n">env</span><span class="p">)</span>
 </pre></div>
-<div class="clipboard-copy-txt" id="cell-10">te.report_tutorials(env)</div>
+<div class="clipboard-copy-txt" id="cell-12">te.report_tutorials(env)</div>
 </div>
 </div>
 </div>
@@ -3999,6 +4286,8 @@ run. Tutorials marked <em>planned</em> are still being written.</p>
 <li>Missing something above? The <a href="https://jhputschke.github.io/js-contrib/tutorials/setup/">setup page</a> says which setup brings
 it. For the tutorials that run X-SCAPE, use the production container or the Mac wheel.</li>
 <li>Download the data of the tutorials you plan to do (<code>python get_data.py --list</code>).</li>
+<li>The OSDF in more depth (browsing, downloading whole productions, uploading):
+<a href="https://jhputschke.github.io/js-contrib/run/osdf/">Data on the OSDF</a>.</li>
 <li>What the files hold, in detail: <a href="https://jhputschke.github.io/js-contrib/analysis/files/">What a production writes</a>.</li>
 <li>The physics of each stage: <a href="https://jhputschke.github.io/js-contrib/about/physics/">The physics</a>.</li>
 </ul>

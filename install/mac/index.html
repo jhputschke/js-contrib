@@ -3526,6 +3526,10 @@ its software. With the script (the latest release, or <code>sh -s -- --version V
 <td><code>ValueError: Protocol not known: osdf</code></td>
 <td>an environment before 0.2.0 has no pelicanfs: install the current release (or <code>uv pip install pelicanfs</code>)</td>
 </tr>
+<tr>
+<td><code>AttributeError: 'Client' object has no attribute 'info'</code> on an <code>osdf://</code> path</td>
+<td>installed after 2026-11-02, the environment has aiowebdav2 1.x, which pelicanfs (up to 1.5.0) cannot use: <code>uv pip install "aiowebdav2&lt;1"</code> in the wheel's environment</td>
+</tr>
 </tbody>
 </table>
 <p>The same guide, with every detail:

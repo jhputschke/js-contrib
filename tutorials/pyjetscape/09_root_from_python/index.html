@@ -3368,7 +3368,7 @@ for s, folder in folders.items():
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>auau_stats: 9 file(s), 210.2 MB -&gt; ~/JetScape/X-SCAPE/external_packages/js-contrib/tutorials/pyjetscape/data/auau_stats
+<pre>auau_stats: 9 file(s), 210.2 MB -&gt; data/auau_stats  [pelicanfs 1.5.0]
   ok      AuAu_0_10_jet_stats_seed0201_hadrons.root  (53.5 MB, already there)
   ok      AuAu_0_10_jet_stats_seed0201_hadrons_jet_frag.h5  (879.9 kB, already there)
   ok      AuAu_0_10_jet_stats_seed0202_hadrons.root  (50.1 MB, already there)
@@ -3378,13 +3378,7 @@ for s, folder in folders.items():
   ok      AuAu_0_10_jet_stats_seed0204_hadrons.root  (55.3 MB, already there)
   ok      AuAu_0_10_jet_stats_seed0204_hadrons_jet_frag.h5  (827.2 kB, already there)
   ok      stats_campaign.root  (6.7 kB, already there)
-</pre>
-</div>
-</div>
-<div class="jp-OutputArea-child">
-<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
-<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>pp_ref: 7 file(s), 79.0 MB -&gt; ~/JetScape/X-SCAPE/external_packages/js-contrib/tutorials/pyjetscape/data/pp_ref
+pp_ref: 7 file(s), 79.0 MB -&gt; data/pp_ref  [pelicanfs 1.5.0]
   ok      ppref_campaign.root  (6.6 kB, already there)
   ok      vacuum_jet_ppref_seed0401_hadrons.root  (12.0 MB, already there)
   ok      vacuum_jet_ppref_seed0401_hadrons_jet_frag.h5  (14.7 MB, already there)
@@ -3408,8 +3402,9 @@ pp_ref     3 ROOT files + ppref_campaign.root
 <div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <h2 id="2-open-a-file-on-disk-or-streamed">2. Open a file: on disk, or streamed<a class="anchor-link" href="#2-open-a-file-on-disk-or-streamed">¶</a></h2><p><code>uproot.open</code> reads a ROOT file in pure Python. It takes a local path or a URL. <code>te.data</code>
-gives the local copy when there is one, and with <code>stream=True</code> the file's HTTPS address on
-the OSDF:</p>
+gives the local copy when there is one, and with <code>stream=True</code> the file's <code>osdf://</code> URL on
+the OSDF, which uproot reads through pelicanfs (without pelicanfs: its HTTPS address at an
+OSDF cache):</p>
 </div>
 </div>
 </div>
@@ -3495,7 +3490,7 @@ jet_frag;1     ROOT::RNTuple  300
 <span class="k">with</span> <span class="n">uproot</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">url</span><span class="p">)</span> <span class="k">as</span> <span class="n">remote</span><span class="p">:</span>
     <span class="n">first</span> <span class="o">=</span> <span class="n">remote</span><span class="p">[</span><span class="s2">"events"</span><span class="p">]</span><span class="o">.</span><span class="n">arrays</span><span class="p">([</span><span class="s2">"event"</span><span class="p">,</span> <span class="s2">"pthat_bin"</span><span class="p">,</span> <span class="s2">"pthat"</span><span class="p">])</span>
     <span class="n">src</span> <span class="o">=</span> <span class="n">remote</span><span class="o">.</span><span class="n">file</span><span class="o">.</span><span class="n">source</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">first</span><span class="p">)</span><span class="si">}</span><span class="s2"> events read over HTTPS: </span><span class="si">{</span><span class="n">src</span><span class="o">.</span><span class="n">num_requests</span><span class="si">}</span><span class="s2"> requests, "</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">first</span><span class="p">)</span><span class="si">}</span><span class="s2"> events streamed: </span><span class="si">{</span><span class="n">src</span><span class="o">.</span><span class="n">num_requests</span><span class="si">}</span><span class="s2"> requests, "</span>
           <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">src</span><span class="o">.</span><span class="n">num_requested_bytes</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e3</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> kB of the </span><span class="si">{</span><span class="n">src</span><span class="o">.</span><span class="n">num_bytes</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mf">1e6</span><span class="si">:</span><span class="s2">.0f</span><span class="si">}</span><span class="s2"> MB file"</span><span class="p">)</span>
 </pre></div>
 <div class="clipboard-copy-txt" id="cell-5">url = te.data(SET, STEM + "_hadrons.root", stream=True)
@@ -3503,7 +3498,7 @@ print(url)
 with uproot.open(url) as remote:
     first = remote["events"].arrays(["event", "pthat_bin", "pthat"])
     src = remote.file.source
-    print(f"{len(first)} events read over HTTPS: {src.num_requests} requests, "
+    print(f"{len(first)} events streamed: {src.num_requests} requests, "
           f"{src.num_requested_bytes / 1e3:.0f} kB of the {src.num_bytes / 1e6:.0f} MB file")</div>
 </div>
 </div>
@@ -3516,14 +3511,14 @@ with uproot.open(url) as remote:
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>https://osdf-director.osg-htc.org/fno4hic/tutorials/v2/AuAu_stats/AuAu_0_10_jet_stats_seed0201_hadrons.root
+<pre>osdf:///fno4hic/tutorials/v2/AuAu_stats/AuAu_0_10_jet_stats_seed0201_hadrons.root
 </pre>
 </div>
 </div>
 <div class="jp-OutputArea-child">
 <div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
 <div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
-<pre>30 events read over HTTPS: 9 requests, 9 kB of the 53 MB file
+<pre>30 events streamed: 9 requests, 9 kB of the 53 MB file
 </pre>
 </div>
 </div>

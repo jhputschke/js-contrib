@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-get_data.py -- download the tutorials' data from the OSDF, with nothing but Python.
+get_data.py -- download the tutorials' data from the OSDF.
 
     python get_data.py --list                         # the sets, their sizes and status
     python get_data.py oo_test                        # -> data/oo_test/
@@ -9,18 +9,20 @@ get_data.py -- download the tutorials' data from the OSDF, with nothing but Pyth
     python get_data.py auau_jet_event --dry-run       # what would be fetched
     python get_data.py auau_pair_mini --include '*_hadrons_*.h5' '*_particlize.h5' 
 
-The sets are listed in datasets.json next to this script.  The files come over plain
-HTTPS from the OSDF director, which redirects to a nearby cache: no login, no curl, no
-pelicanfs, no X-SCAPE.  Each OSDF folder holds the manifest js_osdf.py writes on upload
-(.js_transfer_crc32c.json), which gives the file names and sizes; a file is complete when
-its size matches, and its CRC32C is checked too when google-crc32c or crc32c is installed.
-Interrupted downloads resume (*.part); complete files are skipped.  A cache that fails
-(an HTTP 5xx, a dropped connection) is passed over for the next one the director lists,
-as pelicanfs does.
+The sets are listed in datasets.json next to this script.  The files are read with
+pelicanfs, the OSDF's client for Python (fsspec's osdf://), which every setup installs: it
+asks the OSDF director for the caches that serve a file and reads from the nearest one, no
+login needed.  Without pelicanfs (older installs), or with JS_TUTORIAL_HTTPS=1, the files
+come over plain HTTPS with the standard library alone, through the same caches.
+
+Each OSDF folder holds the manifest js_osdf.py writes on upload (.js_transfer_crc32c.json),
+which gives the file names and sizes; a file is complete when its size matches, and its
+CRC32C is checked too when google-crc32c or crc32c is installed.  Interrupted downloads
+resume (*.part); complete files are skipped.  A cache that fails (an HTTP 5xx, a dropped
+connection) is passed over for the next one.
 
 The default destination is $JS_TUTORIAL_DATA, else data/ next to this script.
-Standard library only (Python 3.8+), so it runs in the container, with the Mac wheel, in
-the analysis env and in Colab alike.
+Python 3.8+; pelicanfs is used when it is installed.
 """
 
 from __future__ import annotations
@@ -46,7 +48,8 @@ USER_AGENT = "js-contrib-tutorials/get_data"
 CHUNK = 1 << 20
 ROUNDS = 3                     # times through the director's list of caches
 RETRY_WAIT = 3                 # seconds before asking the director again, doubled after each
-RETRIES = 5                    # attempts per file whose connection drops mid-download
+RETRIES = 5                    # attempts per read (pelicanfs) or per dropped download
+BLOCK = 16 << 20               # bytes per read when downloading with pelicanfs
 
 
 def load_sets(path: Path = HERE / "datasets.json") -> dict:
@@ -67,6 +70,93 @@ def url_of(cfg: dict, set_name: str, filename: str = "") -> str:
     """The HTTPS URL of a file of a set (or of its folder, without ``filename``)."""
     folder = cfg["sets"][set_name]["path"].strip("/")
     return f"{base_url(cfg)}/{folder}/{filename}"
+
+
+def osdf_path(cfg: dict, set_name: str, filename: str = "") -> str:
+    """The OSDF name of a file of a set, /fno4hic/...; osdf:// in front makes its URL."""
+    folder = cfg["sets"][set_name]["path"].strip("/")
+    return f"/{cfg['namespace'].strip('/')}/{folder}/{filename}"
+
+
+# ── pelicanfs ───────────────────────────────────────────────────────────────────────────
+# pelicanfs keeps the director's list of caches for a namespace; a read that fails marks
+# its cache bad and raises, so the next call goes to the next cache.  _pelican() calls
+# again until a read succeeds, and starts over with the director when no cache is left.
+
+_FS = None                     # pelicanfs's file system; False when it cannot be used
+
+
+def osdf_fs(fresh: bool = False):
+    """pelicanfs's file system for the OSDF (fsspec's "osdf"), or None: pelicanfs not
+    installed, or JS_TUTORIAL_HTTPS=1."""
+    global _FS
+    if _FS is None or fresh:
+        _FS = False
+        if not os.environ.get("JS_TUTORIAL_HTTPS"):
+            try:
+                import fsspec
+                import pelicanfs  # noqa: F401
+                if _pelican_broken():
+                    return None
+                _FS = fsspec.filesystem("osdf", skip_instance_cache=fresh)
+            except Exception:                        # noqa: BLE001
+                _FS = False
+    return _FS or None
+
+
+def _pelican_broken() -> bool:
+    """pelicanfs up to 1.5.0 with aiowebdav2 1.x (2026-11-02 on) cannot stat or list files,
+    so uproot.open("osdf://...") fails: read over HTTPS then, and say how to fix it."""
+    from importlib.metadata import version
+    try:
+        pel = tuple(int(x) for x in version("pelicanfs").split(".")[:3])
+        dav = int(version("aiowebdav2").split(".")[0])
+    except Exception:                                # noqa: BLE001
+        return False
+    if pel <= (1, 5, 0) and dav >= 1:
+        print(f"note: pelicanfs {version('pelicanfs')} does not work with aiowebdav2 "
+              f"{version('aiowebdav2')}; reading over HTTPS instead.  To fix: "
+              f"pip install 'aiowebdav2<1'", file=sys.stderr)
+        return True
+    return False
+
+
+def backend() -> str:
+    """How the files are read: "pelicanfs <version>" or "HTTPS (standard library)"."""
+    if osdf_fs() is None:
+        return "HTTPS (standard library)"
+    from importlib.metadata import version
+    return f"pelicanfs {version('pelicanfs')}"
+
+
+def _pelican(call, path: str):
+    """``call(fs)`` with pelicanfs's file system, again (at the next cache) when it fails."""
+    for attempt in range(RETRIES):
+        try:
+            return call(osdf_fs())
+        except (FileNotFoundError, PermissionError):
+            raise
+        except Exception as e:                       # noqa: BLE001
+            if attempt == RETRIES - 1:
+                raise
+            if type(e).__name__ == "NoAvailableSource":   # every cache failed
+                wait = RETRY_WAIT * 2 ** min(attempt, 3)
+                print(f"  {_name(path)}: no cache left; asking the director again in {wait} s",
+                      file=sys.stderr)
+                time.sleep(wait)
+                osdf_fs(fresh=True)
+            else:
+                print(f"  {_name(path)}: {type(e).__name__}: {e}; trying the next cache",
+                      file=sys.stderr)
+
+
+def read_bytes(cfg: dict, set_name: str, filename: str) -> bytes:
+    """A whole (small) file of a set: with pelicanfs, else over HTTPS."""
+    if osdf_fs() is not None:
+        path = osdf_path(cfg, set_name, filename)
+        return _pelican(lambda fs: fs.cat_file(path), path)
+    with _open(url_of(cfg, set_name, filename)) as r:
+        return r.read()
 
 
 # ── the caches ──────────────────────────────────────────────────────────────────────────
@@ -174,8 +264,7 @@ def cache_url(url: str) -> str:
 
 def manifest(cfg: dict, set_name: str) -> dict:
     """{filename: {"size": int, "crc32c": str}} of the set's folder, filtered by 'include'."""
-    with _open(url_of(cfg, set_name, MANIFEST)) as r:
-        files = json.load(r)["files"]
+    files = json.loads(read_bytes(cfg, set_name, MANIFEST))["files"]
     include = cfg["sets"][set_name].get("include")
     if include:
         files = {k: v for k, v in files.items() if any(fnmatch.fnmatch(k, p) for p in include)}
@@ -207,7 +296,12 @@ def _crc32c_of(path: Path) -> str | None:
 
 
 def _short(path) -> str:
-    """``path`` with the home directory written as ~ (output gets shared in notebooks)."""
+    """``path`` relative to the current directory when it is below it, else with the home
+    directory written as ~ (output gets shared in notebooks)."""
+    try:
+        return str(Path(path).absolute().relative_to(Path.cwd()))
+    except ValueError:
+        pass
     s, home = str(path), str(Path.home())
     return "~" + s[len(home):] if home not in ("", "/") and s.startswith(home) else s
 
@@ -220,23 +314,57 @@ def _fmt(n: float) -> str:
     return ""
 
 
+def _progress(dest: Path, done: int, size: int, quiet: bool) -> None:
+    if not quiet and sys.stdout.isatty():
+        print(f"\r  ...     {dest.name}  {_fmt(done)} / {_fmt(size)}", end="")
+
+
+def _fetch_pelican(path: str, part: Path, size: int, quiet: bool) -> None:
+    """Read ``path`` into ``part`` with pelicanfs, BLOCK bytes at a time, from where the
+    .part ends (a failed read goes to the next cache)."""
+    have = part.stat().st_size if part.exists() else 0
+    if have > size:
+        part.unlink()
+        have = 0
+    with open(part, "ab" if have else "wb") as out:
+        pos = have
+        while pos < size:
+            end = min(pos + BLOCK, size)
+            data = _pelican(lambda fs: fs.cat_file(path, start=pos, end=end), path)
+            if not data:
+                raise IOError(f"{_name(path)}: no data at byte {pos} of {size}")
+            out.write(data)
+            pos += len(data)
+            _progress(part.with_suffix(""), pos, size, quiet)
+
+
 def fetch_file(url: str, dest: Path, size: int, crc: str | None = None,
-               quiet: bool = False) -> Path:
+               quiet: bool = False, osdf: str | None = None) -> Path:
     """Download ``url`` to ``dest`` (resuming a .part), check the size and, if possible, the
-    CRC32C.  A complete file already there is kept."""
+    CRC32C.  A complete file already there is kept.  ``osdf``: the file's OSDF name, read
+    with pelicanfs when it is installed (else ``url`` over HTTPS)."""
     if dest.exists() and dest.stat().st_size == size:
         if not quiet:
             print(f"  ok      {dest.name}  ({_fmt(size)}, already there)")
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
-    t0, start = time.time(), None
-    for attempt in range(RETRIES):        # a connection dropped mid-file resumes from .part,
-        have = part.stat().st_size if part.exists() else 0    # from the next cache
+    t0, start = time.time(), (part.stat().st_size if part.exists() else 0)
+    if osdf and osdf_fs() is not None:
+        try:
+            _fetch_pelican(osdf, part, size, quiet)
+        except (FileNotFoundError, PermissionError):
+            raise
+        except Exception as e:                       # noqa: BLE001
+            print(f"  {dest.name}: pelicanfs failed ({type(e).__name__}: {e}); "
+                  f"going on over HTTPS", file=sys.stderr)
+    done_already = part.exists() and part.stat().st_size == size
+    for attempt in range(0 if done_already else RETRIES):   # over HTTPS: a connection
+        have = part.stat().st_size if part.exists() else 0    # dropped mid-file resumes
+        # from .part, at the next cache
         if have > size:
             part.unlink()
             have = 0
-        start = have if start is None else start
         headers = {"Range": f"bytes={have}-"} if have else {}
         r = _open(url, headers)           # passes over caches that fail to answer
         try:
@@ -248,9 +376,7 @@ def fetch_file(url: str, dest: Path, size: int, crc: str | None = None,
                     for block in iter(lambda: r.read(CHUNK), b""):
                         out.write(block)
                         done += len(block)
-                        if not quiet and sys.stdout.isatty():
-                            print(f"\r  ...     {dest.name}  {_fmt(done)} / {_fmt(size)}",
-                                  end="")
+                        _progress(dest, done, size, quiet)
             if part.stat().st_size >= size:
                 break
             err = IOError(f"connection closed at {part.stat().st_size} of {size} bytes")
@@ -294,13 +420,14 @@ def fetch_set(set_name: str, dest_root: Path | None = None, max_files: int | Non
         files = dict(list(files.items())[:max_files])
     total = sum(v["size"] for v in files.values())
     if not quiet:
-        print(f"{set_name}: {len(files)} file(s), {_fmt(total)} -> {_short(dest)}")
+        print(f"{set_name}: {len(files)} file(s), {_fmt(total)} -> {_short(dest)}"
+              f"  [{backend()}]")
     for name, meta in files.items():
         if dry_run:
             print(f"  would fetch {name}  ({_fmt(meta['size'])})")
             continue
         fetch_file(url_of(cfg, set_name, name), dest / name, meta["size"],
-                   meta.get("crc32c"), quiet=quiet)
+                   meta.get("crc32c"), quiet=quiet, osdf=osdf_path(cfg, set_name, name))
     return dest
 
 

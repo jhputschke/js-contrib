@@ -2916,6 +2916,12 @@ travel. Both examples read public test files and run as they are:</p>
   <code>run_h5toROOT.py</code> and the <code>analysis/</code> scripts take local paths only.</li>
 <li>Inside the production container the <code>pelican</code> command line does the same for single files:
   <code>pelican object get osdf:///fno4hic/… /work/…</code>.</li>
+<li><strong><code>AttributeError: 'Client' object has no attribute 'info'</code></strong> (or <code>list_files</code>): pelicanfs
+  up to 1.5.0 does not work with aiowebdav2 1.x (released 2026-11-02), so environments
+  installed since then cannot open <code>osdf://</code> URLs in uproot or list folders. Fix:
+  <code>pip install "aiowebdav2&lt;1"</code>. js-contrib's requirement files pin it.</li>
+<li>A first, hands-on look at pelicanfs (browsing, uproot, h5py, downloading) is
+  <a href="../../tutorials/pyjetscape/01_check_setup/">tutorial 01</a>, section 2.</li>
 </ul>
 <p>What the files hold and how to read them: <a href="../../analysis/files/">What a production writes</a>,
 <a href="../../analysis/hadrons/">Hadrons</a>, <a href="../../analysis/root/">ROOT and C++</a>.</p>

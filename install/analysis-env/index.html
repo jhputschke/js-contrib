@@ -2839,8 +2839,8 @@ compiled core.</p>
 <ol>
 <li>creates the venv (default <code>~/.venvs/js_analysis</code>; give another directory as the first
    argument). Re-running it on an existing venv updates it;</li>
-<li>installs the analysis packages from <code>utils/analysis_env/requirements.txt</code>, plus pyvista/vtk
-   and pelicanfs (both on by default), about 1.6 GB in total;</li>
+<li>installs the analysis packages from <code>utils/analysis_env/requirements.txt</code> (pelicanfs for the
+   OSDF among them), plus pyvista/vtk (on by default), about 1.6 GB in total;</li>
 <li>installs PyJetscape from your checkout in editable mode, so <code>import jetscape</code> works from
    anywhere and follows <code>git pull</code>;</li>
 <li>downloads MUSIC's two hotQCD EoS tables (3.2 MB each, md5-checked) into the venv: EOS 91
@@ -2914,7 +2914,7 @@ With a directory it opens its pair, hadron and ROOT files. Two flags:</p>
 </tr>
 <tr>
 <td><code>--no-pelican</code></td>
-<td>leave out pelicanfs, which is installed by default: <code>osdf://</code> and <code>pelican://</code> URLs</td>
+<td>ignored: pelicanfs (<code>osdf://</code> and <code>pelican://</code> URLs) is part of the base list since 2026-11</td>
 </tr>
 <tr>
 <td><code>--eos-table PATH</code></td>
@@ -3047,8 +3047,8 @@ installs on any platform, in any Python 3.10+ environment:</p>
 </code></pre></div>
 <p>Quote the argument: zsh treats <code>[...]</code> as a pattern. The readers, <code>HadronArray</code>, the awkward
 views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it
-installs neither pyvista nor pelicanfs (add <code>pelicanfs</code> with <code>uv pip install pelicanfs</code> for the
-OSDF), and it does not fetch the EoS tables: download both as in the conda tab above and
+does not install pyvista, and the 0.2.0 wheel has no pelicanfs (add it with
+<code>uv pip install pelicanfs "aiowebdav2&lt;1"</code>; later wheels include it), and it does not fetch the EoS tables: download both as in the conda tab above and
 point <code>MUSIC_EOS_TABLE</code> at one of them (the tools take the other from the same directory).</p>
 <h2 id="threads-and-memory">Threads and memory<a class="headerlink" href="#threads-and-memory" title="Permanent link">¶</a></h2>
 <p>The analysis tools are mostly single-threaded Python. Parallelise over files with processes,

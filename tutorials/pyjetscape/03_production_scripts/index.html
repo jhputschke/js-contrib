@@ -5361,8 +5361,8 @@ production job would waste it. Stage 2 runs on CPU nodes with <code>utils/slurm_
 <p>The sizes per GPU type, the launch settings and a 12,000-event example are on
 <a href="https://jhputschke.github.io/js-contrib/run/clusters/">Clusters, GPUs and monitoring</a>.</p>
 <h2 id="10-sharing-the-files-on-the-osdf">10. Sharing the files on the OSDF<a class="anchor-link" href="#10-sharing-the-files-on-the-osdf">¶</a></h2><p>The tutorial data come from the <strong>OSDF</strong> (Open Science Data Federation), a network of data
-origins and caches reached over plain HTTPS. Reading is public; writing to the namespace
-<code>osdf:///fno4hic</code> needs a login. <code>utils/remote_transfer/js_osdf.py</code> (<code>xscape-osdf</code> in the Mac
+origins and caches. Reading is public: with pelicanfs in Python (<code>osdf://</code> URLs, tutorial 01),
+or over plain HTTPS. Writing to the namespace <code>osdf:///fno4hic</code> needs a login. <code>utils/remote_transfer/js_osdf.py</code> (<code>xscape-osdf</code> in the Mac
 wheel) moves whole productions or kinds of files:</p>
 <div class="highlight"><pre><span></span>./js_osdf.py<span class="w"> </span>login<span class="w">                                         </span><span class="c1"># once: a link to log in from any browser</span>
 ./js_osdf.py<span class="w"> </span>upload<span class="w"> </span>~/xscape/prod/AuAu_c1<span class="w"> </span>--what<span class="w"> </span>h5<span class="w"> </span>--dry-run<span class="w">     </span><span class="c1"># what would go</span>

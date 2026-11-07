@@ -2697,8 +2697,9 @@ tutorials (<em>later</em>) follow once the comparisons with measured data have b
 until then the tutorials compare the model only with itself (jet against background, Au+Au
 against p+p).</p>
 <h2 id="the-data">The data<a class="headerlink" href="#the-data" title="Permanent link">¶</a></h2>
-<p>The tutorials read example files from the OSDF, over HTTPS, with no account needed. The
-files are streamed as they are read, or downloaded once with <code>get_data.py</code>; see
+<p>The tutorials read example files from the OSDF with <a href="https://github.com/PelicanPlatform/pelicanfs">pelicanfs</a>,
+the OSDF's client for Python, with no account needed (tutorial 01 introduces it). The files
+are streamed as they are read, or downloaded once with <code>get_data.py</code>; see
 <a href="setup/#3-the-data">Setting up</a>. The data sets and their contents are listed in
 <a href="https://github.com/jhputschke/js-contrib/blob/main/tutorials/pyjetscape/datasets.json"><code>datasets.json</code></a>.</p>
 <h2 id="other-contribs">Other contribs<a class="headerlink" href="#other-contribs" title="Permanent link">¶</a></h2>

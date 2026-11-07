@@ -2754,10 +2754,15 @@ downloaded data are gone the next time.</p>
 checks that the data can be reached, reads a first file and lists the tutorials that run
 here.</p>
 <h2 id="3-the-data">3. The data<a class="headerlink" href="#3-the-data" title="Permanent link">¶</a></h2>
-<p>The tutorials read example files from the OSDF, in the public namespace <code>/fno4hic</code>. They
-read them over plain HTTPS: the OSDF director sends each request to a cache near you. This
-needs no account, no <code>pelicanfs</code> and no <code>curl</code>. When a notebook opens a file, it takes the
-local copy if there is one, and otherwise streams only the parts it reads.</p>
+<p>The tutorials read example files from the OSDF, in the public namespace <code>/fno4hic</code>, with
+<a href="https://github.com/PelicanPlatform/pelicanfs">pelicanfs</a>, the OSDF's client for Python. It
+asks the OSDF director which caches hold a file, reads from the nearest one, and moves on to
+the next when a cache fails. No account is needed. When a notebook opens a file, it takes the
+local copy if there is one, and otherwise streams only the parts it reads, as an <code>osdf://</code>
+URL. Tutorial 01 introduces pelicanfs; <a href="../../run/osdf/">Data on the OSDF</a> has the rest.</p>
+<p>Every setup has pelicanfs: the container, the Mac wheel and the analysis environment, and in
+Colab the first cell installs it. Where it is missing (the pure-Python pyjetscape wheel
+0.2.0), the tutorials read the same caches over plain HTTPS, with the standard library.</p>
 <p>To download a set once, for working offline or for the large files (the hydro pairs are
 0.2–0.9 GB each), run <code>get_data.py</code> in the tutorial folder:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>get_data.py<span class="w"> </span>--list<span class="w">                          </span><span class="c1"># the sets, their sizes and contents</span>
@@ -2765,8 +2770,8 @@ local copy if there is one, and otherwise streams only the parts it reads.</p>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>python<span class="w"> </span>get_data.py<span class="w"> </span>auau_hadrons_root<span class="w"> </span>--max-files<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="c1"># the first three files of a large set</span>
 </code></pre></div>
 <ul>
-<li><code>get_data.py</code> uses only the Python standard library, so it runs in every setup, inside
-  the container too.</li>
+<li><code>get_data.py</code> downloads with pelicanfs, and over plain HTTPS where pelicanfs is missing,
+  so it runs in every setup, inside the container too.</li>
 <li>It takes the file names and sizes from the manifest that each OSDF folder holds, and
   checks every file's size. It also checks the CRC32C checksum when <code>google-crc32c</code> or
   <code>crc32c</code> is installed.</li>
@@ -2795,6 +2800,10 @@ overwritten, so a tutorial release and its data stay together.</p>
 <tr>
 <td>the OSDF is not reachable</td>
 <td>a firewall or proxy blocks <code>osdf-director.osg-htc.org</code>. Download the data elsewhere with <code>get_data.py</code> and copy the <code>data/</code> folder.</td>
+</tr>
+<tr>
+<td><code>note: pelicanfs ... does not work with aiowebdav2 1.x; reading over HTTPS instead</code></td>
+<td>an environment installed after 2026-11-02 has aiowebdav2 1.x, with which pelicanfs (up to 1.5.0) cannot list or stat files, so <code>uproot.open("osdf://...")</code> fails. The tutorials read over HTTPS then; to fix the environment: <code>pip install "aiowebdav2&lt;1"</code>.</td>
 </tr>
 <tr>
 <td><code>ModuleNotFoundError: _common</code></td>
