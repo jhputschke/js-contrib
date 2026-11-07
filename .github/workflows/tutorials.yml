@@ -45,7 +45,7 @@ jobs:
   #     - name: Install the jetscape readers and the analysis packages
   #       run: |
   #         python -m pip install --upgrade pip
-  #         pip install "$PYJETSCAPE_WHEEL" fsspec aiohttp requests nbclient ipykernel google-crc32c
+  #         pip install "$PYJETSCAPE_WHEEL" "pelicanfs>=1.0" "aiowebdav2<1" nbclient ipykernel google-crc32c
   #     - name: get_data.py with the standard library
   #       run: |
   #         cd tutorials/pyjetscape

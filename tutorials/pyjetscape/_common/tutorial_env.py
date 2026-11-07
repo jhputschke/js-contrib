@@ -21,7 +21,8 @@ The setups (platform()):
 
 Data (data(), h5()): a file of a set in datasets.json is taken from the local data
 directory ($JS_TUTORIAL_DATA, else data/ in the tutorial folder) when it is there, else
-streamed over HTTPS from the OSDF (no login).  get_data.py downloads sets.
+streamed from the OSDF (no login): with pelicanfs (osdf://), or over plain HTTPS where it
+is not installed.  get_data.py downloads sets, the same way.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ import shutil
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -45,7 +47,8 @@ TUTORIALS = HERE / "tutorials.json"
 #: what Colab installs: the pure-Python jetscape package with the analysis packages
 PYJETSCAPE_WHEEL = ("pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/"
                     "releases/download/v0.2.0/pyjetscape-1.4-py3-none-any.whl")
-COLAB_EXTRA = ["hdf5plugin", "fsspec", "aiohttp", "requests"]
+#: pelicanfs reads the OSDF (osdf://); aiowebdav2 1.0 (2026-11-02) breaks its listing
+COLAB_EXTRA = ["pelicanfs>=1.0", "aiowebdav2<1"]
 
 #: the tutorials as a tarball: a release with its own tag (tutorials-vN, never "latest",
 #: which belongs to js-contrib's code releases), and the main branch (what Colab opens)
@@ -275,26 +278,47 @@ def local(set_name: str, filename: str) -> Path | None:
     return p if p.is_file() else None
 
 
+def _get_data():
+    """get_data.py (next to the notebooks), which does the reading from the OSDF."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import get_data
+    return get_data
+
+
+def osdf():
+    """pelicanfs's file system for the OSDF, fsspec.filesystem("osdf"), or None without
+    pelicanfs (the files are then read over plain HTTPS)."""
+    return _get_data().osdf_fs()
+
+
+def osdf_url(set_name: str, filename: str = "") -> str:
+    """The osdf:// URL of a file of a set, for pelicanfs, fsspec and uproot."""
+    return "osdf://" + _get_data().osdf_path(datasets(), set_name, filename)
+
+
 def data(set_name: str, filename: str, stream: bool | None = None) -> str:
     """The file to read: the local copy when there is one (and ``stream`` is not True), else
-    its HTTPS URL at an OSDF cache that answers (get_data.cache_url).  uproot opens either;
-    for h5py use h5()."""
+    its osdf:// URL (with pelicanfs), or its HTTPS URL at an OSDF cache that answers
+    (without).  uproot opens all three; for h5py use h5()."""
     p = None if stream else local(set_name, filename)
     if p is not None:
         return str(p)
     if stream is False:
         raise FileNotFoundError(f"{set_name}/{filename} not in {data_dir()}; "
                                 f"python get_data.py {set_name}")
-    sys.path.insert(0, str(HERE))
-    import get_data                                  # a cache that answers, not the director
-    return get_data.cache_url(url(set_name, filename))
+    if osdf() is not None:
+        return osdf_url(set_name, filename)
+    return _get_data().cache_url(url(set_name, filename))
 
 
 def h5(set_name: str, filename: str, stream: bool | None = None, block_mb: int = 4):
-    """h5py.File of a set's file: local, or streamed over HTTPS in ``block_mb`` blocks
-    (fsspec; only the blocks read are fetched)."""
+    """h5py.File of a set's file: local, or streamed from the OSDF in ``block_mb`` blocks
+    (pelicanfs, else fsspec over HTTPS; only the blocks read are fetched)."""
     import h5py
     src = data(set_name, filename, stream)
+    if src.startswith("osdf://"):
+        return h5py.File(osdf().open(src[len("osdf://"):], "rb", block_size=block_mb << 20), "r")
     if src.startswith("https://"):
         import fsspec
         f = fsspec.filesystem("https").open(src, "rb", block_size=block_mb << 20)
@@ -305,50 +329,51 @@ def h5(set_name: str, filename: str, stream: bool | None = None, block_mb: int =
 def files(set_name: str) -> dict:
     """{filename: size in bytes} of a set, from its OSDF manifest (local files if the set
     is downloaded and the OSDF cannot be reached)."""
-    sys.path.insert(0, str(HERE))
-    import get_data
     try:
-        return {k: v["size"] for k, v in get_data.manifest(datasets(), set_name).items()}
+        return {k: v["size"] for k, v in _get_data().manifest(datasets(), set_name).items()}
     except Exception:                                # noqa: BLE001
         d = data_dir() / set_name
         return {p.name: p.stat().st_size for p in sorted(d.iterdir()) if p.is_file()}
 
 
 def read_text(set_name: str, filename: str) -> str:
-    """A small text file of a set (a job's .json or .xml): local, else over HTTPS."""
-    src = data(set_name, filename)
-    if src.startswith("https://"):
-        sys.path.insert(0, str(HERE))
-        import get_data                              # its _open retries a failing cache
-        with get_data._open(src) as r:
-            return r.read().decode()
-    return Path(src).read_text()
+    """A small text file of a set (a job's .json or .xml): local, else from the OSDF."""
+    p = local(set_name, filename)
+    if p is not None:
+        return p.read_text()
+    return _get_data().read_bytes(datasets(), set_name, filename).decode()
 
 
 def fetch(set_name: str, include=None, quiet: bool = False) -> Path:
     """Download the files of a set that a tutorial reads from local disk (``include``: globs,
     default all) into the data directory, once -> the set's local directory.  Files already
     there are kept; get_data.py does the work."""
-    sys.path.insert(0, str(HERE))
-    import get_data
-    return get_data.fetch_set(set_name, data_dir(), include=include, quiet=quiet,
-                              cfg=datasets())
+    return _get_data().fetch_set(set_name, data_dir(), include=include, quiet=quiet,
+                                 cfg=datasets())
 
 
 def check_osdf(timeout: float = 30) -> dict:
-    """Fetch the namespace's test object over HTTPS -> {ok, cache, seconds, error}."""
+    """Read the namespace's test object -> {ok, via, cache, seconds, error}: ``via`` is
+    pelicanfs (with its version) or HTTPS, ``cache`` the OSDF cache that answered."""
     cfg = datasets()
-    u = cfg["osdf_https"].rstrip("/") + "/" + cfg["namespace"].strip("/") + \
-        "/test/test-hello-world.txt"
-    t0 = time.time()
+    path = "/" + cfg["namespace"].strip("/") + "/test/test-hello-world.txt"
+    gd = _get_data()
+    via, t0 = gd.backend(), time.time()
     try:
-        req = urllib.request.Request(u, headers={"User-Agent": "js-contrib-tutorials"})
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            r.read()
-            return {"ok": True, "cache": r.url.split("/")[2], "seconds": time.time() - t0,
-                    "error": ""}
+        fs = osdf()
+        if fs is not None:
+            with fs.open(path, "rb") as f:
+                f.read()
+                cache = urllib.parse.urlsplit(f.url).netloc
+        else:
+            with gd._open(cfg["osdf_https"].rstrip("/") + path, timeout=timeout) as r:
+                r.read()
+                cache = urllib.parse.urlsplit(r.url).netloc
+        return {"ok": True, "via": via, "cache": cache, "seconds": time.time() - t0,
+                "error": ""}
     except Exception as e:                           # noqa: BLE001
-        return {"ok": False, "cache": "", "seconds": time.time() - t0, "error": str(e)}
+        return {"ok": False, "via": via, "cache": "", "seconds": time.time() - t0,
+                "error": f"{type(e).__name__}: {e}"}
 
 
 # ── reports ─────────────────────────────────────────────────────────────────────────────

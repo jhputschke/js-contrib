@@ -102,10 +102,16 @@ here.
 
 ## 3. The data
 
-The tutorials read example files from the OSDF, in the public namespace `/fno4hic`. They
-read them over plain HTTPS: the OSDF director sends each request to a cache near you. This
-needs no account, no `pelicanfs` and no `curl`. When a notebook opens a file, it takes the
-local copy if there is one, and otherwise streams only the parts it reads.
+The tutorials read example files from the OSDF, in the public namespace `/fno4hic`, with
+[pelicanfs](https://github.com/PelicanPlatform/pelicanfs), the OSDF's client for Python. It
+asks the OSDF director which caches hold a file, reads from the nearest one, and moves on to
+the next when a cache fails. No account is needed. When a notebook opens a file, it takes the
+local copy if there is one, and otherwise streams only the parts it reads, as an `osdf://`
+URL. Tutorial 01 introduces pelicanfs; [Data on the OSDF](../run/osdf.md) has the rest.
+
+Every setup has pelicanfs: the container, the Mac wheel and the analysis environment, and in
+Colab the first cell installs it. Where it is missing (the pure-Python pyjetscape wheel
+0.2.0), the tutorials read the same caches over plain HTTPS, with the standard library.
 
 To download a set once, for working offline or for the large files (the hydro pairs are
 0.2–0.9 GB each), run `get_data.py` in the tutorial folder:
@@ -116,8 +122,8 @@ python get_data.py oo_test auau_jet_event          # -> data/oo_test/, data/auau
 python get_data.py auau_hadrons_root --max-files 3 # the first three files of a large set
 ```
 
-- `get_data.py` uses only the Python standard library, so it runs in every setup, inside
-  the container too.
+- `get_data.py` downloads with pelicanfs, and over plain HTTPS where pelicanfs is missing,
+  so it runs in every setup, inside the container too.
 - It takes the file names and sizes from the manifest that each OSDF folder holds, and
   checks every file's size. It also checks the CRC32C checksum when `google-crc32c` or
   `crc32c` is installed.
@@ -137,6 +143,7 @@ overwritten, so a tutorial release and its data stay together.
 |---|---|
 | `OSError: Can't synchronously read data (can't open directory .../hdf5/lib/plugin)` | the files are compressed with Blosc and h5py has no filter for it: `import hdf5plugin` before reading. The tutorials' first cell does this (`te.setup()`). |
 | the OSDF is not reachable | a firewall or proxy blocks `osdf-director.osg-htc.org`. Download the data elsewhere with `get_data.py` and copy the `data/` folder. |
+| `note: pelicanfs ... does not work with aiowebdav2 1.x; reading over HTTPS instead` | an environment installed after 2026-11-02 has aiowebdav2 1.x, with which pelicanfs (up to 1.5.0) cannot list or stat files, so `uproot.open("osdf://...")` fails. The tutorials read over HTTPS then; to fix the environment: `pip install "aiowebdav2<1"`. |
 | `ModuleNotFoundError: _common` | the notebook was started outside its folder. Start Jupyter in the tutorial folder, or open the notebook from there. |
 | the container's Jupyter page does not load | Docker: `-p 8888:8888` is missing. Apptainer: tunnel to the compute node, not the login node. |
 | MUSIC prints `Metal init failed, falling back to CPU` | the Mac wheel runs in a virtual machine or a container: run it natively in Terminal. |

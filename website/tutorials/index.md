@@ -60,8 +60,9 @@ against p+p).
 
 ## The data
 
-The tutorials read example files from the OSDF, over HTTPS, with no account needed. The
-files are streamed as they are read, or downloaded once with `get_data.py`; see
+The tutorials read example files from the OSDF with [pelicanfs](https://github.com/PelicanPlatform/pelicanfs),
+the OSDF's client for Python, with no account needed (tutorial 01 introduces it). The files
+are streamed as they are read, or downloaded once with `get_data.py`; see
 [Setting up](setup.md#3-the-data). The data sets and their contents are listed in
 [`datasets.json`](https://github.com/jhputschke/js-contrib/blob/main/tutorials/pyjetscape/datasets.json).
 

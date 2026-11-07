@@ -79,9 +79,11 @@ tutorials only.
 
 ## 3. The data
 
-The tutorials read example files from the OSDF over HTTPS. This needs no account, and
-nothing is installed for it. The files are streamed as they are read. To download them
-instead, for working offline or for the larger sets:
+The tutorials read example files from the OSDF with pelicanfs, the OSDF's client for Python
+(`osdf://` URLs; tutorial 01 introduces it). Every setup has it, and in Colab the first cell
+installs it; without it, the tutorials read the same files over plain HTTPS. No account is
+needed. The files are streamed as they are read. To download them instead, for working
+offline or for the larger sets:
 
 ```bash
 python get_data.py --list                        # the sets and their sizes
@@ -89,7 +91,8 @@ python get_data.py oo_test auau_jet_event        # -> data/<set>/
 python get_data.py auau_jet_event --to ~/xscape_data && export JS_TUTORIAL_DATA=~/xscape_data
 ```
 
-`get_data.py` needs only Python, so it runs in every setup, including inside the container.
+`get_data.py` downloads with pelicanfs, or over plain HTTPS where pelicanfs is missing, so it
+runs in every setup, including inside the container.
 It checks the size of every file, and its CRC32C checksum too when `google-crc32c` or `crc32c`
 is installed. Interrupted downloads resume where they stopped. The tutorials take a set
 from the data folder (`$JS_TUTORIAL_DATA`, else `data/` here) when it is there, and stream
@@ -102,7 +105,7 @@ it otherwise.
 | `NN_*.ipynb` | the tutorials, in order |
 | `tutorials.json` | the index: titles, what each tutorial needs, its data |
 | `datasets.json` | the data sets: their OSDF folders, sizes and contents |
-| `get_data.py` | downloads data sets (Python standard library only) |
+| `get_data.py` | downloads data sets (with pelicanfs, or over HTTPS without it) |
 | `_common/tutorial_env.py` | the helpers each notebook loads first: detects the setup, registers the HDF5 compression filters, finds the data |
 | `expected/` | the reference results the "check your result" cells compare against |
 | `VERSION.txt` | the version of the tutorials, printed by every notebook (not `VERSION`: on macOS ROOT's compiler would take it for the C++ header `<version>`) |
