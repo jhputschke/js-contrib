@@ -188,15 +188,19 @@ default from 2026-11): the frame reached by a longitudinal boost by \(\eta_d\), 
 droplet sits at \(z = 0\) and the surrounding fluid is close to rest. Every droplet then spreads
 as one at midrapidity does, and \(\tau_{\rm delay}\) is a delay in that frame's own time. The
 liquefier's paper solves the equation in the **lab frame** (`<frame>lab</frame>`, X-SCAPE's
-prescription before 2026-11), an approximation it states for a medium whose flow is small. At
-midrapidity the two are the same. At forward \(\eta_s\), where the Bjorken flow
-\(v_z = \tanh\eta_s\) exceeds the signal speed, the lab-frame cloud trails the fluid: a droplet
-at \(\eta_s\) = 2.4 deposits about 0.7 units of \(\eta_s\) lower, with an rms of 0.03 in
-\(\eta_s\), far narrower than a cell. A deposit that concentrated can leave a cell with more
+prescription before 2026-11), an approximation it states for a medium whose flow is small. The
+two are the same only for a droplet at \(\eta_s\) = 0. Away from it the lab-frame cloud trails
+the Bjorken flow \(v_z = \tanh\eta_s\) and lands closer to midrapidity: a droplet at
+\(\eta_s\) = 1 by 0.4 units, one at \(\eta_s\) = 2.4 (where the flow exceeds the signal speed)
+by about 0.7 units, with an rms of 0.03 in \(\eta_s\), far narrower than a cell. A deposit that concentrated can leave a cell with more
 momentum than energy; MUSIC then keeps the cell's previous state and the deposit is lost. In the
 Bjorken frame the same droplet spreads over about a hundred cells around its own \(\eta_s\).
-The pair files record the frame (`liquefier_frame`); files without it were made in the lab
-frame.
+The midrapidity wake changes too, because the lab frame pulled droplets from
+\(|\eta_s| \gtrsim 0.5\) toward it: in a test with five Au+Au events, the wake at
+\(|\eta_s| < 1\) holds 6 % less energy in the Bjorken frame at \(\tau\) = 8 fm/c (from 0 to
+16 % per event), and its charged hadrons there carry 3 % less \(p_T\), within that sample's
+errors. The pair files record the frame (`liquefier_frame`); files without it were made in the
+lab frame. Campaigns made in different frames should not be mixed in a wake analysis.
 
 The jet leg's hydro equations are then
 

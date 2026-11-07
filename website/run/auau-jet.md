@@ -165,8 +165,10 @@ Y ≈ η_max + 1 with `any`.
   [The physics](../about/physics.md#5-energymomentum-deposition-the-causalliquefier)): forward
   droplets spread as midrapidity ones do. Campaigns made before 2026-11 used the lab frame,
   which deposits forward droplets displaced and far too narrow; `--liquefier-frame lab`
-  reproduces them. The two agree at midrapidity, so do not mix frames in an analysis of
-  forward rapidity. The pair file records it (`liquefier_frame`).
+  reproduces them. Only droplets at η_s = 0 deposit the same in both: the lab frame pulls the
+  others toward midrapidity (by 0.4 units already at η_s = 1), so the wake at \|η_s\| < 1
+  differs by 5–10 % in energy. **Do not mix frames in a wake analysis.** The pair file records
+  it (`liquefier_frame`).
 - **The output grid** of the pair file is `example/config/grid_fno.yaml` (64 × 64 × 32 cells,
   x, y ±12.2 fm, η_s ±4.84); `--grid FILE` for another. Never mix grids in one training set.
 

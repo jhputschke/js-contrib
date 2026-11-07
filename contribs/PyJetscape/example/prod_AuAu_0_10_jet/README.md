@@ -1601,9 +1601,26 @@ On MUSIC's grid such a near-point deposit loses energy, with viscous and ideal h
 An X-SCAPE with `<CausalLiquefier><frame>` evaluates the kernel by default in the frame of
 the Bjorken flow at the droplet's eta_s (`bjorken`): every droplet deposits as one at
 midrapidity does, and the normalization on the grid stays exact. `--liquefier-frame lab`
-reproduces campaigns made before (the two agree at eta_s = 0; forward deposits differ, so
-campaigns made in different frames are not comparable at forward rapidity). The pair file
+reproduces campaigns made before. The two agree only for droplets at eta_s = 0: the lab frame
+pulls the others toward midrapidity (by 0.4 units already at eta_s = 1), so campaigns made in
+different frames must not be mixed in a wake analysis, at midrapidity either. The pair file
 records the frame (`liquefier_frame`; files without it were made in the lab frame).
+
+The same 5 events (`--events 5 --reuse 5 --seed 101 --pthat-min 30 --pthat-max 40
+--parton-ymax 0.6 --write-particlize both`, hadronized `--correlated --oversample 200`) in both
+frames; backgrounds and droplets are bit-identical, only the deposit differs:
+
+| | lab | bjorken |
+|---|---|---|
+| wake energy at \|eta_s\| < 1, tau = 8 fm/c, sum over the events | 98.1 GeV | 92.6 GeV (-6 %; per event 0 to -16 %) |
+| the same at tau = 4 fm/c | 56.6 GeV | 51.4 GeV (-9 %) |
+| charged-hadron wake at \|eta\| < 1, N per event | 9.10 +- 0.67 | 8.90 +- 0.66 |
+| the same, sum pT per event | 7.51 +- 0.39 GeV | 7.25 +- 0.39 GeV |
+
+The event whose droplets all sit near eta_s = 0 is unchanged (its midrapidity wake maps differ
+by 2 %). The hadron-level differences go the same way but are within this sample's errors
+(each frame's own; the frames share sampling seeds, so the error of the difference is smaller).
+
 
 Replaying event 0 of a native-grid job (p̂T 30–40 GeV, seed 101) with its recorded
 droplets (`liquefier_replay.py`), the fluid's gain over the deposited energy, full grid:
