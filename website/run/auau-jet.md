@@ -161,6 +161,12 @@ Y ≈ η_max + 1 with `any`.
   `--no-music2-restart` turns it off. Every job log says `restart` at the start, on or off.
 - **EOS 91** (hotQCD with the SMASH hadron list), which iSS decays itself; `--eos 9` only to
   rerun older campaigns.
+- **The liquefier's frame** is the Bjorken frame (`<CausalLiquefier><frame>bjorken</frame>`,
+  [The physics](../about/physics.md#5-energymomentum-deposition-the-causalliquefier)): forward
+  droplets spread as midrapidity ones do. Campaigns made before 2026-11 used the lab frame,
+  which deposits forward droplets displaced and far too narrow; `--liquefier-frame lab`
+  reproduces them. The two agree at midrapidity, so do not mix frames in an analysis of
+  forward rapidity. The pair file records it (`liquefier_frame`).
 - **The output grid** of the pair file is `example/config/grid_fno.yaml` (64 × 64 × 32 cells,
   x, y ±12.2 fm, η_s ±4.84); `--grid FILE` for another. Never mix grids in one training set.
 

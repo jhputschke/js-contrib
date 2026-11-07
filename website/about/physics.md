@@ -163,7 +163,8 @@ The energy the jet loses to the medium is put back into the fluid by X-SCAPE's
 in with the four-momentum of the partons that are still tracked. A parton is no longer tracked
 when its energy in the local fluid rest frame is below `e_threshold` = 2 GeV, and holes are
 never tracked further. The difference \(\Delta p^\mu\) becomes a **droplet** at the step's
-space-time point: soft partons enter with a positive sign, holes with a negative one. Heavy
+space-time point: soft partons enter with a positive sign, holes with a negative one. Being a
+momentum transfer, a droplet's \(\Delta p^\mu\) is often spacelike. Heavy
 quarks, photons and leptons are never liquefied. Each event's droplets are stored in the pair
 file (`source/droplets`: \(\tau, x, y, \eta_s, E, p_x, p_y, p_z\)).
 
@@ -178,8 +179,26 @@ from its position by relativistic (causal) diffusion,
 with \(\tau_{\rm relax}\) = 0.1 fm/c and \(D\) = 0.08 fm, so the signal speed is
 \(\sqrt{D/\tau_{\rm relax}} \approx 0.89\,c\). The droplet is deposited in the hydro step that
 contains \(\tau_{\rm drop} + \tau_{\rm delay}\), with \(\tau_{\rm delay}\) = 1 fm/c, using the
-diffusion kernel \(G\) at that time (smoothed with `width_delta` = 0.1 fm). The jet leg's hydro
-equations are then
+diffusion kernel \(G\) at that time (smoothed with `width_delta` = 0.1 fm).
+
+**The frame of the diffusion.** The diffusion equation above is isotropic in one frame, and
+which one matters away from midrapidity. X-SCAPE solves it in the frame of the **Bjorken flow at
+the droplet's space-time rapidity** \(\eta_d\) (`<CausalLiquefier><frame>bjorken</frame>`, the
+default from 2026-11): the frame reached by a longitudinal boost by \(\eta_d\), in which the
+droplet sits at \(z = 0\) and the surrounding fluid is close to rest. Every droplet then spreads
+as one at midrapidity does, and \(\tau_{\rm delay}\) is a delay in that frame's own time. The
+liquefier's paper solves the equation in the **lab frame** (`<frame>lab</frame>`, X-SCAPE's
+prescription before 2026-11), an approximation it states for a medium whose flow is small. At
+midrapidity the two are the same. At forward \(\eta_s\), where the Bjorken flow
+\(v_z = \tanh\eta_s\) exceeds the signal speed, the lab-frame cloud trails the fluid: a droplet
+at \(\eta_s\) = 2.4 deposits about 0.7 units of \(\eta_s\) lower, with an rms of 0.03 in
+\(\eta_s\), far narrower than a cell. A deposit that concentrated can leave a cell with more
+momentum than energy; MUSIC then keeps the cell's previous state and the deposit is lost. In the
+Bjorken frame the same droplet spreads over about a hundred cells around its own \(\eta_s\).
+The pair files record the frame (`liquefier_frame`); files without it were made in the lab
+frame.
+
+The jet leg's hydro equations are then
 
 \[
 \partial_\mu T^{\mu\nu} = J^\nu_{\rm strings} + J^\nu_{\rm jet},\qquad
