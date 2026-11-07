@@ -53,9 +53,11 @@ def params_from_liquefier(liq):
     from fast_data.liquefier import LiquefierParams
     from jetscape.liquefier_io import liquefier_params
     p = liquefier_params(liq)
+    # X-SCAPE's <CausalLiquefier><frame> (a build without it: the lab frame)
+    frame = "fluid" if getattr(liq, "fluid_frame", False) else "lab"
     return LiquefierParams(dtau=p["dtau"], tau_delay=p["tau_delay"],
                            time_relax=p["time_relax"], d_diff=p["d_diff"],
-                           width_delta=p["width_delta"])
+                           width_delta=p["width_delta"], frame=frame)
 
 
 def droplets_from_liquefier(liq):
