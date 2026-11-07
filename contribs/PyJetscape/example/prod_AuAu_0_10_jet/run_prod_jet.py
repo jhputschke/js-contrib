@@ -235,6 +235,13 @@ def parse_args() -> argparse.Namespace:
                         "<late_delta_tau>, 0.05 in the production XML; 0: constant step)")
     p.add_argument("--late-tau", type=float, default=None, dest="late_tau", metavar="TAU",
                    help="when the larger step starts [fm/c] (the XML's <late_tau_switch>)")
+    p.add_argument("--liquefier-frame", choices=("lab", "fluid"), default=None,
+                   dest="liquefier_frame",
+                   help="the frame of the CausalLiquefier's diffusion (<CausalLiquefier><frame>):"
+                        " lab (X-SCAPE's default, as in the liquefier's paper) or fluid (the "
+                        "Bjorken fluid at the droplet's eta_s: forward droplets deposit as "
+                        "midrapidity ones do). Needs an X-SCAPE with the option. Recorded as "
+                        "the pair file's liquefier_frame")
     p.add_argument("--bulk-info", choices=("slim", "full"), default="slim", dest="bulk_info",
                    help="the background's framework copy, which Matter, LBT and the liquefier "
                         "read: 'slim' (default) keeps e, s, T, vx, vy, vz per cell, ~7 GiB "
@@ -667,6 +674,15 @@ def job_xml(a, out_h5: str):
             problems.append(f"<CausalLiquefier><dtau> = {dtau} must equal MUSIC's Delta_Tau "
                             f"= {music_dtau}: the kernel is divided by it and deposited in "
                             "one hydro step")
+        if a.liquefier_frame is not None:
+            with open(a.main_xml) as fm:
+                has_frame = "<frame>" in fm.read()
+            if not has_frame:
+                problems.append("--liquefier-frame needs an X-SCAPE with <CausalLiquefier>"
+                                "<frame> (its main XML has no default for it, so the tag "
+                                "would stop X-SCAPE at Init)")
+            else:
+                _set_text(liq, "frame", a.liquefier_frame)
     for tag in ("SoftParticlization", "JetHadronization", "Afterburner", "RootBulkWriter",
                 "FastRootBulkWriter"):
         if root.find(tag) is not None:

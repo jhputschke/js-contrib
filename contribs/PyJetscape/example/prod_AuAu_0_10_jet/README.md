@@ -1589,6 +1589,51 @@ or be missed. With a constant step everything is bit-identical to before.
 - **A12, Cornelius without per-element allocations** (MUSIC4GPU `b972b04`): the freeze-out
   search −30 %, bit-identical.
 
+## The liquefier's frame (`--liquefier-frame`)
+
+X-SCAPE's CausalLiquefier solves its causal diffusion in the lab frame, as its paper does
+(Tachibana, Shen, Majumder, arXiv:2001.08321, for a medium with small flow). At forward
+space-time rapidity the Bjorken flow is close to c, and the deposit on the slice
+tau_drop + tau_delay goes wrong: for a droplet at eta_s = 2.4 it lands 0.6 units of eta_s
+lower, 0.03 wide in eta_s (MUSIC's cells are 0.2), and diffused for 0.34 fm instead of 1 fm.
+On MUSIC's grid such a near-point deposit loses energy, with viscous and ideal hydro alike.
+
+`--liquefier-frame fluid` (an X-SCAPE with `<CausalLiquefier><frame>`) evaluates the kernel
+in the frame of the Bjorken fluid at the droplet's eta_s: every droplet deposits as one at
+midrapidity does, and the normalization on the grid stays exact. The default `lab` keeps
+earlier runs reproducible; the two agree at eta_s = 0. The pair file records the choice
+(`liquefier_frame`).
+
+Replaying event 0 of a native-grid job (p̂T 30–40 GeV, seed 101) with its recorded
+droplets (`liquefier_replay.py`), the fluid's gain over the deposited energy, full grid:
+
+| tau [fm/c] | 2 | 3 | 4 | 8 | end |
+|---|---|---|---|---|---|
+| lab, viscous | 0.25 | 0.57 | 0.62 | 0.70 | 0.73 |
+| lab, ideal | 0.25 | 0.56 | 0.59 | | |
+| fluid, viscous | 1.14 | 1.06 | 1.02 | 1.00 | 0.98 |
+| fluid, ideal | 1.00 | 1.03 | 1.00 | | |
+
+(Ideal hydro pushes matter off the grid's edges late, so its full-grid count stops there.)
+
+The job's other four events keep 99-107% over the full grid in both frames: the loss needs a
+large droplet (here 12.8 GeV) squeezed into a few cells. At |eta_s| < 1 their ratios fall to
+0.7-0.9 at late times in both frames as well; that is the wake carrying energy out of the
+window, not a loss. The late excess of a few percent over the full grid is the shear stress,
+which this count (the ideal part of T^{mu nu}) leaves out: it is absent with ideal hydro.
+
+```bash
+python liquefier_kernel.py shapes               # one droplet at eta_s = 0, 1, 1.8, 2.4, both frames
+python liquefier_kernel.py check PAIR.h5        # the C++ normalization's flux, reproduced
+python liquefier_kernel.py window PAIR.h5       # energy made in / deposited in |eta_s| < 1
+python liquefier_replay.py PAIR.h5 --event 0 [--ideal] [--frame fluid] --out r.npz
+```
+
+`liquefier_kernel.py` is the kernel in Python (it reproduces the C++ flux of every droplet
+of a pair file to 1e-5); `liquefier_replay.py` reruns an event's two MUSIC legs with its
+recorded droplets, so that only the hydro or the liquefier changes.
+`tests/test_liquefier_frame.py` checks the C++ option against both.
+
 ## Choices worth knowing
 
 - **EOS 91, and iSS decays the SMASH list.** MUSIC runs EOS 91 (hotQCD + the SMASH hadron
