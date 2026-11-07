@@ -277,14 +277,17 @@ def local(set_name: str, filename: str) -> Path | None:
 
 def data(set_name: str, filename: str, stream: bool | None = None) -> str:
     """The file to read: the local copy when there is one (and ``stream`` is not True), else
-    its HTTPS URL.  uproot opens either; for h5py use h5()."""
+    its HTTPS URL at an OSDF cache that answers (get_data.cache_url).  uproot opens either;
+    for h5py use h5()."""
     p = None if stream else local(set_name, filename)
     if p is not None:
         return str(p)
     if stream is False:
         raise FileNotFoundError(f"{set_name}/{filename} not in {data_dir()}; "
                                 f"python get_data.py {set_name}")
-    return url(set_name, filename)
+    sys.path.insert(0, str(HERE))
+    import get_data                                  # a cache that answers, not the director
+    return get_data.cache_url(url(set_name, filename))
 
 
 def h5(set_name: str, filename: str, stream: bool | None = None, block_mb: int = 4):
@@ -315,8 +318,9 @@ def read_text(set_name: str, filename: str) -> str:
     """A small text file of a set (a job's .json or .xml): local, else over HTTPS."""
     src = data(set_name, filename)
     if src.startswith("https://"):
-        req = urllib.request.Request(src, headers={"User-Agent": "js-contrib-tutorials"})
-        with urllib.request.urlopen(req, timeout=60) as r:
+        sys.path.insert(0, str(HERE))
+        import get_data                              # its _open retries a failing cache
+        with get_data._open(src) as r:
             return r.read().decode()
     return Path(src).read_text()
 

@@ -14,7 +14,9 @@ HTTPS from the OSDF director, which redirects to a nearby cache: no login, no cu
 pelicanfs, no X-SCAPE.  Each OSDF folder holds the manifest js_osdf.py writes on upload
 (.js_transfer_crc32c.json), which gives the file names and sizes; a file is complete when
 its size matches, and its CRC32C is checked too when google-crc32c or crc32c is installed.
-Interrupted downloads resume (*.part); complete files are skipped.
+Interrupted downloads resume (*.part); complete files are skipped.  A cache that fails
+(an HTTP 5xx, a dropped connection) is passed over for the next one the director lists,
+as pelicanfs does.
 
 The default destination is $JS_TUTORIAL_DATA, else data/ next to this script.
 Standard library only (Python 3.8+), so it runs in the container, with the Mac wheel, in
@@ -26,11 +28,15 @@ from __future__ import annotations
 import argparse
 import base64
 import fnmatch
+import http.client
 import json
 import os
+import re
+import socket
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -38,6 +44,9 @@ HERE = Path(__file__).resolve().parent
 MANIFEST = ".js_transfer_crc32c.json"
 USER_AGENT = "js-contrib-tutorials/get_data"
 CHUNK = 1 << 20
+ROUNDS = 3                     # times through the director's list of caches
+RETRY_WAIT = 3                 # seconds before asking the director again, doubled after each
+RETRIES = 5                    # attempts per file whose connection drops mid-download
 
 
 def load_sets(path: Path = HERE / "datasets.json") -> dict:
@@ -60,9 +69,107 @@ def url_of(cfg: dict, set_name: str, filename: str = "") -> str:
     return f"{base_url(cfg)}/{folder}/{filename}"
 
 
+# ── the caches ──────────────────────────────────────────────────────────────────────────
+# The OSDF director answers a request with a redirect to the nearest cache, and lists the
+# other caches that serve the object in its Link header, by priority.  Like pelicanfs, the
+# requests here go to those caches in turn: a cache that fails (an HTTP 5xx, a refused,
+# timed-out or dropped connection) is passed over, and tried after the others for the rest
+# of the process, the more it failed the later.  When every cache has failed, the director is asked again after a pause.
+
+_FAILED: dict = {}             # cache host -> times it failed in this process
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None            # -> HTTPError with the redirect's headers
+
+
+_DIRECTOR = urllib.request.build_opener(_NoRedirect)
+
+
+def _host(url: str) -> str:
+    return urllib.parse.urlsplit(url).netloc
+
+
+def _failed(url: str) -> None:
+    _FAILED[_host(url)] = _FAILED.get(_host(url), 0) + 1
+
+
+def _name(url: str) -> str:
+    return url.rsplit("/", 1)[-1]
+
+
+def _retryable(e: Exception) -> bool:
+    """A failure another cache, or the same one later, may not have."""
+    if isinstance(e, urllib.error.HTTPError):
+        return e.code >= 500 or e.code == 429
+    return isinstance(e, (urllib.error.URLError, http.client.HTTPException, ConnectionError,
+                          TimeoutError, socket.timeout))
+
+
+def caches(url: str, timeout: float = 30) -> list:
+    """The URLs to try for ``url``: the caches the director lists for it, in its order,
+    those that failed in this process after the others.  A URL that is not redirected is
+    its own list."""
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with _DIRECTOR.open(req, timeout=timeout):
+            return [url]                             # not a director
+    except urllib.error.HTTPError as e:
+        if e.code not in (301, 302, 303, 307, 308):
+            raise
+        hdr = e.headers
+        e.close()
+    found = []
+    for item in (hdr.get("Link") or "").split(","):
+        m = re.match(r"\s*<([^>]+)>(.*)", item)
+        if m and 'rel="duplicate"' in m.group(2):
+            pri = re.search(r"pri=(\d+)", m.group(2))
+            found.append((int(pri.group(1)) if pri else 1 << 30, m.group(1)))
+    urls = [u for _, u in sorted(found)]
+    loc = hdr.get("Location")
+    if loc and loc not in urls:
+        urls.insert(0, urllib.parse.urljoin(url, loc))
+    return sorted(urls or [url], key=lambda u: _FAILED.get(_host(u), 0))
+
+
 def _open(url: str, headers: dict | None = None, timeout: float = 60):
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **(headers or {})})
-    return urllib.request.urlopen(req, timeout=timeout)
+    """urlopen ``url`` through the OSDF caches that serve it (see above).  A 404 or 403
+    fails at once; other failures move on to the next cache."""
+    err = None
+    for rnd in range(ROUNDS):
+        if rnd:
+            wait = RETRY_WAIT * 2 ** (rnd - 1)
+            print(f"  {_name(url)}: no cache answered ({err}); asking the director again in "
+                  f"{wait} s", file=sys.stderr)
+            time.sleep(wait)
+        try:
+            candidates = caches(url)
+        except Exception as e:                       # noqa: BLE001
+            if not _retryable(e) or rnd == ROUNDS - 1:
+                raise
+            err = e
+            continue
+        for c in candidates:
+            req = urllib.request.Request(c, headers={"User-Agent": USER_AGENT,
+                                                     **(headers or {})})
+            try:
+                return urllib.request.urlopen(req, timeout=timeout)
+            except Exception as e:                   # noqa: BLE001
+                if not _retryable(e):
+                    raise
+                err = e
+                _failed(c)
+                print(f"  {_name(url)}: {_host(c)} failed ({e}); trying the next cache",
+                      file=sys.stderr)
+    raise err
+
+
+def cache_url(url: str) -> str:
+    """The URL of a cache that serves ``url`` now (for streaming: every read then goes to
+    that cache, not through the director)."""
+    with _open(url, {"Range": "bytes=0-0"}) as r:
+        return r.url
 
 
 def manifest(cfg: dict, set_name: str) -> dict:
@@ -123,22 +230,36 @@ def fetch_file(url: str, dest: Path, size: int, crc: str | None = None,
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
     part = dest.with_name(dest.name + ".part")
-    have = part.stat().st_size if part.exists() else 0
-    if have > size:
-        part.unlink()
-        have = 0
-    t0 = time.time()
-    headers = {"Range": f"bytes={have}-"} if have else {}
-    with _open(url, headers) as r:
-        if have and r.status != 206:      # the server ignored the range: start over
+    t0, start = time.time(), None
+    for attempt in range(RETRIES):        # a connection dropped mid-file resumes from .part,
+        have = part.stat().st_size if part.exists() else 0    # from the next cache
+        if have > size:
+            part.unlink()
             have = 0
-        with open(part, "ab" if have else "wb") as out:
-            done = have
-            for block in iter(lambda: r.read(CHUNK), b""):
-                out.write(block)
-                done += len(block)
-                if not quiet and sys.stdout.isatty():
-                    print(f"\r  ...     {dest.name}  {_fmt(done)} / {_fmt(size)}", end="")
+        start = have if start is None else start
+        headers = {"Range": f"bytes={have}-"} if have else {}
+        r = _open(url, headers)           # passes over caches that fail to answer
+        try:
+            with r:
+                if have and r.status != 206:      # the server ignored the range: start over
+                    have = 0
+                with open(part, "ab" if have else "wb") as out:
+                    done = have
+                    for block in iter(lambda: r.read(CHUNK), b""):
+                        out.write(block)
+                        done += len(block)
+                        if not quiet and sys.stdout.isatty():
+                            print(f"\r  ...     {dest.name}  {_fmt(done)} / {_fmt(size)}",
+                                  end="")
+            if part.stat().st_size >= size:
+                break
+            err = IOError(f"connection closed at {part.stat().st_size} of {size} bytes")
+        except (http.client.HTTPException, ConnectionError, TimeoutError, socket.timeout) as e:
+            err = e
+        _failed(r.url)
+        if attempt < RETRIES - 1:
+            print(f"  {dest.name}: {_host(r.url)}: {err}; resuming from the next cache",
+                  file=sys.stderr)
     got = part.stat().st_size
     if got != size:
         raise IOError(f"{dest.name}: got {got} bytes, expected {size}; run again to resume")
@@ -150,7 +271,7 @@ def fetch_file(url: str, dest: Path, size: int, crc: str | None = None,
     part.replace(dest)
     if not quiet:
         dt = max(time.time() - t0, 1e-3)
-        print(f"\r  fetched {dest.name}  ({_fmt(size)}, {_fmt((size - have) / dt)}/s)" + " " * 10)
+        print(f"\r  fetched {dest.name}  ({_fmt(size)}, {_fmt((size - start) / dt)}/s)" + " " * 10)
     return dest
 
 
