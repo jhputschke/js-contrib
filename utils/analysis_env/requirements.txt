@@ -37,3 +37,5 @@ pytest>=7.0
 # --- production monitor (utils/jobmon.py --watch, --tui) ----------------------------------
 rich>=13
 textual>=8
+pelicanfs>=1.0         # the OSDF: osdf:// and pelican:// for fsspec, h5py and uproot
+aiowebdav2<1          # pelicanfs 1.5's listing and info fail with aiowebdav2 1.0 (2026-11-02)

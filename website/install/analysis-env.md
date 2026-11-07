@@ -40,8 +40,8 @@ The script
 
 1. creates the venv (default `~/.venvs/js_analysis`; give another directory as the first
    argument). Re-running it on an existing venv updates it;
-2. installs the analysis packages from `utils/analysis_env/requirements.txt`, plus pyvista/vtk
-   and pelicanfs (both on by default), about 1.6 GB in total;
+2. installs the analysis packages from `utils/analysis_env/requirements.txt` (pelicanfs for the
+   OSDF among them), plus pyvista/vtk (on by default), about 1.6 GB in total;
 3. installs PyJetscape from your checkout in editable mode, so `import jetscape` works from
    anywhere and follows `git pull`;
 4. downloads MUSIC's two hotQCD EoS tables (3.2 MB each, md5-checked) into the venv: EOS 91
@@ -84,7 +84,7 @@ With a directory it opens its pair, hadron and ROOT files. Two flags:
 | `--with-fasthydro` | also install [FastHydro](../python/fasthydro.md), for FastHydro's own files and readers; **not needed for the production files**. Its solver also needs `pip install torch` |
 | `--system-site-packages` | let the venv see the packages of the Python it is made from, e.g. PyROOT of a conda env ([§4](#4-root-next-to-it)); on an existing venv it switches this on |
 | `--with-gcs` | add Google Cloud Storage (`gcsfs`, `google-cloud-storage`): `gs://` URLs for fsspec, h5py and uproot |
-| `--no-pelican` | leave out pelicanfs, which is installed by default: `osdf://` and `pelican://` URLs |
+| `--no-pelican` | ignored: pelicanfs (`osdf://` and `pelican://` URLs) is part of the base list since 2026-11 |
 | `--eos-table PATH` | copy the EoS tables from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or one of its `.dat` files) instead of downloading them; a table not found there is downloaded |
 | `--no-eos` | neither download nor copy them |
 | `--kernel NAME` | register a Jupyter kernel `NAME` for the venv (for VS Code or a JupyterLab elsewhere) |
@@ -207,8 +207,8 @@ uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-maco
 
 Quote the argument: zsh treats `[...]` as a pattern. The readers, `HadronArray`, the awkward
 views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it
-installs neither pyvista nor pelicanfs (add `pelicanfs` with `uv pip install pelicanfs` for the
-OSDF), and it does not fetch the EoS tables: download both as in the conda tab above and
+does not install pyvista, and the 0.2.0 wheel has no pelicanfs (add it with
+`uv pip install pelicanfs "aiowebdav2<1"`; later wheels include it), and it does not fetch the EoS tables: download both as in the conda tab above and
 point `MUSIC_EOS_TABLE` at one of them (the tools take the other from the same directory).
 
 ## Threads and memory

@@ -108,7 +108,7 @@ RUN /opt/miniforge3/envs/xscape/bin/pip install \
     "ruamel.yaml" wandb \
 # gcsfs google-cloud-storage   <- disabled for now; pelicanfs (below) is the planned production data layer
     jupyterlab ipykernel \
-    tensorly-torch "zencfg>=0.3.0" configmypy pelicanfs \
+    tensorly-torch "zencfg>=0.3.0" configmypy pelicanfs "aiowebdav2<1" \
   && /opt/miniforge3/envs/xscape/bin/pip cache purge
 
 # Notes:

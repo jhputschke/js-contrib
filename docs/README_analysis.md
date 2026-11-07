@@ -233,7 +233,6 @@ python utils/analysis_env/check_env.py /path/to/campaign   # opens every file in
 | `--uv` | install with uv, much faster |
 | `--no-viz` | without pyvista/vtk/ffmpeg (~0.6 GB less) |
 | `--kernel NAME` | register a Jupyter kernel for the venv (for VS Code, another JupyterLab) |
-| `--no-pelican` | without pelicanfs, which reads files in place over `osdf://` (fsspec) |
 | `--with-gcs` | read files in place over `gs://` (fsspec) |
 | `--system-site-packages` | see the packages of the Python the venv is made from, e.g. PyROOT (B) |
 | `--with-fasthydro` | FastHydro's readers (`fasthydro.browse.PairBrowser`); not needed for the production files |

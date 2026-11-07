@@ -19,8 +19,8 @@
 #   --with-gcs           also install the Google Cloud Storage interfaces: gcsfs (gs:// for
 #                        fsspec, h5py and uproot) and google-cloud-storage
 #                        (requirements_gcs.txt)
-#   --no-pelican         skip pelicanfs (requirements_pelican.txt), installed by default:
-#                        pelican:// and osdf:// for fsspec, h5py and uproot
+#   --no-pelican         ignored: pelicanfs (osdf:// and pelican:// for fsspec, h5py and
+#                        uproot) is part of the base list, requirements.txt (2026-11)
 #   --eos-table PATH     copy MUSIC's hotQCD tables from PATH (a MUSIC/X-SCAPE EOS/hotQCD
 #                        directory, or one of the .dat files) instead of downloading them; a
 #                        table not found there is downloaded
@@ -64,7 +64,7 @@ while [ $# -gt 0 ]; do
         --no-viz)          VIZ=0; shift ;;
         --with-fasthydro)  FASTHYDRO=1; shift ;;
         --with-gcs)        GCS=1; shift ;;
-        --no-pelican)      PELICAN=0; shift ;;
+        --no-pelican)      echo "note: --no-pelican is ignored: pelicanfs is in requirements.txt" >&2; shift ;;
         --with-pelican)    PELICAN=1; shift ;;   # the default; old command lines
         --eos-table)       EOS=copy; EOS_SRC="${2:?--eos-table needs a path}"; shift 2 ;;
         --no-eos)          EOS=none; shift ;;
