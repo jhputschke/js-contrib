@@ -1,3 +1,10 @@
+/* ── Base size: the same on every screen ─────────────────────────── */
+/* Material raises the root font size on wide windows (125 % -> 137.5 % from 100em,
+   150 % from 125em), which scales the whole page; keep 125 % everywhere, so a wide window
+   gives more room, not larger text. extra.css loads after the theme, so these win. */
+@media screen and (min-width: 100em) { html { font-size: 125%; } }
+@media screen and (min-width: 125em) { html { font-size: 125%; } }
+
 /* ── Global body text ──────────────────────────────────────────────── */
 :root {
   --md-typeset-font-size: 0.9rem;   /* base: default is 0.8rem */
@@ -174,3 +181,18 @@ body.dz-noscroll {
 .sp-sw.sp-s1 { background: var(--sp-s1); }
 .sp-sw.sp-s2 { background: var(--sp-s2); }
 .sp-sw.sp-rng { width: 18px; height: 2px; border-radius: 0; background: var(--md-default-fg-color--light); }
+
+/* ── Page width: wider than the theme's ─────────────────────────────── */
+/* Material caps the page at 61rem; the site uses up to 90rem (1800 px at the fixed 125 %
+   base size), for the wide tables, code and plots. Smaller windows use their full width. */
+.md-grid {
+  max-width: 90rem;
+}
+
+/* Pages without the navigation sidebar (hide: navigation, the home page): indent the text
+   by the sidebar's width on wide screens, so it starts where it does on the other pages. */
+@media screen and (min-width: 76.25em) {
+  .md-main__inner:has(> .md-sidebar--primary[hidden]) .md-content {
+    margin-left: 12.1rem;
+  }
+}
