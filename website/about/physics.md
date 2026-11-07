@@ -210,9 +210,17 @@ through the \(\tau\) slice is deposited. A droplet with no fluid around it (made
 hydro starts) takes the Bjorken frame. In the same test, the fluid and Bjorken frames agree
 along \(\eta_s\), in the energy kept, and in the midrapidity wake's energy (within 1 %). The
 fluid frame carries late deposits outward with the radial flow, by up to 0.8 fm, and
-contracts them along it. That changes the local wake by 20–30 %; the charged hadrons of the
-wake carry 6 % less \(p_T\) in this sample, with the same multiplicity. The test, its data
-and a notebook are in `example/liquefier_frame_test/`. The pair files record the frame
+contracts them along it. That changes the local wake by 20–30 %. At hadron level the three
+frames agree within that sample's errors (about 5 %).
+
+At the LHC the lab frame's error matters much more. In a test with Z+jet events in Pb+Pb at
+5.02 TeV (the Z+jet campaign's settings, no rapidity cut on the recoil partons), 58 % of the
+droplets' energy is made at \(|\eta_s| > 2\). The lab frame moves it toward midrapidity by
+0.9 units on average, and 22 % of the energy misses MUSIC's cells and goes into single cells.
+The midrapidity wake (\(|\eta_s| < 1\)) comes out 2.6 times too large at \(\tau\) = 2 fm/c
+and 19 % too large at 8 fm/c, while the whole grid still balances: the energy is kept, but in
+the wrong place. Both tests, their data scripts and notebooks are in
+`example/liquefier_frame_test/`. The pair files record the frame
 (`liquefier_frame`); files without it were made in the lab frame. Campaigns made in
 different frames should not be mixed in a wake analysis.
 

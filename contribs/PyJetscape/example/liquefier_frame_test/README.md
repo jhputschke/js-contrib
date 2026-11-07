@@ -16,9 +16,10 @@ on the same events.
 
 | file | |
 |---|---|
-| `make_data.sh` | the test data: tutorial 06's event with 25 jets, in the three frames, hadronized |
+| `make_data.sh` | the test data in the three frames, hadronized: tutorial 06's Au+Au event with 25 jets, or (`SYSTEM=zjet`) LHC Z+jet events with the Z+jet campaign's settings |
 | `frame_summary.py` | the data reduced to `summary.npz` (hydro, droplets, hadrons) |
-| `compare_frames.ipynb` | the comparison: energy conservation, where the energy goes, wake observables |
+| `compare_frames.ipynb` | the comparison at RHIC: energy conservation, where the energy goes, wake observables |
+| `compare_frames_zjet.ipynb` | the same for the LHC Z+jet events |
 | `liquefier_kernel.py` | the kernel in Python, all three frames (it reproduces the C++ to 1e-6) |
 | `liquefier_replay.py` | one event's MUSIC legs rerun with its recorded droplets (`--frame`, `--ideal`) |
 
@@ -55,6 +56,8 @@ mapping it to another frame.
 ```bash
 OUT=~/JetScape/liquefier_frame_test ./make_data.sh       # ~15 min on an M3 Max, 20 GB
 jupyter lab compare_frames.ipynb                           # LFT_DATA=... if OUT differs
+SYSTEM=zjet ./make_data.sh                                 # ~45 min, 63 GB (~/JetScape/liquefier_frame_test_zjet)
+jupyter lab compare_frames_zjet.ipynb
 ```
 
 0-10% Au+Au at 200 GeV, seed 101, one background reused for 25 jets (PythiaGun pTHat 30-40 GeV,
@@ -64,7 +67,7 @@ AuAu_pair_mini`, made in the lab frame): its 5 events are the first 5 here (drop
 background identical). The three runs differ only in the deposit: background, jets and droplets
 are bit-identical (`frame_summary.py` checks it).
 
-## Results (25 events)
+## Results: Au+Au at RHIC (25 events)
 
 From `compare_frames.ipynb`. 578 droplets, 1118 GeV (|E|). Fluid speeds relative to the Bjorken
 flow average 0.28, at most 0.75, so none is capped. 52 droplets (68 GeV) take the Bjorken frame,
@@ -81,9 +84,9 @@ flow average 0.28, at most 0.75, so none is capped. 52 droplets (68 GeV) take th
 | MUSIC cells per deposit (median) | 45 | 52 | 50 |
 | wake energy at \|eta_s\| < 1, tau = 8 fm/c, sum of 25 events | 693 GeV | 671 GeV | 666 GeV |
 | per event, against bjorken | +0.86 +- 0.32 GeV | | -0.19 +- 0.11 GeV |
-| charged-hadron wake at \|eta\| < 1: N per event | 11.89 | 11.85 | 11.67 |
-| sum pT per event | 10.08 GeV | 10.29 GeV | 9.71 GeV |
-| sum pT, against bjorken (event-by-event differences) | -0.21 +- 0.24 GeV | | -0.58 +- 0.17 GeV |
+| charged-hadron wake at \|eta\| < 1: N per event | 11.89 +- 0.60 | 11.85 +- 0.62 | 11.67 +- 0.58 |
+| sum pT per event | 10.08 +- 0.35 GeV | 10.29 +- 0.37 GeV | 9.71 +- 0.34 GeV |
+| sum pT at \|eta\| < 2.4 per event | 12.89 +- 0.34 GeV | 13.53 +- 0.37 GeV | 12.14 +- 0.35 GeV |
 
 - **The lab frame:**
   - It loses energy early: event 0's 12.9 GeV droplet at eta_s = 2.4 lands entirely in
@@ -95,9 +98,58 @@ flow average 0.28, at most 0.75, so none is capped. 52 droplets (68 GeV) take th
   - The midrapidity wake maps differ from the Bjorken frame's by 18-30 % (L2, median over
     events), as dipoles along the flow.
   - The uninvertible share rises to 1.6 %: late, contracted deposits in dilute fluid.
-  - At hadron level the wake's multiplicity is the same, but its summed pT is 6 % lower and
-    its spectrum slightly softer. That is a 3.4 sigma hint in this sample, with one
-    background and 25 jets.
+- **At hadron level the three frames agree within errors** at |eta| < 1. The fluid frame's
+  summed pT at |eta| < 2.4 is 1.4 +- 0.5 GeV lower (2.7 sigma) in this one-background sample.
+  - The errors are each frame's own: every run hadronized its own samples, the background's
+    included. So the error of a difference is the two in quadrature.
+  - An earlier version took the error from the spread of the event-by-event differences.
+    That misses the offset the background's samples give all 25 events, and made the
+    |eta| < 1 summed-pT difference look like 3.4 sigma.
+
+## Results: Z+jet in Pb+Pb at the LHC (48 events)
+
+From `compare_frames_zjet.ipynb`: the Z+jet campaign's settings (config/PbPb_0_30_ZJet.xml,
+0-30 % Pb+Pb at 5.02 TeV, pTHat 20-200 GeV in six windows, leptons pT > 20 GeV at |eta| < 2.5,
+no parton rapidity cut), seed 102, two backgrounds. 2149 droplets carry 10 340 GeV (|E|), and
+they are made forward: 86 % of the energy at |eta_d| > 1, 58 % at |eta_d| > 2, 25 % at
+|eta_d| > 3. 16 % is made before the hydro starts and takes the Bjorken frame in the fluid run.
+
+| | lab | bjorken | fluid |
+|---|---|---|---|
+| droplets missing every MUSIC cell centre (put into one cell) | 178, 22 % of the energy | 1 | 2 |
+| droplet energy into cells MUSIC cannot invert (estimate) | 6.5 % | 0.1 % | 0.5 % |
+| fluid gained / deposited, whole grid, tau = 2 / 4 / 8 fm/c | 1.00 / 0.99 / 1.01 | 1.00 / 0.99 / 1.00 | 1.00 / 0.99 / 0.99 |
+| deposit centroid \|eta_s - eta_d\| at \|eta_d\| > 2 | 0.89 | 0.00 | 0.06 |
+| MUSIC cells per deposit at \|eta_d\| > 2 (median) | 6 | 98 | 96 |
+| wake energy at \|eta_s\| < 1, tau = 2 fm/c, sum of 48 events (made there: 209 GeV) | 503 GeV | 196 GeV | 200 GeV |
+| the same at tau = 8 fm/c | 1193 GeV | 1001 GeV | 1002 GeV |
+| per event, against bjorken, tau = 8 | +4.0 +- 0.5 GeV (+19 %) | | +0.02 +- 0.09 GeV |
+| charged-hadron wake, N per event, \|eta\| < 1 | 7.4 +- 1.5 | 9.7 +- 1.2 | 7.2 +- 1.4 |
+| sum pT per event, \|eta\| < 2.4 | 21.8 +- 1.3 GeV | 19.8 +- 1.1 GeV | 18.8 +- 1.3 GeV |
+
+- **At the LHC the lab frame's error is not a tail.**
+  - It moves forward energy toward midrapidity: by 0.9 units for droplets at |eta_d| > 2.
+    The midrapidity wake is 2.6 times too large at tau = 2 fm/c and 19 % too large at
+    8 fm/c.
+  - 22 % of the energy misses MUSIC's grid and goes into single cells.
+  - The whole grid still balances, but only as a net. The estimate puts 163 GeV of positive
+    and 361 GeV of negative droplets into uninvertible cells, which MUSIC discards; a lost
+    negative deposit raises the fluid's energy, so the two nearly cancel. The dense forward
+    fluid also keeps most of the single-cell deposits.
+  - So the main error is where the energy goes. At RHIC, by contrast, the lab frame's loss is
+    a real net deficit: 10 % at tau = 2 fm/c, mostly one 12.9 GeV forward droplet in thin
+    fluid.
+- **The Bjorken and fluid frames agree** in energy, along eta_s, and in the midrapidity wake
+  (2 %).
+  - Forward, the fluid lags the Bjorken flow a little, so the fluid frame centres deposits
+    slightly inward (0.05 units).
+  - Transversely it shifts them with the flow, as at RHIC.
+- **At hadron level this sample is too small to separate the frames** (40 samples, two
+  backgrounds: 12-20 % errors per frame). The lab frame's +2.0 +- 1.7 GeV in summed pT at
+  |eta| < 2.4 has the sign of the forward energy it moves in.
+- **Z+jet campaigns made before 2026-11 used the lab frame.** Their midrapidity wake is partly
+  forward energy moved in. Rerunning the campaign's hadron-level observables (CMS 2507.09307)
+  in the Bjorken frame needs `analysis/zjet/wake_scan` with the frame as its setting.
 
 ## Replaying an event
 

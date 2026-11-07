@@ -12,6 +12,7 @@ checks       backgrounds and droplets identical in all frames
 tau          the stored frames' tau [fm/c]
 f/dE_full    (events, tau) the fluid's lab energy, jet leg - background, whole grid [GeV]
 f/dE_win     the same at |eta_s| < 1
+f/dE_eta     (events, tau, eta_s) the same per eta_s slice
 f/prof       (events, PROF_TAUS, eta_s) the wake's energy per eta_s slice [GeV]
 f/map        (events, MAP_TAUS, x, y) the wake's energy density summed over |eta_s| < 0.5
              times deta [GeV/fm^3]
@@ -25,8 +26,14 @@ dep/f        (droplets, DEP_COLUMNS) each droplet's deposit on MUSIC's grid by t
              of its energy landing in cells MUSIC cannot invert (|M| >= T^tautau after the
              deposit, with the background interpolated from arr_bg)
 f/had_*      hadron-level wake (bulk jet - background, correlated sampling), charged hadrons:
-             dN/deta, the pT spectrum at |eta| < 1, dN/d(dphi) to the leading initiator at
-             |eta| < 1, and per event N and sum pT at |eta| < 1 (value and error each)
+             dN/deta, the pT spectrum at |eta| < 1, dN/d(dphi) to the event's axis at
+             |eta| < 1 (the trigger Z's phi when the events have one, the recoil then near
+             pi; else the leading parton's), N and sum pT at |eta| < 1 and at |eta| < 2.4 over
+             all events (had_tot: (4 quantities, value/error); the reader's error, which counts
+             each background's samples once for all its events) and per event (had_*_ev).
+             Two frames' hadrons are independent samples (their own background samples too):
+             the error of a frame difference is the two totals' errors in quadrature; the
+             spread of per-event differences misses the background samples' common offset.
 
 The energy is the ideal part of T^{mu nu} through the tau surface, as in tutorial 06 and
 liquefier_replay.py: E = sum tau dx dy deta [cosh(eta) T^00 - sinh(eta) T^03].
@@ -113,6 +120,7 @@ def hydro(pair, pressure, bg_curve=None):
             bg[key] = per
         dE_full = np.full((nev, ntau), np.nan)
         dE_win = np.full((nev, ntau), np.nan)
+        dE_eta = np.full((nev, ntau, len(etas)), np.nan)
         prof = np.full((nev, len(PROF_TAUS), len(etas)), np.nan)
         maps = np.full((nev, len(MAP_TAUS), int(a["nx"]), int(a["ny"])), np.nan)
         kp = [int(round((t - t0) / dt)) for t in PROF_TAUS]
@@ -124,6 +132,7 @@ def hydro(pair, pressure, bg_curve=None):
                 fr = f["arr"][i, ..., k]
                 per = energy_per_eta(fr, taus[k], etas, dx, dy, de, pressure) - b[k]
                 dE_full[i, k], dE_win[i, k] = per.sum(), per[win].sum()
+                dE_eta[i, k] = per
                 if k in kp:
                     prof[i, kp.index(k)] = per
                 if k in km:
@@ -131,7 +140,7 @@ def hydro(pair, pressure, bg_curve=None):
                                             .sum(axis=-1) * de)
         off = f["source/offsets"][:]
         out.update(tau=taus, etas=etas, x=a["x_min"] + dx * np.arange(a["nx"]),
-                   y=a["y_min"] + dy * np.arange(a["ny"]), dE_full=dE_full, dE_win=dE_win,
+                   y=a["y_min"] + dy * np.arange(a["ny"]), dE_full=dE_full, dE_win=dE_win, dE_eta=dE_eta,
                    prof=prof, map=maps, drops=f["source/droplets"][:], offsets=off,
                    flux=f["source/flux"][:] if "source/flux" in f else np.full(off[-1], np.nan),
                    fluid=f["source/fluid"][:] if "source/fluid" in f else None,
@@ -221,7 +230,21 @@ def deposits(pair, frames, fluid, pressure):
 
 
 # ── hadrons ─────────────────────────────────────────────────────────────────────────────
-def hadrons(d):
+HAD_TOT = ("N |eta|<1", "sum pT |eta|<1", "N |eta|<2.4", "sum pT |eta|<2.4")
+
+
+def hadron_totals(r, charged_mid, charged_cms):
+    """(4, 2): N and sum pT at |eta| < 1 and < 2.4 per event over all events, value and error."""
+    out = []
+    for m in (charged_mid, charged_cms):
+        for w in (None, "pt"):
+            v, e = r.jet_minus_background("pt", np.array([0.0, 1e9]), mask=m, weights=w,
+                                          per_event=False)
+            out.append((v[0], e[0]))
+    return np.array(out)
+
+
+def hadrons(d, totals_only=False):
     from jetscape.hadrons_h5 import CHARGED, HadronFileReader
     r = HadronFileReader(d)
 
@@ -231,26 +254,42 @@ def hadrons(d):
     def charged_mid(ev, info):
         return charged(ev, info) & (np.abs(ev.eta) < ETA_WIN)
 
-    def dphi_lead(ev, info):
+    def axis_phi(info):
+        """The trigger Z's phi, else the leading parton's (leptons and photons excluded)."""
+        z = getattr(info, "z", None)
+        if z and np.isfinite(z.get("z_phi", np.nan)):
+            return z["z_phi"]
         ini = info.initiators()
+        ini = ini[~np.isin(np.abs(ini[:, 1]), (11, 12, 13, 14, 15, 16, 22))]
         pt = np.hypot(ini[:, 3], ini[:, 4])
         L = ini[int(np.argmax(pt))]
-        phi_l = np.arctan2(L[4], L[3])
-        return np.mod(ev.phi - phi_l + np.pi / 2, 2 * np.pi) - np.pi / 2
+        return np.arctan2(L[4], L[3])
 
-    out = {"correlated": r.correlated, "n_events": r.n_events}
+    def dphi_lead(ev, info):
+        return np.mod(ev.phi - axis_phi(info) + np.pi / 2, 2 * np.pi) - np.pi / 2
+
+    def charged_cms(ev, info):
+        return charged(ev, info) & (np.abs(ev.eta) < 2.4)
+
+    out = {"correlated": r.correlated, "n_events": r.n_events,
+           "had_tot": hadron_totals(r, charged_mid, charged_cms)}
+    if totals_only:
+        return out
+    i0 = r.event_info(0) if hasattr(r, "event_info") else None
+    out["had_axis"] = np.array("Z" if (i0 is not None and getattr(i0, "z", None)) else "parton")
     out["had_dndeta"] = r.jet_minus_background("eta", ETA_EDGES, mask=charged, per_event=False)
     out["had_pt"] = r.jet_minus_background("pt", PT_EDGES, mask=charged_mid, per_event=False)
     out["had_dphi"] = r.jet_minus_background(dphi_lead, DPHI_EDGES, mask=charged_mid,
                                              per_event=True)
-    n, s = [], []
-    for i in range(r.n_events):
-        n.append(r.jet_minus_background("pt", np.array([0.0, 1e9]), mask=charged_mid,
-                                        events=[i], per_event=False))
-        s.append(r.jet_minus_background("pt", np.array([0.0, 1e9]), mask=charged_mid,
-                                        weights="pt", events=[i], per_event=False))
-    out["had_N_ev"] = np.array([[a[0][0], a[1][0]] for a in n])
-    out["had_sumpt_ev"] = np.array([[a[0][0], a[1][0]] for a in s])
+    for tag, m in (("", charged_mid), ("_cms", charged_cms)):
+        n, s = [], []
+        for i in range(r.n_events):
+            n.append(r.jet_minus_background("pt", np.array([0.0, 1e9]), mask=m,
+                                            events=[i], per_event=False))
+            s.append(r.jet_minus_background("pt", np.array([0.0, 1e9]), mask=m,
+                                            weights="pt", events=[i], per_event=False))
+        out[f"had_N_ev{tag}"] = np.array([[a[0][0], a[1][0]] for a in n])
+        out[f"had_sumpt_ev{tag}"] = np.array([[a[0][0], a[1][0]] for a in s])
     return out
 
 
@@ -260,9 +299,20 @@ def main(argv=None):
     p.add_argument("-o", "--out", default=None)
     p.add_argument("--frames", nargs="+", default=list(FRAMES))
     p.add_argument("--no-hadrons", action="store_true")
+    p.add_argument("--add-hadron-totals", action="store_true",
+                   help="only add had_tot to an existing summary (-o), nothing else recomputed")
     a = p.parse_args(argv)
     out_path = a.out or os.path.join(a.data, "summary.npz")
     pressure = pressure_of()
+    if a.add_hadron_totals:
+        old = dict(np.load(out_path, allow_pickle=False))
+        for fr in a.frames:
+            old[f"{fr}/had_tot"] = hadrons(os.path.join(a.data, fr), totals_only=True)["had_tot"]
+            print(f"{fr}: {old[f'{fr}/had_tot'][:, 0].round(2)} +- {old[f'{fr}/had_tot'][:, 1].round(2)}",
+                  flush=True)
+        old["had_tot_columns"] = np.array(HAD_TOT)
+        np.savez_compressed(out_path, **old)
+        return 0
     S, H = {}, {}
     t_start = time.time()
     for fr in a.frames:
@@ -293,7 +343,7 @@ def main(argv=None):
     print(f"[{time.time() - t_start:6.0f} s] deposits on MUSIC's grid", flush=True)
     for fr in a.frames:
         h = H[fr]
-        for key in ("dE_full", "dE_win", "prof", "map", "flux", "ntau_fo"):
+        for key in ("dE_full", "dE_win", "dE_eta", "prof", "map", "flux", "ntau_fo"):
             S[f"{fr}/{key}"] = h[key]
         if not a.no_hadrons:
             had = hadrons(os.path.join(a.data, fr))
@@ -312,7 +362,7 @@ def main(argv=None):
         ntau_fo_bg=ref["ntau_fo_bg"], tau0=ref["tau0"], e_min=ref["e_min"],
         prof_taus=np.array(PROF_TAUS), map_taus=np.array(MAP_TAUS), eta_win=ETA_WIN,
         dep_columns=np.array(DEP_COLUMNS), eta_edges=ETA_EDGES, pt_edges=PT_EDGES,
-        dphi_edges=DPHI_EDGES, checks=np.array(str(checks)),
+        dphi_edges=DPHI_EDGES, checks=np.array(str(checks)), had_tot_columns=np.array(HAD_TOT),
         **{f"dep/{fr}": dep[fr] for fr in FRAMES})
     print(f"-> {out_path} ({os.path.getsize(out_path) / 1e6:.1f} MB, {time.time() - t_start:.0f} s)")
     return 0

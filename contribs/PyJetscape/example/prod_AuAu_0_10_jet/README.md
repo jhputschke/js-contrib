@@ -1611,11 +1611,13 @@ The pair file records the frame in `liquefier_frame`; files without it were made
 frame. Campaigns made in different frames must not be mixed in a wake analysis, at midrapidity
 either:
 - The lab frame pulls droplets toward midrapidity (by 0.4 units already at eta_s = 1), which
-  gives a 3 % larger midrapidity wake than bjorken.
+  gives a 3 % larger midrapidity wake than bjorken at RHIC, and 19 % for LHC Z+jet events,
+  where most droplets are made forward.
 - The fluid frame moves late deposits outward with the radial flow.
 
-[`../liquefier_frame_test/`](../liquefier_frame_test/README.md) compares the three on the same 25
-events (tutorial 06's, extended): the data script, the summary, a notebook, the kernel in Python
+[`../liquefier_frame_test/`](../liquefier_frame_test/README.md) compares the three on the same events
+(tutorial 06's Au+Au, extended to 25 jets, and LHC Z+jet events with the Z+jet campaign's
+settings): the data script, the summary, a notebook, the kernel in Python
 (`liquefier_kernel.py`) and the replay of an event's MUSIC legs (`liquefier_replay.py`).
 
 ## Choices worth knowing

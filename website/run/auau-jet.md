@@ -167,7 +167,8 @@ Y ≈ η_max + 1 with `any`.
   which deposits forward droplets displaced and far too narrow; `--liquefier-frame lab`
   reproduces them. Only droplets at η_s = 0 deposit the same in both: the lab frame pulls the
   others toward midrapidity (by 0.4 units already at η_s = 1), so the wake at \|η_s\| < 1
-  differs by 3 % in energy. `--liquefier-frame fluid` diffuses each droplet in the rest frame
+  differs by 3 % in energy at RHIC, and by 19 % for Z+jet events at the LHC, where most
+  droplets are made forward. `--liquefier-frame fluid` diffuses each droplet in the rest frame
   of the background fluid where it was made. It agrees with the Bjorken frame along η_s and in
   energy, but moves late deposits outward with the radial flow; FastHydro does not support it
   yet. **Do not mix frames in a wake analysis.** The pair file records it (`liquefier_frame`).
