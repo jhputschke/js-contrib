@@ -3,10 +3,10 @@
   "upstream": {
     "repo": "FNO4d",
     "path": "loc_libs/fast_data",
-    "commit": "46d1fda4fb02f4afb2e657104288dda4e9fcaee6",
-    "commit_short": "46d1fda",
+    "commit": "9a79834a74ea81dd1e71d39a973c0aa57628ad6b",
+    "commit_short": "9a79834",
     "commit_date": "2026-11-06",
-    "repo_head_at_vendoring": "a5e31b0b235d657331f0063fa9d9756e312f0f70"
+    "repo_head_at_vendoring": "d426c17f3ec240183cff84a76d6b392cbd577810"
   },
   "vendored_on": "2026-11-06",
   "local_patches": [],
@@ -72,8 +72,8 @@
       "lines": 28
     },
     "liquefier/deposit.py": {
-      "sha256": "5b7a5adeb583b596861faa5f9fd8e6c091a86be7a49d5ece01dff8351011af66",
-      "bytes": 19120,
+      "sha256": "6a83564b7217493f03f8e0af12a151e3d7cfddb34bef6c4255bfaee27fac1eb6",
+      "bytes": 19124,
       "lines": 395
     },
     "liquefier/droplets.py": {
@@ -82,14 +82,14 @@
       "lines": 366
     },
     "liquefier/kernel.py": {
-      "sha256": "879cbd09142c2a0c2c84d084507f875d09ff62f751b80f6f3d66ee015893090a",
-      "bytes": 13624,
+      "sha256": "909a5bf51b1bc2c8baf84393c04b102b4bcbe2abcf6505cab31106558c4b6cab",
+      "bytes": 13621,
       "lines": 281
     },
     "liquefier/params.py": {
-      "sha256": "e02a50fadedd49e9be972b0af528cdab04d40a62c90d555b5bb252d858b82b6c",
-      "bytes": 5493,
-      "lines": 120
+      "sha256": "5237e5082cab8b6f1e78eff1fe521d07231d7bf2f3668ae3a73455901eaf6c0b",
+      "bytes": 5606,
+      "lines": 121
     },
     "liquefier/source.py": {
       "sha256": "1844a33d7ab1418c29baae6ce2970074f1d462a9d8286487636eab4934de7bf4",

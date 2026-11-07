@@ -235,13 +235,14 @@ def parse_args() -> argparse.Namespace:
                         "<late_delta_tau>, 0.05 in the production XML; 0: constant step)")
     p.add_argument("--late-tau", type=float, default=None, dest="late_tau", metavar="TAU",
                    help="when the larger step starts [fm/c] (the XML's <late_tau_switch>)")
-    p.add_argument("--liquefier-frame", choices=("lab", "fluid"), default=None,
+    p.add_argument("--liquefier-frame", choices=("bjorken", "lab"), default=None,
                    dest="liquefier_frame",
                    help="the frame of the CausalLiquefier's diffusion (<CausalLiquefier><frame>):"
-                        " lab (X-SCAPE's default, as in the liquefier's paper) or fluid (the "
-                        "Bjorken fluid at the droplet's eta_s: forward droplets deposit as "
-                        "midrapidity ones do). Needs an X-SCAPE with the option. Recorded as "
-                        "the pair file's liquefier_frame")
+                        " bjorken (X-SCAPE's default: the Bjorken flow at the droplet's eta_s, so "
+                        "forward droplets deposit as midrapidity ones do) or lab (the liquefier's "
+                        "paper and X-SCAPE before 2026-11, to reproduce older campaigns). "
+                        "Default: the XML's. Needs an X-SCAPE with the option. Recorded as the "
+                        "pair file's liquefier_frame")
     p.add_argument("--bulk-info", choices=("slim", "full"), default="slim", dest="bulk_info",
                    help="the background's framework copy, which Matter, LBT and the liquefier "
                         "read: 'slim' (default) keeps e, s, T, vx, vy, vz per cell, ~7 GiB "

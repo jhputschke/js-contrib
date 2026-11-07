@@ -717,10 +717,10 @@ class PairH5Writer:
             # 1: each droplet is normalized on MUSIC's grid (deposits exactly its
             # four-momentum); 0: switched off; -1: an X-SCAPE build without it
             extra["liquefier_normalize_on_hydro_grid"] = -1 if norm is None else int(norm)
-            # the frame of the causal diffusion: lab (as in X-SCAPE before the option),
-            # fluid (<CausalLiquefier><frame>fluid</frame>)
-            fluid = getattr(self._liq, "fluid_frame", None)
-            extra["liquefier_frame"] = "lab" if not fluid else "fluid"
+            # the frame of the causal diffusion: bjorken (<CausalLiquefier><frame>, the
+            # default from 2026-11) or lab (X-SCAPE before the option, and <frame>lab</frame>)
+            bjorken = getattr(self._liq, "bjorken_frame", None)
+            extra["liquefier_frame"] = "bjorken" if bjorken else "lab"
             self._drop_flux = droplet_fluxes(self._liq) is not None
         extra.update(self._extra_attrs)
 

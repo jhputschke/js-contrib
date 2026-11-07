@@ -1591,18 +1591,19 @@ or be missed. With a constant step everything is bit-identical to before.
 
 ## The liquefier's frame (`--liquefier-frame`)
 
-X-SCAPE's CausalLiquefier solves its causal diffusion in the lab frame, as its paper does
-(Tachibana, Shen, Majumder, arXiv:2001.08321, for a medium with small flow). At forward
+X-SCAPE's CausalLiquefier solved its causal diffusion in the lab frame until 2026-11, as its
+paper does (Tachibana, Shen, Majumder, arXiv:2001.08321, for a medium with small flow). At forward
 space-time rapidity the Bjorken flow is close to c, and the deposit on the slice
 tau_drop + tau_delay goes wrong: for a droplet at eta_s = 2.4 it lands 0.6 units of eta_s
 lower, 0.03 wide in eta_s (MUSIC's cells are 0.2), and diffused for 0.34 fm instead of 1 fm.
 On MUSIC's grid such a near-point deposit loses energy, with viscous and ideal hydro alike.
 
-`--liquefier-frame fluid` (an X-SCAPE with `<CausalLiquefier><frame>`) evaluates the kernel
-in the frame of the Bjorken fluid at the droplet's eta_s: every droplet deposits as one at
-midrapidity does, and the normalization on the grid stays exact. The default `lab` keeps
-earlier runs reproducible; the two agree at eta_s = 0. The pair file records the choice
-(`liquefier_frame`).
+An X-SCAPE with `<CausalLiquefier><frame>` evaluates the kernel by default in the frame of
+the Bjorken flow at the droplet's eta_s (`bjorken`): every droplet deposits as one at
+midrapidity does, and the normalization on the grid stays exact. `--liquefier-frame lab`
+reproduces campaigns made before (the two agree at eta_s = 0; forward deposits differ, so
+campaigns made in different frames are not comparable at forward rapidity). The pair file
+records the frame (`liquefier_frame`; files without it were made in the lab frame).
 
 Replaying event 0 of a native-grid job (p̂T 30–40 GeV, seed 101) with its recorded
 droplets (`liquefier_replay.py`), the fluid's gain over the deposited energy, full grid:
@@ -1611,8 +1612,8 @@ droplets (`liquefier_replay.py`), the fluid's gain over the deposited energy, fu
 |---|---|---|---|---|---|
 | lab, viscous | 0.25 | 0.57 | 0.62 | 0.70 | 0.73 |
 | lab, ideal | 0.25 | 0.56 | 0.59 | | |
-| fluid, viscous | 1.14 | 1.06 | 1.02 | 1.00 | 0.98 |
-| fluid, ideal | 1.00 | 1.03 | 1.00 | | |
+| bjorken, viscous | 1.14 | 1.06 | 1.02 | 1.00 | 0.98 |
+| bjorken, ideal | 1.00 | 1.03 | 1.00 | | |
 
 (Ideal hydro pushes matter off the grid's edges late, so its full-grid count stops there.)
 
@@ -1626,7 +1627,7 @@ which this count (the ideal part of T^{mu nu}) leaves out: it is absent with ide
 python liquefier_kernel.py shapes               # one droplet at eta_s = 0, 1, 1.8, 2.4, both frames
 python liquefier_kernel.py check PAIR.h5        # the C++ normalization's flux, reproduced
 python liquefier_kernel.py window PAIR.h5       # energy made in / deposited in |eta_s| < 1
-python liquefier_replay.py PAIR.h5 --event 0 [--ideal] [--frame fluid] --out r.npz
+python liquefier_replay.py PAIR.h5 --event 0 [--ideal] [--frame lab|bjorken] --out r.npz
 ```
 
 `liquefier_kernel.py` is the kernel in Python (it reproduces the C++ flux of every droplet

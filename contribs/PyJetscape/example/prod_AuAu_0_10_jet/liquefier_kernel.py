@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-liquefier_kernel.py -- X-SCAPE's CausalLiquefier kernel in Python, in the lab frame (as the C++
-does it) and in the frame of the Bjorken fluid at the droplet's rapidity (the proposed variant).
+liquefier_kernel.py -- X-SCAPE's CausalLiquefier kernel in Python, in the frame of the Bjorken flow
+at the droplet's rapidity (<frame>bjorken</frame>, X-SCAPE's default) and in the lab frame
+(<frame>lab</frame>, the liquefier's paper and X-SCAPE before 2026-11).
 
     python liquefier_kernel.py shapes                     # one droplet at eta_s = 0, 1, 1.8, 2.4
     python liquefier_kernel.py check PAIR.h5              # the C++'s recorded flux, reproduced
@@ -14,8 +15,8 @@ that slice, J^tau = cosh(eta) J^t - sinh(eta) J^z.  "flux" is the sum over the c
 J^tau tau dx dy deta for a droplet of unit energy: 1 means the grid catches it exactly; the
 C++ normalization (normalize_on_hydro_grid) divides by it.
 
-frame = "lab":   t = tau cosh(eta), z = tau sinh(eta); the droplet at its lab position.
-frame = "fluid": t = tau cosh(eta - eta_d), z = tau sinh(eta - eta_d); the droplet at z = 0.
+frame = "lab":     t = tau cosh(eta), z = tau sinh(eta); the droplet at its lab position.
+frame = "bjorken": t = tau cosh(eta - eta_d), z = tau sinh(eta - eta_d); the droplet at z = 0.
                The kernel then depends on eta only through eta - eta_d: every droplet deposits
                as one at midrapidity does.  The four-momentum part of the source (Milne
                components of the droplet's lab momentum) is the same in both.
@@ -72,7 +73,7 @@ class Kernel:
         ys = grid["y_min"] + grid["dy"] * np.arange(grid["ny"])
         if frame == "lab":
             td, zd, rel = tau_d * np.cosh(eta_d), tau_d * np.sinh(eta_d), etas
-        elif frame == "fluid":
+        elif frame == "bjorken":
             td, zd, rel = tau_d, 0.0, etas - eta_d
         else:
             raise ValueError(frame)
@@ -142,14 +143,14 @@ def cmd_shapes(a):
                 eta_min=-5.0, deta=0.005, neta=2000)
     print(f"a droplet made at tau = 1 fm/c at x = 0.07, y = 0.11 fm, deposited on tau = 2 fm/c;"
           f" native grid {NATIVE['dx']} fm, deta {NATIVE['deta']}")
-    print(f"{'frame':>6} {'eta_d':>5} | {'fine grid: mean':>15} {'rms':>6} {'age':>6} {'smooth':>6} |"
+    print(f"{'frame':>7} {'eta_d':>5} | {'fine grid: mean':>15} {'rms':>6} {'age':>6} {'smooth':>6} |"
           f" {'native: flux':>12} {'cells':>6} {'mean':>6}")
-    for frame in ("lab", "fluid"):
+    for frame in ("lab", "bjorken"):
         for eta_d in (0.0, 1.0, 1.8, 2.4):
             drop = (1.0, 0.07, 0.11, eta_d)
             s_f = summary(*k.deposit(drop, fine, frame, tau_q=2.0))
             s_n = summary(*k.deposit(drop, NATIVE, frame, tau_q=2.0))
-            print(f"{frame:>6} {eta_d:5.1f} | {s_f['mean']:15.2f} {s_f['rms']:6.3f} {s_f['age']:6.2f}"
+            print(f"{frame:>7} {eta_d:5.1f} | {s_f['mean']:15.2f} {s_f['rms']:6.3f} {s_f['age']:6.2f}"
                   f" {s_f['smooth']:6.2f} | {s_n['flux']:12.3f} {s_n['cells']:6d} {s_n['mean']:6.2f}"
                   f"   (fine flux {s_f['flux']:.3f})")
 
@@ -186,9 +187,9 @@ def cmd_window(a):
     etas = g["eta_min"] + g["deta"] * np.arange(g["neta"])
     win = np.abs(etas) < a.eta
     print(f"lab energy [GeV] at |eta_s| < {a.eta}: of droplets made there, and deposited there")
-    print(f"{'event':>5} {'made':>8} | {'lab frame':>9} {'fluid frame':>11}")
+    print(f"{'event':>5} {'made':>8} | {'lab frame':>9} {'bjorken frame':>13}")
     for e in range(len(off) - 1):
-        made, dep = 0.0, {"lab": 0.0, "fluid": 0.0}
+        made, dep = 0.0, {"lab": 0.0, "bjorken": 0.0}
         for drop in d[off[e]:off[e + 1]]:
             E = drop[4]
             if abs(drop[3]) < a.eta:
@@ -200,7 +201,7 @@ def cmd_window(a):
                     dep[frame] += E * w[win].sum() / w.sum()
                 else:                                # the C++ fallback: one cell at eta_d
                     dep[frame] += E * (abs(drop[3]) < a.eta)
-        print(f"{e:5d} {made:8.2f} | {dep['lab']:9.2f} {dep['fluid']:11.2f}")
+        print(f"{e:5d} {made:8.2f} | {dep['lab']:9.2f} {dep['bjorken']:13.2f}")
 
 
 def main(argv=None):

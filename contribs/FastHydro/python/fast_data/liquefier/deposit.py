@@ -88,7 +88,7 @@ def support_box(drop, tau_eval, grid, p: LiquefierParams, n_scan=2048):
     the transverse extent at each eta is a disk of radius ``sqrt(R^2 - (z-z_d)^2)``.
     """
     tau_d, eta_d = float(drop[0]), float(drop[3])
-    shift = p.eta_shift(eta_d)                       # the fluid frame: eta - eta_d
+    shift = p.eta_shift(eta_d)                       # the Bjorken frame: eta - eta_d
     t_d, z_d = tau_d * np.cosh(eta_d - shift), tau_d * np.sinh(eta_d - shift)
     c = p.c_diff
 
@@ -235,7 +235,7 @@ def _quadrature(cx, cy, ce, dx, dy, de, drop, tau_eval, p, *, n_sub, n_sub_max, 
                 xlim, ylim, elim):
     """Support-clipped midpoint quadrature over the cell box -> (nx,ny,ne) weights."""
     tau_d, x_d, y_d, eta_d = (float(drop[i]) for i in range(4))
-    shift = p.eta_shift(eta_d)                       # the fluid frame: eta - eta_d
+    shift = p.eta_shift(eta_d)                       # the Bjorken frame: eta - eta_d
     t_d, z_d = tau_d * np.cosh(eta_d - shift), tau_d * np.sinh(eta_d - shift)
     w = np.zeros((len(cx), len(cy), len(ce)), dtype=np.float64)
 

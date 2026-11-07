@@ -269,10 +269,11 @@ void bind_liquefier(py::module_ &m) {
       .def("InitializeParameters", &CausalLiquefier::InitializeParameters,
            "Re-read the XML block and recompute c_diff / gamma_relax.")
 #ifdef XSCAPE_CAUSAL_LIQUEFIER_FRAME
-      .def_property("fluid_frame", &CausalLiquefier::get_fluid_frame,
-                    &CausalLiquefier::set_fluid_frame,
-                    "True: the kernel in the frame of the Bjorken fluid at the droplet's "
-                    "eta_s (<CausalLiquefier><frame>fluid</frame>); False: the lab frame.")
+      .def_property("bjorken_frame", &CausalLiquefier::get_bjorken_frame,
+                    &CausalLiquefier::set_bjorken_frame,
+                    "True: the kernel in the frame of the Bjorken flow at the droplet's eta_s "
+                    "(<CausalLiquefier><frame>bjorken</frame>, the default); False: the lab "
+                    "frame (<frame>lab</frame>).")
 #endif
       .def("params",
            [](const CausalLiquefier &l) {

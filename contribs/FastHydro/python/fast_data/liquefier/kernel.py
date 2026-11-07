@@ -204,11 +204,11 @@ def k_tau(tau, x, y, eta, drop, p: LiquefierParams, r_w=None, strict_xscape=Fals
 
     `drop` is (tau_d, x_d, y_d, eta_d, ...); only the position is used.  This is
     `CausalLiquefier.cc:127-137` with the 1/dtau factored out -- see `source.py` for why that
-    factor cancels.  In the lab frame (``p.frame == "lab"``, X-SCAPE's default) the droplet
-    sits AT REST IN THE LAB at fixed z_d and the kernel diffuses in Cartesian lab
-    coordinates, which is what makes forward droplets hard (see the README).  In the fluid
-    frame the same is evaluated after a longitudinal boost by eta_d (``p.eta_shift``): eta is
-    replaced by eta - eta_d throughout, so every droplet deposits as one at eta_s = 0 does.
+    factor cancels.  In the lab frame (``p.frame == "lab"``) the droplet sits AT REST IN THE
+    LAB at fixed z_d and the kernel diffuses in Cartesian lab coordinates, which is what makes
+    forward droplets hard (see the README).  In the Bjorken frame (the default) the same is
+    evaluated after a longitudinal boost by eta_d (``p.eta_shift``): eta is replaced by
+    eta - eta_d throughout, so every droplet deposits as one at eta_s = 0 does.
     """
     tau_d, x_d, y_d, eta_d = (float(drop[i]) for i in range(4))
     shift = p.eta_shift(eta_d)

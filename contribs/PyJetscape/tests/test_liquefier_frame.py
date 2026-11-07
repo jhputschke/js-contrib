@@ -1,7 +1,7 @@
-"""CausalLiquefier's <frame>: the lab frame as before, and the frame of the Bjorken fluid at the
-droplet's eta_s (X-SCAPE with XSCAPE_CAUSAL_LIQUEFIER_FRAME).
+"""CausalLiquefier's <frame>: bjorken (the default), the frame of the Bjorken flow at the
+droplet's eta_s, and lab, as before (X-SCAPE with XSCAPE_CAUSAL_LIQUEFIER_FRAME).
 
-* fluid frame: a droplet at eta_d deposits exactly as a droplet at eta_s = 0 does, shifted
+* bjorken frame: a droplet at eta_d deposits exactly as a droplet at eta_s = 0 does, shifted
   by eta_d (the flux through the tau slice, per unit lab energy);
 * both frames agree at eta_d = 0;
 * the C++ kernel matches the Python port (example/prod_AuAu_0_10_jet/liquefier_kernel.py).
@@ -24,14 +24,14 @@ TAU_D = 1.0
 @pytest.fixture(scope="module")
 def liq():
     l = core.CausalLiquefier(0.02, 0.3, 0.3, 0.2)       # no XML: tau_delay 2, the defaults
-    if not hasattr(l, "fluid_frame"):
+    if not hasattr(l, "bjorken_frame"):
         pytest.skip("X-SCAPE without <CausalLiquefier><frame>")
     return l
 
 
-def flux(liq, fluid, eta_d, tau, x, y, eta):
+def flux(liq, bjorken, eta_d, tau, x, y, eta):
     """J^tau of a unit droplet at rest (lab energy 1), at one point of its deposit slice."""
-    liq.fluid_frame = fluid
+    liq.bjorken_frame = bjorken
     d = core.Droplet([TAU_D, 0.03, -0.05, eta_d], [1.0, 0.0, 0.0, 0.0])
     j = liq.smearing_kernel(tau, x, y, eta, d)
     return np.cosh(eta) * j[0] + np.sinh(eta) * j[3]
@@ -43,7 +43,11 @@ def points(n=300, seed=3):
                             rng.uniform(-0.7, 0.7, n)])
 
 
-def test_fluid_frame_is_the_midrapidity_deposit_shifted(liq):
+def test_the_default_is_the_bjorken_frame():
+    assert core.CausalLiquefier(0.02, 0.3, 0.3, 0.2).bjorken_frame is True
+
+
+def test_bjorken_frame_is_the_midrapidity_deposit_shifted(liq):
     tau = TAU_D + liq.tau_delay
     nonzero = 0
     for x, y, deta in points():
@@ -61,13 +65,13 @@ def test_both_frames_agree_at_midrapidity(liq):
         assert flux(liq, True, 0.0, tau, x, y, eta) == flux(liq, False, 0.0, tau, x, y, eta)
 
 
-@pytest.mark.parametrize("fluid", [False, True])
-def test_cpp_matches_the_python_port(liq, fluid):
+@pytest.mark.parametrize("bjorken", [False, True])
+def test_cpp_matches_the_python_port(liq, bjorken):
     k = port.Kernel(liq.time_relax, liq.d_diff, liq.width_delta, liq.tau_delay)
     tau, eta_d = TAU_D + liq.tau_delay, 1.7
     grid = dict(x_min=-1.2, dx=0.3, nx=9, y_min=-1.2, dy=0.3, ny=9, eta_min=eta_d - 1.4,
                 deta=0.2, neta=15)
-    w = k.deposit((TAU_D, 0.03, -0.05, eta_d), grid, "fluid" if fluid else "lab", tau_q=tau)[0]
+    w = k.deposit((TAU_D, 0.03, -0.05, eta_d), grid, "bjorken" if bjorken else "lab", tau_q=tau)[0]
     dV = tau * grid["dx"] * grid["dy"] * grid["deta"]
     for ie in range(grid["neta"]):
         for ix in range(grid["nx"]):
@@ -75,6 +79,6 @@ def test_cpp_matches_the_python_port(liq, fluid):
                 eta = grid["eta_min"] + ie * grid["deta"]
                 x, y = grid["x_min"] + ix * grid["dx"], grid["y_min"] + iy * grid["dy"]
                 # the C++ kernel is per unit time (divided by dtau, the step it fires in)
-                c = flux(liq, fluid, eta_d, tau, x, y, eta) * dV * liq.dtau
+                c = flux(liq, bjorken, eta_d, tau, x, y, eta) * dV * liq.dtau
                 assert c == pytest.approx(w[ie, ix, iy], rel=2e-4, abs=1e-7)
-    liq.fluid_frame = False
+    liq.bjorken_frame = True

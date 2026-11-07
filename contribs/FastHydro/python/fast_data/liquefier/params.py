@@ -19,26 +19,27 @@ __all__ = ["LiquefierParams", "XSCAPE_DEFAULTS"]
 
 #: config/jetscape_main.xml:426-435
 XSCAPE_DEFAULTS = dict(dtau=0.02, tau_delay=2.0, time_relax=0.1, d_diff=0.08, width_delta=0.1,
-                       frame="lab")
+                       frame="bjorken")
 
-#: the frames of the causal diffusion (<CausalLiquefier><frame>): the lab's Cartesian frame, or
-#: the frame of the Bjorken fluid at the droplet's eta_s (a longitudinal boost by eta_d)
-FRAMES = ("lab", "fluid")
+#: the frames of the causal diffusion (<CausalLiquefier><frame>): the frame of the Bjorken flow
+#: at the droplet's eta_s (a longitudinal boost by eta_d; X-SCAPE's default), or the lab's
+#: Cartesian frame (the liquefier's paper, and X-SCAPE before 2026-11)
+FRAMES = ("bjorken", "lab")
 _FIELDS = ("dtau", "tau_delay", "time_relax", "d_diff", "width_delta", "frame")
 
 
 @dataclass(frozen=True)
 class LiquefierParams:
     """Causal-diffusion parameters, all in fm (``dtau``, ``tau_delay``, ``time_relax``,
-    ``d_diff``, ``width_delta``), and the frame the diffusion is solved in (``frame``: "lab",
-    as X-SCAPE by default, or "fluid", X-SCAPE's <CausalLiquefier><frame>fluid</frame>)."""
+    ``d_diff``, ``width_delta``), and the frame the diffusion is solved in (``frame``:
+    "bjorken", X-SCAPE's default, or "lab", <CausalLiquefier><frame>lab</frame>)."""
 
     dtau: float = 0.02
     tau_delay: float = 2.0
     time_relax: float = 0.1
     d_diff: float = 0.08
     width_delta: float = 0.1
-    frame: str = "lab"
+    frame: str = "bjorken"
 
     def __post_init__(self):
         if self.frame not in FRAMES:
@@ -68,9 +69,9 @@ class LiquefierParams:
 
     def eta_shift(self, eta_droplet) -> float:
         """The longitudinal boost the kernel is evaluated after: the droplet's eta_s in the
-        fluid frame (0 for a droplet at tau = 0, whose eta is undefined), 0 in the lab frame.
+        Bjorken frame (0 for a droplet at tau = 0, whose eta is undefined), 0 in the lab frame.
         Every frame-dependent formula uses eta - eta_shift in place of eta."""
-        if self.frame == "fluid" and math.isfinite(float(eta_droplet)):
+        if self.frame == "bjorken" and math.isfinite(float(eta_droplet)):
             return float(eta_droplet)
         return 0.0
 
@@ -92,13 +93,13 @@ class LiquefierParams:
     @classmethod
     def from_attrs(cls, attrs, prefix="liquefier_") -> "LiquefierParams":
         """From a pair or FastHydro file's root attributes (``liquefier_*``).  A file without
-        ``liquefier_frame`` (before the option) was made in the lab frame."""
+        ``liquefier_frame`` (made before the option) was made in the lab frame, whatever the
+        default is now."""
         def _get(k):
             v = attrs[prefix + k]
             return v.decode() if isinstance(v, bytes) else v
         kw = {k: float(_get(k)) for k in _FIELDS[:-1] if prefix + k in attrs}
-        if prefix + "frame" in attrs:
-            kw["frame"] = str(_get("frame")).strip()
+        kw["frame"] = str(_get("frame")).strip() if prefix + "frame" in attrs else "lab"
         return cls(**kw)
 
     def to_attrs(self, prefix="liquefier_") -> dict:

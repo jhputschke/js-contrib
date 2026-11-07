@@ -11,8 +11,8 @@ production's viscous hydro or with ideal hydro, so that only the hydro changes.
 The job's own user XML (the pair file's prod_user_xml) without <Hard> and <Eloss>: the same
 3D Glauber event and both MUSIC legs from tau0; a CausalLiquefier (its <Liquefier> block) is
 attached to MUSIC_2 by hand and given the event's droplets (source/droplets).  --ideal sets
-eta/s and zeta/s to zero in both legs.  The liquefier's frame is whatever the X-SCAPE build
-does (<CausalLiquefier><frame>, if it has one; --frame sets it).
+eta/s and zeta/s to zero in both legs.  The liquefier's frame is the XML's
+(<CausalLiquefier><frame>, bjorken by default; lab in an X-SCAPE without it); --frame sets it.
 
 The energy is that of the ideal part of T^{mu nu} through the tau surface, in the lab frame
 (tutorial 06): E = sum tau dx dy deta [cosh(eta) T^00 - sinh(eta) T^03], with
@@ -187,7 +187,7 @@ def main(argv=None):
     p.add_argument("pair", nargs="?")
     p.add_argument("--event", type=int, default=0)
     p.add_argument("--ideal", action="store_true", help="eta/s = zeta/s = 0 in both legs")
-    p.add_argument("--frame", choices=("lab", "fluid"), default=None,
+    p.add_argument("--frame", choices=("bjorken", "lab"), default=None,
                    help="<CausalLiquefier><frame> (an X-SCAPE build with the option)")
     p.add_argument("--window", type=float, default=1.0)
     p.add_argument("--out", default="replay.npz")
