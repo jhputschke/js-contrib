@@ -21,6 +21,7 @@ on the same events.
 | `compare_frames.ipynb` | the comparison at RHIC: energy conservation, where the energy goes, wake observables |
 | `compare_frames_zjet.ipynb` | the same for the LHC Z+jet events |
 | `make_gun_data.sh`, `gun_summary.py`, `compare_frames_gun.ipynb` | one quark per event at fixed (pT, y) on one LHC background: the frames' effect per jet, by rapidity and energy |
+| `smooth_cf.py` | the wake's direct pi+, K+, p spectra without sampling noise: a smooth Cooper-Frye integral over each event's jet surface minus its background's (particlize files) |
 | `liquefier_kernel.py` | the kernel in Python, all three frames (it reproduces the C++ to 1e-6) |
 | `liquefier_replay.py` | one event's MUSIC legs rerun with its recorded droplets (`--frame`, `--ideal`) |
 
@@ -200,6 +201,20 @@ The Z+jet events mix the wakes of all partons. Here each event's wake is one jet
     all three p_T, because the events of a frame share the background and its cell-addressed
     random numbers.
   - The hydro at y = 0 is identical in the three frames.
+- **Without sampling noise** (`smooth_cf.py`, notebook section 6b): direct thermal pi+, K+ and
+  p in |y - y_gun| < 1. It uses iSS's integrand with Boltzmann statistics, the ideal part only,
+  no decays. The numerical floor (lab − bjorken at y = 0) is ≤ 1 % in yield and ≤ 0.003 GeV in
+  <pT>.
+  - **The fluid frame makes the wake slightly harder** at y = 0-2:
+    - <pT> rises by 0.02 (pi+), 0.03 (K+) and 0.035-0.047 GeV (p), about +1.5 % each: a
+      mass-ordered flow blue shift;
+    - yields are 1.5-3 % lower.
+    
+    The shape changes too: yield moves from 0.5-1.5 GeV (pions) or 1-2 GeV (K, p) to above
+    2 GeV, and for K and p also to low pT, so the spectrum broadens. All of this is an order of
+    magnitude below the sampled hadrons' errors.
+  - **The lab frame makes forward jets' wakes softer and larger:** at y = 2-4, pi+ <pT> is
+    0.06-0.2 GeV lower and p 0.2-0.4 GeV lower, with up to +40 % yield in the window.
 
 ## Replaying an event
 
