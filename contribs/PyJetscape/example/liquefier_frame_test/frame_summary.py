@@ -15,7 +15,8 @@ f/dE_win     the same at |eta_s| < 1
 f/dE_eta     (events, tau, eta_s) the same per eta_s slice
 f/prof       (events, PROF_TAUS, eta_s) the wake's energy per eta_s slice [GeV]
 f/map        (events, MAP_TAUS, x, y) the wake's energy density summed over |eta_s| < 0.5
-             times deta [GeV/fm^3]
+             times deta [GeV/fm^3] (around each event's map_center, 0 unless a caller such as
+             gun_summary.py gives one)
 drops, fluid, ev   the droplets (tau, x, y, eta, E, px, py, pz), the background fluid where
              each was made (vx, vy, vz, e: the fluid run's source/fluid), their event
 f/flux       the C++ sampled flux of each droplet on MUSIC's grid (source/flux)
@@ -93,7 +94,7 @@ def stem_of(d):
 
 
 # ── hydro ───────────────────────────────────────────────────────────────────────────────
-def hydro(pair, pressure, bg_curve=None):
+def hydro(pair, pressure, bg_curve=None, map_center=None):
     import h5py
     import hdf5plugin  # noqa: F401
     out = {}
@@ -104,7 +105,7 @@ def hydro(pair, pressure, bg_curve=None):
         nev, ntau = f["arr"].shape[0], f["arr"].shape[-1]
         taus = t0 + dt * np.arange(ntau)
         win = np.abs(etas) < ETA_WIN
-        mid = np.abs(etas) < 0.5
+        centers = np.zeros(nev) if map_center is None else np.asarray(map_center, float)
         nfj = f["ntau_freezeout"][:]
         nfb = f["ntau_freezeout_bg"][:]
         rows = f["arr_bg_rows"][:] if "arr_bg_rows" in f else np.arange(nev)
@@ -136,6 +137,7 @@ def hydro(pair, pressure, bg_curve=None):
                 if k in kp:
                     prof[i, kp.index(k)] = per
                 if k in km:
+                    mid = np.abs(etas - centers[i]) < 0.5
                     maps[i, km.index(k)] = ((fr[0] - f["arr_bg"][i, 0, ..., k])[..., mid]
                                             .sum(axis=-1) * de)
         off = f["source/offsets"][:]
@@ -313,11 +315,23 @@ def main(argv=None):
         old["had_tot_columns"] = np.array(HAD_TOT)
         np.savez_compressed(out_path, **old)
         return 0
+    summarize(a.data, out_path, a.frames, pressure, hadrons_too=not a.no_hadrons)
+    return 0
+
+
+def summarize(data, out_path, frames=FRAMES, pressure=None, hadrons_too=True, map_center=None,
+              hadron_fn=None, extra=None):
+    """The summary of DATA's frames -> out_path.  map_center: per-event eta_s of the maps;
+    hadron_fn(dir) -> dict of had_* arrays (default hadrons()); extra: more arrays to save."""
+    from types import SimpleNamespace
+    a = SimpleNamespace(data=data, frames=list(frames), no_hadrons=not hadrons_too)
+    pressure = pressure or pressure_of()
+    hadron_fn = hadron_fn or hadrons
     S, H = {}, {}
     t_start = time.time()
     for fr in a.frames:
         pair = stem_of(os.path.join(a.data, fr))
-        h, _ = hydro(pair, pressure)
+        h, _ = hydro(pair, pressure, map_center=map_center)
         if h["frame"] != fr:
             raise SystemExit(f"{pair}: liquefier_frame is {h['frame']!r}, expected {fr!r}")
         H[fr] = h
@@ -346,11 +360,11 @@ def main(argv=None):
         for key in ("dE_full", "dE_win", "dE_eta", "prof", "map", "flux", "ntau_fo"):
             S[f"{fr}/{key}"] = h[key]
         if not a.no_hadrons:
-            had = hadrons(os.path.join(a.data, fr))
+            had = hadron_fn(os.path.join(a.data, fr))
             for key, v in had.items():
-                if key.startswith("had_") and isinstance(v, tuple):
+                if key.startswith(("had_", "hg_")) and isinstance(v, tuple):
                     S[f"{fr}/{key}"] = np.array(v)
-                elif key.startswith("had_"):
+                elif key.startswith(("had_", "hg_")):
                     S[f"{fr}/{key}"] = v
             S[f"{fr}/had_correlated"] = np.array(had["correlated"])
             print(f"[{time.time() - t_start:6.0f} s] {fr}: hadrons", flush=True)
@@ -363,9 +377,9 @@ def main(argv=None):
         prof_taus=np.array(PROF_TAUS), map_taus=np.array(MAP_TAUS), eta_win=ETA_WIN,
         dep_columns=np.array(DEP_COLUMNS), eta_edges=ETA_EDGES, pt_edges=PT_EDGES,
         dphi_edges=DPHI_EDGES, checks=np.array(str(checks)), had_tot_columns=np.array(HAD_TOT),
-        **{f"dep/{fr}": dep[fr] for fr in FRAMES})
+        **{f"dep/{fr}": dep[fr] for fr in FRAMES}, **(extra or {}))
     print(f"-> {out_path} ({os.path.getsize(out_path) / 1e6:.1f} MB, {time.time() - t_start:.0f} s)")
-    return 0
+    return checks
 
 
 if __name__ == "__main__":

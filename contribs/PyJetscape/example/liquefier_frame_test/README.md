@@ -20,6 +20,7 @@ on the same events.
 | `frame_summary.py` | the data reduced to `summary.npz` (hydro, droplets, hadrons) |
 | `compare_frames.ipynb` | the comparison at RHIC: energy conservation, where the energy goes, wake observables |
 | `compare_frames_zjet.ipynb` | the same for the LHC Z+jet events |
+| `make_gun_data.sh`, `gun_summary.py`, `compare_frames_gun.ipynb` | one quark per event at fixed (pT, y) on one LHC background: the frames' effect per jet, by rapidity and energy |
 | `liquefier_kernel.py` | the kernel in Python, all three frames (it reproduces the C++ to 1e-6) |
 | `liquefier_replay.py` | one event's MUSIC legs rerun with its recorded droplets (`--frame`, `--ideal`) |
 
@@ -58,6 +59,8 @@ OUT=~/JetScape/liquefier_frame_test ./make_data.sh       # ~15 min on an M3 Max,
 jupyter lab compare_frames.ipynb                           # LFT_DATA=... if OUT differs
 SYSTEM=zjet ./make_data.sh                                 # ~45 min, 63 GB (~/JetScape/liquefier_frame_test_zjet)
 jupyter lab compare_frames_zjet.ipynb
+./make_gun_data.sh                                         # ~1.5 h, 120 GB before `clean` (~/JetScape/liquefier_gun_test)
+jupyter lab compare_frames_gun.ipynb                       # LFT_GUN_DATA=... if OUT differs
 ```
 
 0-10% Au+Au at 200 GeV, seed 101, one background reused for 25 jets (PythiaGun pTHat 30-40 GeV,
@@ -150,6 +153,53 @@ they are made forward: 86 % of the energy at |eta_d| > 1, 58 % at |eta_d| > 2, 2
 - **Z+jet campaigns made before 2026-11 used the lab frame.** Their midrapidity wake is partly
   forward energy moved in. Rerunning the campaign's hadron-level observables (CMS 2507.09307)
   in the Bjorken frame needs `analysis/zjet/wake_scan` with the frame as its setting.
+
+## Results: one quark at a time (LHC background, 75 events)
+
+From `compare_frames_gun.ipynb`.
+
+**The setup** (`make_gun_data.sh`):
+- one u quark per event from the origin at phi = 0, using X-SCAPE's PGun with `<points>`
+  (`run_prod_jet.py --hard pgun --pgun-grid 20,50,100:0,1,2,3,4 --pgun-per-point 5
+  --pgun-id 2`);
+- p_T 20, 50, 100 GeV × rapidity y 0, 1, 2, 3, 4, 5 events each;
+- one 0-30 % Pb+Pb background (the Z+jet campaign's XML, seed 102);
+- the same events in the three frames; wake hadrons only (100 correlated samples, no
+  fragmentation).
+
+The Z+jet events mix the wakes of all partons. Here each event's wake is one jet's.
+
+| y | lab deposit shift | lab wake centroid − bjorken, tau ≈ 2 | the same at tau = 8 | lab − bjorken in \|eta_s\| < 2.4, tau = 8 |
+|---|---|---|---|---|
+| 0 | 0 | 0 | 0 | 0 |
+| 1 | −0.15 | −0.4 to −0.7 | −0.1 | ≈ 0 |
+| 2 | −0.3 to −0.4 | −0.7 to −0.8 | −0.1 to −0.2 | ≈ 0 (one point +9 %) |
+| 3 | −0.7 to −1.0 | up to −2 | −0.15 to −0.36 | +1.4 to +3.7 GeV per event, 6-11 % of the jet's wake |
+| 4 | −1.5 to −2.1 | −0.8 to −1.2 | −0.4 to −0.6 | +3.7 to +4.8 GeV per event, 13-23 % of the jet's wake |
+
+- **The lab error is set by the jet's rapidity, hardly by its energy.**
+  - The deposit shift follows each droplet's age: about −0.5 at tau_d = 1 fm/c and −1.9 at
+    0.01 fm/c.
+  - A forward jet makes its droplets early in proper time (tau = t / cosh y): at y = 4 almost
+    all before tau = 1.
+- **Per jet the wake partly heals in the first few fm/c,** then stays as it is to freeze-out.
+  - Mostly, the jet's own later droplets land closer and dilute the displaced early ones.
+  - Also, the misplaced energy drifts outward with its forward momentum: at y = 4 the gap still
+    closes from −0.8 to −0.5 after the last droplet has arrived.
+  - What is left for a forward jet is a misplaced shoulder at eta_s ≈ 2-3, inside the
+    acceptance.
+- **Energy bookkeeping in the lab frame:**
+  - at y = 3-4 the fluid gains 10-20 % more than was deposited: uninvertible cells discard the
+    negative droplets (holes);
+  - at y = 3, 30-40 % of a 20 or 50 GeV quark's deposit energy lands in such cells.
+- **The fluid frame matches bjorken along eta_s** (centroid within 0.05, acceptance within
+  ±3 %). Transversely it shows the usual dipole: the front about 0.4 fm further out, an L2
+  difference of 10-34 %.
+- **Hadrons (1-3 charged per event of error per point) resolve none of this.**
+  - The lab frame's +3σ at y = 0, |eta| < 1 is a sampling artefact. It repeats bin by bin at
+    all three p_T, because the events of a frame share the background and its cell-addressed
+    random numbers.
+  - The hydro at y = 0 is identical in the three frames.
 
 ## Replaying an event
 
