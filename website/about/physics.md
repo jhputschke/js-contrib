@@ -219,8 +219,24 @@ droplets' energy is made at \(|\eta_s| > 2\). The lab frame moves it toward midr
 0.9 units on average, and 22 % of the energy misses MUSIC's cells and goes into single cells.
 The midrapidity wake (\(|\eta_s| < 1\)) comes out 2.6 times too large at \(\tau\) = 2 fm/c
 and 19 % too large at 8 fm/c, while the whole grid still balances: the energy is kept, but in
-the wrong place. Both tests, their data scripts and notebooks are in
-`example/liquefier_frame_test/`. The pair files record the frame
+the wrong place.
+
+**One jet at a time.** A third test shoots a single quark at fixed rapidity \(y\) and
+\(p_T\) into one LHC background, in all three frames.
+- **The lab frame's error is set by the jet's rapidity, not its energy.** A jet at rapidity
+  \(y\) makes its droplets at \(\tau = t/\cosh y\), and the shift grows the earlier and more
+  forward a droplet is made. Shifts: 0.15 units at \(y = 1\), 0.35 at \(y = 2\), 0.7–1.0 at
+  \(y = 3\), 1.5–2 at \(y = 4\).
+- **Per jet the wake partly heals** by \(\tau \approx 4\) fm/c. The jet's own later
+  droplets are less displaced, and the misplaced energy drifts outward with its momentum. What
+  survives puts 6–23 % of the wake of a jet at \(y\) = 3–4 inside \(|\eta| < 2.4\).
+- **The fluid frame matches the Bjorken frame along \(\eta_s\).** A smooth Cooper–Frye
+  integral of the wake spectra (no sampling noise) shows it about 1.5 % harder in
+  \(\langle p_T \rangle\), the shift growing with the hadron's mass (the flow's blue shift).
+
+All three tests, their data scripts and notebooks are in `example/liquefier_frame_test/`.
+Choose the frame with `run_prod_jet.py --liquefier-frame bjorken|lab|fluid` (also through
+`run_jobs.sh`). The pair files record the frame
 (`liquefier_frame`); files without it were made in the lab frame. Campaigns made in
 different frames should not be mixed in a wake analysis.
 

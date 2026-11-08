@@ -83,6 +83,9 @@ python run_prod_jet.py --events 1 --seed 1 --no-deposit      # null test first: 
 python run_prod_jet.py --events 10 --seed 1                  # PythiaGun, pTHat 50-70 GeV
 python run_prod_jet.py --events 10 --seed 1 --pthat-min 20 --pthat-max 40
 python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
+python run_prod_jet.py --events 30 --seed 1 --hard pgun --pgun-id 2 \
+       --pgun-grid 20,50,100:0,2 --pgun-per-point 5         # one u quark at (pT, y) points
+python run_prod_jet.py --events 10 --seed 1 --liquefier-frame fluid   # bjorken (default), lab, fluid
 python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
 python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90
                                              # the same, one jet per background in each window
@@ -103,6 +106,8 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
 ./run_jobs.sh 20 25 0                                        # 20 jobs x 25 events, unique seeds
 ./run_jobs.sh 20 25 0 --campaign pth50                       # the same, files named ..._pth50_00NN
 ./run_jobs.sh -j 2 20 25 0 out_pgun --hard pgun
+./run_jobs.sh -j 2 20 25 0 out_fluid --liquefier-frame fluid # every job in the fluid frame
+                                                             # (a new OUTDIR per frame, see below)
 ./run_jobs.sh -j 4 --mps 20 25 0                             # 4 at a time, GPU shared via CUDA MPS
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both   # + hadronization input
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both --particlize-only
@@ -1193,6 +1198,9 @@ processes keep up with a whole four-job GPU campaign.
 |---|---|
 | `--hard pythia` (default) | PythiaGun. The vertex is a 3dMCGlauber binary-collision point (x, y; z = t = 0). `--pthat-min/--pthat-max` override the XML's 50–70 GeV. |
 | `--hard pgun --pgun-pt P` | One parton at fixed pT, always from the origin: PGun zeroes the sampled vertex (`PGun.cc:117-120`). |
+| `--pgun-y Y`, `--pgun-phi PHI`, `--pgun-id PID` | PGun's rapidity and φ (default 0, as before) and the parton (default the XML's `<parID>`, 21 in the main XML). Need an X-SCAPE whose PGun has `<rapidity>`/`<points>` (`PGUN_HAS_POINTS`). |
+| `--pgun-grid PTS:YS`, `--pgun-per-point N` | Several (pT, y) points in one job, the grid of the two comma lists (`20,50,100:0,1,2,3,4`; point k = iy × npT + ipT). Event i uses point i mod K, and `--reuse` is set to K × N so that every background gets N events of each point. Each event's point goes to `diag/` and `events/` (`gun_point`, `gun_pt`, `gun_y`). |
+| `--liquefier-frame {bjorken,lab,fluid}` | The frame of the CausalLiquefier's diffusion (default: the XML's, `bjorken`). See [The liquefier's frame](#the-liquefiers-frame---liquefier-frame). |
 | `--reuse N` | `setReuseHydro`: MUSIC_1 runs once per N events, MUSIC_2 every event (a new jet each time). `arr_bg` still reads per event, so it stays aligned with `arr`; it is stored once per background (`--bg-layout`). `diag/bg_id` gives the first event that used each background. |
 | `--bg-layout {auto,full,shared}` | How `arr_bg` is stored. `full`: one copy per event. `shared`: each background once, `arr_bg` a virtual dataset over it that reads the same (see [Shared backgrounds](#shared-backgrounds---bg-layout)). `auto` (default): `shared` when a background is reused (`--reuse` > 1, which includes `--pthat-bins` with more than one window or `--jets-per-bin` > 1), else `full`, so files without reuse are unchanged. |
 | `--pthat-bins A-B,C-D,...` | K PythiaGun pT̂ windows in one job, one Pythia each; event i uses window i mod K, and `--reuse` is set to K × `--jets-per-bin`. `--events` must be a multiple of that. Not with `--reuse`, `--pthat-min/max` or `--hard pgun`. See [D](#d-several-pthat-windows-per-background---pthat-bins). |
@@ -1615,10 +1623,41 @@ either:
   where most droplets are made forward.
 - The fluid frame moves late deposits outward with the radial flow.
 
-[`../liquefier_frame_test/`](../liquefier_frame_test/README.md) compares the three on the same events
-(tutorial 06's Au+Au, extended to 25 jets, and LHC Z+jet events with the Z+jet campaign's
-settings): the data script, the summary, a notebook, the kernel in Python
+**Using it.**
+
+```bash
+python run_prod_jet.py ... --liquefier-frame fluid           # one job
+./run_jobs.sh -j 2 20 25 0 out_fluid --liquefier-frame fluid # every job of a run_jobs.sh run
+```
+
+Or set `<CausalLiquefier><frame>fluid</frame>` in your user XML (`<fluid_e_min>` 0.1 GeV/fm^3,
+`<fluid_v_max>` 0.99 optional).
+- `run_prod_jet.py` checks the build first. The frame needs `<frame>` in the X-SCAPE main XML;
+  `fluid` also needs `<fluid_e_min>` (X-SCAPE with JETSCAPE/X-SCAPE#189). An older build is
+  refused before it would stop at Init.
+- **One output directory per frame.** `run_jobs.sh` skips every job whose `<tag>.json` is
+  complete, whatever frame made it. A rerun into an existing `OUTDIR` with another frame would
+  mix frames.
+- **Campaign images.** The containers of the published campaigns predate the option (lab
+  frame), and their XMLs (`PbPb_0_30_ZJet.xml`) set no `<frame>`. A newer build therefore runs
+  them in the Bjorken frame. To extend an old campaign, pass `--liquefier-frame lab`; for a new
+  one, pass the frame you want explicitly.
+- FastHydro (`fast_data`) has `bjorken` and `lab` only and refuses `fluid`.
+- The three frames run equally fast.
+
+[`../liquefier_frame_test/`](../liquefier_frame_test/README.md) compares the three on the same events:
+- tutorial 06's Au+Au, extended to 25 jets;
+- LHC Z+jet events with the Z+jet campaign's settings;
+- single quarks at fixed (pT, y), with a smooth Cooper-Frye integral of the wake spectra.
+
+It also has the data scripts, the summaries, the notebooks, the kernel in Python
 (`liquefier_kernel.py`) and the replay of an event's MUSIC legs (`liquefier_replay.py`).
+
+In short:
+- per jet, the lab frame's error is set by the jet's rapidity, not its energy;
+- a quark at y = 3-4 leaves 6-23 % of its wake misplaced inside |eta| < 2.4;
+- the fluid frame matches bjorken along eta_s and makes the wake about 1.5 % harder in <pT>
+  (mass-ordered, the flow's blue shift).
 
 ## Choices worth knowing
 

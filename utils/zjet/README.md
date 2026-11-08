@@ -136,6 +136,18 @@ with `eCMforHadronization` the collision's 5020 from the XML's PythiaGun: no sec
 
 ## Per campaign
 
+**The liquefier's frame.** `PbPb_0_30_ZJet.xml` sets no `<frame>`, so the image's X-SCAPE
+decides.
+- The campaigns so far ran images from before 2026-11, so they are lab frame.
+- An image with JETSCAPE/X-SCAPE#189 runs the Bjorken frame by default.
+- Pin the frame in `EXTRA_ARGS` (`--liquefier-frame lab` to extend the lab-frame campaigns, or
+  `bjorken`/`fluid` for new ones).
+- Never mix frames in one analysis, and never resubmit into a campaign directory with another
+  frame: finished jobs are skipped whatever frame made them.
+
+See `contribs/PyJetscape/example/liquefier_frame_test/` for what the frame changes (Z+jet:
+lab +19 % midrapidity wake).
+
 1. Submit / launch; resubmit the same command to resume (finished jobs are skipped).
 2. After the jobs: `utils/check_deposition.py <OUTDIR>` → move flagged jobs away, resubmit.
 3. Upload: `js_osdf.py upload <OUTDIR> osdf:///fno4hic/zjet/zjet_cNN` (or `--upload` in
