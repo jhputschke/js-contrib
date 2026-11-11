@@ -123,6 +123,19 @@ def parse_args() -> argparse.Namespace:
                    help="PythiaGun pTHatMax [GeV] (default: the XML's)")
     p.add_argument("--pgun-pt", type=float, default=60.0, dest="pgun_pt",
                    help="PGun parton pT [GeV] (default 60)")
+    p.add_argument("--pgun-y", type=float, default=None, dest="pgun_y",
+                   help="PGun parton rapidity (default: the XML's, 0)")
+    p.add_argument("--pgun-phi", type=float, default=None, dest="pgun_phi",
+                   help="PGun parton phi (default: the XML's, 0)")
+    p.add_argument("--pgun-id", type=int, default=None, dest="pgun_id",
+                   help="PGun parton PDG id (default: the XML's <parID>; 21 in the main XML)")
+    p.add_argument("--pgun-grid", default=None, dest="pgun_grid", metavar="PTS:YS",
+                   help="PGun (pT, y) points: the grid of the comma-separated pT [GeV] and "
+                        "rapidity lists, e.g. 20,50,100:0,1,2,3,4 (point k = iy * npT + "
+                        "ipT); event i uses point i mod K, and every background gets "
+                        "--pgun-per-point events of each point (sets --reuse)")
+    p.add_argument("--pgun-per-point", type=int, default=1, dest="pgun_per_point",
+                   help="with --pgun-grid: events per point per background (default 1)")
     p.add_argument("--reuse", type=int, default=1,
                    help="jet events per background (setReuseHydro); 1 = a new background "
                         "every event (default)")
@@ -235,6 +248,17 @@ def parse_args() -> argparse.Namespace:
                         "<late_delta_tau>, 0.05 in the production XML; 0: constant step)")
     p.add_argument("--late-tau", type=float, default=None, dest="late_tau", metavar="TAU",
                    help="when the larger step starts [fm/c] (the XML's <late_tau_switch>)")
+    p.add_argument("--liquefier-frame", choices=("bjorken", "lab", "fluid"), default=None,
+                   dest="liquefier_frame",
+                   help="the frame of the CausalLiquefier's diffusion (<CausalLiquefier><frame>):"
+                        " bjorken (X-SCAPE's default: the Bjorken flow at the droplet's eta_s, so "
+                        "forward droplets deposit as midrapidity ones do), lab (the liquefier's "
+                        "paper and X-SCAPE before 2026-11, to reproduce older campaigns) or fluid "
+                        "(the rest frame of the background fluid where the droplet was made, "
+                        "transverse flow included; the Bjorken frame where there is no fluid). "
+                        "Default: the XML's. Needs an X-SCAPE with the option (fluid: with "
+                        "<fluid_e_min> in its main XML). Recorded as the pair file's "
+                        "liquefier_frame")
     p.add_argument("--bulk-info", choices=("slim", "full"), default="slim", dest="bulk_info",
                    help="the background's framework copy, which Matter, LBT and the liquefier "
                         "read: 'slim' (default) keeps e, s, T, vx, vy, vz per cell, ~7 GiB "
@@ -425,6 +449,42 @@ def check_pthat_bins(a) -> None:
     if a.events % a.reuse:
         raise ValueError(f"--events {a.events} is not a multiple of {a.reuse} (windows x "
                          "--jets-per-bin): the last background would miss windows")
+
+
+def check_pgun(a) -> None:
+    """--pgun-*: parse --pgun-grid, check against the other options, set --reuse."""
+    a.pgun_points = None
+    given = [o for o, v in (("--pgun-y", a.pgun_y), ("--pgun-phi", a.pgun_phi),
+                            ("--pgun-id", a.pgun_id), ("--pgun-grid", a.pgun_grid))
+             if v is not None]
+    if a.hard != "pgun":
+        if given or a.pgun_per_point != 1:
+            raise ValueError(", ".join(given or ["--pgun-per-point"]) + " need(s) --hard pgun")
+        return
+    if a.pgun_grid is None:
+        if a.pgun_per_point != 1:
+            raise ValueError("--pgun-per-point needs --pgun-grid")
+        return
+    if a.pgun_y is not None:
+        raise ValueError("--pgun-grid gives the rapidities: drop --pgun-y")
+    try:
+        pts, ys = a.pgun_grid.split(":")
+        pts = [float(v) for v in pts.split(",") if v.strip()]
+        ys = [float(v) for v in ys.split(",") if v.strip()]
+    except ValueError:
+        raise ValueError(f"--pgun-grid takes 'pT,pT,...:y,y,...', got {a.pgun_grid!r}")
+    if not pts or not ys or min(pts) <= 0:
+        raise ValueError("--pgun-grid needs at least one pT > 0 and one rapidity")
+    if a.reuse != 1:
+        raise ValueError("--pgun-grid sets --reuse itself (points x --pgun-per-point); "
+                         "give --pgun-per-point instead")
+    if a.pgun_per_point < 1:
+        raise ValueError("--pgun-per-point must be >= 1")
+    a.pgun_points = [(pt, y) for y in ys for pt in pts]
+    a.reuse = len(a.pgun_points) * a.pgun_per_point
+    if a.events % a.reuse:
+        raise ValueError(f"--events {a.events} is not a multiple of {a.reuse} (points x "
+                         "--pgun-per-point): the last background would miss points")
 
 
 def check_parton_ycut(a) -> None:
@@ -623,6 +683,11 @@ def job_xml(a, out_h5: str):
         pgun = ET.SubElement(hard, "PGun")
         _set(pgun, "name", "PGun")
         _set(pgun, "pT", a.pgun_pt)
+        for tag, v in (("rapidity", a.pgun_y), ("phi", a.pgun_phi), ("parID", a.pgun_id)):
+            if v is not None:
+                _set(pgun, tag, v)
+        if a.pgun_points:
+            _set(pgun, "points", " ".join(f"{pt:g} {y:g}" for pt, y in a.pgun_points))
 
     hydros = root.findall("Hydro")
     names = [_text(h, "MUSIC/name") for h in hydros]
@@ -667,6 +732,19 @@ def job_xml(a, out_h5: str):
             problems.append(f"<CausalLiquefier><dtau> = {dtau} must equal MUSIC's Delta_Tau "
                             f"= {music_dtau}: the kernel is divided by it and deposited in "
                             "one hydro step")
+        if a.liquefier_frame is not None:
+            with open(a.main_xml) as fm:
+                main = fm.read()
+            if "<frame>" not in main:
+                problems.append("--liquefier-frame needs an X-SCAPE with <CausalLiquefier>"
+                                "<frame> (its main XML has no default for it, so the tag "
+                                "would stop X-SCAPE at Init)")
+            elif a.liquefier_frame == "fluid" and "<fluid_e_min>" not in main:
+                problems.append("--liquefier-frame fluid needs an X-SCAPE with the fluid frame "
+                                "(<CausalLiquefier><fluid_e_min> in its main XML); this one "
+                                "would stop at Init")
+            else:
+                _set_text(liq, "frame", a.liquefier_frame)
     for tag in ("SoftParticlization", "JetHadronization", "Afterburner", "RootBulkWriter",
                 "FastRootBulkWriter"):
         if root.find(tag) is not None:
@@ -688,7 +766,7 @@ PARTICLIZE_DIAG = ("n_droplets", "E_droplets", "E_droplets_late", "E_droplets_ea
                    "tau0_music", "eloss_tstart", "ntau_jet", "ntau_jet_music", "ntau_bg", "frames_identical",
                    "jet_hit_boundary", "bg_hit_boundary", "jet_hit_edge", "bg_hit_edge",
                    "jet_edge_e_max", "bg_edge_e_max", "jet_edge_e_max_eta",
-                   "bg_edge_e_max_eta", "pthat_bin", "pthat",
+                   "bg_edge_e_max_eta", "pthat_bin", "pthat", "gun_point", "gun_pt", "gun_y",
                    "event_weight", "parton_y_lead", "parton_pt_lead", "parton_y_sub",
                    "parton_pt_sub", "n_coll", "n_extra", "extra_mu", "extra_E", "extra_pt")
 
@@ -805,6 +883,45 @@ def pthat_diag(gun, trigger="none") -> dict:
         from jetscape.hadrons_h5 import z_record
         d.update(z_record(core.pythia_gun_trigger(gun)["leptons"]))
     return d
+
+
+def open_pgun(a, jetscape):
+    """--hard pgun: the PGun task, after checking that it runs the asked points (a PGun
+    without <points>/<rapidity> would ignore them) -> the task, or None without --hard pgun."""
+    if a.hard != "pgun":
+        return None
+    from jetscape import pyjetscape_core as core
+
+    asked = a.pgun_points or ([(a.pgun_pt, a.pgun_y)] if a.pgun_y is not None else None)
+    if not getattr(core, "PGUN_HAS_POINTS", False):
+        if asked or a.pgun_phi is not None:
+            sys.exit("run_prod_jet.py: --pgun-grid / --pgun-y / --pgun-phi need X-SCAPE's PGun "
+                     "with <points> (branch liquefier-rest-frame) and PyJetscape built against it")
+        return None
+    tasks = [t for t in jetscape.GetTaskList() if t.GetId() == "PGun"]
+    if len(tasks) != 1:
+        sys.exit(f"run_prod_jet.py: --hard pgun, but {len(tasks)} PGun task(s)")
+    info = core.pgun_points(tasks[0])
+    if asked and [tuple(p) for p in info["points"]] != [(float(p), float(y)) for p, y in asked]:
+        sys.exit(f"run_prod_jet.py: PGun runs the points {info['points']}, not {asked}")
+    if a.pgun_id is not None and int(info["parID"]) != a.pgun_id:
+        sys.exit(f"run_prod_jet.py: PGun runs parID {info['parID']}, not {a.pgun_id}")
+    print(f"  gun      PGun parID {int(info['parID'])}, phi {info['phi']:g}, "
+          f"{info['n_points']} (pT, y) point(s): {info['points']}")
+    return tasks[0]
+
+
+def pgun_diag(gun) -> dict:
+    """The current event's PGun point and parton, for diag/ (and events/)."""
+    if gun is None:
+        return {}
+    from jetscape import pyjetscape_core as core
+
+    info = core.pgun_points(gun)
+    k = int(info["active"])
+    pt, y = info["points"][k]
+    return {"gun_point": k, "gun_pt": float(pt), "gun_y": float(y),
+            "parton_y_lead": float(y), "parton_pt_lead": float(pt)}
 
 
 def open_extra_hard(a, jetscape):
@@ -1285,6 +1402,7 @@ def main() -> int:
         sys.exit("run_prod_jet.py: --reuse must be >= 1")
     try:
         check_pthat_bins(a)
+        check_pgun(a)
         check_parton_ycut(a)
         check_trigger(a)
         check_extra_hard(a)
@@ -1337,8 +1455,16 @@ def main() -> int:
                      f"{_text(root, 'Hard/PythiaGun/pTHatMax')} GeV")
     elif a.hard == "none":
         hard_desc = "no trigger (minimum bias)"
+    elif a.pgun_points:
+        hard_desc = (f"PGun pT {','.join(f'{v:g}' for v in dict.fromkeys(p for p, _ in a.pgun_points))}"
+                     f" GeV x y {','.join(f'{v:g}' for v in dict.fromkeys(y for _, y in a.pgun_points))}"
+                     f" ({len(a.pgun_points)} points, {a.pgun_per_point} event(s) per point per "
+                     "background)")
     else:
-        hard_desc = f"PGun pT {a.pgun_pt:g} GeV"
+        hard_desc = f"PGun pT {a.pgun_pt:g} GeV" + (f" y {a.pgun_y:g}" if a.pgun_y else "")
+    if a.hard == "pgun":
+        hard_desc += (f", phi {a.pgun_phi:g}" if a.pgun_phi else "") \
+            + (f", parID {a.pgun_id}" if a.pgun_id is not None else "")
     if a.parton_ymax is not None:
         hard_desc += f", partons |y| < {a.parton_ymax:g} ({a.parton_y_mode})"
     if a.trigger_kind != "none":
@@ -1412,6 +1538,10 @@ def main() -> int:
         "prod_music2_restart": a.restart_on,
         **({"pthat_bins": np.asarray(a.pthat_windows, dtype=np.float64),
             "pthat_jets_per_bin": a.jets_per_bin} if a.pthat_windows else {}),
+        **({"pgun_points": np.asarray(a.pgun_points, dtype=np.float64),
+            "pgun_per_point": a.pgun_per_point} if a.pgun_points else {}),
+        **({f"pgun_{k}": getattr(a, f"pgun_{k}") for k in ("y", "phi", "id")
+            if getattr(a, f"pgun_{k}") is not None}),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
            if a.parton_ymax is not None else {}),
         **({"trigger": a.trigger_kind,
@@ -1472,7 +1602,8 @@ def main() -> int:
         pwriter.attach(jetscape)             # reads ./music_input: the job's own
     jet_leg = restart_legs(a, jetscape, writer)  # after both: their surface settings
     inline = open_inline(a, jetscape, stem) if a.validate_inline else None
-    gun = open_pthat_bins(a, jetscape) if a.hard != "none" else None   # no trigger: no pTHat
+    gun = open_pthat_bins(a, jetscape) if a.hard == "pythia" else None   # no trigger: no pTHat
+    pgun = open_pgun(a, jetscape)
     xgun = open_extra_hard(a, jetscape)
     ini = open_initial_state(jetscape)
     hadr = None
@@ -1493,7 +1624,7 @@ def main() -> int:
             t0 = time.time()
             jetscape.ExecPerEvent()
             xd, scat, shower_scat = extra_hard_event(xgun)
-            idx = writer.Exec(**pthat_diag(gun, a.trigger_kind),   # both legs are live
+            idx = writer.Exec(**pthat_diag(gun, a.trigger_kind), **pgun_diag(pgun),  # both legs live
                               **geometry_diag(ini), **eloss_diag(bg_hydro), **xd,
                               **({"scatterings": scat} if a.extra_hard else {}))
             if idx is not None and pwriter is not None:
@@ -1535,6 +1666,9 @@ def main() -> int:
                         "frame(s) of this event are zeros")
             if jet_leg is not None:
                 msg += f", MUSIC_2 {jet_leg.get_restart_status()}"
+            if "gun_point" in d:
+                msg += (f", gun point {d['gun_point']}: pT {d['gun_pt']:g} GeV, "
+                        f"y {d['gun_y']:+g}")
             if gun is not None:
                 msg += f", pTHat {d['pthat']:.1f} GeV (window {d['pthat_bin']})"
                 if "parton_y_lead" in d:

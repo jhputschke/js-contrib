@@ -163,7 +163,8 @@ The energy the jet loses to the medium is put back into the fluid by X-SCAPE's
 in with the four-momentum of the partons that are still tracked. A parton is no longer tracked
 when its energy in the local fluid rest frame is below `e_threshold` = 2 GeV, and holes are
 never tracked further. The difference \(\Delta p^\mu\) becomes a **droplet** at the step's
-space-time point: soft partons enter with a positive sign, holes with a negative one. Heavy
+space-time point: soft partons enter with a positive sign, holes with a negative one. Being a
+momentum transfer, a droplet's \(\Delta p^\mu\) is often spacelike. Heavy
 quarks, photons and leptons are never liquefied. Each event's droplets are stored in the pair
 file (`source/droplets`: \(\tau, x, y, \eta_s, E, p_x, p_y, p_z\)).
 
@@ -178,8 +179,68 @@ from its position by relativistic (causal) diffusion,
 with \(\tau_{\rm relax}\) = 0.1 fm/c and \(D\) = 0.08 fm, so the signal speed is
 \(\sqrt{D/\tau_{\rm relax}} \approx 0.89\,c\). The droplet is deposited in the hydro step that
 contains \(\tau_{\rm drop} + \tau_{\rm delay}\), with \(\tau_{\rm delay}\) = 1 fm/c, using the
-diffusion kernel \(G\) at that time (smoothed with `width_delta` = 0.1 fm). The jet leg's hydro
-equations are then
+diffusion kernel \(G\) at that time (smoothed with `width_delta` = 0.1 fm).
+
+**The frame of the diffusion.** The diffusion equation above is isotropic in one frame, and
+which one matters away from midrapidity. X-SCAPE solves it in the frame of the **Bjorken flow at
+the droplet's space-time rapidity** \(\eta_d\) (`<CausalLiquefier><frame>bjorken</frame>`, the
+default from 2026-11): the frame reached by a longitudinal boost by \(\eta_d\), in which the
+droplet sits at \(z = 0\) and the surrounding fluid is close to rest. Every droplet then spreads
+as one at midrapidity does, and \(\tau_{\rm delay}\) is a delay in that frame's own time. The
+liquefier's paper solves the equation in the **lab frame** (`<frame>lab</frame>`, X-SCAPE's
+prescription before 2026-11), an approximation it states for a medium whose flow is small. The
+two are the same only for a droplet at \(\eta_s\) = 0. Away from it the lab-frame cloud trails
+the Bjorken flow \(v_z = \tanh\eta_s\) and lands closer to midrapidity: a droplet at
+\(\eta_s\) = 1 by 0.4 units, one at \(\eta_s\) = 2.4 (where the flow exceeds the signal speed)
+by about 0.7 units, with an rms of 0.03 in \(\eta_s\), far narrower than a cell. A deposit that concentrated can leave a cell with more
+momentum than energy; MUSIC then keeps the cell's previous state and the deposit is lost. In the
+Bjorken frame the same droplet spreads over about a hundred cells around its own \(\eta_s\).
+The midrapidity wake changes too, because the lab frame pulled droplets from
+\(|\eta_s| \gtrsim 0.3\) toward it. In a test with 25 Au+Au jets, the wake at
+\(|\eta_s| < 1\) holds 3 % less energy in the Bjorken frame at \(\tau\) = 8 fm/c. In the
+lab frame 3.5 % of the droplets' energy went into cells MUSIC cannot invert; in the Bjorken
+frame, 0.4 %.
+
+A third choice, `<frame>fluid</frame>`, solves the equation in the **rest frame of the
+background fluid** where the droplet was made. It uses the cell of MUSIC_1 that Matter and LBT
+see, transverse flow included; this is the condition the paper states, met with the actual
+flow. The kernel is first boosted by \(\eta_d\), as in the Bjorken frame, and then by the
+fluid's velocity relative to the Bjorken flow; the current is boosted back, and its flux
+through the \(\tau\) slice is deposited. A droplet with no fluid around it (made before the
+hydro starts) takes the Bjorken frame. In the same test, the fluid and Bjorken frames agree
+along \(\eta_s\), in the energy kept, and in the midrapidity wake's energy (within 1 %). The
+fluid frame carries late deposits outward with the radial flow, by up to 0.8 fm, and
+contracts them along it. That changes the local wake by 20–30 %. At hadron level the three
+frames agree within that sample's errors (about 5 %).
+
+At the LHC the lab frame's error matters much more. In a test with Z+jet events in Pb+Pb at
+5.02 TeV (the Z+jet campaign's settings, no rapidity cut on the recoil partons), 58 % of the
+droplets' energy is made at \(|\eta_s| > 2\). The lab frame moves it toward midrapidity by
+0.9 units on average, and 22 % of the energy misses MUSIC's cells and goes into single cells.
+The midrapidity wake (\(|\eta_s| < 1\)) comes out 2.6 times too large at \(\tau\) = 2 fm/c
+and 19 % too large at 8 fm/c, while the whole grid still balances: the energy is kept, but in
+the wrong place.
+
+**One jet at a time.** A third test shoots a single quark at fixed rapidity \(y\) and
+\(p_T\) into one LHC background, in all three frames.
+- **The lab frame's error is set by the jet's rapidity, not its energy.** A jet at rapidity
+  \(y\) makes its droplets at \(\tau = t/\cosh y\), and the shift grows the earlier and more
+  forward a droplet is made. Shifts: 0.15 units at \(y = 1\), 0.35 at \(y = 2\), 0.7–1.0 at
+  \(y = 3\), 1.5–2 at \(y = 4\).
+- **Per jet the wake partly heals** by \(\tau \approx 4\) fm/c. The jet's own later
+  droplets are less displaced, and the misplaced energy drifts outward with its momentum. What
+  survives puts 6–23 % of the wake of a jet at \(y\) = 3–4 inside \(|\eta| < 2.4\).
+- **The fluid frame matches the Bjorken frame along \(\eta_s\).** A smooth Cooper–Frye
+  integral of the wake spectra (no sampling noise) shows it about 1.5 % harder in
+  \(\langle p_T \rangle\), the shift growing with the hadron's mass (the flow's blue shift).
+
+All three tests, their data scripts and notebooks are in `example/liquefier_frame_test/`.
+Choose the frame with `run_prod_jet.py --liquefier-frame bjorken|lab|fluid` (also through
+`run_jobs.sh`). The pair files record the frame
+(`liquefier_frame`); files without it were made in the lab frame. Campaigns made in
+different frames should not be mixed in a wake analysis.
+
+The jet leg's hydro equations are then
 
 \[
 \partial_\mu T^{\mu\nu} = J^\nu_{\rm strings} + J^\nu_{\rm jet},\qquad

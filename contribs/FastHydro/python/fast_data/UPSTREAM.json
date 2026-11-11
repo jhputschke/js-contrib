@@ -3,12 +3,12 @@
   "upstream": {
     "repo": "FNO4d",
     "path": "loc_libs/fast_data",
-    "commit": "65ce483b7c8a3a54802f19f3eb1fc90543b56a63",
-    "commit_short": "65ce483",
-    "commit_date": "2026-09-25",
-    "repo_head_at_vendoring": "65ce483b7c8a3a54802f19f3eb1fc90543b56a63"
+    "commit": "9a79834a74ea81dd1e71d39a973c0aa57628ad6b",
+    "commit_short": "9a79834",
+    "commit_date": "2026-11-06",
+    "repo_head_at_vendoring": "d426c17f3ec240183cff84a76d6b392cbd577810"
   },
-  "vendored_on": "2026-09-25",
+  "vendored_on": "2026-11-06",
   "local_patches": [],
   "files": {
     "__init__.py": {
@@ -72,9 +72,9 @@
       "lines": 28
     },
     "liquefier/deposit.py": {
-      "sha256": "004c032a494e2d06322748e386c4deae7d87aacacb3e8a57d812e46156e2ffe5",
-      "bytes": 18741,
-      "lines": 390
+      "sha256": "6a83564b7217493f03f8e0af12a151e3d7cfddb34bef6c4255bfaee27fac1eb6",
+      "bytes": 19124,
+      "lines": 395
     },
     "liquefier/droplets.py": {
       "sha256": "c2169c1e0b37974849eec2641467b14ec720b6d8e1a422f85d5dc421fe9ca76e",
@@ -82,14 +82,14 @@
       "lines": 366
     },
     "liquefier/kernel.py": {
-      "sha256": "f7d1c1d63e56b62819515f079aadf31d585f29d1571ccb9895a9e29c6f8e1bce",
-      "bytes": 13270,
-      "lines": 277
+      "sha256": "909a5bf51b1bc2c8baf84393c04b102b4bcbe2abcf6505cab31106558c4b6cab",
+      "bytes": 13621,
+      "lines": 281
     },
     "liquefier/params.py": {
-      "sha256": "d2ed037dad83db0f9642dc0244c385e0b353e00800a3c687304c5373a46dc514",
-      "bytes": 3874,
-      "lines": 90
+      "sha256": "5237e5082cab8b6f1e78eff1fe521d07231d7bf2f3668ae3a73455901eaf6c0b",
+      "bytes": 5606,
+      "lines": 121
     },
     "liquefier/source.py": {
       "sha256": "1844a33d7ab1418c29baae6ce2970074f1d462a9d8286487636eab4934de7bf4",

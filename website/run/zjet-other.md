@@ -75,6 +75,17 @@ docker run -d --name zjet --gpus all --user "$(id -u):$(id -g)" \
     --eta-max 2.6 --no-x --hadron-keep-bits-p 12 --hadron-keep-bits-x 8 --keep-primaries 0
 ```
 
+**The liquefier's frame.** `PbPb_0_30_ZJet.xml` doesn't set `<CausalLiquefier><frame>`, so
+the build's default applies.
+- **Published campaigns** (`zjet_c00`…, images from before 2026-11) were made in the lab frame.
+  At the LHC that frame moves the wake of forward partons toward midrapidity: +19 % at
+  \|η_s\| < 1 ([The physics](../about/physics.md#5-energymomentum-deposition-the-causalliquefier)).
+- **A newer image runs the Bjorken frame by default.** Add `--liquefier-frame lab` to extend an
+  old campaign, or `bjorken`/`fluid` for a new one.
+- **Use a fresh output directory per frame:** `run_jobs.sh` skips completed jobs whatever
+  frame made them.
+- **Never combine campaigns made in different frames** in one analysis.
+
 Ten jobs of 96 events (4 backgrounds each), three at a time: a Pb+Pb Z+jet job peaks at
 **14–16 GB** of host memory (2.1× an Au+Au job; measured on the GB10), mostly MUSIC's larger
 box. It takes 2.1× the time of an Au+Au jet job and writes 1.7× the disk.

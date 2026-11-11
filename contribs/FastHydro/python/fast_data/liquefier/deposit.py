@@ -88,7 +88,8 @@ def support_box(drop, tau_eval, grid, p: LiquefierParams, n_scan=2048):
     the transverse extent at each eta is a disk of radius ``sqrt(R^2 - (z-z_d)^2)``.
     """
     tau_d, eta_d = float(drop[0]), float(drop[3])
-    t_d, z_d = tau_d * np.cosh(eta_d), tau_d * np.sinh(eta_d)
+    shift = p.eta_shift(eta_d)                       # the Bjorken frame: eta - eta_d
+    t_d, z_d = tau_d * np.cosh(eta_d - shift), tau_d * np.sinh(eta_d - shift)
     c = p.c_diff
 
     eta_all = np.asarray(grid.eta.detach().cpu(), dtype=np.float64)
@@ -96,7 +97,7 @@ def support_box(drop, tau_eval, grid, p: LiquefierParams, n_scan=2048):
     # widen the scan so a support outside the grid is still found (for in_grid_fraction)
     span = max(abs(eta_d) + 1.0, abs(lo), abs(hi))
     e = np.linspace(-span, span, n_scan)
-    t, z = tau_eval * np.cosh(e), tau_eval * np.sinh(e)
+    t, z = tau_eval * np.cosh(e - shift), tau_eval * np.sinh(e - shift)
     dt, dz = t - t_d, z - z_d
     R = c * dt
     inside = (R > 0) & (np.abs(dz) < R)
@@ -146,7 +147,9 @@ def droplet_weights(drop, tau_eval, grid, p: LiquefierParams, *, mode="conservat
                             np.zeros((0, 0, 0)), tau_eval, n_raw=0.0, in_grid_fraction=0.0,
                             flags=flags, n_cells=0, eta_nodes=ee[:0])
 
-    dt_typ = max(tau_eval * np.cosh(0.5 * (eta_lo + eta_hi)) - tau_d * np.cosh(eta_d), 1e-12)
+    shift = p.eta_shift(eta_d)
+    dt_typ = max(tau_eval * np.cosh(0.5 * (eta_lo + eta_hi) - shift)
+                 - tau_d * np.cosh(eta_d - shift), 1e-12)
     shell_frac = float(_K.shell_mass_fraction(dt_typ, p))
     if shell_frac > 0.2:
         flags |= DropletFlags.SHELL_DOMINATED
@@ -232,7 +235,8 @@ def _quadrature(cx, cy, ce, dx, dy, de, drop, tau_eval, p, *, n_sub, n_sub_max, 
                 xlim, ylim, elim):
     """Support-clipped midpoint quadrature over the cell box -> (nx,ny,ne) weights."""
     tau_d, x_d, y_d, eta_d = (float(drop[i]) for i in range(4))
-    t_d, z_d = tau_d * np.cosh(eta_d), tau_d * np.sinh(eta_d)
+    shift = p.eta_shift(eta_d)                       # the Bjorken frame: eta - eta_d
+    t_d, z_d = tau_d * np.cosh(eta_d - shift), tau_d * np.sinh(eta_d - shift)
     w = np.zeros((len(cx), len(cy), len(ce)), dtype=np.float64)
 
     for k, ec in enumerate(ce):
@@ -240,11 +244,12 @@ def _quadrature(cx, cy, ce, dx, dy, de, drop, tau_eval, p, *, n_sub, n_sub_max, 
         e_hi = min(ec + 0.5 * de, elim[1])
         if e_hi <= e_lo:
             continue
-        dt_c = tau_eval * np.cosh(ec) - t_d
+        dt_c = tau_eval * np.cosh(ec - shift) - t_d
         R_c = p.c_diff * max(dt_c, 0.0)
         s_target = _target_spacing(R_c, p)
-        # dz/deta = tau cosh(eta): the eta axis is stretched enormously at large |eta|
-        dz_deta = tau_eval * np.cosh(ec)
+        # dz/deta = tau cosh(eta) in the kernel's frame: the eta axis is stretched enormously
+        # at large |eta - shift| (the lab frame's forward droplets)
+        dz_deta = tau_eval * np.cosh(ec - shift)
         ne_n = _node_counts(dz_deta * (e_hi - e_lo), n_sub, n_sub_max, s_target)
         en, e_len = _gauss_nodes(e_lo, e_hi, ne_n)
         f_e = (e_hi - e_lo) / de
@@ -270,7 +275,7 @@ def _quadrature(cx, cy, ce, dx, dy, de, drop, tau_eval, p, *, n_sub, n_sub_max, 
                 if shell == "widen":
                     # widen the shell to the local node spacing; mass-preserving, because the
                     # shell's integral does not depend on its width
-                    hz = tau_eval * np.cosh(ec) * (e_hi - e_lo) / ne_n
+                    hz = tau_eval * np.cosh(ec - shift) * (e_hi - e_lo) / ne_n
                     h = max((x_hi - x_lo) / nx_n, (y_hi - y_lo) / ny_n, hz)
                     r_w = max(p.width_delta, h)
                 kt = _K.k_tau(tau_eval, X, Y, E, drop, p, r_w=r_w)
