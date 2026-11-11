@@ -1244,8 +1244,12 @@ def restart_plan(a) -> tuple:
 
 
 def restart_legs(a, jetscape, writer):
-    """MUSIC_1 keeps a checkpoint at the liquefier's tau_delay, MUSIC_2 starts from it
-    (when restart_plan said so).  -> MUSIC_2, or None."""
+    """MUSIC_1 keeps a checkpoint before the liquefier's tau_delay, MUSIC_2 starts from it
+    (when restart_plan said so).  -> MUSIC_2, or None.
+
+    tau_delay is what MUSIC_1 is asked for; MpiMusic places the checkpoint half a hydro
+    step before it, where a droplet made at the hard vertex (it deposits at tau_delay
+    itself) is not yet in reach of the jet source's per-step test."""
     if not a.restart_on:
         print(f"  restart  OFF: {a.restart_why}")
         return None
@@ -1261,7 +1265,7 @@ def restart_legs(a, jetscape, writer):
                  "--no-music2-restart")
     bg.set_checkpoint_tau(tau)
     jet.set_restart_from(bg)
-    print(f"  restart  {JET_ID} starts from {BG_ID}'s state at tau <= {tau:g} fm/c "
+    print(f"  restart  {JET_ID} starts from {BG_ID}'s state before tau = {tau:g} fm/c "
           "(the liquefier's tau_delay)"
           + (", MUSIC_RESTART_VERIFY: from tau0, compared"
              if os.environ.get("MUSIC_RESTART_VERIFY") == "1" else ""))

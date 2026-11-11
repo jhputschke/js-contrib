@@ -246,7 +246,8 @@ Everything runs `run_jobs.sh` from the production folder
 In images with the restart (§1), the jet leg doesn't recompute the background's first steps.
 - **Why it works:** up to the first droplet the two legs are bit-identical, and no droplet
   deposits before the liquefier's `tau_delay` (1 fm/c).
-- **What happens:** MUSIC_1 keeps a checkpoint of its state there, once per background.
+- **What happens:** MUSIC_1 keeps a checkpoint of its state just before that, once per
+  background.
   MUSIC_2 starts from it for every jet on that background.
 - **What it saves:** the string deposition and ~30 GPU steps per jet event, ~25 core-s per jet
   event.
@@ -267,7 +268,7 @@ Details and the checks:
   campaign that should get it.
 - **Checking it:** run one job with `MUSIC_RESTART_VERIFY=1` (`-e` / `--env`). Every jet leg
   then runs from τ0, and the log compares its state with the checkpoint (`restart verify at
-  step 28: identical to the checkpoint`).
+  step 28: identical to the checkpoint`; the step is the checkpoint's, 23 or 28).
 
 ### What the current image does differently (`final_optim`)
 
@@ -325,7 +326,7 @@ production XMLs of `prod_AuAu_0_10_jet` and `prod_OO_isr`).
   (0.05, 0.025): otherwise the log warns (`late step: the freeze-out check spacing changes`)
   and the frames leave the 0.1 fm/c grid. Older images don't know the options ("unrecognized
   arguments") and run a constant step.
-- **With the restart:** the switch (step 130) comes after the checkpoint (step 28), and the
+- **With the restart:** the switch (step 130) comes after the checkpoint (step 23 or 28), and the
   checkpoint's key records the switch, so the restart works as before
   (`MUSIC_RESTART_VERIFY=1`: identical with the late step).
 - **In the log**, for every MUSIC run: `late step: delta_tau 0.02 -> 0.05 fm/c at step 130
@@ -621,7 +622,7 @@ In a job log, `OUTDIR/<stem>.log`:
 | `… the freeze-out surface reached the transverse grid boundary, so MUSIC stopped it early` | MUSIC's own grid (`<IS><grid_max_x>`, ±15 fm) is too small: that event's evolution is truncated (`diag/{bg,jet}_hit_boundary`) |
 | `kernel launch '…' failed: no kernel image is available` | the image has no code for this GPU (e.g. a V100 with an image without sm_70, which included the `cu126` of 2026-09-30, §1). **Discard the output** and use an image with sm_70 (`cu124` or `cu126` of 2026-10-14) |
 | `WARNING: NOT in effect … export OMP_WAIT_POLICY=passive` | set `OMP_WAIT_POLICY=passive` before launching |
-| `restart  MUSIC_2 starts from MUSIC_1's state at tau <= 1 fm/c` (at the start); per event `…, MUSIC_2 started from the checkpoint at step 28 (tau = 0.96 fm/c)` | the restart is on and used ([§2](#music_2-from-music_1s-state-on-by-default)) |
+| `restart  MUSIC_2 starts from MUSIC_1's state before tau = 1 fm/c` (older images: `at tau <= 1 fm/c`) at the start; per event `…, MUSIC_2 started from the checkpoint at step 28 (tau = 0.96 fm/c)` (or step 23, tau = 0.86 fm/c) | the restart is on and used ([§2](#music_2-from-music_1s-state-on-by-default)) |
 | `restart  OFF: …` (at the start) | the restart is off, for the reason given: `--no-music2-restart`, `--write-particlize jet`, or a build without it |
 | per event `MUSIC_2 run from tau0: <reason>` | this event's jet leg did not fit the checkpoint and ran from τ0, with the same result. Rare; frequent ones point to a setup problem (troubleshooting) |
 
@@ -1072,7 +1073,7 @@ wake.
 | many `hit_edge` warnings | the output grid is too small for this system: a larger x/y range in the grid YAML (§1, *Output grid*) |
 | files with different `arr` shapes in one campaign | jobs ran with different grids (an older image's default vs. the new one): keep one grid per campaign |
 | `MUSIC_2 run from tau0: the runs differ in <field>` in every event | the two legs' MUSIC settings differ in that field (e.g. a setting changed for one leg only), so MUSIC_2 can't start from MUSIC_1's state. The output is still right, only slower; make them agree, or `--no-music2-restart` |
-| `MUSIC_2 run from tau0: the jet source deposits at step k …` | a droplet before the checkpoint (a `tau_delay` smaller than the one the checkpoint was placed at): harmless, that event runs in full |
+| `MUSIC_2 run from tau0: the jet source deposits at step k …` | a droplet before the checkpoint: harmless, that event runs in full. Either a `tau_delay` smaller than the one the checkpoint was placed at, or (step 27, checkpoint's step 28, late step on) a droplet made at the hard vertex with an X-SCAPE from before 2026-11-11, which placed the checkpoint at `tau_delay` itself instead of half a step before it |
 | `unrecognized arguments: --no-music2-restart` | the image predates the restart and runs without it: drop the option |
 | `unrecognized arguments: --late-dtau` | the image predates the late time step and runs a constant step anyway: drop the option |
 | `late step: the freeze-out check spacing changes …` (a warning) | `--late-dtau` doesn't divide 0.1 fm/c into whole steps: the frames leave the 0.1 fm/c grid. Use 0.05 or 0.025 |

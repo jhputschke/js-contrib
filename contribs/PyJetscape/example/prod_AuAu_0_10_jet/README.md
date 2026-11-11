@@ -1465,7 +1465,9 @@ Since 2026-10-11 (A8 of docs/Plans/REPORT_CPU_GPU.md; design and checks:
 recompute them:
 
 1. **MUSIC_1 keeps a checkpoint.** In every run, at the last freeze-out step before
-   `tau_delay` (step 28, τ = 0.96 fm/c), MUSIC_1 keeps a copy of its state. That is:
+   `tau_delay`, MUSIC_1 keeps a copy of its state: step 28 (τ = 0.96 fm/c) with a constant
+   step, step 23 (τ = 0.86 fm/c) with the late step (see *Where the checkpoint sits*
+   below). That is:
    - the GPU state (96 MB, a copy on the GPU);
    - the freeze-out surface found so far (~77,000 cells);
    - the stored frames (6 frames, 109 MB of host memory);
@@ -1479,6 +1481,20 @@ recompute them:
      per-step test MUSIC uses.
 
    Otherwise MUSIC_2 runs from τ0 as before, and the log says why.
+
+   **Where the checkpoint sits.** The per-step test keeps a droplet from two steps plus
+   half the largest hydro step (and 1e-3 fm/c) before its deposit time on, and a droplet
+   made at the hard vertex (τ_drop = 0) deposits at `tau_delay` itself. The checkpoint's
+   step therefore has to end that half step before `tau_delay`. The script asks for
+   `tau_delay`, and X-SCAPE's `MpiMusic` moves the time there (log: `MUSIC_1: checkpoint
+   at tau <= 0.973999 fm/c, not 1: …`):
+   - constant step 0.02: half width 0.011, still step 28;
+   - late step 0.05 (the default): half width 0.026, step 23.
+
+   An X-SCAPE from before 2026-11-11 (without branch `source_fill_box`) keeps step 28 with
+   the late step too. Events with a droplet at the hard vertex then run from τ0 (`the jet
+   source deposits at step 27 (tau = 0.94 fm/c), before the checkpoint's step 28`): the
+   same output, ~5 s slower. That was two of six Pb+Pb Z+jet events.
 3. **Saving:** no string deposition in MUSIC_2 and 28 fewer GPU steps per jet event. GB10,
    4 events, `--reuse 2`: job CPU 337 → 239 core-s (−25 core-s per jet event), wall −6 %.
 4. **Output:** bit-identical. Checked:
@@ -1501,10 +1517,10 @@ It switches itself off, and the job says so at the start (`restart  OFF: …`), 
 The files record the setting in `prod_music2_restart`.
 
 **In the log:**
-- at the start: `restart  MUSIC_2 starts from MUSIC_1's state at tau <= 1 fm/c (the
+- at the start: `restart  MUSIC_2 starts from MUSIC_1's state before tau = 1 fm/c (the
   liquefier's tau_delay)`;
 - per MUSIC_1 run: `Checkpoint at step 28, tau = 0.96 fm/c: GPU state 96 MB, … surface
-  cells, 6 frames (109 MB).`;
+  cells, 6 frames (109 MB).` (step 23, tau = 0.86 fm/c with the late step);
 - per event: `…, MUSIC_2 started from the checkpoint at step 28 (tau = 0.96 fm/c)`, or
   `MUSIC_2 run from tau0: <reason>`.
 
@@ -1573,7 +1589,8 @@ or be missed. With a constant step everything is bit-identical to before.
   setting in its job XML (`prod_user_xml`, `<stem>.xml`).
 - **Speed:** −42 % GPU time per Au+Au event on top of C4; the 3090 box goes from 1,628 to
   2,160 events/h, the O+O hadrons-only campaign from 12,722 to 13,728.
-- **With the restart:** the switch (step 130) comes after the checkpoint (step 28), whose key
+- **With the restart:** the switch (step 130) comes after the checkpoint (step 23 with the
+  late step; step 28 with an X-SCAPE from before 2026-11-11), whose key
   records the switch parameters; `MUSIC_RESTART_VERIFY=1` gives `identical to the checkpoint`
   with the late step (M3 Max, Metal).
 - **The log** of every MUSIC run: `late step: delta_tau 0.02 -> 0.05 fm/c at step 130
