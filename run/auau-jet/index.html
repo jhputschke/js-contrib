@@ -3018,7 +3018,9 @@ among several jets in several pT̂ windows:</p>
   (<a href="../../analysis/hadrons/">Hadrons</a>). Results stitched over windows have errors correlated
   through the shared backgrounds; per-window results and jet − background don't.</li>
 <li><code>--reuse N</code> alone shares a background among N jets of one window. <code>--pthat-min/--pthat-max</code>
-  set a single window (default 50–70 GeV); <code>--hard pgun --pgun-pt P</code> shoots one parton.</li>
+  set a single window (default 50–70 GeV); <code>--hard pgun --pgun-pt P</code> shoots one parton
+  (<code>--pgun-y</code>, <code>--pgun-id</code>, and <code>--pgun-grid 20,50,100:0,1,2 --pgun-per-point N</code> for several
+  (pT, y) points on one background).</li>
 </ul>
 <h3 id="the-parton-rapidity-cut">The parton rapidity cut<a class="headerlink" href="#the-parton-rapidity-cut" title="Permanent link">¶</a></h3>
 <p>At low pT̂ the jets spread far in rapidity, and much hydro time would go to events that cannot
@@ -3065,6 +3067,26 @@ Y ≈ η_max + 1 with <code>any</code>.</p>
   <code>--no-music2-restart</code> turns it off. Every job log says <code>restart</code> at the start, on or off.</li>
 <li><strong>EOS 91</strong> (hotQCD with the SMASH hadron list), which iSS decays itself; <code>--eos 9</code> only to
   rerun older campaigns.</li>
+<li><strong>The liquefier's frame</strong> is the Bjorken frame (<code>&lt;CausalLiquefier&gt;&lt;frame&gt;bjorken&lt;/frame&gt;</code>,
+  <a href="../../about/physics/#5-energymomentum-deposition-the-causalliquefier">The physics</a>): forward
+  droplets spread as midrapidity ones do. Campaigns made before 2026-11 used the lab frame,
+  which deposits forward droplets displaced and far too narrow; <code>--liquefier-frame lab</code>
+  reproduces them. Only droplets at η_s = 0 deposit the same in both: the lab frame pulls the
+  others toward midrapidity (by 0.4 units already at η_s = 1), so the wake at |η_s| &lt; 1
+  differs by 3 % in energy at RHIC, and by 19 % for Z+jet events at the LHC, where most
+  droplets are made forward. <code>--liquefier-frame fluid</code> diffuses each droplet in the rest frame
+  of the background fluid where it was made. It agrees with the Bjorken frame along η_s and in
+  energy, but moves late deposits outward with the radial flow; FastHydro does not support it
+  yet. <strong>Do not mix frames in a wake analysis.</strong> The pair file records it (<code>liquefier_frame</code>).</li>
+<li><strong>To choose it:</strong> <code>run_prod_jet.py ... --liquefier-frame fluid</code>, or the same flag after
+    <code>run_jobs.sh</code>'s arguments (<code>./run_jobs.sh -j 2 20 25 0 out_fluid --liquefier-frame fluid</code>).</li>
+<li><strong>Use a new output directory per frame:</strong> <code>run_jobs.sh</code> skips completed jobs whatever
+    their frame.</li>
+<li><strong>Needs an X-SCAPE with the option.</strong> The script refuses an older build; images from
+    before 2026-11 have only the lab frame.</li>
+<li><strong>The frames compared</strong> on the same events (Au+Au, LHC Z+jet, single quarks at fixed
+    rapidity and energy): <code>example/liquefier_frame_test/</code>. Per jet, the lab error depends on
+    the jet's rapidity, not its energy. The fluid frame makes the wake about 1.5 % harder.</li>
 <li><strong>The output grid</strong> of the pair file is <code>example/config/grid_fno.yaml</code> (64 × 64 × 32 cells,
   x, y ±12.2 fm, η_s ±4.84); <code>--grid FILE</code> for another. Never mix grids in one training set.</li>
 </ul>

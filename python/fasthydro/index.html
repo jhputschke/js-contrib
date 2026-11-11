@@ -2893,9 +2893,12 @@ it are fixed:</p>
 </tr>
 </tbody>
 </table>
-<p>The liquefier's deposit parameters (<code>tau_delay</code>, <code>time_relax</code>, <code>d_diff</code>, <code>width_delta</code>) live only
-in <code>&lt;Liquefier&gt;&lt;CausalLiquefier&gt;</code>; FastHydro reads them from the C++ object and records them in
-the output. Any YAML key can be overridden on the command line with <code>--set</code>, routed by its
+<p>The liquefier's deposit parameters (<code>tau_delay</code>, <code>time_relax</code>, <code>d_diff</code>, <code>width_delta</code>, and the
+<code>frame</code> of the diffusion, <code>bjorken</code> by default or <code>lab</code>; X-SCAPE's <code>fluid</code> frame is not
+supported by FastHydro yet and is refused; see
+<a href="../../about/physics/#5-energymomentum-deposition-the-causalliquefier">The physics</a>) live only in
+<code>&lt;Liquefier&gt;&lt;CausalLiquefier&gt;</code>; FastHydro reads them from the C++ object and records them in the
+output (<code>liquefier_frame</code> among them). Any YAML key can be overridden on the command line with <code>--set</code>, routed by its
 prefix: <code>--set time.choose_ntau=41</code> (solver), <code>--set fasthydro.hard_vertex.mode=centre</code>
 (adapters), <code>--set transport.mode=israel_stewart</code>.</p>
 <p><strong>Where the hard scatterings happen</strong> is <code>fasthydro.hard_vertex.mode</code>: <code>ncoll</code> (default, the

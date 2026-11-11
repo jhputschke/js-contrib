@@ -2900,6 +2900,16 @@ must print <code>trigger Z (lepton pT &gt; 20 GeV, lepton |eta| &lt; 2.5)</code>
 <a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span>--hadrons-only<span class="w"> </span>--oversample<span class="w"> </span><span class="m">40</span><span class="w"> </span>--n-frag<span class="w"> </span><span class="m">40</span><span class="w"> </span>--correlated<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span>--eta-max<span class="w"> </span><span class="m">2</span>.6<span class="w"> </span>--no-x<span class="w"> </span>--hadron-keep-bits-p<span class="w"> </span><span class="m">12</span><span class="w"> </span>--hadron-keep-bits-x<span class="w"> </span><span class="m">8</span><span class="w"> </span>--keep-primaries<span class="w"> </span><span class="m">0</span>
 </code></pre></div>
+<p><strong>The liquefier's frame.</strong> <code>PbPb_0_30_ZJet.xml</code> doesn't set <code>&lt;CausalLiquefier&gt;&lt;frame&gt;</code>, so
+the build's default applies.
+- <strong>Published campaigns</strong> (<code>zjet_c00</code>…, images from before 2026-11) were made in the lab frame.
+  At the LHC that frame moves the wake of forward partons toward midrapidity: +19 % at
+  |η_s| &lt; 1 (<a href="../../about/physics/#5-energymomentum-deposition-the-causalliquefier">The physics</a>).
+- <strong>A newer image runs the Bjorken frame by default.</strong> Add <code>--liquefier-frame lab</code> to extend an
+  old campaign, or <code>bjorken</code>/<code>fluid</code> for a new one.
+- <strong>Use a fresh output directory per frame:</strong> <code>run_jobs.sh</code> skips completed jobs whatever
+  frame made them.
+- <strong>Never combine campaigns made in different frames</strong> in one analysis.</p>
 <p>Ten jobs of 96 events (4 backgrounds each), three at a time: a Pb+Pb Z+jet job peaks at
 <strong>14–16 GB</strong> of host memory (2.1× an Au+Au job; measured on the GB10), mostly MUSIC's larger
 box. It takes 2.1× the time of an Au+Au jet job and writes 1.7× the disk.</p>
