@@ -26,9 +26,9 @@ tested on an M3 Max, 2026-10-29).
 | file | purpose |
 |---|---|
 | `setup_analysis_env.sh` | makes or updates the venv, gets MUSIC's EoS tables (EOS 9 and 91), runs `check_env.py` |
-| `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector, particle, hist, mplhep), Jupyter |
+| `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector, particle, hist, mplhep), Jupyter, pelicanfs for the OSDF |
 | `requirements_viz.txt` | pyvista (+ vtk), imageio, imageio-ffmpeg for `contribs/Visualization`, installed by default (`--no-viz` skips it) |
-| `requirements_pelican.txt` | Pelican/OSDF (pelicanfs), installed by default (`--no-pelican` skips it), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
+| `requirements_pelican.txt` | Pelican/OSDF (pelicanfs) alone, for the production image (the venv has it from `requirements.txt`), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
 | `requirements_gcs.txt` | optional: Google Cloud Storage (gcsfs, google-cloud-storage), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
 | `check_env.py` | checks the packages, the Blosc filter, PyROOT, the EoS tables and off-screen rendering; with a directory, opens its pair, hadron and ROOT files |
 | `environment.yml` | the same as one conda env, ROOT included (see [With ROOT](#with-root)) |
@@ -67,7 +67,7 @@ evolve a live event. The ROOT macros and the C++ reader in
 | `--no-viz` | skip `requirements_viz.txt` (pyvista/vtk/ffmpeg: ~0.6 GB of the ~1.6 GB) |
 | `--with-fasthydro` | also install [FastHydro](../../contribs/FastHydro/README.md) (`jetscape-fasthydro`), for FastHydro's own files and readers (`fast_data`, `fasthydro.browse`). **Not needed for the `prod_AuAu_0_10_jet` files**; the visualization falls back to `jetscape.showers` without it. The FastHydro solver also needs `pip install torch`. |
 | `--with-gcs` | also install the Google Cloud Storage interfaces, `requirements_gcs.txt`: gcsfs (`gs://` URLs for fsspec, h5py and uproot) and Google's `google-cloud-storage` client |
-| `--no-pelican` | skip pelicanfs, `requirements_pelican.txt`, which is installed by default: `osdf://` and `pelican://` URLs for fsspec, h5py and uproot |
+| `--no-pelican` | ignored: pelicanfs (`osdf://` and `pelican://` URLs for fsspec, h5py and uproot) is in `requirements.txt` since 2026-11 |
 | `--eos-table PATH` | copy MUSIC's hotQCD tables from `PATH` (an `EOS/hotQCD` directory of a MUSIC or X-SCAPE build, or one of its `.dat` files) instead of downloading them; a table not found there is downloaded |
 | `--no-eos` | neither download nor copy them |
 | `--kernel NAME` | register a Jupyter kernel `NAME` for the venv (in `~/.local/share/jupyter`) |
@@ -171,8 +171,8 @@ duplicates `requirements*.txt`, so a change to one needs the same change in the 
 ## Remote files: Google Cloud Storage and Pelican/OSDF
 
 For productions kept in a Google Cloud Storage bucket or in a Pelican federation such as the
-OSDF, the venv has the Python interfaces: pelicanfs by default (`--no-pelican` leaves it
-out), gcsfs and `google-cloud-storage` with `--with-gcs`:
+OSDF, the venv has the Python interfaces: pelicanfs always, gcsfs and `google-cloud-storage`
+with `--with-gcs`:
 
 ```bash
 ./utils/analysis_env/setup_analysis_env.sh --with-gcs      # pelicanfs + the GCS interfaces

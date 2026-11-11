@@ -89,8 +89,8 @@ The container is an analysis environment too, without `--gpus`.
 
 The venv's options: FastHydro (`--with-fasthydro`), PyROOT from a conda environment with ROOT
 (`--system-site-packages`, or the single conda environment `environment.yml`), Google Cloud
-Storage (`--with-gcs`); pelicanfs for the OSDF is in by default (`--no-pelican` leaves it
-out), and it downloads MUSIC's hotQCD EoS table: [`utils/analysis_env/README.md`](utils/analysis_env/README.md).
+Storage (`--with-gcs`); pelicanfs for the OSDF is part of the base list, and it downloads
+MUSIC's hotQCD EoS table: [`utils/analysis_env/README.md`](utils/analysis_env/README.md).
 Reading the files, FastJet, ROOT and the notebooks: [`docs/README_analysis.md`](docs/README_analysis.md);
 for O+O, [`docs/README_OO.md`](docs/README_OO.md).
 

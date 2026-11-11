@@ -19,6 +19,10 @@ site_dir: _site
 exclude_docs: |
   requirements.txt
   README.md
+  data/
+  out/
+  *.part
+  __pycache__/
 
 theme:
   name: material
@@ -96,6 +100,15 @@ extra_javascript:
 
 plugins:
   - search
+  # The tutorials' notebooks, rendered with their stored outputs (never executed here).
+  # notebook_dirs mounts tutorials/<contrib>/ at the same path in the site without copying it
+  # into website/; its README.md and downloaded data/ are left out by exclude_docs above.
+  - mkdocs-jupyter:
+      include: ["*.ipynb"]
+      execute: false
+      include_source: true
+      notebook_dirs:
+        tutorials/pyjetscape: tutorials/pyjetscape
   - glightbox:
       touchNavigation: true
       loop: false
@@ -161,6 +174,22 @@ nav:
       - Live PyTorch FNO hydro: python/fno.md
       - FastHydro: python/fasthydro.md
       - 3D visualization: python/visualization.md
+  - Tutorials:
+      - tutorials/index.md
+      - Setting up: tutorials/setup.md
+      - PyJetscape:
+          - 01 Check your setup: tutorials/pyjetscape/01_check_setup.ipynb
+          - 02 Your first events: tutorials/pyjetscape/02_first_events.ipynb
+          - 03 The production scripts: tutorials/pyjetscape/03_production_scripts.ipynb
+          - 04 The files and their provenance: tutorials/pyjetscape/04_files_and_provenance.ipynb
+          - 05 Hadrons: tutorials/pyjetscape/05_hadrons.ipynb
+          - 06 The hydro pair: tutorials/pyjetscape/06_hydro_pair.ipynb
+          - 07 The hadron pair: tutorials/pyjetscape/07_hadron_pair.ipynb
+          - 08 Jets with FastJet: tutorials/pyjetscape/08_jets_fastjet.ipynb
+          - 09 ROOT files from Python: tutorials/pyjetscape/09_root_from_python.ipynb
+          - 10 ROOT C++ macros: tutorials/pyjetscape/10_root_cpp_macros.ipynb
+          - 11 An energy-loss module in Python: tutorials/pyjetscape/11_python_module.ipynb
+          - 12 Your own in-run writer: tutorials/pyjetscape/12_python_writer.ipynb
   - Reference:
       - reference/index.md
       - Contribs and repositories: reference/contribs.md

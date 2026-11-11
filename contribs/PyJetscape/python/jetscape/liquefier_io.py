@@ -19,11 +19,14 @@ import math
 
 import numpy as np
 
-__all__ = ["DROPLET_COLUMNS", "PARAM_KEYS", "droplets", "droplet_fluxes", "liquefier_params",
-           "normalize_on_hydro_grid"]
+__all__ = ["DROPLET_COLUMNS", "FLUID_COLUMNS", "PARAM_KEYS", "droplets", "droplet_fluid",
+           "droplet_fluxes", "liquefier_frame", "liquefier_params", "normalize_on_hydro_grid"]
 
 #: columns of one droplet row; the name and order fast_data stores as ``droplet_columns``
 DROPLET_COLUMNS = ("tau", "x", "y", "eta", "E", "px", "py", "pz")
+
+#: columns of :func:`droplet_fluid`: the background fluid where each droplet was made
+FLUID_COLUMNS = ("vx", "vy", "vz", "e")
 
 #: keys of :func:`liquefier_params`, in the order FastHydro writes ``liquefier_<key>`` attrs
 PARAM_KEYS = ("dtau", "tau_delay", "time_relax", "d_diff", "width_delta", "c_diff",
@@ -38,6 +41,25 @@ def droplets(liq):
     ``ClearTask``.
     """
     return np.asarray(liq.droplets_numpy(), dtype=np.float64).reshape(-1, len(DROPLET_COLUMNS))
+
+
+def droplet_fluid(liq):
+    """Per droplet, the background fluid where it was made, ``(M, 4)`` = ``(vx, vy, vz, e)``:
+    lab Cartesian velocity and energy density [GeV/fm^3] (``e < 0``: not looked up), or
+    ``None`` for an X-SCAPE build whose droplets do not carry it (``XSCAPE_DROPLET_FLUID``).
+    ``<CausalLiquefier><frame>fluid</frame>`` diffuses each droplet in this fluid's rest frame.
+    """
+    get = getattr(liq, "droplet_fluid_numpy", None)
+    return None if get is None else np.asarray(get(), dtype=np.float64).reshape(-1, 4)
+
+
+def liquefier_frame(liq):
+    """The frame of the causal diffusion: ``"bjorken"``, ``"lab"`` or ``"fluid"``.  A build with
+    only the two-frame option says it through ``bjorken_frame``; one without either is ``"lab"``."""
+    frame = getattr(liq, "frame", None)
+    if isinstance(frame, str):
+        return frame
+    return "bjorken" if getattr(liq, "bjorken_frame", None) else "lab"
 
 
 def droplet_fluxes(liq):

@@ -83,6 +83,9 @@ python run_prod_jet.py --events 1 --seed 1 --no-deposit      # null test first: 
 python run_prod_jet.py --events 10 --seed 1                  # PythiaGun, pTHat 50-70 GeV
 python run_prod_jet.py --events 10 --seed 1 --pthat-min 20 --pthat-max 40
 python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
+python run_prod_jet.py --events 30 --seed 1 --hard pgun --pgun-id 2 \
+       --pgun-grid 20,50,100:0,2 --pgun-per-point 5         # one u quark at (pT, y) points
+python run_prod_jet.py --events 10 --seed 1 --liquefier-frame fluid   # bjorken (default), lab, fluid
 python run_prod_jet.py --events 30 --seed 1 --reuse 3        # one background per 3 jets
 python run_prod_jet.py --events 30 --seed 1 --pthat-bins 20-40,50-70,70-90
                                              # the same, one jet per background in each window
@@ -103,6 +106,8 @@ python run_hadronize.py out -j 4 --oversample 500 --n-frag 50 \
 ./run_jobs.sh 20 25 0                                        # 20 jobs x 25 events, unique seeds
 ./run_jobs.sh 20 25 0 --campaign pth50                       # the same, files named ..._pth50_00NN
 ./run_jobs.sh -j 2 20 25 0 out_pgun --hard pgun
+./run_jobs.sh -j 2 20 25 0 out_fluid --liquefier-frame fluid # every job in the fluid frame
+                                                             # (a new OUTDIR per frame, see below)
 ./run_jobs.sh -j 4 --mps 20 25 0                             # 4 at a time, GPU shared via CUDA MPS
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both   # + hadronization input
 ./run_jobs.sh -j 4 --mps 20 25 0 out_had --write-particlize both --particlize-only
@@ -1193,6 +1198,9 @@ processes keep up with a whole four-job GPU campaign.
 |---|---|
 | `--hard pythia` (default) | PythiaGun. The vertex is a 3dMCGlauber binary-collision point (x, y; z = t = 0). `--pthat-min/--pthat-max` override the XML's 50–70 GeV. |
 | `--hard pgun --pgun-pt P` | One parton at fixed pT, always from the origin: PGun zeroes the sampled vertex (`PGun.cc:117-120`). |
+| `--pgun-y Y`, `--pgun-phi PHI`, `--pgun-id PID` | PGun's rapidity and φ (default 0, as before) and the parton (default the XML's `<parID>`, 21 in the main XML). Need an X-SCAPE whose PGun has `<rapidity>`/`<points>` (`PGUN_HAS_POINTS`). |
+| `--pgun-grid PTS:YS`, `--pgun-per-point N` | Several (pT, y) points in one job, the grid of the two comma lists (`20,50,100:0,1,2,3,4`; point k = iy × npT + ipT). Event i uses point i mod K, and `--reuse` is set to K × N so that every background gets N events of each point. Each event's point goes to `diag/` and `events/` (`gun_point`, `gun_pt`, `gun_y`). |
+| `--liquefier-frame {bjorken,lab,fluid}` | The frame of the CausalLiquefier's diffusion (default: the XML's, `bjorken`). See [The liquefier's frame](#the-liquefiers-frame---liquefier-frame). |
 | `--reuse N` | `setReuseHydro`: MUSIC_1 runs once per N events, MUSIC_2 every event (a new jet each time). `arr_bg` still reads per event, so it stays aligned with `arr`; it is stored once per background (`--bg-layout`). `diag/bg_id` gives the first event that used each background. |
 | `--bg-layout {auto,full,shared}` | How `arr_bg` is stored. `full`: one copy per event. `shared`: each background once, `arr_bg` a virtual dataset over it that reads the same (see [Shared backgrounds](#shared-backgrounds---bg-layout)). `auto` (default): `shared` when a background is reused (`--reuse` > 1, which includes `--pthat-bins` with more than one window or `--jets-per-bin` > 1), else `full`, so files without reuse are unchanged. |
 | `--pthat-bins A-B,C-D,...` | K PythiaGun pT̂ windows in one job, one Pythia each; event i uses window i mod K, and `--reuse` is set to K × `--jets-per-bin`. `--events` must be a multiple of that. Not with `--reuse`, `--pthat-min/max` or `--hard pgun`. See [D](#d-several-pthat-windows-per-background---pthat-bins). |
@@ -1466,7 +1474,9 @@ Since 2026-10-11 (A8 of docs/Plans/REPORT_CPU_GPU.md; design and checks:
 recompute them:
 
 1. **MUSIC_1 keeps a checkpoint.** In every run, at the last freeze-out step before
-   `tau_delay` (step 28, τ = 0.96 fm/c), MUSIC_1 keeps a copy of its state. That is:
+   `tau_delay`, MUSIC_1 keeps a copy of its state: step 28 (τ = 0.96 fm/c) with a constant
+   step, step 23 (τ = 0.86 fm/c) with the late step (see *Where the checkpoint sits*
+   below). That is:
    - the GPU state (96 MB, a copy on the GPU);
    - the freeze-out surface found so far (~77,000 cells);
    - the stored frames (6 frames, 109 MB of host memory);
@@ -1480,6 +1490,20 @@ recompute them:
      per-step test MUSIC uses.
 
    Otherwise MUSIC_2 runs from τ0 as before, and the log says why.
+
+   **Where the checkpoint sits.** The per-step test keeps a droplet from two steps plus
+   half the largest hydro step (and 1e-3 fm/c) before its deposit time on, and a droplet
+   made at the hard vertex (τ_drop = 0) deposits at `tau_delay` itself. The checkpoint's
+   step therefore has to end that half step before `tau_delay`. The script asks for
+   `tau_delay`, and X-SCAPE's `MpiMusic` moves the time there (log: `MUSIC_1: checkpoint
+   at tau <= 0.973999 fm/c, not 1: …`):
+   - constant step 0.02: half width 0.011, still step 28;
+   - late step 0.05 (the default): half width 0.026, step 23.
+
+   An X-SCAPE from before 2026-11-11 (without branch `source_fill_box`) keeps step 28 with
+   the late step too. Events with a droplet at the hard vertex then run from τ0 (`the jet
+   source deposits at step 27 (tau = 0.94 fm/c), before the checkpoint's step 28`): the
+   same output, ~5 s slower. That was two of six Pb+Pb Z+jet events.
 3. **Saving:** no string deposition in MUSIC_2 and 28 fewer GPU steps per jet event. GB10,
    4 events, `--reuse 2`: job CPU 337 → 239 core-s (−25 core-s per jet event), wall −6 %.
 4. **Output:** bit-identical. Checked:
@@ -1502,10 +1526,10 @@ It switches itself off, and the job says so at the start (`restart  OFF: …`), 
 The files record the setting in `prod_music2_restart`.
 
 **In the log:**
-- at the start: `restart  MUSIC_2 starts from MUSIC_1's state at tau <= 1 fm/c (the
+- at the start: `restart  MUSIC_2 starts from MUSIC_1's state before tau = 1 fm/c (the
   liquefier's tau_delay)`;
 - per MUSIC_1 run: `Checkpoint at step 28, tau = 0.96 fm/c: GPU state 96 MB, … surface
-  cells, 6 frames (109 MB).`;
+  cells, 6 frames (109 MB).` (step 23, tau = 0.86 fm/c with the late step);
 - per event: `…, MUSIC_2 started from the checkpoint at step 28 (tau = 0.96 fm/c)`, or
   `MUSIC_2 run from tau0: <reason>`.
 
@@ -1574,7 +1598,8 @@ or be missed. With a constant step everything is bit-identical to before.
   setting in its job XML (`prod_user_xml`, `<stem>.xml`).
 - **Speed:** −42 % GPU time per Au+Au event on top of C4; the 3090 box goes from 1,628 to
   2,160 events/h, the O+O hadrons-only campaign from 12,722 to 13,728.
-- **With the restart:** the switch (step 130) comes after the checkpoint (step 28), whose key
+- **With the restart:** the switch (step 130) comes after the checkpoint (step 23 with the
+  late step; step 28 with an X-SCAPE from before 2026-11-11), whose key
   records the switch parameters; `MUSIC_RESTART_VERIFY=1` gives `identical to the checkpoint`
   with the late step (M3 Max, Metal).
 - **The log** of every MUSIC run: `late step: delta_tau 0.02 -> 0.05 fm/c at step 130
@@ -1614,6 +1639,68 @@ the showers start only after MUSIC_1 is done, so they do not compete with it.
   the same settings, with or without parallel showers: it is an OpenMP sum with dynamic
   scheduling in X-SCAPE's `LiquefierBase::sampled_flux`. The stored evolutions are not
   affected (checked).
+
+## The liquefier's frame (`--liquefier-frame`)
+
+X-SCAPE's CausalLiquefier solved its causal diffusion in the lab frame until 2026-11, as its
+paper does (Tachibana, Shen, Majumder, arXiv:2001.08321, for a medium with small flow). At forward
+space-time rapidity the Bjorken flow is close to c, and the deposit on the slice
+tau_drop + tau_delay goes wrong: for a droplet at eta_s = 2.4 it lands 0.6 units of eta_s
+lower, 0.03 wide in eta_s (MUSIC's cells are 0.2), and diffused for 0.34 fm instead of 1 fm.
+On MUSIC's grid such a near-point deposit loses energy, with viscous and ideal hydro alike.
+
+`<CausalLiquefier><frame>` (`--liquefier-frame`) has three values:
+
+- **`bjorken`** (the default): the frame of the Bjorken flow at the droplet's eta_s. Every
+  droplet deposits as one at midrapidity does.
+- **`lab`**: reproduces campaigns made before 2026-11.
+- **`fluid`**: the rest frame of the background fluid where the droplet was made (MUSIC_1's
+  cell, transverse flow included; `<fluid_e_min>`, `<fluid_v_max>`). The pair file then also
+  stores that fluid per droplet (`source/fluid`).
+
+The pair file records the frame in `liquefier_frame`; files without it were made in the lab
+frame. Campaigns made in different frames must not be mixed in a wake analysis, at midrapidity
+either:
+- The lab frame pulls droplets toward midrapidity (by 0.4 units already at eta_s = 1), which
+  gives a 3 % larger midrapidity wake than bjorken at RHIC, and 19 % for LHC Z+jet events,
+  where most droplets are made forward.
+- The fluid frame moves late deposits outward with the radial flow.
+
+**Using it.**
+
+```bash
+python run_prod_jet.py ... --liquefier-frame fluid           # one job
+./run_jobs.sh -j 2 20 25 0 out_fluid --liquefier-frame fluid # every job of a run_jobs.sh run
+```
+
+Or set `<CausalLiquefier><frame>fluid</frame>` in your user XML (`<fluid_e_min>` 0.1 GeV/fm^3,
+`<fluid_v_max>` 0.99 optional).
+- `run_prod_jet.py` checks the build first. The frame needs `<frame>` in the X-SCAPE main XML;
+  `fluid` also needs `<fluid_e_min>` (X-SCAPE with JETSCAPE/X-SCAPE#189). An older build is
+  refused before it would stop at Init.
+- **One output directory per frame.** `run_jobs.sh` skips every job whose `<tag>.json` is
+  complete, whatever frame made it. A rerun into an existing `OUTDIR` with another frame would
+  mix frames.
+- **Campaign images.** The containers of the published campaigns predate the option (lab
+  frame), and their XMLs (`PbPb_0_30_ZJet.xml`) set no `<frame>`. A newer build therefore runs
+  them in the Bjorken frame. To extend an old campaign, pass `--liquefier-frame lab`; for a new
+  one, pass the frame you want explicitly.
+- FastHydro (`fast_data`) has `bjorken` and `lab` only and refuses `fluid`.
+- The three frames run equally fast.
+
+[`../liquefier_frame_test/`](../liquefier_frame_test/README.md) compares the three on the same events:
+- tutorial 06's Au+Au, extended to 25 jets;
+- LHC Z+jet events with the Z+jet campaign's settings;
+- single quarks at fixed (pT, y), with a smooth Cooper-Frye integral of the wake spectra.
+
+It also has the data scripts, the summaries, the notebooks, the kernel in Python
+(`liquefier_kernel.py`) and the replay of an event's MUSIC legs (`liquefier_replay.py`).
+
+In short:
+- per jet, the lab frame's error is set by the jet's rapidity, not its energy;
+- a quark at y = 3-4 leaves 6-23 % of its wake misplaced inside |eta| < 2.4;
+- the fluid frame matches bjorken along eta_s and makes the wake about 1.5 % harder in <pT>
+  (mass-ordered, the flow's blue shift).
 
 ## Choices worth knowing
 

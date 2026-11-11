@@ -44,7 +44,10 @@ Layout (on top of :class:`jetscape.fno_h5_writer.FnoH5Writer`)
 * ``source/droplets`` ``(M, 8)`` + ``source/offsets``, columns ``droplet_columns``.  There is no
   ``source/S``: MUSIC evaluates the liquefier kernel per cell and step and never keeps a
   gridded source, and a re-deposit on the output grid would not be what MUSIC applied.
-  ``has_source`` is therefore false.
+  ``has_source`` is therefore false.  With an X-SCAPE whose droplets carry the background
+  fluid where they were made, also ``source/fluid`` ``(M, 4)``, columns ``fluid_columns``
+  (vx, vy, vz, e: lab velocity, energy density; e < 0: not looked up), which
+  ``<CausalLiquefier><frame>fluid</frame>`` uses; older files have no ``source/fluid``.
 * ``shower/`` exactly as FastHydro writes it (``jetscape.showers``).
 * ``diag/``: droplet counts and energies (and how much deposits after the jet leg froze out,
   which MUSIC never applies), shower counts, MUSIC tau0, per-leg frame counts, ``bg_id``
@@ -100,7 +103,8 @@ from .bulk_sources import (Grid, attrs_from_grids, event_array, framework_frames
                            music_extra_attrs, native_frames, resample, resolve_out_grid)
 from .fno_h5_writer import FnoH5Writer, write_row_view
 from .h5_compression import DEFAULT as DEFAULT_COMPRESSION
-from .liquefier_io import (DROPLET_COLUMNS, droplet_fluxes, droplets, liquefier_params,
+from .liquefier_io import (DROPLET_COLUMNS, FLUID_COLUMNS, droplet_fluid, droplet_fluxes,
+                           droplets, liquefier_frame, liquefier_params,
                            normalize_on_hydro_grid)
 from .showers import (FATES, INITIATOR_COLUMNS, PARTON_COLUMNS, VERTEX_COLUMNS,
                       showers_from_manager)
@@ -270,6 +274,7 @@ class PairH5Writer:
         self._g_scat = None
         self._scat_rows = None
         self._drop_flux = False
+        self._drop_fluid = False
         self._i = 0
         self._n_clipped = 0
         self._bg_hash = None
@@ -496,9 +501,12 @@ class PairH5Writer:
             rows = {"droplets": d.pop("_rows")}
             if self._drop_flux:
                 rows["flux"] = d.pop("_flux")
+            if self._drop_fluid:
+                rows["fluid"] = d.pop("_fluid")
             self._g_drop.append(rows)
         else:
-            d.pop("_rows")
+            for k in ("_rows", "_flux", "_fluid"):
+                d.pop(k, None)
         if self._g_scat is not None:
             from .particlize_h5 import SCATTER_COLUMNS
             self._g_scat.append({"data": np.asarray(
@@ -673,6 +681,11 @@ class PairH5Writer:
         if self._drop_flux:
             d["_flux"] = (flux if flux is not None and len(flux) == len(rows)
                           else np.full(len(rows), -1.0))
+        if self._drop_fluid:
+            fl = droplet_fluid(self._liq) if self._liq is not None else None
+            if fl is None or len(fl) != len(rows):
+                fl = np.tile([0.0, 0.0, 0.0, -1.0], (len(rows), 1))
+            d["_fluid"] = fl
         if self._liq is not None and len(rows):
             t_dep = rows[:, 0] + self._tau_delay
             late, early = t_dep > tau_fo_jet, t_dep < tau0
@@ -710,14 +723,22 @@ class PairH5Writer:
         extra.update(self._provenance_attrs())
         if self._edge_e_threshold is not None:
             extra["edge_e_threshold"] = self._edge_e_threshold
-        self._drop_flux = False
+        self._drop_flux = self._drop_fluid = False
         if self._liq is not None:
             extra.update({f"liquefier_{k}": v for k, v in liquefier_params(self._liq).items()})
             norm = normalize_on_hydro_grid(self._liq)
             # 1: each droplet is normalized on MUSIC's grid (deposits exactly its
             # four-momentum); 0: switched off; -1: an X-SCAPE build without it
             extra["liquefier_normalize_on_hydro_grid"] = -1 if norm is None else int(norm)
+            # the frame of the causal diffusion: bjorken (<CausalLiquefier><frame>, the
+            # default from 2026-11), lab (X-SCAPE before the option, and <frame>lab</frame>)
+            # or fluid (the background fluid's rest frame at the droplet)
+            extra["liquefier_frame"] = liquefier_frame(self._liq)
+            if extra["liquefier_frame"] == "fluid":
+                extra["liquefier_fluid_e_min"] = float(self._liq.fluid_e_min)
+                extra["liquefier_fluid_v_max"] = float(self._liq.fluid_v_max)
             self._drop_flux = droplet_fluxes(self._liq) is not None
+            self._drop_fluid = droplet_fluid(self._liq) is not None
         extra.update(self._extra_attrs)
 
         self._w = FnoH5Writer(self._out_file_name, attrs, nevents=0,
@@ -737,9 +758,12 @@ class PairH5Writer:
             fields = {"droplets": (np.float64, (len(DROPLET_COLUMNS),))}
             if self._drop_flux:
                 fields["flux"] = (np.float64, ())
+            if self._drop_fluid:
+                fields["fluid"] = (np.float64, (len(FLUID_COLUMNS),))
             self._g_drop = self._w.ragged(
                 "source", "offsets", fields,
                 attrs={"droplet_columns": list(DROPLET_COLUMNS),
+                       **({"fluid_columns": list(FLUID_COLUMNS)} if self._drop_fluid else {}),
                        "units": "tau in fm/c; x, y in fm; eta dimensionless; E, p in GeV",
                        "convention": (
                            "Droplets from X-SCAPE's CausalLiquefier, exactly as the jet leg "
@@ -750,7 +774,11 @@ class PairH5Writer:
                            "present): the sum of each droplet's point-sampled kernel on "
                            "MUSIC's grid (-1: never reached a hydro step); with root attr "
                            "liquefier_normalize_on_hydro_grid = 1 MUSIC received each droplet "
-                           "exactly, otherwise flux times it.")})
+                           "exactly, otherwise flux times it. fluid (if present): the "
+                           "background fluid where each droplet was made, (vx, vy, vz) in "
+                           "the lab and e [GeV/fm^3] (e < 0: not looked up); liquefier_frame "
+                           "= fluid diffuses the droplet in its rest frame (the Bjorken "
+                           "frame where e < liquefier_fluid_e_min).")})
         if self._extra_hard:
             from .particlize_h5 import SCATTER_COLUMNS, SCATTER_UNITS
             self._g_scat = self._w.ragged(

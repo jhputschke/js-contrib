@@ -21,6 +21,7 @@ The test data named in this documentation:
 | `test/h5_read_test/` | a small Au+Au hadron file, to try reading in place |
 | `test/OO_test/` | the hadron files of an O+O `oo_workflow` run, read in place by the notebook `pythonic/oo_analysis.ipynb` |
 | `LHC/zjet_viz/` | two Pb+Pb Z+jet events with their full hydro evolution (pair file, 0.93 GB), hadron files and movies: the example for [3D visualization](../python/visualization.md#example-data-a-pbpb-zjet-event-on-the-osdf) of the medium and the jet wake |
+| `RHIC/AuAu_dijet_viz/` | one Au+Au 0–10 % dijet event (p̂<sub>T</sub> 30–40 GeV) with its full hydro evolution (pair file, 233 MB), hadron files and four movies: the example for [`full_event_pyvista.py`](../python/visualization.md#example-data-an-auau-dijet-event-on-the-osdf), from the colliding nuclei to the hadrons |
 
 ## The transfer tool: `js_osdf.py`
 
@@ -125,6 +126,12 @@ with fs.open("/fno4hic/test/h5_read_test/AuAu_0_10_jet_st1_t000_0001_hadrons_bul
   `run_h5toROOT.py` and the `analysis/` scripts take local paths only.
 - Inside the production container the `pelican` command line does the same for single files:
   `pelican object get osdf:///fno4hic/… /work/…`.
+- **`AttributeError: 'Client' object has no attribute 'info'`** (or `list_files`): pelicanfs
+  up to 1.5.0 does not work with aiowebdav2 1.x (released 2026-11-02), so environments
+  installed since then cannot open `osdf://` URLs in uproot or list folders. Fix:
+  `pip install "aiowebdav2<1"`. js-contrib's requirement files pin it.
+- A first, hands-on look at pelicanfs (browsing, uproot, h5py, downloading) is
+  [tutorial 01](../tutorials/pyjetscape/01_check_setup.ipynb), section 2.
 
 What the files hold and how to read them: [What a production writes](../analysis/files.md),
 [Hadrons](../analysis/hadrons.md), [ROOT and C++](../analysis/root.md).

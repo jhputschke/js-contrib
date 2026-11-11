@@ -17,6 +17,11 @@
  * which is Droplet::xmu ++ Droplet::pmu as filled by LiquefierBase::add_hydro_sources
  * (LiquefierBase.cc:200-225), and is byte-for-byte the column order of
  * fast_data.liquefier.droplets.COLUMNS.  No conversion is needed on either side.
+ *
+ * With X-SCAPE's XSCAPE_DROPLET_FLUID, each droplet also carries the background fluid
+ * where it was made: droplet_fluid_numpy() gives it as (M, 4) = (vx, vy, vz, e), lab
+ * Cartesian velocity and energy density (e < 0: not looked up), and add_droplets_numpy()
+ * takes (M, 12) = both side by side.
  ******************************************************************************/
 
 #include <pybind11/pybind11.h>
@@ -34,6 +39,8 @@ using namespace Jetscape;
 
 //: droplets_numpy() / add_droplets_numpy() column order
 static const char *kDropletColumns[8] = {"tau", "x", "y", "eta", "E", "px", "py", "pz"};
+//: droplet_fluid_numpy() column order
+static const char *kFluidColumns[4] = {"vx", "vy", "vz", "e"};
 
 // ── PyLiquefierBase: a liquefier written in Python ──────────────────────────
 // Override smearing_kernel(tau, x, y, eta, droplet) -> [j^tau, j^x, j^y, j^eta]
@@ -98,6 +105,14 @@ void bind_liquefier(py::module_ &m) {
            py::arg("xmu"), py::arg("pmu"))
       .def("get_xmu", &Droplet::get_xmu, "(tau, x, y, eta)")
       .def("get_pmu", &Droplet::get_pmu, "(E, px, py, pz)")
+#ifdef XSCAPE_DROPLET_FLUID
+      .def("get_vfluid", &Droplet::get_vfluid,
+           "The background fluid's velocity (lab Cartesian vx, vy, vz) where the droplet "
+           "was made.")
+      .def("get_efluid", &Droplet::get_efluid,
+           "The background's energy density [GeV/fm^3] there; < 0: not looked up.")
+      .def("set_fluid", &Droplet::set_fluid, py::arg("v"), py::arg("e"))
+#endif
       .def("__repr__", [](const Droplet &d) {
         auto x = d.get_xmu();
         auto p = d.get_pmu();
@@ -181,26 +196,67 @@ void bind_liquefier(py::module_ &m) {
              float64 is emitted even though Jetscape::real is float: the values have already
              been rounded to float, and keeping them wide avoids a second rounding.
            )pbdoc")
+#ifdef XSCAPE_DROPLET_FLUID
+      .def("droplet_fluid_numpy",
+           [](const LiquefierBase &liq) {
+             const int n = liq.get_dropletlist_size();
+             py::array_t<double> out({(py::ssize_t)n, (py::ssize_t)4});
+             auto r = out.mutable_unchecked<2>();
+             for (int i = 0; i < n; ++i) {
+               const Droplet d = liq.get_a_droplet(i);
+               const auto v = d.get_vfluid();
+               for (int k = 0; k < 3; ++k) r(i, k) = static_cast<double>(v[k]);
+               r(i, 3) = static_cast<double>(d.get_efluid());
+             }
+             return out;
+           },
+           "Per droplet (droplets_numpy() order), the background fluid where it was made, "
+           "(M, 4) = (vx, vy, vz, e): lab Cartesian velocity and energy density [GeV/fm^3]; "
+           "e < 0: not looked up.")
+      .def_property_readonly_static("FLUID_COLUMNS", [](py::object) {
+        py::tuple t(4);
+        for (int i = 0; i < 4; ++i) t[i] = kFluidColumns[i];
+        return t;
+      }, "Column order of droplet_fluid_numpy(): (vx, vy, vz, e).")
+#endif
       .def("add_droplets_numpy",
            [](LiquefierBase &liq,
               py::array_t<double, py::array::c_style | py::array::forcecast> arr) {
              auto buf = arr.request();
-             if (buf.ndim != 2 || buf.shape[1] != 8)
+             const py::ssize_t nc = buf.ndim == 2 ? buf.shape[1] : 0;
+#ifdef XSCAPE_DROPLET_FLUID
+             if (nc != 8 && nc != 12)
+               throw std::runtime_error(
+                   "add_droplets_numpy: expected (M, 8) = (tau, x, y, eta, E, px, py, pz) "
+                   "or (M, 12) = those and (vx, vy, vz, e) of the fluid");
+#else
+             if (nc != 8)
                throw std::runtime_error(
                    "add_droplets_numpy: expected (M, 8) = (tau, x, y, eta, E, px, py, pz)");
+#endif
              const double *p = static_cast<double *>(buf.ptr);
              for (py::ssize_t i = 0; i < buf.shape[0]; ++i) {
                std::array<Jetscape::real, 4> xmu, pmu;
                for (int k = 0; k < 4; ++k) {
-                 xmu[k] = static_cast<Jetscape::real>(p[i * 8 + k]);
-                 pmu[k] = static_cast<Jetscape::real>(p[i * 8 + 4 + k]);
+                 xmu[k] = static_cast<Jetscape::real>(p[i * nc + k]);
+                 pmu[k] = static_cast<Jetscape::real>(p[i * nc + 4 + k]);
                }
-               liq.add_a_droplet(Droplet(xmu, pmu));
+               Droplet d(xmu, pmu);
+#ifdef XSCAPE_DROPLET_FLUID
+               if (nc == 12)
+                 d.set_fluid({static_cast<Jetscape::real>(p[i * nc + 8]),
+                              static_cast<Jetscape::real>(p[i * nc + 9]),
+                              static_cast<Jetscape::real>(p[i * nc + 10])},
+                             static_cast<Jetscape::real>(p[i * nc + 11]));
+#endif
+               liq.add_a_droplet(d);
              }
              return (int)buf.shape[0];
            },
-           "Append droplets from an (M, 8) array in the droplets_numpy() column order. "
-           "Used by the replay path.",
+           "Append droplets from an (M, 8) array in the droplets_numpy() column order, or "
+           "(M, 12) with the fluid's (vx, vy, vz, e) (droplet_fluid_numpy()) after them; "
+           "with 8 columns the fluid is unknown (the fluid frame then uses the Bjorken "
+           "frame). Used by the replay path.",
            py::arg("arr"))
       .def("get_source",
            [](const LiquefierBase &liq, Jetscape::real tau, Jetscape::real x,
@@ -268,6 +324,29 @@ void bind_liquefier(py::module_ &m) {
       .def("set_t_delay", &CausalLiquefier::set_t_delay, py::arg("tau_delay"))
       .def("InitializeParameters", &CausalLiquefier::InitializeParameters,
            "Re-read the XML block and recompute c_diff / gamma_relax.")
+#ifdef XSCAPE_CAUSAL_LIQUEFIER_FRAME
+      .def_property("bjorken_frame", &CausalLiquefier::get_bjorken_frame,
+                    &CausalLiquefier::set_bjorken_frame,
+                    "True: the kernel in the frame of the Bjorken flow at the droplet's eta_s "
+                    "(<CausalLiquefier><frame>bjorken</frame>, the default); False: the lab "
+                    "frame (<frame>lab</frame>).")
+#endif
+#ifdef XSCAPE_CAUSAL_LIQUEFIER_FLUID_FRAME
+      .def_property("frame", &CausalLiquefier::get_frame, &CausalLiquefier::set_frame,
+                    "The frame of the causal diffusion: 'bjorken' (the default), 'lab' or "
+                    "'fluid' (the background fluid's rest frame at the droplet).")
+      .def_readwrite("fluid_e_min", &CausalLiquefier::fluid_e_min_,
+                     "fluid frame: below this energy density [GeV/fm^3] at the droplet, the "
+                     "Bjorken frame.")
+      .def_readwrite("fluid_v_max", &CausalLiquefier::fluid_v_max_,
+                     "fluid frame: the cap on the fluid's speed relative to the Bjorken flow.")
+      .def("uses_fluid_velocity", &CausalLiquefier::uses_fluid_velocity, py::arg("droplet"),
+           "Whether this droplet's kernel is boosted with the fluid's velocity.")
+      .def("kernel_frame_velocity", &CausalLiquefier::kernel_frame_velocity,
+           py::arg("droplet"),
+           "The kernel frame's velocity relative to the Bjorken flow at the droplet (0 for "
+           "lab and bjorken).")
+#endif
       .def("params",
            [](const CausalLiquefier &l) {
              py::dict d;

@@ -280,6 +280,14 @@ the same way. In the jet leg's own block:
   instance named in `restart_from` keeps its checkpoint at its `<checkpoint_tau>`, by default
   (0) at `<Liquefier><CausalLiquefier><tau_delay>`, as `restart_legs` does. Main-XML defaults
   `none` / `0` are off.
+- 2026-11-11 (X-SCAPE branch `source_fill_box`): a checkpoint time at `tau_delay`, or less
+  than the jet source's deposit half width (half the largest hydro step + 1e-3 fm/c) before
+  it, is moved that half width before `tau_delay`. A droplet made at the hard vertex
+  deposits at `tau_delay` itself, which is within the per-step test's reach from step 27 on
+  with the late step (0.94 + 2·0.02 + 0.026 = 1.006): two of six Pb+Pb Z+jet events refused
+  the checkpoint of step 28 and ran from τ0. Now step 23 (τ = 0.86 fm/c) with the late
+  step, still step 28 with a constant step; all six start from it, 129 → 118 s, hadrons
+  identical to `--no-music2-restart`.
 - The Python setters still override the XML: `run_prod_jet.py` is unchanged (the PyJetscape
   tests touching it: 120 passed).
 

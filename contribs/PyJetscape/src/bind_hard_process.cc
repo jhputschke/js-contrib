@@ -13,6 +13,9 @@
  *                             gives the same cut fields as for PythiaGun
  *   PYTHIA_ISR_GUN_HAS_PTHAT_BINS  True if X-SCAPE's PythiaIsrGun (the ISR hard
  *                             process) has <pTHatBins>; pythia_gun_bins then takes it too
+ *   PGUN_HAS_POINTS           True if X-SCAPE's PGun has <rapidity>, <phi> and <points>
+ *                             (several (pT, y) points, event i using point i mod K)
+ *   pgun_points(task)         PGun's points, the current event's point, phi, parID
  *   PYTHIA_GUN_HAS_PTHAT_BINS True if X-SCAPE's PythiaGun has <pTHatBins>. An older
  *                             PythiaGun ignores the element and runs pTHatMin-pTHatMax
  *                             only, so a driver that writes it must check this.
@@ -50,6 +53,7 @@
 #include "HardProcess.h"
 #include "JetScapeParticles.h"
 #include "JetScapeTask.h"
+#include "PGun.h"
 #include "PythiaGun.h"
 #include "PythiaIsrGun.h"
 
@@ -69,6 +73,32 @@ std::shared_ptr<HardProcess> as_hard(const std::shared_ptr<JetScapeTask> &t) {
 }  // namespace
 
 void bind_hard_process(py::module_ &m) {
+#ifdef PGUN_HAS_POINTS
+  m.attr("PGUN_HAS_POINTS") = true;
+  m.def(
+      "pgun_points",
+      [](std::shared_ptr<JetScapeTask> task) {
+        auto gun = std::dynamic_pointer_cast<PGun>(task);
+        if (!gun)
+          throw std::invalid_argument("pgun_points: not a PGun: " +
+                                      (task ? task->GetId() : std::string("None")));
+        py::list pts;
+        for (int k = 0; k < gun->GetNPoints(); ++k)
+          pts.append(py::make_tuple(gun->GetPointPt(k), gun->GetPointRapidity(k)));
+        py::dict d;
+        d["n_points"] = gun->GetNPoints();
+        d["active"] = gun->GetActivePoint();
+        d["points"] = pts;
+        d["phi"] = gun->GetPhi();
+        d["parID"] = gun->GetParID();
+        return d;
+      },
+      py::arg("task"),
+      "PGun's (pT, rapidity) points (<points>, else the one of <pT>/<rapidity>), the "
+      "current event's point (i mod K), phi and parID.");
+#else
+  m.attr("PGUN_HAS_POINTS") = false;
+#endif
 #ifdef PYTHIAGUN_HAS_PTHAT_BINS
   m.attr("PYTHIA_GUN_HAS_PTHAT_BINS") = true;
 #else

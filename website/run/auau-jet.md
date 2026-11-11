@@ -135,7 +135,9 @@ among several jets in several pT̂ windows:
   ([Hadrons](../analysis/hadrons.md)). Results stitched over windows have errors correlated
   through the shared backgrounds; per-window results and jet − background don't.
 - `--reuse N` alone shares a background among N jets of one window. `--pthat-min/--pthat-max`
-  set a single window (default 50–70 GeV); `--hard pgun --pgun-pt P` shoots one parton.
+  set a single window (default 50–70 GeV); `--hard pgun --pgun-pt P` shoots one parton
+  (`--pgun-y`, `--pgun-id`, and `--pgun-grid 20,50,100:0,1,2 --pgun-per-point N` for several
+  (pT, y) points on one background).
 
 ### The parton rapidity cut
 
@@ -165,6 +167,26 @@ Y ≈ η_max + 1 with `any`.
   `--no-music2-restart` turns it off. Every job log says `restart` at the start, on or off.
 - **EOS 91** (hotQCD with the SMASH hadron list), which iSS decays itself; `--eos 9` only to
   rerun older campaigns.
+- **The liquefier's frame** is the Bjorken frame (`<CausalLiquefier><frame>bjorken</frame>`,
+  [The physics](../about/physics.md#5-energymomentum-deposition-the-causalliquefier)): forward
+  droplets spread as midrapidity ones do. Campaigns made before 2026-11 used the lab frame,
+  which deposits forward droplets displaced and far too narrow; `--liquefier-frame lab`
+  reproduces them. Only droplets at η_s = 0 deposit the same in both: the lab frame pulls the
+  others toward midrapidity (by 0.4 units already at η_s = 1), so the wake at \|η_s\| < 1
+  differs by 3 % in energy at RHIC, and by 19 % for Z+jet events at the LHC, where most
+  droplets are made forward. `--liquefier-frame fluid` diffuses each droplet in the rest frame
+  of the background fluid where it was made. It agrees with the Bjorken frame along η_s and in
+  energy, but moves late deposits outward with the radial flow; FastHydro does not support it
+  yet. **Do not mix frames in a wake analysis.** The pair file records it (`liquefier_frame`).
+  - **To choose it:** `run_prod_jet.py ... --liquefier-frame fluid`, or the same flag after
+    `run_jobs.sh`'s arguments (`./run_jobs.sh -j 2 20 25 0 out_fluid --liquefier-frame fluid`).
+  - **Use a new output directory per frame:** `run_jobs.sh` skips completed jobs whatever
+    their frame.
+  - **Needs an X-SCAPE with the option.** The script refuses an older build; images from
+    before 2026-11 have only the lab frame.
+  - **The frames compared** on the same events (Au+Au, LHC Z+jet, single quarks at fixed
+    rapidity and energy): `example/liquefier_frame_test/`. Per jet, the lab error depends on
+    the jet's rapidity, not its energy. The fluid frame makes the wake about 1.5 % harder.
 - **The output grid** of the pair file is `example/config/grid_fno.yaml` (64 × 64 × 32 cells,
   x, y ±12.2 fm, η_s ±4.84); `--grid FILE` for another. Never mix grids in one training set.
 

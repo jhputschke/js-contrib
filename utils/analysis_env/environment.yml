@@ -49,6 +49,7 @@ dependencies:
   - imageio-ffmpeg
   # Pelican/OSDF: osdf:// and pelican:// for fsspec, h5py and uproot
   - pelicanfs>=1.0
+  - aiowebdav2<1         # pelicanfs 1.5's listing and info fail with 1.0 (2026-11-02)
   - pip:
       - fastjet>=3.4     # scikit-hep's, with the FastJet library in the wheel
       # paths are relative to this file; PyJetscape's dependencies are all above

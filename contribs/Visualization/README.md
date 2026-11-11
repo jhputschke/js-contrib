@@ -11,7 +11,9 @@ resamples it into **Cartesian lab spacetime** `(t, x, y, z)`. The companion
 in that same `(t,x,y,z)` frame, and [`wake_pyvista.py`](wake_pyvista.py) puts the
 no-jet, with-jet and difference evolutions **side by side** to isolate the jet
 wake. [`hydro_jet_particles_pyvista.py`](hydro_jet_particles_pyvista.py) follows one
-production event past freeze-out, into its **hadrons**.
+production event past freeze-out, into its **hadrons**, and
+[`full_event_pyvista.py`](full_event_pyvista.py) puts the **colliding nuclei** in front of
+it and colours the hadrons by species, jet leg or pT.
 
 ## Files
 
@@ -24,7 +26,10 @@ production event past freeze-out, into its **hadrons**.
 - [`hydro_jet_particles_pyvista.py`](hydro_jet_particles_pyvista.py) — medium + deposit,
   the shower, and then the **bulk and jet hadrons** of a `prod_AuAu_0_10_jet` event (see
   [Hadrons after freeze-out](#hadrons-after-freeze-out)).
-- [`tests/`](tests/) — gates for the wake reader and the hadron overlay (`pytest tests -q`; no GPU needed).
+- [`full_event_pyvista.py`](full_event_pyvista.py) — the **whole event**: two nuclei
+  approaching at t < 0, the collision, the medium (MUSIC_2), the shower and the hadrons,
+  coloured by species and jet leg, or by pT (see [The whole event](#the-whole-event-from-the-nuclei-to-the-hadrons)).
+- [`tests/`](tests/) — gates for the wake reader, the hadron overlay and the whole-event script (`pytest tests -q`; no GPU needed).
 - [`config/`](config/) — bundled example MUSIC configs (`OO_one_event.xml`,
   `OO_one_event_jet.xml`).
 - The design plan, `PlanVisualization.md`, is retired; it is in the
@@ -313,6 +318,108 @@ Options: `--event`, `--sample`, `--frag-sample`, `--rng-seed`, `--frag-time`,
 `--no-bulk`, `--no-frag`, `--hadron-stem` (for hadron files kept elsewhere), and
 `--eos-table`, plus everything `hydro_jet_pyvista.py` accepts. `--vtk-dir` writes the
 medium only.
+
+## The whole event: from the nuclei to the hadrons
+
+[`full_event_pyvista.py`](full_event_pyvista.py) draws the event of
+`hydro_jet_particles_pyvista.py` (same files, same readers, same options) and starts it
+before the collision:
+
+| lab time | drawn |
+|---|---|
+| t < 0 | two Lorentz-contracted nuclei approach along the beam (z) |
+| t = 0 | they collide: the participants fade out over `--participant-fade` (default max(τ₀, 1) fm/c), the spectators fly on until they leave the box; a flash marks the hard scattering at the event's hard vertex |
+| t ≥ t_vertex | the jet partons, coloured by jet leg |
+| t ≥ τ₀ | the medium: MUSIC_2, the jet leg `arr` (background + wake), with the freeze-out isosurface |
+| t ≥ t_emit | the bulk hadrons of `<stem>_hadrons_bulk_jet.h5` |
+| t ≥ `--frag-time` | the jet hadrons of `<stem>_hadrons_jet_frag.h5` replace the partons |
+
+```bash
+P=../PyJetscape/example/prod_AuAu_0_10_jet/out_viz/AuAu_0_10_jet_seed0003.h5
+python full_event_pyvista.py --file $P --nt 120 --z-oversample 3 --framerate 10 --movie full_event.mp4
+python full_event_pyvista.py --file $P --nt 120 --z-oversample 3 --framerate 10 --color-by pt \
+    --movie full_event_pt.mp4
+```
+
+**The nuclei are synthetic.** The production files hold no nucleon positions, since
+3dMCGlauber does not hand them out. The script samples two Woods–Saxon nuclei with a
+0.4 fm hard core instead. It takes `b` from the file's centrality class (the user XML's
+`cenMin`/`cenMax`, b ∈ [√c_min, √c_max]·(2R + d_NN), uniform in b²) and marks a nucleon a
+participant when a nucleon of the other nucleus passes within d = √(σ_NN/π) of it
+(σ_NN = 25 + 0.146 ln²s mb, 41 mb at 200 GeV). This shows the geometry, not the event's
+nucleons. Two things tie it to the event: `b` points along the participant plane ψ₂ of the
+medium's first frame (`--no-align` turns that off), and the participants' centroid is moved
+onto the medium's. The nucleus and √s_NN come from the user XML (`--nucleus`, `--sqrt-s`
+override them); `--impact-b` and `--glauber-seed` fix the sampling, and the run prints the
+seed it used.
+
+**Lorentz contraction.** The nuclei move at the beam velocity and are flattened by the
+true γ (106.6 at 200 GeV), into 0.12 fm thin discs. `--gamma-vis 8` draws them thicker; the
+speed stays the same. The animation starts at `--t-min` (default −0.9 × the box's z
+half-width, so the nuclei start inside the box).
+
+**Colours.** `--color-by species` (the default) colours the bulk hadrons as pions, kaons,
+(anti)protons, resonances and other (neutrons, hyperons, photons, leptons…), and the
+partons and jet hadrons by **jet leg**. Each shower takes its initiator's colour
+(`--leg-colors`, leading leg first), and each jet hadron takes the colour of the initiator
+nearest to it in (η, φ). This is an assignment, not an ancestry: Pythia's strings mix the
+partons, and `jet_frag` has no hadron→parton link. `--leg-dr-max R` leaves hadrons further
+than R from every leg white, and `--jet-hadron-color species` colours the jet hadrons by
+species instead (they stay the larger points). The files hold **final-state** hadrons, so
+the resonance class only holds what iSS leaves undecayed: η and Σ⁰ (electromagnetic
+decays), 272 of 7258 hadrons on the test event. The legend counts per frame,
+`shown / in the sample`, because most of a sample never appears: at t = 21 fm/c 3263 of
+the 7258 are drawn, while the rest are emitted later or far along the beam. The lower-left
+read-out lists the same counts, in `pt` mode too. "Kaons" are K± and K⁰/K̄⁰: iSS keeps the
+neutral kaons as K⁰ (pid ±311), not as K⁰_S/K⁰_L. On the test sample that gives all K / all π =
+0.24 (four kaon states against three pion states), while K⁺/π⁺ = 0.18 (averaged over all
+20 samples), the thermal value at T_fo = 150 MeV without a hadronic afterburner. STAR
+measures about 0.16 in 0–5 % Au+Au. `--color-by pt` puts every hadron and
+parton on **one** logarithmic pT scale (`--jet-cmap`, from `--pt-scale-min` = 0.1 GeV up to
+the hardest parton or hadron), and the jet hadrons are told apart by their larger points.
+
+**Wake inset (`--wake-inset`, opt-in).** It adds a small view in the lower right that shows
+the jet wake Δe = e(MUSIC_2) − e(MUSIC_1) during the hydro phase (τ₀ ≤ t ≤ τ_end), with the
+partons drawn in it. This reads the background leg `arr_bg` too. The wake is a signed volume
+in `wake_pyvista.py`'s style: `--wake-cmap` (default coolwarm, red = more energy, blue =
+less) and an opacity ramp that is transparent at zero. The colour limit is the 99.9th
+percentile of |Δe| (0.09 GeV/fm³ on the test event; `--wake-clim` sets it). The inset is
+a second VTK renderer drawn over the main one, with the same camera orientation, fitted
+to the medium box. It is resampled on its own coarser grid (`--inset-n`, default 64³) at
+the movie's hydro-phase frames, which adds about 4 s to a 120-frame movie. The inset
+is not drawn outside the hydro phase.
+
+The orientation triad sits above the lower-left read-out, not in the corner where it
+overlapped the text.
+
+**Test event.** `out_viz/AuAu_0_10_jet_seed0003.h5` (Au+Au 0–10 %, pT̂ 30–40 GeV, wake on;
+tested on an M3 Max on 2026-11-06). The event, its hadron and particlize files, and the four
+movies are on the OSDF in `osdf:///fno4hic/RHIC/AuAu_dijet_viz/`. Get them with
+`utils/remote_transfer/js_osdf.py download RHIC/AuAu_dijet_viz --to ~` (all of it, 0.4 GB), or
+see the docs site's "Example data" for the pieces. Made with:
+
+```bash
+cd ../PyJetscape/example/prod_AuAu_0_10_jet
+python run_prod_jet.py --events 1 --seed 3 --pthat-min 30 --pthat-max 40 \
+    --write-particlize both --outdir out_viz                     # 27 s
+python hadronize.py out_viz/AuAu_0_10_jet_seed0003_particlize.h5 \
+    --tags bulk_jet,jet_frag --oversample 20 --n-frag 20          # 2 s
+```
+
+It has a dijet along ±y: s quark 35.9 GeV and u quark 34.2 GeV, 23 partons, 5 droplets.
+Bulk sample 9 has 7258 hadrons; fragmentation 10 has 16 jet hadrons, 8 per leg. With
+`--glauber-seed 7` the nuclei come out at b = 3.5 fm with N_part = 312. 120 frames with
+`--z-oversample 3` take 55 s per movie (31 s resampling, 20 s rendering), at a peak
+RSS of 18 GB: `render_event` keeps every resampled frame in memory, so use fewer frames
+or drop `--z-oversample` on a smaller machine.
+
+Options beyond `hydro_jet_particles_pyvista.py`'s: `--nucleus`, `--sqrt-s`, `--impact-b`,
+`--glauber-seed`, `--gamma-vis`, `--nucleon-radius`, `--participant-fade`, `--no-align`,
+`--no-nuclei` (start at t = 0 without the initial state), `--flash-time`, `--wake-inset`,
+`--inset-n`, `--wake-cmap`, `--wake-clim`, `--color-by`,
+`--jet-hadron-color`, `--leg-colors`, `--leg-dr-max`, `--pt-scale-min`. The default parton
+radius is 0.1 fm (`--jet-radius`), thicker than `hydro_jet_pyvista.py`'s, since the arrows
+cross a lit medium here.
 
 ## Usage
 

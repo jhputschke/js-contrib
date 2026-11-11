@@ -20,7 +20,10 @@ from fast_data.liquefier import (CausalLiquefierSource, DropletFlags,  # noqa: E
                                  LiquefierParams, deposit, droplet_weights,
                                  milne_dq_from_cartesian, support_box)
 
-P = LiquefierParams()
+# The lab frame on purpose: these tests exercise the deposit on its hardest cases, forward
+# droplets whose support is far thinner than a cell, which only the lab frame produces.  The
+# Bjorken frame (the default) is tested in test_fast_data_liquefier_frame.py.
+P = LiquefierParams(frame="lab")
 
 
 def _grid(n=41, nz=33, d=0.3125):

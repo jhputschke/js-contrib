@@ -2,3 +2,4 @@
 #   pelicanfs   fsspec's pelican:// and osdf:// (fsspec.open, uproot.open("osdf:///..."))
 # Public namespaces need no token; for protected ones see README.md, "Remote files".
 pelicanfs>=1.0
+aiowebdav2<1          # pelicanfs 1.5's listing and info fail with aiowebdav2 1.0 (2026-11-02)

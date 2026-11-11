@@ -1,0 +1,12 @@
+{
+ "comment": "07_hadron_pair.ipynb on tutorials/v2/AuAu_pair_mini (fixed files, correlated sampling).",
+ "dN_mid_charged": 8.383,
+ "E_wake": [
+  31.422191333496013,
+  30.20090306886006,
+  25.568321872791277,
+  17.279565243013202,
+  18.26409821649082
+ ],
+ "mean_pt_wake": 0.7850155094249585
+}

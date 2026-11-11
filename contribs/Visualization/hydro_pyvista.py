@@ -408,6 +408,16 @@ def cartesian_frame(interp, t: float, axes, meta: dict, want_velocity: bool,
     z0, zN = float(zs[0]), float(zs[-1])
     dz = (zN - z0) / (nz - 1) if nz > 1 else 1.0
 
+    # Before the medium forms there is nothing to sample.  This also guards t < 0 (a
+    # movie that starts before the collision): there sqrt(t^2 - z^2) is a perfectly good
+    # "tau" inside the BACKWARD light cone, and the medium would be drawn mirrored in time.
+    if t < tau_min:
+        zero = np.zeros((nx, ny, nz), dtype=np.float32)
+        fields = {"e": zero, "T": zero.copy()}
+        if want_velocity:
+            fields["v"] = np.zeros((nx, ny, nz, 3), dtype=np.float32)
+        return fields
+
     S = max(1, int(oversample_z))
     binned = nz > 1 and S > 1 and t * t > tau_min * tau_min
     if binned:

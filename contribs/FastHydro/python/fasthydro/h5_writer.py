@@ -170,6 +170,7 @@ class PairedH5Writer:
                 a["liquefier_width_delta"] = float(q.width_delta)
                 a["liquefier_c_diff"] = float(q.c_diff)
                 a["liquefier_gamma_relax"] = float(q.gamma_relax)
+                a["liquefier_frame"] = str(getattr(q, "frame", "lab"))
 
         d = dict(hyd_jet.diag or {})
         droplets = None

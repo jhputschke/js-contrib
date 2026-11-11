@@ -1091,6 +1091,8 @@ cd external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 python run_prod_jet.py --events 1 --seed 1 --no-deposit   # null test: arr == arr_bg
 python run_prod_jet.py --events 10 --seed 1               # PythiaGun, pTHat 50-70 GeV
 python run_prod_jet.py --events 10 --seed 1 --hard pgun --pgun-pt 60
+python run_prod_jet.py --events 10 --seed 1 --liquefier-frame fluid  # the liquefier's frame:
+                                                          # bjorken (default), lab, fluid
 python run_prod_jet.py --events 30 --seed 1 --reuse 3     # one background per 3 jets
 ./run_jobs.sh -j 2 20 25 0                                # 20 jobs x 25 events, unique seeds
 ```
@@ -1212,6 +1214,7 @@ deposits before the liquefier's `tau_delay`. With music4gpu and X-SCAPE from the
 ```python
 bg, jet = tasks["MUSIC_1"], tasks["MUSIC_2"]
 bg.set_checkpoint_tau(writer.liquefier_tau_delay)   # every MUSIC_1 run keeps a checkpoint
+                                                    # (placed just before tau_delay)
 jet.set_restart_from(bg)                            # every MUSIC_2 run starts from it if it fits
 ...
 jet.get_restart_status()   # "started from the checkpoint at step 28 (tau = 0.96 fm/c)",
@@ -1219,7 +1222,11 @@ jet.get_restart_status()   # "started from the checkpoint at step 28 (tau = 0.96
 ```
 
 - **The checkpoint** is MUSIC_1's state at its last freeze-out step whose RK step ends by
-  τ. That is the GPU state, the surface found so far, the stored frames and the
+  τ. A τ at `tau_delay`, or less than half the largest hydro step (plus 1e-3 fm/c) before
+  it, is moved that far before `tau_delay`: a droplet made at the hard vertex deposits at
+  `tau_delay` itself and would otherwise refuse the checkpoint (X-SCAPE from 2026-11-11,
+  branch `source_fill_box`; the log reports the moved time). Other times are taken as
+  given. That is the GPU state, the surface found so far, the stored frames and the
   bookkeeping, plus a key of the parameters, the initial arena and the string list.
 - **MUSIC_2 starts from it** only if the key matches, the checkpoint has what MUSIC_2 needs
   (its surface, its frames), and MUSIC_2's own droplets add nothing before that step.

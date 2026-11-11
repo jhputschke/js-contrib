@@ -81,6 +81,7 @@ def save_droplets_npz(path, bridge, *, cfg_sha256="", ic_sha256=(), seeds=(),
         droplets=data, offsets=offsets, flags=flags, **sh,
         columns=np.array(["tau", "x", "y", "eta", "E", "px", "py", "pz"]),
         params=np.array([p.dtau, p.tau_delay, p.time_relax, p.d_diff, p.width_delta]),
+        params_frame=np.array(getattr(p, "frame", "lab")),
         grid=np.array([g.nx, g.ny, g.neta, g.dx, g.dy, g.deta], dtype=np.float64),
         tau_grid=g.tau_grid(),
         cfg_sha256=np.array(cfg_sha256), ic_sha256=np.array(list(ic_sha256)),
@@ -114,7 +115,9 @@ def load_droplets_npz(path):
     pr = z["params"]
     params = LiquefierParams(dtau=float(pr[0]), tau_delay=float(pr[1]),
                              time_relax=float(pr[2]), d_diff=float(pr[3]),
-                             width_delta=float(pr[4]))
+                             width_delta=float(pr[4]),
+                             # dumps before the frame option were all lab frame
+                             frame=str(z["params_frame"]) if "params_frame" in z.files else "lab")
     meta = {k: z[k] for k in z.files if k not in ("droplets", "offsets", "flags",
-                                                  "columns", "params")}
+                                                  "columns", "params", "params_frame")}
     return per_event, params, meta

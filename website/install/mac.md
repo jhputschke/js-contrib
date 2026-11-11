@@ -456,6 +456,7 @@ rm ~/.local/bin/uv ~/.local/bin/uvx      # uv itself
 | `xscape-run: ... turns automatic module setup off` | an XML of an X-SCAPE C++ test program: run it with its program in a source build |
 | `JobDir` / `enter_workdir` raise `XMLProblem` | the same checks from Python, before X-SCAPE starts: the message names the tags or inputs |
 | `ValueError: Protocol not known: osdf` | an environment before 0.2.0 has no pelicanfs: install the current release (or `uv pip install pelicanfs`) |
+| `AttributeError: 'Client' object has no attribute 'info'` on an `osdf://` path | installed after 2026-11-02, the environment has aiowebdav2 1.x, which pelicanfs (up to 1.5.0) cannot use: `uv pip install "aiowebdav2<1"` in the wheel's environment |
 
 The same guide, with every detail:
 [`utils/README_Mac_Usage.md`](https://github.com/jhputschke/js-contrib/blob/main/utils/README_Mac_Usage.md)

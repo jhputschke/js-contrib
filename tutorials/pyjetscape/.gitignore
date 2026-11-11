@@ -1,0 +1,4 @@
+# the downloaded tutorial data (get_data.py) and what the tutorials write
+data/
+out/
+*.part

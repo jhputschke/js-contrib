@@ -55,6 +55,8 @@ analysis = [
     "pytest>=7.0",
     "rich>=13",
     "textual>=8",
+    "pelicanfs>=1.0",
+    "aiowebdav2<1",
 ]
 
 [project.scripts]

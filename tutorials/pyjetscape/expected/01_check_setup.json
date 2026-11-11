@@ -1,0 +1,10 @@
+{
+  "comment": "What 01_check_setup.ipynb must find in oo_test/OO_workflow_hadrons_bulk_bg.h5 (fixed file, so exact up to float rounding).",
+  "set": "oo_test",
+  "file": "OO_workflow_hadrons_bulk_bg.h5",
+  "n_events": 3,
+  "n_samples": 20,
+  "n_hadrons": 22181,
+  "hadrons_per_sample": [392.55, 438.85, 277.65],
+  "dnch_deta_mid": [21.25, 33.2, 21.3]
+}
