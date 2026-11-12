@@ -202,13 +202,13 @@ of every [xscape-macos release](https://github.com/jhputschke/xscape-macos/relea
 installs on any platform, in any Python 3.10+ environment:
 
 ```bash
-uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.2.0/pyjetscape-1.4-py3-none-any.whl"
+uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v1.5/pyjetscape-1.5-py3-none-any.whl"
 ```
 
 Quote the argument: zsh treats `[...]` as a pattern. The readers, `HadronArray`, the awkward
 views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it
-does not install pyvista, and the 0.2.0 wheel has no pelicanfs (add it with
-`uv pip install pelicanfs "aiowebdav2<1"`; later wheels include it), and it does not fetch the EoS tables: download both as in the conda tab above and
+does not install pyvista (pelicanfs is in `[analysis]` from 1.5; with the older 0.2.0 wheel,
+pyjetscape 1.4, add it with `uv pip install pelicanfs "aiowebdav2<1"`), and it does not fetch the EoS tables: download both as in the conda tab above and
 point `MUSIC_EOS_TABLE` at one of them (the tools take the other from the same directory).
 
 ## Threads and memory
