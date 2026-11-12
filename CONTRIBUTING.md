@@ -51,3 +51,16 @@ available in any JETSCAPE config XML under its registered name, e.g.:
 ```
 
 No core JETSCAPE/X-SCAPE changes required.
+
+## Releases and versions
+
+A js-contrib release is a git tag `vX.Y` on `main` (with a GitHub release). pyjetscape's
+version comes from that tag (setuptools-scm, `contribs/PyJetscape/pyproject.toml`): there
+is no version number to edit.
+
+- At the tag the version is `X.Y`; later commits give `X.(Y+1).devN+g<commit>`, and
+  uncommitted changes add `.d<date>`. Only tags `v<digits>...` count (`tutorials-v*` does not).
+- `pip install -e contribs/PyJetscape` keeps the version of the moment it ran; reinstall
+  after a new tag.
+- A build from a copy without js-contrib's `.git` (the macOS wheel's `build_wheel.sh`) sets
+  `SETUPTOOLS_SCM_PRETEND_VERSION_FOR_PYJETSCAPE=X.Y`.

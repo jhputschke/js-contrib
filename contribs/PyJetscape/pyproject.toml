@@ -1,10 +1,11 @@
 [build-system]
-requires = ["setuptools>=61", "pybind11>=3.0"]
+requires = ["setuptools>=64", "setuptools-scm>=8", "pybind11>=3.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyjetscape"
-version = "1.5"
+# the version is js-contrib's release tag (vX.Y -> X.Y), see [tool.setuptools_scm]
+dynamic = ["version"]
 description = "Python bindings for the JETSCAPE/X-SCAPE framework"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -67,3 +68,18 @@ xscape-utils = "jetscape.copy_examples:utils_main"
 
 [tool.setuptools.packages.find]
 where = ["python"]
+
+# The version comes from js-contrib's git tags v<X.Y> (the release tags; tutorials-v* and
+# other tags are ignored): at a tag it is X.Y, after it X.(Y+1).devN+g<commit> (+.d<date>
+# with uncommitted changes).  A build from a copy without js-contrib's .git must fix it with
+# SETUPTOOLS_SCM_PRETEND_VERSION_FOR_PYJETSCAPE=X.Y (the macOS wheel's build_wheel.sh does):
+# a copy inside another git repository would otherwise take that repository's tags, and one
+# outside any gets 0+unknown.
+# An editable install (pip install -e) keeps the version of the moment it was installed.
+[tool.setuptools_scm]
+root = "../.."
+tag_regex = '^v(?P<version>\d+(?:\.\d+)*)$'
+fallback_version = "0+unknown"
+
+[tool.setuptools_scm.scm.git]
+describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--match", "v[0-9]*"]
