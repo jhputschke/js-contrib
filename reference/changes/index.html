@@ -2731,8 +2731,8 @@
 
 
 <h1 id="x-scape-changes-since-21">X-SCAPE changes since 2.1<a class="headerlink" href="#x-scape-changes-since-21" title="Permanent link">¶</a></h1>
-<p>The same table is in the X-SCAPE repository as <a href="https://github.com/JETSCAPE/X-SCAPE/blob/contrib/RELEASE_NOTES.md"><code>RELEASE_NOTES.md</code></a>.</p>
-<p>Changes on the <code>contrib</code> branch (<a href="https://github.com/JETSCAPE/X-SCAPE/commit/44cad1d0"><code>44cad1d0</code></a>, 2026-11-02) relative to the X-SCAPE 2.1 release (tag <a href="https://github.com/JETSCAPE/X-SCAPE/tree/v2.1"><code>v2.1</code></a>, 2026-03-05). The third-party packages X-SCAPE fetches (iSS, 3dMCGlauber, MUSIC, trento, the LBT tables) are included. MUSIC4GPU's own changes are not listed here; see <a href="https://github.com/jhputschke/MUSIC4GPU">jhputschke/MUSIC4GPU</a>.</p>
+<p>X-SCAPE's own <a href="https://github.com/JETSCAPE/X-SCAPE/blob/contrib/RELEASE_NOTES.md"><code>RELEASE_NOTES.md</code></a> has this table as of 2026-11-02 (<a href="https://github.com/JETSCAPE/X-SCAPE/commit/44cad1d0"><code>44cad1d0</code></a>); the rows for <a href="https://github.com/JETSCAPE/X-SCAPE/pull/189">#189</a>, <a href="https://github.com/JETSCAPE/X-SCAPE/pull/190">#190</a> and the threaded iSS sampling are only here so far.</p>
+<p>Changes on the <code>contrib</code> branch (<a href="https://github.com/JETSCAPE/X-SCAPE/commit/49c834ec"><code>49c834ec</code></a>, 2026-11-11) relative to the X-SCAPE 2.1 release (tag <a href="https://github.com/JETSCAPE/X-SCAPE/tree/v2.1"><code>v2.1</code></a>, 2026-03-05). The third-party packages X-SCAPE fetches (iSS, 3dMCGlauber, MUSIC, trento, the LBT tables) are included. MUSIC4GPU's own changes are not listed here; see <a href="https://github.com/jhputschke/MUSIC4GPU">jhputschke/MUSIC4GPU</a>.</p>
 <p>Fixes to code that was added after 2.1 are folded into the feature that added it.</p>
 <ul>
 <li><a href="#physics-bug-fixes">Physics bug fixes</a>: change the physics output of existing setups.</li>
@@ -2761,6 +2761,12 @@
 <td>Each droplet is normalized on MUSIC's grid. Droplets at the hard vertex are deposited.</td>
 <td>MUSIC received 0.004 to 6 times a droplet's 4-momentum. 40% of 0-10% Au+Au events were off by more than 20%. Vertex droplets got eta = 0/0 = NaN and were never deposited. On by default; <code>&lt;normalize_on_hydro_grid&gt;0</code> restores the old source.</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/155">#155</a></td>
+</tr>
+<tr>
+<td>CausalLiquefier</td>
+<td>The causal diffusion is solved in the frame of the Bjorken flow at the droplet's eta_s (<code>&lt;frame&gt;bjorken</code>, the new default), not in the lab's Cartesian frame.</td>
+<td>Away from midrapidity the deposit landed closer to midrapidity than the droplet (by about 0.4 units at |eta_s| = 1 and up to 0.9 units forward) and in a fraction of a cell. MUSIC reverted such cells, so deposited energy was lost: one test event kept 25% of it at tau = 2 fm/c. In Pb+Pb Z+jet the midrapidity wake came out 19% too large. <strong>Behaviour change:</strong> <code>&lt;frame&gt;lab</code> restores the old deposit; the two agree only at eta_s = 0.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/189">#189</a></td>
 </tr>
 <tr>
 <td>Liquefier / MUSIC wrapper</td>
@@ -2837,7 +2843,7 @@
 <tbody>
 <tr>
 <td>3dMCGlauber</td>
-<td>The draws for the target's hard-quark position are capped. Pinned from the <a href="https://github.com/jhputschke/3dMCGlauber">jhputschke/3dMCGlauber</a> fork; upstream PR <a href="https://github.com/chunshen1987/3dMCGlauber/pull/7">chunshen1987/3dMCGlauber#7</a> is open.</td>
+<td>The draws for the target's hard-quark position are capped. Pinned from the <a href="https://github.com/jhputschke/3dMCGlauber">jhputschke/3dMCGlauber</a> fork; upstream PR <a href="https://github.com/chunshen1987/3dMCGlauber/pull/7">chunshen1987/3dMCGlauber#7</a> was merged on 2026-11-04.</td>
 <td>Endless loop in about 1 in 500-1300 O+O events with ISR (issue <a href="https://github.com/JETSCAPE/X-SCAPE/issues/169">#169</a>).</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/commit/21a06787"><code>21a06787</code></a>, <a href="https://github.com/jhputschke/3dMCGlauber/commit/b99d680">3dMCGlauber <code>b99d680</code></a></td>
 </tr>
@@ -2968,6 +2974,11 @@
 <td><code>&lt;partonYMax&gt;</code> / <code>&lt;partonYMode&gt;</code>: rapidity cut on the two hard partons.</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/165">#165</a></td>
 </tr>
+<tr>
+<td>PGun</td>
+<td><code>&lt;rapidity&gt;</code> and <code>&lt;phi&gt;</code> of the parton (both 0 as before); <code>&lt;points&gt;</code>: several (pT, y) points in one run, event i takes point i mod K.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/189">#189</a></td>
+</tr>
 </tbody>
 </table>
 <h3 id="energy-loss-and-hadronization">Energy loss and hadronization<a class="headerlink" href="#energy-loss-and-hadronization" title="Permanent link">¶</a></h3>
@@ -3010,6 +3021,11 @@
 <td>The jet source and CausalLiquefier follow MUSIC's late time step (<code>&lt;late_delta_tau&gt;</code>, <code>&lt;late_tau_switch&gt;</code>).</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/171">#171</a></td>
 </tr>
+<tr>
+<td>CausalLiquefier</td>
+<td><code>&lt;frame&gt;fluid</code>: the diffusion in the rest frame of the background fluid where the droplet was made (the droplet stores that cell's velocity and energy density). Opt-in; a droplet without a usable fluid takes the Bjorken frame.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/189">#189</a></td>
+</tr>
 </tbody>
 </table>
 <h3 id="hydro-music">Hydro (MUSIC)<a class="headerlink" href="#hydro-music" title="Permanent link">¶</a></h3>
@@ -3039,8 +3055,13 @@
 </tr>
 <tr>
 <td>MUSIC wrapper</td>
-<td>Two-stage runs (background, then a jet leg): <code>set_store_evolution</code>, <code>set_checkpoint_tau</code> / <code>set_restart_from</code>, per-instance XML and <code>&lt;restart_from&gt;</code> from <code>runJetscape</code>, <code>&lt;output_momentum_anisotropy_vs_etas&gt;</code>.</td>
-<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/166">#166</a>, <a href="https://github.com/JETSCAPE/X-SCAPE/pull/168">#168</a>, <a href="https://github.com/JETSCAPE/X-SCAPE/pull/180">#180</a></td>
+<td>Two-stage runs (background, then a jet leg): <code>set_store_evolution</code>, <code>set_checkpoint_tau</code> / <code>set_restart_from</code>, per-instance XML and <code>&lt;restart_from&gt;</code> from <code>runJetscape</code>, <code>&lt;output_momentum_anisotropy_vs_etas&gt;</code>. The background's checkpoint is taken a deposit half width before the liquefier's <code>tau_delay</code>, so jet legs with a droplet from the hard vertex restart from it too (output unchanged).</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/166">#166</a>, <a href="https://github.com/JETSCAPE/X-SCAPE/pull/168">#168</a>, <a href="https://github.com/JETSCAPE/X-SCAPE/pull/180">#180</a>, <a href="https://github.com/JETSCAPE/X-SCAPE/pull/190">#190</a></td>
+</tr>
+<tr>
+<td>Liquefier / MUSIC wrapper</td>
+<td>The jet source of a hydro step is filled from each droplet's light cone instead of asking at every cell (<code>LiquefierBase::get_source_on_grid</code>; used by MUSIC4GPU, bit-identical): 12 to 1.1 ms per fill. With the checkpoint change a Pb+Pb Z+jet job (1 background, 6 jets) takes 118 instead of 146 s.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/190">#190</a></td>
 </tr>
 <tr>
 <td>Soft particlization</td>
@@ -3060,7 +3081,7 @@
 </tbody>
 </table>
 <h3 id="particlization-iss">Particlization (iSS)<a class="headerlink" href="#particlization-iss" title="Permanent link">¶</a></h3>
-<p>iSS is now pinned from the fork <a href="https://github.com/jhputschke/iSS">jhputschke/iSS</a> (<code>smash_ready</code> <a href="https://github.com/jhputschke/iSS/commit/6ac0333"><code>6ac0333</code></a>, was chunshen1987/iSS <code>XSCAPE</code> <code>d242555</code>); upstream PR <a href="https://github.com/chunshen1987/iSS/pull/4">chunshen1987/iSS#4</a> is open.</p>
+<p>iSS is now pinned from the fork <a href="https://github.com/jhputschke/iSS">jhputschke/iSS</a> (<code>sampling_omp</code> <a href="https://github.com/jhputschke/iSS/commit/0be6daf"><code>0be6daf</code></a>, was chunshen1987/iSS <code>XSCAPE</code> <code>d242555</code>). The yield speed-up and the correlated sampling were merged upstream on 2026-11-04 (<a href="https://github.com/chunshen1987/iSS/pull/4">chunshen1987/iSS#4</a>); the SMASH-ready hadrons and the threaded sampling are only in the fork.</p>
 <table>
 <thead>
 <tr>
@@ -3079,6 +3100,11 @@
 <td>iSS</td>
 <td>Correlated sampling: random numbers addressed by the cell (Philox), switched in the XML.</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/151">#151</a></td>
+</tr>
+<tr>
+<td>iSS</td>
+<td>Correlated sampling and the surface preparation run on OpenMP threads (<code>OMP_NUM_THREADS</code>), hadrons bit-identical at any thread count: 2.4 to 0.43 s per surface at 10 threads (1.1 million cells, 100 oversamples). Uncorrelated sampling stays on one thread.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/commit/cbc992e2"><code>cbc992e2</code></a>, <a href="https://github.com/jhputschke/iSS/commit/0be6daf">iSS <code>0be6daf</code></a></td>
 </tr>
 <tr>
 <td>SoftParticlization</td>
