@@ -44,7 +44,7 @@ arm64 (cu124: amd64 only), `docker pull` / `apptainer pull` take the right one.
 Each tag comes as:
 
 - `cu126` — moving: the latest build. For a campaign take a fixed one,
-  `cu126-<YYYYMMDD>-<xscape commit>` (e.g. `cu126-20261013-9e84450`), so every job runs the
+  `cu126-<YYYYMMDD>-<xscape commit>` (e.g. `cu126-20261112-2e6e334`; a release: `cu126-v1.5`), so every job runs the
   same code. Don't mix images of different builds in one campaign: physics fixes change the
   results (the image's `/opt/X-SCAPE/BUILD_INFO.txt` lists its commits).
 - `cu126-slim` — production only, without the analysis packages and Jupyter (0.6 GB

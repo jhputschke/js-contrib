@@ -1,8 +1,8 @@
 {
   "_about": "Presets of utils/prodwizard.py: the productions and the machines, with the launch settings and rates measured on them. mem_peak_gb: the machine-wide peak measured at that setting (idle included); without it the plan uses vmhwm_gb (a job's measured peak resident memory, max over jobs) per job + 6 GB on a workstation and mem_gb_per_job, the conservative figure for SLURM requests (VmHWM + page cache); a SLURM --mem is computed from it unless the machine's setting gives mem_gb (a fixed node share). Rates are events/h for the whole machine (per GPU for slurm machines), [low, high]. 'measured' says whether the rate was measured with the current image at this setting; every number names its source. Update these when a new benchmark is made.",
   "images": {
-    "auau": "jhputschke/xscape-prod@sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58",
-    "auau_tag": "cu124-20261013-9e84450 (amd64; cu126 sha256:2e870cacbddef12d2f675f206bc54cfb49b7c1f3822e19c487936be93da8fe0f for arm64 and R560+ drivers)",
+    "auau": "jhputschke/xscape-prod@sha256:fe3cbbc8059276f773cb3eda66709f74e7e668f935330fcbe820253b751eeaa3",
+    "auau_tag": "cu124-v1.5 (js-contrib v1.5, 2026-11-12; amd64; cu126-v1.5 sha256:e88a83d376f77a86ec724e26cc9766eda65877ae332ef836949acffdb8a38436 for arm64 and R560+ drivers)",
     "zjet": "jhputschke/xscape-prod@sha256:2ca82bc4cd389f47a7b4cb40dd4d84cfdace941bd75ac29cd7b0e6d0983fc3fa",
     "zjet_tag": "cu124-zjet (2026-10-16; TAG_PREFIX support)",
     "source": "docs/README_2stage.md section 1, REPORT_ZJET_BENCH_3090.md"

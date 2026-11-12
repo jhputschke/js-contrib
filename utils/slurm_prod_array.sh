@@ -55,7 +55,7 @@
 #SBATCH --output=xscape_prod_%A_%a.out
 
 # ── Settings (environment variables override them) ────────────────────────────────────
-SIF=${SIF:-$HOME/xscape_prod.sif}           # apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-final_optim
+SIF=${SIF:-$HOME/xscape_prod.sif}           # apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-v1.5
 WORK=${WORK:-${SCRATCH:-$HOME}/xscape_prod} # bound to /work; writable, shared by the tasks
 PROD=${PROD:-auau}                          # auau: prod_AuAu_0_10_jet, oo: prod_OO_isr
 CAMPAIGN=${CAMPAIGN:-}                      # letters, digits, . _ - (default: per PROD below)
@@ -101,7 +101,7 @@ esac
 TASK=${SLURM_ARRAY_TASK_ID:-0}
 CPUS=${SLURM_CPUS_PER_TASK:-$(nproc)}
 CT=$(command -v apptainer || command -v singularity) || die "neither apptainer nor singularity found"
-[ -f "$SIF" ] || die "SIF=$SIF not found (apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-final_optim)"
+[ -f "$SIF" ] || die "SIF=$SIF not found (apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-v1.5)"
 case $CAMPAIGN in .*|-*|*[!A-Za-z0-9._-]*|'') die "CAMPAIGN '$CAMPAIGN': use letters, digits, '.', '_', '-'" ;; esac
 case $TAG_PREFIX in
   '') ;;

@@ -25,7 +25,7 @@ setup before that: `JOBS_PER_GPU=8 OMP_THREADS=4 ./launch_2gpu.sh --lbt-cache no
 > - the 64 × 64 × 32 output grid and the edge flag;
 > - `prod_OO_isr`.
 >
-> For a campaign, pin the dated tag (`IMAGE=jhputschke/xscape-prod:cu124-20261011-84df104`).
+> For a campaign, pin a release or dated tag (`IMAGE=jhputschke/xscape-prod:cu124-v1.5`).
 > The Au+Au memory and disk numbers below were measured with earlier images (named in each section).
 
 ## Campaign default (2 × RTX 3090)

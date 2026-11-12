@@ -171,9 +171,9 @@ Then, per GPU:
 
 ### Settings common to all GPUs
 
-- **Image:** `jhputschke/xscape-prod@sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58`
-  (`cu124-20261013-9e84450`, = `cu124` of 2026-10-14; `cu126-20261013-9e84450` for R560+ drivers and
-  arm64 hosts). sm_70/75/80/86/89/90 + PTX: V100, A40, A100 and L40S. Pin the digest for a
+- **Image:** `jhputschke/xscape-prod@sha256:fe3cbbc8059276f773cb3eda66709f74e7e668f935330fcbe820253b751eeaa3`
+  (`cu124-v1.5`, js-contrib v1.5, 2026-11-12; `cu126-v1.5` for R560+ drivers and arm64 hosts;
+  the 2026-10-14 tags are no longer on Docker Hub). sm_70/75/80/86/89/90 + PTX: V100, A40, A100 and L40S. Pin the digest for a
   campaign. `cu130` has no V100 support. The numbers above were measured with `cu124-final_optim`
   (`sha256:91c04102…`), whose Au+Au output is bit-identical; it lacks the Matter t < 0 guard and
   the iSS leak fix, which matter for O+O.

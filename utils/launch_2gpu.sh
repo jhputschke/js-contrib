@@ -170,7 +170,7 @@ fi
 
 if [ -n "$PROD_W" ] && ! docker run --rm --entrypoint test "$IMAGE" -f "$PROD_W/$PROD_SCRIPT"; then
   echo "$IMAGE has no $PROD_W/$PROD_SCRIPT (needs js-contrib 8765281 or later," \
-       "e.g. xscape-prod:cu124-20261011-84df104)" >&2
+       "e.g. xscape-prod:cu124-v1.5)" >&2
   exit 1
 fi
 if [ -n "$STAGGER" ] && ! docker run --rm --entrypoint grep "$IMAGE" -q -e '--stagger)' \

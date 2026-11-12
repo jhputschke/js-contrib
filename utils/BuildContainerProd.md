@@ -470,13 +470,13 @@ partition, one task per stage-1 task directory. Both run `prod_AuAu_0_10_jet` by
 `prod_OO_isr` with `PROD=oo`.
 
 **Why not one SLURM job per production job:** SLURM gives each job whole GPUs. With the
-current images (`cu124-20261013-9e84450` and the other two of 2026-10-14) one production job keeps a GPU only a little busy and
+current images (`cu124-v1.5` and the other two of 2026-11-12) one production job keeps a GPU only a little busy and
 ~1 core busy on average, so a GPU needs ~10 jobs, and only jobs inside one allocation can
 share its GPU. If the site offers GPU sharing (`--gres=shard` or `--gres=mps`), many small
 SLURM jobs are an option too.
 
 ```bash
-apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-20261013-9e84450
+apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-v1.5
 SIF=$PWD/xscape_prod.sif CAMPAIGN=c2 sbatch utils/slurm_prod_array.sh        # 10 tasks = 10 GPUs
 SIF=$PWD/xscape_prod.sif CAMPAIGN=c2 P=8 sbatch --array=0-19 --cpus-per-task=16 --mem=64G \
   utils/slurm_prod_array.sh                                                  # 20 V100s
@@ -687,7 +687,7 @@ one inside the container. Example for a `PbPb_0_10.xml` in `./xml`:
 ```bash
 # Docker
 docker run --rm --gpus all --user "$(id -u):$(id -g)" \
-  -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu124-20261013-9e84450 \
+  -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work" jhputschke/xscape-prod:cu124-v1.5 \
   python run_prod_jet.py --user-xml /xml/PbPb_0_10.xml \
     --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
 
@@ -698,7 +698,7 @@ apptainer exec --nv --pwd "$PROD" --bind "$PWD/xml:/xml,$SCRATCH/prod:/work" xsc
     --events 25 --seed 1 --out PbPb_0_10_jet_seed0001.h5 --outdir /work/out
 
 # a campaign: run_jobs.sh passes the arguments after OUTDIR on to run_prod_jet.py
-... jhputschke/xscape-prod:cu124-20261013-9e84450 \
+... jhputschke/xscape-prod:cu124-v1.5 \
   ./run_jobs.sh -j 4 --campaign PbPb 20 25 0 /work/out --user-xml /xml/PbPb_0_10.xml
 ```
 

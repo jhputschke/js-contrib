@@ -198,17 +198,16 @@ apptainer exec --nv --pwd "$PROD" --bind "$W:/work" <arm64 image> \
   [*The LBT table cache with Apptainer and SLURM*](README_2stage.md#the-lbt-table-cache-with-apptainer-and-slurm).
 
 **The image:**
-- **Use the published arm64 images of 2026-10-14:** `cu130` = `cu130-20261013-9e84450`
-  (`sha256:76c02874…`, R580+ driver) or `cu126` = `cu126-20261013-9e84450`
-  (`sha256:2e870cac…`, R560+). Both are built from the merged branches (X-SCAPE `9e84450`,
-  MUSIC4GPU `46dad43`, iSS `98deaff`), with Matter's qhat guard and the iSS leak fix, and both
-  include sm_90. Pick by DeltaAI's driver (`nvidia-smi`); full digests in
+- **Use the published arm64 images of js-contrib v1.5 (2026-11-12):** `cu130-v1.5`
+  (`sha256:e9dca79e…`, R580+ driver) or `cu126-v1.5` (`sha256:e88a83d3…`, R560+). Both are
+  built from X-SCAPE `2e6e334e`, MUSIC4GPU `1c99bee`, iSS `0be6daf`, and both include sm_90.
+  (The 2026-10-14 tags named here before are no longer on Docker Hub.) Pick by DeltaAI's driver (`nvidia-smi`); full digests in
   [README_2stage.md](README_2stage.md) §1.
 - **A locally built GB10 image** must include sm_90 as well: the GB10 is sm_121, the GH200
   sm_90, and an image built only for the GB10 can't run MUSIC4GPU's kernels on DeltaAI. Check
   with `cuobjdump --list-elf` on `libmusic`, or run a 1-event job.
-- **Not run yet:** neither the 2026-10-14 images nor anything on a GH200. Au+Au output of these
-  images is bit-identical to `cu124-final_optim`, the image the 3090 numbers come from.
+- **Not run yet:** neither the v1.5 images nor anything on a GH200. The 3090 numbers come from
+  `cu124-final_optim`; v1.5 changes physics output against it (README_2stage.md §1).
 
 ---
 
@@ -251,7 +250,7 @@ apptainer exec --nv --pwd "$PROD" --bind "$W:/work" <arm64 image> \
 W=<your directory on /work/hdd>          # bound to /work in the container
 PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 mkdir -p $W/lbt_cache
-apptainer exec --nv --pwd "$PROD" --bind "$W:/work" xscape-prod_cu124-20261013-9e84450.sif \
+apptainer exec --nv --pwd "$PROD" --bind "$W:/work" xscape-prod_cu124-v1.5.sif \
   env OMP_NUM_THREADS=2 OMP_WAIT_POLICY=passive MUSIC_CUDA_SYNC=block \
       LBT_TABLE_CACHE=/work/lbt_cache/lbt_tables_v1_amd64.bin \
   ./run_jobs.sh -j 10 --mps --stagger 12 --campaign <name> NJOBS 45 0 /work/<name> \
@@ -270,15 +269,14 @@ apptainer exec --nv --pwd "$PROD" --bind "$W:/work" xscape-prod_cu124-20261013-9
 - **`--pwd`, `--bind` and the LBT cache:** as on DeltaAI (§5), with an `amd64` cache file.
 
 **The image:**
-- **`cu124` = `cu124-20261013-9e84450`**, `sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58`
-  (amd64, sm_70–90 + PTX, R550+ driver), from the merged branches with Matter's qhat guard and
-  the iSS leak fix. Pull once into a `.sif`:
+- **`cu124-v1.5`**, `sha256:fe3cbbc8059276f773cb3eda66709f74e7e668f935330fcbe820253b751eeaa3`
+  (amd64, sm_70–90 + PTX, R550+ driver), js-contrib v1.5. Pull once into a `.sif`:
   ```bash
-  apptainer pull xscape-prod_cu124-20261013-9e84450.sif \
-      docker://jhputschke/xscape-prod@sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58
+  apptainer pull xscape-prod_cu124-v1.5.sif \
+      docker://jhputschke/xscape-prod@sha256:fe3cbbc8059276f773cb3eda66709f74e7e668f935330fcbe820253b751eeaa3
   ```
-- **Not run yet** on an A40; Au+Au output is bit-identical to `cu124-final_optim`, the image the
-  3090 numbers come from.
+- **Not run yet** on an A40. The 3090 numbers come from `cu124-final_optim`; v1.5 changes
+  physics output against it (README_2stage.md §1).
 
 ---
 

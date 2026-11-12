@@ -42,39 +42,35 @@ themselves (variants, building, testing) in
 
 ### Images
 
-> **Image status (2026-10-14).** All three variants were rebuilt on 2026-10-14 from the merged
-> branches (X-SCAPE `contrib` `9e84450`, MUSIC4GPU `XSCAPE` `46dad43`, js-contrib `main`
-> `e8997c7`; iSS `98deaff`, 3dMCGlauber `b99d680`; `docker-prod.yml` run 38487241588). They
-> have everything this guide describes: the speed-ups of 2026-10-11/12
-> ([§2](#what-the-current-image-does-differently-final_optim)), and, new against the image
-> before (`cu124-final_optim`), Matter's guard against a qhat lookup before t = 0
-> (`8c975d37`) and the iSS leak fix (iSS `98deaff`). Au+Au output is bit-identical to
-> `cu124-final_optim`, so its numbers hold: **2,160 events/h** on 2 × RTX 3090. The two fixes
-> matter for O+O (ISR, and long jobs with iSS in the job;
-> [§8](#8-oo-with-initial-state-radiation-prod_oo_isr)).
+> **Image status (2026-11-12): the js-contrib v1.5 images.** All three variants were built on
+> 2026-11-12 for the js-contrib release v1.5 (`docker-prod.yml` run 43246716452): X-SCAPE
+> `contrib` `2e6e334e`, MUSIC4GPU `1c99bee`, js-contrib `v1.5` `a29e7a8`, iSS `0be6daf`,
+> 3dMCGlauber `b99d680`. Their labels and `BUILD_INFO.txt` say `v1.5`.
 >
-> | tag (the moving tag = the dated one) | digest | CPU arch | built | sm_70 (V100) | Pelican | memory fixes | 64×64×32 grid, edge flag | CPU fixes, restart | C4, late Δτ, A12 | Matter t < 0 guard, iSS leak fix |
-> |---|---|---|---|---|---|---|---|---|---|---|
-> | **`cu124` = `cu124-20261013-9e84450`** | `sha256:2cf57f75…` | amd64 | 2026-10-14 | yes | yes | yes | yes | yes | yes | **yes** |
-> | **`cu126` = `cu126-20261013-9e84450`** | `sha256:2e870cac…` | amd64, arm64 | 2026-10-14 | yes | yes | yes | yes | yes | yes | **yes** |
-> | **`cu130` = `cu130-20261013-9e84450`** | `sha256:76c02874…` | amd64, arm64 | 2026-10-14 | no (CUDA 13) | yes | yes | yes | yes | yes | **yes** |
-> | `cu124-final_optim` = `cu124-20261013-9f4b419` | `sha256:91c04102…` | amd64 | 2026-10-13 | yes | yes | yes | yes | yes | yes | no |
-> | `cu124-20261003-cbc7263` | | amd64 | 2026-10-03 | yes | yes | yes | no | no | no | no |
-> | `cu126-20260930-d31946c`, `cu130-20260930-d31946c` | | amd64, arm64 | 2026-09-30 | **no** | **no** | **no** (~20 GB per job) | no | no | no | no |
+> | tag (= the moving tag = the dated one) | digest | CPU arch | built | sm_70 (V100) |
+> |---|---|---|---|---|
+> | **`cu124-v1.5`** = `cu124` = `cu124-20261112-2e6e334` | `sha256:fe3cbbc8…` | amd64 | 2026-11-12 | yes |
+> | **`cu126-v1.5`** = `cu126` = `cu126-20261112-2e6e334` | `sha256:e88a83d3…` | amd64, arm64 | 2026-11-12 | yes |
+> | **`cu130-v1.5`** = `cu130` = `cu130-20261112-2e6e334` | `sha256:e9dca79e…` | amd64, arm64 | 2026-11-12 | no (CUDA 13) |
 >
-> Full digests: `cu124` `sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58`,
-> `cu126` `sha256:2e870cacbddef12d2f675f206bc54cfb49b7c1f3822e19c487936be93da8fe0f`,
-> `cu130` `sha256:76c02874c775dbc00b1d05cd4148bfa239a1e639b115f28208e20cc8970a828a`.
+> Full digests: `cu124-v1.5` `sha256:fe3cbbc8059276f773cb3eda66709f74e7e668f935330fcbe820253b751eeaa3`,
+> `cu126-v1.5` `sha256:e88a83d376f77a86ec724e26cc9766eda65877ae332ef836949acffdb8a38436`,
+> `cu130-v1.5` `sha256:e9dca79e4615ae19c0d87caedf5da40b071fe8c7ca794309c5c787820799fa67`.
 >
-> - **Pin the digest** for a campaign (`jhputschke/xscape-prod@sha256:2cf57f75…`), and record it:
->   the files don't say which image made them.
-> - **Not run on a machine yet:** the 2026-10-14 images. Their hydro code is that of
->   `cu124-final_optim`, which the 3090 numbers were measured with; the one short run per
->   cluster GPU type ([`REPORT_SUMMARY_CLUSTER.md`](REPORT_SUMMARY_CLUSTER.md)) is still to do.
-> - Everything is merged: MUSIC4GPU `final_optim` into `XSCAPE` (PR #22, `46dad43`), X-SCAPE
->   `final_optim` into `contrib` (PR #171, `9e84450`), js-contrib into `main` (PR #60,
->   `e8997c7`). Images built from `contrib` before 2026-10-13 have the CPU fixes and the
->   restart, not C4, the late step or A12.
+> - **Not run on a machine yet.** The v1.5 images change physics output against the images
+>   of 2026-10-14 (among others the liquefier deposits in the Bjorken frame by default, #189;
+>   energy loss starts at the hydro tau0, #174; colour flow, #181/#182; see the
+>   [changes page](https://jhputschke.github.io/js-contrib/reference/changes/)). The rates and
+>   numbers of this guide were measured with `cu124-final_optim` (2,160 Au+Au events/h on
+>   2 × RTX 3090) and are not re-measured with v1.5.
+> - **Pin the tag `-v1.5` or the digest** for a campaign, and record it: the files don't say
+>   which image made them.
+> - **The older tags are gone from Docker Hub** (2026-09-30 to 2026-11-03, `cu124-final_optim`);
+>   their digests still pull for now (untagged images can be removed by Docker Hub):
+>   2026-10-14 `cu124` `sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58`,
+>   `cu126` `sha256:2e870cacbddef12d2f675f206bc54cfb49b7c1f3822e19c487936be93da8fe0f`,
+>   `cu130` `sha256:76c02874c775dbc00b1d05cd4148bfa239a1e639b115f28208e20cc8970a828a`;
+>   `cu124-final_optim` `sha256:91c04102fe465849ba76b8b48730345798e3c878c500044d6e092d593ff48eb5`.
 
 | tag | CUDA | GPUs | CPU arch | host driver |
 |---|---|---|---|---|
@@ -86,8 +82,8 @@ themselves (variants, building, testing) in
   are current (box above): `cu124` runs on every driver from R550 on, `cu126` where the driver
   supports ≥ 12.6, `cu130` (R580+) for Blackwell and arm64. There is no performance difference
   to expect between `cu124` and `cu126`.
-- **For a campaign, use a dated tag or the digest**, e.g. `cu124-20261013-9e84450` /
-  `@sha256:2cf57f75…`, and the same one on every machine: the moving tags (`cu124`) change
+- **For a campaign, use a release tag or the digest**, e.g. `cu124-v1.5` /
+  `@sha256:fe3cbbc8…`, and the same one on every machine: the moving tags (`cu124`) change
   with every build, and different builds can differ in the last digits, or more (the late
   time step changes the medium at 1e-3, [§2](#musics-late-time-step-on-by-default)). Run the
   whole campaign on GPUs: MUSIC's CPU path differs systematically from the GPU path (~0.2% in
@@ -369,8 +365,8 @@ earlier code). None of them changes the output:
 
 ```bash
 mkdir -p ~/prod/lbt_cache
-docker pull jhputschke/xscape-prod:cu124-20261013-9e84450
-IMG=jhputschke/xscape-prod@sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58   # = cu124-20261013-9e84450
+docker pull jhputschke/xscape-prod:cu124-v1.5
+IMG=jhputschke/xscape-prod@sha256:fe3cbbc8059276f773cb3eda66709f74e7e668f935330fcbe820253b751eeaa3   # = cu124-v1.5
 
 # a test: 2 jobs x 1 event, both at once, seeds 1 and 2
 docker run --rm --gpus all --user "$(id -u):$(id -g)" \
@@ -401,7 +397,7 @@ docker logs -f xscape          # progress;  docker stop xscape  stops it cleanly
 ### Apptainer (HPC)
 
 ```bash
-apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-20261013-9e84450
+apptainer pull xscape_prod.sif docker://jhputschke/xscape-prod:cu124-v1.5
 PROD=/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 mkdir -p $SCRATCH/prod
 
@@ -557,7 +553,7 @@ Under SLURM, if `CUDA_VISIBLE_DEVICES` is already set (e.g. `2,3`), use those nu
 ```bash
 cd js-contrib/utils
 # c1 settings of §4, 60 jobs x 45 events (a multiple of 20 jobs), ~1.2 h; pin the image
-IMAGE=jhputschke/xscape-prod:cu124-20261013-9e84450 \
+IMAGE=jhputschke/xscape-prod:cu124-v1.5 \
 nohup ./launch_2gpu.sh 60 45 0 /data/camp_pth3 --campaign pth3 \
     --pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 \
     --write-particlize both > /data/camp_pth3.log 2>&1 &
