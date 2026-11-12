@@ -145,7 +145,7 @@ MUSIC papers above and the repository. Code: [MUSIC](https://github.com/MUSIC-fl
   for relativistic heavy-ion collisions*, Comput. Phys. Commun. 199, 61 (2016),
   [arXiv:1409.8164](https://arxiv.org/abs/1409.8164) (iSS).
 
-Code: [iSS](https://github.com/jhputschke/iSS) (branch `smash_ready`, the version X-SCAPE
+Code: [iSS](https://github.com/jhputschke/iSS) (branch `sampling_omp`, the version X-SCAPE
 fetches).
 
 ## Hadronic transport

@@ -22,7 +22,7 @@ the PyJetscape bindings and so need a current `pyjetscape_core`.
 |---|---|---|
 | X-SCAPE | [JETSCAPE/X-SCAPE](https://github.com/JETSCAPE/X-SCAPE), branch `contrib` | the framework and the C++ physics modules (MATTER, LBT, liquefier, hadronization, …) |
 | MUSIC4GPU | [jhputschke/MUSIC4GPU](https://github.com/jhputschke/MUSIC4GPU), branch `XSCAPE` | MUSIC viscous hydro with CUDA and Metal back ends |
-| iSS | [jhputschke/iSS](https://github.com/jhputschke/iSS), branch `smash_ready` | Cooper–Frye particlization (oversampling, SMASH-ready output) |
+| iSS | [jhputschke/iSS](https://github.com/jhputschke/iSS), branch `sampling_omp` | Cooper–Frye particlization (oversampling, SMASH-ready output, correlated sampling on threads) |
 | 3D MC-Glauber | [jhputschke/3dMCGlauber](https://github.com/jhputschke/3dMCGlauber), branch `cap_hard_quark_draws` | the initial state |
 | LBT tables | [JETSCAPE/LBT-tables](https://github.com/JETSCAPE/LBT-tables) | LBT's scattering tables (fetched by `get_lbtTab.sh`, or `xscape-fetch-data lbt` with the wheel) |
 | js-contrib | [jhputschke/js-contrib](https://github.com/jhputschke/js-contrib) | this package: bindings, drivers, productions, tools, analysis |
