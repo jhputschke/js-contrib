@@ -106,6 +106,7 @@ def parse_args() -> argparse.Namespace:
     add_seed_args(p, "3dMCGlauber")
     add_workdir_args(p)
     add_h5_args(p)
+    add_active_region_arg(p)
     return p.parse_args()
 
 
@@ -136,6 +137,37 @@ def add_eloss_threads_arg(p: argparse.ArgumentParser, default: int | None = None
                         "its own random streams and colour tags): use one setting for all "
                         "jobs of a campaign. Needs X-SCAPE with <Eloss><nThreads> in its "
                         "main XML (branch eloss_omp)")
+
+
+def add_active_region_arg(p: argparse.ArgumentParser) -> None:
+    """--active-region for the drivers (MUSIC4GPU <Hydro><MUSIC><active_region_eps>)."""
+    p.add_argument("--active-region", type=float, default=None, dest="active_region",
+                   metavar="EPS",
+                   help="MUSIC <active_region_eps> [GeV/fm^3]: the GPU evolves only the "
+                        "blocks of 8 x 8 x 4 cells within 3 cells of matter (e > EPS, e.g. "
+                        "1e-5) or of a source, and keeps the vacuum frozen (CUDA builds; "
+                        "Metal and the CPU evolve the whole grid). 0: the whole grid. "
+                        "Default: the XML's (0). Differs from 0 at the vacuum level only, "
+                        "but use one setting for all jobs of a campaign. Needs X-SCAPE with "
+                        "<active_region_eps> in its main XML (branch active_region)")
+
+
+def apply_active_region(a, music, main_xml: str) -> list:
+    """Put --active-region into the job XML's first <Hydro><MUSIC> block (every MUSIC
+    instance reads it there); returns problems."""
+    if a.active_region is None:
+        return []
+    if a.active_region < 0:
+        return ["--active-region must be >= 0"]
+    if ET.parse(main_xml).getroot().find("Hydro/MUSIC/active_region_eps") is None:
+        return [f"--active-region is set, but {main_xml} has no <Hydro><MUSIC>"
+                "<active_region_eps> (X-SCAPE without the active region, branch "
+                "active_region): drop it, or update X-SCAPE"]
+    node = music.find("active_region_eps")
+    if node is None:
+        node = ET.SubElement(music, "active_region_eps")
+    node.text = f" {a.active_region:g} "
+    return []
 
 
 def apply_eloss_threads(a, root, main_xml: str, default: int | None = None) -> list:
@@ -337,6 +369,9 @@ def job_xml(a, out_h5: str):
         node = music.find(tag)
         if node is None or node.text.strip() != want:
             sys.exit(f"run_prod.py: {a.user_xml}: <Hydro><MUSIC><{tag}> must be {want}")
+    problems = apply_active_region(a, music, a.main_xml)
+    if problems:
+        sys.exit(f"run_prod.py: {a.user_xml}: " + "; ".join(problems))
     for tag in ("Eloss", "SoftParticlization", "Afterburner", "RootBulkWriter",
                 "FastRootBulkWriter"):
         if root.find(tag) is not None:

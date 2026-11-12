@@ -328,6 +328,31 @@ production XMLs of `prod_AuAu_0_10_jet` and `prod_OO_isr`).
 - **In the log**, for every MUSIC run: `late step: delta_tau 0.02 -> 0.05 fm/c at step 130
   (tau = 3 fm/c), facTau 5 -> 2, a frame every 2 steps`.
 
+### The GPU active region (opt-in, off by default)
+
+`--active-region EPS` (all three drivers; `<Hydro><MUSIC><active_region_eps>` in the XML): the GPU
+evolves only the blocks of 8 × 8 × 4 cells within 3 cells of matter (e > EPS GeV/fm³, e.g. 1e-5)
+or of a source, and keeps the vacuum frozen (C3, MUSIC4GPU `README_CUDA.md` Phase 8). CUDA builds
+only; Metal and the CPU evolve the whole grid. Not set, or 0: the whole grid, as before.
+- **Gain** (GPU kernel time, GB10): Au+Au 0–10 % ×0.69 with the late step, ×0.74 with a
+  constant step (`--late-dtau 0`); O+O ±10.5 fm ×0.47. It pays where the GPU is the limit; a job
+  alone gains less (Au+Au step −11 %, O+O job −19 %).
+- **The two time-step modes:** C3 makes each step cheaper, the late step makes fewer steps; the
+  gains multiply (×0.35 of the GPU time with both). The share of the grid with matter grows with
+  τ (Au+Au: 40 % of the blocks before 3 fm/c, 66 % after), so C3 saves least on late steps. With
+  a constant step it therefore saves more GPU time (4.4 s against 2.7 s per 2-event job) but a
+  smaller fraction (×0.74 against ×0.69), as most constant steps are late ones.
+- **What changes** (against 0, same seeds, 32 Au+Au jet events): backgrounds at the
+  float-rounding level (energy-weighted |Δe|/e 1e-6, surfaces within 8 elements); the same
+  showers; the wake field δe within 0.2 % cell by cell; the wake energy unbiased
+  (+0.0006 ± 0.0053 of the deposit) but scattered by 1.2 % per event (median, 5.8 % at 90 %),
+  from the dilute shell (1e-3–0.24 GeV/fm³). Hadron-level checks are still to be done.
+- **One setting per campaign**, as for the late step; the job XML records it.
+- **With the restart:** a checkpoint forces a rebuild of the region, so the jet leg evolves the
+  same blocks as its background (leading frames identical, `MUSIC_RESTART_VERIFY=1` as before).
+- **In the log**, for every MUSIC run: `GPU active region (active_region_eps = 1e-05 GeV/fm^3,
+  halo 3): 59.8 % of the blocks on average over 106 rebuilds (…)`.
+
 ### Launch settings for several jobs per GPU
 
 **The quick way: [`utils/prodwizard.py`](../utils/prodwizard.py).** Pick a production

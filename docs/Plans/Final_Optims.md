@@ -1,5 +1,20 @@
 # Final optimizations: what is left for the O+O and Au+Au jet productions (2026-10-12)
 
+> **Status (2026-11-12).** C4 and D1 are done and on in the production XMLs (MUSIC4GPU #22,
+> X-SCAPE #171; measured in [REPORT_FINAL_OPTIM.md](../REPORT_FINAL_OPTIM.md): Au+Au campaign
+> 1,271 → 2,160 events/h on 2 × RTX 3090). **C3 is implemented as an opt-in** (MUSIC4GPU,
+> X-SCAPE and js-contrib branches `active_region`; `<Hydro><MUSIC><active_region_eps>`, the
+> drivers' `--active-region EPS`): 8 × 8 × 4 blocks with no cell above EPS (or with a source)
+> within 3 cells skip all seven step kernels, and their cells stay frozen. Measured on the GB10
+> with EPS = 1e-5 GeV/fm³, GPU kernel time of Au+Au 0–10 %: ×0.69 with the late step (D1,
+> production), ×0.74 with a constant step. C3 and D1 multiply (×0.35 together); with a constant
+> step C3 saves more GPU time but a smaller fraction, because the active share grows with τ
+> (40 % of the blocks before 3 fm/c, 66 % after) and most constant steps are late ones. O+O
+> ±10.5 fm: ×0.47 (~30 % active). The 3-cell halo and the dilute fluid keep more active than the
+> plan's 30 % of cells. Not bit-identical through the vacuum: backgrounds at 1e-6, wake field
+> 0.2 %, wake energy unbiased but ±1.2 % per event (median). MUSIC4GPU `README_CUDA.md`, Phase 8.
+> The text below is the plan as written on 2026-10-12.
+
 A last look for speed-ups of `prod_OO_isr` and `prod_AuAu_0_10_jet` after A1–A11, the MUSIC_2
 restart (A8), the O+O grid (C1) and iSS Part C: in MUSIC4GPU, in what the host still does, and
 in how the productions should be run on GPU cluster nodes (WSU Grid, ACCESS). Numbers are from

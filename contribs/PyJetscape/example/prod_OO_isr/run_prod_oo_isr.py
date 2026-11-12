@@ -247,6 +247,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, iMATTER, Matter")
+    rp.add_active_region_arg(p)
     rp.add_eloss_threads_arg(p, default=ELOSS_THREADS_DEFAULT)
     rp.add_workdir_args(p)
     rp.add_h5_args(p)
@@ -341,6 +342,7 @@ def job_xml(a, out_h5: str):
             _set(m, "late_delta_tau", a.late_dtau)
         if a.late_tau is not None:
             _set(m, "late_tau_switch", a.late_tau)
+        problems += rp.apply_active_region(a, m, a.main_xml)
         surf = not a.no_particlize or a.bulk_hadrons > 0
         _set(m, "freeze_out_surface", int(surf))
         _set(m, "skip_surface", int(not surf))
