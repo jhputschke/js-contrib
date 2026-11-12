@@ -2479,6 +2479,8 @@
       
         
       
+        
+      
     
     
     
@@ -2576,6 +2578,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -3499,7 +3529,7 @@ cores, GPU and memory. These are the measured best values:</p>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p>One RTX 3090-class GPU, Au+Au campaign setting (one <code>run_jobs.sh</code> per GPU):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>/scratch/lbt_cache
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>/scratch/lbt_cache
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">3</span><span class="w"> </span><span class="nv">MUSIC_CUDA_SYNC</span><span class="o">=</span>block<span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/scratch/lbt_cache/lbt_tables_v1.bin<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span>./run_jobs.sh<span class="w"> </span>-j<span class="w"> </span><span class="m">10</span><span class="w"> </span>--mps<span class="w"> </span>--stagger<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="m">60</span><span class="w"> </span><span class="m">45</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>out_c<span class="w"> </span>--pthat-bins<span class="w"> </span><span class="m">10</span>-20,20-30,30-40<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>--jets-per-bin<span class="w"> </span><span class="m">5</span><span class="w"> </span>--parton-ymax<span class="w"> </span><span class="m">0</span>.6<span class="w"> </span>--write-particlize<span class="w"> </span>both
@@ -3509,13 +3539,13 @@ cores, GPU and memory. These are the measured best values:</p>
 defaults (Au+Au: 10 jobs and 3 threads per GPU, the LBT cache, <code>--stagger 12</code>).</p>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="nv">OMP_WAIT_POLICY</span><span class="o">=</span>passive<span class="w"> </span><span class="nv">MUSIC_CUDA_SYNC</span><span class="o">=</span>block<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="nv">OMP_WAIT_POLICY</span><span class="o">=</span>passive<span class="w"> </span><span class="nv">MUSIC_CUDA_SYNC</span><span class="o">=</span>block<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>./run_jobs.sh<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--mps<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">0</span>
 </code></pre></div>
 <p>For O+O: <code>OMP_NUM_THREADS=2</code> and <code>-j 8 --mps</code>.</p>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/path/on/local/disk/lbt_tables_v1.bin
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">export</span><span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/path/on/local/disk/lbt_tables_v1.bin
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="nv">OMP_WAIT_POLICY</span><span class="o">=</span>passive<span class="w"> </span><span class="nv">KMP_BLOCKTIME</span><span class="o">=</span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>./run_jobs.sh<span class="w"> </span>-j<span class="w"> </span><span class="m">3</span><span class="w"> </span>--campaign<span class="w"> </span><span class="nb">test</span><span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="m">25</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>~/xscape/prod/out
 </code></pre></div>

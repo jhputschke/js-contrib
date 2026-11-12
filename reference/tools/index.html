@@ -15,7 +15,7 @@
         <link rel="prev" href="../contribs/">
       
       
-        <link rel="next" href="../changes/">
+        <link rel="next" href="../ai-assistants/">
       
       
         
@@ -2268,6 +2268,8 @@
       
         
       
+        
+      
     
     
     
@@ -2464,6 +2466,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#comparing-files-h5_comparepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparing files: h5_compare.py
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#moving-files-osdf-and-google-cloud-storage" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2489,6 +2502,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -2628,6 +2669,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#comparing-files-h5_comparepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparing files: h5_compare.py
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#moving-files-osdf-and-google-cloud-storage" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2730,7 +2782,7 @@ the command's name). <code>xscape-utils DEST</code> copies <code>utils/</code> t
 <p>You choose a production preset and a machine. The wizard writes the launch command with the
 settings measured on that machine. It estimates events per hour, duration, disk and memory
 (each marked measured or estimated) and checks the plan. <strong>It never starts jobs.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>utils/prodwizard.py<span class="w"> </span>--list<span class="w">                                  </span><span class="c1"># presets and machines</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python<span class="w"> </span>utils/prodwizard.py<span class="w"> </span>--list<span class="w">                                  </span><span class="c1"># presets and machines</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>python<span class="w"> </span>utils/prodwizard.py<span class="w"> </span>--preset<span class="w"> </span>auau_jet<span class="w"> </span>--machine<span class="w"> </span>2x3090<span class="w"> </span>--events<span class="w"> </span><span class="m">2000</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>python<span class="w"> </span>utils/prodwizard.py<span class="w"> </span>--preset<span class="w"> </span>oo_hadrons<span class="w"> </span>--machine<span class="w"> </span>slurm_a100<span class="w"> </span>--events<span class="w"> </span><span class="m">10000</span><span class="w"> </span>--save<span class="w"> </span>launch_oo.sh
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>python<span class="w"> </span>utils/prodwizard_tui.py<span class="w">                                     </span><span class="c1"># the same as an interactive wizard (Textual)</span>
@@ -2754,7 +2806,7 @@ settings measured on that machine. It estimates events per hour, duration, disk 
 <code>~/.venvs/xscape</code>), run <code>run_jobs.sh</code> in your copy of the examples, <code>$XSCAPE_EXAMPLES</code>
 (default <code>~/xscape/examples</code>), and watch it with <code>xscape-jobmon</code>. Run inside the wheel's
 environment, the wizard picks <code>mac_wheel</code> by itself; the settings are the M3 Max's.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>xscape-prodwizard<span class="w"> </span>--preset<span class="w"> </span>auau_jet<span class="w"> </span>--machine<span class="w"> </span>mac_wheel<span class="w"> </span>--events<span class="w"> </span><span class="m">300</span><span class="w">    </span><span class="c1"># on a Mac with the wheel</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>xscape-prodwizard<span class="w"> </span>--preset<span class="w"> </span>auau_jet<span class="w"> </span>--machine<span class="w"> </span>mac_wheel<span class="w"> </span>--events<span class="w"> </span><span class="m">300</span><span class="w">    </span><span class="c1"># on a Mac with the wheel</span>
 </code></pre></div>
 <h2 id="launching">Launching<a class="headerlink" href="#launching" title="Permanent link">¶</a></h2>
 <table>
@@ -2789,7 +2841,7 @@ environment, the wizard picks <code>mac_wheel</code> by itself; the settings are
 (logs and <code>.json</code>). It reports jobs done, running and failed, events per hour, ETA, disk per
 event, the machine's GPUs and memory, and the most frequent warnings. It also flags failed
 jobs with their last log lines.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w">                 </span><span class="c1"># one summary; exit code 1 if a job failed or is flagged</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w">                 </span><span class="c1"># one summary; exit code 1 if a job failed or is flagged</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w"> </span>--watch<span class="w">         </span><span class="c1"># live view, refreshed every 10 s</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>python<span class="w"> </span>utils/jobmon.py<span class="w"> </span>out/<span class="w"> </span>--tui<span class="w">           </span><span class="c1"># terminal UI: sortable job table, live log, problems tab</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>xscape-jobmon<span class="w"> </span>out/<span class="w"> </span>--tui<span class="w">                    </span><span class="c1"># the same with the Mac wheel</span>
@@ -2802,11 +2854,43 @@ This is a rare failure that leaves no log message.</p>
 and attributes. For the js-contrib hydro formats it also summarises the grid, the axes, the
 freeze-out, the <code>shower/</code>, <code>source/</code> and <code>diag/</code> tables, and flags inconsistencies. It needs
 only h5py and numpy.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>out/AuAu_0_10_jet_seed0001.h5<span class="w">           </span><span class="c1"># summary + tree</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>out/AuAu_0_10_jet_seed0001.h5<span class="w">           </span><span class="c1"># summary + tree</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>FILE.h5<span class="w"> </span>--stats<span class="w"> </span><span class="o">[</span>--event<span class="w"> </span><span class="m">0</span><span class="o">]</span><span class="w">              </span><span class="c1"># per-feature min/max/mean, NaN/inf</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>FILE.h5<span class="w"> </span>--attr<span class="w"> </span>prod_user_xml<span class="w">             </span><span class="c1"># one attribute in full</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>xscape-h5-inspect<span class="w"> </span>FILE.h5<span class="w">                                           </span><span class="c1"># the Mac wheel's command</span>
 </code></pre></div>
+<h2 id="comparing-files-h5_comparepy">Comparing files: <code>h5_compare.py</code><a class="headerlink" href="#comparing-files-h5_comparepy" title="Permanent link">¶</a></h2>
+<p><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/h5_compare.py"><code>h5_compare.py</code></a>
+compares two HDF5 files, or every <code>*.h5</code> of the same name in two directories. It is the check
+after a change that should not alter the output: run the same job with the same seed before and
+after, and compare.</p>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>python<span class="w"> </span>utils/h5_compare.py<span class="w"> </span>A.h5<span class="w"> </span>B.h5<span class="w">                               </span><span class="c1"># datasets and attributes that differ</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>python<span class="w"> </span>utils/h5_compare.py<span class="w"> </span>before/<span class="w"> </span>after/<span class="w"> </span>--ignore-stamps<span class="w">          </span><span class="c1"># two directories; run stamps skipped</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>python<span class="w"> </span>utils/h5_compare.py<span class="w"> </span>A.h5<span class="w"> </span>B.h5<span class="w"> </span>--ignore<span class="w"> </span><span class="s1">'diag/*'</span><span class="w"> </span>--no-attrs<span class="w">  </span><span class="c1"># skip by pattern; datasets only</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>python<span class="w"> </span>utils/h5_compare.py<span class="w"> </span>A.h5<span class="w"> </span>B.h5<span class="w"> </span>--rtol<span class="w"> </span>1e-6<span class="w">                   </span><span class="c1"># floats may differ by 1e-6 (relative)</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>python<span class="w"> </span>utils/h5_compare.py<span class="w"> </span>A.h5<span class="w"> </span>B.h5<span class="w"> </span>-q<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">echo</span><span class="w"> </span>same<span class="w">               </span><span class="c1"># exit code: 0 same, 1 different, 2 error</span>
+</code></pre></div>
+<p>The comparison is bit-exact unless you give a tolerance: a dataset is the same only if shape,
+dtype and every byte agree. For a dataset that differs, the script prints how many values
+differ, the largest absolute and relative difference, and the index of the first one. For an
+attribute it prints both values.</p>
+<p>For example, a hadron file against a copy with three momenta, one cell count and one attribute
+changed:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>datasets:   10 in A, 10 in B; 8 identical, 2 differ
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>  hadrons/p        3 of 1438404 values differ, max |a-b| 9.83e-06, max rel 1e-05, first at [1000, 0]
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>  units/n_cells    1 of 1 values differ, max |a-b| 1, max rel 1.01e-06, first at [0]
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>attributes: 25 in A, 27 in B; 24 identical, 1 differ
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>  @oversample      only in B: 101
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>ignored:    2 (-v lists them)
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>AuAu_0_10_jet_pth10-40_eta06_c1_0013_hadrons_bulk_bg.h5: DIFFERENT (3 differences)
+</code></pre></div>
+<p>Two runs of the same job never agree in everything: the wall times, the UUIDs that tie the
+files of a job together, the host name and the dates differ. <code>--ignore-stamps</code> skips these
+(<code>*wall_s*</code>, <code>*@*uuid*</code>, <code>*@prod_host</code>, <code>*@created</code>, <code>*@updated</code>). <code>--ignore PATTERN</code> skips
+more; a dataset is named by its path (<code>diag/wall_s</code>) and an attribute by <code>PATH@NAME</code>
+(<code>@nevents</code> for a file attribute). Large datasets are read in blocks, so evolution files of
+several GB need about 1 GB of memory. The script needs only h5py and numpy, plus hdf5plugin
+for Blosc-compressed files.</p>
 <h2 id="moving-files-osdf-and-google-cloud-storage">Moving files: OSDF and Google Cloud Storage<a class="headerlink" href="#moving-files-osdf-and-google-cloud-storage" title="Permanent link">¶</a></h2>
 <table>
 <thead>
@@ -3030,13 +3114,13 @@ wheel's environment instead. See <a href="../../run/osdf/">Data on the OSDF</a>.
         
         
           
-          <a href="../changes/" class="md-footer__link md-footer__link--next" aria-label="Next: X-SCAPE changes since 2.1">
+          <a href="../ai-assistants/" class="md-footer__link md-footer__link--next" aria-label="Next: AI assistants">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                X-SCAPE changes since 2.1
+                AI assistants
               </div>
             </div>
             <div class="md-footer__button md-icon">

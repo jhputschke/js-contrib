@@ -2423,6 +2423,8 @@
       
         
       
+        
+      
     
     
     
@@ -2520,6 +2522,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2864,11 +2894,11 @@ allocation can share a GPU, so one SLURM job per production job would leave the 
 idle.</p>
 <p><strong>1. Pull the image</strong> once, on a login node (a <code>.sif</code> holds one CPU architecture; on x86
 login nodes with arm64 GPU nodes such as GH200, add <code>--arch arm64</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>apptainer<span class="w"> </span>pull<span class="w"> </span>xscape_prod.sif<span class="w"> </span>docker://jhputschke/xscape-prod:cu126-&lt;date&gt;-&lt;commit&gt;
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>apptainer<span class="w"> </span>pull<span class="w"> </span>xscape_prod.sif<span class="w"> </span>docker://jhputschke/xscape-prod:cu126-&lt;date&gt;-&lt;commit&gt;
 </code></pre></div>
 <p><strong>2. Make the LBT table cache once</strong> with one 1-event job (otherwise 20 tasks starting
 together each write their own copy; add your site's <code>-p</code>/<code>-A</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">PROD</span><span class="o">=</span>/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nv">PROD</span><span class="o">=</span>/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nv">WORK</span><span class="o">=</span><span class="nv">$SCRATCH</span>/xscape_prod<span class="p">;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$WORK</span>/lbt_cache
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>srun<span class="w"> </span>--gres<span class="o">=</span>gpu:1<span class="w"> </span>--cpus-per-task<span class="o">=</span><span class="m">4</span><span class="w"> </span>--mem<span class="o">=</span>16G<span class="w"> </span>--time<span class="o">=</span><span class="m">0</span>:20:00<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--env<span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/work/lbt_cache/lbt_tables_v1.bin<span class="w"> </span><span class="se">\</span>
@@ -2881,7 +2911,7 @@ together each write their own copy; add your site's <code>-p</code>/<code>-A</co
 and amd64 nodes share a file system, keep one file per architecture
 (<code>LBT_CACHE=/work/lbt_cache/lbt_tables_v1_arm64.bin</code>).</p>
 <p><strong>3. A trial, then the campaign</strong> (from a js-contrib checkout):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># trial: 2 tasks, 2 jobs of 15 events each</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># trial: 2 tasks, 2 jobs of 15 events each</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">SIF</span><span class="o">=</span><span class="nv">$PWD</span>/xscape_prod.sif<span class="w"> </span><span class="nv">CAMPAIGN</span><span class="o">=</span>pth10-40_eta06_c2<span class="w"> </span><span class="nv">NJOBS</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="nv">EVENTS</span><span class="o">=</span><span class="m">15</span><span class="w"> </span><span class="nv">P</span><span class="o">=</span><span class="m">2</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nv">EXTRA_ARGS</span><span class="o">=</span><span class="s2">"--pthat-bins 10-20,20-30,30-40 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span>sbatch<span class="w"> </span>--array<span class="o">=</span><span class="m">0</span>-1<span class="w"> </span>--time<span class="o">=</span><span class="m">2</span>:00:00<span class="w"> </span>utils/slurm_prod_array.sh
@@ -2976,7 +3006,7 @@ GPU-hours, ~2.9 TB of stage-1 files and ~0.9 TB of hadrons.</p>
 <p><a href="https://github.com/jhputschke/js-contrib/blob/main/utils/slurm_hadronize.sh"><code>utils/slurm_hadronize.sh</code></a>
 hadronizes the campaign with the same image, without a GPU: task <em>t</em> runs <code>run_hadronize.py</code>
 on <code>WORK/CAMPAIGN/t&lt;ttt&gt;/</code>, the directory of stage-1 task <em>t</em>, one process per core.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">SIF</span><span class="o">=</span><span class="nv">$PWD</span>/xscape_prod.sif<span class="w"> </span><span class="nv">CAMPAIGN</span><span class="o">=</span>pth10-40_eta06_c2<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">SIF</span><span class="o">=</span><span class="nv">$PWD</span>/xscape_prod.sif<span class="w"> </span><span class="nv">CAMPAIGN</span><span class="o">=</span>pth10-40_eta06_c2<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nv">HAD_ARGS</span><span class="o">=</span><span class="s2">"--oversample 400 --oversample-bg per-pthat-bin --n-frag 50 --keep-bits-p 12 --keep-bits-x 8"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>sbatch<span class="w"> </span>--array<span class="o">=</span><span class="m">0</span>-19<span class="w"> </span>utils/slurm_hadronize.sh
 </code></pre></div>
@@ -2999,7 +3029,7 @@ starts one container per GPU, each running <code>run_jobs.sh</code> with MPS, gu
 upload every finished job to the OSDF while the campaign runs.
 <a href="https://github.com/jhputschke/js-contrib/blob/main/utils/launch_2gpu_oo.sh"><code>utils/launch_2gpu_oo.sh</code></a>
 does the same for O+O. Run them from <code>utils/</code> of a js-contrib checkout:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>js-contrib/utils
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>js-contrib/utils
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># Au+Au with the defaults: 10 jobs per GPU, 3 threads, shared LBT tables, staggered start,</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1"># blocking CUDA sync; 60 jobs x 45 events (a multiple of 20 jobs)</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nv">IMAGE</span><span class="o">=</span>jhputschke/xscape-prod:cu126<span class="w"> </span><span class="se">\</span>
@@ -3011,7 +3041,7 @@ does the same for O+O. Run them from <code>utils/</code> of a js-contrib checkou
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>nohup<span class="w"> </span>./launch_2gpu_oo.sh<span class="w"> </span><span class="m">64</span><span class="w"> </span><span class="m">100</span><span class="w"> </span><span class="m">0</span><span class="w"> </span>/data/OO_had<span class="w"> </span>--campaign<span class="w"> </span>had1<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">    </span>--bulk-hadrons<span class="w"> </span><span class="m">100</span><span class="w"> </span>--no-particlize<span class="w"> </span>--no-hydro-file<span class="w"> </span>&gt;<span class="w"> </span>/data/OO_had.log<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">&amp;</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./launch_2gpu.sh [options] NJOBS EVENTS_PER_JOB [FIRST_SEED] [OUTBASE] [driver / run_jobs.sh options]
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./launch_2gpu.sh [options] NJOBS EVENTS_PER_JOB [FIRST_SEED] [OUTBASE] [driver / run_jobs.sh options]
 </code></pre></div>
 <ul>
 <li><strong>NJOBS</strong> is the total: GPU0 gets the first half, GPU1 the rest. Output goes to
@@ -3033,7 +3063,7 @@ does the same for O+O. Run them from <code>utils/</code> of a js-contrib checkou
 Au+Au at 10 jobs per GPU, 105 GB host memory peak; <strong>13,728 events/h</strong> for O+O with hadron
 files only. Details: <a href="https://github.com/jhputschke/js-contrib/blob/main/utils/README_launch.md"><code>utils/README_launch.md</code></a>.</p>
 <p><strong>By hand, or with Apptainer</strong> (one container for all GPUs, no <code>--mps</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--env<span class="w"> </span><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">3</span>,OMP_WAIT_POLICY<span class="o">=</span>passive,MUSIC_CUDA_SYNC<span class="o">=</span>block<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--env<span class="w"> </span><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">3</span>,OMP_WAIT_POLICY<span class="o">=</span>passive,MUSIC_CUDA_SYNC<span class="o">=</span>block<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>--env<span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/work/lbt_cache/lbt_tables_v1.bin<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>--pwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PROD</span><span class="s2">"</span><span class="w"> </span>--bind<span class="w"> </span><span class="s2">"</span><span class="nv">$SCRATCH</span><span class="s2">/prod:/work"</span><span class="w"> </span>xscape_prod.sif<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s1">'</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="s1">  trap "kill \$(jobs -p) 2&gt;/dev/null; wait" INT TERM</span>
@@ -3048,7 +3078,7 @@ what the jobs write (their logs, <code>.json</code> summaries and the <code>run_
 done / running / failed, events, events/h, the ETA, disk per event, the failed jobs with their
 last log lines, the deposition check, edge hits, skipped events and the most frequent
 warnings. It works on Docker, SLURM and Mac output alike, during a run or after.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w">                  </span><span class="c1"># OUTBASE: its gpu0/, gpu1/, ... (or t000/, ...) are taken</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w">                  </span><span class="c1"># OUTBASE: its gpu0/, gpu1/, ... (or t000/, ...) are taken</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w"> </span>--njobs<span class="w"> </span><span class="m">100</span><span class="w">      </span><span class="c1"># count the jobs not started yet too</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w"> </span>--watch<span class="w">          </span><span class="c1"># live view, every 10 s</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>utils/jobmon.py<span class="w"> </span>/data/c1<span class="w"> </span>--tui<span class="w">            </span><span class="c1"># terminal UI: sort, filter, a job's details and live log</span>
@@ -3069,7 +3099,7 @@ the TUI runs in a browser: <code>textual serve "utils/jobmon.py /data/c1 --tui"<
 <p><strong>The deposition check.</strong> Once, in ~250 campaign jobs, all events of one job lost almost no
 jet energy (1–5 droplets per event instead of 13–34), with a correct background and no
 warning in the log; the same seed alone was normal. Check every campaign for it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>utils/check_deposition.py<span class="w"> </span>/work/AuAu_a<span class="w">                     </span><span class="c1"># every job summary below it</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>utils/check_deposition.py<span class="w"> </span>/work/AuAu_a<span class="w">                     </span><span class="c1"># every job summary below it</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>utils/check_deposition.py<span class="w"> </span>/data/c1/gpu0<span class="w"> </span>/data/c1/gpu1<span class="w">      </span><span class="c1"># one campaign in two directories</span>
 </code></pre></div>
 <p>It flags a job whose droplets per event fall below half the campaign's median (<code>--fraction</code>)

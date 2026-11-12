@@ -2468,6 +2468,8 @@
       
         
       
+        
+      
     
     
     
@@ -2565,6 +2567,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2878,7 +2908,7 @@ subtract, and no pairing of separate runs. The physics behind it:
   enters the fluid (<code>diag/E_droplets_late</code>).</li>
 </ul>
 <h2 id="2-reading-a-pair">2. Reading a pair<a class="headerlink" href="#2-reading-a-pair" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>            <span class="c1"># hdf5plugin: without it Blosc data won't read</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="s2">"AuAu_0_10_jet_c1_0001.h5"</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
@@ -2917,7 +2947,7 @@ subtract, and no pairing of separate runs. The physics behind it:
 <h3 id="fasthydros-pairbrowser-optional">FastHydro's <code>PairBrowser</code> (optional)<a class="headerlink" href="#fasthydros-pairbrowser-optional" title="Permanent link">¶</a></h3>
 <p>With FastHydro's readers installed (<code>setup_analysis_env.sh --with-fasthydro</code>), a pair file opens
 in a browser that checks the premise and answers the common questions:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fasthydro.browse</span><span class="w"> </span><span class="kn">import</span> <span class="n">PairBrowser</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fasthydro.browse</span><span class="w"> </span><span class="kn">import</span> <span class="n">PairBrowser</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="k">with</span> <span class="n">PairBrowser</span><span class="p">(</span><span class="s2">"AuAu_0_10_jet_seed0001.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">p</span><span class="p">:</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>      <span class="c1"># identical IC?, first differing frame, droplets, deposited E, freeze-out times</span>
@@ -2930,7 +2960,7 @@ of a pair file (<code>wake_pyvista.py</code>, <code>hydro_jet_particles_pyvista.
 <p><a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/wake_observables.py"><code>analysis/wake_observables.py</code></a>
 reads each pair file once and writes a small <code>wake_observables.h5</code>; the notebook makes the
 figures from it alone, so a new figure never needs another pass over the data:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python<span class="w"> </span>wake_observables.py<span class="w"> </span>/path/to/campaign<span class="w"> </span>-j<span class="w"> </span><span class="m">10</span><span class="w"> </span>-o<span class="w"> </span>/path/to/campaign/wake_observables.h5
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nv">WAKE_OBS</span><span class="o">=</span>/path/to/campaign/wake_observables.h5<span class="w"> </span>jupyter<span class="w"> </span>lab<span class="w"> </span>wake_observables.ipynb
 </code></pre></div>
@@ -2982,7 +3012,7 @@ the particlize file, unit i of <code>bulk_jet</code> and of <code>jet_frag</code
 not the events'). In the pair file <code>arr_bg[i]</code> already resolves a shared background.
 <code>HadronFileReader</code> numbers events over the whole campaign, and its <code>event_info</code> leads back to the
 job and the local event:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFileReader</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.particlize_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">ParticlizeFile</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
@@ -3012,7 +3042,7 @@ the fragments (<code>fragments=True</code>). Jet-relative observables use the ev
 <p>For a campaign, <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/wake_hadrons.py"><code>analysis/wake_hadrons.py</code></a>
 does the same in one pass and writes <code>wake_hadrons.h5</code>, which <code>wake_hadrons.ipynb</code> turns into
 figures together with <code>wake_observables.h5</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>python<span class="w"> </span>wake_hadrons.py<span class="w"> </span>/path/to/campaign<span class="w"> </span>-j<span class="w"> </span><span class="m">10</span><span class="w"> </span>-o<span class="w"> </span>/path/to/campaign/wake_hadrons.h5
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nv">WAKE_HAD</span><span class="o">=</span>/path/to/campaign/wake_hadrons.h5<span class="w"> </span><span class="nv">WAKE_OBS</span><span class="o">=</span>/path/to/campaign/wake_observables.h5<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>jupyter<span class="w"> </span>lab<span class="w"> </span>wake_hadrons.ipynb
@@ -3082,7 +3112,7 @@ and scipy (and <code>jetscape</code> for the hadron section):</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/prod_AuAu_0_10_jet
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/prod_AuAu_0_10_jet
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">WAKE_H5</span><span class="o">=</span>/path/to/AuAu_0_10_jet_seed0001.h5<span class="w"> </span>jupyter<span class="w"> </span>lab<span class="w"> </span>jet_wake.ipynb
 </code></pre></div>
 <p><code>WAKE_H5</code> names the pair file; the hadron section looks for <code>&lt;stem&gt;_particlize.h5</code> and the three
@@ -3144,7 +3174,7 @@ measures how far those hadrons are from the correct ones: iSS on MUSIC's own sur
 <p>It needs an X-SCAPE build with iSS and PyJetscape (as for <code>hadronize.py</code>; see
 <a href="../../install/source/">Source build</a>), and a production directory made with
 <code>run_prod_jet.py --write-particlize both</code> plus its reference hadrons:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/hydro_hist_vs_surface
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/hydro_hist_vs_surface
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">PYTHON</span><span class="o">=</span><span class="k">$(</span>which<span class="w"> </span>python<span class="k">)</span><span class="w"> </span>./run_study.sh<span class="w"> </span>/path/to/production<span class="w">       </span><span class="c1"># all variants, resumable</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nv">HVS_SUMMARY</span><span class="o">=</span>/path/to/production/hist_vs_surface/summary.npz<span class="w"> </span>jupyter<span class="w"> </span>lab<span class="w"> </span>hydro_hist_vs_surface.ipynb
 </code></pre></div>

@@ -2429,6 +2429,8 @@
       
         
       
+        
+      
     
     
     
@@ -2526,6 +2528,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2815,7 +2845,7 @@ lists, downloads, uploads and removes whole productions, single files or pattern
 the files by kind. It runs from a js-contrib checkout and makes its own Python environment on
 its first run (in <code>~/.cache/js_osdf/venv</code>; a <code>python3</code> ≥ 3.9 with <code>venv</code> and access to PyPI,
 a few seconds), so it needs no conda env or venv of yours:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jhputschke/js-contrib.git
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jhputschke/js-contrib.git
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>js-contrib/utils/remote_transfer
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>./js_osdf.py<span class="w"> </span>ls<span class="w">                     </span><span class="c1"># the namespace: one folder per production</span>
 </code></pre></div>
@@ -2826,7 +2856,7 @@ a few seconds), so it needs no conda env or venv of yours:</p>
 <code>xscape-osdf</code>, with the same commands and options, and <code>upload_follow.py</code> as
 <code>xscape-upload-follow</code>. They run in the wheel's environment, which has pelicanfs and
 google-crc32c: no checkout, no environment in <code>~/.cache/js_osdf</code>, nothing to install.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>xscape-osdf<span class="w"> </span>ls<span class="w"> </span><span class="nb">test</span><span class="w">                                    </span><span class="c1"># as ./js_osdf.py ls test below</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>xscape-osdf<span class="w"> </span>download<span class="w"> </span>AuAu_c1<span class="w"> </span>--what<span class="w"> </span>h5<span class="w"> </span>--to<span class="w"> </span>~/data
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>xscape-osdf<span class="w"> </span>login<span class="w">                                      </span><span class="c1"># once, for uploads</span>
@@ -2834,7 +2864,7 @@ google-crc32c: no checkout, no environment in <code>~/.cache/js_osdf</code>, not
 </code></pre></div>
 <p>In the examples below, <code>xscape-osdf</code> stands for <code>./js_osdf.py</code> on the Mac.</p>
 <h2 id="browsing">Browsing<a class="headerlink" href="#browsing" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./js_osdf.py<span class="w"> </span>ls<span class="w">                                  </span><span class="c1"># the top level</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./js_osdf.py<span class="w"> </span>ls<span class="w">                                  </span><span class="c1"># the top level</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>./js_osdf.py<span class="w"> </span>ls<span class="w"> </span><span class="nb">test</span><span class="w">                             </span><span class="c1"># a folder</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>./js_osdf.py<span class="w"> </span>ls<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-r<span class="w">                          </span><span class="c1"># every file below it</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>./js_osdf.py<span class="w"> </span>ls<span class="w"> </span>AuAu_c1<span class="w"> </span>--what<span class="w"> </span>h5<span class="w">                </span><span class="c1"># a production's files of one kind, with sizes</span>
@@ -2843,7 +2873,7 @@ google-crc32c: no checkout, no environment in <code>~/.cache/js_osdf</code>, not
 </code></pre></div>
 <p><code>AuAu_c1</code> stands for a production folder; <code>ls</code> shows what is there.</p>
 <h2 id="downloading">Downloading<a class="headerlink" href="#downloading" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span>AuAu_c1<span class="w"> </span>--what<span class="w"> </span>h5<span class="w"> </span>--to<span class="w"> </span>/scratch<span class="w">            </span><span class="c1"># -&gt; /scratch/AuAu_c1/</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span>AuAu_c1<span class="w"> </span>--what<span class="w"> </span>h5<span class="w"> </span>--to<span class="w"> </span>/scratch<span class="w">            </span><span class="c1"># -&gt; /scratch/AuAu_c1/</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span>AuAu_c1<span class="w"> </span>--what<span class="w"> </span>root<span class="w"> </span>--to<span class="w"> </span>/scratch<span class="w">          </span><span class="c1"># only the ROOT files</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span><span class="s1">'AuAu_c1/*_000[1-5]_*'</span><span class="w"> </span>--to<span class="w"> </span>/scratch/few<span class="w">   </span><span class="c1"># a pattern (quoted): a few jobs</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>./js_osdf.py<span class="w"> </span>download<span class="w"> </span>AuAu_c1<span class="w"> </span>--what<span class="w"> </span>h5<span class="w"> </span>--to<span class="w"> </span>/scratch<span class="w"> </span>--dry-run<span class="w">  </span><span class="c1"># what would come, and how much</span>
@@ -2894,7 +2924,7 @@ default), in the production container and in the <a href="../../install/mac/">xs
 0.2.0), <code>osdf://</code> paths can be read without downloading:
 pelicanfs finds a cache for the path and reads by byte ranges, so only the parts asked for
 travel. Both examples read public test files and run as they are:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">uproot</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">uproot</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">c</span> <span class="o">=</span> <span class="n">uproot</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"osdf:///fno4hic/test/AuAu_0_10_jet_pth10-40_eta06_c1/pth10-40_eta06_c1_campaign.root"</span><span class="p">)</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">sigma</span> <span class="o">=</span> <span class="n">c</span><span class="p">[</span><span class="s2">"windows"</span><span class="p">]</span><span class="o">.</span><span class="n">arrays</span><span class="p">([</span><span class="s2">"sigma_mb"</span><span class="p">],</span> <span class="n">library</span><span class="o">=</span><span class="s2">"np"</span><span class="p">)[</span><span class="s2">"sigma_mb"</span><span class="p">]</span>   <span class="c1"># the pT-hat windows' cross sections</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>
@@ -2928,7 +2958,7 @@ travel. Both examples read public test files and run as they are:</p>
 <h2 id="uploading">Uploading<a class="headerlink" href="#uploading" title="Permanent link">¶</a></h2>
 <p>Writing to <code>/fno4hic</code> needs write access to the namespace: a browser login, or a bearer token.
 <strong>Whatever is uploaded can be read by everyone.</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./js_osdf.py<span class="w"> </span>login<span class="w">              </span><span class="c1"># once: prints a link; log in and approve in any browser</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>./js_osdf.py<span class="w"> </span>login<span class="w">              </span><span class="c1"># once: prints a link; log in and approve in any browser</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>./js_osdf.py<span class="w"> </span>status<span class="w">             </span><span class="c1"># who, the scopes, the time left of the token and the login</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>./js_osdf.py<span class="w"> </span>upload<span class="w"> </span>/data/AuAu_c1<span class="w"> </span>--what<span class="w"> </span>h5<span class="w"> </span>--dry-run<span class="w">       </span><span class="c1"># what would go</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>./js_osdf.py<span class="w"> </span>upload<span class="w"> </span>/data/AuAu_c1<span class="w"> </span>--what<span class="w"> </span>h5<span class="w">                 </span><span class="c1"># -&gt; osdf:///fno4hic/AuAu_c1/</span>
@@ -2957,7 +2987,7 @@ travel. Both examples read public test files and run as they are:</p>
 <p>A campaign can write faster than a local disk holds. <a href="https://github.com/jhputschke/js-contrib/blob/main/utils/upload_follow.py"><code>utils/upload_follow.py</code></a>
 uploads each job as soon as its <code>&lt;stem&gt;.json</code> says complete and, if asked, deletes the local
 copies after a verified upload, so the local disk no longer limits the campaign:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>utils/upload_follow.py<span class="w"> </span>/data/AuAu_a<span class="w"> </span>AuAu_a<span class="w">                      </span><span class="c1"># one pass, upload only</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>utils/upload_follow.py<span class="w"> </span>/data/AuAu_a<span class="w"> </span>AuAu_a<span class="w">                      </span><span class="c1"># one pass, upload only</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>utils/upload_follow.py<span class="w"> </span>/data/AuAu_a<span class="w"> </span>AuAu_a<span class="w"> </span>--follow<span class="w"> </span>--delete<span class="w"> </span>pair<span class="w">   </span><span class="c1"># while the campaign runs</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>touch<span class="w"> </span>/data/AuAu_a/.upload_final<span class="w">       </span><span class="c1"># when the campaign is done: a last pass, then it exits</span>
 </code></pre></div>
@@ -3011,7 +3041,7 @@ next to <code>js_osdf.py</code>, has the same commands and options for a Google 
 service-account JSON key (<code>--key-file</code>, <code>$JS_GCS_KEY_FILE</code> or
 <code>$GOOGLE_APPLICATION_CREDENTIALS</code>). The analysis environment reads <code>gs://</code> paths with
 <code>--with-gcs</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./js_gcs.py<span class="w"> </span>upload<span class="w"> </span>/data/AuAu_a<span class="w"> </span>--what<span class="w"> </span>pair<span class="w"> </span>-j<span class="w"> </span><span class="m">8</span><span class="w">     </span><span class="c1"># -&gt; gs://test_fno/AuAu_a/</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>./js_gcs.py<span class="w"> </span>upload<span class="w"> </span>/data/AuAu_a<span class="w"> </span>--what<span class="w"> </span>pair<span class="w"> </span>-j<span class="w"> </span><span class="m">8</span><span class="w">     </span><span class="c1"># -&gt; gs://test_fno/AuAu_a/</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>./js_gcs.py<span class="w"> </span>download<span class="w"> </span>AuAu_a<span class="w"> </span>--what<span class="w"> </span>root<span class="w"> </span>--to<span class="w"> </span>/scratch
 </code></pre></div>
 <p>On a Mac with the xscape wheel the command is <code>xscape-gcs</code>. Unlike <code>xscape-osdf</code> it keeps

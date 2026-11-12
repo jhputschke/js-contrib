@@ -2365,6 +2365,8 @@
       
         
       
+        
+      
     
     
     
@@ -2462,6 +2464,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2688,13 +2718,13 @@ with curl:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><input id="__tabbed_1_2" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="__tabbed_1_1">A release</label><label for="__tabbed_1_2">The main branch</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-L<span class="w"> </span>https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz<span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>xz
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-L<span class="w"> </span>https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz<span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>xz
 </code></pre></div>
 <p>A release (<code>tutorials-vN</code>) is fixed, and goes with a fixed version of the data:
 <code>tutorials-v2</code> reads the data in <code>tutorials/v2/</code> on the OSDF.</p>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mkdir<span class="w"> </span>pyjetscape-tutorials<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-L<span class="w"> </span>https://codeload.github.com/jhputschke/js-contrib/tar.gz/refs/heads/main<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mkdir<span class="w"> </span>pyjetscape-tutorials<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-L<span class="w"> </span>https://codeload.github.com/jhputschke/js-contrib/tar.gz/refs/heads/main<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>xz<span class="w"> </span>-C<span class="w"> </span>pyjetscape-tutorials<span class="w"> </span>--strip-components<span class="o">=</span><span class="m">3</span><span class="w"> </span>js-contrib-main/tutorials/pyjetscape
 </code></pre></div>
 <p>The latest version. This downloads the whole repository (about 20 MB) and unpacks only the
@@ -2710,7 +2740,7 @@ the wheel will also carry the tutorials.</p>
 <div class="tabbed-block">
 <p>Download the tutorials on the host, into the directory you mount (the image has <code>wget</code>
 but not <code>curl</code>). Then start JupyterLab in the image with <code>xscape-jupyter</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>work<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">(</span><span class="nb">cd</span><span class="w"> </span>work<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-L<span class="w"> </span>https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz<span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>xz<span class="o">)</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>work<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">(</span><span class="nb">cd</span><span class="w"> </span>work<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-L<span class="w"> </span>https://github.com/jhputschke/js-contrib/releases/download/tutorials-v2/pyjetscape-tutorials.tar.gz<span class="w"> </span><span class="p">|</span><span class="w"> </span>tar<span class="w"> </span>xz<span class="o">)</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-p<span class="w"> </span><span class="m">8888</span>:8888<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span>xscape-jupyter<span class="w"> </span>/work/pyjetscape-tutorials
 </code></pre></div>
@@ -2726,7 +2756,7 @@ but not <code>curl</code>). Then start JupyterLab in the image with <code>xscape
 </ul>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate<span class="w">      </span><span class="c1"># the line install.sh printed</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate<span class="w">      </span><span class="c1"># the line install.sh printed</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>jupyter<span class="w"> </span>lab<span class="w"> </span>pyjetscape-tutorials
 </code></pre></div>
 <p>JupyterLab opens in your browser. <strong>The wheel runs the hydro on the Apple Silicon GPU, by
@@ -2735,7 +2765,7 @@ prints <code>[MUSIC-GPU] Metal device: &lt;your chip&gt;</code>. Run Jupyter nat
 virtual machine or a container there is no Metal GPU, and MUSIC falls back to the CPU.</p>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis/bin/activate
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis/bin/activate
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>jupyter<span class="w"> </span>lab<span class="w"> </span>pyjetscape-tutorials
 </code></pre></div>
 <p>For VS Code or a JupyterLab of another environment, register the environment as a
@@ -2765,7 +2795,7 @@ Colab the first cell installs it. Where it is missing (the pure-Python pyjetscap
 0.2.0), the tutorials read the same caches over plain HTTPS, with the standard library.</p>
 <p>To download a set once, for working offline or for the large files (the hydro pairs are
 0.2–0.9 GB each), run <code>get_data.py</code> in the tutorial folder:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>get_data.py<span class="w"> </span>--list<span class="w">                          </span><span class="c1"># the sets, their sizes and contents</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>python<span class="w"> </span>get_data.py<span class="w"> </span>--list<span class="w">                          </span><span class="c1"># the sets, their sizes and contents</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>python<span class="w"> </span>get_data.py<span class="w"> </span>oo_test<span class="w"> </span>auau_jet_event<span class="w">          </span><span class="c1"># -&gt; data/oo_test/, data/auau_jet_event/</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>python<span class="w"> </span>get_data.py<span class="w"> </span>auau_hadrons_root<span class="w"> </span>--max-files<span class="w"> </span><span class="m">3</span><span class="w"> </span><span class="c1"># the first three files of a large set</span>
 </code></pre></div>

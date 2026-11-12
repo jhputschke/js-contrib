@@ -2451,6 +2451,8 @@
       
         
       
+        
+      
     
     
     
@@ -2548,6 +2550,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2886,7 +2916,7 @@ must print <code>trigger Z (lepton pT &gt; 20 GeV, lepton |eta| &lt; 2.5)</code>
 </div>
 <h3 id="running-it">Running it<a class="headerlink" href="#running-it" title="Permanent link">¶</a></h3>
 <p>Check with <code>--dry-run</code> inside the image (no GPU work), then run. In Docker:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">IMG</span><span class="o">=</span>jhputschke/xscape-prod:cu126<span class="w">                      </span><span class="c1"># pinned by digest for a campaign</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nv">IMG</span><span class="o">=</span>jhputschke/xscape-prod:cu126<span class="w">                      </span><span class="c1"># pinned by digest for a campaign</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nv">D</span><span class="o">=</span>/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/config
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/prod/lbt_cache
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--name<span class="w"> </span>zjet<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
@@ -2946,7 +2976,7 @@ then the upload to the OSDF (<a href="../osdf/">Data on the OSDF</a>).</p>
 <p><code>prod_AuAu_0_10_jet/run_prod_vacuum.py</code> runs the same XML's PythiaGun and Matter in vacuum (no
 initial state, hydro, LBT or liquefier), with Colorless hadronization at the PythiaGun's
 energy. It runs on the CPU, ~0.02 s per event on the GB10, so 12,000 events take minutes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>run_prod_vacuum.py<span class="w"> </span>--events<span class="w"> </span><span class="m">12000</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">900001</span><span class="w"> </span>--campaign<span class="w"> </span>zjet_pp<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>python<span class="w"> </span>run_prod_vacuum.py<span class="w"> </span>--events<span class="w"> </span><span class="m">12000</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">900001</span><span class="w"> </span>--campaign<span class="w"> </span>zjet_pp<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--user-xml<span class="w"> </span><span class="nv">$D</span>/PbPb_0_30_ZJet.xml<span class="w"> </span>--pthat-bins<span class="w"> </span><span class="m">20</span>-30,30-35,35-45,45-55,55-70,70-200<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--lepton-ptmin<span class="w"> </span><span class="m">20</span><span class="w"> </span>--lepton-etamax<span class="w"> </span><span class="m">2</span>.5<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>--n-frag<span class="w"> </span><span class="m">40</span><span class="w"> </span>--eta-max<span class="w"> </span><span class="m">2</span>.6<span class="w"> </span>--no-x<span class="w"> </span>--hadron-keep-bits-p<span class="w"> </span><span class="m">12</span><span class="w"> </span>--outdir<span class="w"> </span>/work/zjet_pp
@@ -3032,7 +3062,7 @@ nuclei and energies.</p>
 </table>
 <p><code>eCMforHadronization</code> follows the collision automatically, so the one <code>hadronize.xml</code> serves
 every system. From a js-contrib checkout:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>xml
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>xml
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nv">T</span><span class="o">=</span>contribs/PyJetscape/example/config
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>sed<span class="w"> </span>-e<span class="w"> </span><span class="s1">'s#&lt;projectile&gt;Au&lt;/projectile&gt;#&lt;projectile&gt;Pb&lt;/projectile&gt;#'</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span>-e<span class="w"> </span><span class="s1">'s#&lt;target&gt;Au&lt;/target&gt;#&lt;target&gt;Pb&lt;/target&gt;#'</span><span class="w"> </span><span class="se">\</span>
@@ -3099,7 +3129,7 @@ the container sees it</strong>, as an absolute path:</p>
 starts, and each job stores the XML it ran (<code>&lt;stem&gt;.xml</code>, <code>prod_user_xml</code>): don't edit it
 during a campaign.</p>
 <h3 id="3-a-first-event-then-the-campaign">3. A first event, then the campaign<a class="headerlink" href="#3-a-first-event-then-the-campaign" title="Permanent link">¶</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># in the container (Apptainer; Docker with -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work")</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># in the container (Apptainer; Docker with -v "$PWD/xml:/xml:ro" -v "$PWD/prod:/work")</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">PROD</span><span class="o">=</span>/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--env<span class="w"> </span><span class="nv">MUSIC_CUDA_SYNC</span><span class="o">=</span>block<span class="w"> </span>--pwd<span class="w"> </span><span class="s2">"</span><span class="nv">$PROD</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span>--bind<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/xml:/xml,</span><span class="nv">$SCRATCH</span><span class="s2">/prod:/work"</span><span class="w"> </span>xscape_prod.sif<span class="w"> </span><span class="se">\</span>
@@ -3161,7 +3191,7 @@ during a campaign.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><input id="__tabbed_1_2" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="__tabbed_1_1">Docker</label><label for="__tabbed_1_2">SLURM</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">OMP_NUM_THREADS</span><span class="o">=</span><span class="m">3</span><span class="w"> </span>-e<span class="w"> </span><span class="nv">OMP_WAIT_POLICY</span><span class="o">=</span>passive<span class="w"> </span>-e<span class="w"> </span><span class="nv">MUSIC_CUDA_SYNC</span><span class="o">=</span>block<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">LBT_TABLE_CACHE</span><span class="o">=</span>/work/lbt_cache/lbt_tables_v1.bin<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/xml:/xml:ro"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/prod:/work"</span><span class="w"> </span><span class="nv">$IMG</span><span class="w"> </span><span class="se">\</span>
@@ -3171,7 +3201,7 @@ during a campaign.</p>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># stage 1: ~16 GB per job, so fewer jobs per GPU than for Au+Au</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># stage 1: ~16 GB per job, so fewer jobs per GPU than for Au+Au</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nv">SIF</span><span class="o">=</span><span class="nv">$PWD</span>/xscape_prod.sif<span class="w"> </span><span class="nv">CAMPAIGN</span><span class="o">=</span>PbPb_c1<span class="w"> </span><span class="nv">P</span><span class="o">=</span><span class="m">5</span><span class="w"> </span><span class="nv">BINDS</span><span class="o">=</span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/xml:/xml"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nv">EXTRA_ARGS</span><span class="o">=</span><span class="s2">"--user-xml /xml/PbPb_0_10_jet.xml --grid /xml/grid_PbPb.yaml --pthat-bins 40-60,60-80,80-100 --jets-per-bin 5 --parton-ymax 0.6 --write-particlize both"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span>sbatch<span class="w"> </span>--array<span class="o">=</span><span class="m">0</span>-19<span class="w"> </span>--cpus-per-task<span class="o">=</span><span class="m">20</span><span class="w"> </span>--mem<span class="o">=</span>96G<span class="w"> </span>utils/slurm_prod_array.sh
@@ -3204,7 +3234,7 @@ workstation, <code>run_jobs.sh</code> on a single machine or Mac, <code>slurm_pr
 and estimates events/h, duration, disk and memory, each marked as measured or estimated with
 its source. It checks the plan: events per job a multiple of the pT̂ windows × jets, memory,
 disk, upload rate, the image, the campaign name. It never starts jobs.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>utils/prodwizard.py<span class="w"> </span>--list<span class="w">                 </span><span class="c1"># presets and machines</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>utils/prodwizard.py<span class="w"> </span>--list<span class="w">                 </span><span class="c1"># presets and machines</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>utils/prodwizard.py<span class="w"> </span>--preset<span class="w"> </span>auau_jet<span class="w"> </span>--machine<span class="w"> </span>2x3090<span class="w"> </span>--events<span class="w"> </span><span class="m">2700</span><span class="w"> </span>--campaign<span class="w"> </span>c5<span class="w"> </span>--out<span class="w"> </span>/data/c5
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>utils/prodwizard.py<span class="w"> </span>--preset<span class="w"> </span>pbpb_zjet<span class="w"> </span>--machine<span class="w"> </span>slurm_a40<span class="w"> </span>--events<span class="w"> </span><span class="m">19200</span><span class="w"> </span>--gpus<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>--campaign<span class="w"> </span>zjet_c10<span class="w"> </span>--save<span class="w"> </span>launch_zjet_c10.sh<span class="w">      </span><span class="c1"># a script, the plan in its header</span>

@@ -2451,6 +2451,8 @@
       
         
       
+        
+      
     
     
     
@@ -2548,6 +2550,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2825,7 +2855,7 @@ extra hard scatterings or minimum bias; O+O hadron files made in the job by the 
 production are read differently (<a href="../oo/">O+O</a>).</p>
 <p>The file layout and what an event is: <a href="../files/#4-hadron-files">What a production writes</a>.</p>
 <h2 id="1-open-a-campaign">1. Open a campaign<a class="headerlink" href="#1-open-a-campaign" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFileReader</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">r</span> <span class="o">=</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span>       <span class="c1"># or: with HadronFileReader(...) as r:</span>
@@ -2858,7 +2888,7 @@ samples of its unit are histogrammed and divided by that unit's number of sample
 per-event means are then averaged over events. So every event counts the same, even when files
 were hadronized with different <code>--oversample</code>, and the errors are per event (compound-Poisson
 per event, added over events).</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">lead</span><span class="p">(</span><span class="n">info</span><span class="p">):</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">lead</span><span class="p">(</span><span class="n">info</span><span class="p">):</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="sd">"""phi and pseudorapidity of the event's hardest shower-initiating parton."""</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">ini</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">initiators</span><span class="p">()</span>                     <span class="c1"># (K, 11): shower, pid, pstat, px, py, pz, E, ...</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">px</span><span class="p">,</span> <span class="n">py</span><span class="p">,</span> <span class="n">pz</span> <span class="o">=</span> <span class="n">ini</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">ini</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">],</span> <span class="n">ini</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">])),</span> <span class="mi">3</span><span class="p">:</span><span class="mi">6</span><span class="p">]</span>
@@ -2909,7 +2939,7 @@ legs with equal sample counts.</p>
 <h2 id="3-a-worked-example-multiplicity-and-spectra">3. A worked example: multiplicity and spectra<a class="headerlink" href="#3-a-worked-example-multiplicity-and-spectra" title="Permanent link">¶</a></h2>
 <p>The charged dN/dη of the background and of the jet events, the identified spectra at
 <span class="arithmatex">\(|y| &lt; 0.5\)</span>, and the wake's charged multiplicity, for one campaign:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFileReader</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">eta_e</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">5</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">41</span><span class="p">)</span>
@@ -2938,7 +2968,7 @@ legs with equal sample counts.</p>
 one-bin array. For a 2D map in the jet frame, pass a callable returning a tuple, e.g.
 <code>lambda ev, info: (ev.eta - lead(info)[1], dphi(ev, info))</code>, and a tuple of bin edges.</p>
 <h2 id="4-single-events">4. Single events<a class="headerlink" href="#4-single-events" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">ev</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">jet_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>          <span class="c1"># global event 0, oversample 17 + its fragmentation</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">ev</span><span class="p">[</span><span class="s2">"pid"</span><span class="p">],</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"p"</span><span class="p">],</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"x"</span><span class="p">]</span>      <span class="c1"># p = (E, px, py, pz); ev["origin"]: 0 bulk, 1 fragment</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">bg</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">background_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>   <span class="c1"># oversample 17 of the background event 0 used</span>
@@ -2958,7 +2988,7 @@ belong to the event, not to the trigger.</strong> By default the full event is
 <code>bulk_bg + extra_frag</code>; the trigger's truth (e.g. the Z–hadron signal
 <code>bulk_jet − bulk_bg + jet_frag</code>) stays the trigger's. A campaign without <code>extra_frag</code> reads
 exactly as before.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFileReader</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFileReader</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
@@ -2982,7 +3012,7 @@ observables see <a href="../bulk/">Bulk and flow</a>. The per-analysis switches 
 <p>Campaigns with several pT̂ windows per background (<code>--pthat-bins</code>) have one Pythia, and one
 cross section, per window. Each window's histogram is a per-event average, so the windows can
 have different event counts; multiply each by its cross section to stitch them:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="n">r</span><span class="o">.</span><span class="n">pthat_bins</span>                                   <span class="c1"># (K, 2): the windows</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">edges</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">41</span><span class="p">)</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">spec</span><span class="p">,</span> <span class="n">var</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">40</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">40</span><span class="p">)</span>
@@ -3008,13 +3038,13 @@ windows are correlated: the simple sum of variances above is right for <code>jet
   fall far below the campaign's. <code>utils/check_deposition.py</code> reads every job summary and flags
   it (exit code 1):</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>utils/check_deposition.py<span class="w"> </span>/path/to/campaign<span class="w">              </span><span class="c1"># every &lt;stem&gt;.json below it</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>python<span class="w"> </span>utils/check_deposition.py<span class="w"> </span>/path/to/campaign<span class="w">              </span><span class="c1"># every &lt;stem&gt;.json below it</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>python<span class="w"> </span>utils/check_deposition.py<span class="w"> </span>/data/c1/gpu0<span class="w"> </span>/data/c1/gpu1<span class="w">    </span><span class="c1"># one campaign, two directories</span>
 </code></pre></div>
 <p>Move a flagged job's files away and rerun the campaign command, which redoes the job.</p>
 <h2 id="7-lower-level-readers">7. Lower-level readers<a class="headerlink" href="#7-lower-level-readers" title="Permanent link">¶</a></h2>
 <p>For one file, one sample, or a whole small file in memory:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFile</span><span class="p">,</span> <span class="n">JetEvents</span><span class="p">,</span> <span class="n">Hadrons</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFile</span><span class="p">,</span> <span class="n">JetEvents</span><span class="p">,</span> <span class="n">Hadrons</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">with</span> <span class="n">HadronFile</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_jet.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">hf</span><span class="p">:</span>       <span class="c1"># random access, nothing loaded</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">one</span> <span class="o">=</span> <span class="n">hf</span><span class="o">.</span><span class="n">sample_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>                            <span class="c1"># unit (event) 0, sample 17: pid, pstat, p, x</span>
@@ -3032,7 +3062,7 @@ some units.</p>
 <p><code>jetscape.HadronArray</code> holds a hadron file as flat arrays with sample offsets, without derived
 columns, and turns it into awkward arrays of <code>vector</code> four-momenta on demand, for selections and
 FastJet's array interface:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="n">bulk</span> <span class="o">=</span> <span class="n">js</span><span class="o">.</span><span class="n">HadronArray</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_bg.h5"</span><span class="p">)</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">had</span> <span class="o">=</span> <span class="n">bulk</span><span class="o">.</span><span class="n">to_awkward</span><span class="p">(</span><span class="n">by_unit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>            <span class="c1"># units x samples x hadrons, Momentum4D records</span>

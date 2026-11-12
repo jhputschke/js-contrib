@@ -2456,6 +2456,8 @@
       
         
       
+        
+      
     
     
     
@@ -2553,6 +2555,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2890,7 +2920,7 @@ measures by how much.</p>
 <h2 id="3-the-classic-interface-with-a-subtraction">3. The classic interface, with ρA subtraction<a class="headerlink" href="#3-the-classic-interface-with-a-subtraction" title="Permanent link">¶</a></h2>
 <p>The whole jet event of every oversample, clustered with areas, ρ from the kT jets, and the
 subtracted spectrum per event:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">fastjet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">fj</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">CHARGED</span><span class="p">,</span> <span class="n">HadronFileReader</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
@@ -2942,7 +2972,7 @@ need every hadron, which hadronizing with <code>--charged</code> would have drop
 <h2 id="4-embedding-a-jet-on-a-background-it-did-not-touch">4. Embedding: a jet on a background it did not touch<a class="headerlink" href="#4-embedding-a-jet-on-a-background-it-did-not-touch" title="Permanent link">¶</a></h2>
 <p>Cluster the background sample plus the event's fragments, and keep track of which constituents
 are fragments through <code>user_index</code> (continuing the block above):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">embedded</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">embedded</span><span class="p">(</span><span class="n">r</span><span class="p">,</span> <span class="n">e</span><span class="p">,</span> <span class="n">k</span><span class="p">):</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="sd">"""bulk_bg sample k of event e's background + the event's fragments (no wake)."""</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="n">bg</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">background_event</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="n">full</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">jet_event</span><span class="p">(</span><span class="n">e</span><span class="p">,</span> <span class="n">k</span><span class="p">)</span>
@@ -2963,7 +2993,7 @@ the cone. Random cones in <code>r.background_event(e, k)</code> give the backgro
 <h2 id="5-the-array-interface-awkward">5. The array interface (awkward)<a class="headerlink" href="#5-the-array-interface-awkward" title="Permanent link">¶</a></h2>
 <p>One <code>ClusterSequence</code> call clusters all samples of a unit in C++, with no Python loop
 (continuing the first block: <code>np</code>, <code>CHARGED_PID</code>, <code>r</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">awkward</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ak</span><span class="o">,</span><span class="w"> </span><span class="nn">vector</span><span class="o">,</span><span class="w"> </span><span class="nn">fastjet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">fj</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">awkward</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ak</span><span class="o">,</span><span class="w"> </span><span class="nn">vector</span><span class="o">,</span><span class="w"> </span><span class="nn">fastjet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">fj</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFile</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">vector</span><span class="o">.</span><span class="n">register_awkward</span><span class="p">()</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>
@@ -3033,7 +3063,7 @@ large: cluster it in chunks. 100 samples cluster in 0.2 s.</p>
 </table>
 <p>Both read <code>HADRON_DIR</code>, <code>MAX_EVENTS</code>, <code>MAX_OVERSAMPLES</code> and <code>PARTICLES</code> (<code>charged</code> or <code>full</code>)
 from the environment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">HADRON_DIR</span><span class="o">=</span>/path/to/campaign<span class="w"> </span><span class="nv">MAX_EVENTS</span><span class="o">=</span><span class="m">200</span><span class="w"> </span><span class="nv">MAX_OVERSAMPLES</span><span class="o">=</span><span class="m">100</span><span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">HADRON_DIR</span><span class="o">=</span>/path/to/campaign<span class="w"> </span><span class="nv">MAX_EVENTS</span><span class="o">=</span><span class="m">200</span><span class="w"> </span><span class="nv">MAX_OVERSAMPLES</span><span class="o">=</span><span class="m">100</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span>jupyter<span class="w"> </span>nbconvert<span class="w"> </span>--to<span class="w"> </span>notebook<span class="w"> </span>--execute<span class="w"> </span>contribs/PyJetscape/example/analysis/tutorials/jet_fastjet.ipynb
 </code></pre></div>
 <h2 id="7-worked-examples-the-zjet-campaign-analyses">7. Worked examples: the Z+jet campaign analyses<a class="headerlink" href="#7-worked-examples-the-zjet-campaign-analyses" title="Permanent link">¶</a></h2>
@@ -3095,7 +3125,7 @@ background fluctuations, is subtracted:</p>
 <p>Steps 2 and 3 are the model's version of the measured observable. Step 2 repeated on the
 embedded event (the same fragments in <code>bulk_bg</code> sample k, no wake) gives "what the wake does to
 the jets" with very small errors, since both share everything else. In short (route A):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">DATA</span><span class="o">=</span>/data/zjet_c00<span class="w">     </span><span class="c1"># the campaign: gpu0/, gpu1/ with &lt;stem&gt;_hadrons_*.h5</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">DATA</span><span class="o">=</span>/data/zjet_c00<span class="w">     </span><span class="c1"># the campaign: gpu0/, gpu1/ with &lt;stem&gt;_hadrons_*.h5</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nv">PP</span><span class="o">=</span>/data/zjet_pp<span class="w">        </span><span class="c1"># the pp reference of run_prod_vacuum.py</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nv">ANA</span><span class="o">=</span>/data/ana_c00<span class="w">       </span><span class="c1"># the outputs (private)</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis/zjet
@@ -3147,7 +3177,7 @@ depletion near the Z. Here the model's twin makes the exact answer available:</p
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis/zjet<span class="w">          </span><span class="c1"># DATA, PP, ANA as in the Z+jet block</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis/zjet<span class="w">          </span><span class="c1"># DATA, PP, ANA as in the Z+jet block</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>python<span class="w"> </span>qa.py<span class="w"> </span>map<span class="w"> </span><span class="s2">"</span><span class="nv">$DATA</span><span class="s2">/gpu*/*_hadrons_jet_frag.h5"</span><span class="w"> </span><span class="nv">$ANA</span>/qa_py/pbpb<span class="w"> </span>--jobs<span class="w"> </span><span class="m">8</span><span class="w">      </span><span class="c1"># QA, both analyses</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>python<span class="w"> </span>qa.py<span class="w"> </span>map<span class="w"> </span><span class="s2">"</span><span class="nv">$PP</span><span class="s2">/*_hadrons_jet_frag.h5"</span><span class="w"> </span><span class="nv">$ANA</span>/qa_py/pp
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>python<span class="w"> </span>qa.py<span class="w"> </span>plot<span class="w"> </span>--pbpb<span class="w"> </span><span class="nv">$ANA</span>/qa_py/pbpb<span class="w"> </span>--pp<span class="w"> </span><span class="nv">$ANA</span>/qa_py/pp<span class="w"> </span>--outdir<span class="w"> </span><span class="nv">$ANA</span>/figures<span class="w"> </span>--tag<span class="w"> </span>_c00
@@ -3170,7 +3200,7 @@ one (R_sym) to see the diffusion wake. The same analysis runs on the Z+jet campa
 as jet1 (<span class="arithmatex">\(|y_Z| &lt; 1\)</span>, pT,Z &gt; 60 GeV) and the leading R = 0.4 jet above 30 GeV as jet2. It
 builds on the Z–hadron pools and the jets at R = 0.4, and its final stage is
 <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/dijet/deta.py"><code>dijet/deta.py</code></a>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">RUNS</span><span class="o">=</span>contribs/PyJetscape/example/analysis/runs<span class="w">    </span><span class="c1"># data/ and figures/ per campaign (git-ignored)</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nv">RUNS</span><span class="o">=</span>contribs/PyJetscape/example/analysis/runs<span class="w">    </span><span class="c1"># data/ and figures/ per campaign (git-ignored)</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nv">OPT</span><span class="o">=</span><span class="s2">"--pools </span><span class="nv">$RUNS</span><span class="s2">/zjet_c00/data/mix/pbpb --vacuum-pools </span><span class="nv">$RUNS</span><span class="s2">/zjet_pp/data/mix/vacuum \</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s2">   --jets </span><span class="nv">$RUNS</span><span class="s2">/zjet_c00/data/jets_r04 --pp-jets </span><span class="nv">$RUNS</span><span class="s2">/zjet_pp/data/jets_r04 --run zjet_c00"</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>python<span class="w"> </span>contribs/PyJetscape/example/analysis/dijet/deta.py<span class="w"> </span><span class="nv">$OPT</span><span class="w"> </span>--tag<span class="w"> </span>_c00

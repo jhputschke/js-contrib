@@ -2462,6 +2462,8 @@
       
         
       
+        
+      
     
     
     
@@ -2559,6 +2561,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2866,7 +2896,7 @@ information only; the hydro stays in HDF5 (read it with h5py, also from PyROOT).
 </tbody>
 </table>
 <p>conda gives ROOT and its Python, and the venv is made from that Python:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>root<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="s2">"root&gt;=6.34"</span><span class="w">           </span><span class="c1"># RNTuple needs ROOT &gt;= 6.34</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>conda<span class="w"> </span>create<span class="w"> </span>-n<span class="w"> </span>root<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span><span class="s2">"root&gt;=6.34"</span><span class="w">           </span><span class="c1"># RNTuple needs ROOT &gt;= 6.34</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>conda<span class="w"> </span>activate<span class="w"> </span>root
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>conda<span class="w"> </span>install<span class="w"> </span>-c<span class="w"> </span>conda-forge<span class="w"> </span>fastjet-cxx<span class="w"> </span>fastjet-contrib<span class="w">   </span><span class="c1"># only for FastJet in C++</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>./utils/analysis_env/setup_analysis_env.sh<span class="w"> </span>~/.venvs/js_analysis_root<span class="w"> </span>--system-site-packages
@@ -2877,7 +2907,7 @@ compiled macros, <code>conda activate root</code> first: without it ACLiC does n
 <h2 id="2-convert-a-campaign-run_h5torootpy">2. Convert a campaign: <code>run_h5toROOT.py</code><a class="headerlink" href="#2-convert-a-campaign-run_h5torootpy" title="Permanent link">¶</a></h2>
 <p><a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_h5toROOT.py"><code>run_h5toROOT.py</code></a>
 turns every hadronized production file into one ROOT file, plus one campaign file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/prod_AuAu_0_10_jet
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/prod_AuAu_0_10_jet
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>python<span class="w"> </span>run_h5toROOT.py<span class="w"> </span>/path/to/campaign<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w">                        </span><span class="c1"># RNTuple, next to the inputs</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>python<span class="w"> </span>run_h5toROOT.py<span class="w"> </span>/path/to/campaign<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--format<span class="w"> </span>ttree<span class="w">         </span><span class="c1"># TTree, for ROOT &lt; 6.34</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>python<span class="w"> </span>run_h5toROOT.py<span class="w"> </span>/path/to/campaign<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span><span class="w"> </span>--out-dir<span class="w"> </span>root<span class="w"> </span>--no-x<span class="w"> </span>--charged<span class="w"> </span>--eta-max<span class="w"> </span><span class="m">1</span>
@@ -2931,7 +2961,7 @@ jobs: their hadron files). Outputs are written to <code>.part</code> and renamed
 interrupted pass and skips what is done. The 20-file test campaign took 2 min 40 s at <code>-j 4</code>.</p>
 <p><strong>Check a conversion</strong> against the HDF5 files, every hadron bit for bit, the event record, the
 windows and the cross sections (exit 1 on a difference):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>root_export/check_h5_vs_root.py<span class="w"> </span>/path/to/campaign<span class="w"> </span>/path/to/root<span class="w"> </span>--campaign<span class="w"> </span>/path/to/root/c1_campaign.root
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>root_export/check_h5_vs_root.py<span class="w"> </span>/path/to/campaign<span class="w"> </span>/path/to/root<span class="w"> </span>--campaign<span class="w"> </span>/path/to/root/c1_campaign.root
 </code></pre></div>
 <h3 id="what-is-in-the-files">What is in the files<a class="headerlink" href="#what-is-in-the-files" title="Permanent link">¶</a></h3>
 <p><strong>Per production file, <code>&lt;stem&gt;_hadrons.root</code>:</strong></p>
@@ -2985,7 +3015,7 @@ converts a single hadron file (the same <code>--format</code>, <code>--writer</c
 study behind the defaults:
 <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/root_export/README.md"><code>root_export/README.md</code></a>.</p>
 <h2 id="3-reading-without-root-uproot">3. Reading without ROOT: uproot<a class="headerlink" href="#3-reading-without-root-uproot" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">uproot</span><span class="o">,</span><span class="w"> </span><span class="nn">awkward</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ak</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">uproot</span><span class="o">,</span><span class="w"> </span><span class="nn">awkward</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ak</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="n">f</span> <span class="o">=</span> <span class="n">uproot</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"AuAu_0_10_jet_c1_0001_hadrons.root"</span><span class="p">)</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">jet</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"bulk_jet"</span><span class="p">]</span><span class="o">.</span><span class="n">arrays</span><span class="p">([</span><span class="s2">"event"</span><span class="p">,</span> <span class="s2">"sample"</span><span class="p">,</span> <span class="s2">"pid"</span><span class="p">,</span> <span class="s2">"px"</span><span class="p">,</span> <span class="s2">"py"</span><span class="p">,</span> <span class="s2">"pz"</span><span class="p">],</span> <span class="n">entry_stop</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
@@ -3000,7 +3030,7 @@ study behind the defaults:
 <li>Read <code>events</code> as awkward (the default): <code>library="np"</code> fails on the jagged initiator columns.</li>
 <li><code>np.isin</code> does not take jagged arrays; flatten and unflatten for a species mask:</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">CHARGED</span> <span class="o">=</span> <span class="p">[</span><span class="mi">211</span><span class="p">,</span> <span class="mi">321</span><span class="p">,</span> <span class="mi">2212</span><span class="p">,</span> <span class="mi">3222</span><span class="p">,</span> <span class="mi">3112</span><span class="p">,</span> <span class="mi">3312</span><span class="p">,</span> <span class="mi">3334</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">13</span><span class="p">]</span>        <span class="c1"># jetscape.hadrons_h5.CHARGED</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">CHARGED</span> <span class="o">=</span> <span class="p">[</span><span class="mi">211</span><span class="p">,</span> <span class="mi">321</span><span class="p">,</span> <span class="mi">2212</span><span class="p">,</span> <span class="mi">3222</span><span class="p">,</span> <span class="mi">3112</span><span class="p">,</span> <span class="mi">3312</span><span class="p">,</span> <span class="mi">3334</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">13</span><span class="p">]</span>        <span class="c1"># jetscape.hadrons_h5.CHARGED</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">b</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"bulk_jet"</span><span class="p">]</span><span class="o">.</span><span class="n">arrays</span><span class="p">([</span><span class="s2">"event"</span><span class="p">,</span> <span class="s2">"pid"</span><span class="p">,</span> <span class="s2">"px"</span><span class="p">,</span> <span class="s2">"py"</span><span class="p">,</span> <span class="s2">"pz"</span><span class="p">])</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">eta</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arcsinh</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">pz</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">px</span><span class="p">,</span> <span class="n">b</span><span class="o">.</span><span class="n">py</span><span class="p">))</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">charged</span> <span class="o">=</span> <span class="n">ak</span><span class="o">.</span><span class="n">unflatten</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">ak</span><span class="o">.</span><span class="n">flatten</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">pid</span><span class="p">)),</span> <span class="n">CHARGED</span><span class="p">),</span> <span class="n">ak</span><span class="o">.</span><span class="n">num</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">pid</span><span class="p">))</span>
@@ -3013,7 +3043,7 @@ study behind the defaults:
 <h2 id="4-in-root">4. In ROOT<a class="headerlink" href="#4-in-root" title="Permanent link">¶</a></h2>
 <h3 id="rdataframe">RDataFrame<a class="headerlink" href="#rdataframe" title="Permanent link">¶</a></h3>
 <p>A cross-section-weighted spectrum of the jet leg, every event the mean over its oversamples:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">ROOT</span><span class="o">::</span><span class="n">RDataFrame</span><span class="w"> </span><span class="n">w</span><span class="p">(</span><span class="s">"windows"</span><span class="p">,</span><span class="w"> </span><span class="s">"pth10-40_c1_campaign.root"</span><span class="p">);</span>
+<div class="language-cpp highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">ROOT</span><span class="o">::</span><span class="n">RDataFrame</span><span class="w"> </span><span class="n">w</span><span class="p">(</span><span class="s">"windows"</span><span class="p">,</span><span class="w"> </span><span class="s">"pth10-40_c1_campaign.root"</span><span class="p">);</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">auto</span><span class="w"> </span><span class="n">wt</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">w</span><span class="p">.</span><span class="n">Take</span><span class="o">&lt;</span><span class="kt">double</span><span class="o">&gt;</span><span class="p">(</span><span class="s">"weight_mb"</span><span class="p">);</span><span class="w">             </span><span class="c1">// per window</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">ROOT</span><span class="o">::</span><span class="n">RDataFrame</span><span class="w"> </span><span class="n">ev</span><span class="p">(</span><span class="s">"events"</span><span class="p">,</span><span class="w"> </span><span class="s">"RUN_0001_hadrons.root"</span><span class="p">);</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">auto</span><span class="w"> </span><span class="n">nsamp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">*</span><span class="n">ev</span><span class="p">.</span><span class="n">Take</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;</span><span class="p">(</span><span class="s">"n_samples_jet"</span><span class="p">);</span><span class="w">        </span><span class="c1">// per event</span>
@@ -3062,7 +3092,7 @@ ntuples and returns their hadrons as <code>std::vector&lt;Hadron&gt;</code>:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"HadronFileReader.h"</span>
+<div class="language-cpp highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"HadronFileReader.h"</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">using</span><span class="w"> </span><span class="k">namespace</span><span class="w"> </span><span class="nn">hadrons_root</span><span class="p">;</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">HadronFileReader</span><span class="w"> </span><span class="n">r</span><span class="p">(</span><span class="s">"/path/to/campaign"</span><span class="p">);</span><span class="w">    </span><span class="c1">// every *_hadrons.root, + its *_campaign.root</span>
@@ -3102,7 +3132,7 @@ ntuples and returns their hadrons as <code>std::vector&lt;Hadron&gt;</code>:</p>
   files, event by event.</li>
 </ul>
 <h3 id="the-macros">The macros<a class="headerlink" href="#the-macros" title="Permanent link">¶</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis_root
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis_root
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>root<span class="w"> </span>-l<span class="w"> </span>-b<span class="w"> </span>-q<span class="w"> </span><span class="s1">'read_hadrons.C+("/path/to/campaign")'</span><span class="w">                       </span><span class="c1"># per event</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>root<span class="w"> </span>-l<span class="w"> </span>-b<span class="w"> </span>-q<span class="w"> </span><span class="s1">'read_hadrons.C+("/path/to/campaign", -1, true)'</span><span class="w">             </span><span class="c1"># dsigma/dX [mb]</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>root<span class="w"> </span>-l<span class="w"> </span>-b<span class="w"> </span>-q<span class="w"> </span><span class="s1">'hadron_distributions.C+("/path/to/campaign", -1, false, true, 1.0, "out.root", 8)'</span>
@@ -3138,7 +3168,7 @@ Python <code>jet_minus_background</code>. Full reference:
 <p>With FastJet's C++ library next to ROOT, <code>HadronFileReader.h</code> hands the hadrons straight to
 FastJet. This macro clusters the whole jet event of every oversample with the conventions of
 <a href="../jets/#2-conventions">Jets with FastJet</a> and fills the raw and ρA-subtracted spectrum:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1">// jets_fastjet.C: anti-kT jets with rho*A subtraction on the ROOT files of run_h5toROOT.py</span>
+<div class="language-cpp highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1">// jets_fastjet.C: anti-kT jets with rho*A subtraction on the ROOT files of run_h5toROOT.py</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">"HadronFileReader.h"</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;fastjet/ClusterSequenceArea.hh&gt;</span>
@@ -3198,7 +3228,7 @@ with <code>jets_main.cxx</code>, a <code>main</code> that calls it.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><input id="__tabbed_1_2" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="__tabbed_1_1">ACLiC</label><label for="__tabbed_1_2">g++</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>conda<span class="w"> </span>activate<span class="w"> </span>root<span class="w">                         </span><span class="c1"># the env with ROOT and fastjet-cxx</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>conda<span class="w"> </span>activate<span class="w"> </span>root<span class="w">                         </span><span class="c1"># the env with ROOT and fastjet-cxx</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nv">AR</span><span class="o">=</span>/path/to/js-contrib/contribs/PyJetscape/example/analysis_root
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>root<span class="w"> </span>-l<span class="w"> </span>-b<span class="w"> </span>-q<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span>-e<span class="w"> </span><span class="s2">"gSystem-&gt;AddIncludePath(\"-I</span><span class="nv">$AR</span><span class="s2"> -I</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/include\"); gSystem-&gt;Load(\"libfastjet\"); gSystem-&gt;Load(\"libfastjettools\")"</span><span class="w"> </span><span class="se">\</span>
@@ -3206,7 +3236,7 @@ with <code>jets_main.cxx</code>, a <code>main</code> that calls it.</p>
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>docs/analysis_snippets<span class="w">                   </span><span class="c1"># jets_main.cxx includes jets_fastjet.C; AR as in the ACLiC tab</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>docs/analysis_snippets<span class="w">                   </span><span class="c1"># jets_main.cxx includes jets_fastjet.C; AR as in the ACLiC tab</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>g++<span class="w"> </span>-O2<span class="w"> </span>-std<span class="o">=</span>c++17<span class="w"> </span>-I<span class="nv">$AR</span><span class="w"> </span>jets_main.cxx<span class="w"> </span><span class="k">$(</span>root-config<span class="w"> </span>--cflags<span class="w"> </span>--libs<span class="k">)</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="k">$(</span>fastjet-config<span class="w"> </span>--cxxflags<span class="k">)</span><span class="w"> </span><span class="k">$(</span>fastjet-config<span class="w"> </span>--libs<span class="k">)</span><span class="w"> </span>-lROOTNTuple<span class="w"> </span>-o<span class="w"> </span>jets
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>./jets<span class="w"> </span>/path/to/campaign
@@ -3258,7 +3288,7 @@ for both:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># DATA (the campaign), PP (the pp reference) and ANA (the outputs) as on the FastJet page</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># DATA (the campaign), PP (the pp reference) and ANA (the outputs) as on the FastJet page</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">cd</span><span class="w"> </span>contribs/PyJetscape/example/analysis_root/zjet<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w">     </span><span class="c1"># root-config and fastjet-config on PATH</span>
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="nv">P</span><span class="o">=</span>../../prod_AuAu_0_10_jet
 <a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>python<span class="w"> </span><span class="nv">$P</span>/run_h5toROOT.py<span class="w"> </span><span class="nv">$DATA</span>/gpu0<span class="w"> </span><span class="nv">$DATA</span>/gpu1<span class="w"> </span>-j<span class="w"> </span><span class="m">8</span><span class="w"> </span>--out-dir<span class="w"> </span><span class="nv">$ANA</span>/root/pbpb<span class="w"> </span><span class="se">\</span>

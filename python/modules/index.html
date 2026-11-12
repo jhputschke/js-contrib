@@ -2467,6 +2467,8 @@
       
         
       
+        
+      
     
     
     
@@ -2564,6 +2566,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2988,7 +3018,7 @@ interface.</p>
 an energy-loss module that splits every parton above <code>e_min</code> into two halves once
 <code>time &gt;= t_split</code>, and a hadronizer that turns every final parton into a π⁺. The classes are
 those of <code>toy_modules_pythonic.py</code>.</p>
-<div class="highlight"><span class="filename">my_modules.py</span><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
+<div class="language-python highlight"><span class="filename">my_modules.py</span><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="kn">import</span> <span class="n">pyjetscape_core</span> <span class="k">as</span> <span class="n">core</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
@@ -3044,7 +3074,7 @@ those of <code>toy_modules_pythonic.py</code>.</p>
 </ul>
 <p>The run builds the pipeline by hand: the energy-loss and hadronization <em>managers</em> and their
 containers are made in Python and the modules put inside, as the XML would do.</p>
-<div class="highlight"><span class="filename">run_my_modules.py</span><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<div class="language-python highlight"><span class="filename">run_my_modules.py</span><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="kn">import</span> <span class="n">paths</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="kn">import</span> <span class="n">pyjetscape_core</span> <span class="k">as</span> <span class="n">core</span>
@@ -3070,7 +3100,7 @@ containers are made in Python and the modules put inside, as the XML would do.</
 <a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"event </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span><span class="si">}</span><span class="s2"> final partons, E = </span><span class="si">{</span><span class="n">fp</span><span class="p">[</span><span class="s1">'E'</span><span class="p">]</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> GeV;"</span><span class="p">,</span>
 <a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>              <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">had</span><span class="p">)</span><span class="si">}</span><span class="s2"> hadrons, pT = </span><span class="si">{</span><span class="n">np</span><span class="o">.</span><span class="n">hypot</span><span class="p">(</span><span class="n">had</span><span class="o">.</span><span class="n">p</span><span class="p">[:,</span><span class="w"> </span><span class="mi">1</span><span class="p">],</span><span class="w"> </span><span class="n">had</span><span class="o">.</span><span class="n">p</span><span class="p">[:,</span><span class="w"> </span><span class="mi">2</span><span class="p">])</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </code></pre></div>
-<div class="highlight"><span class="filename">my_user.xml</span><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="cp">&lt;?xml version="1.0"?&gt;</span>
+<div class="language-xml highlight"><span class="filename">my_user.xml</span><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="cp">&lt;?xml version="1.0"?&gt;</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">&lt;jetscape&gt;</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">&lt;nEvents&gt;</span>3<span class="nt">&lt;/nEvents&gt;</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">&lt;vlevel&gt;</span>0<span class="nt">&lt;/vlevel&gt;</span>
@@ -3082,21 +3112,21 @@ containers are made in Python and the modules put inside, as the XML would do.</
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">  </span><span class="nt">&lt;/Eloss&gt;</span>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="nt">&lt;/jetscape&gt;</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>python<span class="w"> </span>run_my_modules.py
+<div class="language-console highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="gp">$ </span>python<span class="w"> </span>run_my_modules.py
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="go">event 0: 4 final partons, E = 80.0 GeV; 4 hadrons, pT = [20.02 20.02 20.02 20.02]</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="go">event 1: 4 final partons, E = 80.0 GeV; 4 hadrons, pT = [20.02 20.02 20.02 20.02]</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="go">event 2: 4 final partons, E = 80.0 GeV; 4 hadrons, pT = [20.02 20.02 20.02 20.02]</span>
 </code></pre></div>
 <p>Each 40 GeV gluon split once into two 20 GeV halves with ±1 GeV along y. Now set a parameter
 from the user XML: add</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="w">    </span><span class="nt">&lt;CustomModuleToySplitV2&gt;&lt;e_min&gt;</span>50<span class="nt">&lt;/e_min&gt;&lt;/CustomModuleToySplitV2&gt;</span>
+<div class="language-xml highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="w">    </span><span class="nt">&lt;CustomModuleToySplitV2&gt;&lt;e_min&gt;</span>50<span class="nt">&lt;/e_min&gt;&lt;/CustomModuleToySplitV2&gt;</span>
 </code></pre></div>
 <p>inside <code>&lt;Eloss&gt;</code>. The 40 GeV gluons stay below <code>e_min</code>, nothing splits, and every event prints
 <code>2 final partons ... 2 hadrons, pT = [40. 40.]</code>.</p>
 <h3 id="the-same-modules-named-in-the-xml">The same modules named in the XML<a class="headerlink" href="#the-same-modules-named-in-the-xml" title="Permanent link">¶</a></h3>
 <p>With the automatic task list (the default), the user XML names the modules, and X-SCAPE builds
 the managers itself. Import the module file so the decorators register the classes, then run:</p>
-<div class="highlight"><span class="filename">my_user_xml.xml</span><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="cp">&lt;?xml version="1.0"?&gt;</span>
+<div class="language-xml highlight"><span class="filename">my_user_xml.xml</span><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="cp">&lt;?xml version="1.0"?&gt;</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">&lt;jetscape&gt;</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">&lt;nEvents&gt;</span>3<span class="nt">&lt;/nEvents&gt;</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">&lt;vlevel&gt;</span>0<span class="nt">&lt;/vlevel&gt;</span>
@@ -3112,7 +3142,7 @@ the managers itself. Import the module file so the decorators register the class
 <a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">  </span><span class="nt">&lt;JetHadronization&gt;&lt;name&gt;</span>CustomModuleToyHadronizerV2<span class="nt">&lt;/name&gt;&lt;/JetHadronization&gt;</span>
 <a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="nt">&lt;/jetscape&gt;</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="kn">import</span> <span class="n">paths</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">my_modules</span>  <span class="c1"># noqa: F401  (the decorators register the modules)</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
@@ -3178,7 +3208,7 @@ explains it). A Python module needs no edit: registering it gives the defaults, 
 <li>
 <p>With the plain call, give the defaults as XML text and read them yourself in <code>InitTask</code>, as a
   C++ module does:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ToyGun</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">HardProcess</span><span class="p">):</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">ToyGun</span><span class="p">(</span><span class="n">core</span><span class="o">.</span><span class="n">HardProcess</span><span class="p">):</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">InitTask</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_xml_element_double</span><span class="p">([</span><span class="s2">"Hard"</span><span class="p">,</span> <span class="s2">"CustomModuleToyGun"</span><span class="p">,</span> <span class="s2">"E"</span><span class="p">],</span> <span class="kc">False</span><span class="p">)</span>
 <a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
@@ -3235,7 +3265,7 @@ time step up to <code>&lt;Eloss&gt;&lt;maxT&gt;</code>, in steps of <code>&lt;El
   event with <code>Clone()</code> and drops the copies at the end. The default copy runs the C++ copy
   constructor and copies the instance attributes <em>shallowly</em>; <code>__init__</code> and <code>InitTask</code> are not
   called on copies. Override <code>Clone</code> for state that must not be shared between showers:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">Clone</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">Clone</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">copy</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">JetEnergyLoss</span><span class="o">.</span><span class="n">Clone</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>   <span class="c1"># the default copy</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">copy</span><span class="o">.</span><span class="n">history</span> <span class="o">=</span> <span class="p">[]</span>                       <span class="c1"># one list per shower</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="k">return</span> <span class="n">copy</span>

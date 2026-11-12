@@ -2516,6 +2516,8 @@
       
         
       
+        
+      
     
     
     
@@ -2613,6 +2615,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2971,7 +3001,7 @@ of the environment with its exact version and checksum. You install from the loc
 so every Mac gets exactly the same software.</p>
 </div>
 <h2 id="install-with-one-command">Install with one command<a class="headerlink" href="#install-with-one-command" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
 </code></pre></div>
 <p>The script, <a href="https://github.com/jhputschke/xscape-macos/blob/main/install.sh"><code>install.sh</code></a>,
 does steps 1–4 below for the latest release:</p>
@@ -2983,7 +3013,7 @@ does steps 1–4 below for the latest release:</p>
 </ol>
 <p>It takes a few minutes (93 s on an M3 Max with a fast connection, everything downloaded) and ends with <code>xscape VER is installed in ...</code> and
 the line that activates the environment. Then run your first event (step 5):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate<span class="w">     </span><span class="c1"># the line it printed; in every new Terminal window</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate<span class="w">     </span><span class="c1"># the line it printed; in every new Terminal window</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>xscape-examples<span class="w"> </span>~/xscape/examples
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
@@ -3027,12 +3057,12 @@ shell's <code>PATH</code>), uv's cache and Python, and the LBT tables in <code>~
 <p>The steps below do the same by hand.</p>
 <h2 id="step-1-install-uv">Step 1: install uv<a class="headerlink" href="#step-1-install-uv" title="Permanent link">¶</a></h2>
 <p>uv is Astral's Python package manager: a single program in <code>~/.local/bin</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://astral.sh/uv/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
 </code></pre></div>
 <p>Then open a new Terminal window (or run <code>source ~/.local/bin/env</code>) so that <code>uv</code> is found. With
 Homebrew, <code>brew install uv</code> works too.</p>
 <h2 id="step-2-create-the-environment-from-the-lock-file">Step 2: create the environment from the lock file<a class="headerlink" href="#step-2-create-the-environment-from-the-lock-file" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">VER</span><span class="o">=</span><span class="m">0</span>.2.0<span class="w">                     </span><span class="c1"># the latest: github.com/jhputschke/xscape-macos/releases</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">VER</span><span class="o">=</span><span class="m">0</span>.2.0<span class="w">                     </span><span class="c1"># the latest: github.com/jhputschke/xscape-macos/releases</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/xscape<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/xscape
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>curl<span class="w"> </span>-LO<span class="w"> </span>https://github.com/jhputschke/xscape-macos/releases/download/v<span class="nv">$VER</span>/xscape-<span class="nv">$VER</span>-cp313.lock.txt
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>uv<span class="w"> </span>venv<span class="w"> </span>--managed-python<span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span><span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13
@@ -3051,13 +3081,13 @@ depending on the connection.</p>
 <h2 id="step-3-fetch-the-lbt-tables">Step 3: fetch the LBT tables<a class="headerlink" href="#step-3-fetch-the-lbt-tables" title="Permanent link">¶</a></h2>
 <p>LBT, the jet energy-loss module, needs its scattering tables: a 240 MB download, 1.1 GB on
 disk. They are kept in <code>~/Library/Caches/xscape</code> and shared by all your environments.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>xscape-fetch-data<span class="w"> </span>lbt
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>xscape-fetch-data<span class="w"> </span>lbt
 </code></pre></div>
 <p>It checks every file against the release's checksums and ends with
 <code>xscape-fetch-data: LBT tables ... (checked) -&gt; ...</code>. If you already have the tables on disk,
 <code>xscape-fetch-data lbt --from DIR</code> uses them instead of downloading.</p>
 <h2 id="step-4-check-the-environment">Step 4: check the environment<a class="headerlink" href="#step-4-check-the-environment" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>xscape-selftest
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>xscape-selftest
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="c1"># ... image_check: all ok</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import jetscape as js; print(js.HAS_CORE, js.pyjetscape_core.MUSIC_BACKEND)"</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># -&gt; True music4gpu-metal</span>
@@ -3073,7 +3103,7 @@ once.</p>
 <code>[MUSIC-GPU] Metal init failed, falling back to CPU.</code>, MUSIC runs on the CPU; that happens
 inside a virtual machine or a container, so run natively in Terminal.</p>
 <h2 id="step-5-copy-the-examples-and-run-one-event">Step 5: copy the examples and run one event<a class="headerlink" href="#step-5-copy-the-examples-and-run-one-event" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>xscape-examples<span class="w"> </span>~/xscape/examples
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>xscape-examples<span class="w"> </span>~/xscape/examples
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>xscape-utils<span class="w"> </span>~/xscape/utils<span class="w">          </span><span class="c1"># optional: js-contrib's utils/, to read or adapt</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
@@ -3141,7 +3171,7 @@ M3 Max) and writes two hadron files to <code>~/xscape/out_oo/</code>. What it di
 <h2 id="one-xml-xscape-run">One XML: <code>xscape-run</code><a class="headerlink" href="#one-xml-xscape-run" title="Permanent link">¶</a></h2>
 <p><code>xscape-run</code> runs X-SCAPE's <code>runJetscape</code> on a user XML in a directory of its own, and takes any
 XML as it is: one of the installed X-SCAPE's <code>config/</code>, one of the examples, or your own.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>xscape-run<span class="w"> </span>-w<span class="w"> </span>~/xscape/runs/oo<span class="w"> </span>-u<span class="w"> </span>~/xscape/examples/pythonic/oo_workflow.xml
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>xscape-run<span class="w"> </span>-w<span class="w"> </span>~/xscape/runs/oo<span class="w"> </span>-u<span class="w"> </span>~/xscape/examples/pythonic/oo_workflow.xml
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>xscape-run<span class="w"> </span>-w<span class="w"> </span>~/xscape/runs/pp<span class="w"> </span>-u<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import xscape; print(xscape.TREE)'</span><span class="k">)</span><span class="s2">/config/jetscape_user.xml"</span>
 </code></pre></div>
 <ul>
@@ -3174,7 +3204,7 @@ paths), it stops and points to <code>xscape-run</code>, rather than failing in t
 <h2 id="running-the-productions">Running the productions<a class="headerlink" href="#running-the-productions" title="Permanent link">¶</a></h2>
 <p>The productions run from your copy of the examples, with the same options as on a GPU server
 or in the container.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># Au+Au 0-10 % with a jet: 2 events (about 40 s on an M3 Max)</span>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>python<span class="w"> </span>run_prod_jet.py<span class="w"> </span>--events<span class="w"> </span><span class="m">2</span><span class="w"> </span>--seed<span class="w"> </span><span class="m">1</span><span class="w"> </span>--write-particlize<span class="w"> </span>both<span class="w"> </span>--outdir<span class="w"> </span>~/xscape/prod/out
@@ -3215,7 +3245,7 @@ or in the container.</p>
 this Mac with the measured settings (machine <code>mac_wheel</code>: this environment, your copy of the
 examples, <code>run_jobs.sh</code>) and estimates the duration, disk and memory; it never starts jobs.
 <code>xscape-jobmon</code> watches the campaign.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>xscape-prodwizard<span class="w"> </span>--preset<span class="w"> </span>auau_jet<span class="w"> </span>--machine<span class="w"> </span>mac_wheel<span class="w"> </span>--events<span class="w"> </span><span class="m">300</span><span class="w"> </span>--campaign<span class="w"> </span><span class="nb">test</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>xscape-prodwizard<span class="w"> </span>--preset<span class="w"> </span>auau_jet<span class="w"> </span>--machine<span class="w"> </span>mac_wheel<span class="w"> </span>--events<span class="w"> </span><span class="m">300</span><span class="w"> </span>--campaign<span class="w"> </span><span class="nb">test</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>xscape-prodwizard<span class="w"> </span>--preset<span class="w"> </span>oo_hadrons<span class="w"> </span>--machine<span class="w"> </span>mac_wheel<span class="w"> </span>--events<span class="w"> </span><span class="m">1000</span><span class="w"> </span>--save<span class="w"> </span>launch_oo.sh
 <a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>xscape-jobmon<span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet/out/test<span class="w"> </span>--tui<span class="w">     </span><span class="c1"># while it runs</span>
 <a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>xscape-check-deposition<span class="w"> </span>~/xscape/examples/prod_AuAu_0_10_jet/out/test
@@ -3232,7 +3262,7 @@ wizard picks it by itself. The rates are the M3 Max's. The tools and their optio
 <p>Put your script and its user XML in a directory of yours, starting from a copy of
 <code>examples/pythonic/oo_workflow.py</code> and <code>oo_workflow.xml</code> (<code>oo_workflow.py</code> takes any user XML
 with <code>--xml</code>). The skeleton every such script has:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># ~/xscape/mine/my_job.py</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># ~/xscape/mine/my_job.py</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronH5Writer</span>
@@ -3309,7 +3339,7 @@ the jet wake and the hadrons, clone js-contrib and create the
 installed by default. <a href="../../python/visualization/#requirements">How, step by step</a>.</p>
 </div>
 <h2 id="jupyter-and-vs-code">Jupyter and VS Code<a class="headerlink" href="#jupyter-and-vs-code" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-VER/bin/activate
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-VER/bin/activate
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples
 <a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>jupyter<span class="w"> </span>lab
 </code></pre></div>
@@ -3418,12 +3448,12 @@ are not installed. <code>xscape-run</code> names what an XML needs of these and 
 <h2 id="updating-and-removing">Updating and removing<a class="headerlink" href="#updating-and-removing" title="Permanent link">¶</a></h2>
 <p><strong>A new release</strong> goes into a new environment next to the old one, so a running campaign keeps
 its software. With the script (the latest release, or <code>sh -s -- --version VER</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-&lt;new<span class="w"> </span>version&gt;/bin/activate
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>xscape-examples<span class="w"> </span>~/xscape/examples-&lt;new<span class="w"> </span>version&gt;<span class="w">   </span><span class="c1"># the examples of this release</span>
 </code></pre></div>
 <p>or by hand:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nv">VER</span><span class="o">=</span>&lt;new<span class="w"> </span>version&gt;
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nv">VER</span><span class="o">=</span>&lt;new<span class="w"> </span>version&gt;
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">cd</span><span class="w"> </span>~/xscape
 <a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>curl<span class="w"> </span>-LO<span class="w"> </span>https://github.com/jhputschke/xscape-macos/releases/download/v<span class="nv">$VER</span>/xscape-<span class="nv">$VER</span>-cp313.lock.txt
 <a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a>uv<span class="w"> </span>venv<span class="w"> </span>--managed-python<span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span><span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span>/bin/activate
@@ -3432,7 +3462,7 @@ its software. With the script (the latest release, or <code>sh -s -- --version V
 <a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>xscape-examples<span class="w"> </span>~/xscape/examples-<span class="nv">$VER</span><span class="w">   </span><span class="c1"># the examples of this release</span>
 </code></pre></div>
 <p><strong>Removing:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/.venvs/xscape-VER<span class="w">               </span><span class="c1"># one environment</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/.venvs/xscape-VER<span class="w">               </span><span class="c1"># one environment</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>rm<span class="w"> </span>-rf<span class="w"> </span>~/Library/Caches/xscape<span class="w">           </span><span class="c1"># the LBT tables</span>
 <a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>uv<span class="w"> </span>cache<span class="w"> </span>clean<span class="w">                           </span><span class="c1"># uv's downloads</span>
 <a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a>rm<span class="w"> </span>~/.local/bin/uv<span class="w"> </span>~/.local/bin/uvx<span class="w">      </span><span class="c1"># uv itself</span>

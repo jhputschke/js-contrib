@@ -2483,6 +2483,8 @@
       
         
       
+        
+      
     
     
     
@@ -2580,6 +2582,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -3082,7 +3112,7 @@ Npart √s_NN / 2</code>.</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># the settings of every job of a campaign</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># the settings of every job of a campaign</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="o">,</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"/path/to/OO_c1/**/*_hadrons_jet_frag.h5"</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)):</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
@@ -3096,7 +3126,7 @@ Npart √s_NN / 2</code>.</p>
 <h2 id="5-reading-a-campaign">5. Reading a campaign<a class="headerlink" href="#5-reading-a-campaign" title="Permanent link">¶</a></h2>
 <p>The hadron files are small, so a whole campaign fits in memory as flat arrays: one event table,
 and one array per hadron quantity with the global event index and the sample of each hadron:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">CHARGED</span><span class="p">,</span> <span class="n">pseudorapidity</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
@@ -3154,7 +3184,7 @@ an O+O analysis that way, streaming the files of a public test run from the OSDF
 <p><strong>Cross sections.</strong> Each pT̂ window is its own Pythia; each file records per window
 <code>pthat_bin_sigma_gen</code> [mb] (after the parton-rapidity cut) and <code>pthat_bin_n_accepted</code>. Combine
 the files weighted by their accepted events:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">first</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">ev</span><span class="p">[</span><span class="s2">"file"</span><span class="p">],</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>          <span class="c1"># one row per file</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">first</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">ev</span><span class="p">[</span><span class="s2">"file"</span><span class="p">],</span> <span class="n">return_index</span><span class="o">=</span><span class="kc">True</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>          <span class="c1"># one row per file</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">sig</span><span class="p">,</span> <span class="n">n_acc</span> <span class="o">=</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"pthat_bin_sigma_gen"</span><span class="p">][</span><span class="n">first</span><span class="p">],</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"pthat_bin_n_accepted"</span><span class="p">][</span><span class="n">first</span><span class="p">]</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">sigma_k</span> <span class="o">=</span> <span class="p">(</span><span class="n">n_acc</span> <span class="o">*</span> <span class="n">sig</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span> <span class="o">/</span> <span class="n">n_acc</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>                 <span class="c1"># mb per window</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">k</span> <span class="o">=</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"pthat_bin"</span><span class="p">]</span>
@@ -3210,7 +3240,7 @@ moves the bulk's dN_ch/dη at <span class="arithmatex">\(|\eta| &lt; 0.5\)</span
   unless the analysis needs a medium.</li>
 </ul>
 <h2 id="7-checks">7. Checks<a class="headerlink" href="#7-checks" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">E_beam</span> <span class="o">=</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"glauber_npart"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">200.0</span> <span class="o">/</span> <span class="mi">2</span>                     <span class="c1"># Npart sqrt(s_NN) / 2</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">E_beam</span> <span class="o">=</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"glauber_npart"</span><span class="p">]</span> <span class="o">*</span> <span class="mf">200.0</span> <span class="o">/</span> <span class="mi">2</span>                     <span class="c1"># Npart sqrt(s_NN) / 2</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="n">E_sum</span> <span class="o">=</span> <span class="p">(</span><span class="n">ev</span><span class="p">[</span><span class="s2">"strings_E_total"</span><span class="p">]</span> <span class="o">+</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"isr_sub_E_total"</span><span class="p">]</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>         <span class="o">+</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"remnant_E_proj"</span><span class="p">]</span> <span class="o">+</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"remnant_E_targ"</span><span class="p">])</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="n">med</span> <span class="o">=</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"has_medium"</span><span class="p">]</span> <span class="o">==</span> <span class="mi">1</span>                                  <span class="c1"># no medium: strings_E_total is NaN</span>
@@ -3224,7 +3254,7 @@ moves the bulk's dN_ch/dη at <span class="arithmatex">\(|\eta| &lt; 0.5\)</span
 </ul>
 <h2 id="8-multiplicity-and-spectra">8. Multiplicity and spectra<a class="headerlink" href="#8-multiplicity-and-spectra" title="Permanent link">¶</a></h2>
 <p>Per event: the bulk's sample mean plus the event's jet hadrons:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">n_samp</span> <span class="o">=</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"n_samples_bg"</span><span class="p">]</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">n_samp</span> <span class="o">=</span> <span class="n">ev</span><span class="p">[</span><span class="s2">"n_samples_bg"</span><span class="p">]</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">mid_b</span> <span class="o">=</span> <span class="n">bulk</span><span class="p">[</span><span class="s2">"charged"</span><span class="p">]</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">bulk</span><span class="p">[</span><span class="s2">"eta"</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">)</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">mid_j</span> <span class="o">=</span> <span class="n">jet</span><span class="p">[</span><span class="s2">"charged"</span><span class="p">]</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">jet</span><span class="p">[</span><span class="s2">"eta"</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">)</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">dn_bulk</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">bulk</span><span class="p">[</span><span class="s2">"event"</span><span class="p">][</span><span class="n">mid_b</span><span class="p">],</span> <span class="n">minlength</span><span class="o">=</span><span class="n">n_ev</span><span class="p">)</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">n_samp</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
@@ -3249,7 +3279,7 @@ data.</p>
 <p>Pairs of hadrons from <strong>different</strong> oversamples of one event correlate only through the fluid
 (its flow and geometry): no resonance-decay or momentum-conservation pairs within one sample.
 That gives v_n{2} of the events' own fluids, without that non-flow:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">vn2</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">,</span> <span class="n">mask</span><span class="p">):</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">vn2</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">,</span> <span class="n">mask</span><span class="p">):</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">    </span><span class="sd">"""v_n{2} from pairs of hadrons in different oversamples of the same event."""</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">m</span> <span class="o">=</span> <span class="n">mask</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">n_samples</span><span class="p">[</span><span class="n">h</span><span class="p">[</span><span class="s2">"event"</span><span class="p">]]</span> <span class="o">&gt;=</span> <span class="mi">2</span><span class="p">)</span>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">e</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">q</span> <span class="o">=</span> <span class="n">h</span><span class="p">[</span><span class="s2">"event"</span><span class="p">][</span><span class="n">m</span><span class="p">],</span> <span class="n">h</span><span class="p">[</span><span class="s2">"sample"</span><span class="p">][</span><span class="n">m</span><span class="p">],</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mi">1</span><span class="n">j</span> <span class="o">*</span> <span class="n">n</span> <span class="o">*</span> <span class="n">h</span><span class="p">[</span><span class="s2">"phi"</span><span class="p">][</span><span class="n">m</span><span class="p">])</span>
@@ -3277,7 +3307,7 @@ That gives v_n{2} of the events' own fluids, without that non-flow:</p>
 <h2 id="11-jets">11. Jets<a class="headerlink" href="#11-jets" title="Permanent link">¶</a></h2>
 <p>The full event at hadron level is one bulk oversample plus the jet hadrons. Clustering bulk
 sample 0 with them:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">fastjet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">fj</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">fastjet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">fj</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="n">JET_DEF</span> <span class="o">=</span> <span class="n">fj</span><span class="o">.</span><span class="n">JetDefinition</span><span class="p">(</span><span class="n">fj</span><span class="o">.</span><span class="n">antikt_algorithm</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">)</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">def</span><span class="w"> </span><span class="nf">pseudojets</span><span class="p">(</span><span class="n">h</span><span class="p">,</span> <span class="n">idx</span><span class="p">):</span>        <span class="c1"># massless, as on the FastJet page</span>
@@ -3318,14 +3348,14 @@ sample 0 with them:</p>
   initiators; <code>ParticlizeFile</code> reads it. It is the input for more bulk hadrons later, in the
   container or an X-SCAPE build:</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_hadronize.py<span class="w"> </span>/work/OO_c1<span class="w"> </span>-j<span class="w"> </span><span class="m">8</span><span class="w"> </span>--tags<span class="w"> </span>bulk_bg<span class="w"> </span>--oversample<span class="w"> </span><span class="m">100</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_hadronize.py<span class="w"> </span>/work/OO_c1<span class="w"> </span>-j<span class="w"> </span><span class="m">8</span><span class="w"> </span>--tags<span class="w"> </span>bulk_bg<span class="w"> </span>--oversample<span class="w"> </span><span class="m">100</span>
 </code></pre></div>
 <p><code>hadronize.py</code> refuses <code>jet_frag</code> on these files: the O+O jet hadrons are made in the job.</p>
 <h2 id="13-root">13. ROOT<a class="headerlink" href="#13-root" title="Permanent link">¶</a></h2>
 <p><code>run_h5toROOT.py</code> and <code>HadronFileReader.h</code> expect the Au+Au layout (they stop on O+O with
 <code>KeyError: 'seed'</code>). For O+O, convert each tag with the single-file converter and write the event
 record next to it:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="o">,</span><span class="w"> </span><span class="nn">subprocess</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="o">,</span><span class="w"> </span><span class="nn">subprocess</span><span class="o">,</span><span class="w"> </span><span class="nn">sys</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span><span class="o">,</span><span class="w"> </span><span class="nn">uproot</span>
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
 <a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">CONV</span> <span class="o">=</span> <span class="s2">"contribs/PyJetscape/example/prod_AuAu_0_10_jet/root_export/hadrons_to_root.py"</span>

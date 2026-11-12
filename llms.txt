@@ -1,0 +1,98 @@
+# js-contrib
+
+> GPU-accelerated X-SCAPE heavy-ion simulations with Python and PyTorch: install, run the productions, analyse the files, write your own modules.
+
+js-contrib is the contrib package of the X-SCAPE (JETSCAPE) heavy-ion event generator:
+MUSIC hydrodynamics on the GPU (CUDA, Apple Metal), Python bindings down to the module
+level (PyJetscape), ready-made productions (Au+Au and Pb+Pb with jets and Z+jet, O+O and
+Ne+Ne with initial-state radiation) that write HDF5 files, readers and analyses for those
+files, and PyTorch surrogates of the hydro. It runs from a production container
+(`jhputschke/xscape-prod`, Docker or Apptainer, NVIDIA GPU), a Mac wheel (`xscape`,
+Apple Silicon), or a source build; the analyses need only a Python venv.
+
+Notes for assistants: the examples and production scripts are copied into a user
+directory with `xscape-examples DIR`; that copy carries an `AGENTS.md` (and a
+`CLAUDE.md` importing it) with the commands per installation and the rules for running
+productions. Every driver prints its options with `--help`. The analysis scripts are
+examples, not vetted physics results.
+
+
+## Start here
+
+- [Home](https://jhputschke.github.io/js-contrib/index.md): what js-contrib is and where to go next
+- [Choose your setup](https://jhputschke.github.io/js-contrib/install/index.md): the four setups (container, Mac wheel, analysis venv, source build) and which to choose
+- [Your first event](https://jhputschke.github.io/js-contrib/run/first-event/index.md): one O+O event and two Au+Au jet events through the whole chain, per setup
+- [AI assistants](https://jhputschke.github.io/js-contrib/reference/ai-assistants/index.md): using Claude Code, other coding agents and chat assistants with js-contrib
+
+## Install
+
+- [Production container](https://jhputschke.github.io/js-contrib/install/container/index.md): the production image, its rules (/work, --user, GPU flags), running examples and productions in it
+- [Mac (xscape wheel)](https://jhputschke.github.io/js-contrib/install/mac/index.md): the xscape wheel on Apple Silicon, its commands (xscape-run, xscape-examples, ...) and limits
+- [Analysis environment](https://jhputschke.github.io/js-contrib/install/analysis-env/index.md): the Python venv for reading and analysing files, with or without ROOT
+- [Source build (conda)](https://jhputschke.github.io/js-contrib/install/source/index.md): building X-SCAPE contrib with js-contrib in the js_fno conda environment
+
+## Run
+
+- [Running the productions](https://jhputschke.github.io/js-contrib/run/index.md): what a production is, the drivers and run_jobs.sh, seeds and campaigns
+- [Au+Au jets (two stages)](https://jhputschke.github.io/js-contrib/run/auau-jet/index.md): the main production, Au+Au 0-10 % with a jet in two hydro legs; run_prod_jet.py, run_jobs.sh, hadronize.py
+- [O+O with ISR](https://jhputschke.github.io/js-contrib/run/oo-isr/index.md): O+O at 200 GeV with initial-state radiation; run_prod_oo_isr.py
+- [Z+jet and other systems](https://jhputschke.github.io/js-contrib/run/zjet-other/index.md): Z+jet, Pb+Pb and other systems by changing the user XML
+- [Extra hard scatterings, O+O and Ne+Ne](https://jhputschke.github.io/js-contrib/run/extra-hard/index.md): extra hard scatterings per event, O+O and Ne+Ne, minimum bias
+- [Clusters, GPUs and monitoring](https://jhputschke.github.io/js-contrib/run/clusters/index.md): jobs per GPU, SLURM, several GPUs, jobmon, checking a run, troubleshooting
+- [Data on the OSDF](https://jhputschke.github.io/js-contrib/run/osdf/index.md): downloading, reading in place and uploading productions on the OSDF with js_osdf.py
+
+## Analyse
+
+- [Analyse](https://jhputschke.github.io/js-contrib/analysis/index.md): environments, getting files, a first spectrum
+- [What a production writes](https://jhputschke.github.io/js-contrib/analysis/files/index.md): every file a production writes, dataset by dataset, and what an event is
+- [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md): HadronFileReader, histograms with per-event statistics, errors, pT-hat windows
+- [Jets with FastJet](https://jhputschke.github.io/js-contrib/analysis/jets/index.md): jets with FastJet from Python, areas and background subtraction
+- [Hydro and hadrons together](https://jhputschke.github.io/js-contrib/analysis/hydro-hadrons/index.md): the hydro pair and the hadron pair together, the jet wake
+- [O+O](https://jhputschke.github.io/js-contrib/analysis/oo/index.md): analysing the O+O production
+- [Bulk and flow](https://jhputschke.github.io/js-contrib/analysis/bulk/index.md): bulk observables and flow
+- [ROOT and C++](https://jhputschke.github.io/js-contrib/analysis/root/index.md): the ROOT export, uproot, RDataFrame and the C++ reader
+- [Notebooks](https://jhputschke.github.io/js-contrib/analysis/notebooks/index.md): index of the analysis notebooks
+
+## Python
+
+- [Python](https://jhputschke.github.io/js-contrib/python/index.md): overview of PyJetscape
+- [The Pythonic interface](https://jhputschke.github.io/js-contrib/python/pythonic/index.md): the Pythonic interface, events in a Python loop as numpy arrays
+- [Writing modules in Python](https://jhputschke.github.io/js-contrib/python/modules/index.md): writing X-SCAPE modules (energy loss, hydro, writers, ...) in Python
+- [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md): a PyTorch FNO as live hydro module
+- [FastHydro](https://jhputschke.github.io/js-contrib/python/fasthydro/index.md): the fast finite-volume hydro with the real jet energy-loss chain
+- [3D visualization](https://jhputschke.github.io/js-contrib/python/visualization/index.md): 3D rendering of events with PyVista
+
+## Tutorials
+
+- [Tutorials](https://jhputschke.github.io/js-contrib/tutorials/index.md): the step-by-step path through the notebooks
+- [Setting up](https://jhputschke.github.io/js-contrib/tutorials/setup/index.md): setting up to run the tutorials
+- [01 · Check your setup](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/01_check_setup/index.md): check the installation
+- [02 · Your first events in Python](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/02_first_events/index.md): first events from Python
+- [03 · The production scripts](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/03_production_scripts/index.md): the production scripts, a small run
+- [04 · The files and their provenance](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/04_files_and_provenance/index.md): the files and their provenance
+- [05 · Hadrons: spectra, dN/dη, oversamples and weights](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/05_hadrons/index.md): reading hadrons, per-event averages and errors
+- [06 · The hydro pair: the wake in the fluid](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/06_hydro_pair/index.md): the hydro pair, jet leg minus background
+- [07 · The hadron pair: the wake in hadrons](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/07_hadron_pair/index.md): the hadron pair and the wake
+- [08 · Jets with FastJet](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/08_jets_fastjet/index.md): jets with FastJet
+- [09 · ROOT files from Python: uproot and RDataFrame](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/09_root_from_python/index.md): ROOT files from Python
+- [10 · ROOT C++ macros and FastJet in C++](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/10_root_cpp_macros/index.md): ROOT C++ macros
+- [11 · Write an energy-loss module in Python](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/11_python_module/index.md): an energy-loss module in Python
+- [12 · Write your own in-run writer](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/12_python_writer/index.md): an in-run writer in Python
+
+## About
+
+- [About js-contrib](https://jhputschke.github.io/js-contrib/about/index.md): what js-contrib is, its parts and people
+- [Why js-contrib](https://jhputschke.github.io/js-contrib/about/why/index.md): why it exists, what it adds to X-SCAPE
+- [The physics](https://jhputschke.github.io/js-contrib/about/physics/index.md): what the productions simulate, stage by stage
+- [GPU acceleration](https://jhputschke.github.io/js-contrib/about/gpu/index.md): MUSIC4GPU, speed and agreement with the CPU code
+- [Python and machine learning](https://jhputschke.github.io/js-contrib/about/python-ml/index.md): the Python bindings and the machine-learning hydro surrogates
+- [Publications and citing](https://jhputschke.github.io/js-contrib/about/references/index.md): publications and how to cite
+
+## Reference
+
+- [Reference](https://jhputschke.github.io/js-contrib/reference/index.md): index of the look-up pages
+- [Contribs and repositories](https://jhputschke.github.io/js-contrib/reference/contribs/index.md): the contribs, repositories, images and versions that belong together
+- [Tools](https://jhputschke.github.io/js-contrib/reference/tools/index.md): prodwizard, jobmon, h5_inspect, h5_compare, the transfer tools
+- [X-SCAPE changes since 2.1](https://jhputschke.github.io/js-contrib/reference/changes/index.md): bug fixes and new features of X-SCAPE contrib since 2.1
+- [Building this site](https://jhputschke.github.io/js-contrib/reference/site/index.md): building and publishing this site
+

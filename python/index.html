@@ -2271,6 +2271,8 @@
       
         
       
+        
+      
     
     
     
@@ -2368,6 +2370,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2581,7 +2611,7 @@ module without touching C++. Why this matters for ML is on
 </ul>
 <p>In code, <code>import jetscape as js</code> gives the package and the Pythonic layer; the bound classes
 themselves are in <code>jetscape.pyjetscape_core</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>                         <span class="c1"># package + Pythonic layer</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>                         <span class="c1"># package + Pythonic layer</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="kn">import</span> <span class="n">pyjetscape_core</span> <span class="k">as</span> <span class="n">core</span>  <span class="c1"># the bound C++ classes: core.JetEnergyLoss, core.FourVector, ...</span>
 </code></pre></div>
 <div class="admonition warning">
@@ -2597,7 +2627,7 @@ macOS <code>import jetscape</code> does this for you if PyTorch is installed.</p
 <p>The production image <code>jhputschke/xscape-prod</code> has <code>pyjetscape_core</code> and the <code>jetscape</code>
 package on <code>PYTHONPATH</code>, plus the analysis packages (awkward, vector, FastJet, Jupyter).
 PyTorch is not included. Copy the examples out of the read-only image once:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>work
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>work
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>xscape-examples<span class="w"> </span>/work/examples
 </code></pre></div>
@@ -2608,7 +2638,7 @@ PyTorch is not included. Copy the examples out of the read-only image once:</p>
 and the <code>pyjetscape</code> wheel (the <code>jetscape</code> package) install into one Python environment;
 <code>import jetscape</code> finds the compiled core there. PyTorch is not included. Copy the examples
 with</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>xscape-examples<span class="w"> </span>~/xscape/examples
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>xscape-examples<span class="w"> </span>~/xscape/examples
 </code></pre></div>
 <p>Details: <a href="../install/mac/">Mac (xscape wheel)</a>.</p>
 </div>
@@ -2616,7 +2646,7 @@ with</p>
 <p>Build X-SCAPE (branch <code>contrib</code>) with js-contrib and the bindings. <code>-DUSE_MUSIC=ON</code> and
 <code>-DUSE_3DGlauber=ON</code> are required (the bindings use MUSIC's wrapper, iColoredHadronization
 and iMATTER):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cmake<span class="w"> </span>..<span class="w"> </span>-DUSE_MUSIC<span class="o">=</span>ON<span class="w"> </span>-DUSE_ISS<span class="o">=</span>ON<span class="w"> </span>-DUSE_3DGlauber<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cmake<span class="w"> </span>..<span class="w"> </span>-DUSE_MUSIC<span class="o">=</span>ON<span class="w"> </span>-DUSE_ISS<span class="o">=</span>ON<span class="w"> </span>-DUSE_3DGlauber<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">         </span>-DUSE_JS_CONTRIB<span class="o">=</span>ON<span class="w"> </span>-DUSE_JS_PYJETSCAPE<span class="o">=</span>ON
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>make<span class="w"> </span>-j<span class="w"> </span>pyjetscape_core
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>../external_packages/js-contrib/contribs/PyJetscape<span class="w">   </span><span class="c1"># or "...PyJetscape[fno,root]"</span>
@@ -2633,7 +2663,7 @@ and analyse every production file, but not run events.</p>
 <p>This runs one O+O event through the whole chain (3D MC-Glauber, Pythia with initial-state
 radiation, MUSIC, Matter + LBT, hadronization) with the user XML of the Pythonic example,
 <code>pythonic/oo_workflow.xml</code> in the copied examples, and prints what the jet left behind:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="k">with</span> <span class="n">js</span><span class="o">.</span><span class="n">JobDir</span><span class="p">(</span><span class="s2">"out_first"</span><span class="p">,</span> <span class="s2">"oo_workflow.xml"</span><span class="p">)</span> <span class="k">as</span> <span class="n">job</span><span class="p">:</span>          <span class="c1"># a private working directory</span>

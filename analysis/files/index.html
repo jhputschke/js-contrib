@@ -2451,6 +2451,8 @@
       
         
       
+        
+      
     
     
     
@@ -2548,6 +2550,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -3072,7 +3102,7 @@ CPUs, as often as needed (<code>jetscape.particlize_h5</code>):</p>
   not freeze out (<a href="../hadrons/#6-bad-runs">Hadrons, bad runs</a>).</li>
 </ul>
 <p>Reading one event:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.particlize_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">ParticlizeFile</span><span class="p">,</span> <span class="n">SURFACE_COLUMNS</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.particlize_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">ParticlizeFile</span><span class="p">,</span> <span class="n">SURFACE_COLUMNS</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="k">with</span> <span class="n">ParticlizeFile</span><span class="p">(</span><span class="s2">"AuAu_0_10_jet_c1_0001_particlize.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">pf</span><span class="p">:</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    <span class="n">cells</span>    <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">surface</span><span class="p">(</span><span class="s2">"jet"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>          <span class="c1"># (N, 32) float32: MUSIC_2's surface, event 0</span>
@@ -3324,7 +3354,7 @@ data sets:</p>
 </tbody>
 </table>
 <p>The settings of every production file of a campaign:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="o">,</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span><span class="o">,</span><span class="w"> </span><span class="nn">yaml</span>              <span class="c1"># hdf5plugin registers the Blosc filter</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">glob</span><span class="o">,</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span><span class="o">,</span><span class="w"> </span><span class="nn">yaml</span>              <span class="c1"># hdf5plugin registers the Blosc filter</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">xml.etree.ElementTree</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ET</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">"/path/to/campaign/**/*_particlize.h5"</span><span class="p">,</span> <span class="n">recursive</span><span class="o">=</span><span class="kc">True</span><span class="p">)):</span>
@@ -3347,7 +3377,7 @@ files it adds a summary that decodes the conventions: the output and MUSIC grids
 the per-event freeze-out, the ragged <code>*offsets</code> groups with their columns, the <code>diag/</code> vectors,
 and it flags inconsistencies. It needs only h5py and numpy, and reads nothing from the large
 datasets unless asked:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>AuAu_0_10_jet_seed0001.h5<span class="w">                  </span><span class="c1"># tree + summary</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>AuAu_0_10_jet_seed0001.h5<span class="w">                  </span><span class="c1"># tree + summary</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>AuAu_0_10_jet_seed0001.h5<span class="w"> </span>--no-tree<span class="w">        </span><span class="c1"># summary only</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>AuAu_0_10_jet_seed0001.h5<span class="w"> </span>--attr<span class="w"> </span>prod_user_xml<span class="w">   </span><span class="c1"># one attribute in full</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>python<span class="w"> </span>utils/h5_inspect.py<span class="w"> </span>AuAu_0_10_jet_seed0001.h5<span class="w"> </span>--stats<span class="w"> </span>--event<span class="w"> </span><span class="m">0</span><span class="w">      </span><span class="c1"># min/max/mean, NaN/inf of event 0</span>

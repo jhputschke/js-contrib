@@ -2439,6 +2439,8 @@
       
         
       
+        
+      
     
     
     
@@ -2536,6 +2538,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2831,7 +2861,7 @@ that have neither.</p>
 <p><code>jetscape.HAS_CORE</code> is <code>False</code> in this venv. That is expected: every reader works without the
 compiled core.</p>
 <h2 id="1-make-the-venv">1. Make the venv<a class="headerlink" href="#1-make-the-venv" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jhputschke/js-contrib.git
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jhputschke/js-contrib.git
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nb">cd</span><span class="w"> </span>js-contrib
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>./utils/analysis_env/setup_analysis_env.sh<span class="w">           </span><span class="c1"># venv in ~/.venvs/js_analysis</span>
 </code></pre></div>
@@ -2853,7 +2883,7 @@ compiled core.</p>
 </ol>
 <p>Nothing outside the venv directory is written, except a Jupyter kernel spec if you ask for one.</p>
 <h2 id="2-activate-and-check">2. Activate and check<a class="headerlink" href="#2-activate-and-check" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis/bin/activate
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis/bin/activate
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>python<span class="w"> </span>utils/analysis_env/check_env.py<span class="w"> </span>/path/to/out<span class="w">    </span><span class="c1"># opens every file of a production directory</span>
 </code></pre></div>
 <p><code>check_env.py</code> checks the packages, the Blosc filter (the HDF5 files are Blosc-compressed and
@@ -2878,7 +2908,7 @@ With a directory it opens its pair, hadron and ROOT files. Two flags:</p>
 </tbody>
 </table>
 <h2 id="3-options">3. Options<a class="headerlink" href="#3-options" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./utils/analysis_env/setup_analysis_env.sh<span class="w"> </span><span class="o">[</span>VENV_DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>./utils/analysis_env/setup_analysis_env.sh<span class="w"> </span><span class="o">[</span>VENV_DIR<span class="o">]</span><span class="w"> </span><span class="o">[</span>options<span class="o">]</span>
 </code></pre></div>
 <table>
 <thead>
@@ -2945,7 +2975,7 @@ ROOT only when it is made <strong>from the Python that ROOT was built for</stron
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><input id="__tabbed_1_2" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="__tabbed_1_1">conda with ROOT + the venv (tested)</label><label for="__tabbed_1_2">one conda env with everything (untested)</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 1. conda, once (skip if you have it): Miniforge, conda-forge by default</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># 1. conda, once (skip if you have it): Miniforge, conda-forge by default</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>curl<span class="w"> </span>-fLO<span class="w"> </span><span class="s2">"https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-</span><span class="k">$(</span>uname<span class="k">)</span><span class="s2">-</span><span class="k">$(</span>uname<span class="w"> </span>-m<span class="k">)</span><span class="s2">.sh"</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>bash<span class="w"> </span><span class="s2">"Miniforge3-</span><span class="k">$(</span>uname<span class="k">)</span><span class="s2">-</span><span class="k">$(</span>uname<span class="w"> </span>-m<span class="k">)</span><span class="s2">.sh"</span><span class="w"> </span>-b<span class="w"> </span>-p<span class="w"> </span>~/miniforge3
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="nb">source</span><span class="w"> </span>~/miniforge3/bin/activate
@@ -2961,7 +2991,7 @@ ROOT only when it is made <strong>from the Python that ROOT was built for</stron
 <p><code>check_env.py</code> then prints <code>ok PyROOT 6.xx ... writes with ROOT</code>. Afterwards PyROOT works
 from the venv alone; for the <code>root</code> prompt and compiled macros, <code>conda activate root</code>
 (without it ACLiC doesn't find the system headers: <code>'assert.h' file not found</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis_root/bin/activate
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis_root/bin/activate
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>python<span class="w"> </span>contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_h5toROOT.py<span class="w"> </span>/path/to/out<span class="w"> </span>-j<span class="w"> </span><span class="m">4</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>conda<span class="w"> </span>activate<span class="w"> </span>root
@@ -2972,14 +3002,14 @@ make the venv from the <code>python3</code> in which <code>import ROOT</code> wo
 <code>--python "$(which python3)" --system-site-packages</code>.</p>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>js-contrib
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>js-contrib
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>utils/analysis_env/environment.yml<span class="w">    </span><span class="c1"># env "js_analysis"</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>conda<span class="w"> </span>activate<span class="w"> </span>js_analysis
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>python<span class="w"> </span>utils/analysis_env/check_env.py<span class="w"> </span>/path/to/out
 </code></pre></div>
 <p>Everything comes from conda-forge except the scikit-hep <code>fastjet</code> and PyJetscape (editable).
 The EoS tables are not part of it; add them with</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/share/music_eos/hotQCD"</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/share/music_eos/hotQCD"</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="k">for</span><span class="w"> </span>t<span class="w"> </span><span class="k">in</span><span class="w"> </span>binary<span class="w"> </span>SMASH_binary<span class="p">;</span><span class="w"> </span><span class="k">do</span><span class="w">                         </span><span class="c1"># EOS 9 and EOS 91</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span><span class="s2">"</span><span class="nv">$CONDA_PREFIX</span><span class="s2">/share/music_eos/hotQCD/hrg_hotqcd_eos_</span><span class="nv">$t</span><span class="s2">.dat"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span>https://api.bitbucket.org/2.0/repositories/wayne_state_nuclear_theory/hotqcd/src/main/hrg_hotqcd_eos_<span class="nv">$t</span>.dat
@@ -3026,7 +3056,7 @@ fsspec opens (with <code>hdf5plugin</code> imported). Only the chunks you read t
 Reading the public <code>osdf:///fno4hic</code> namespace needs no login or token. How to find, download
 and read the published productions: <a href="../../run/osdf/">Data on the OSDF</a>.</p>
 <h2 id="7-jupyter">7. Jupyter<a class="headerlink" href="#7-jupyter" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis/bin/activate
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/js_analysis/bin/activate
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">cd</span><span class="w"> </span>js-contrib/contribs/PyJetscape/example/prod_AuAu_0_10_jet
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>jupyter<span class="w"> </span>notebook<span class="w"> </span>jet_wake.ipynb
 </code></pre></div>
@@ -3043,7 +3073,7 @@ works. If it fails on a machine without a display, run under <code>xvfb-run</cod
 <p>The <code>jetscape</code> package with the same analysis packages also comes as a pure-Python wheel, part
 of every <a href="https://github.com/jhputschke/xscape-macos/releases">xscape-macos release</a>. It
 installs on any platform, in any Python 3.10+ environment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.2.0/pyjetscape-1.4-py3-none-any.whl"</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.2.0/pyjetscape-1.4-py3-none-any.whl"</span>
 </code></pre></div>
 <p>Quote the argument: zsh treats <code>[...]</code> as a pattern. The readers, <code>HadronArray</code>, the awkward
 views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it

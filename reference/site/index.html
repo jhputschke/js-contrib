@@ -2266,6 +2266,8 @@
       
         
       
+        
+      
     
     
     
@@ -2366,6 +2368,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2507,6 +2537,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#llmstxt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        llms.txt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#publish" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2593,6 +2634,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#llmstxt" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        llms.txt
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#publish" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2636,13 +2688,13 @@ configuration, including the navigation, is in
 <a href="https://github.com/jhputschke/js-contrib/blob/main/mkdocs.yml"><code>mkdocs.yml</code></a> at the
 repository root. The <code>docs/</code> folder (design notes, plans, benchmarks) is not part of the site.</p>
 <h2 id="preview-locally">Preview locally<a class="headerlink" href="#preview-locally" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>~/.venvs/js_docs
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>python3<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>~/.venvs/js_docs
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>~/.venvs/js_docs/bin/pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>website/requirements.txt
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>~/.venvs/js_docs/bin/mkdocs<span class="w"> </span>serve<span class="w">          </span><span class="c1"># from the repository root</span>
 </code></pre></div>
 <p>Then open <a href="http://127.0.0.1:8000">http://127.0.0.1:8000</a>. The page reloads whenever you save a file. To build the
 static site into <code>_site/</code> and stop on any broken link or anchor:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>~/.venvs/js_docs/bin/mkdocs<span class="w"> </span>build<span class="w"> </span>--strict
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>~/.venvs/js_docs/bin/mkdocs<span class="w"> </span>build<span class="w"> </span>--strict
 </code></pre></div>
 <h2 id="change-a-page">Change a page<a class="headerlink" href="#change-a-page" title="Permanent link">¶</a></h2>
 <ul>
@@ -2673,10 +2725,27 @@ static site into <code>_site/</code> and stop on any broken link or anchor:</p>
 <p>To execute the tutorials and store their outputs, run
 <code>python tutorials/run_notebooks.py pyjetscape --inplace</code>. Do this from a setup without
 paths of your own in it, such as the production container.</p>
+<h2 id="llmstxt">llms.txt<a class="headerlink" href="#llmstxt" title="Permanent link">¶</a></h2>
+<p>The plugin <code>mkdocs-llmstxt</code> writes the site a second time for language models
+(<a href="../ai-assistants/">AI assistants</a>): <code>/llms.txt</code> (one line per page), every page as Markdown
+next to its HTML (<code>run/oo-isr/index.md</code>), and <code>/llms-full.txt</code> (all pages in one file).</p>
+<ul>
+<li><strong>A new page needs a line</strong> in the plugin's <code>sections</code> in <code>mkdocs.yml</code>, with a short
+  description. The hook <code>website/_tools/llms_nav_check.py</code> warns when a page of the nav is
+  missing there, and <code>mkdocs build --strict</code> then fails.</li>
+<li><strong>The conversion</strong> from HTML is prepared in <code>website/_tools/llms_preprocess.py</code>: it keeps
+  the labels of content tabs ("Docker", "Apptainer", ...) as bold lines, removes the notebooks'
+  prompts and copy buttons, and keeps math as TeX.</li>
+<li><strong>The description at the top</strong> of <code>llms.txt</code> is <code>markdown_description</code> in <code>mkdocs.yml</code>.</li>
+<li><strong>The instruction file for coding agents</strong> is not part of the site: it is
+  <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/AGENTS.md"><code>contribs/PyJetscape/example/AGENTS.md</code></a>,
+  copied to users by <code>xscape-examples</code>. Keep it short (it is read at the start of every
+  session) and in step with the pages it summarizes.</li>
+</ul>
 <h2 id="publish">Publish<a class="headerlink" href="#publish" title="Permanent link">¶</a></h2>
 <p>Building the site does not publish anything. One way to put it on GitHub Pages at
 <code>https://jhputschke.github.io/js-contrib/</code> is:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>~/.venvs/js_docs/bin/mkdocs<span class="w"> </span>gh-deploy<span class="w">      </span><span class="c1"># builds and pushes to the gh-pages branch</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>~/.venvs/js_docs/bin/mkdocs<span class="w"> </span>gh-deploy<span class="w">      </span><span class="c1"># builds and pushes to the gh-pages branch</span>
 </code></pre></div>
 <p>Then, in the repository's <em>Settings → Pages</em>, set the source to the <code>gh-pages</code> branch.</p><script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
 /* Shared by full pages and Material's instant navigation. */

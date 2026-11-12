@@ -2434,6 +2434,8 @@
       
         
       
+        
+      
     
     
     
@@ -2531,6 +2533,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2804,7 +2834,7 @@ export step. The method and the 2+1D models are described in
 <li>finds the freeze-out surface at the configured temperature.</li>
 </ol>
 <h2 id="three-ways-to-give-it-a-model">Three ways to give it a model<a class="headerlink" href="#three-ways-to-give-it-a-model" title="Permanent link">¶</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>                                   <span class="c1"># always before jetscape</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>                                   <span class="c1"># always before jetscape</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.fno_hydro</span><span class="w"> </span><span class="kn">import</span> <span class="n">PyFNOHydro</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="c1"># 1. a JIT-traced TorchScript file (the format the C++ FnoHydro reads)</span>
@@ -2822,7 +2852,7 @@ export step. The method and the 2+1D models are described in
 <p>Approach 3 is what makes the module useful while you develop a model. <code>PyFNOHydro</code> keeps a
 reference to <em>your</em> <code>nn.Module</code>, not a copy, so a model you have just trained, or are still
 training, runs inside a full X-SCAPE event:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>                                   <span class="c1"># (1) before jetscape</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>                                   <span class="c1"># (1) before jetscape</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_module</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.fno_hydro</span><span class="w"> </span><span class="kn">import</span> <span class="n">PyFNOHydro</span><span class="p">,</span> <span class="n">fno_config_from_xml</span>
@@ -2877,7 +2907,7 @@ energy loss and hadronization on the predicted medium, add the managers by hand 
 </div>
 <h2 id="the-grid-configuration">The grid configuration<a class="headerlink" href="#the-grid-configuration" title="Permanent link">¶</a></h2>
 <p>The <code>config</code> dict gives the FNO grid:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">config</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">nx</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">ny</span><span class="o">=</span><span class="mi">60</span><span class="p">,</span> <span class="n">ntau</span><span class="o">=</span><span class="mi">59</span><span class="p">,</span>          <span class="c1"># required</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">n_features</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>                   <span class="c1"># required: 3 or 4</span>
 <a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">x_min</span><span class="o">=-</span><span class="mf">15.0</span><span class="p">,</span> <span class="n">y_min</span><span class="o">=-</span><span class="mf">15.0</span><span class="p">,</span>       <span class="c1"># required [fm]</span>
@@ -2892,7 +2922,7 @@ energy loss and hadronization on the predicted medium, add the managers by hand 
 device=...)</code> parses the <code>&lt;Hydro&gt;&lt;FNO&gt;</code> block before the run, and <code>config=None</code> lets
 <code>PyFNOHydro</code> read the same block from the loaded XML in <code>InitializeHydro()</code>, as the C++ module
 does:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">&lt;Hydro&gt;</span>
+<div class="language-xml highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">&lt;Hydro&gt;</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">&lt;FNO&gt;</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">&lt;model_file&gt;</span>models/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt<span class="nt">&lt;/model_file&gt;</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">&lt;n_features&gt;</span>3<span class="nt">&lt;/n_features&gt;</span>
@@ -2916,7 +2946,7 @@ runs TrentoInitial → NullPreDynamics → <code>PyFNOHydro</code> with a traced
 the evolution as numpy and torch tensors and the number of surface cells, and saves
 <code>python_fno_test_bulk.png</code> (energy-density slices). Put the model file into
 <code>contribs/FnoHydro/models/</code> or pass <code>--model</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>X-SCAPE/build_gpu
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">cd</span><span class="w"> </span>X-SCAPE/build_gpu
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>python<span class="w"> </span>../external_packages/js-contrib/contribs/PyJetscape/example/python_fno_test.py<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span>--model<span class="w"> </span>../external_packages/js-contrib/contribs/FnoHydro/models/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--device<span class="w"> </span>cpu
@@ -2929,7 +2959,7 @@ the evolution as numpy and torch tensors and the number of surface cells, and sa
 environment of a <a href="../../install/source/">source build</a>, which has it.</p>
 <h2 id="utilities-the-evolution-as-arrays-and-tensors">Utilities: the evolution as arrays and tensors<a class="headerlink" href="#utilities-the-evolution-as-arrays-and-tensors" title="Permanent link">¶</a></h2>
 <p><code>jetscape.utils</code> converts between X-SCAPE's evolution history and numpy / torch:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">bulk_info_to_numpy</span><span class="p">,</span> <span class="n">bulk_info_to_tensor</span><span class="p">,</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">bulk_info_to_numpy</span><span class="p">,</span> <span class="n">bulk_info_to_tensor</span><span class="p">,</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>                            <span class="n">numpy_to_bulk_info</span><span class="p">,</span> <span class="n">tensor_to_bulk_info</span><span class="p">,</span> <span class="n">rebin_preeq_to_fno_grid</span><span class="p">)</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">info</span> <span class="o">=</span> <span class="n">hydro</span><span class="o">.</span><span class="n">get_bulk_info</span><span class="p">()</span>                               <span class="c1"># EvolutionHistory, any hydro module</span>
@@ -2953,7 +2983,7 @@ and the grid from the same <code>&lt;Hydro&gt;&lt;FNO&gt;</code> block (<code>&l
 traced model and its XML work in both; the freeze-out temperature it takes from
 <code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;freezeout_temperature&gt;</code>.
 It needs LibTorch (about 2 GB) and ROOT at build time:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cmake<span class="w"> </span>..<span class="w"> </span>-DUSE_MUSIC<span class="o">=</span>ON<span class="w"> </span>-DUSE_ISS<span class="o">=</span>ON<span class="w"> </span>-DUSE_JS_CONTRIB<span class="o">=</span>ON<span class="w"> </span>-DUSE_JS_FNO_HYDRO<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>cmake<span class="w"> </span>..<span class="w"> </span>-DUSE_MUSIC<span class="o">=</span>ON<span class="w"> </span>-DUSE_ISS<span class="o">=</span>ON<span class="w"> </span>-DUSE_JS_CONTRIB<span class="o">=</span>ON<span class="w"> </span>-DUSE_JS_FNO_HYDRO<span class="o">=</span>ON<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span>-DCMAKE_PREFIX_PATH<span class="o">=</span><span class="s2">"</span><span class="k">$(</span>python<span class="w"> </span>-c<span class="w"> </span><span class="s1">'import torch; print(torch.utils.cmake_prefix_path)'</span><span class="k">)</span><span class="s2">"</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>-j<span class="w"> </span>FnoModule
 </code></pre></div>
@@ -2991,7 +3021,7 @@ ROOT format:</p>
 </tr>
 </tbody>
 </table>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>models
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>models<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>models
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>curl<span class="w"> </span>-L<span class="w"> </span>-o<span class="w"> </span>traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span><span class="s2">"https://zenodo.org/records/16647726/files/traced_JS3.7_10k_3feat_fno_model_cpu_40_60_59bins.pt?download=1"</span>
 </code></pre></div>

@@ -2489,6 +2489,8 @@
       
         
       
+        
+      
     
     
     
@@ -2586,6 +2588,34 @@
     
   
     Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/ai-assistants/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI assistants
   
 
     
@@ -2986,14 +3016,14 @@ don't say. The image's <code>/opt/X-SCAPE/BUILD_INFO.txt</code> lists the commit
 <div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio"><input id="__tabbed_1_2" name="__tabbed_1" type="radio"><div class="tabbed-labels"><label for="__tabbed_1_1">Docker</label><label for="__tabbed_1_2">Apptainer</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>docker<span class="w"> </span>pull<span class="w"> </span>jhputschke/xscape-prod:cu126
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>docker<span class="w"> </span>pull<span class="w"> </span>jhputschke/xscape-prod:cu126
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span>nvidia-smi<span class="w">       </span><span class="c1"># the GPU is seen</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span>python<span class="w"> </span>/opt/X-SCAPE/external_packages/js-contrib/utils/container/image_check.py<span class="w"> </span>--analysis
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>apptainer<span class="w"> </span>pull<span class="w"> </span>xscape_prod.sif<span class="w"> </span>docker://jhputschke/xscape-prod:cu126
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>apptainer<span class="w"> </span>pull<span class="w"> </span>xscape_prod.sif<span class="w"> </span>docker://jhputschke/xscape-prod:cu126
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>xscape_prod.sif<span class="w"> </span>nvidia-smi
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>xscape_prod.sif<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span>python<span class="w"> </span>/opt/X-SCAPE/external_packages/js-contrib/utils/container/image_check.py<span class="w"> </span>--analysis
@@ -3003,7 +3033,7 @@ don't say. The image's <code>/opt/X-SCAPE/BUILD_INFO.txt</code> lists the commit
 </div>
 <p><code>image_check.py</code> ends with <code>image_check: all ok</code>. To confirm that the bindings were built
 against the GPU MUSIC:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import jetscape as js; print(js.HAS_CORE, js.pyjetscape_core.MUSIC_BACKEND)"</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># -&gt; True music4gpu-cuda</span>
 </code></pre></div>
@@ -3069,7 +3099,7 @@ iColored + iSS. It takes under a minute on a GPU and leaves two hadron files in
 <div class="tabbed-set tabbed-alternate" data-tabs="2:2"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio"><input id="__tabbed_2_2" name="__tabbed_2" type="radio"><div class="tabbed-labels"><label for="__tabbed_2_1">Docker</label><label for="__tabbed_2_2">Apptainer</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>work
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>work
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>-w<span class="w"> </span>/work<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span>jhputschke/xscape-prod:cu126<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="s1">'xscape-examples /work/examples &amp;&amp; cd /work/examples/pythonic &amp;&amp;</span>
@@ -3077,7 +3107,7 @@ iColored + iSS. It takes under a minute on a GPU and leaves two hadron files in
 </code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">W</span><span class="o">=</span><span class="nv">$SCRATCH</span>/xscape<span class="p">;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$W</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">W</span><span class="o">=</span><span class="nv">$SCRATCH</span>/xscape<span class="p">;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$W</span>
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--bind<span class="w"> </span><span class="nv">$W</span>:/work<span class="w"> </span>xscape_prod.sif<span class="w"> </span>xscape-examples<span class="w"> </span>/work/examples
 <a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--pwd<span class="w"> </span>/work/examples/pythonic<span class="w"> </span>--bind<span class="w"> </span><span class="nv">$W</span>:/work<span class="w"> </span>xscape_prod.sif<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>/work/out_oo
@@ -3093,7 +3123,7 @@ directory. What the event does and what the files contain:
 <h2 id="5-running-the-productions">5. Running the productions<a class="headerlink" href="#5-running-the-productions" title="Permanent link">¶</a></h2>
 <p>The production scripts run from the image's own copy, with their outputs in <code>/work</code>. Docker
 starts in <code>prod_AuAu_0_10_jet</code>; for O+O, change the directory with <code>-w</code>.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">IMG</span><span class="o">=</span>jhputschke/xscape-prod:cu126
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nv">IMG</span><span class="o">=</span>jhputschke/xscape-prod:cu126
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>prod
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
 <a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Au+Au 0-10 % with a jet: 2 events</span>
@@ -3125,7 +3155,7 @@ SLURM arrays and the two stages are explained in
 <p>Put the script and its user XML in <code>work/</code> (start from a copy of
 <code>examples/pythonic/oo_workflow.py</code> and <code>oo_workflow.xml</code>). Every such script has the same
 skeleton:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># work/my_job.py</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># work/my_job.py</span>
 <a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
 <a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronH5Writer</span>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>
@@ -3137,7 +3167,7 @@ skeleton:</p>
 <a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>            <span class="n">out</span><span class="o">.</span><span class="n">append_unit</span><span class="p">(</span><span class="n">jets</span><span class="o">.</span><span class="n">to_dict</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="n">i</span><span class="p">,</span> <span class="n">event</span><span class="o">=</span><span class="n">i</span><span class="p">)</span>
 <a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>            <span class="nb">print</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">jets</span><span class="p">),</span> <span class="s2">"jet hadrons"</span><span class="p">)</span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>-w<span class="w"> </span>/work<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>-w<span class="w"> </span>/work<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span>jhputschke/xscape-prod:cu126<span class="w"> </span>python<span class="w"> </span>my_job.py
 </code></pre></div>
 <p><code>js.JobDir(out_dir, user_xml)</code> copies your XML to <code>out_dir/</code>, makes its relative paths (such
@@ -3149,7 +3179,7 @@ interface (<code>driver.events()</code>, <code>hadron_array()</code>, the hadron
 <a href="../../python/modules/">Writing modules in Python</a>.</p>
 <h3 id="python-packages-that-are-not-in-the-image">Python packages that are not in the image<a class="headerlink" href="#python-packages-that-are-not-in-the-image" title="Permanent link">¶</a></h3>
 <p>Install them once into <code>/work</code> and put that directory on the path:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span>pip<span class="w"> </span>install<span class="w"> </span>--target<span class="w"> </span>/work/pylib<span class="w"> </span>seaborn
 <a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>docker<span class="w"> </span>run<span class="w"> </span>...<span class="w"> </span>-e<span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/work/pylib:/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python<span class="w"> </span>...
 </code></pre></div>
@@ -3159,7 +3189,7 @@ For a group, a small Dockerfile of your own is cleaner:
 <h3 id="changing-js-contribs-python-code">Changing js-contrib's Python code<a class="headerlink" href="#changing-js-contribs-python-code" title="Permanent link">¶</a></h3>
 <p>The image uses its own <code>jetscape</code> package unless yours comes first on the path. For changes to
 pure Python, mount your js-contrib checkout and put its package in front:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>docker<span class="w"> </span>run<span class="w"> </span>...<span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/js-contrib:/src/js-contrib:ro"</span><span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>docker<span class="w"> </span>run<span class="w"> </span>...<span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/js-contrib:/src/js-contrib:ro"</span><span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span>-e<span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/src/js-contrib/contribs/PyJetscape/python<span class="w"> </span>...
 </code></pre></div>
 <p>This works only if your checkout is close to the image's js-contrib commit (<code>BUILD_INFO.txt</code>),
@@ -3168,7 +3198,7 @@ and the compiled <code>pyjetscape_core*.so</code> must come from the image (copy
 <h2 id="7-analysis-without-a-gpu">7. Analysis without a GPU<a class="headerlink" href="#7-analysis-without-a-gpu" title="Permanent link">¶</a></h2>
 <p>Without <code>--gpus</code> (Docker) or <code>--nv</code> (Apptainer) the image is an analysis environment. It also
 runs stage 2 (hadronization) on CPU-only nodes, unchanged.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># a script of yours on your files</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># a script of yours on your files</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>-w<span class="w"> </span>/work<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span>jhputschke/xscape-prod:cu126<span class="w"> </span>python<span class="w"> </span>my_analysis.py<span class="w"> </span>/work/data
 <a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a>
@@ -3213,7 +3243,7 @@ copy):</p>
 <h2 id="8-jupyter">8. Jupyter<a class="headerlink" href="#8-jupyter" title="Permanent link">¶</a></h2>
 <p><code>xscape-jupyter [DIR]</code> starts JupyterLab on port 8888 with <code>DIR</code> (default <code>/work</code>) as its
 root and prints the URL with its access token.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-p<span class="w"> </span><span class="m">8888</span>:8888<span class="w"> </span><span class="se">\</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>--gpus<span class="w"> </span>all<span class="w"> </span>--user<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>id<span class="w"> </span>-u<span class="k">)</span><span class="s2">:</span><span class="k">$(</span>id<span class="w"> </span>-g<span class="k">)</span><span class="s2">"</span><span class="w"> </span>-p<span class="w"> </span><span class="m">8888</span>:8888<span class="w"> </span><span class="se">\</span>
 <a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>-v<span class="w"> </span><span class="s2">"</span><span class="nv">$PWD</span><span class="s2">/work:/work"</span><span class="w"> </span>jhputschke/xscape-prod:cu126<span class="w"> </span>xscape-jupyter
 </code></pre></div>
 <p>Open the <code>http://127.0.0.1:8888/lab?token=...</code> line it prints. Notebooks run with the image's
@@ -3231,7 +3261,7 @@ it with Ctrl-C twice.</p>
 <p>Apptainer runs the same image as you, with your home directory mounted and the host's network.
 It differs from Docker in three ways: <code>--nv</code> for the GPU, <code>--bind</code> for <code>/work</code>, and it starts in
 the current directory, not the image's start directory, so pass <code>--pwd</code> or full paths.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>apptainer<span class="w"> </span>pull<span class="w"> </span>xscape_prod.sif<span class="w"> </span>docker://jhputschke/xscape-prod:cu126-&lt;date&gt;-&lt;commit&gt;
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>apptainer<span class="w"> </span>pull<span class="w"> </span>xscape_prod.sif<span class="w"> </span>docker://jhputschke/xscape-prod:cu126-&lt;date&gt;-&lt;commit&gt;
 <a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nv">W</span><span class="o">=</span><span class="nv">$SCRATCH</span>/xscape<span class="p">;</span><span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span><span class="nv">$W</span>
 <a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nv">EX</span><span class="o">=</span>/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example
 <a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>
@@ -3256,12 +3286,12 @@ monitoring</a>.</p>
 <li><strong>Home directory:</strong> Apptainer mounts it, but write outputs to <code>/work</code> on scratch, not to <code>~</code>.</li>
 </ul>
 <p><strong>Jupyter on a compute node:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>salloc<span class="w"> </span>--gpus<span class="o">=</span><span class="m">1</span><span class="w"> </span>--time<span class="o">=</span><span class="m">2</span>:00:00<span class="w">                  </span><span class="c1"># your site's options; you land on a node</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>salloc<span class="w"> </span>--gpus<span class="o">=</span><span class="m">1</span><span class="w"> </span>--time<span class="o">=</span><span class="m">2</span>:00:00<span class="w">                  </span><span class="c1"># your site's options; you land on a node</span>
 <a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>apptainer<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>--nv<span class="w"> </span>--bind<span class="w"> </span><span class="nv">$SCRATCH</span>/xscape:/work<span class="w"> </span>xscape_prod.sif<span class="w"> </span>xscape-jupyter
 </code></pre></div>
 <p>In Apptainer, <code>xscape-jupyter</code> listens on 127.0.0.1 only, since the node is shared. Tunnel from
 your laptop through the login node to the compute node:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>ssh<span class="w"> </span>-N<span class="w"> </span>-L<span class="w"> </span><span class="m">8888</span>:localhost:8888<span class="w"> </span>-J<span class="w"> </span>user@login.cluster<span class="w"> </span>user@&lt;node&gt;<span class="w">   </span><span class="c1"># if nodes accept ssh</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>ssh<span class="w"> </span>-N<span class="w"> </span>-L<span class="w"> </span><span class="m">8888</span>:localhost:8888<span class="w"> </span>-J<span class="w"> </span>user@login.cluster<span class="w"> </span>user@&lt;node&gt;<span class="w">   </span><span class="c1"># if nodes accept ssh</span>
 <a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>ssh<span class="w"> </span>-N<span class="w"> </span>-L<span class="w"> </span><span class="m">8888</span>:&lt;node&gt;:8888<span class="w"> </span>user@login.cluster<span class="w">                     </span><span class="c1"># otherwise, with JUPYTER_IP=0.0.0.0</span>
 </code></pre></div>
 <p>For the second form start Jupyter with <code>apptainer exec --env JUPYTER_IP=0.0.0.0 ...</code>; the token

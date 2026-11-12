@@ -1,0 +1,54 @@
+# Building this site
+
+The site is built with [MkDocs](https://www.mkdocs.org/) and the [Material](https://squidfunk.github.io/mkdocs-material/) theme. Its pages are the Markdown files in [`website/`](https://github.com/jhputschke/js-contrib/tree/main/website), and its configuration, including the navigation, is in [`mkdocs.yml`](https://github.com/jhputschke/js-contrib/blob/main/mkdocs.yml) at the repository root. The `docs/` folder (design notes, plans, benchmarks) is not part of the site.
+
+## Preview locally
+
+```bash
+python3 -m venv ~/.venvs/js_docs
+~/.venvs/js_docs/bin/pip install -r website/requirements.txt
+~/.venvs/js_docs/bin/mkdocs serve          # from the repository root
+```
+
+Then open <http://127.0.0.1:8000>. The page reloads whenever you save a file. To build the static site into `_site/` and stop on any broken link or anchor:
+
+```bash
+~/.venvs/js_docs/bin/mkdocs build --strict
+```
+
+## Change a page
+
+- Edit the Markdown file in `website/`. Each page also has an edit button that opens the file on GitHub.
+- A new page also needs an entry under `nav:` in `mkdocs.yml`.
+- Link to other pages with relative `.md` paths (`../run/osdf.md`). Link to files in the repository with full GitHub URLs (`https://github.com/jhputschke/js-contrib/blob/main/...`), because those files are not part of the site.
+- Available features include admonitions (`!!! note`), content tabs (`=== "Docker"`), Mermaid diagrams, and math (`\( … \)`). See the [Material reference](https://squidfunk.github.io/mkdocs-material/reference/).
+
+## The tutorials' notebooks
+
+The [tutorials](https://jhputschke.github.io/js-contrib/tutorials/index.md) are notebooks in [`tutorials/<contrib>/`](https://github.com/jhputschke/js-contrib/tree/main/tutorials), outside `website/`. The plugin `mkdocs-jupyter` adds them to the site:
+
+- **How they get in.** Its `notebook_dirs` option mounts each contrib's folder at the same path (`tutorials/pyjetscape/...`).
+- **Not executed here.** The pages show the outputs stored in the notebooks; the build never runs them.
+- **What stays out.** `exclude_docs` leaves out the folders' `README.md` and any downloaded `data/`.
+- **A new notebook** needs an entry under `Tutorials` in the `nav:` of `mkdocs.yml`, and one in its `tutorials.json`.
+
+To execute the tutorials and store their outputs, run `python tutorials/run_notebooks.py pyjetscape --inplace`. Do this from a setup without paths of your own in it, such as the production container.
+
+## llms.txt
+
+The plugin `mkdocs-llmstxt` writes the site a second time for language models ([AI assistants](https://jhputschke.github.io/js-contrib/reference/ai-assistants/index.md)): `/llms.txt` (one line per page), every page as Markdown next to its HTML (`run/oo-isr/index.md`), and `/llms-full.txt` (all pages in one file).
+
+- **A new page needs a line** in the plugin's `sections` in `mkdocs.yml`, with a short description. The hook `website/_tools/llms_nav_check.py` warns when a page of the nav is missing there, and `mkdocs build --strict` then fails.
+- **The conversion** from HTML is prepared in `website/_tools/llms_preprocess.py`: it keeps the labels of content tabs ("Docker", "Apptainer", ...) as bold lines, removes the notebooks' prompts and copy buttons, and keeps math as TeX.
+- **The description at the top** of `llms.txt` is `markdown_description` in `mkdocs.yml`.
+- **The instruction file for coding agents** is not part of the site: it is [`contribs/PyJetscape/example/AGENTS.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/AGENTS.md), copied to users by `xscape-examples`. Keep it short (it is read at the start of every session) and in step with the pages it summarizes.
+
+## Publish
+
+Building the site does not publish anything. One way to put it on GitHub Pages at `https://jhputschke.github.io/js-contrib/` is:
+
+```bash
+~/.venvs/js_docs/bin/mkdocs gh-deploy      # builds and pushes to the gh-pages branch
+```
+
+Then, in the repository's *Settings → Pages*, set the source to the `gh-pages` branch.
