@@ -57,7 +57,7 @@ One O+O event goes through the whole chain, and its hadron files are written to 
 
 ```bash
 curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh
-source ~/.venvs/xscape-0.2.0/bin/activate              # the line the script printed
+source ~/.venvs/xscape-1.5/bin/activate                # the line the script printed
 xscape-examples ~/xscape/examples
 cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 ```
@@ -68,7 +68,7 @@ The same by hand
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh        # once; then open a new Terminal
-VER=0.2.0                                              # latest: github.com/jhputschke/xscape-macos/releases
+VER=1.5                                                # latest: github.com/jhputschke/xscape-macos/releases
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
 uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
@@ -124,4 +124,4 @@ The physics behind each box is explained in [The physics](https://jhputschke.git
 
 Status
 
-js-contrib follows the X-SCAPE `contrib` branch and MUSIC4GPU `XSCAPE`. The Mac wheel's current release is **v0.2.0** (the extra hard scatterings, pelicanfs, the tool commands, `xscape-run` for any XML). The production container images are tagged by CUDA version (`cu126`, `cu130`, `cu124`). See [Contribs and repositories](https://jhputschke.github.io/js-contrib/reference/contribs/index.md) for the full list of components.
+js-contrib follows the X-SCAPE `contrib` branch and MUSIC4GPU `XSCAPE`. The Mac wheel's current release is **v1.5** (parallel showers, threaded iSS sampling, the liquefier's frames, the faster jet source). From 1.5 on, the Mac wheel, the `pyjetscape` package and the production container images all carry js-contrib's release number: the images are tagged by CUDA version (`cu126`, `cu130`, `cu124`) and, per release, `cu126-v1.5` etc. See [Contribs and repositories](https://jhputschke.github.io/js-contrib/reference/contribs/index.md) for the full list of components.

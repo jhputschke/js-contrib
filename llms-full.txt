@@ -78,7 +78,7 @@ One O+O event goes through the whole chain, and its hadron files are written to 
 
 ```bash
 curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh
-source ~/.venvs/xscape-0.2.0/bin/activate              # the line the script printed
+source ~/.venvs/xscape-1.5/bin/activate                # the line the script printed
 xscape-examples ~/xscape/examples
 cd ~/xscape/examples/pythonic && python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 ```
@@ -89,7 +89,7 @@ The same by hand
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh        # once; then open a new Terminal
-VER=0.2.0                                              # latest: github.com/jhputschke/xscape-macos/releases
+VER=1.5                                                # latest: github.com/jhputschke/xscape-macos/releases
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
 uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
@@ -145,7 +145,7 @@ The physics behind each box is explained in [The physics](https://jhputschke.git
 
 Status
 
-js-contrib follows the X-SCAPE `contrib` branch and MUSIC4GPU `XSCAPE`. The Mac wheel's current release is **v0.2.0** (the extra hard scatterings, pelicanfs, the tool commands, `xscape-run` for any XML). The production container images are tagged by CUDA version (`cu126`, `cu130`, `cu124`). See [Contribs and repositories](https://jhputschke.github.io/js-contrib/reference/contribs/index.md) for the full list of components.
+js-contrib follows the X-SCAPE `contrib` branch and MUSIC4GPU `XSCAPE`. The Mac wheel's current release is **v1.5** (parallel showers, threaded iSS sampling, the liquefier's frames, the faster jet source). From 1.5 on, the Mac wheel, the `pyjetscape` package and the production container images all carry js-contrib's release number: the images are tagged by CUDA version (`cu126`, `cu130`, `cu124`) and, per release, `cu126-v1.5` etc. See [Contribs and repositories](https://jhputschke.github.io/js-contrib/reference/contribs/index.md) for the full list of components.
 
 # Choose your setup
 
@@ -492,7 +492,7 @@ Each tag is a multi-architecture manifest: `docker pull` and `apptainer pull` ta
 
 For a campaign, pin the image
 
-`cu126` is a **moving** tag: it always points at the latest build. For a production campaign take a fixed, dated tag, `cu126-<YYYYMMDD>-<xscape commit>`, or the image digest, and use the same one on every machine. Physics fixes change results, so don't mix images of different builds in one campaign, and record which image you used: the output files don't say. The image's `/opt/X-SCAPE/BUILD_INFO.txt` lists the commits it was built from.
+`cu126` is a **moving** tag: it always points at the latest build. For a production campaign take a fixed tag: a release's, `cu126-v1.5` (`cu130-v1.5`, `cu124-v1.5`; the number is js-contrib's release, the same as the Mac wheel's), a dated one, `cu126-<YYYYMMDD>-<xscape commit>`, or the image digest, and use the same one on every machine. Physics fixes change results, so don't mix images of different builds in one campaign, and record which image you used: the output files don't say. The image's `/opt/X-SCAPE/BUILD_INFO.txt` lists the commits it was built from.
 
 ## 2. Pull the image and check it
 
@@ -782,7 +782,9 @@ You do **not** need Xcode, Homebrew, conda, Docker, git or an Apple developer ac
 
 Releases
 
-The wheels are published on the [Releases page of jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos/releases). The current release is **v0.2.0**; check that page for the latest. Each release is a set of three files: the `xscape` wheel (X-SCAPE, 175 MB), the `pyjetscape` wheel (the Python package), and a **lock file** `xscape-<version>-cp313.lock.txt`, which names every package of the environment with its exact version and checksum. You install from the lock file, so every Mac gets exactly the same software.
+The wheels are published on the [Releases page of jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos/releases). The current release is **v1.5**; check that page for the latest. Each release is a set of three files: the `xscape` wheel (X-SCAPE, 175 MB), the `pyjetscape` wheel (the Python package), and a **lock file** `xscape-<version>-cp313.lock.txt`, which names every package of the environment with its exact version and checksum. You install from the lock file, so every Mac gets exactly the same software.
+
+**Version numbers:** from 1.5 on, a release has the number of the js-contrib release it is built from (xscape 1.5 = js-contrib `v1.5` = pyjetscape 1.5), the same number as the production containers of that release (`cu126-v1.5`, `cu130-v1.5`, `cu124-v1.5`), which are built from the same commits. Earlier releases were numbered on their own (0.1.0, 0.2.0); 1.5 follows 0.2.0.
 
 ## Install with one command
 
@@ -800,13 +802,13 @@ The script, [`install.sh`](https://github.com/jhputschke/xscape-macos/blob/main/
 It takes a few minutes (93 s on an M3 Max with a fast connection, everything downloaded) and ends with `xscape VER is installed in ...` and the line that activates the environment. Then run your first event (step 5):
 
 ```bash
-source ~/.venvs/xscape-0.2.0/bin/activate     # the line it printed; in every new Terminal window
+source ~/.venvs/xscape-1.5/bin/activate       # the line it printed; in every new Terminal window
 xscape-examples ~/xscape/examples
 cd ~/xscape/examples/pythonic
 python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 ```
 
-Options go after `sh -s --`, for example `... | sh -s -- --version 0.2.0 --examples ~/xscape/examples`:
+Options go after `sh -s --`, for example `... | sh -s -- --version 1.5 --examples ~/xscape/examples`:
 
 | option                      | does                                                             |
 | --------------------------- | ---------------------------------------------------------------- |
@@ -833,7 +835,7 @@ Then open a new Terminal window (or run `source ~/.local/bin/env`) so that `uv` 
 ## Step 2: create the environment from the lock file
 
 ```bash
-VER=0.2.0                     # the latest: github.com/jhputschke/xscape-macos/releases
+VER=1.5                       # the latest: github.com/jhputschke/xscape-macos/releases
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
 uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
@@ -845,7 +847,7 @@ uv downloads Python 3.13 and about 200 MB of packages, which takes seconds to a 
 
 - `--managed-python` makes uv use its own Python, never one from Homebrew, conda or python.org that happens to be installed, so nothing outside the environment is used.
 - `uv pip sync` installs exactly what the lock lists, hash-checked, and removes anything else.
-- `source ~/.venvs/xscape-$VER/bin/activate` is needed in **every new Terminal window** where you use X-SCAPE. Your prompt then starts with `(xscape-0.2.0)`.
+- `source ~/.venvs/xscape-$VER/bin/activate` is needed in **every new Terminal window** where you use X-SCAPE. Your prompt then starts with `(xscape-1.5)`.
 
 ## Step 3: fetch the LBT tables
 
@@ -1279,10 +1281,10 @@ The notebooks name the kernel they were saved with. If Jupyter asks, choose "Pyt
 The `jetscape` package with the same analysis packages also comes as a pure-Python wheel, part of every [xscape-macos release](https://github.com/jhputschke/xscape-macos/releases). It installs on any platform, in any Python 3.10+ environment:
 
 ```bash
-uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.2.0/pyjetscape-1.4-py3-none-any.whl"
+uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v1.5/pyjetscape-1.5-py3-none-any.whl"
 ```
 
-Quote the argument: zsh treats `[...]` as a pattern. The readers, `HadronArray`, the awkward views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it does not install pyvista, and the 0.2.0 wheel has no pelicanfs (add it with `uv pip install pelicanfs "aiowebdav2<1"`; later wheels include it), and it does not fetch the EoS tables: download both as in the conda tab above and point `MUSIC_EOS_TABLE` at one of them (the tools take the other from the same directory).
+Quote the argument: zsh treats `[...]` as a pattern. The readers, `HadronArray`, the awkward views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it does not install pyvista (pelicanfs is in `[analysis]` from 1.5; with the older 0.2.0 wheel, pyjetscape 1.4, add it with `uv pip install pelicanfs "aiowebdav2<1"`), and it does not fetch the EoS tables: download both as in the conda tab above and point `MUSIC_EOS_TABLE` at one of them (the tools take the other from the same directory).
 
 ## Threads and memory
 

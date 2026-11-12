@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -2994,11 +2994,16 @@ wheel</a>. Intel Macs are not supported.</p>
 <p class="admonition-title">Releases</p>
 <p>The wheels are published on the
 <a href="https://github.com/jhputschke/xscape-macos/releases">Releases page of jhputschke/xscape-macos</a>.
-The current release is <strong>v0.2.0</strong>; check that page for the latest. Each release is a set
+The current release is <strong>v1.5</strong>; check that page for the latest. Each release is a set
 of three files: the <code>xscape</code> wheel (X-SCAPE, 175 MB), the <code>pyjetscape</code> wheel (the Python
 package), and a <strong>lock file</strong> <code>xscape-&lt;version&gt;-cp313.lock.txt</code>, which names every package
 of the environment with its exact version and checksum. You install from the lock file,
 so every Mac gets exactly the same software.</p>
+<p><strong>Version numbers:</strong> from 1.5 on, a release has the number of the js-contrib release it
+is built from (xscape 1.5 = js-contrib <code>v1.5</code> = pyjetscape 1.5), the same number as the
+production containers of that release (<code>cu126-v1.5</code>, <code>cu130-v1.5</code>, <code>cu124-v1.5</code>), which
+are built from the same commits. Earlier releases were numbered on their own (0.1.0,
+0.2.0); 1.5 follows 0.2.0.</p>
 </div>
 <h2 id="install-with-one-command">Install with one command<a class="headerlink" href="#install-with-one-command" title="Permanent link">¶</a></h2>
 <div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>curl<span class="w"> </span>-LsSf<span class="w"> </span>https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh<span class="w"> </span><span class="p">|</span><span class="w"> </span>sh
@@ -3013,13 +3018,13 @@ does steps 1–4 below for the latest release:</p>
 </ol>
 <p>It takes a few minutes (93 s on an M3 Max with a fast connection, everything downloaded) and ends with <code>xscape VER is installed in ...</code> and
 the line that activates the environment. Then run your first event (step 5):</p>
-<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-0.2.0/bin/activate<span class="w">     </span><span class="c1"># the line it printed; in every new Terminal window</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nb">source</span><span class="w"> </span>~/.venvs/xscape-1.5/bin/activate<span class="w">       </span><span class="c1"># the line it printed; in every new Terminal window</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>xscape-examples<span class="w"> </span>~/xscape/examples
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nb">cd</span><span class="w"> </span>~/xscape/examples/pythonic
 <a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>python<span class="w"> </span>oo_workflow.py<span class="w"> </span>--events<span class="w"> </span><span class="m">1</span><span class="w"> </span>--outdir<span class="w"> </span>~/xscape/out_oo
 </code></pre></div>
 <p>Options go after <code>sh -s --</code>, for example
-<code>... | sh -s -- --version 0.2.0 --examples ~/xscape/examples</code>:</p>
+<code>... | sh -s -- --version 1.5 --examples ~/xscape/examples</code>:</p>
 <table>
 <thead>
 <tr>
@@ -3062,7 +3067,7 @@ shell's <code>PATH</code>), uv's cache and Python, and the LBT tables in <code>~
 <p>Then open a new Terminal window (or run <code>source ~/.local/bin/env</code>) so that <code>uv</code> is found. With
 Homebrew, <code>brew install uv</code> works too.</p>
 <h2 id="step-2-create-the-environment-from-the-lock-file">Step 2: create the environment from the lock file<a class="headerlink" href="#step-2-create-the-environment-from-the-lock-file" title="Permanent link">¶</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">VER</span><span class="o">=</span><span class="m">0</span>.2.0<span class="w">                     </span><span class="c1"># the latest: github.com/jhputschke/xscape-macos/releases</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">VER</span><span class="o">=</span><span class="m">1</span>.5<span class="w">                       </span><span class="c1"># the latest: github.com/jhputschke/xscape-macos/releases</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>mkdir<span class="w"> </span>-p<span class="w"> </span>~/xscape<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/xscape
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>curl<span class="w"> </span>-LO<span class="w"> </span>https://github.com/jhputschke/xscape-macos/releases/download/v<span class="nv">$VER</span>/xscape-<span class="nv">$VER</span>-cp313.lock.txt
 <a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>uv<span class="w"> </span>venv<span class="w"> </span>--managed-python<span class="w"> </span>~/.venvs/xscape-<span class="nv">$VER</span><span class="w"> </span>--python<span class="w"> </span><span class="m">3</span>.13
@@ -3076,7 +3081,7 @@ depending on the connection.</p>
   that happens to be installed, so nothing outside the environment is used.</li>
 <li><code>uv pip sync</code> installs exactly what the lock lists, hash-checked, and removes anything else.</li>
 <li><code>source ~/.venvs/xscape-$VER/bin/activate</code> is needed in <strong>every new Terminal window</strong> where
-  you use X-SCAPE. Your prompt then starts with <code>(xscape-0.2.0)</code>.</li>
+  you use X-SCAPE. Your prompt then starts with <code>(xscape-1.5)</code>.</li>
 </ul>
 <h2 id="step-3-fetch-the-lbt-tables">Step 3: fetch the LBT tables<a class="headerlink" href="#step-3-fetch-the-lbt-tables" title="Permanent link">¶</a></h2>
 <p>LBT, the jet energy-loss module, needs its scattering tables: a 240 MB download, 1.1 GB on
@@ -3828,7 +3833,7 @@ what the output files hold and where to go from there.</p><script data-mkdocs-ju
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       

@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -3073,12 +3073,12 @@ works. If it fails on a machine without a display, run under <code>xvfb-run</cod
 <p>The <code>jetscape</code> package with the same analysis packages also comes as a pure-Python wheel, part
 of every <a href="https://github.com/jhputschke/xscape-macos/releases">xscape-macos release</a>. It
 installs on any platform, in any Python 3.10+ environment:</p>
-<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v0.2.0/pyjetscape-1.4-py3-none-any.whl"</span>
+<div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v1.5/pyjetscape-1.5-py3-none-any.whl"</span>
 </code></pre></div>
 <p>Quote the argument: zsh treats <code>[...]</code> as a pattern. The readers, <code>HadronArray</code>, the awkward
 views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it
-does not install pyvista, and the 0.2.0 wheel has no pelicanfs (add it with
-<code>uv pip install pelicanfs "aiowebdav2&lt;1"</code>; later wheels include it), and it does not fetch the EoS tables: download both as in the conda tab above and
+does not install pyvista (pelicanfs is in <code>[analysis]</code> from 1.5; with the older 0.2.0 wheel,
+pyjetscape 1.4, add it with <code>uv pip install pelicanfs "aiowebdav2&lt;1"</code>), and it does not fetch the EoS tables: download both as in the conda tab above and
 point <code>MUSIC_EOS_TABLE</code> at one of them (the tools take the other from the same directory).</p>
 <h2 id="threads-and-memory">Threads and memory<a class="headerlink" href="#threads-and-memory" title="Permanent link">¶</a></h2>
 <p>The analysis tools are mostly single-threaded Python. Parallelise over files with processes,
@@ -3388,7 +3388,7 @@ hadrons, jets with FastJet, hydro and hadrons together, O+O, and ROOT.</p><scrip
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       

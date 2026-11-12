@@ -32,7 +32,7 @@ Each tag is a multi-architecture manifest: `docker pull` and `apptainer pull` ta
 
 For a campaign, pin the image
 
-`cu126` is a **moving** tag: it always points at the latest build. For a production campaign take a fixed, dated tag, `cu126-<YYYYMMDD>-<xscape commit>`, or the image digest, and use the same one on every machine. Physics fixes change results, so don't mix images of different builds in one campaign, and record which image you used: the output files don't say. The image's `/opt/X-SCAPE/BUILD_INFO.txt` lists the commits it was built from.
+`cu126` is a **moving** tag: it always points at the latest build. For a production campaign take a fixed tag: a release's, `cu126-v1.5` (`cu130-v1.5`, `cu124-v1.5`; the number is js-contrib's release, the same as the Mac wheel's), a dated one, `cu126-<YYYYMMDD>-<xscape commit>`, or the image digest, and use the same one on every machine. Physics fixes change results, so don't mix images of different builds in one campaign, and record which image you used: the output files don't say. The image's `/opt/X-SCAPE/BUILD_INFO.txt` lists the commits it was built from.
 
 ## 2. Pull the image and check it
 
