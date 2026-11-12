@@ -2728,14 +2728,16 @@ files, including files on the OSDF. See <a href="install/analysis-env/">Analysis
    <a href="python/modules/">your own modules</a>, and the <a href="python/fno/">live PyTorch FNO hydro</a>.</li>
 </ol>
 <h2 id="what-is-in-the-box">What is in the box<a class="headerlink" href="#what-is-in-the-box" title="Permanent link">¶</a></h2>
-<pre class="mermaid"><code>flowchart LR
+<pre class="mermaid"><code>flowchart TB
   subgraph engine["Simulation engine (C++)"]
+    direction TB
     XS["X-SCAPE&lt;br/&gt;framework"] --- M4G["MUSIC4GPU&lt;br/&gt;CUDA / Metal"]
     XS --- ISS["iSS&lt;br/&gt;Cooper–Frye"]
     XS --- GLB["3D MC-Glauber"]
     XS --- JET["MATTER + LBT&lt;br/&gt;+ liquefier"]
   end
   subgraph py["Python (js-contrib)"]
+    direction TB
     CORE["pyjetscape_core&lt;br/&gt;bindings"] --&gt; JS["jetscape package&lt;br/&gt;Pythonic layer"]
     JS --&gt; MOD["your Python modules&lt;br/&gt;PyFNOHydro (PyTorch)"]
   end
