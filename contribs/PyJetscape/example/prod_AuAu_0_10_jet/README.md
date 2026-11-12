@@ -1630,7 +1630,7 @@ the showers start only after MUSIC_1 is done, so they do not compete with it.
 - **What it gains here: nothing measurable.** In this job the showers take ~0.1 s of a ~19 s
   event (GB10, 0–10 %, pT̂ 50–70 GeV): 0.27 s → 0.07 s over 3 events with 4 threads. It pays
   where the showers are a large part of the event: O+O with ISR (energy loss ~20 % of the
-  event, 13 % faster per event, `../prod_OO_isr`) or standalone X-SCAPE runs with a brick or a
+  event, 13 % faster per event; `../prod_OO_isr`, where `-1` is the default) or standalone X-SCAPE runs with a brick or a
   stored medium (2.6x on the energy loss at 4 threads, 5.02 TeV pT̂ 100–120 GeV).
 - **Limits.** Only Matter and LBT support it (other modules keep the showers serial, with a
   warning), and the speed-up is bounded by the most energetic shower, about a third of the

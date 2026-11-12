@@ -99,9 +99,10 @@ With pT̂ windows, also run the null test with the windows
   the first P jobs S seconds apart. Both are discussed in [Clusters](clusters.md#launch-settings).
 - At the end, `OUTDIR/run_jobs.finished` is written; each job leaves `<stem>.log`,
   `<stem>.json` and `<stem>.xml`.
-- `--eloss-threads -1` runs the showers of an event in parallel (X-SCAPE `<Eloss><nThreads>`).
-  It changes the showers of a seed, and gains nothing measurable here: the showers take ~0.1 s
-  of a ~19 s event. It pays for [O+O with ISR](oo-isr.md#settings); details in the
+- `--eloss-threads -1` runs the showers of an event in parallel (X-SCAPE `<Eloss><nThreads>`;
+  off by default here). It changes the showers of a seed, and gains nothing measurable here:
+  the showers take ~0.1 s of a ~19 s event. It pays for [O+O with ISR](oo-isr.md#settings),
+  where it is the default; details in the
   [folder's README](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#parallel-showers).
 
 ### What to store

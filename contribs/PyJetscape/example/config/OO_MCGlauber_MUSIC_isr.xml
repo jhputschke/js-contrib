@@ -263,9 +263,11 @@
        there (as in PythiaIsrMUSIC). -->
   <Eloss>
     <!-- <nThreads> -1 </nThreads>: the showers of an event in parallel (OpenMP), as many
-         threads as OMP_NUM_THREADS; X-SCAPE's main XML documents it.  Default 0 (serial).
-         Changes the events (own random streams per shower): one setting per campaign,
-         best set per job with the eloss-threads option of run_prod_*.py, which records it. -->
+         threads as OMP_NUM_THREADS; X-SCAPE's main XML documents it (its default: 0,
+         serial).  Not set here: run_prod_oo_isr.py puts -1 in by default (0 on an X-SCAPE
+         without the setting) and records what the job ran with; its eloss-threads option
+         changes it (0: serial), and a value set here wins over the driver's default.
+         Changes the events (own random streams per shower): one setting per campaign. -->
     <deltaT> 0.1 </deltaT>
     <maxT> 50 </maxT>
     <!-- With a hydro (MUSIC) Matter and LBT replace tStart by the hydro's start time,

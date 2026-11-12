@@ -45,10 +45,11 @@ run.
 | `--stagger S` | `run_jobs.sh` option | the first P jobs start S s apart, so their memory peaks don't coincide (12 for 8–10 jobs per GPU) |
 | `--mps` | `run_jobs.sh` option, CUDA only | the jobs share the GPU through CUDA MPS: +5–12 % where it works |
 
-Parallel showers (`--eloss-threads -1`, X-SCAPE `<Eloss><nThreads>`) use the same
-`OMP_NUM_THREADS`: the showers start after the hydro, so the budget is not exceeded. Unlike
-the settings above they change the output (the showers of a seed), so they are a campaign
-choice, not a launch setting.
+Parallel showers (`--eloss-threads -1`, X-SCAPE `<Eloss><nThreads>`; the default of the O+O
+ISR driver, off in the Au+Au drivers) use the same `OMP_NUM_THREADS`: the showers start after
+the hydro, so the budget is not exceeded. Set `OMP_NUM_THREADS` for O+O jobs: unset, each job
+runs its showers on all cores of the node. Unlike the settings above they change the output
+(the showers of a seed), so they are a campaign choice, not a launch setting.
 
 !!! warning "CUDA MPS in containers"
     MPS is not assured inside containers (on the GB10 the daemon does not start in one) and

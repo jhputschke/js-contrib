@@ -104,6 +104,9 @@ GRID_YAML = os.path.join(rp.CONFIG, "grid_oo.yaml")
 NAME_BASE = "OO_isr"
 HYDRO_ID = "MUSIC"
 GUN_ID = "PythiaGun"          # PythiaIsrGun takes its id from <Hard><PythiaGun><name>
+#: this driver's <Eloss><nThreads> when neither --eloss-threads nor the user XML sets it:
+#: the final-state showers on OMP_NUM_THREADS threads (X-SCAPE's own default is 0, serial)
+ELOSS_THREADS_DEFAULT = -1
 
 #: 3dMCGlauber's per-event record in the working directory (EventGenerator::
 #: generate_strings rewrites it every event): event_id Npart Ncoll Nstrings b
@@ -244,7 +247,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, iMATTER, Matter")
-    rp.add_eloss_threads_arg(p)
+    rp.add_eloss_threads_arg(p, default=ELOSS_THREADS_DEFAULT)
     rp.add_workdir_args(p)
     rp.add_h5_args(p)
     return p.parse_args()
@@ -365,7 +368,7 @@ def job_xml(a, out_h5: str):
         if root.find(tag) is not None:
             problems.append(f"remove <{tag}>: iSS runs offline on the stored surface "
                             "(hadronize.py), and there is no deposition")
-    problems += rp.apply_eloss_threads(a, root, a.main_xml)
+    problems += rp.apply_eloss_threads(a, root, a.main_xml, default=ELOSS_THREADS_DEFAULT)
     if problems:
         sys.exit(f"run_prod_oo_isr.py: {a.user_xml}:\n  " + "\n  ".join(problems))
     if a.bulk_hadrons > 0:
@@ -570,6 +573,8 @@ def main() -> int:
         print(f"  showers  in parallel, <Eloss><nThreads> {a.eloss_threads}"
               + (f" (OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS', 'unset')})"
                  if a.eloss_threads < 0 else ""))
+    else:
+        print("  showers  serial (<Eloss><nThreads> 0)")
     print(f"  grid     {a.grid}")
     print(rp.describe(grid, max_ntau))
     for path in (None if a.no_hydro_file else out_h5, out_particlize, out_bulk,
