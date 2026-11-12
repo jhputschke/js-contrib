@@ -136,18 +136,14 @@ the scripts by their full path: they find their XML, grid and helpers next to th
 /opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/example/prod_OO_isr
 ```
 
-> **Image (2026-10-13).** `jhputschke/xscape-prod:cu124-final_optim` (= `cu124`, digest
-> `sha256:91c04102…`) has this folder, the ±10.5 fm grid and the late time step; the O+O
-> numbers below were measured with it. The images of 2026-09-30 and 2026-10-03 have neither
-> the folder nor X-SCAPE's `<Hard><ISR>` task list. Two O+O fixes came after
-> `cu124-final_optim` (X-SCAPE `final_optim`): Matter's guard against a qhat lookup before
-> t = 0 (`8c975d37`, see [Physics notes](#physics-notes-and-limits)) and iSS's leak fix
-> (`50226a7c`). For an O+O campaign build from those branches:
->
-> ```bash
-> docker build -t xscape-prod:oo -f utils/Dockerfile.prod \
->   --build-arg XSCAPE_REF=final_optim --build-arg JS_CONTRIB_REF=final_optim .
-> ```
+> **Image (2026-11-12).** Use `jhputschke/xscape-prod:cu124-v1.5` (or `cu126-v1.5` /
+> `cu130-v1.5`, js-contrib v1.5): it has this folder, X-SCAPE's `<Hard><ISR>` task list, the
+> ±10.5 fm grid, the late time step, both O+O fixes that came after `cu124-final_optim`
+> (Matter's guard against a qhat lookup before t = 0, `8c975d37`, see
+> [Physics notes](#physics-notes-and-limits); iSS's leak fix) and the parallel showers
+> (`--eloss-threads`, on by default here). The O+O numbers below were measured with
+> `cu124-final_optim` (digest `sha256:91c04102…`; its tag is no longer on Docker Hub) and are
+> not re-measured with v1.5.
 
 **Docker:** `-w` sets the working directory.
 
