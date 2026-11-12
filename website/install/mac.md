@@ -27,11 +27,17 @@ You do **not** need Xcode, Homebrew, conda, Docker, git or an Apple developer ac
 !!! info "Releases"
     The wheels are published on the
     [Releases page of jhputschke/xscape-macos](https://github.com/jhputschke/xscape-macos/releases).
-    The current release is **v0.2.0**; check that page for the latest. Each release is a set
+    The current release is **v1.5**; check that page for the latest. Each release is a set
     of three files: the `xscape` wheel (X-SCAPE, 175 MB), the `pyjetscape` wheel (the Python
     package), and a **lock file** `xscape-<version>-cp313.lock.txt`, which names every package
     of the environment with its exact version and checksum. You install from the lock file,
     so every Mac gets exactly the same software.
+
+    **Version numbers:** from 1.5 on, a release has the number of the js-contrib release it
+    is built from (xscape 1.5 = js-contrib `v1.5` = pyjetscape 1.5), the same number as the
+    production containers of that release (`cu126-v1.5`, `cu130-v1.5`, `cu124-v1.5`), which
+    are built from the same commits. Earlier releases were numbered on their own (0.1.0,
+    0.2.0); 1.5 follows 0.2.0.
 
 ## Install with one command
 
@@ -51,14 +57,14 @@ It takes a few minutes (93 s on an M3 Max with a fast connection, everything dow
 the line that activates the environment. Then run your first event (step 5):
 
 ```bash
-source ~/.venvs/xscape-0.2.0/bin/activate     # the line it printed; in every new Terminal window
+source ~/.venvs/xscape-1.5/bin/activate       # the line it printed; in every new Terminal window
 xscape-examples ~/xscape/examples
 cd ~/xscape/examples/pythonic
 python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 ```
 
 Options go after `sh -s --`, for example
-`... | sh -s -- --version 0.2.0 --examples ~/xscape/examples`:
+`... | sh -s -- --version 1.5 --examples ~/xscape/examples`:
 
 | option | does |
 |---|---|
@@ -89,7 +95,7 @@ Homebrew, `brew install uv` works too.
 ## Step 2: create the environment from the lock file
 
 ```bash
-VER=0.2.0                     # the latest: github.com/jhputschke/xscape-macos/releases
+VER=1.5                       # the latest: github.com/jhputschke/xscape-macos/releases
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
 uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
@@ -104,7 +110,7 @@ depending on the connection.
   that happens to be installed, so nothing outside the environment is used.
 - `uv pip sync` installs exactly what the lock lists, hash-checked, and removes anything else.
 - `source ~/.venvs/xscape-$VER/bin/activate` is needed in **every new Terminal window** where
-  you use X-SCAPE. Your prompt then starts with `(xscape-0.2.0)`.
+  you use X-SCAPE. Your prompt then starts with `(xscape-1.5)`.
 
 ## Step 3: fetch the LBT tables
 

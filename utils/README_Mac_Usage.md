@@ -51,14 +51,14 @@ first (Apple Silicon, macOS 26, 3 GB free) and ends with `xscape VER is installe
 and the line that activates the environment. Then your first event (step 5):
 
 ```bash
-source ~/.venvs/xscape-0.2.0/bin/activate     # the line it printed; in every new Terminal window
+source ~/.venvs/xscape-1.5/bin/activate       # the line it printed; in every new Terminal window
 xscape-examples ~/xscape/examples
 cd ~/xscape/examples/pythonic
 python oo_workflow.py --events 1 --outdir ~/xscape/out_oo
 ```
 
 Options go after `sh -s --`, e.g.
-`curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh -s -- --version 0.2.0 --examples ~/xscape/examples`:
+`curl -LsSf https://raw.githubusercontent.com/jhputschke/xscape-macos/main/install.sh | sh -s -- --version 1.5 --examples ~/xscape/examples`:
 
 | option | |
 |---|---|
@@ -82,7 +82,16 @@ Each one is a set of three files: the `xscape` wheel (X-SCAPE, 175 MB), the `pyj
 wheel (the Python package) and a **lock file**, `xscape-<version>-cp313.lock.txt`, which
 names every package of the environment with its exact version and checksum. You install
 from the lock file, so every Mac gets the same software. Below, `VER` is the release's
-version (e.g. `0.2.0`).
+version (e.g. `1.5`).
+
+**Version numbers.** From 1.5 on, a release has the number of the
+[js-contrib](https://github.com/jhputschke/js-contrib) release it is built from: xscape 1.5
+is js-contrib's tag `v1.5`, its `pyjetscape` wheel is pyjetscape 1.5, and the production
+containers of that release are tagged the same way (`jhputschke/xscape-prod:cu126-v1.5`,
+`cu130-v1.5`, `cu124-v1.5`). A Mac environment and a container with the same version are
+built from the same X-SCAPE, MUSIC4GPU, iSS and js-contrib commits (Metal here, CUDA there).
+Earlier releases were numbered on their own (0.1.0, 0.2.0); 1.5 follows 0.2.0. A fix of the
+packaging alone gets `.postN` (e.g. `1.5.post1`).
 
 **Step 1: install uv** (Astral's Python package manager; one program, in `~/.local/bin`):
 
@@ -96,7 +105,7 @@ With Homebrew, `brew install uv` works too.
 **Step 2: the environment** (uv downloads Python 3.13 and about 200 MB of packages; seconds to a few minutes, depending on the connection):
 
 ```bash
-VER=0.2.0
+VER=1.5
 mkdir -p ~/xscape && cd ~/xscape
 curl -LO https://github.com/jhputschke/xscape-macos/releases/download/v$VER/xscape-$VER-cp313.lock.txt
 uv venv --managed-python ~/.venvs/xscape-$VER --python 3.13
