@@ -10,6 +10,8 @@ name: Build & push production images
 #   gh workflow run docker-prod.yml -f variants=cu130 -f platforms=arm64   # one image, a test
 #   gh workflow run docker-prod.yml -f variants=cu124                   # CUDA 12.4, amd64 only
 #   gh workflow run docker-prod.yml -f xscape_ref=<40-char hash> -f release_tag=2026.10
+#   gh workflow run docker-prod.yml -f js_contrib_ref=v1.5 -f music4gpu_ref=pinned \
+#       -f variants=all -f release_tag=v1.5                            # a js-contrib release: cu126-v1.5, ...
 #   gh workflow run docker-prod.yml -f with_gcs=true                    # + GCS, tags cu126-gcs, ...
 #   gh workflow run docker-prod.yml -f flavor=slim                      # production only, cu126-slim, ...
 #   gh workflow run docker-prod.yml --ref zjet -f xscape_ref=zjet -f js_contrib_ref=zjet \
@@ -128,6 +130,7 @@ jobs:
       xscape_sha: ${{ steps.refs.outputs.xscape_sha }}
       music4gpu_sha: ${{ steps.refs.outputs.music4gpu_sha }}
       js_contrib_sha: ${{ steps.refs.outputs.js_contrib_sha }}
+      js_contrib_version: ${{ steps.refs.outputs.js_contrib_version }}
       date: ${{ steps.refs.outputs.date }}
       build_matrix: ${{ steps.matrix.outputs.build_matrix }}
       variants: ${{ steps.matrix.outputs.variants }}
@@ -162,8 +165,13 @@ jobs:
           else
             mu=$(resolve "$MUSIC4GPU_REPO" "${{ inputs.music4gpu_ref }}")
           fi
+          # js-contrib's release: the tag v<X.Y> on that commit (pyjetscape's version), if any
+          jv=$(git ls-remote --tags "$JS_CONTRIB_REPO" 'v[0-9]*' \
+                 | awk -v c="$jc" '$1 == c {t=$2; sub("refs/tags/", "", t); sub(/\^\{\}$/, "", t); print t}' \
+                 | sort -uV | tail -1)
           {
             echo "xscape_sha=$xs"; echo "music4gpu_sha=$mu"; echo "js_contrib_sha=$jc"
+            echo "js_contrib_version=$jv"
             echo "date=$(date -u +%Y%m%d)"
           } >> "$GITHUB_OUTPUT"
           {
@@ -173,6 +181,8 @@ jobs:
             echo "| X-SCAPE | \`${{ inputs.xscape_ref }}\` | \`$xs\` |"
             echo "| MUSIC4GPU | \`${{ inputs.music4gpu_ref }}\` | \`${mu:-pinned by get_music4gpu.sh}\` |"
             echo "| js-contrib | \`${{ inputs.js_contrib_ref }}\` | \`$jc\` |"
+            echo ""
+            echo "js-contrib release: ${jv:-none (the commit has no tag v<X.Y>)}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Build matrix
@@ -263,6 +273,7 @@ jobs:
             MUSIC4GPU_REF=${{ needs.setup.outputs.music4gpu_sha }}
             JS_CONTRIB_REPO=${{ env.JS_CONTRIB_REPO }}
             JS_CONTRIB_REF=${{ needs.setup.outputs.js_contrib_sha }}
+            JS_CONTRIB_VERSION=${{ needs.setup.outputs.js_contrib_version }}
             WITH_GCS=${{ inputs.with_gcs && '1' || '0' }}
             WITH_ANALYSIS=${{ inputs.flavor == 'slim' && '0' || '1' }}
             WITH_VIZ=${{ inputs.flavor == 'viz' && '1' || '0' }}

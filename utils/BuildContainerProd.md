@@ -252,6 +252,9 @@ The build writes `/opt/X-SCAPE/BUILD_INFO.txt` and OCI labels
 (`org.opencontainers.image.revision`, …) with:
 - the commit of every repo above, and whether its tree was clean;
 - the CUDA version, `CMAKE_CUDA_ARCHITECTURES`, the compilers, the conda package list;
+- the js-contrib release (its tag `v<X.Y>` on the built commit, = pyjetscape's version;
+  "none" for an untagged commit), also in the labels `org.opencontainers.image.version` and
+  `xscape.js_contrib_version`;
 - the `pelican` CLI and `pelicanfs` versions, and `WITH_GCS`. The labels `xscape.pelican`
   and `xscape.with_gcs` carry the same, and `/opt/X-SCAPE/pip-freeze-runtime.txt` lists
   every Python package of the runtime env.
@@ -289,6 +292,8 @@ gh workflow run docker-prod.yml -f variants=cu124        # CUDA 12.4, amd64 only
 gh workflow run docker-prod.yml -f variants=all          # cu126, cu130 and cu124
 gh workflow run docker-prod.yml -f variants=cu130 -f platforms=arm64 -f push=false   # test one image
 gh workflow run docker-prod.yml -f release_tag=2026.10   # + tags cu126-2026.10, cu130-2026.10
+gh workflow run docker-prod.yml -f js_contrib_ref=v1.5 -f music4gpu_ref=pinned \
+    -f variants=all -f release_tag=v1.5                  # a js-contrib release: cu126-v1.5, cu130-v1.5, cu124-v1.5
 gh workflow run docker-prod.yml -f with_gcs=true         # with GCS: tags cu126-gcs, cu130-gcs, ...
 gh workflow run docker-prod.yml --ref zjet -f xscape_ref=zjet -f js_contrib_ref=zjet \
     -f variants=cu124 -f release_tag=zjet -f moving_tag=false   # a branch's test image: cu124-zjet
@@ -335,6 +340,10 @@ commands for the new tags.
 | `cu126`, `cu130`, `cu124` | yes: every run that builds the variant overwrites it (not with `moving_tag=false`) | trying out the latest build |
 | `cu126-<YYYYMMDD>-<xscape7>` | no | what a campaign should pull: a fixed image |
 | `cu126-<release_tag>` | only if the same `release_tag` is given again | a name for a campaign's image |
+
+**A js-contrib release** `vX.Y` gets images built from its tag, with X-SCAPE `contrib` and the
+MUSIC4GPU commit X-SCAPE pins (`music4gpu_ref=pinned`) and `release_tag=vX.Y`: tags
+`cu126-vX.Y`, `cu130-vX.Y`, `cu124-vX.Y`, the same version as the macOS wheel's pyjetscape.
 
 With `with_gcs`, the same tags with `-gcs` after the variant: `cu126-gcs`,
 `cu126-gcs-<YYYYMMDD>-<xscape7>`, `cu126-gcs-<release_tag>`.

@@ -305,7 +305,13 @@ ARG XSCAPE_REF=contrib
 ARG JS_CONTRIB_REF=main
 ARG MUSIC4GPU_REF=""
 ARG WITH_ROOT=0
+# js-contrib's release tag v<X.Y> on JS_CONTRIB_REF (pyjetscape's version; the workflow finds
+# it), empty for an untagged commit
+ARG JS_CONTRIB_VERSION=""
+RUN echo "js-contrib release: ${JS_CONTRIB_VERSION:-none (untagged commit)}" >> /opt/X-SCAPE/BUILD_INFO.txt
 LABEL org.opencontainers.image.title="xscape-prod" \
+      org.opencontainers.image.version="${JS_CONTRIB_VERSION:-untagged}" \
+      xscape.js_contrib_version="${JS_CONTRIB_VERSION}" \
       org.opencontainers.image.description="X-SCAPE + MUSIC4GPU + iSS + 3dMCGlauber + PyJetscape: productions, own scripts and notebooks, analysis" \
       org.opencontainers.image.source="https://github.com/jhputschke/js-contrib" \
       xscape.ref="${XSCAPE_REF}" \
