@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyjetscape"
-version = "1.4"
+version = "1.5"
 description = "Python bindings for the JETSCAPE/X-SCAPE framework"
 readme = "README.md"
 requires-python = ">=3.9"
