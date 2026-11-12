@@ -6,6 +6,8 @@ Look-up pages. They are not meant to be read in order:
   images that make up a working setup, and the versions that belong together.
 - **[Tools](tools.md):** the command-line tools in `utils/` for planning, monitoring,
   inspecting and moving productions.
+- **[AI assistants](ai-assistants.md):** using Claude Code, other coding agents and chat
+  assistants with js-contrib: the instruction file in the examples, `llms.txt`.
 - **[X-SCAPE changes since 2.1](changes.md):** the physics and technical bug fixes and the
   new features of X-SCAPE `contrib` relative to the 2.1 release, third-party packages included.
 - **[Building this site](site.md):** how to preview and change these pages.

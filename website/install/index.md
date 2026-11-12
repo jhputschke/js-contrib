@@ -79,3 +79,4 @@ hydro, and ROOT output. On Linux with an NVIDIA GPU, the dev container
 - Install one of the four setups: [container](container.md), [Mac](mac.md),
   [analysis environment](analysis-env.md), [source build](source.md).
 - Then [run your first event](../run/first-event.md).
+- Working with Claude Code or another AI assistant: [AI assistants](../reference/ai-assistants.md).

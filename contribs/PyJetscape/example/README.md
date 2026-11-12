@@ -17,6 +17,11 @@ the top each show one feature of the bindings.
   from a copy, `xscape-examples ~/xscape/examples` (and js-contrib's `utils/` with
   `xscape-utils ~/xscape/utils`); the "Mac wheel" columns below say what runs there.
 
+**With an AI assistant** (Claude Code, OpenAI Codex, Cursor, ...): start it in this directory.
+[`AGENTS.md`](AGENTS.md) tells it how commands run per installation, what the folders and
+files are, and the rules for productions; [`CLAUDE.md`](CLAUDE.md) imports it for Claude Code.
+More: <https://jhputschke.github.io/js-contrib/reference/ai-assistants/>.
+
 The guide to all of the analysis side (environments, readers, FastJet in Python and C++, the
 ROOT export, the notebooks) is [`docs/README_analysis.md`](../../../docs/README_analysis.md).
 

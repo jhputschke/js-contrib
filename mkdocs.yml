@@ -23,6 +23,7 @@ exclude_docs: |
   out/
   *.part
   __pycache__/
+  _tools/
 
 theme:
   name: material
@@ -78,6 +79,7 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
+      pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.keys
   - pymdownx.arithmatex:
@@ -98,6 +100,9 @@ extra_javascript:
   - https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js
   - assets/diagram-zoom.js
 
+hooks:
+  - website/_tools/llms_nav_check.py
+
 plugins:
   - search
   # The tutorials' notebooks, rendered with their stored outputs (never executed here).
@@ -115,6 +120,93 @@ plugins:
       effect: zoom
       zoomable: true
       draggable: true
+  # llms.txt for language models (https://llmstxt.org): /llms.txt lists every page below with
+  # one line, each page is also written as Markdown next to its HTML (run/oo-isr/index.md), and
+  # /llms-full.txt holds all of them in one file. A page added to the nav needs a line here
+  # too; website/hooks/llms_nav_check.py warns (an error with --strict) when one is missing.
+  - llmstxt:
+      full_output: llms-full.txt
+      # the cleaning is done in the preprocess module, which keeps the labels of content tabs
+      autoclean: false
+      preprocess: website/_tools/llms_preprocess.py
+      markdown_description: |
+        js-contrib is the contrib package of the X-SCAPE (JETSCAPE) heavy-ion event generator:
+        MUSIC hydrodynamics on the GPU (CUDA, Apple Metal), Python bindings down to the module
+        level (PyJetscape), ready-made productions (Au+Au and Pb+Pb with jets and Z+jet, O+O and
+        Ne+Ne with initial-state radiation) that write HDF5 files, readers and analyses for those
+        files, and PyTorch surrogates of the hydro. It runs from a production container
+        (`jhputschke/xscape-prod`, Docker or Apptainer, NVIDIA GPU), a Mac wheel (`xscape`,
+        Apple Silicon), or a source build; the analyses need only a Python venv.
+
+        Notes for assistants: the examples and production scripts are copied into a user
+        directory with `xscape-examples DIR`; that copy carries an `AGENTS.md` (and a
+        `CLAUDE.md` importing it) with the commands per installation and the rules for running
+        productions. Every driver prints its options with `--help`. The analysis scripts are
+        examples, not vetted physics results.
+      sections:
+        Start here:
+          - index.md: what js-contrib is and where to go next
+          - install/index.md: the four setups (container, Mac wheel, analysis venv, source build) and which to choose
+          - run/first-event.md: one O+O event and two Au+Au jet events through the whole chain, per setup
+          - reference/ai-assistants.md: using Claude Code, other coding agents and chat assistants with js-contrib
+        Install:
+          - install/container.md: the production image, its rules (/work, --user, GPU flags), running examples and productions in it
+          - install/mac.md: the xscape wheel on Apple Silicon, its commands (xscape-run, xscape-examples, ...) and limits
+          - install/analysis-env.md: the Python venv for reading and analysing files, with or without ROOT
+          - install/source.md: building X-SCAPE contrib with js-contrib in the js_fno conda environment
+        Run:
+          - run/index.md: what a production is, the drivers and run_jobs.sh, seeds and campaigns
+          - run/auau-jet.md: the main production, Au+Au 0-10 % with a jet in two hydro legs; run_prod_jet.py, run_jobs.sh, hadronize.py
+          - run/oo-isr.md: O+O at 200 GeV with initial-state radiation; run_prod_oo_isr.py
+          - run/zjet-other.md: Z+jet, Pb+Pb and other systems by changing the user XML
+          - run/extra-hard.md: extra hard scatterings per event, O+O and Ne+Ne, minimum bias
+          - run/clusters.md: jobs per GPU, SLURM, several GPUs, jobmon, checking a run, troubleshooting
+          - run/osdf.md: downloading, reading in place and uploading productions on the OSDF with js_osdf.py
+        Analyse:
+          - analysis/index.md: environments, getting files, a first spectrum
+          - analysis/files.md: every file a production writes, dataset by dataset, and what an event is
+          - analysis/hadrons.md: HadronFileReader, histograms with per-event statistics, errors, pT-hat windows
+          - analysis/jets.md: jets with FastJet from Python, areas and background subtraction
+          - analysis/hydro-hadrons.md: the hydro pair and the hadron pair together, the jet wake
+          - analysis/oo.md: analysing the O+O production
+          - analysis/bulk.md: bulk observables and flow
+          - analysis/root.md: the ROOT export, uproot, RDataFrame and the C++ reader
+          - analysis/notebooks.md: index of the analysis notebooks
+        Python:
+          - python/index.md: overview of PyJetscape
+          - python/pythonic.md: the Pythonic interface, events in a Python loop as numpy arrays
+          - python/modules.md: writing X-SCAPE modules (energy loss, hydro, writers, ...) in Python
+          - python/fno.md: a PyTorch FNO as live hydro module
+          - python/fasthydro.md: the fast finite-volume hydro with the real jet energy-loss chain
+          - python/visualization.md: 3D rendering of events with PyVista
+        Tutorials:
+          - tutorials/index.md: the step-by-step path through the notebooks
+          - tutorials/setup.md: setting up to run the tutorials
+          - tutorials/pyjetscape/01_check_setup.ipynb: check the installation
+          - tutorials/pyjetscape/02_first_events.ipynb: first events from Python
+          - tutorials/pyjetscape/03_production_scripts.ipynb: the production scripts, a small run
+          - tutorials/pyjetscape/04_files_and_provenance.ipynb: the files and their provenance
+          - tutorials/pyjetscape/05_hadrons.ipynb: reading hadrons, per-event averages and errors
+          - tutorials/pyjetscape/06_hydro_pair.ipynb: the hydro pair, jet leg minus background
+          - tutorials/pyjetscape/07_hadron_pair.ipynb: the hadron pair and the wake
+          - tutorials/pyjetscape/08_jets_fastjet.ipynb: jets with FastJet
+          - tutorials/pyjetscape/09_root_from_python.ipynb: ROOT files from Python
+          - tutorials/pyjetscape/10_root_cpp_macros.ipynb: ROOT C++ macros
+          - tutorials/pyjetscape/11_python_module.ipynb: an energy-loss module in Python
+          - tutorials/pyjetscape/12_python_writer.ipynb: an in-run writer in Python
+        About:
+          - about/index.md: what js-contrib is, its parts and people
+          - about/why.md: why it exists, what it adds to X-SCAPE
+          - about/physics.md: what the productions simulate, stage by stage
+          - about/gpu.md: MUSIC4GPU, speed and agreement with the CPU code
+          - about/python-ml.md: the Python bindings and the machine-learning hydro surrogates
+          - about/references.md: publications and how to cite
+        Reference:
+          - reference/index.md: index of the look-up pages
+          - reference/contribs.md: the contribs, repositories, images and versions that belong together
+          - reference/tools.md: prodwizard, jobmon, h5_inspect, h5_compare, the transfer tools
+          - reference/changes.md: bug fixes and new features of X-SCAPE contrib since 2.1
+          - reference/site.md: building and publishing this site
 
 validation:
   omitted_files: warn
@@ -194,5 +286,6 @@ nav:
       - reference/index.md
       - Contribs and repositories: reference/contribs.md
       - Tools: reference/tools.md
+      - AI assistants: reference/ai-assistants.md
       - X-SCAPE changes since 2.1: reference/changes.md
       - Building this site: reference/site.md

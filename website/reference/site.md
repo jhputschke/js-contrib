@@ -53,6 +53,24 @@ To execute the tutorials and store their outputs, run
 `python tutorials/run_notebooks.py pyjetscape --inplace`. Do this from a setup without
 paths of your own in it, such as the production container.
 
+## llms.txt
+
+The plugin `mkdocs-llmstxt` writes the site a second time for language models
+([AI assistants](ai-assistants.md)): `/llms.txt` (one line per page), every page as Markdown
+next to its HTML (`run/oo-isr/index.md`), and `/llms-full.txt` (all pages in one file).
+
+- **A new page needs a line** in the plugin's `sections` in `mkdocs.yml`, with a short
+  description. The hook `website/_tools/llms_nav_check.py` warns when a page of the nav is
+  missing there, and `mkdocs build --strict` then fails.
+- **The conversion** from HTML is prepared in `website/_tools/llms_preprocess.py`: it keeps
+  the labels of content tabs ("Docker", "Apptainer", ...) as bold lines, removes the notebooks'
+  prompts and copy buttons, and keeps math as TeX.
+- **The description at the top** of `llms.txt` is `markdown_description` in `mkdocs.yml`.
+- **The instruction file for coding agents** is not part of the site: it is
+  [`contribs/PyJetscape/example/AGENTS.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/AGENTS.md),
+  copied to users by `xscape-examples`. Keep it short (it is read at the start of every
+  session) and in step with the pages it summarizes.
+
 ## Publish
 
 Building the site does not publish anything. One way to put it on GitHub Pages at
