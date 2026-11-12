@@ -1,23 +1,25 @@
 # Building and Publishing the Production Container Images
 
-> **Status (2026-10-14).** [`Dockerfile.prod`](Dockerfile.prod) exists, one Dockerfile for
-> all CUDA variants (see [Images](#images)). **All variants were rebuilt on 2026-10-14**
-> (`gh workflow run docker-prod.yml -f variants=all`, run 38487241588) from the merged
-> branches: X-SCAPE `contrib` `9e844508`, MUSIC4GPU `XSCAPE` `46dad43`, js-contrib `main`
-> `e8997c7`, iSS `98deaff`, 3dMCGlauber `b99d680`. Published by the
-> [GitHub workflow](#option-a--github-actions-recommended):
+> **Status (2026-11-12).** [`Dockerfile.prod`](Dockerfile.prod) exists, one Dockerfile for
+> all CUDA variants (see [Images](#images)). **All variants were rebuilt on 2026-11-12 for the
+> js-contrib release v1.5** (`gh workflow run docker-prod.yml -f js_contrib_ref=v1.5
+> -f music4gpu_ref=pinned -f variants=all -f release_tag=v1.5`, run 43246716452): X-SCAPE
+> `contrib` `2e6e334e`, MUSIC4GPU `1c99bee`, js-contrib `v1.5` `a29e7a8`, iSS `0be6daf`,
+> 3dMCGlauber `b99d680`. The images carry `v1.5` in `org.opencontainers.image.version` and
+> `BUILD_INFO.txt`. Published by the [GitHub workflow](#option-a--github-actions-recommended):
 >
 > | tag | digest | built | sm_70 (V100) | Pelican/OSDF | memory fixes (X-SCAPE `cbc72639`) | 64×64×32 grid, edge flag | C4, late Δτ, A12; Matter t < 0 guard; iSS leak fix |
 > |---|---|---|---|---|---|---|---|
-> | **`cu124` = `cu124-20261013-9e84450`** (amd64) | `sha256:2cf57f7556dcfff0289c1c46b9b188b58a3ce8026b2733cc4a17f90bca761b58` | 2026-10-14 | yes | yes | yes | yes | yes |
-> | **`cu126` = `cu126-20261013-9e84450`** (amd64 + arm64) | `sha256:2e870cacbddef12d2f675f206bc54cfb49b7c1f3822e19c487936be93da8fe0f` | 2026-10-14 | yes | yes | yes | yes | yes |
-> | **`cu130` = `cu130-20261013-9e84450`** (amd64 + arm64) | `sha256:76c02874c775dbc00b1d05cd4148bfa239a1e639b115f28208e20cc8970a828a` | 2026-10-14 | no (CUDA 13) | yes | yes | yes | yes |
-> | `cu124-final_optim` = `cu124-20261013-9f4b419` (amd64) | `sha256:91c04102…` | 2026-10-13 | yes | yes | yes | yes | C4, late Δτ, A12 only |
-> | `cu124-20261003-cbc7263` (amd64) | | 2026-10-03 | yes | yes | yes | no | no |
-> | `cu126-20260930-d31946c`, `cu130-20260930-d31946c` | | 2026-09-30 | **no** | **no** | no | no | no |
+> | **`cu124` = `cu124-v1.5` = `cu124-20261112-2e6e334`** (amd64) | `sha256:fe3cbbc8059276f773cb3eda66709f74e7e668f935330fcbe820253b751eeaa3` | 2026-11-12 | yes | yes | yes | yes | yes |
+> | **`cu126` = `cu126-v1.5` = `cu126-20261112-2e6e334`** (amd64 + arm64) | `sha256:e88a83d376f77a86ec724e26cc9766eda65877ae332ef836949acffdb8a38436` | 2026-11-12 | yes | yes | yes | yes | yes |
+> | **`cu130` = `cu130-v1.5` = `cu130-20261112-2e6e334`** (amd64 + arm64) | `sha256:e9dca79e4615ae19c0d87caedf5da40b071fe8c7ca794309c5c787820799fa67` | 2026-11-12 | no (CUDA 13) | yes | yes | yes | yes |
 >
+> - **Older images are no longer on Docker Hub** (checked 2026-11-12): the date tags of the
+>   2026-09-30 to 2026-11-03 builds and `cu124-final_optim` are gone. Besides the v1.5 tags only
+>   `cu124-Nov-11-26` and `cu124-zjet` (a branch's test image) remain.
 > - **No `-gcs` tags are published yet:** the workflow has not run with `with_gcs=true`.
-> - **Tested:** `cu124-final_optim` (amd64) ran the Au+Au and O+O campaigns on the 2 × RTX 3090
+> - **The v1.5 images have not been run on a machine yet** (built and import-checked by the workflow only).
+> - **Tested (older images):** `cu124-final_optim` (amd64) ran the Au+Au and O+O campaigns on the 2 × RTX 3090
 >   box ([`docs/README_2stage.md`](../docs/README_2stage.md) §1,
 >   [`docs/REPORT_FINAL_OPTIM.md`](../docs/REPORT_FINAL_OPTIM.md)); a local arm64 `cu130` build
 >   on the GB10 (see [Tested](#tested)) agrees with the native build. The 2026-10-14 images
