@@ -18,6 +18,8 @@
 #   ./run_jobs.sh -j 8 --mps --stagger 12 20 25 0     # the first 8 start 12 s apart (memory peaks spread)
 #   ./run_jobs.sh 20 25 0 out_had --write-particlize both --particlize-only
 #                                                      # only the _particlize.h5, no pair file
+#   OMP_NUM_THREADS=5 ./run_jobs.sh -j 4 --mps 20 25 0 out_par --eloss-threads -1
+#                                                    # showers in parallel, 5 threads per job
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROD_SCRIPT="$HERE/run_prod_jet.py"
 export TAG_PREFIX="${TAG_PREFIX:-AuAu_0_10_jet_seed}"   # the caller's, e.g. TAG_PREFIX=PbPb_0_30_seed

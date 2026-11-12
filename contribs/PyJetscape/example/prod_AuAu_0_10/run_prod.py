@@ -121,6 +121,62 @@ def add_h5_args(p: argparse.ArgumentParser) -> None:
                         "files). Default: bit-exact")
 
 
+def add_eloss_threads_arg(p: argparse.ArgumentParser, default: int | None = None) -> None:
+    """--eloss-threads for the jet drivers (X-SCAPE <Eloss><nThreads>).  default: what the
+    driver runs with when neither the option nor the user XML sets it (None: X-SCAPE's 0)."""
+    dflt = ("the XML's (0)" if default is None else
+            f"{default} in this driver, or the user XML's <nThreads> if it has one (serial, "
+            "with a note, on an X-SCAPE without the setting)")
+    p.add_argument("--eloss-threads", type=int, default=None, dest="eloss_threads",
+                   metavar="N",
+                   help="X-SCAPE <Eloss><nThreads>: run the showers of an event (one per "
+                        "shower-initiating parton) in parallel with OpenMP. 0: serial; "
+                        f"N > 0: N threads; -1: OMP_NUM_THREADS. Default: {dflt}. The "
+                        "results do not depend on N, but differ from 0 (every shower has "
+                        "its own random streams and colour tags): use one setting for all "
+                        "jobs of a campaign. Needs X-SCAPE with <Eloss><nThreads> in its "
+                        "main XML (branch eloss_omp)")
+
+
+def apply_eloss_threads(a, root, main_xml: str, default: int | None = None) -> list:
+    """Put --eloss-threads into the job XML's <Eloss><nThreads> and set a.eloss_threads to
+    the value the job runs with; returns problems (an X-SCAPE without the setting).
+
+    default: the driver's own default (see add_eloss_threads_arg), used when neither the
+    option nor the user XML sets it.  It is not a request: on an X-SCAPE without the
+    setting the job runs serially, with a note."""
+    eloss = root.find("Eloss")
+    node = None if eloss is None else eloss.find("nThreads")
+    asked = a.eloss_threads
+    if asked is None and node is None and default is not None and eloss is not None:
+        if ET.parse(main_xml).getroot().find("Eloss/nThreads") is None:
+            print(f"NOTE: the showers run serially: {main_xml} has no <Eloss><nThreads> "
+                  "(X-SCAPE without parallel showers, branch eloss_omp)", file=sys.stderr)
+            a.eloss_threads = 0
+            return []
+        asked = default
+    if asked is not None and eloss is not None and (node is not None or asked != 0):
+        if node is None:
+            node = ET.Element("nThreads")
+            node.tail = eloss.text          # the block's indentation
+            eloss.insert(0, node)
+        node.text = f" {asked} "
+    value = int(node.text) if node is not None and (node.text or "").strip() else 0
+    a.eloss_threads = value
+    problems = []
+    if node is not None:
+        main = ET.parse(main_xml).getroot()
+        if main.find("Eloss/nThreads") is None:
+            problems.append(f"<Eloss><nThreads> is set, but {main_xml} has no default for it "
+                            "(X-SCAPE without parallel showers, branch eloss_omp): drop it, "
+                            "or update X-SCAPE")
+    if value < 0 and not os.environ.get("OMP_NUM_THREADS"):
+        print("WARNING: <Eloss><nThreads> -1 with OMP_NUM_THREADS unset: every job takes "
+              "all cores for its showers; set OMP_NUM_THREADS (~ cores / jobs at a time)",
+              file=sys.stderr)
+    return problems
+
+
 # ───────────────────────────────────────────────────────────────── grid YAML
 def load_grid_yaml(path: str):
     """Read the grid YAML -> (Grid with ntau = max_ntau, max_ntau, file text)."""

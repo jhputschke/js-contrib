@@ -1216,6 +1216,7 @@ processes keep up with a whole four-job GPU campaign.
 | `--write-particlize {none,jet,both}` | Also write `<stem>_particlize.h5`: the jet leg's surface (`jet`) or both legs' (`both`, the background once per background), plus the final partons. Switches on those legs' surfaces (and their hand-off to the framework) on top of `--surface`. The pair file is unchanged (checked byte for byte). Costs +5.4 s per event for `both` (+13.5 s before MUSIC4GPU `5058545`; measured, below). |
 | `--bulk-info {slim,full}` | The background's framework copy, which Matter, LBT and the liquefier look up. `slim` (default): e, s, T, vx, vy, vz per cell (24 instead of 112 bytes), ~7 GiB less memory at 0–10%, every output byte-identical to `full` (checked). `full`: the whole `FluidCellInfo` (also P; MUSIC's store has no viscous fields or μ's, so those are zero either way), for modules that read more. Sets `<Hydro><MUSIC><slim_bulk_info>`; needs X-SCAPE with it (branch `slim_bulk_info`). |
 | `--particlize-only` | Write only `<stem>_particlize.h5` (and the `.json`), no pair file: no evolution, `source/` or `shower/` is stored, and the jet leg's evolution is not even read (no `frames_identical` checks). ~3 s per event faster, peak 7.5 instead of 8.7 GiB. Needs `--write-particlize`. See *Hadronization input only* in B. |
+| `--eloss-threads N` | The showers of an event (one per shower-initiating parton) in parallel with OpenMP: X-SCAPE's `<Eloss><nThreads>` (0: serial, the default; N > 0: N threads; -1: `OMP_NUM_THREADS`, the usual choice, as the hydro is done before the showers start). The events do not depend on N, but differ from 0: every shower gets its own random streams and colour tags, so a seed gives other, equally valid showers. **One setting per campaign**, and the same in the legs of a paired comparison; recorded as `prod_eloss_threads`. Needs X-SCAPE with the setting (branch `eloss_omp`); the job stops if the main XML lacks it. Pays only where the energy loss is a large part of the event; see [Parallel showers](#parallel-showers). |
 | `--late-dtau DT`, `--late-tau TAU` | MUSIC's time step from TAU on (the XML's `<late_delta_tau>` / `<late_tau_switch>`, 0.05 fm/c from 3 fm/c in the production XML; `--late-dtau 0`: a constant step, bit-identical to the same build's constant-step output). About half the MUSIC steps per leg; the freeze-out checks and the stored frames keep their 0.1 fm/c. Not bit-identical: the medium changes at 1e-3, the cell-level wake by ~5 % at sub-fm scales, so use **one setting per campaign**. DT must divide 0.1 fm/c into whole steps (0.05, 0.025). Needs MUSIC4GPU and X-SCAPE `final_optim`; older builds ignore the XML tags. See [MUSIC's late time step](#musics-late-time-step-default). |
 | `--music2-restart` (default) / `--no-music2-restart` | MUSIC_2 starts from MUSIC_1's saved state just before the first droplet can deposit, instead of recomputing the identical leading steps: −25 core-s per jet event, the same output. Off by itself with `--write-particlize jet` / `--surface jet` and on builds without it. See [MUSIC_2 from MUSIC_1's state](#music_2-from-music_1s-state-default). |
 | `--validate-inline` | Validation only: also run iSS on the jet leg and Colorless jet hadronization inside the job and store their hadrons and seeds (`<stem>_inline_{bulk_jet,jet_frag}.h5`), for `hadronize.py --use-stored-seeds`. **Changes the jet sample** of the seed (see Seeds below); the background is unchanged. |
@@ -1613,6 +1614,31 @@ or be missed. With a constant step everything is bit-identical to before.
   wake yield +0.8 % ± 0.2 %). Accepted.
 - **A12, Cornelius without per-element allocations** (MUSIC4GPU `b972b04`): the freeze-out
   search −30 %, bit-identical.
+
+## Parallel showers
+
+`--eloss-threads N` sets X-SCAPE's `<Eloss><nThreads>`: the showers of an event (one per
+shower-initiating parton: the hard partons, and with ISR or MPI tens per event) run in
+parallel with OpenMP. `-1` takes `OMP_NUM_THREADS`, which is the job's thread budget anyway:
+the showers start only after MUSIC_1 is done, so they do not compete with it.
+
+- **The events change, not with N.** Every shower gets random streams and a block of colour
+  tags of its own, so 1 and 4 threads give identical files (checked: pair and particlize file,
+  3 events; O+O ISR 10 events, all files), but a seed gives other, equally valid showers than
+  with 0. Keep one setting per campaign and in both legs of a paired comparison. Recorded as
+  `prod_eloss_threads`.
+- **What it gains here: nothing measurable.** In this job the showers take ~0.1 s of a ~19 s
+  event (GB10, 0–10 %, pT̂ 50–70 GeV): 0.27 s → 0.07 s over 3 events with 4 threads. It pays
+  where the showers are a large part of the event: O+O with ISR (energy loss ~20 % of the
+  event, 13 % faster per event; `../prod_OO_isr`, where `-1` is the default) or standalone X-SCAPE runs with a brick or a
+  stored medium (2.6x on the energy loss at 4 threads, 5.02 TeV pT̂ 100–120 GeV).
+- **Limits.** Only Matter and LBT support it (other modules keep the showers serial, with a
+  warning), and the speed-up is bounded by the most energetic shower, about a third of the
+  energy-loss time in the brick test. ISR (iMATTER) stays serial.
+- `source/flux` (the droplets' sampled flux) can differ in the last bit between two runs with
+  the same settings, with or without parallel showers: it is an OpenMP sum with dynamic
+  scheduling in X-SCAPE's `LiquefierBase::sampled_flux`. The stored evolutions are not
+  affected (checked).
 
 ## The liquefier's frame (`--liquefier-frame`)
 
