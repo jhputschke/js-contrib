@@ -74,6 +74,62 @@ flowchart LR
   the medium at the 10⁻³ level, below the GPU-vs-CPU difference. The wake field differs cell by
   cell by ~5 %, almost all at scales below ~1 fm; at hadron level no change is seen within
   ±2 %. Keep **one setting per campaign**; `--late-dtau 0` gives a constant step.
+- **Evolving only the region with matter** ([opt-in, off by default](#the-active-region-opt-in)):
+  the vacuum around the fireball is kept frozen instead of being evolved. It changes the medium
+  at the level of float rounding, and the wake energy by ~1 % per event.
+
+### The active region (opt-in)
+
+Much of MUSIC's grid is vacuum: in 0–10 % Au+Au only about a third of the cells ever hold
+matter above 10⁻⁵ GeV/fm³. With `--active-region 1e-5` (all three production drivers; in the XML
+`<Hydro><MUSIC><active_region_eps>1e-5</active_region_eps>`) the CUDA kernels evolve only the
+blocks of 8 × 8 × 4 cells within 3 cells of matter or of a jet source; the others stay
+frozen. The region is rebuilt every 0.1 fm/c.
+
+- **Off by default.** Not set, or 0, evolves the whole grid exactly as before. With the region
+  forced to the whole grid the output is bit-identical to off, so the mechanism itself changes
+  nothing; only the frozen vacuum does.
+- **CUDA builds only.** Metal (with a warning in the log) and the CPU path evolve the whole grid.
+- **It needs the matching X-SCAPE.** The drivers refuse `--active-region` when the main XML has
+  no `<active_region_eps>`.
+
+**Gain** (GPU kernel time per job, GB10):
+
+| | whole grid | active region | factor |
+|---|---:|---:|---:|
+| Au+Au 0–10 %, late time step (the default) | 8.73 s | 6.00 s | ×0.69 |
+| Au+Au 0–10 %, constant step (`--late-dtau 0`) | 17.03 s | 12.59 s | ×0.74 |
+| O+O (grid ±10.5 fm) | 7.20 s | 3.40 s | ×0.47 |
+
+- **The two time-step modes.** The active region makes each step cheaper, the late step makes
+  fewer steps, so the two multiply: both together bring Au+Au to ×0.35 of the whole-grid,
+  constant-step GPU time.
+- **Why it gains less with a constant step.** The share of the grid with matter grows as the
+  fireball expands (Au+Au: 40 % of the blocks before τ = 3 fm/c, 66 % after). Most constant
+  steps are late, dense ones, so the active region saves more GPU time there (4.4 s against 2.7 s
+  per 2-event job) but a smaller fraction.
+- **Smaller systems gain most:** in O+O only ~30 % of the blocks are active.
+- **It pays where the GPU is the limit.** A job alone is partly bound by the host CPU and gains
+  less (Au+Au −11 % per MUSIC step, O+O −19 % per job). On a GPU shared by several jobs the
+  kernel time is what counts.
+
+**What changes** (against off, same seeds, 32 Au+Au jet events):
+
+| quantity | active region vs whole grid |
+|---|---|
+| backgrounds, energy-weighted \|Δe\|/e | ~10⁻⁶ (float rounding) |
+| freeze-out surfaces | within 8 elements per leg |
+| jet showers | identical in all 32 events |
+| wake field δe, cell by cell | 0.2 % (median), at most 1.1 % |
+| wake energy | unbiased (+0.0006 ± 0.0053 of the deposit), but 1.2 % per event (median), 5.8 % at the 90th percentile |
+| MUSIC_2 restart | unchanged: a checkpoint rebuilds the region, so the jet leg evolves the same blocks as its background |
+
+The per-event wake scatter is larger than that of the late time step (~0.8 %) and comes from the
+dilute outer shell; the hot part of the wake agrees. **Hadron-level checks are still to be
+done**, so the active region is not used in the production presets. If you use it, keep **one
+setting per campaign**: the job XML records it. Every MUSIC run logs the share of active blocks
+([Checking a run](../run/clusters.md#checking-a-run)). Details:
+[`docs/README_2stage.md`](https://github.com/jhputschke/js-contrib/blob/main/docs/README_2stage.md#the-gpu-active-region-opt-in-off-by-default).
 
 ## How close is the GPU to CPU MUSIC?
 

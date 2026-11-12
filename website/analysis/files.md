@@ -236,6 +236,7 @@ data sets:
 | setting | why it matters | where it is recorded |
 |---|---|---|
 | **MUSIC's late time step** (Δτ 0.02 → 0.05 fm/c from τ = 3 fm/c, on by default in current images) | the stored frames stay at 0.1 fm/c, so the files look alike; but the medium differs at the 10⁻³ level, the cell-level wake by ~5 % below ~1 fm. Hadron observables agree within ±2 %. Don't mix late-step and constant-step files in one training set or comparison | `<late_delta_tau>` in the job XML (`prod_user_xml`); absent or 0: constant step |
+| **the GPU active region** (opt-in, off by default) | the vacuum stays frozen: the medium changes only at float rounding, but the wake energy scatters by ~1 % per event (unbiased). Keep one setting per campaign | `<active_region_eps>` in the job XML (`prod_user_xml`); absent or 0: the whole grid |
 | the image or build | MUSIC on the GPU and on the CPU differ at 2 × 10⁻³: one image per campaign | `prod_build`, `prod_host`; the campaign's notes |
 | the output grid | 64 × 64 × 32 at ±12.2 fm, or the earlier 65 × 65 × 33 at ±10 fm: never in one training set | `prod_grid_yaml`; `nx`, `dx`, ... |
 | hadron precision and selection | `--keep-bits-*`, `--eta-max`, `--charged`, `--no-x`: one setting per campaign | `HadronFileReader.precision(i)`, `.eta_max()`, `.selection()`; the reader warns on a mix |
