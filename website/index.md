@@ -138,14 +138,16 @@ From there, the site follows the order you work in:
 ## What is in the box
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph engine["Simulation engine (C++)"]
+    direction TB
     XS["X-SCAPE<br/>framework"] --- M4G["MUSIC4GPU<br/>CUDA / Metal"]
     XS --- ISS["iSS<br/>Cooper–Frye"]
     XS --- GLB["3D MC-Glauber"]
     XS --- JET["MATTER + LBT<br/>+ liquefier"]
   end
   subgraph py["Python (js-contrib)"]
+    direction TB
     CORE["pyjetscape_core<br/>bindings"] --> JS["jetscape package<br/>Pythonic layer"]
     JS --> MOD["your Python modules<br/>PyFNOHydro (PyTorch)"]
   end
