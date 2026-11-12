@@ -65,6 +65,7 @@ With pT̂ windows, also run the null test with the windows (`--pthat-bins … --
 - **A seed is a set of collisions.** The same seed gives the same background in every campaign, whatever the jet settings. That is what paired comparisons want, and wrong for campaigns meant as more statistics: use `FIRST_SEED 0` for those.
 - `--mps` (CUDA only) lets the P jobs share the GPU through CUDA MPS; `--stagger S` starts the first P jobs S seconds apart. Both are discussed in [Clusters](https://jhputschke.github.io/js-contrib/run/clusters/#launch-settings).
 - At the end, `OUTDIR/run_jobs.finished` is written; each job leaves `<stem>.log`, `<stem>.json` and `<stem>.xml`.
+- `--eloss-threads -1` runs the showers of an event in parallel (X-SCAPE `<Eloss><nThreads>`; off by default here). It changes the showers of a seed, and gains nothing measurable here: the showers take ~0.1 s of a ~19 s event. It pays for [O+O with ISR](https://jhputschke.github.io/js-contrib/run/oo-isr/#settings), where it is the default; details in the [folder's README](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#parallel-showers).
 
 ### What to store
 

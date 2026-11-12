@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -2993,6 +2993,11 @@ directory you can write:</p>
   the first P jobs S seconds apart. Both are discussed in <a href="../clusters/#launch-settings">Clusters</a>.</li>
 <li>At the end, <code>OUTDIR/run_jobs.finished</code> is written; each job leaves <code>&lt;stem&gt;.log</code>,
   <code>&lt;stem&gt;.json</code> and <code>&lt;stem&gt;.xml</code>.</li>
+<li><code>--eloss-threads -1</code> runs the showers of an event in parallel (X-SCAPE <code>&lt;Eloss&gt;&lt;nThreads&gt;</code>;
+  off by default here). It changes the showers of a seed, and gains nothing measurable here:
+  the showers take ~0.1 s of a ~19 s event. It pays for <a href="../oo-isr/#settings">O+O with ISR</a>,
+  where it is the default; details in the
+  <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#parallel-showers">folder's README</a>.</li>
 </ul>
 <h3 id="what-to-store">What to store<a class="headerlink" href="#what-to-store" title="Permanent link">¶</a></h3>
 <table>
@@ -3615,7 +3620,7 @@ and <a href="https://github.com/jhputschke/js-contrib/blob/main/docs/README_2sta
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       

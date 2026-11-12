@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -2911,6 +2911,11 @@ the bulk file; the bulk's N oversamples share one fluid.</p>
 <td>MUSIC at a constant 0.02 fm/c; keep one setting per campaign</td>
 </tr>
 <tr>
+<td><code>--eloss-threads 0</code></td>
+<td>-1: in parallel</td>
+<td>the final-state showers of an event run in parallel on <code>OMP_NUM_THREADS</code> threads (set it: unset means all cores per job): events ~13 % faster (GB10, 4 threads). 0 runs them serially, N on N threads. Serial and parallel give other showers for a seed, the thread count does not: one setting per campaign</td>
+</tr>
+<tr>
 <td><code>--max-skipped N</code></td>
 <td>3</td>
 <td>stop the job when more events fail</td>
@@ -2921,8 +2926,10 @@ the bulk file; the bulk's N oversamples share one fluid.</p>
 <p class="admonition-title">Choices that change the jets of a seed</p>
 <p>X-SCAPE seeds each module from the order it was made. <code>--bulk-hadrons</code> and
 <code>--no-hydro-file</code> change that order, so the same seed gives other, equally valid jet
-showers (the hydro is identical). Keep one choice per campaign if jets of different jobs
-are to be compared event by event.</p>
+showers (the hydro is identical). So do parallel showers, this driver's default, against
+<code>--eloss-threads 0</code>: every shower gets streams of its own (the thread count does not
+matter). Keep one choice per campaign if jets of different jobs are to be compared event
+by event; the files record it as <code>prod_eloss_threads</code>.</p>
 </div>
 <p>Before combining files, check the settings every file records (subtraction, b range,
 late time step, energy loss, colour closure): <a href="../../analysis/oo/">O+O analysis</a>. Every
@@ -3267,7 +3274,7 @@ OSDF upload takes: use hadron files only, or a large local disk. On two GPUs,
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       

@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -2762,7 +2762,7 @@
 
 <h1 id="x-scape-changes-since-21">X-SCAPE changes since 2.1<a class="headerlink" href="#x-scape-changes-since-21" title="Permanent link">¶</a></h1>
 <p>The same table is in the X-SCAPE repository as <a href="https://github.com/JETSCAPE/X-SCAPE/blob/contrib/RELEASE_NOTES.md"><code>RELEASE_NOTES.md</code></a>.</p>
-<p>Changes on the <code>contrib</code> branch (<a href="https://github.com/JETSCAPE/X-SCAPE/commit/49c834ec"><code>49c834ec</code></a>, 2026-11-11) relative to the X-SCAPE 2.1 release (tag <a href="https://github.com/JETSCAPE/X-SCAPE/tree/v2.1"><code>v2.1</code></a>, 2026-03-05). The third-party packages X-SCAPE fetches (iSS, 3dMCGlauber, MUSIC, trento, the LBT tables) are included. MUSIC4GPU's own changes are not listed here; see <a href="https://github.com/jhputschke/MUSIC4GPU">jhputschke/MUSIC4GPU</a>.</p>
+<p>Changes on the <code>contrib</code> branch (<a href="https://github.com/JETSCAPE/X-SCAPE/commit/ef19d7f7"><code>ef19d7f7</code></a>, 2026-11-12) relative to the X-SCAPE 2.1 release (tag <a href="https://github.com/JETSCAPE/X-SCAPE/tree/v2.1"><code>v2.1</code></a>, 2026-03-05). The third-party packages X-SCAPE fetches (iSS, 3dMCGlauber, MUSIC, trento, the LBT tables) are included. MUSIC4GPU's own changes are not listed here; see <a href="https://github.com/jhputschke/MUSIC4GPU">jhputschke/MUSIC4GPU</a>.</p>
 <p>Fixes to code that was added after 2.1 are folded into the feature that added it.</p>
 <ul>
 <li><a href="#physics-bug-fixes">Physics bug fixes</a>: change the physics output of existing setups.</li>
@@ -3025,6 +3025,11 @@
 <td>Matter, LBT, iColoredHadronization</td>
 <td>Colour flow: Matter's recoils and holes keep their colour flow, LBT partons carry colour tags, and iColoredHadronization closes colour lines that end in the medium (<code>&lt;colour_closure&gt;</code>, default <code>reconnect</code>). See <code>README_ColourFlow.md</code>.</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/182">#182</a></td>
+</tr>
+<tr>
+<td>Energy loss (Matter, LBT)</td>
+<td><code>&lt;Eloss&gt;&lt;nThreads&gt;</code>: the showers of an event run in parallel on OpenMP threads (N threads, or -1 for <code>OMP_NUM_THREADS</code>). Off by default (<code>0</code>, output unchanged). When on, every shower gets random streams and colour tags of its own and droplets are flushed in the serial order: the output does not depend on the thread count, but a seed gives other (equally valid) showers than with <code>0</code>. Runs serially, with a warning, unless all energy-loss modules declare support (Matter, LBT), showers run per event and there is no hadronic medium; ISR stays serial. O+O with ISR at 4 threads: energy loss 18 to 6.2 s per 40 events, jobs 13% faster; no gain in Au+Au jet jobs.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/191">#191</a></td>
 </tr>
 <tr>
 <td>Matter</td>
@@ -3455,7 +3460,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
