@@ -90,6 +90,47 @@ python utils/h5_inspect.py FILE.h5 --attr prod_user_xml             # one attrib
 xscape-h5-inspect FILE.h5                                           # the Mac wheel's command
 ```
 
+## Comparing files: `h5_compare.py`
+
+[`h5_compare.py`](https://github.com/jhputschke/js-contrib/blob/main/utils/h5_compare.py)
+compares two HDF5 files, or every `*.h5` of the same name in two directories. It is the check
+after a change that should not alter the output: run the same job with the same seed before and
+after, and compare.
+
+```bash
+python utils/h5_compare.py A.h5 B.h5                               # datasets and attributes that differ
+python utils/h5_compare.py before/ after/ --ignore-stamps          # two directories; run stamps skipped
+python utils/h5_compare.py A.h5 B.h5 --ignore 'diag/*' --no-attrs  # skip by pattern; datasets only
+python utils/h5_compare.py A.h5 B.h5 --rtol 1e-6                   # floats may differ by 1e-6 (relative)
+python utils/h5_compare.py A.h5 B.h5 -q && echo same               # exit code: 0 same, 1 different, 2 error
+```
+
+The comparison is bit-exact unless you give a tolerance: a dataset is the same only if shape,
+dtype and every byte agree. For a dataset that differs, the script prints how many values
+differ, the largest absolute and relative difference, and the index of the first one. For an
+attribute it prints both values.
+
+For example, a hadron file against a copy with three momenta, one cell count and one attribute
+changed:
+
+```text
+datasets:   10 in A, 10 in B; 8 identical, 2 differ
+  hadrons/p        3 of 1438404 values differ, max |a-b| 9.83e-06, max rel 1e-05, first at [1000, 0]
+  units/n_cells    1 of 1 values differ, max |a-b| 1, max rel 1.01e-06, first at [0]
+attributes: 25 in A, 27 in B; 24 identical, 1 differ
+  @oversample      only in B: 101
+ignored:    2 (-v lists them)
+AuAu_0_10_jet_pth10-40_eta06_c1_0013_hadrons_bulk_bg.h5: DIFFERENT (3 differences)
+```
+
+Two runs of the same job never agree in everything: the wall times, the UUIDs that tie the
+files of a job together, the host name and the dates differ. `--ignore-stamps` skips these
+(`*wall_s*`, `*@*uuid*`, `*@prod_host`, `*@created`, `*@updated`). `--ignore PATTERN` skips
+more; a dataset is named by its path (`diag/wall_s`) and an attribute by `PATH@NAME`
+(`@nevents` for a file attribute). Large datasets are read in blocks, so evolution files of
+several GB need about 1 GB of memory. The script needs only h5py and numpy, plus hdf5plugin
+for Blosc-compressed files.
+
 ## Moving files: OSDF and Google Cloud Storage
 
 | Script | What it does |

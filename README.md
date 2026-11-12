@@ -166,6 +166,16 @@ python utils/h5_inspect.py FILE.h5 --stats [--event 0]              # per-featur
 python utils/h5_inspect.py FILE.h5 --attr prod_user_xml             # one attribute in full
 ```
 
+[`utils/h5_compare.py`](utils/h5_compare.py) compares two HDF5 files, or two directories of
+them, bit by bit: the check that a change left the output of the same job (same seed)
+untouched. It names every dataset and attribute that differs and by how much; exit code 0
+means the same.
+
+```bash
+python utils/h5_compare.py before/ after/ --ignore-stamps          # all *.h5; wall times, UUIDs, host skipped
+python utils/h5_compare.py A.h5 B.h5 --rtol 1e-6                   # floats within a tolerance
+```
+
 ### Moving productions: Google Cloud Storage and Pelican/OSDF
 
 [`utils/remote_transfer/`](utils/remote_transfer/README.md) has two command-line tools with
