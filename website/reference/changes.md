@@ -1,6 +1,6 @@
 # X-SCAPE changes since 2.1
 
-X-SCAPE's own [`RELEASE_NOTES.md`](https://github.com/JETSCAPE/X-SCAPE/blob/contrib/RELEASE_NOTES.md) has this table as of 2026-11-02 ([`44cad1d0`](https://github.com/JETSCAPE/X-SCAPE/commit/44cad1d0)); the rows for [#189](https://github.com/JETSCAPE/X-SCAPE/pull/189), [#190](https://github.com/JETSCAPE/X-SCAPE/pull/190) and the threaded iSS sampling are only here so far.
+The same table is in the X-SCAPE repository as [`RELEASE_NOTES.md`](https://github.com/JETSCAPE/X-SCAPE/blob/contrib/RELEASE_NOTES.md).
 
 Changes on the `contrib` branch ([`49c834ec`](https://github.com/JETSCAPE/X-SCAPE/commit/49c834ec), 2026-11-11) relative to the X-SCAPE 2.1 release (tag [`v2.1`](https://github.com/JETSCAPE/X-SCAPE/tree/v2.1), 2026-03-05). The third-party packages X-SCAPE fetches (iSS, 3dMCGlauber, MUSIC, trento, the LBT tables) are included. MUSIC4GPU's own changes are not listed here; see [jhputschke/MUSIC4GPU](https://github.com/jhputschke/MUSIC4GPU).
 
