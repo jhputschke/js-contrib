@@ -146,7 +146,8 @@ def add_active_region_arg(p: argparse.ArgumentParser) -> None:
                    help="MUSIC <active_region_eps> [GeV/fm^3]: the GPU evolves only the "
                         "blocks of 8 x 8 x 4 cells within 3 cells of matter (e > EPS, e.g. "
                         "1e-5) or of a source, and keeps the vacuum frozen (CUDA builds; "
-                        "Metal and the CPU evolve the whole grid). 0: the whole grid. "
+                        "Metal too, not yet validated; the CPU evolves the whole grid). "
+                        "0: the whole grid. "
                         "Default: the XML's (0). Differs from 0 at the vacuum level only, "
                         "but use one setting for all jobs of a campaign. Needs X-SCAPE with "
                         "<active_region_eps> in its main XML (branch active_region)")

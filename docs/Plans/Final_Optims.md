@@ -13,6 +13,7 @@
 > ±10.5 fm: ×0.47 (~30 % active). The 3-cell halo and the dilute fluid keep more active than the
 > plan's 30 % of cells. Not bit-identical through the vacuum: backgrounds at 1e-6, wake field
 > 0.2 %, wake energy unbiased but ±1.2 % per event (median). MUSIC4GPU `README_CUDA.md`, Phase 8.
+> Metal has it too (ported 2026-11-12, not yet run on a Mac).
 > The text below is the plan as written on 2026-10-12.
 
 A last look for speed-ups of `prod_OO_isr` and `prod_AuAu_0_10_jet` after A1–A11, the MUSIC_2

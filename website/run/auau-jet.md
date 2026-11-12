@@ -105,7 +105,7 @@ With pT̂ windows, also run the null test with the windows
   where it is the default; details in the
   [folder's README](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#parallel-showers).
 - `--active-region 1e-5` lets the GPU evolve only the region with matter and keep the vacuum
-  frozen (MUSIC4GPU `<active_region_eps>`; **off by default**, CUDA only). GPU kernel time ×0.69
+  frozen (MUSIC4GPU `<active_region_eps>`; **off by default**; CUDA, the Metal port not yet validated). GPU kernel time ×0.69
   with the late step, ×0.74 with `--late-dtau 0`. The medium changes at float rounding, the
   wake energy by ~1 % per event, unbiased; hadron-level checks are still open. One setting per
   campaign: [the active region](../about/gpu.md#the-active-region-opt-in).

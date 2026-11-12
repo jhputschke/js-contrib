@@ -332,8 +332,9 @@ production XMLs of `prod_AuAu_0_10_jet` and `prod_OO_isr`).
 
 `--active-region EPS` (all three drivers; `<Hydro><MUSIC><active_region_eps>` in the XML): the GPU
 evolves only the blocks of 8 × 8 × 4 cells within 3 cells of matter (e > EPS GeV/fm³, e.g. 1e-5)
-or of a source, and keeps the vacuum frozen (C3, MUSIC4GPU `README_CUDA.md` Phase 8). CUDA builds
-only; Metal and the CPU evolve the whole grid. Not set, or 0: the whole grid, as before.
+or of a source, and keeps the vacuum frozen (C3, MUSIC4GPU `README_CUDA.md` Phase 8). CUDA builds,
+and Metal (ported, not yet run on a Mac; the numbers below are CUDA's); the CPU evolves the whole
+grid. Not set, or 0: the whole grid, as before.
 - **Gain** (GPU kernel time, GB10): Au+Au 0–10 % ×0.69 with the late step, ×0.74 with a
   constant step (`--late-dtau 0`); O+O ±10.5 fm ×0.47. It pays where the GPU is the limit; a job
   alone gains less (Au+Au step −11 %, O+O job −19 %).

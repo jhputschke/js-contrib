@@ -138,7 +138,7 @@ the bulk file; the bulk's N oversamples share one fluid.
 | `--no-subtraction` | | the reference without the hard-momentum subtraction (counts the hard pair's energy twice, on purpose); keep it in its own OUTDIR |
 | `--late-dtau 0` | late step on | MUSIC at a constant 0.02 fm/c; keep one setting per campaign |
 | `--eloss-threads 0` | -1: in parallel | the final-state showers of an event run in parallel on `OMP_NUM_THREADS` threads (set it: unset means all cores per job): events ~13 % faster (GB10, 4 threads). 0 runs them serially, N on N threads. Serial and parallel give other showers for a seed, the thread count does not: one setting per campaign |
-| `--active-region 1e-5` | off (0) | the GPU evolves only the region with matter and keeps the vacuum frozen (CUDA only): GPU kernel time ×0.47, job −19 % alone (GB10). The wake energy changes by ~1 % per event, unbiased; hadron-level checks are still open. One setting per campaign: [the active region](../about/gpu.md#the-active-region-opt-in) |
+| `--active-region 1e-5` | off (0) | the GPU evolves only the region with matter and keeps the vacuum frozen (CUDA; the Metal port not yet validated): GPU kernel time ×0.47, job −19 % alone (GB10). The wake energy changes by ~1 % per event, unbiased; hadron-level checks are still open. One setting per campaign: [the active region](../about/gpu.md#the-active-region-opt-in) |
 | `--max-skipped N` | 3 | stop the job when more events fail |
 
 !!! note "Choices that change the jets of a seed"

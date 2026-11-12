@@ -89,7 +89,8 @@ frozen. The region is rebuilt every 0.1 fm/c.
 - **Off by default.** Not set, or 0, evolves the whole grid exactly as before. With the region
   forced to the whole grid the output is bit-identical to off, so the mechanism itself changes
   nothing; only the frozen vacuum does.
-- **CUDA builds only.** Metal (with a warning in the log) and the CPU path evolve the whole grid.
+- **CUDA builds; Metal not yet validated.** The Metal kernels have it too, but it has not been
+  run on a Mac yet, so the numbers below are CUDA's. The CPU path evolves the whole grid.
 - **It needs the matching X-SCAPE.** The drivers refuse `--active-region` when the main XML has
   no `<active_region_eps>`.
 
