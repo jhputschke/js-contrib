@@ -1,0 +1,111 @@
+/* The Python API pages (website/python/api/): a code-like look for the objects mkdocstrings
+ * renders, close to Sphinx's autodoc.  Every rule matches only mkdocstrings' markup (.doc-*),
+ * so the guides, tutorials and theme are not touched.  Colours come from Material's variables
+ * and follow the light and dark scheme. */
+
+:root {
+  --api-sig-bg: #eef2fb;                     /* the signature box */
+  --api-sig-bg-member: #f6f8fc;              /* methods and attributes inside a class */
+  --api-sig-rule: var(--md-primary-fg-color);
+  --api-sig-rule-member: #b7c3e3;
+}
+[data-md-color-scheme="slate"] {
+  --api-sig-bg: #262b3d;
+  --api-sig-bg-member: #20242f;
+  --api-sig-rule-member: #4a5578;
+}
+
+/* ── The signature box: the heading of every documented object ───────────────────── */
+.md-typeset .doc-heading {
+  font-family: var(--md-code-font-family);
+  font-size: 0.78rem;
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: 0;
+  margin: 1.8em 0 0.6em;
+  padding: 0.45em 0.75em;
+  background: var(--api-sig-bg);
+  border-top: 3px solid var(--api-sig-rule);
+  border-radius: 0 0 2px 2px;
+  overflow-wrap: anywhere;
+}
+.md-typeset .doc-heading code {
+  background: transparent;
+  padding: 0;
+  font-size: 1em;
+  color: var(--md-default-fg-color);
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+/* the parts of the signature: module path muted, the name bold, parameters plain */
+.md-typeset .doc-heading code .api-prefix { color: var(--md-default-fg-color--light); }
+.md-typeset .doc-heading code .api-name {
+  font-weight: 700;
+  color: var(--md-default-fg-color);
+}
+.md-typeset .doc-heading code .kc,
+.md-typeset .doc-heading code .mi,
+.md-typeset .doc-heading code .s1,
+.md-typeset .doc-heading code .s2 { color: var(--md-code-hl-constant-color); }
+.md-typeset .doc-heading .headerlink { font-family: var(--md-text-font-family); }
+
+/* members of a class: a lighter box, a rule on the left, indented */
+.md-typeset .doc-children .doc-heading {
+  margin-top: 1.2em;
+  background: var(--api-sig-bg-member);
+  border-top: none;
+  border-left: 3px solid var(--api-sig-rule-member);
+  border-radius: 0 2px 2px 0;
+}
+
+/* "class", "method", ... as an italic word in front, as Sphinx writes it */
+.md-typeset .doc-symbol-heading {
+  background: none !important;
+  padding: 0 !important;
+  margin-right: 0.45em;
+  font-family: var(--md-text-font-family);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 0.95em;
+  color: var(--md-default-fg-color--light) !important;
+}
+.md-typeset .doc-symbol-heading::after { color: inherit !important; background: none !important; }
+.md-typeset .doc-symbol-heading.doc-symbol-class::after { content: "class"; }
+.md-typeset .doc-symbol-heading.doc-symbol-function::after { content: "function"; }
+.md-typeset .doc-symbol-heading.doc-symbol-method::after { content: "method"; }
+.md-typeset .doc-symbol-heading.doc-symbol-attribute::after { content: "attribute"; }
+.md-typeset .doc-symbol-heading.doc-symbol-module::after { content: "module"; }
+
+/* ── The documentation under a signature: indented, as a definition ─────────────── */
+.md-typeset .doc-contents {
+  padding-left: 1.4em;
+}
+.md-typeset .doc-contents > p:first-child { margin-top: 0.4em; }
+
+/* Parameters / Returns / Raises: Sphinx's field list */
+.md-typeset .doc-section-title {
+  font-family: var(--md-text-font-family);
+  font-weight: 700;
+}
+.md-typeset .doc-contents p:has(> .doc-section-title) { margin: 0.9em 0 0.2em; }
+.md-typeset .doc-contents ul:has(> .doc-section-item) {
+  list-style: none;
+  margin: 0 0 0.6em 1.4em;
+  padding: 0;
+}
+.md-typeset .doc-section-item {
+  margin: 0.15em 0 0.35em;
+}
+.md-typeset .doc-section-item::before { content: none; }
+.md-typeset .doc-section-item > b > code {
+  background: transparent;
+  padding: 0;
+  font-weight: 700;
+}
+.md-typeset .doc-section-item .doc-md-description,
+.md-typeset .doc-section-item .doc-md-description > p:first-child {
+  display: inline;
+}
+.md-typeset .doc-section-item .doc-md-description > p:not(:first-child) {
+  margin: 0.3em 0 0;
+}

@@ -31,9 +31,9 @@ three O+O events through the whole chain, the hadrons written to files and read 
 with errors, FastJet. Its simulation half is the script `oo_workflow.py`
 (`--xml`, `--events`, `--seed`, `--outdir`), a template for a production of your own.
 
-**Requirements.** The bound classes need the compiled `pyjetscape_core`. Records and
-`HadronArray` need only numpy (they also work on files without a build); `to_awkward()` needs
-`awkward` and `vector`, `select()` needs `particle`, jets need the `fastjet` Python package, and
+**Requirements.** The bound classes need the compiled [`pyjetscape_core`][jetscape.pyjetscape_core]. Records and
+[`HadronArray`][jetscape.hadron_array.HadronArray] need only numpy (they also work on files without a build); [`to_awkward()`][jetscape.hadron_array.HadronArray.to_awkward] needs
+`awkward` and `vector`, [`select()`][jetscape.awkward_views.select] needs `particle`, jets need the `fastjet` Python package, and
 the hadron files need `h5py`. All are in the container image, the Mac wheel's environment and the
 analysis environment; awkward and vector are imported only when used.
 
@@ -85,7 +85,7 @@ Anything else: `driver.GetTaskList()` and, for sub-tasks, `task.GetTaskList()`.
 
 **Run in a working directory of its own.** MUSIC, 3dMCGlauber and iSS read inputs from and write
 side files to the current directory, and X-SCAPE's XMLs contain paths relative to the build.
-`js.JobDir` handles that for a script or notebook anywhere on disk:
+[`js.JobDir`][jetscape.workdir.JobDir] handles that for a script or notebook anywhere on disk:
 
 ```python
 with js.JobDir("out", "my_job.xml") as job:      # out/my_job.xml; runs in out/work/my_job
@@ -95,7 +95,7 @@ with js.JobDir("out", "my_job.xml") as job:      # out/my_job.xml; runs in out/w
 
 It copies the user XML to `out/`, makes its `../` paths absolute, copies `music_input`, links the
 build's tables, changes into `out/work/<name>` and back, and removes that directory after a run
-without an exception (`keep=True` keeps it). The build is found through `jetscape.paths`:
+without an exception (`keep=True` keeps it). The build is found through [`jetscape.paths`][jetscape.paths]:
 `$JETSCAPE_BUILD`, else `<X-SCAPE>/build_gpu`, where X-SCAPE is `$XSCAPE` or the tree the package
 sits in. In the container `XSCAPE=/opt/X-SCAPE` is set, so scripts run unchanged in and out of it.
 
@@ -217,7 +217,7 @@ Each distinct pid is looked up once.
 
 ## Hadron files
 
-The productions' hadron files (`jetscape.hadrons_h5`) take a `HadronArray` per unit (event) and
+The productions' hadron files ([`jetscape.hadrons_h5`][jetscape.hadrons_h5]) take a `HadronArray` per unit (event) and
 give one back:
 
 ```python
@@ -246,7 +246,7 @@ first = js.HadronArray.from_h5("x_hadrons_bulk_bg.h5", units=[0])
 ```
 
 For whole campaigns, with event-averaged histograms and compound-Poisson errors, use
-`hadrons_h5.HadronFileReader` and `Hadrons`: [Hadrons](../analysis/hadrons.md).
+[`hadrons_h5.HadronFileReader`][jetscape.hadrons_h5.HadronFileReader] and [`Hadrons`][jetscape.hadrons_h5.Hadrons]: [Hadrons](../analysis/hadrons.md).
 
 ## Jets with FastJet
 
@@ -374,3 +374,5 @@ old and new calls:
 - [Hadrons](../analysis/hadrons.md) and [Jets with FastJet](../analysis/jets.md): analysing
   production files.
 - [Notebooks](../analysis/notebooks.md): the example notebooks.
+- [Python API](api/index.md): every class and method of the layer and the bindings, with
+  examples.

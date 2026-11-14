@@ -20,8 +20,8 @@ The Au+Au jet production (two hydro legs per event) writes, per job:
 | file | made by | holds | size per event | read with |
 |---|---|---|---|---|
 | `<stem>.h5`, the **pair file** | the production job | both hydro legs on the output grid: `arr` (jet leg), `arr_bg` (background); the droplets, the showers, diagnostics | ~170 MB with 15 jets per background, 285 MB with one | h5py, FNO4d's loader, `wake_observables.py` |
-| `<stem>_particlize.h5` | the job, with `--write-particlize` | both freeze-out surfaces (32 columns per cell), the final partons, the shower initiators, the event table | ~90 MB (15 jets per background) | `ParticlizeFile` |
-| `<stem>_hadrons_bulk_jet.h5` | `hadronize.py` | iSS on the jet leg's surface: bulk + wake, N oversamples per event | ~0.2 MB per oversample at full precision | `HadronFileReader` |
+| `<stem>_particlize.h5` | the job, with `--write-particlize` | both freeze-out surfaces (32 columns per cell), the final partons, the shower initiators, the event table | ~90 MB (15 jets per background) | [`ParticlizeFile`][jetscape.particlize_h5.ParticlizeFile] |
+| `<stem>_hadrons_bulk_jet.h5` | `hadronize.py` | iSS on the jet leg's surface: bulk + wake, N oversamples per event | ~0.2 MB per oversample at full precision | [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader] |
 | `<stem>_hadrons_bulk_bg.h5` | `hadronize.py` | iSS on the background's surface, once per background | as above | `HadronFileReader` |
 | `<stem>_hadrons_jet_frag.h5` | `hadronize.py` | the fragmented surviving partons, M fragmentations per event; with extra hard scatterings the trigger's alone | small | `HadronFileReader` |
 | `<stem>_hadrons_extra_frag.h5` | `hadronize.py`, only with `--extra-hard` | the fragments of the event's other hard scatterings, M fragmentations per event, with `scatterings/` | small | `HadronFileReader` |
@@ -70,7 +70,7 @@ fluctuations to subtract. How to use them: [Hydro and hadrons together](hydro-ha
 | `ntau_freezeout`, `ntau_freezeout_bg` | `(nevents,)` | frames written per leg; every frame from there on is 0 |
 | `tau_freezeout`, `tau_freezeout_bg` | `(nevents,)` | when each leg's hydro ended [fm/c] |
 | `source/droplets`, `source/offsets` | `(M, 8)`, `(nevents + 1,)` | the droplets MUSIC_2 received: `tau, x, y, eta, E, px, py, pz`; event i is rows `offsets[i]:offsets[i+1]` |
-| `shower/` | | the shower graphs (partons, vertices, initiators), read with `jetscape.showers` |
+| `shower/` | | the shower graphs (partons, vertices, initiators), read with [`jetscape.showers`][jetscape.showers] |
 | `diag/` | `(nevents,)` each | `E_droplets`, `n_droplets`, `bg_id`, `frames_identical`, boundary and edge flags, `tau0_music`, `eloss_tstart`, `wall_s`; with pT̂ windows `pthat_bin`, `pthat`, `event_weight` |
 
 - **The grid** is in the attributes: `x_min`, `dx`, `nx` (and `y_*`, `eta_*`), `tau_min`,
@@ -93,7 +93,7 @@ fluctuations to subtract. How to use them: [Hydro and hadrons together](hydro-ha
 ## 3. Particlize files
 
 The input to hadronization, stored instead of hadrons so that hadronization can run later, on
-CPUs, as often as needed (`jetscape.particlize_h5`):
+CPUs, as often as needed ([`jetscape.particlize_h5`][jetscape.particlize_h5]):
 
 | group | content |
 |---|---|
@@ -132,7 +132,7 @@ Particlize files from before the initiators were added have no `initiators/` gro
 ## 4. Hadron files
 
 `hadronize.py` (or the job itself, in hadrons-only mode) writes one file per **tag**
-(`jetscape.hadrons_h5`, format `xscape/hadrons`):
+([`jetscape.hadrons_h5`][jetscape.hadrons_h5], format `xscape/hadrons`):
 
 | tag | from | one unit is |
 |---|---|---|
@@ -289,3 +289,4 @@ For the HDF5 command-line tools (`h5dump`, `h5ls`) on Blosc data, point them at 
 - Read the hadrons of a campaign: [Hadrons](hadrons.md).
 - Read the hydro pair and connect it to the hadrons: [Hydro and hadrons together](hydro-hadrons.md).
 - Work in ROOT: [ROOT and C++](root.md).
+- The readers of these files, class by class: [Python API → Analyse the files](../python/api/analyse.md).

@@ -17,14 +17,14 @@ flowchart TB
     D --> E["X-SCAPE + MUSIC4GPU, iSS, Pythia, ..."]
 ```
 
-- **`pyjetscape_core`** is the compiled extension: pybind11 bindings of X-SCAPE's classes
+- **[`pyjetscape_core`][jetscape.pyjetscape_core]** is the compiled extension: pybind11 bindings of X-SCAPE's classes
   (`JetScape`, `JetScapePerEvent`, `Parton`, `FourVector`, `PartonShower`, the module base
   classes, MUSIC, iSS access, ...) with their C++ names and argument order, so C++ code ports
   line by line. Every module base class has a *trampoline*: a Python subclass runs as a real
   JETSCAPE module.
 - **The `jetscape` package** is pure Python around it: event-loop drivers
-  (`jetscape.run_jetscape`), the HDF5 writers and readers of the productions, `PyFNOHydro`,
-  conversion helpers (`jetscape.utils`), and `jetscape.paths` / `JobDir`, which find the X-SCAPE
+  ([`jetscape.run_jetscape`][jetscape.run_jetscape]), the HDF5 writers and readers of the productions, [`PyFNOHydro`][jetscape.fno_hydro.PyFNOHydro],
+  conversion helpers ([`jetscape.utils`][jetscape.utils]), and [`jetscape.paths`][jetscape.paths] / [`JobDir`][jetscape.workdir.JobDir], which find the X-SCAPE
   tree and give each run a working directory. The HDF5 readers work without the compiled
   extension; `jetscape.HAS_CORE` says whether it is there.
 - **The Pythonic layer** is installed onto the bound classes by `import jetscape`: numpy record
@@ -147,6 +147,8 @@ event's data still in memory when your code runs.
 - [FastHydro](fasthydro.md): MC-Glauber and a 3+1D hydro solver in PyTorch, with jet-deposition
   pairs.
 - [3D visualization](visualization.md): the medium and the parton shower in PyVista.
+- [Python API](api/index.md): every class and function with its signature and documentation,
+  generated from the source.
 
 The full reference of the bindings and the package is
 [`contribs/PyJetscape/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/README.md);

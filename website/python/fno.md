@@ -1,6 +1,6 @@
 # Live PyTorch FNO hydro
 
-`PyFNOHydro` is a hydro module written in Python and backed by a PyTorch Fourier neural operator
+[`PyFNOHydro`][jetscape.fno_hydro.PyFNOHydro] is a hydro module written in Python and backed by a PyTorch Fourier neural operator
 (FNO). It takes the initial condition from the pre-equilibrium stage, predicts the whole
 space-time evolution of the medium in one forward pass, stores it in X-SCAPE's evolution history
 and builds the freeze-out surface, so Matter, LBT and iSS run on the prediction exactly as they
@@ -80,7 +80,7 @@ surface = hydro.get_surface_cells()                             # what iSS sampl
 ```
 
 Run it from the X-SCAPE build directory (or inside a [`js.JobDir`](pythonic.md#running-events)):
-TrentoInitial and the other C++ modules read their tables from there. `run_manual` takes a
+TrentoInitial and the other C++ modules read their tables from there. [`run_manual`][jetscape.run_jetscape.run_manual] takes a
 pipeline built in Python; the user XML must set
 `<enableAutomaticTaskListDetermination>false</enableAutomaticTaskListDetermination>`. FnoHydro's
 [`config/jetscape_user_root_bulk_test.xml`](https://github.com/jhputschke/js-contrib/blob/main/contribs/FnoHydro/config/jetscape_user_root_bulk_test.xml)
@@ -178,7 +178,7 @@ environment of a [source build](../install/source.md), which has it.
 
 ## Utilities: the evolution as arrays and tensors
 
-`jetscape.utils` converts between X-SCAPE's evolution history and numpy / torch:
+[`jetscape.utils`][jetscape.utils] converts between X-SCAPE's evolution history and numpy / torch:
 
 ```python
 from jetscape.utils import (bulk_info_to_numpy, bulk_info_to_tensor,
@@ -193,7 +193,7 @@ fno_input = rebin_preeq_to_fno_grid(preeq, ini, nx_fno, ny_fno, x_min_fno, y_min
                                     dx_fno, dy_fno, n_features=3)   # (3, nx, ny, 1)
 ```
 
-`bulk_info_to_numpy` reads the transverse slice (2+1D). For a 3+1D evolution, e.g. from MUSIC,
+[`bulk_info_to_numpy`][jetscape.utils.bulk_info_to_numpy] reads the transverse slice (2+1D). For a 3+1D evolution, e.g. from MUSIC,
 `info.to_numpy_full(n_features)` returns `(ntau, nx, ny, neta, n_features)` with the columns
 `e, T, vx, vy, vz, s`. The production writers store MUSIC's evolution directly in the HDF5 layout
 the FNO training reads ([below](#training-data-from-the-productions)).
@@ -264,3 +264,5 @@ ROOT step in between:
 - [Writing modules in Python](modules.md): the module interface `PyFNOHydro` is built on.
 - [FastHydro](fasthydro.md): a 3+1D hydro solver in PyTorch with the jet-deposition workflow.
 - [Au+Au jets (two stages)](../run/auau-jet.md): the GPU production of training pairs.
+- [Python API → ROOT, bulk and FNO files](api/bulk.md): `PyFNOHydro`, the FNO4d schema
+  writers and the numpy and torch conversions, class by class.

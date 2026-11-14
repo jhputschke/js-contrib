@@ -31,6 +31,7 @@ PYBIND11_MODULE(pyjetscape_core, m) {
     pyjetscape_core — Python bindings for the JETSCAPE heavy-ion simulation framework.
 
     Exposes C++ classes and the module factory so that Python code can:
+
       * Drive a full JETSCAPE simulation (JetScape, Init/Exec/Finish)
       * Instantiate registered C++ modules by name (create_module)
       * Subclass FluidDynamics in Python (PyFNOHydro trampoline)

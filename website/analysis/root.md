@@ -83,7 +83,7 @@ python root_export/check_h5_vs_root.py /path/to/campaign /path/to/root --campaig
 **`<campaign>_campaign.root`:** `windows` with the campaign's `sigma_mb`, `sigma_err_mb`,
 `acceptance`, `n_events` and **`weight_mb = sigma_mb / n_events`**; `files` with `event_offset`
 per file (global event = `event_offset[file] + event`, the numbering of the Python
-`HadronFileReader`); `provenance`.
+[`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader]); `provenance`.
 
 **Why one entry per oversample:** one entry per event would hold ~2.8 M hadrons at 400
 oversamples, and one entry per hadron loses the event. One entry per oversample reads like an MC
@@ -177,7 +177,7 @@ for (long e : r.select_events()) {          // hadronized events, flagged ones l
 - **Source:** a directory (without its subdirectories) or one `*_hadrons.root` file, or a
   `std::vector<std::string>` of files. For multi-GPU output, convert all subdirectories into one
   directory with `--out-dir`.
-- **`EventInfo`:** `pthat_bin`, `pthat`, `bg_unit`, sample and cell counts, `weight_mb`, the
+- **[`EventInfo`][jetscape.hadrons_h5.EventInfo]:** `pthat_bin`, `pthat`, `bg_unit`, sample and cell counts, `weight_mb`, the
   `initiators` and `leading()`, `n_coll`, the trigger Z (`z`), and `flagged()`: the background
   has more than 20 % more or fewer freeze-out cells than the jet leg, so one surface is not a
   freeze-out surface. `select_events()` leaves those out.

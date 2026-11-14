@@ -39,12 +39,12 @@ kinematics, ready for `fastjet` and histogramming.
 
 | you want to | use | page |
 |---|---|---|
-| run events from Python and read every result as numpy | `pyjetscape_core` and the Pythonic layer | [The Pythonic interface](../python/pythonic.md) |
+| run events from Python and read every result as numpy | [`pyjetscape_core`][jetscape.pyjetscape_core] and the Pythonic layer | [The Pythonic interface](../python/pythonic.md) |
 | replace a stage (hard process, energy loss, hadronization, ...) with your own Python class | the module base classes, `@js.module` | [Writing modules in Python](../python/modules.md) |
-| run a PyTorch FNO as the hydro, live, while you train it | `PyFNOHydro` | [Live PyTorch FNO hydro](../python/fno.md) |
+| run a PyTorch FNO as the hydro, live, while you train it | [`PyFNOHydro`][jetscape.fno_hydro.PyFNOHydro] | [Live PyTorch FNO hydro](../python/fno.md) |
 | make large samples of jet-deposition pairs fast, on CPU, CUDA or Apple MPS | FastHydro | [FastHydro](../python/fasthydro.md) |
 | produce FNO training data with the real MUSIC + jet chain on GPUs | the Au+Au jet production | [Au+Au jets (two stages)](../run/auau-jet.md) |
-| analyse hadrons and jets from the production files | `HadronArray`, awkward, FastJet | [Analyse](../analysis/index.md) |
+| analyse hadrons and jets from the production files | [`HadronArray`][jetscape.hadron_array.HadronArray], awkward, FastJet | [Analyse](../analysis/index.md) |
 | look at the medium and the shower in 3D | the PyVista scripts | [3D visualization](../python/visualization.md) |
 
 Python modules run in the container and with the Mac wheel as they are: no compiler is needed.

@@ -7,8 +7,8 @@
 
 This page shows how to read the hadron files of a whole campaign as one data set, fill
 histograms with the right per-event statistics, pull out single events, weight pT̂ windows by
-their cross sections, and spot bad runs. The tool for almost all of it is `HadronFileReader`
-from `jetscape.hadrons_h5`; lower-level readers and the Pythonic `HadronArray` are at the end,
+their cross sections, and spot bad runs. The tool for almost all of it is [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader]
+from [`jetscape.hadrons_h5`][jetscape.hadrons_h5]; lower-level readers and the Pythonic [`HadronArray`][jetscape.hadron_array.HadronArray] are at the end,
 for when you need one file, one sample or awkward arrays. It applies to the Au+Au jet
 productions (two stages or hadrons-only jobs), the Z+jet productions and the productions with
 extra hard scatterings or minimum bias; O+O hadron files made in the job by the O+O with ISR
@@ -80,12 +80,12 @@ with HadronFileReader("/path/to/campaign") as r:
     full, _ = r.jet_minus_background(dphi, bins, mask=soft_charged, fragments=True)  # + jet_frag
 ```
 
-- **`values`, `mask`, `weights`** are either names (an attribute of `EventHadrons`: `pid`,
+- **`values`, `mask`, `weights`** are either names (an attribute of [`EventHadrons`][jetscape.hadrons_h5.EventHadrons]: `pid`,
   `pstat`, `p`, `x`, `E`, `px`, `py`, `pz`, `pt`, `eta`, `y`, `phi`, `charged`, `sample`; for
   `mask` also `"charged"` or a species, `"pi+"`, `"K-"`, `"p"`, `"pbar"`, `"pi"`, `"K"`,
   `"p+pbar"`), or callables `f(ev, info)` returning one value per hadron. A tuple of names (or a
   callable returning a tuple) gives an N-dimensional histogram.
-- **Callables get the event's `info`** (`EventInfo`: `event`, `stem`, `local_event`, `bg_unit`,
+- **Callables get the event's `info`** ([`EventInfo`][jetscape.hadrons_h5.EventInfo]: `event`, `stem`, `local_event`, `bg_unit`,
   `seed`, `pthat_bin`, `pthat`, `n_coll`, `z`, `initiators()`), which jet-relative observables
   need: above, Δφ to the event's leading initiator.
 - **Names are faster.** With names only, a background shared by several events is binned once
@@ -250,7 +250,7 @@ h = Hadrons.from_h5("<stem>_hadrons_bulk_bg.h5")            # a whole file in me
 dn, err = h.hist(h.eta, np.linspace(-1, 1, 5), mask=h.charged)   # per sample
 ```
 
-`Hadrons` carries `pt`, `eta`, `y`, `phi`, `charged`, `sample`, `unit` as arrays (in float64,
+[`Hadrons`][jetscape.hadrons_h5.Hadrons] carries `pt`, `eta`, `y`, `phi`, `charged`, `sample`, `unit` as arrays (in float64,
 about 2.4 times the file's memory) and `hist` / `total` averaged per sample. `units=` reads only
 some units.
 
@@ -295,3 +295,4 @@ h5py or `HadronArray` through `fsspec`.
 - Nch, [pT] and vₙ{2}, and the paired difference to the background: [Bulk and flow](bulk.md).
 - The same events in the fluid: [Hydro and hadrons together](hydro-hadrons.md).
 - The same in ROOT: [ROOT and C++](root.md).
+- Every reader class and method, with examples: [Python API → Analyse the files](../python/api/analyse.md).

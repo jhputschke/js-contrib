@@ -237,7 +237,7 @@ fluid's vₙ without decay non-flow), event weights, and a C++ twin for the ROOT
 ## Next steps
 
 - Make the files: [Extra hard scatterings](../run/extra-hard.md).
-- The extras in `HadronFileReader`:
+- The extras in [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader]:
   [Hadrons](hadrons.md#the-events-other-hard-scatterings).
 - Flow in the O+O with ISR production, from the oversamples: [O+O](oo.md#10-flow-from-the-oversamples).
 - Full reference:

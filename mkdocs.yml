@@ -94,11 +94,13 @@ markdown_extensions:
 
 extra_css:
   - assets/extra.css
+  - assets/api.css            # the Python API pages only (mkdocstrings markup)
 
 extra_javascript:
   - assets/mathjax.js
   - https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js
   - assets/diagram-zoom.js
+  - assets/api-signatures.js  # the Python API pages: module path muted, the name bold
 
 hooks:
   - website/_tools/llms_nav_check.py
@@ -120,6 +122,39 @@ plugins:
       effect: zoom
       zoomable: true
       draggable: true
+  # The Python API pages (website/python/api/): generated from the docstrings of the jetscape
+  # package and, for the compiled bindings, from the stubs pyjetscape_core.pyi. Static only:
+  # nothing is imported, so building the site needs neither X-SCAPE nor PyTorch.
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [contribs/PyJetscape/python]
+          options:
+            extensions:
+              - website/_tools/griffe_sphinx_roles.py   # :meth:`x` in docstrings -> `x`
+            allow_inspection: false
+            docstring_style: numpy
+            docstring_options:
+              warn_unknown_params: false
+              warn_missing_types: false
+            show_root_heading: true
+            show_root_full_path: true
+            heading_level: 3
+            show_source: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            show_labels: false
+            members_order: source
+            filters: ["!^_"]
+            merge_init_into_class: true
+            # Sphinx-like: the whole signature in the heading, parameters as a field list;
+            # the look is website/assets/api.css
+            separate_signature: false
+            docstring_section_style: list
+            show_signature_annotations: true
+            signature_crossrefs: true
+            line_length: 88
   # llms.txt for language models (https://llmstxt.org): /llms.txt lists every page below with
   # one line, each page is also written as Markdown next to its HTML (run/oo-isr/index.md), and
   # /llms-full.txt holds all of them in one file. A page added to the nav needs a line here
@@ -179,6 +214,13 @@ plugins:
           - python/fno.md: a PyTorch FNO as live hydro module
           - python/fasthydro.md: the fast finite-volume hydro with the real jet energy-loss chain
           - python/visualization.md: 3D rendering of events with PyVista
+        Python API:
+          - python/api/index.md: the API pages in the order of the site (run, write, analyse, ROOT/bulk/FNO, C++) and how to read them
+          - python/api/run.md: per_event, JobDir, run_jetscape, modules in Python (@js.module), with examples
+          - python/api/write.md: HadronH5Writer for your own runs, and the production writers (particlize, hadronize, hydro pair)
+          - python/api/analyse.md: HadronFileReader (histograms, the wake, single events, pT-hat windows), FastJet, HadronArray and awkward, ParticlizeFile, the hydro pair, with examples
+          - python/api/bulk.md: the ROOT bulk reader and writer, the FNO4d HDF5 schema and compression, PyFNOHydro, numpy and torch conversions
+          - python/api/core.md: pyjetscape_core, the C++ bindings with every class and method, and the methods the Pythonic layer adds
         Tutorials:
           - tutorials/index.md: the step-by-step path through the notebooks
           - tutorials/setup.md: setting up to run the tutorials
@@ -266,6 +308,13 @@ nav:
       - Live PyTorch FNO hydro: python/fno.md
       - FastHydro: python/fasthydro.md
       - 3D visualization: python/visualization.md
+      - Python API:
+          - python/api/index.md
+          - Run events: python/api/run.md
+          - Write the files: python/api/write.md
+          - Analyse the files: python/api/analyse.md
+          - ROOT, bulk and FNO files: python/api/bulk.md
+          - C++ bindings: python/api/core.md
   - Tutorials:
       - tutorials/index.md
       - Setting up: tutorials/setup.md

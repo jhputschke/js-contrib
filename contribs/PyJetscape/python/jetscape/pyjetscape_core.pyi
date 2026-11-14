@@ -2,6 +2,7 @@
     pyjetscape_core — Python bindings for the JETSCAPE heavy-ion simulation framework.
 
     Exposes C++ classes and the module factory so that Python code can:
+
       * Drive a full JETSCAPE simulation (JetScape, Init/Exec/Finish)
       * Instantiate registered C++ modules by name (create_module)
       * Subclass FluidDynamics in Python (PyFNOHydro trampoline)
@@ -28,7 +29,7 @@ from jetscape.pythonic import per_event
 import numpy
 import numpy.typing
 import typing
-__all__: list[str] = ['Afterburner', 'CausalLiquefier', 'Droplet', 'ERROR', 'EVOLVING', 'EvolutionHistory', 'FINAL_PARTON_COLUMNS', 'FINISHED', 'FastRootBulkWriter', 'FluidCellInfo', 'FluidDynamics', 'FourVector', 'HAS_GZIP_READER', 'HAS_NEXT_TASK_NUMBER', 'HAS_ROOT', 'Hadron', 'HadronArray', 'Hadronization', 'HadronizationManager', 'HardProcess', 'HydroStatus', 'ICOLORED_HAS_COLOUR_AUDIT', 'ICOLORED_HAS_COLOUR_CLOSURE', 'ICOLORED_HAS_INPUT_RECORD', 'INITIALIZED', 'ISS_DECAYS_SMASH_LIST', 'InitialState', 'IsrJet', 'IsrManager', 'IsrShowerPSG', 'JetEnergyLoss', 'JetEnergyLossManager', 'JetScape', 'JetScapeEventHeader', 'JetScapeModuleBase', 'JetScapeParticleBase', 'JetScapePerEvent', 'JetScapeReaderAscii', 'JetScapeReaderAsciiGZ', 'JetScapeSignalManager', 'JetScapeTask', 'JetScapeWriter', 'LiquefierBase', 'MUSIC_BACKEND', 'MpiMusic', 'Mt19937', 'NOT_START', 'PYTHIA_GUN_HAS_EXTRA_HARD', 'PYTHIA_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_GUN_HAS_PTHAT_BINS', 'PYTHIA_GUN_HAS_Z_TRIGGER', 'PYTHIA_ISR_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_ISR_GUN_HAS_PTHAT_BINS', 'PYTHIA_VERSION', 'Parameter', 'Parton', 'PartonShower', 'PartonShowerGenerator', 'PartonShowerGeneratorDefault', 'Photon', 'PreequilibriumDynamics', 'SCATTER_COLUMNS', 'SOFT_HAS_PRIMARIES', 'SOFT_HAS_SAMPLE_CELLS', 'SURFACE_CELL_COLUMNS', 'ShowerNode', 'SoftParticlization', 'SurfaceCellInfo', 'TrentoInitial', 'Vertex', 'create_module', 'extra_hard_info', 'hadronization_hadrons_numpy', 'hadronization_input_numpy', 'hadronize_input', 'hadronize_partons', 'hard_partons_numpy', 'hard_process_info', 'iMATTER', 'initial_state_info', 'isr_hard_momentum', 'jet_hadronization_colour_audit', 'jet_hadronization_colour_totals', 'jet_hadronization_last_random_seed', 'jet_hadronization_set_colour_closure', 'load_xml', 'make_hadron', 'make_parton', 'make_photon', 'module', 'next_task_number', 'per_event', 'pythia_gun_bins', 'pythia_gun_trigger', 'random_seed', 'register_module', 'registered_modules', 'select', 'set_next_task_number', 'set_writer_output_file', 'soft_hadrons_numpy', 'soft_last_random_seed', 'soft_primaries_numpy', 'soft_sample_cells', 'soft_set_compact_output', 'soft_set_next_random_seed', 'soft_set_number_of_samples', 'to_awkward', 'unregister_module', 'xml_add_user_blocks']
+__all__: list[str] = ['Afterburner', 'CausalLiquefier', 'Droplet', 'ERROR', 'EVOLVING', 'EvolutionHistory', 'FINAL_PARTON_COLUMNS', 'FINISHED', 'FastRootBulkWriter', 'FluidCellInfo', 'FluidDynamics', 'FourVector', 'HAS_GZIP_READER', 'HAS_NEXT_TASK_NUMBER', 'HAS_ROOT', 'Hadron', 'HadronArray', 'Hadronization', 'HadronizationManager', 'HardProcess', 'HydroStatus', 'ICOLORED_HAS_COLOUR_AUDIT', 'ICOLORED_HAS_COLOUR_CLOSURE', 'ICOLORED_HAS_INPUT_RECORD', 'INITIALIZED', 'ISS_DECAYS_SMASH_LIST', 'InitialState', 'IsrJet', 'IsrManager', 'IsrShowerPSG', 'JetEnergyLoss', 'JetEnergyLossManager', 'JetScape', 'JetScapeEventHeader', 'JetScapeModuleBase', 'JetScapeParticleBase', 'JetScapePerEvent', 'JetScapeReaderAscii', 'JetScapeReaderAsciiGZ', 'JetScapeSignalManager', 'JetScapeTask', 'JetScapeWriter', 'LiquefierBase', 'MUSIC_BACKEND', 'MpiMusic', 'Mt19937', 'NOT_START', 'PGUN_HAS_POINTS', 'PYTHIA_GUN_HAS_EXTRA_HARD', 'PYTHIA_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_GUN_HAS_PTHAT_BINS', 'PYTHIA_GUN_HAS_Z_TRIGGER', 'PYTHIA_ISR_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_ISR_GUN_HAS_PTHAT_BINS', 'PYTHIA_VERSION', 'Parameter', 'Parton', 'PartonShower', 'PartonShowerGenerator', 'PartonShowerGeneratorDefault', 'Photon', 'PreequilibriumDynamics', 'SCATTER_COLUMNS', 'SOFT_HAS_PRIMARIES', 'SOFT_HAS_SAMPLE_CELLS', 'SURFACE_CELL_COLUMNS', 'ShowerNode', 'SoftParticlization', 'SurfaceCellInfo', 'TrentoInitial', 'Vertex', 'create_module', 'extra_hard_info', 'hadronization_hadrons_numpy', 'hadronization_input_numpy', 'hadronize_input', 'hadronize_partons', 'hard_partons_numpy', 'hard_process_info', 'iMATTER', 'initial_state_info', 'isr_hard_momentum', 'jet_hadronization_colour_audit', 'jet_hadronization_colour_totals', 'jet_hadronization_last_random_seed', 'jet_hadronization_set_colour_closure', 'load_xml', 'make_hadron', 'make_parton', 'make_photon', 'module', 'next_task_number', 'per_event', 'pgun_points', 'pythia_gun_bins', 'pythia_gun_trigger', 'random_seed', 'register_module', 'registered_modules', 'select', 'set_next_task_number', 'set_writer_output_file', 'soft_hadrons_numpy', 'soft_last_random_seed', 'soft_primaries_numpy', 'soft_sample_cells', 'soft_set_compact_output', 'soft_set_next_random_seed', 'soft_set_number_of_samples', 'to_awkward', 'unregister_module', 'xml_add_user_blocks']
 class Mt19937:
     """
     A task's std::mt19937 engine (JetScapeModuleBase.GetMt19937Generator()).
@@ -1013,7 +1014,7 @@ class EvolutionHistory:
         """
                      One tau frame of bulk_info.data, shape (nx, ny, neta, 4), float32:
                      [energy_density, vx, vy, vz].  The same values as
-                     to_numpy_full(5)[id_tau][..., [0, 2, 3, 4]].
+                     ``to_numpy_full(5)[id_tau][..., [0, 2, 3, 4]]``.
         """
     def get(self, tau: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, eta: typing.SupportsFloat | typing.SupportsIndex) -> FluidCellInfo:
         """
@@ -1790,14 +1791,24 @@ class Droplet:
         ...
     def __repr__(self) -> str:
         ...
+    def get_efluid(self) -> float:
+        """
+        The background's energy density [GeV/fm^3] there; < 0: not looked up.
+        """
     def get_pmu(self) -> typing.Annotated[list[float], "FixedSize(4)"]:
         """
         (E, px, py, pz)
+        """
+    def get_vfluid(self) -> typing.Annotated[list[float], "FixedSize(3)"]:
+        """
+        The background fluid's velocity (lab Cartesian vx, vy, vz) where the droplet was made.
         """
     def get_xmu(self) -> typing.Annotated[list[float], "FixedSize(4)"]:
         """
         (tau, x, y, eta)
         """
+    def set_fluid(self, v: typing.Annotated[collections.abc.Sequence[typing.SupportsFloat | typing.SupportsIndex], "FixedSize(3)"], e: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        ...
 class LiquefierBase:
     """
     Turns what the jet loses to the medium (droplets) into a hydro source. A Python liquefier subclasses it and overrides smearing_kernel(tau, x, y, eta, droplet) -> [j^tau, j^x, j^y, j^eta] (and the deposition hooks as needed).
@@ -1805,6 +1816,10 @@ class LiquefierBase:
     COLUMNS: typing.ClassVar[tuple] = ('tau', 'x', 'y', 'eta', 'E', 'px', 'py', 'pz')
     """
     Column order of droplets_numpy(): (tau, x, y, eta, E, px, py, pz).
+    """
+    FLUID_COLUMNS: typing.ClassVar[tuple] = ('vx', 'vy', 'vz', 'e')
+    """
+    Column order of droplet_fluid_numpy(): (vx, vy, vz, e).
     """
     def ClearTask(self) -> None:
         """
@@ -1816,12 +1831,16 @@ class LiquefierBase:
         ...
     def add_droplets_numpy(self, arr: typing.Annotated[numpy.typing.ArrayLike, numpy.float64]) -> int:
         """
-        Append droplets from an (M, 8) array in the droplets_numpy() column order. Used by the replay path.
+        Append droplets from an (M, 8) array in the droplets_numpy() column order, or (M, 12) with the fluid's (vx, vy, vz, e) (droplet_fluid_numpy()) after them; with 8 columns the fluid is unknown (the fluid frame then uses the Bjorken frame). Used by the replay path.
         """
     def deposit_half_width(self) -> float:
         ...
     def deposit_time(self, droplet: Droplet) -> float:
         ...
+    def droplet_fluid_numpy(self) -> numpy.typing.NDArray[numpy.float64]:
+        """
+        Per droplet (droplets_numpy() order), the background fluid where it was made, (M, 4) = (vx, vy, vz, e): lab Cartesian velocity and energy density [GeV/fm^3]; e < 0: not looked up.
+        """
     def droplet_fluxes_numpy(self) -> numpy.typing.NDArray[numpy.float64]:
         """
         Per droplet (droplets_numpy() order): the sum of its point-sampled kernel on the hydro grid, i.e. the fraction of its four-momentum the hydro would receive without normalization; -1 if it was never normalized (no grid, switched off, or it never reached a hydro step).  With normalization on, the hydro receives exactly the droplet (flux > 0, or flux 0: deposited into one cell).
@@ -1906,6 +1925,10 @@ class CausalLiquefier(LiquefierBase):
         ...
     def j_smooth(self, t: typing.SupportsFloat | typing.SupportsIndex, r: typing.SupportsFloat | typing.SupportsIndex) -> float:
         ...
+    def kernel_frame_velocity(self, droplet: Droplet) -> typing.Annotated[list[float], "FixedSize(3)"]:
+        """
+        The kernel frame's velocity relative to the Bjorken flow at the droplet (0 for lab and bjorken).
+        """
     def kernel_j(self, t: typing.SupportsFloat | typing.SupportsIndex, r: typing.SupportsFloat | typing.SupportsIndex) -> float:
         ...
     def kernel_rho(self, t: typing.SupportsFloat | typing.SupportsIndex, r: typing.SupportsFloat | typing.SupportsIndex) -> float:
@@ -1919,6 +1942,18 @@ class CausalLiquefier(LiquefierBase):
     def rho_smooth(self, t: typing.SupportsFloat | typing.SupportsIndex, r: typing.SupportsFloat | typing.SupportsIndex) -> float:
         ...
     def set_t_delay(self, tau_delay: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        ...
+    def uses_fluid_velocity(self, droplet: Droplet) -> bool:
+        """
+        Whether this droplet's kernel is boosted with the fluid's velocity.
+        """
+    @property
+    def bjorken_frame(self) -> bool:
+        """
+        True: the kernel in the frame of the Bjorken flow at the droplet's eta_s (<CausalLiquefier><frame>bjorken</frame>, the default); False: the lab frame (<frame>lab</frame>).
+        """
+    @bjorken_frame.setter
+    def bjorken_frame(self, arg1: bool) -> None:
         ...
     @property
     def c_diff(self) -> float:
@@ -1952,6 +1987,30 @@ class CausalLiquefier(LiquefierBase):
         ...
     @dy.setter
     def dy(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        ...
+    @property
+    def fluid_e_min(self) -> float:
+        """
+        fluid frame: below this energy density [GeV/fm^3] at the droplet, the Bjorken frame.
+        """
+    @fluid_e_min.setter
+    def fluid_e_min(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        ...
+    @property
+    def fluid_v_max(self) -> float:
+        """
+        fluid frame: the cap on the fluid's speed relative to the Bjorken flow.
+        """
+    @fluid_v_max.setter
+    def fluid_v_max(self, arg0: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        ...
+    @property
+    def frame(self) -> str:
+        """
+        The frame of the causal diffusion: 'bjorken' (the default), 'lab' or 'fluid' (the background fluid's rest frame at the droplet).
+        """
+    @frame.setter
+    def frame(self, arg1: str) -> None:
         ...
     @property
     def gamma_relax(self) -> float:
@@ -3214,6 +3273,10 @@ def next_task_number() -> int:
     """
     The task ID the next task made will get (JetScapeTaskSupport).
     """
+def pgun_points(task: JetScapeTask) -> dict:
+    """
+    PGun's (pT, rapidity) points (<points>, else the one of <pT>/<rapidity>), the current event's point (i mod K), phi and parID.
+    """
 def pythia_gun_bins(task: JetScapeTask) -> dict:
     """
             PythiaGun's or PythiaIsrGun's pTHat windows (<Hard><PythiaGun><pTHatBins>; one window,
@@ -3333,6 +3396,7 @@ INITIALIZED: HydroStatus
 ISS_DECAYS_SMASH_LIST: bool = True
 MUSIC_BACKEND: str = 'music4gpu-cuda'
 NOT_START: HydroStatus
+PGUN_HAS_POINTS: bool = True
 PYTHIA_GUN_HAS_EXTRA_HARD: bool = True
 PYTHIA_GUN_HAS_PARTON_Y_CUT: bool = True
 PYTHIA_GUN_HAS_PTHAT_BINS: bool = True

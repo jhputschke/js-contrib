@@ -358,7 +358,7 @@ void bind_evolution(py::module_ &m) {
            R"pbdoc(
              One tau frame of bulk_info.data, shape (nx, ny, neta, 4), float32:
              [energy_density, vx, vy, vz].  The same values as
-             to_numpy_full(5)[id_tau][..., [0, 2, 3, 4]].
+             ``to_numpy_full(5)[id_tau][..., [0, 2, 3, 4]]``.
            )pbdoc")
       // Full 3+1D export: keeps the eta (space-time rapidity) axis and exposes
       // vz, so a Milne->Cartesian resampler can map different z to different

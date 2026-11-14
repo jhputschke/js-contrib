@@ -107,7 +107,7 @@ run goes on.
 
 ### A look at the hadrons
 
-The files are in the `jetscape.hadrons_h5` format of all productions. In the same environment
+The files are in the [`jetscape.hadrons_h5`][jetscape.hadrons_h5] format of all productions. In the same environment
 (or the [analysis environment](../install/analysis-env.md), which needs no X-SCAPE):
 
 ```python
@@ -224,7 +224,7 @@ job's `.xml` and `.json`. Stage 2 writes next to the particlize file:
 | `<stem>_hadrons_jet_frag.h5` | the jet partons, fragmented by Pythia |
 
 The difference between the first two is the medium's response to the jet, at hadron level.
-Read the three together with `HadronFileReader`:
+Read the three together with [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader]:
 [Hadrons](../analysis/hadrons.md).
 
 !!! note "A first look at the hydro pair"

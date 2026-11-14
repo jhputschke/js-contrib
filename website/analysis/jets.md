@@ -346,3 +346,4 @@ and [`ANA_Deta.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/
 - FastJet in C++ on the ROOT files, and the C++ map steps: [ROOT and C++](root.md).
 - The wake behind these jets in the fluid: [Hydro and hadrons together](hydro-hadrons.md).
 - Jets in O+O, where there is no background twin: [O+O](oo.md#11-jets).
+- Every reader class and method, with examples: [Python API → Analyse the files](../python/api/analyse.md).

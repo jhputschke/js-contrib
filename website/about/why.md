@@ -63,12 +63,12 @@ js-contrib provides both sides of this:
   [FastHydro](../python/fasthydro.md), a fast 3+1D finite-volume solver running the same
   jet-deposition chain, produces such pairs cheaply.
 - **Using a trained model in the chain.** `FnoHydro` replaces MUSIC with an FNO in C++
-  (through LibTorch), and `PyFNOHydro` runs a PyTorch model live from Python. See
+  (through LibTorch), and [`PyFNOHydro`][jetscape.fno_hydro.PyFNOHydro] runs a PyTorch model live from Python. See
   [Python and machine learning](python-ml.md) and [Live PyTorch FNO hydro](../python/fno.md).
 
 ### 4. Python access to the whole framework
 
-PyJetscape exposes the X-SCAPE framework to Python (`pyjetscape_core`, built with pybind11),
+PyJetscape exposes the X-SCAPE framework to Python ([`pyjetscape_core`][jetscape.pyjetscape_core], built with pybind11),
 and the `jetscape` package adds a "Pythonic" layer on top. With it you can build and run the
 task list from Python, read the hydro, surfaces, partons and hadrons as numpy arrays, and write
 your own modules in Python (a hard process, energy loss, hadronization, an afterburner, a

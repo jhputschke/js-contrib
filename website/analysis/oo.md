@@ -64,11 +64,11 @@ The usual production setting is **hadron files only** (`--bulk-hadrons 10 --no-p
 --no-hydro-file`), 0.13 MB per event; the bulk can then not be resampled later. Download a
 campaign with `js_osdf.py download <campaign> --what h5` ([Data on the OSDF](../run/osdf.md)).
 
-!!! warning "Unit i is event i, and `HadronFileReader` does not apply"
+!!! warning "Unit i is event i, and [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader] does not apply"
     Unit i of the jet file and unit i of the bulk file are the same event. Hadron files made in
     the job have no `source_uuid`, so `HadronFileReader` and `run_h5toROOT.py`, made for the
-    Au+Au pairs, refuse them. Read them as in §5 (or with `Hadrons` / `HadronFile` /
-    `HadronArray`), and convert them to ROOT as in §13.
+    Au+Au pairs, refuse them. Read them as in §5 (or with [`Hadrons`][jetscape.hadrons_h5.Hadrons] / [`HadronFile`][jetscape.hadrons_h5.HadronFile] /
+    [`HadronArray`][jetscape.hadron_array.HadronArray]), and convert them to ROOT as in §13.
 
 ## 3. The per-event record
 
@@ -344,7 +344,7 @@ With the default outputs:
   events with a medium have a row: an event's row is its `hydro_row`. Read it as the Au+Au pair
   files ([Hydro and hadrons together](hydro-hadrons.md#2-reading-a-pair)), without `arr_bg`.
 - **`<stem>_particlize.h5`:** `surface/bg` (one unit per event), the final partons and the
-  initiators; `ParticlizeFile` reads it. It is the input for more bulk hadrons later, in the
+  initiators; [`ParticlizeFile`][jetscape.particlize_h5.ParticlizeFile] reads it. It is the input for more bulk hadrons later, in the
   container or an X-SCAPE build:
 
 ```bash

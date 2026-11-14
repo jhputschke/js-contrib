@@ -10,7 +10,7 @@ This module only reads its output, so it needs uproot but not ROOT.
 File layout written by FastRootBulkWriter
 -----------------------------------------
 TTree ``t``, one entry per event:
-    user_res        : vector<float>, flat [tau][x][y][eta][feature]
+    user_res        : vector<float>, flat ``[tau][x][y][eta][feature]``
                       features = [energy_density, vx, vy, vz]
     ntau_freezeout  : int   — number of tau steps in user_res (varies per event)
     tau_freezeout   : float — tau one step past the last stored MUSIC step
