@@ -5,3 +5,4 @@ pymdown-extensions>=10.7
 mkdocs-glightbox>=0.4
 mkdocs-jupyter>=0.27  # the tutorials' notebooks (notebook_dirs needs 0.27)
 mkdocs-llmstxt>=0.5   # llms.txt, llms-full.txt and the pages as Markdown
+mkdocstrings[python]>=0.26  # the Python API pages (static: no X-SCAPE build needed)
