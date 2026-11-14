@@ -146,11 +146,17 @@ FORMAT = "xscape/hadrons"
 FORMAT_VERSION = 1
 
 TAGS = ("bulk_jet", "bulk_bg", "jet_frag", "extra_frag")
+"""The hadron tags, one file each (``<stem>_hadrons_<tag>.h5``): ``bulk_jet`` (iSS, the jet
+leg: medium + wake), ``bulk_bg`` (iSS, the background: medium alone), ``jet_frag`` (the jet's
+own hadrons), ``extra_frag`` (fragments of the other hard scatterings, with extra hard
+scatterings only).  ``HadronFileReader`` reads these four."""
 #: the fragment tags (ColorlessHadronization; one unit per event)
 FRAG_TAGS = ("jet_frag", "extra_frag")
 
 #: iSS's undecayed hadrons (hadronize.py --keep-primaries), one file per bulk tag
 PRIMARY_TAGS = ("bulk_jet_primary", "bulk_bg_primary")
+"""iSS's undecayed hadrons (``--keep-primaries``), one file per bulk tag; read them with
+``HadronFile`` or ``Hadrons.from_h5``, not ``HadronFileReader``."""
 #: the primary tag of a bulk tag
 PRIMARY_OF = {"bulk_jet": "bulk_jet_primary", "bulk_bg": "bulk_bg_primary"}
 
@@ -1130,6 +1136,26 @@ class HadronFileReader:
     (``hadrons_only``).  With ``check_uuid`` a hadron file whose ``source_uuid`` is not its
     particlize file's ``file_uuid`` (hadrons-only: the jet file's) is refused: files renamed
     or mixed across runs cannot pair up silently.
+
+    **Tags.**  The first argument of ``hist`` and ``total`` is one of ``TAGS``, the four
+    hadron files a production file can have, ``<stem>_hadrons_<tag>.h5``:
+
+    - ``bulk_jet``: iSS on the jet leg's surface, the medium with the wake; one unit per
+      event.  Also used by ``jet_event`` and ``jet_minus_background``.
+    - ``bulk_bg``: iSS on the background's surface, the medium alone; one unit per
+      background, shared by the events that reused it.  Also used by ``background_event``
+      and ``jet_minus_background``.
+    - ``jet_frag``: the jet's own hadrons, the fragmentation of its surviving partons; one
+      unit per event.  Also in ``jet_event`` and, with ``fragments=True``,
+      ``jet_minus_background``.
+    - ``extra_frag``: the fragments of the event's other hard scatterings, only in
+      campaigns with extra hard scatterings; used like ``jet_frag`` (``extras=False``
+      leaves them out).
+
+    ``tags()`` gives the tags every file of the campaign has, ``tags(i)`` those of file
+    ``i``; a call that needs a missing tag raises.  The undecayed iSS hadrons of
+    ``--keep-primaries`` (``PRIMARY_TAGS``) are not read here: open those files with
+    ``HadronFile`` or ``Hadrons.from_h5``.
 
     **Histograms** are event averages of per-sample means: for every event the samples of
     its unit are histogrammed and divided by that unit's number of samples, and these

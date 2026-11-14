@@ -475,7 +475,8 @@ class ParticlizeH5Writer:
 
 
 class ParticlizeFile:
-    """Read a particlize-input file.
+    """
+    Read a particlize-input file.
 
         with ParticlizeFile("AuAu_0_10_jet_seed0001_particlize.h5") as pf:
             cells = pf.surface("jet", 0)            # (N, 32) float32
