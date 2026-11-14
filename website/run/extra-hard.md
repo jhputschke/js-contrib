@@ -237,7 +237,7 @@ Files without extras have none of these; their layout is unchanged. Full layout:
 ## Next steps
 
 - [Hadrons](../analysis/hadrons.md#the-events-other-hard-scatterings): the extras in
-  `HadronFileReader`, and "the event without its trigger".
+  [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader], and "the event without its trigger".
 - [Jets with FastJet](../analysis/jets.md): the Z+jet and dijet analyses with the extras' B.
 - [Bulk and flow](../analysis/bulk.md): Nch, [pT] and vₙ{2}, and what the extras do to them.
 - Full details and the validation:

@@ -46,7 +46,7 @@ The output is a GIF or MP4 movie, a ParaView time series, or an interactive wind
   MUSIC's EoS table (`requirements_viz.txt`, skipped with `--no-viz`). The container image has a
   `-viz` variant with PyVista ([Production container](../install/container.md)).
 - **For live runs** (`hydro_pyvista.py`, `hydro_jet_pyvista.py` without `--load`) you need a
-  build with `pyjetscape_core` for the same Python; the `js_fno` conda environment of a
+  build with [`pyjetscape_core`][jetscape.pyjetscape_core] for the same Python; the `js_fno` conda environment of a
   [source build](../install/source.md) has the PyVista stack. Live runs execute in the X-SCAPE
   build directory (default `<X-SCAPE>/build_gpu`, `--workdir` to change it); the script changes
   there itself.

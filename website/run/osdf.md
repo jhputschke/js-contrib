@@ -83,7 +83,7 @@ The kinds go by file name:
 
 | `--what` | files | for |
 |---|---|---|
-| `h5` | `<stem>_particlize.h5`, `<stem>_hadrons_*.h5`, the hadronization logs | the hadron analyses: `HadronFileReader` needs the particlize files next to the hadron files, and `h5` brings them along |
+| `h5` | `<stem>_particlize.h5`, `<stem>_hadrons_*.h5`, the hadronization logs | the hadron analyses: [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader] needs the particlize files next to the hadron files, and `h5` brings them along |
 | `root` | `<stem>_hadrons.root`, `<campaign>_campaign.root` | ROOT analyses alone: complete on their own |
 | `pair` | `<stem>.h5`, the hydro (~0.17–0.29 GB per event), with its `.json`, `.xml`, `.log` | the hydro, the wake observables, FNO training |
 | `all` (default) | everything in the folder | |
@@ -122,7 +122,7 @@ with fs.open("/fno4hic/test/h5_read_test/AuAu_0_10_jet_st1_t000_0001_hadrons_bul
 - **Time:** the first open in a process takes ~1–1.5 s (pelicanfs finds a cache); after that,
   one oversample ~0.1–0.2 s.
 - **When to download instead:** for whole productions and for anything read more than once
-  (in place, every pass goes over the network again). `HadronFileReader`, `ParticlizeFile`,
+  (in place, every pass goes over the network again). `HadronFileReader`, [`ParticlizeFile`][jetscape.particlize_h5.ParticlizeFile],
   `run_h5toROOT.py` and the `analysis/` scripts take local paths only.
 - Inside the production container the `pelican` command line does the same for single files:
   `pelican object get osdf:///fno4hic/… /work/…`.

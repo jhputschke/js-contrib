@@ -127,3 +127,6 @@ with `OO_isr_`. The formats are described in [What a production writes](../analy
   scatterings, minimum bias, the light ions at the LHC.
 - [Clusters, GPUs and monitoring](clusters.md): SLURM, several GPUs, `jobmon.py`.
 - [Data on the OSDF](osdf.md): download existing productions or share yours.
+- Running and writing from a Python script of your own:
+  [Python API → Run events](../python/api/run.md) and
+  [Write the files](../python/api/write.md).

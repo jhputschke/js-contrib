@@ -92,7 +92,7 @@ Everything else on this page follows from four rules.
    Without it MUSIC falls back to its CPU path: about 10× slower, and its numbers are not the
    GPU's.
 4. **Everything finds the tree by itself.** `import jetscape` works everywhere; scripts and
-   notebooks find the build through `$XSCAPE=/opt/X-SCAPE` (`jetscape.paths`), and each job
+   notebooks find the build through `$XSCAPE=/opt/X-SCAPE` ([`jetscape.paths`][jetscape.paths]), and each job
    runs in a private working directory under its output directory, so jobs never share files
    and nothing writes into the image. Leave `XSCAPE` and `JETSCAPE_BUILD` as the image sets
    them.
@@ -220,7 +220,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/work:/work" jhputschke/xscap
 docker run ... -e PYTHONPATH=/work/pylib:/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python ...
 ```
 
-Don't upgrade numpy or h5py this way: `pyjetscape_core` is compiled against the image's numpy.
+Don't upgrade numpy or h5py this way: [`pyjetscape_core`][jetscape.pyjetscape_core] is compiled against the image's numpy.
 For a group, a small Dockerfile of your own is cleaner:
 `FROM jhputschke/xscape-prod:cu126-<date>-<commit>` plus `RUN pip install --no-cache-dir seaborn`.
 

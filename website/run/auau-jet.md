@@ -375,7 +375,7 @@ On a cluster, the sizing per GPU type and a 12,000-event SLURM example are in
   less than the rest: [Clusters, GPUs and monitoring](clusters.md#monitoring-a-campaign).
 - **Move the files:** `--what h5` (particlize + hadron files) for the analysis,
   `--what pair` for FNO training: [Data on the OSDF](osdf.md).
-- **Analyse:** [Hadrons](../analysis/hadrons.md) (`HadronFileReader`, cross-section weights,
+- **Analyse:** [Hadrons](../analysis/hadrons.md) ([`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader], cross-section weights,
   jet − background), [Jets with FastJet](../analysis/jets.md),
   [ROOT and C++](../analysis/root.md) (`run_h5toROOT.py`), [Bulk and flow](../analysis/bulk.md)
   (Nch, [pT], vₙ{2}).

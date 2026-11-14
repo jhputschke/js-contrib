@@ -30,7 +30,7 @@ base explicitly when you extend it, e.g. `core.SoftParticlization.ClearTask(self
 
 ## The base classes
 
-All are in `jetscape.pyjetscape_core` (below `core`).
+All are in [`jetscape.pyjetscape_core`][jetscape.pyjetscape_core] (below `core`).
 
 | stage | base class | override | gets / gives |
 |---|---|---|---|
@@ -386,6 +386,8 @@ one thread (each call takes the GIL).
 
 - [Live PyTorch FNO hydro](fno.md): a complete Python hydro module backed by a neural network.
 - [The Pythonic interface](pythonic.md): reading what your module produced.
+- [Python API → C++ bindings](api/core.md): every base class and its methods, and
+  [Run events](api/run.md) for `@js.module`.
 - The full reference: PyJetscape's
   [README, *Writing modules in Python*](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/README.md#writing-modules-in-python)
   and [`example/python_modules/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/python_modules/README.md).
