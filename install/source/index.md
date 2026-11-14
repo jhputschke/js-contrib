@@ -110,7 +110,7 @@ The `get_*.sh` scripts carry the pinned commit of each package. When a pull chan
 
 ## 4. Configure and build
 
-Build into a directory called **`build_gpu`** at the top of the X-SCAPE tree: the production scripts (`--build`) and `jetscape.paths` look there by default. With another name, pass `--build` to the scripts or set `JETSCAPE_BUILD`.
+Build into a directory called **`build_gpu`** at the top of the X-SCAPE tree: the production scripts (`--build`) and jetscape.paths look there by default. With another name, pass `--build` to the scripts or set `JETSCAPE_BUILD`.
 
 **Linux, NVIDIA GPU:**
 
@@ -151,17 +151,17 @@ MUSIC without a GPU flag is the CPU MUSIC from `get_music.sh`. Its results diffe
 
 The flags:
 
-| flag                               | what it does                                                                                                                                                                                 |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-DUSE_MUSIC=ON`                   | builds MUSIC; **required** for the bindings, which include MUSIC's wrapper                                                                                                                   |
-| `-DUSE_CUDA=ON` / `-DUSE_METAL=ON` | MUSIC from MUSIC4GPU on an NVIDIA GPU / on Apple Silicon (mutually exclusive; Metal only on macOS)                                                                                           |
-| `-DUSE_ISS=ON`                     | iSS; needed for hadronization (`hadronize.py`, `run_hadronize.py`)                                                                                                                           |
-| `-DUSE_3DGlauber=ON`               | 3dMCGlauber; **required** for the bindings: without it iColoredHadronization and iMATTER are not compiled and `pyjetscape_core` fails to load (`undefined symbol ... iColoredHadronization`) |
-| `-DUSE_JS_CONTRIB=ON`              | builds js-contrib from `external_packages/js-contrib`                                                                                                                                        |
-| `-DUSE_JS_PYJETSCAPE=ON`           | the Python bindings `pyjetscape_core`                                                                                                                                                        |
-| `-DUSE_JS_FNO_HYDRO=ON`            | the C++ FnoHydro module (LibTorch, about 2 GB, and ROOT); see below                                                                                                                          |
-| `-DJS_PIP_INSTALL_PYJETSCAPE=ON`   | runs `pip install -e` of PyJetscape on every build                                                                                                                                           |
-| ROOT                               | used when the environment has it (`js_fno` does): adds the `FastRootBulkWriter` binding (`jetscape.HAS_ROOT`). Without ROOT everything else builds and `HAS_ROOT` is `False`                 |
+| flag                               | what it does                                                                                                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `-DUSE_MUSIC=ON`                   | builds MUSIC; **required** for the bindings, which include MUSIC's wrapper                                                                                                                 |
+| `-DUSE_CUDA=ON` / `-DUSE_METAL=ON` | MUSIC from MUSIC4GPU on an NVIDIA GPU / on Apple Silicon (mutually exclusive; Metal only on macOS)                                                                                         |
+| `-DUSE_ISS=ON`                     | iSS; needed for hadronization (`hadronize.py`, `run_hadronize.py`)                                                                                                                         |
+| `-DUSE_3DGlauber=ON`               | 3dMCGlauber; **required** for the bindings: without it iColoredHadronization and iMATTER are not compiled and pyjetscape_core fails to load (`undefined symbol ... iColoredHadronization`) |
+| `-DUSE_JS_CONTRIB=ON`              | builds js-contrib from `external_packages/js-contrib`                                                                                                                                      |
+| `-DUSE_JS_PYJETSCAPE=ON`           | the Python bindings `pyjetscape_core`                                                                                                                                                      |
+| `-DUSE_JS_FNO_HYDRO=ON`            | the C++ FnoHydro module (LibTorch, about 2 GB, and ROOT); see below                                                                                                                        |
+| `-DJS_PIP_INSTALL_PYJETSCAPE=ON`   | runs `pip install -e` of PyJetscape on every build                                                                                                                                         |
+| ROOT                               | used when the environment has it (`js_fno` does): adds the `FastRootBulkWriter` binding (`jetscape.HAS_ROOT`). Without ROOT everything else builds and `HAS_ROOT` is `False`               |
 
 CMake finds Boost, Pythia8, HDF5, ROOT and the rest in the active conda environment by itself. After a change to the bindings only, rebuild just them: `cmake --build build_gpu --target pyjetscape_core`.
 
@@ -172,7 +172,7 @@ cmake -S . -B build_gpu ... -DUSE_JS_FNO_HYDRO=ON \
   -DCMAKE_PREFIX_PATH="$CONDA_PREFIX;$(python -c 'import torch; print(torch.utils.cmake_prefix_path)')"
 ```
 
-The live PyTorch FNO hydro (`PyFNOHydro`) needs no extra flag, only PyTorch in the Python environment, which `js_fno` has: [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md).
+The live PyTorch FNO hydro (PyFNOHydro) needs no extra flag, only PyTorch in the Python environment, which `js_fno` has: [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md).
 
 ## 5. Make `jetscape` importable
 

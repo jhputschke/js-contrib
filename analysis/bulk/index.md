@@ -173,6 +173,6 @@ vₙ{4} and higher cumulants, ρ(v₂², [pT]), symmetry planes, multiplicity-ba
 ## Next steps
 
 - Make the files: [Extra hard scatterings](https://jhputschke.github.io/js-contrib/run/extra-hard/index.md).
-- The extras in `HadronFileReader`: [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/#the-events-other-hard-scatterings).
+- The extras in HadronFileReader: [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/#the-events-other-hard-scatterings).
 - Flow in the O+O with ISR production, from the oversamples: [O+O](https://jhputschke.github.io/js-contrib/analysis/oo/#10-flow-from-the-oversamples).
 - Full reference: [`bulk/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/analysis/bulk/README.md) and [`docs/README_extra_hard.md`](https://github.com/jhputschke/js-contrib/blob/main/docs/README_extra_hard.md).

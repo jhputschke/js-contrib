@@ -173,7 +173,7 @@ Files without extras have none of these; their layout is unchanged. Full layout:
 
 ## Next steps
 
-- [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/#the-events-other-hard-scatterings): the extras in `HadronFileReader`, and "the event without its trigger".
+- [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/#the-events-other-hard-scatterings): the extras in HadronFileReader, and "the event without its trigger".
 - [Jets with FastJet](https://jhputschke.github.io/js-contrib/analysis/jets/index.md): the Z+jet and dijet analyses with the extras' B.
 - [Bulk and flow](https://jhputschke.github.io/js-contrib/analysis/bulk/index.md): Nch, [pT] and vₙ{2}, and what the extras do to them.
 - Full details and the validation: [`docs/README_extra_hard.md`](https://github.com/jhputschke/js-contrib/blob/main/docs/README_extra_hard.md) and the design notes [`docs/Plans/PLAN_multi_hard.md`](https://github.com/jhputschke/js-contrib/blob/main/docs/Plans/PLAN_multi_hard.md).

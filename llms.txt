@@ -62,6 +62,15 @@ examples, not vetted physics results.
 - [FastHydro](https://jhputschke.github.io/js-contrib/python/fasthydro/index.md): the fast finite-volume hydro with the real jet energy-loss chain
 - [3D visualization](https://jhputschke.github.io/js-contrib/python/visualization/index.md): 3D rendering of events with PyVista
 
+## Python API
+
+- [Python API](https://jhputschke.github.io/js-contrib/python/api/index.md): the API pages in the order of the site (run, write, analyse, ROOT/bulk/FNO, C++) and how to read them
+- [Run events](https://jhputschke.github.io/js-contrib/python/api/run/index.md): per_event, JobDir, run_jetscape, modules in Python (@js.module), with examples
+- [Write the files](https://jhputschke.github.io/js-contrib/python/api/write/index.md): HadronH5Writer for your own runs, and the production writers (particlize, hadronize, hydro pair)
+- [Analyse the files](https://jhputschke.github.io/js-contrib/python/api/analyse/index.md): HadronFileReader (histograms, the wake, single events, pT-hat windows), FastJet, HadronArray and awkward, ParticlizeFile, the hydro pair, with examples
+- [ROOT, bulk and FNO files](https://jhputschke.github.io/js-contrib/python/api/bulk/index.md): the ROOT bulk reader and writer, the FNO4d HDF5 schema and compression, PyFNOHydro, numpy and torch conversions
+- [C++ bindings](https://jhputschke.github.io/js-contrib/python/api/core/index.md): pyjetscape_core, the C++ bindings with every class and method, and the methods the Pythonic layer adds
+
 ## Tutorials
 
 - [Tutorials](https://jhputschke.github.io/js-contrib/tutorials/index.md): the step-by-step path through the notebooks

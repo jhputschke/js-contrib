@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -52,7 +52,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1718,6 +1722,8 @@
       
         
       
+        
+      
     
     
     
@@ -1907,6 +1913,231 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2937,7 +3168,7 @@ subtract, and no pairing of separate runs. The physics behind it:
 <li><strong>Read frame by frame.</strong> Each chunk is one event and one τ frame; a frame is ~2 MB.</li>
 <li><strong>The grid</strong> (cell centres, steps) is in the attributes; the production grid is 64 × 64 × 32,
   ±12.2 fm in x and y, ±4.84 in η_s, every 0.1 fm/c from τ = 0.5 fm/c.</li>
-<li><strong>The showers</strong> that made the droplets are in <code>shower/</code>, read with <code>jetscape.showers</code>
+<li><strong>The showers</strong> that made the droplets are in <code>shower/</code>, read with <a class="autorefs autorefs-internal" title="            jetscape.showers" href="../../python/api/analyse/#jetscape.showers"><code>jetscape.showers</code></a>
   (<code>fates</code>, <code>segments</code>, <code>to_milne</code>).</li>
 <li><strong>A campaign to one τ length:</strong> <code>python contribs/PyJetscape/python/jetscape/repad_h5.py FILES</code>
   grows <code>arr</code> and <code>arr_bg</code> in place (a metadata resize), for loaders that need equal shapes.</li>
@@ -3010,7 +3241,7 @@ cell. The background is unaffected (0.2 %). Details:
 the particlize file, unit i of <code>bulk_jet</code> and of <code>jet_frag</code>; its background in <code>bulk_bg</code> is unit
 <code>events/bg_unit[i]</code> of the particlize file (backgrounds are stored once, so their numbering is
 not the events'). In the pair file <code>arr_bg[i]</code> already resolves a shared background.
-<code>HadronFileReader</code> numbers events over the whole campaign, and its <code>event_info</code> leads back to the
+<a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.HadronFileReader(source, *, check_uuid=True)" href="../../python/api/analyse/#jetscape.hadrons_h5.HadronFileReader"><code>HadronFileReader</code></a> numbers events over the whole campaign, and its <code>event_info</code> leads back to the
 job and the local event:</p>
 <div class="language-python highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span><span class="o">,</span><span class="w"> </span><span class="nn">hdf5plugin</span><span class="o">,</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFileReader</span>
@@ -3251,6 +3482,7 @@ still above T_sw, so forward hadrons are missing) and next steps. Full write-up:
 <li>Jets in the same events, and what the wake does to them: <a href="../jets/">Jets with FastJet</a>.</li>
 <li>The live FNO hydro these files train: <a href="../../python/fno/">Live PyTorch FNO hydro</a>.</li>
 <li>Making pair files: <a href="../../run/auau-jet/">Au+Au jets (two stages)</a>.</li>
+<li>Every reader class and method, with examples: <a href="../../python/api/analyse/">Python API → Analyse the files</a>.</li>
 </ul><script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
 /* Shared by full pages and Material's instant navigation. */
 (() => {
@@ -3512,13 +3744,15 @@ still above T_sw, so forward hadrons are missing) and next steps. Full write-up:
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">

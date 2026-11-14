@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -52,7 +52,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1712,6 +1716,8 @@
       
         
       
+        
+      
     
     
     
@@ -1901,6 +1907,231 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -3004,7 +3235,7 @@ windows and the cross sections (exit 1 on a difference):</p>
 <p><strong><code>&lt;campaign&gt;_campaign.root</code>:</strong> <code>windows</code> with the campaign's <code>sigma_mb</code>, <code>sigma_err_mb</code>,
 <code>acceptance</code>, <code>n_events</code> and <strong><code>weight_mb = sigma_mb / n_events</code></strong>; <code>files</code> with <code>event_offset</code>
 per file (global event = <code>event_offset[file] + event</code>, the numbering of the Python
-<code>HadronFileReader</code>); <code>provenance</code>.</p>
+<a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.HadronFileReader(source, *, check_uuid=True)" href="../../python/api/analyse/#jetscape.hadrons_h5.HadronFileReader"><code>HadronFileReader</code></a>); <code>provenance</code>.</p>
 <p><strong>Why one entry per oversample:</strong> one entry per event would hold ~2.8 M hadrons at 400
 oversamples, and one entry per hadron loses the event. One entry per oversample reads like an MC
 event. Remember that the oversamples of an event are samplings of one fluid, not independent
@@ -3108,7 +3339,7 @@ ntuples and returns their hadrons as <code>std::vector&lt;Hadron&gt;</code>:</p>
 <li><strong>Source:</strong> a directory (without its subdirectories) or one <code>*_hadrons.root</code> file, or a
   <code>std::vector&lt;std::string&gt;</code> of files. For multi-GPU output, convert all subdirectories into one
   directory with <code>--out-dir</code>.</li>
-<li><strong><code>EventInfo</code>:</strong> <code>pthat_bin</code>, <code>pthat</code>, <code>bg_unit</code>, sample and cell counts, <code>weight_mb</code>, the
+<li><strong><a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.EventInfo(reader, g, i, local)" href="../../python/api/analyse/#jetscape.hadrons_h5.EventInfo"><code>EventInfo</code></a>:</strong> <code>pthat_bin</code>, <code>pthat</code>, <code>bg_unit</code>, sample and cell counts, <code>weight_mb</code>, the
   <code>initiators</code> and <code>leading()</code>, <code>n_coll</code>, the trigger Z (<code>z</code>), and <code>flagged()</code>: the background
   has more than 20 % more or fewer freeze-out cells than the jet leg, so one surface is not a
   freeze-out surface. <code>select_events()</code> leaves those out.</li>
@@ -3617,13 +3848,15 @@ FastJet, so both routes use the same FastJet. Options and details:
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">

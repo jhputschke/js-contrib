@@ -66,12 +66,12 @@ In the examples below, `xscape-osdf` stands for `./js_osdf.py` on the Mac.
 
 The kinds go by file name:
 
-| `--what`        | files                                                                              | for                                                                                                                     |
-| --------------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `h5`            | `<stem>_particlize.h5`, `<stem>_hadrons_*.h5`, the hadronization logs              | the hadron analyses: `HadronFileReader` needs the particlize files next to the hadron files, and `h5` brings them along |
-| `root`          | `<stem>_hadrons.root`, `<campaign>_campaign.root`                                  | ROOT analyses alone: complete on their own                                                                              |
-| `pair`          | `<stem>.h5`, the hydro (~0.17–0.29 GB per event), with its `.json`, `.xml`, `.log` | the hydro, the wake observables, FNO training                                                                           |
-| `all` (default) | everything in the folder                                                           |                                                                                                                         |
+| `--what`        | files                                                                              | for                                                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `h5`            | `<stem>_particlize.h5`, `<stem>_hadrons_*.h5`, the hadronization logs              | the hadron analyses: HadronFileReader needs the particlize files next to the hadron files, and `h5` brings them along |
+| `root`          | `<stem>_hadrons.root`, `<campaign>_campaign.root`                                  | ROOT analyses alone: complete on their own                                                                            |
+| `pair`          | `<stem>.h5`, the hydro (~0.17–0.29 GB per event), with its `.json`, `.xml`, `.log` | the hydro, the wake observables, FNO training                                                                         |
+| `all` (default) | everything in the folder                                                           |                                                                                                                       |
 
 - **Resumable and checked.** Files already there with the same size and CRC32C are skipped, so an interrupted download finishes when the command runs again. Each file is written as `<file>.part` and renamed only when its size and checksum are right.
 - **Where they go:** a folder to `--to/<folder>/`, files and patterns to `--to/<file>`.
@@ -97,7 +97,7 @@ with fs.open("/fno4hic/test/h5_read_test/AuAu_0_10_jet_st1_t000_0001_hadrons_bul
 
 - **Pass `cache_type="blockcache", block_size=2**20`** for HDF5: fsspec's default read-ahead re-fetches overlapping ranges when HDF5 jumps back to its metadata. With 1 MB blocks, one oversample of a 100 MB hadron file moved 6.3 MB instead of 31.5 MB.
 - **Time:** the first open in a process takes ~1–1.5 s (pelicanfs finds a cache); after that, one oversample ~0.1–0.2 s.
-- **When to download instead:** for whole productions and for anything read more than once (in place, every pass goes over the network again). `HadronFileReader`, `ParticlizeFile`, `run_h5toROOT.py` and the `analysis/` scripts take local paths only.
+- **When to download instead:** for whole productions and for anything read more than once (in place, every pass goes over the network again). `HadronFileReader`, ParticlizeFile, `run_h5toROOT.py` and the `analysis/` scripts take local paths only.
 - Inside the production container the `pelican` command line does the same for single files: `pelican object get osdf:///fno4hic/… /work/…`.
 - **`AttributeError: 'Client' object has no attribute 'info'`** (or `list_files`): pelicanfs up to 1.5.0 does not work with aiowebdav2 1.x (released 2026-11-02), so environments installed since then cannot open `osdf://` URLs in uproot or list folders. Fix: `pip install "aiowebdav2<1"`. js-contrib's requirement files pin it.
 - A first, hands-on look at pelicanfs (browsing, uproot, h5py, downloading) is [tutorial 01](https://jhputschke.github.io/js-contrib/tutorials/pyjetscape/01_check_setup/index.md), section 2.

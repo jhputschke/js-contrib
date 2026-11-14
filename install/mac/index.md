@@ -122,7 +122,7 @@ The event is one O+O collision through the whole chain: 3dMCGlauber, Pythia with
 1. **Your files live in your own directories** (e.g. `~/xscape`). The installed X-SCAPE inside `~/.venvs/...` is not edited; the examples run from your copy.
 1. **Activate the environment** in every new Terminal window: `source ~/.venvs/xscape-VER/bin/activate`.
 1. **One environment per release.** A release fixes all the software. For a campaign, keep to one release, and don't mix files of two releases, since physics fixes change results. The commits a release was built from: `cat "$(python -c 'import xscape; print(xscape.TREE)')/BUILD_INFO.txt"`.
-1. **Everything finds the installed X-SCAPE by itself** (`jetscape.paths`). Leave `XSCAPE`, `JETSCAPE_BUILD`, `PYTHONPATH` and `DYLD_LIBRARY_PATH` unset in this environment: they belong to a source build and would point it elsewhere.
+1. **Everything finds the installed X-SCAPE by itself** (jetscape.paths). Leave `XSCAPE`, `JETSCAPE_BUILD`, `PYTHONPATH` and `DYLD_LIBRARY_PATH` unset in this environment: they belong to a source build and would point it elsewhere.
 1. **Results agree statistically, not bit for bit,** across Macs and macOS versions.
 
 |                                                           | where                                                               |
@@ -343,7 +343,7 @@ rm ~/.local/bin/uv ~/.local/bin/uvx      # uv itself
 | `User XML tag <extraHard> is unrecognized`, or `xscape-run: tags of ... that the main XML lacks` | the XML is newer than the environment (the extra hard scatterings need 0.2.0), or a tag is misspelled: install the current release                                   |
 | `xscape-run: ... needs modules this xscape wheel does not have`                                  | the XML uses ROOT, SMASH, FreestreamMilne, CLVisc, IPGlasma or HepMC: [What runs with the wheel](#what-runs-with-the-wheel)                                          |
 | `xscape-run: ... turns automatic module setup off`                                               | an XML of an X-SCAPE C++ test program: run it with its program in a source build                                                                                     |
-| `JobDir` / `enter_workdir` raise `XMLProblem`                                                    | the same checks from Python, before X-SCAPE starts: the message names the tags or inputs                                                                             |
+| JobDir / `enter_workdir` raise `XMLProblem`                                                      | the same checks from Python, before X-SCAPE starts: the message names the tags or inputs                                                                             |
 | `ValueError: Protocol not known: osdf`                                                           | an environment before 0.2.0 has no pelicanfs: install the current release (or `uv pip install pelicanfs`)                                                            |
 | `AttributeError: 'Client' object has no attribute 'info'` on an `osdf://` path                   | installed after 2026-11-02, the environment has aiowebdav2 1.x, which pelicanfs (up to 1.5.0) cannot use: `uv pip install "aiowebdav2<1"` in the wheel's environment |
 

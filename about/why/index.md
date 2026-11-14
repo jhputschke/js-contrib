@@ -26,11 +26,11 @@ The same idea carries over to the hadrons. Both legs' freeze-out surfaces are sa
 Hydro is the most expensive part of the chain, and it is smooth enough to be learned. A Fourier neural operator (FNO) trained on MUSIC evolutions predicts the hydrodynamic evolution orders of magnitude faster ([Stewart and Putschke, Phys. Rev. C 113, 014904 (2026)](https://arxiv.org/abs/2507.23598)). js-contrib provides both sides of this:
 
 - **Training data.** The productions resample MUSIC's evolution (energy density and flow velocity, every 0.1 fm/c) onto a fixed output grid chosen in a YAML file, and store background/jet pairs, so a 3+1D surrogate can learn both the medium and the jet's wake. [FastHydro](https://jhputschke.github.io/js-contrib/python/fasthydro/index.md), a fast 3+1D finite-volume solver running the same jet-deposition chain, produces such pairs cheaply.
-- **Using a trained model in the chain.** `FnoHydro` replaces MUSIC with an FNO in C++ (through LibTorch), and `PyFNOHydro` runs a PyTorch model live from Python. See [Python and machine learning](https://jhputschke.github.io/js-contrib/about/python-ml/index.md) and [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md).
+- **Using a trained model in the chain.** `FnoHydro` replaces MUSIC with an FNO in C++ (through LibTorch), and PyFNOHydro runs a PyTorch model live from Python. See [Python and machine learning](https://jhputschke.github.io/js-contrib/about/python-ml/index.md) and [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md).
 
 ### 4. Python access to the whole framework
 
-PyJetscape exposes the X-SCAPE framework to Python (`pyjetscape_core`, built with pybind11), and the `jetscape` package adds a "Pythonic" layer on top. With it you can build and run the task list from Python, read the hydro, surfaces, partons and hadrons as numpy arrays, and write your own modules in Python (a hard process, energy loss, hadronization, an afterburner, a writer) without recompiling anything. The production drivers themselves are Python scripts built on it. See [Python](https://jhputschke.github.io/js-contrib/python/index.md).
+PyJetscape exposes the X-SCAPE framework to Python (pyjetscape_core, built with pybind11), and the `jetscape` package adds a "Pythonic" layer on top. With it you can build and run the task list from Python, read the hydro, surfaces, partons and hadrons as numpy arrays, and write your own modules in Python (a hard process, energy loss, hadronization, an afterburner, a writer) without recompiling anything. The production drivers themselves are Python scripts built on it. See [Python](https://jhputschke.github.io/js-contrib/python/index.md).
 
 ### 5. Portable ways to run
 

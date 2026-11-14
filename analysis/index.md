@@ -29,7 +29,7 @@ flowchart LR
 | **the Mac wheel** (Apple Silicon)    | the same environment that runs X-SCAPE also analyses; on any other computer `pyjetscape[analysis]` installs the readers alone | [Mac (xscape wheel)](https://jhputschke.github.io/js-contrib/install/mac/index.md)                                                                                                |
 | **the production container**         | re-hadronizing stored surfaces (`hadronize.py`: more oversamples, other iSS settings), which needs X-SCAPE                    | [Production container](https://jhputschke.github.io/js-contrib/install/container/index.md)                                                                                        |
 
-The venv installs PyJetscape's pure-Python readers (`jetscape.hadrons_h5`, `jetscape.particlize_h5`, ...), h5py with `hdf5plugin` (the files are Blosc-compressed), uproot, awkward, scikit-hep `fastjet`, matplotlib and Jupyter, and it sets `MUSIC_EOS_TABLE` for converting energy density to temperature.
+The venv installs PyJetscape's pure-Python readers (jetscape.hadrons_h5, jetscape.particlize_h5, ...), h5py with `hdf5plugin` (the files are Blosc-compressed), uproot, awkward, scikit-hep `fastjet`, matplotlib and Jupyter, and it sets `MUSIC_EOS_TABLE` for converting energy density to temperature.
 
 Always `import hdf5plugin`
 
@@ -68,7 +68,7 @@ plt.savefig("pt_spectrum.png")
 | page                                                                                                  | what you learn                                                                                                                                                                  |
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [What a production writes](https://jhputschke.github.io/js-contrib/analysis/files/index.md)           | every file, its layout, what an "event" is, the settings to check before combining files, `h5_inspect.py`                                                                       |
-| [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md)                          | `HadronFileReader` for a campaign, single events, cross sections of pT̂ windows, the lower-level readers, bad runs, `HadronArray`                                                |
+| [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md)                          | HadronFileReader for a campaign, single events, cross sections of pT̂ windows, the lower-level readers, bad runs, HadronArray                                                    |
 | [Jets with FastJet](https://jhputschke.github.io/js-contrib/analysis/jets/index.md)                   | the jet conventions, the classic and the awkward interface, areas and ρ subtraction, embedding, and the Z+jet, Z+hadron and dijet Δη analyses as worked examples                |
 | [Hydro and hadrons together](https://jhputschke.github.io/js-contrib/analysis/hydro-hadrons/index.md) | the background/jet hydro pair, the wake in the fluid and in hadrons, matching hadron files to pair events, `jet_wake.ipynb`, and hadrons from the stored hydro history          |
 | [O+O](https://jhputschke.github.io/js-contrib/analysis/oo/index.md)                                   | the O+O event record, cross-section and Ncoll weights, multiplicity, centrality, flow from oversamples, jets                                                                    |
@@ -80,4 +80,5 @@ plt.savefig("pt_spectrum.png")
 
 - New to the files: read [What a production writes](https://jhputschke.github.io/js-contrib/analysis/files/index.md) first; the statistics of oversamples matter for every result.
 - Want hadron observables right away: [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md).
+- Every class and method of the readers, with examples: [Python API → Analyse the files](https://jhputschke.github.io/js-contrib/python/api/analyse/index.md).
 - The physics behind the two legs, the liquefier and the wake: [The physics](https://jhputschke.github.io/js-contrib/about/physics/index.md).

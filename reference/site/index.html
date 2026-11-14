@@ -20,7 +20,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -50,7 +50,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1514,6 +1518,8 @@
       
         
       
+        
+      
     
     
     
@@ -1703,6 +1709,231 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2537,6 +2768,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-python-api-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Python API pages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#llmstxt" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2627,6 +2869,17 @@
     <span class="md-ellipsis">
       
         The tutorials' notebooks
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-python-api-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The Python API pages
       
     </span>
   </a>
@@ -2725,6 +2978,32 @@ static site into <code>_site/</code> and stop on any broken link or anchor:</p>
 <p>To execute the tutorials and store their outputs, run
 <code>python tutorials/run_notebooks.py pyjetscape --inplace</code>. Do this from a setup without
 paths of your own in it, such as the production container.</p>
+<h2 id="the-python-api-pages">The Python API pages<a class="headerlink" href="#the-python-api-pages" title="Permanent link">¶</a></h2>
+<p>The <a href="../../python/api/">Python API</a> pages are generated by the plugin <code>mkdocstrings</code>. Each
+page holds <code>jetscape.&lt;module&gt;</code> lines, and the plugin fills in that module's classes and
+functions:</p>
+<ul>
+<li><strong>From the source, statically.</strong> The docstrings are read from
+  <code>contribs/PyJetscape/python/jetscape/</code> without importing anything, so the site builds
+  without X-SCAPE, the compiled extension or PyTorch.</li>
+<li><strong>The C++ bindings come from their stubs.</strong> The page of <a class="autorefs autorefs-internal" title="            jetscape.pyjetscape_core" href="../../python/api/core/#jetscape.pyjetscape_core"><code>jetscape.pyjetscape_core</code></a> is made
+  from <code>pyjetscape_core.pyi</code>. After a change to the bindings (<code>contribs/PyJetscape/src/</code>) or
+  to the Pythonic layer, rebuild PyJetscape and regenerate the stubs:
+  <code>python utils/gen_pyjetscape_stubs.py</code> (needs <code>pybind11-stubgen</code>). The stubs follow the
+  build they are made from, including its build options.</li>
+<li><strong>A new module</strong> needs a <code>jetscape.&lt;module&gt;</code> line on the fitting page in
+  <code>website/python/api/</code>.</li>
+<li><strong>Link an API object from a guide</strong> by its Python path, not by page and anchor:
+  <code>[`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader]</code>. The build finds the page,
+  and <code>mkdocs build --strict</code> fails if the object no longer exists. Link the first mention on
+  a page, not every one, and never inside code blocks.</li>
+<li><strong>Docstrings are Markdown here.</strong> Text such as <code>a[i][j]</code> is read as a Markdown link and
+  fails <code>mkdocs build --strict</code>; put code in backticks. Sphinx roles (<code>:meth:`x`</code>) are
+  shown as inline code by the Griffe extension <code>website/_tools/griffe_sphinx_roles.py</code>.</li>
+<li><strong>The look</strong> (signature boxes, field lists) is <code>website/assets/api.css</code> and
+  <code>website/assets/api-signatures.js</code>. Their rules only match the API markup, so the other
+  pages are not affected.</li>
+</ul>
 <h2 id="llmstxt">llms.txt<a class="headerlink" href="#llmstxt" title="Permanent link">¶</a></h2>
 <p>The plugin <code>mkdocs-llmstxt</code> writes the site a second time for language models
 (<a href="../ai-assistants/">AI assistants</a>): <code>/llms.txt</code> (one line per page), every page as Markdown
@@ -2992,13 +3271,15 @@ next to its HTML (<code>run/oo-isr/index.md</code>), and <code>/llms-full.txt</c
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">

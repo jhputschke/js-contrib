@@ -42,9 +42,9 @@ Each job writes, next to each other (stem `OO_isr_<campaign>_NNNN` or `OO_isr_se
 
 The usual production setting is **hadron files only** (`--bulk-hadrons 10 --no-particlize --no-hydro-file`), 0.13 MB per event; the bulk can then not be resampled later. Download a campaign with `js_osdf.py download <campaign> --what h5` ([Data on the OSDF](https://jhputschke.github.io/js-contrib/run/osdf/index.md)).
 
-Unit i is event i, and `HadronFileReader` does not apply
+Unit i is event i, and HadronFileReader does not apply
 
-Unit i of the jet file and unit i of the bulk file are the same event. Hadron files made in the job have no `source_uuid`, so `HadronFileReader` and `run_h5toROOT.py`, made for the Au+Au pairs, refuse them. Read them as in §5 (or with `Hadrons` / `HadronFile` / `HadronArray`), and convert them to ROOT as in §13.
+Unit i of the jet file and unit i of the bulk file are the same event. Hadron files made in the job have no `source_uuid`, so `HadronFileReader` and `run_h5toROOT.py`, made for the Au+Au pairs, refuse them. Read them as in §5 (or with Hadrons / HadronFile / HadronArray), and convert them to ROOT as in §13.
 
 ## 3. The per-event record
 
@@ -281,7 +281,7 @@ for e in range(n_ev):
 With the default outputs:
 
 - **`<stem>.h5`:** `arr` `(nevents, 4, 64, 64, 32, ntau)` on `grid_oo.yaml` (x, y ±9.84 fm and η_s ±4.84 in steps of 0.3125), τ = 0.5 + k · 0.1 fm/c, `diag/` with the record of §3. Only events with a medium have a row: an event's row is its `hydro_row`. Read it as the Au+Au pair files ([Hydro and hadrons together](https://jhputschke.github.io/js-contrib/analysis/hydro-hadrons/#2-reading-a-pair)), without `arr_bg`.
-- **`<stem>_particlize.h5`:** `surface/bg` (one unit per event), the final partons and the initiators; `ParticlizeFile` reads it. It is the input for more bulk hadrons later, in the container or an X-SCAPE build:
+- **`<stem>_particlize.h5`:** `surface/bg` (one unit per event), the final partons and the initiators; ParticlizeFile reads it. It is the input for more bulk hadrons later, in the container or an X-SCAPE build:
 
 ```bash
 contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_hadronize.py /work/OO_c1 -j 8 --tags bulk_bg --oversample 100

@@ -21,7 +21,7 @@ with js.per_event("jetscape_main.xml", "my_user.xml") as driver:
 
 The complete worked example is [`example/pythonic/oo_workflow.ipynb`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/pythonic/oo_workflow.ipynb): three O+O events through the whole chain, the hadrons written to files and read back, spectra with errors, FastJet. Its simulation half is the script `oo_workflow.py` (`--xml`, `--events`, `--seed`, `--outdir`), a template for a production of your own.
 
-**Requirements.** The bound classes need the compiled `pyjetscape_core`. Records and `HadronArray` need only numpy (they also work on files without a build); `to_awkward()` needs `awkward` and `vector`, `select()` needs `particle`, jets need the `fastjet` Python package, and the hadron files need `h5py`. All are in the container image, the Mac wheel's environment and the analysis environment; awkward and vector are imported only when used.
+**Requirements.** The bound classes need the compiled pyjetscape_core. Records and HadronArray need only numpy (they also work on files without a build); to_awkward() needs `awkward` and `vector`, select() needs `particle`, jets need the `fastjet` Python package, and the hadron files need `h5py`. All are in the container image, the Mac wheel's environment and the analysis environment; awkward and vector are imported only when used.
 
 ## Conventions
 
@@ -57,7 +57,7 @@ The run's modules are driver properties (`None` when absent):
 
 Anything else: `driver.GetTaskList()` and, for sub-tasks, `task.GetTaskList()`.
 
-**Run in a working directory of its own.** MUSIC, 3dMCGlauber and iSS read inputs from and write side files to the current directory, and X-SCAPE's XMLs contain paths relative to the build. `js.JobDir` handles that for a script or notebook anywhere on disk:
+**Run in a working directory of its own.** MUSIC, 3dMCGlauber and iSS read inputs from and write side files to the current directory, and X-SCAPE's XMLs contain paths relative to the build. js.JobDir handles that for a script or notebook anywhere on disk:
 
 ```python
 with js.JobDir("out", "my_job.xml") as job:      # out/my_job.xml; runs in out/work/my_job
@@ -65,7 +65,7 @@ with js.JobDir("out", "my_job.xml") as job:      # out/my_job.xml; runs in out/w
         ...                                       # write your outputs to absolute paths
 ```
 
-It copies the user XML to `out/`, makes its `../` paths absolute, copies `music_input`, links the build's tables, changes into `out/work/<name>` and back, and removes that directory after a run without an exception (`keep=True` keeps it). The build is found through `jetscape.paths`: `$JETSCAPE_BUILD`, else `<X-SCAPE>/build_gpu`, where X-SCAPE is `$XSCAPE` or the tree the package sits in. In the container `XSCAPE=/opt/X-SCAPE` is set, so scripts run unchanged in and out of it.
+It copies the user XML to `out/`, makes its `../` paths absolute, copies `music_input`, links the build's tables, changes into `out/work/<name>` and back, and removes that directory after a run without an exception (`keep=True` keeps it). The build is found through jetscape.paths: `$JETSCAPE_BUILD`, else `<X-SCAPE>/build_gpu`, where X-SCAPE is `$XSCAPE` or the tree the package sits in. In the container `XSCAPE=/opt/X-SCAPE` is set, so scripts run unchanged in and out of it.
 
 ## The results of an event
 
@@ -166,7 +166,7 @@ The result is a boolean mask of the input's shape (jagged for awkward input, so 
 
 ## Hadron files
 
-The productions' hadron files (`jetscape.hadrons_h5`) take a `HadronArray` per unit (event) and give one back:
+The productions' hadron files (jetscape.hadrons_h5) take a `HadronArray` per unit (event) and give one back:
 
 ```python
 from jetscape.hadrons_h5 import HadronH5Writer
@@ -192,7 +192,7 @@ a = h.to_awkward(by_unit=True)                               # units x samples x
 first = js.HadronArray.from_h5("x_hadrons_bulk_bg.h5", units=[0])
 ```
 
-For whole campaigns, with event-averaged histograms and compound-Poisson errors, use `hadrons_h5.HadronFileReader` and `Hadrons`: [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md).
+For whole campaigns, with event-averaged histograms and compound-Poisson errors, use hadrons_h5.HadronFileReader and Hadrons: [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md).
 
 ## Jets with FastJet
 
@@ -298,3 +298,4 @@ The full guide, with every member, the guarantees of the layer and a side-by-sid
 - [Writing modules in Python](https://jhputschke.github.io/js-contrib/python/modules/index.md): the same layer for modules of your own.
 - [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md) and [Jets with FastJet](https://jhputschke.github.io/js-contrib/analysis/jets/index.md): analysing production files.
 - [Notebooks](https://jhputschke.github.io/js-contrib/analysis/notebooks/index.md): the example notebooks.
+- [Python API](https://jhputschke.github.io/js-contrib/python/api/index.md): every class and method of the layer and the bindings, with examples.

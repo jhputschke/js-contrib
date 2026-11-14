@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -52,7 +52,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1518,6 +1522,8 @@
       
         
       
+        
+      
     
     
     
@@ -1873,6 +1879,234 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2805,7 +3039,7 @@
 
 
 <h1 id="live-pytorch-fno-hydro">Live PyTorch FNO hydro<a class="headerlink" href="#live-pytorch-fno-hydro" title="Permanent link">¶</a></h1>
-<p><code>PyFNOHydro</code> is a hydro module written in Python and backed by a PyTorch Fourier neural operator
+<p><a class="autorefs autorefs-internal" title="              PyFNOHydro(model, config=None, *, device: str = 'cpu')" href="../api/bulk/#jetscape.fno_hydro.PyFNOHydro"><code>PyFNOHydro</code></a> is a hydro module written in Python and backed by a PyTorch Fourier neural operator
 (FNO). It takes the initial condition from the pre-equilibrium stage, predicts the whole
 space-time evolution of the medium in one forward pass, stores it in X-SCAPE's evolution history
 and builds the freeze-out surface, so Matter, LBT and iSS run on the prediction exactly as they
@@ -2873,7 +3107,7 @@ training, runs inside a full X-SCAPE event:</p>
 <a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="n">surface</span> <span class="o">=</span> <span class="n">hydro</span><span class="o">.</span><span class="n">get_surface_cells</span><span class="p">()</span>                             <span class="c1"># what iSS samples</span>
 </code></pre></div>
 <p>Run it from the X-SCAPE build directory (or inside a <a href="../pythonic/#running-events"><code>js.JobDir</code></a>):
-TrentoInitial and the other C++ modules read their tables from there. <code>run_manual</code> takes a
+TrentoInitial and the other C++ modules read their tables from there. <a class="autorefs autorefs-internal" title="            run_manual(main_xml: str, user_xml: str, modules: Sequence, n_events: int | None = None) -&gt; JetScape" href="../api/run/#jetscape.run_jetscape.run_manual"><code>run_manual</code></a> takes a
 pipeline built in Python; the user XML must set
 <code>&lt;enableAutomaticTaskListDetermination&gt;false&lt;/enableAutomaticTaskListDetermination&gt;</code>. FnoHydro's
 <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/FnoHydro/config/jetscape_user_root_bulk_test.xml"><code>config/jetscape_user_root_bulk_test.xml</code></a>
@@ -2958,7 +3192,7 @@ the evolution as numpy and torch tensors and the number of surface cells, and sa
 <a href="../../install/mac/">Mac wheel</a> environment; install it there, or use the <code>js_fno</code> conda
 environment of a <a href="../../install/source/">source build</a>, which has it.</p>
 <h2 id="utilities-the-evolution-as-arrays-and-tensors">Utilities: the evolution as arrays and tensors<a class="headerlink" href="#utilities-the-evolution-as-arrays-and-tensors" title="Permanent link">¶</a></h2>
-<p><code>jetscape.utils</code> converts between X-SCAPE's evolution history and numpy / torch:</p>
+<p><a class="autorefs autorefs-internal" title="            jetscape.utils" href="../api/bulk/#jetscape.utils"><code>jetscape.utils</code></a> converts between X-SCAPE's evolution history and numpy / torch:</p>
 <div class="language-python highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span><span class="n">bulk_info_to_numpy</span><span class="p">,</span> <span class="n">bulk_info_to_tensor</span><span class="p">,</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>                            <span class="n">numpy_to_bulk_info</span><span class="p">,</span> <span class="n">tensor_to_bulk_info</span><span class="p">,</span> <span class="n">rebin_preeq_to_fno_grid</span><span class="p">)</span>
 <a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
@@ -2970,7 +3204,7 @@ environment of a <a href="../../install/source/">source build</a>, which has it.
 <a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">fno_input</span> <span class="o">=</span> <span class="n">rebin_preeq_to_fno_grid</span><span class="p">(</span><span class="n">preeq</span><span class="p">,</span> <span class="n">ini</span><span class="p">,</span> <span class="n">nx_fno</span><span class="p">,</span> <span class="n">ny_fno</span><span class="p">,</span> <span class="n">x_min_fno</span><span class="p">,</span> <span class="n">y_min_fno</span><span class="p">,</span>
 <a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>                                    <span class="n">dx_fno</span><span class="p">,</span> <span class="n">dy_fno</span><span class="p">,</span> <span class="n">n_features</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>   <span class="c1"># (3, nx, ny, 1)</span>
 </code></pre></div>
-<p><code>bulk_info_to_numpy</code> reads the transverse slice (2+1D). For a 3+1D evolution, e.g. from MUSIC,
+<p><a class="autorefs autorefs-internal" title="            bulk_info_to_numpy(bulk_info, n_features: int) -&gt; np.ndarray" href="../api/bulk/#jetscape.utils.bulk_info_to_numpy"><code>bulk_info_to_numpy</code></a> reads the transverse slice (2+1D). For a 3+1D evolution, e.g. from MUSIC,
 <code>info.to_numpy_full(n_features)</code> returns <code>(ntau, nx, ny, neta, n_features)</code> with the columns
 <code>e, T, vx, vy, vz, s</code>. The production writers store MUSIC's evolution directly in the HDF5 layout
 the FNO training reads (<a href="#training-data-from-the-productions">below</a>).</p>
@@ -3048,6 +3282,8 @@ ROOT step in between:</p>
 <li><a href="../modules/">Writing modules in Python</a>: the module interface <code>PyFNOHydro</code> is built on.</li>
 <li><a href="../fasthydro/">FastHydro</a>: a 3+1D hydro solver in PyTorch with the jet-deposition workflow.</li>
 <li><a href="../../run/auau-jet/">Au+Au jets (two stages)</a>: the GPU production of training pairs.</li>
+<li><a href="../api/bulk/">Python API → ROOT, bulk and FNO files</a>: <code>PyFNOHydro</code>, the FNO4d schema
+  writers and the numpy and torch conversions, class by class.</li>
 </ul><script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
 /* Shared by full pages and Material's instant navigation. */
 (() => {
@@ -3309,13 +3545,15 @@ ROOT step in between:</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">

@@ -1,6 +1,6 @@
 # Live PyTorch FNO hydro
 
-`PyFNOHydro` is a hydro module written in Python and backed by a PyTorch Fourier neural operator (FNO). It takes the initial condition from the pre-equilibrium stage, predicts the whole space-time evolution of the medium in one forward pass, stores it in X-SCAPE's evolution history and builds the freeze-out surface, so Matter, LBT and iSS run on the prediction exactly as they would on MUSIC. Use it to test a surrogate model against the full event: jet quenching and hadron observables on the predicted medium, side by side with MUSIC. Because the model can be a live `torch.nn.Module`, you can do this in the same Python session in which you train it, with no export step. The method and the 2+1D models are described in [Phys. Rev. C 113, 014904 (2026)](https://doi.org/10.1103/jsh8-6tm7) (arXiv:2507.23598).
+PyFNOHydro is a hydro module written in Python and backed by a PyTorch Fourier neural operator (FNO). It takes the initial condition from the pre-equilibrium stage, predicts the whole space-time evolution of the medium in one forward pass, stores it in X-SCAPE's evolution history and builds the freeze-out surface, so Matter, LBT and iSS run on the prediction exactly as they would on MUSIC. Use it to test a surrogate model against the full event: jet quenching and hadron observables on the predicted medium, side by side with MUSIC. Because the model can be a live `torch.nn.Module`, you can do this in the same Python session in which you train it, with no export step. The method and the 2+1D models are described in [Phys. Rev. C 113, 014904 (2026)](https://doi.org/10.1103/jsh8-6tm7) (arXiv:2507.23598).
 
 ## How it works
 
@@ -64,7 +64,7 @@ evo = bulk_info_to_numpy(hydro.get_bulk_info(), n_features=4)  # (ntau+1, nx, ny
 surface = hydro.get_surface_cells()                             # what iSS samples
 ```
 
-Run it from the X-SCAPE build directory (or inside a [`js.JobDir`](https://jhputschke.github.io/js-contrib/python/pythonic/#running-events)): TrentoInitial and the other C++ modules read their tables from there. `run_manual` takes a pipeline built in Python; the user XML must set `<enableAutomaticTaskListDetermination>false</enableAutomaticTaskListDetermination>`. FnoHydro's [`config/jetscape_user_root_bulk_test.xml`](https://github.com/jhputschke/js-contrib/blob/main/contribs/FnoHydro/config/jetscape_user_root_bulk_test.xml) is such a file, with a Trento initial state and a `<Hydro><FNO>` block. For jet energy loss and hadronization on the predicted medium, add the managers by hand as on [Writing modules in Python](https://jhputschke.github.io/js-contrib/python/modules/#a-worked-example-an-energy-loss-module), with `create_module("Matter")` and `create_module("ColorlessHadronization")` inside them, or use `js.per_event(..., tasks=[...])` to read each event's results.
+Run it from the X-SCAPE build directory (or inside a [`js.JobDir`](https://jhputschke.github.io/js-contrib/python/pythonic/#running-events)): TrentoInitial and the other C++ modules read their tables from there. run_manual takes a pipeline built in Python; the user XML must set `<enableAutomaticTaskListDetermination>false</enableAutomaticTaskListDetermination>`. FnoHydro's [`config/jetscape_user_root_bulk_test.xml`](https://github.com/jhputschke/js-contrib/blob/main/contribs/FnoHydro/config/jetscape_user_root_bulk_test.xml) is such a file, with a Trento initial state and a `<Hydro><FNO>` block. For jet energy loss and hadronization on the predicted medium, add the managers by hand as on [Writing modules in Python](https://jhputschke.github.io/js-contrib/python/modules/#a-worked-example-an-energy-loss-module), with `create_module("Matter")` and `create_module("ColorlessHadronization")` inside them, or use `js.per_event(..., tasks=[...])` to read each event's results.
 
 Pitfalls of the live model
 
@@ -133,7 +133,7 @@ PyTorch is not part of the [container](https://jhputschke.github.io/js-contrib/i
 
 ## Utilities: the evolution as arrays and tensors
 
-`jetscape.utils` converts between X-SCAPE's evolution history and numpy / torch:
+jetscape.utils converts between X-SCAPE's evolution history and numpy / torch:
 
 ```python
 from jetscape.utils import (bulk_info_to_numpy, bulk_info_to_tensor,
@@ -148,7 +148,7 @@ fno_input = rebin_preeq_to_fno_grid(preeq, ini, nx_fno, ny_fno, x_min_fno, y_min
                                     dx_fno, dy_fno, n_features=3)   # (3, nx, ny, 1)
 ```
 
-`bulk_info_to_numpy` reads the transverse slice (2+1D). For a 3+1D evolution, e.g. from MUSIC, `info.to_numpy_full(n_features)` returns `(ntau, nx, ny, neta, n_features)` with the columns `e, T, vx, vy, vz, s`. The production writers store MUSIC's evolution directly in the HDF5 layout the FNO training reads ([below](#training-data-from-the-productions)).
+bulk_info_to_numpy reads the transverse slice (2+1D). For a 3+1D evolution, e.g. from MUSIC, `info.to_numpy_full(n_features)` returns `(ntau, nx, ny, neta, n_features)` with the columns `e, T, vx, vy, vz, s`. The production writers store MUSIC's evolution directly in the HDF5 layout the FNO training reads ([below](#training-data-from-the-productions)).
 
 ## The C++ FnoHydro (LibTorch)
 
@@ -194,3 +194,4 @@ A model is only as good as its training set, and js-contrib's productions write 
 - [Writing modules in Python](https://jhputschke.github.io/js-contrib/python/modules/index.md): the module interface `PyFNOHydro` is built on.
 - [FastHydro](https://jhputschke.github.io/js-contrib/python/fasthydro/index.md): a 3+1D hydro solver in PyTorch with the jet-deposition workflow.
 - [Au+Au jets (two stages)](https://jhputschke.github.io/js-contrib/run/auau-jet/index.md): the GPU production of training pairs.
+- [Python API → ROOT, bulk and FNO files](https://jhputschke.github.io/js-contrib/python/api/bulk/index.md): `PyFNOHydro`, the FNO4d schema writers and the numpy and torch conversions, class by class.

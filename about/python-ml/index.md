@@ -16,15 +16,15 @@ X-SCAPE is a C++ framework. js-contrib opens it to Python, not as a wrapper that
 
 ## What works today
 
-| you want to                                                                                | use                                      | page                                                                                         |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
-| run events from Python and read every result as numpy                                      | `pyjetscape_core` and the Pythonic layer | [The Pythonic interface](https://jhputschke.github.io/js-contrib/python/pythonic/index.md)   |
-| replace a stage (hard process, energy loss, hadronization, ...) with your own Python class | the module base classes, `@js.module`    | [Writing modules in Python](https://jhputschke.github.io/js-contrib/python/modules/index.md) |
-| run a PyTorch FNO as the hydro, live, while you train it                                   | `PyFNOHydro`                             | [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md)        |
-| make large samples of jet-deposition pairs fast, on CPU, CUDA or Apple MPS                 | FastHydro                                | [FastHydro](https://jhputschke.github.io/js-contrib/python/fasthydro/index.md)               |
-| produce FNO training data with the real MUSIC + jet chain on GPUs                          | the Au+Au jet production                 | [Au+Au jets (two stages)](https://jhputschke.github.io/js-contrib/run/auau-jet/index.md)     |
-| analyse hadrons and jets from the production files                                         | `HadronArray`, awkward, FastJet          | [Analyse](https://jhputschke.github.io/js-contrib/analysis/index.md)                         |
-| look at the medium and the shower in 3D                                                    | the PyVista scripts                      | [3D visualization](https://jhputschke.github.io/js-contrib/python/visualization/index.md)    |
+| you want to                                                                                | use                                    | page                                                                                         |
+| ------------------------------------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------- |
+| run events from Python and read every result as numpy                                      | pyjetscape_core and the Pythonic layer | [The Pythonic interface](https://jhputschke.github.io/js-contrib/python/pythonic/index.md)   |
+| replace a stage (hard process, energy loss, hadronization, ...) with your own Python class | the module base classes, `@js.module`  | [Writing modules in Python](https://jhputschke.github.io/js-contrib/python/modules/index.md) |
+| run a PyTorch FNO as the hydro, live, while you train it                                   | PyFNOHydro                             | [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md)        |
+| make large samples of jet-deposition pairs fast, on CPU, CUDA or Apple MPS                 | FastHydro                              | [FastHydro](https://jhputschke.github.io/js-contrib/python/fasthydro/index.md)               |
+| produce FNO training data with the real MUSIC + jet chain on GPUs                          | the Au+Au jet production               | [Au+Au jets (two stages)](https://jhputschke.github.io/js-contrib/run/auau-jet/index.md)     |
+| analyse hadrons and jets from the production files                                         | HadronArray, awkward, FastJet          | [Analyse](https://jhputschke.github.io/js-contrib/analysis/index.md)                         |
+| look at the medium and the shower in 3D                                                    | the PyVista scripts                    | [3D visualization](https://jhputschke.github.io/js-contrib/python/visualization/index.md)    |
 
 Python modules run in the container and with the Mac wheel as they are: no compiler is needed. PyTorch is needed only for `PyFNOHydro` and FastHydro.
 

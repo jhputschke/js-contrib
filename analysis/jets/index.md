@@ -261,3 +261,4 @@ The Z+jet and dijet results are not public: write their outputs (`--outdir`, `ru
 - FastJet in C++ on the ROOT files, and the C++ map steps: [ROOT and C++](https://jhputschke.github.io/js-contrib/analysis/root/index.md).
 - The wake behind these jets in the fluid: [Hydro and hadrons together](https://jhputschke.github.io/js-contrib/analysis/hydro-hadrons/index.md).
 - Jets in O+O, where there is no background twin: [O+O](https://jhputschke.github.io/js-contrib/analysis/oo/#11-jets).
+- Every reader class and method, with examples: [Python API → Analyse the files](https://jhputschke.github.io/js-contrib/python/api/analyse/index.md).

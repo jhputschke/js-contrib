@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -52,7 +52,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1518,6 +1522,8 @@
       
         
       
+        
+      
     
     
     
@@ -1922,6 +1928,234 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2929,9 +3163,9 @@ output. Where to get it: <a href="../#where-you-get-it">Python</a>.</p>
 three O+O events through the whole chain, the hadrons written to files and read back, spectra
 with errors, FastJet. Its simulation half is the script <code>oo_workflow.py</code>
 (<code>--xml</code>, <code>--events</code>, <code>--seed</code>, <code>--outdir</code>), a template for a production of your own.</p>
-<p><strong>Requirements.</strong> The bound classes need the compiled <code>pyjetscape_core</code>. Records and
-<code>HadronArray</code> need only numpy (they also work on files without a build); <code>to_awkward()</code> needs
-<code>awkward</code> and <code>vector</code>, <code>select()</code> needs <code>particle</code>, jets need the <code>fastjet</code> Python package, and
+<p><strong>Requirements.</strong> The bound classes need the compiled <a class="autorefs autorefs-internal" title="            jetscape.pyjetscape_core" href="../api/core/#jetscape.pyjetscape_core"><code>pyjetscape_core</code></a>. Records and
+<a class="autorefs autorefs-internal" title="              HadronArray(pid, pstat, p, x, mass, sample_offsets=None, info=None)" href="../api/analyse/#jetscape.hadron_array.HadronArray"><code>HadronArray</code></a> need only numpy (they also work on files without a build); <a class="autorefs autorefs-internal" title="            to_awkward(position=False, charge=False, by_unit=False)" href="../api/analyse/#jetscape.hadron_array.HadronArray.to_awkward"><code>to_awkward()</code></a> needs
+<code>awkward</code> and <code>vector</code>, <a class="autorefs autorefs-internal" title="            select(arr, species)" href="../api/analyse/#jetscape.awkward_views.select"><code>select()</code></a> needs <code>particle</code>, jets need the <code>fastjet</code> Python package, and
 the hadron files need <code>h5py</code>. All are in the container image, the Mac wheel's environment and the
 analysis environment; awkward and vector are imported only when used.</p>
 <h2 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">¶</a></h2>
@@ -2999,14 +3233,14 @@ analysis environment; awkward and vector are imported only when used.</p>
 <p>Anything else: <code>driver.GetTaskList()</code> and, for sub-tasks, <code>task.GetTaskList()</code>.</p>
 <p><strong>Run in a working directory of its own.</strong> MUSIC, 3dMCGlauber and iSS read inputs from and write
 side files to the current directory, and X-SCAPE's XMLs contain paths relative to the build.
-<code>js.JobDir</code> handles that for a script or notebook anywhere on disk:</p>
+<a class="autorefs autorefs-internal" title="              JobDir(out_dir, user_xml, *, name=None, main_xml=None, build=None, keep=False)" href="../api/run/#jetscape.workdir.JobDir"><code>js.JobDir</code></a> handles that for a script or notebook anywhere on disk:</p>
 <div class="language-python highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">with</span> <span class="n">js</span><span class="o">.</span><span class="n">JobDir</span><span class="p">(</span><span class="s2">"out"</span><span class="p">,</span> <span class="s2">"my_job.xml"</span><span class="p">)</span> <span class="k">as</span> <span class="n">job</span><span class="p">:</span>      <span class="c1"># out/my_job.xml; runs in out/work/my_job</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="k">with</span> <span class="n">js</span><span class="o">.</span><span class="n">per_event</span><span class="p">(</span><span class="n">job</span><span class="o">.</span><span class="n">main_xml</span><span class="p">,</span> <span class="n">job</span><span class="o">.</span><span class="n">user_xml</span><span class="p">)</span> <span class="k">as</span> <span class="n">driver</span><span class="p">:</span>
 <a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>        <span class="o">...</span>                                       <span class="c1"># write your outputs to absolute paths</span>
 </code></pre></div>
 <p>It copies the user XML to <code>out/</code>, makes its <code>../</code> paths absolute, copies <code>music_input</code>, links the
 build's tables, changes into <code>out/work/&lt;name&gt;</code> and back, and removes that directory after a run
-without an exception (<code>keep=True</code> keeps it). The build is found through <code>jetscape.paths</code>:
+without an exception (<code>keep=True</code> keeps it). The build is found through <a class="autorefs autorefs-internal" title="            jetscape.paths" href="../api/run/#jetscape.paths"><code>jetscape.paths</code></a>:
 <code>$JETSCAPE_BUILD</code>, else <code>&lt;X-SCAPE&gt;/build_gpu</code>, where X-SCAPE is <code>$XSCAPE</code> or the tree the package
 sits in. In the container <code>XSCAPE=/opt/X-SCAPE</code> is set, so scripts run unchanged in and out of it.</p>
 <h2 id="the-results-of-an-event">The results of an event<a class="headerlink" href="#the-results-of-an-event" title="Permanent link">¶</a></h2>
@@ -3250,7 +3484,7 @@ charged hadrons and leptons. They agree on decayed hadrons and differ only on fi
 undecayed primaries.</p>
 </div>
 <h2 id="hadron-files">Hadron files<a class="headerlink" href="#hadron-files" title="Permanent link">¶</a></h2>
-<p>The productions' hadron files (<code>jetscape.hadrons_h5</code>) take a <code>HadronArray</code> per unit (event) and
+<p>The productions' hadron files (<a class="autorefs autorefs-internal" title="            jetscape.hadrons_h5" href="../api/analyse/#jetscape.hadrons_h5"><code>jetscape.hadrons_h5</code></a>) take a <code>HadronArray</code> per unit (event) and
 give one back:</p>
 <div class="language-python highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronH5Writer</span>
 <a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.records</span><span class="w"> </span><span class="kn">import</span> <span class="n">initiator_rows</span>
@@ -3273,7 +3507,7 @@ Reading:</p>
 <a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">first</span> <span class="o">=</span> <span class="n">js</span><span class="o">.</span><span class="n">HadronArray</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="s2">"x_hadrons_bulk_bg.h5"</span><span class="p">,</span> <span class="n">units</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
 </code></pre></div>
 <p>For whole campaigns, with event-averaged histograms and compound-Poisson errors, use
-<code>hadrons_h5.HadronFileReader</code> and <code>Hadrons</code>: <a href="../../analysis/hadrons/">Hadrons</a>.</p>
+<a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.HadronFileReader(source, *, check_uuid=True)" href="../api/analyse/#jetscape.hadrons_h5.HadronFileReader"><code>hadrons_h5.HadronFileReader</code></a> and <a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.Hadrons(pid, pstat, p, x, sample_offsets, unit_offsets, attrs=None, units=None)" href="../api/analyse/#jetscape.hadrons_h5.Hadrons"><code>Hadrons</code></a>: <a href="../../analysis/hadrons/">Hadrons</a>.</p>
 <h2 id="jets-with-fastjet">Jets with FastJet<a class="headerlink" href="#jets-with-fastjet" title="Permanent link">¶</a></h2>
 <p>FastJet's Python package clusters jagged awkward arrays directly: one call for every event, or
 every oversample.</p>
@@ -3396,6 +3630,8 @@ old and new calls:
 <li><a href="../../analysis/hadrons/">Hadrons</a> and <a href="../../analysis/jets/">Jets with FastJet</a>: analysing
   production files.</li>
 <li><a href="../../analysis/notebooks/">Notebooks</a>: the example notebooks.</li>
+<li><a href="../api/">Python API</a>: every class and method of the layer and the bindings, with
+  examples.</li>
 </ul><script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
 /* Shared by full pages and Material's instant navigation. */
 (() => {
@@ -3657,13 +3893,15 @@ old and new calls:
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">

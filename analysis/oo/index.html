@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -52,7 +52,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1733,6 +1737,8 @@
       
         
       
+        
+      
     
     
     
@@ -1922,6 +1928,231 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2995,11 +3226,11 @@ hard-triggered, and the hadrons are usually made in the job. Running the product
 --no-hydro-file</code>), 0.13 MB per event; the bulk can then not be resampled later. Download a
 campaign with <code>js_osdf.py download &lt;campaign&gt; --what h5</code> (<a href="../../run/osdf/">Data on the OSDF</a>).</p>
 <div class="admonition warning">
-<p class="admonition-title">Unit i is event i, and <code>HadronFileReader</code> does not apply</p>
+<p class="admonition-title">Unit i is event i, and <a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.HadronFileReader(source, *, check_uuid=True)" href="../../python/api/analyse/#jetscape.hadrons_h5.HadronFileReader"><code>HadronFileReader</code></a> does not apply</p>
 <p>Unit i of the jet file and unit i of the bulk file are the same event. Hadron files made in
 the job have no <code>source_uuid</code>, so <code>HadronFileReader</code> and <code>run_h5toROOT.py</code>, made for the
-Au+Au pairs, refuse them. Read them as in §5 (or with <code>Hadrons</code> / <code>HadronFile</code> /
-<code>HadronArray</code>), and convert them to ROOT as in §13.</p>
+Au+Au pairs, refuse them. Read them as in §5 (or with <a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.Hadrons(pid, pstat, p, x, sample_offsets, unit_offsets, attrs=None, units=None)" href="../../python/api/analyse/#jetscape.hadrons_h5.Hadrons"><code>Hadrons</code></a> / <a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.HadronFile(path)" href="../../python/api/analyse/#jetscape.hadrons_h5.HadronFile"><code>HadronFile</code></a> /
+<a class="autorefs autorefs-internal" title="              HadronArray(pid, pstat, p, x, mass, sample_offsets=None, info=None)" href="../../python/api/analyse/#jetscape.hadron_array.HadronArray"><code>HadronArray</code></a>), and convert them to ROOT as in §13.</p>
 </div>
 <h2 id="3-the-per-event-record">3. The per-event record<a class="headerlink" href="#3-the-per-event-record" title="Permanent link">¶</a></h2>
 <p><code>units/</code> of the jet file (and of an in-job bulk file), <code>diag/</code> of the hydro file and <code>events/</code> of
@@ -3345,7 +3576,7 @@ sample 0 with them:</p>
   events with a medium have a row: an event's row is its <code>hydro_row</code>. Read it as the Au+Au pair
   files (<a href="../hydro-hadrons/#2-reading-a-pair">Hydro and hadrons together</a>), without <code>arr_bg</code>.</li>
 <li><strong><code>&lt;stem&gt;_particlize.h5</code>:</strong> <code>surface/bg</code> (one unit per event), the final partons and the
-  initiators; <code>ParticlizeFile</code> reads it. It is the input for more bulk hadrons later, in the
+  initiators; <a class="autorefs autorefs-internal" title="              jetscape.particlize_h5.ParticlizeFile(path)" href="../../python/api/analyse/#jetscape.particlize_h5.ParticlizeFile"><code>ParticlizeFile</code></a> reads it. It is the input for more bulk hadrons later, in the
   container or an X-SCAPE build:</li>
 </ul>
 <div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>contribs/PyJetscape/example/prod_AuAu_0_10_jet/run_hadronize.py<span class="w"> </span>/work/OO_c1<span class="w"> </span>-j<span class="w"> </span><span class="m">8</span><span class="w"> </span>--tags<span class="w"> </span>bulk_bg<span class="w"> </span>--oversample<span class="w"> </span><span class="m">100</span>
@@ -3677,13 +3908,15 @@ the full analysis guide:
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">

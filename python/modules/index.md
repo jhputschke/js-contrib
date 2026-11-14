@@ -19,7 +19,7 @@ Override only what you need: a method you leave out does what the C++ base class
 
 ## The base classes
 
-All are in `jetscape.pyjetscape_core` (below `core`).
+All are in jetscape.pyjetscape_core (below `core`).
 
 | stage               | base class               | override                                                                     | gets / gives                                                                                                                    |
 | ------------------- | ------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -305,4 +305,5 @@ A call into a Python energy-loss module costs about 1.4 µs on top of the module
 
 - [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md): a complete Python hydro module backed by a neural network.
 - [The Pythonic interface](https://jhputschke.github.io/js-contrib/python/pythonic/index.md): reading what your module produced.
+- [Python API → C++ bindings](https://jhputschke.github.io/js-contrib/python/api/core/index.md): every base class and its methods, and [Run events](https://jhputschke.github.io/js-contrib/python/api/run/index.md) for `@js.module`.
 - The full reference: PyJetscape's [README, *Writing modules in Python*](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/README.md#writing-modules-in-python) and [`example/python_modules/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/python_modules/README.md).

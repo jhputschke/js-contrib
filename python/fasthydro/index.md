@@ -7,7 +7,7 @@ The solver and the initial state are FNO4d's `fast_data`, vendored unchanged und
 ## Requirements
 
 - An X-SCAPE build (branch `contrib`) with PyJetscape: `-DUSE_JS_CONTRIB=ON -DUSE_JS_PYJETSCAPE=ON` ([source build](https://jhputschke.github.io/js-contrib/install/source/index.md)). FastHydro is pure Python: it compiles nothing and needs no CMake option of its own.
-- **The Python that `pyjetscape_core` was built with**, with numpy, scipy, h5py, hdf5plugin, pyyaml, and PyTorch ≥ 2.0 for the solver. The `js_fno` conda environment has all of them and installs FastHydro as an editable package. PyTorch is not in the production container.
+- **The Python that pyjetscape_core was built with**, with numpy, scipy, h5py, hdf5plugin, pyyaml, and PyTorch ≥ 2.0 for the solver. The `js_fno` conda environment has all of them and installs FastHydro as an editable package. PyTorch is not in the production container.
 
 ```bash
 pip install -e external_packages/js-contrib/contribs/FastHydro          # from the X-SCAPE root

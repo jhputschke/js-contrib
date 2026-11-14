@@ -84,3 +84,4 @@ The stem is `AuAu_0_10_jet_seedNNNN` for an explicit seed and `AuAu_0_10_jet_<ca
 - [Extra hard scatterings, O+O and Ne+Ne](https://jhputschke.github.io/js-contrib/run/extra-hard/index.md): the event's other hard scatterings, minimum bias, the light ions at the LHC.
 - [Clusters, GPUs and monitoring](https://jhputschke.github.io/js-contrib/run/clusters/index.md): SLURM, several GPUs, `jobmon.py`.
 - [Data on the OSDF](https://jhputschke.github.io/js-contrib/run/osdf/index.md): download existing productions or share yours.
+- Running and writing from a Python script of your own: [Python API → Run events](https://jhputschke.github.io/js-contrib/python/api/run/index.md) and [Write the files](https://jhputschke.github.io/js-contrib/python/api/write/index.md).

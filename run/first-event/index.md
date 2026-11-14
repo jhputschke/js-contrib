@@ -86,7 +86,7 @@ A module that throws inside an event costs that event only: it is listed as skip
 
 ### A look at the hadrons
 
-The files are in the `jetscape.hadrons_h5` format of all productions. In the same environment (or the [analysis environment](https://jhputschke.github.io/js-contrib/install/analysis-env/index.md), which needs no X-SCAPE):
+The files are in the jetscape.hadrons_h5 format of all productions. In the same environment (or the [analysis environment](https://jhputschke.github.io/js-contrib/install/analysis-env/index.md), which needs no X-SCAPE):
 
 ```python
 import awkward as ak
@@ -178,7 +178,7 @@ With an explicit `--seed 1` the stem is `AuAu_0_10_jet_seed0001`. Stage 1 writes
 | `<stem>_hadrons_bulk_bg.h5`  | iSS on the background's surface                            |
 | `<stem>_hadrons_jet_frag.h5` | the jet partons, fragmented by Pythia                      |
 
-The difference between the first two is the medium's response to the jet, at hadron level. Read the three together with `HadronFileReader`: [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md).
+The difference between the first two is the medium's response to the jet, at hadron level. Read the three together with HadronFileReader: [Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/index.md).
 
 A first look at the hydro pair
 

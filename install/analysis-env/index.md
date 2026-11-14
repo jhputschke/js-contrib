@@ -1,6 +1,6 @@
 # Analysis environment
 
-The analysis environment is a plain Python venv for reading and analysing the files a production writes, on any computer with Python 3.10 or later. It needs no GPU, no X-SCAPE build, no compiled `pyjetscape_core`, no conda and no ROOT. Use it when someone else runs the productions and you get the files (from a disk or from the [OSDF](https://jhputschke.github.io/js-contrib/run/osdf/index.md)), or when you analyse on a laptop and simulate elsewhere. It holds the HDF5 readers of the `jetscape` package, uproot and awkward, FastJet, vector, particle, hist, mplhep, scipy, pandas, Jupyter, pyvista for the 3D visualization, and pelicanfs for `osdf://` files.
+The analysis environment is a plain Python venv for reading and analysing the files a production writes, on any computer with Python 3.10 or later. It needs no GPU, no X-SCAPE build, no compiled pyjetscape_core, no conda and no ROOT. Use it when someone else runs the productions and you get the files (from a disk or from the [OSDF](https://jhputschke.github.io/js-contrib/run/osdf/index.md)), or when you analyse on a laptop and simulate elsewhere. It holds the HDF5 readers of the `jetscape` package, uproot and awkward, FastJet, vector, particle, hist, mplhep, scipy, pandas, Jupyter, pyvista for the 3D visualization, and pelicanfs for `osdf://` files.
 
 You may already have one
 
@@ -8,12 +8,12 @@ The [production container](https://jhputschke.github.io/js-contrib/install/conta
 
 ## What works in it, and what doesn't
 
-| works                                                                                                                                    | doesn't                                                                                         |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| every HDF5 file of a production: pair, particlize and hadron files (`jetscape.hadrons_h5`, `jetscape.particlize_h5`, `jetscape.showers`) | anything that runs X-SCAPE: `run_prod_jet.py`, `run_jobs.sh`                                    |
-| `run_h5toROOT.py` (hadron files → ROOT ntuples, written with uproot) and reading ROOT files with uproot                                  | re-hadronization (`hadronize.py`, `run_hadronize.py`): iSS and Pythia live in the compiled core |
-| the analysis scripts and notebooks (`analysis/`, `jet_wake.ipynb`, the FastJet tutorials)                                                | the ROOT macros and the C++ reader, unless ROOT is added ([below](#4-root-next-to-it))          |
-| the visualization of stored files (`wake_pyvista.py`, `hydro_jet_particles_pyvista.py --file`)                                           | the visualization of a live event                                                               |
+| works                                                                                                                              | doesn't                                                                                         |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| every HDF5 file of a production: pair, particlize and hadron files (jetscape.hadrons_h5, jetscape.particlize_h5, jetscape.showers) | anything that runs X-SCAPE: `run_prod_jet.py`, `run_jobs.sh`                                    |
+| `run_h5toROOT.py` (hadron files → ROOT ntuples, written with uproot) and reading ROOT files with uproot                            | re-hadronization (`hadronize.py`, `run_hadronize.py`): iSS and Pythia live in the compiled core |
+| the analysis scripts and notebooks (`analysis/`, `jet_wake.ipynb`, the FastJet tutorials)                                          | the ROOT macros and the C++ reader, unless ROOT is added ([below](#4-root-next-to-it))          |
+| the visualization of stored files (`wake_pyvista.py`, `hydro_jet_particles_pyvista.py --file`)                                     | the visualization of a live event                                                               |
 
 `jetscape.HAS_CORE` is `False` in this venv. That is expected: every reader works without the compiled core.
 
@@ -161,7 +161,7 @@ The `jetscape` package with the same analysis packages also comes as a pure-Pyth
 uv pip install "pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v1.5/pyjetscape-1.5-py3-none-any.whl"
 ```
 
-Quote the argument: zsh treats `[...]` as a pattern. The readers, `HadronArray`, the awkward views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it does not install pyvista (pelicanfs is in `[analysis]` from 1.5; with the older 0.2.0 wheel, pyjetscape 1.4, add it with `uv pip install pelicanfs "aiowebdav2<1"`), and it does not fetch the EoS tables: download both as in the conda tab above and point `MUSIC_EOS_TABLE` at one of them (the tools take the other from the same directory).
+Quote the argument: zsh treats `[...]` as a pattern. The readers, HadronArray, the awkward views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it does not install pyvista (pelicanfs is in `[analysis]` from 1.5; with the older 0.2.0 wheel, pyjetscape 1.4, add it with `uv pip install pelicanfs "aiowebdav2<1"`), and it does not fetch the EoS tables: download both as in the conda tab above and point `MUSIC_EOS_TABLE` at one of them (the tools take the other from the same directory).
 
 ## Threads and memory
 
@@ -169,7 +169,7 @@ The analysis tools are mostly single-threaded Python. Parallelise over files wit
 
 | tool                                               | parallel with                                             | memory                                                                                                                |
 | -------------------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `HadronFileReader`                                 | one process; split a campaign by `events=` over processes | the units it reads: a background of 2000 oversamples is ~14 M hadrons, ~1.5 GB with the derived kinematics (estimate) |
+| HadronFileReader                                   | one process; split a campaign by `events=` over processes | the units it reads: a background of 2000 oversamples is ~14 M hadrons, ~1.5 GB with the derived kinematics (estimate) |
 | `wake_observables.py -j N`, `wake_hadrons.py -j N` | N processes over files                                    | about +0.5 GB per process for the read-ahead (`wake_observables.py`)                                                  |
 | `run_h5toROOT.py -j N`                             | N processes                                               | ~80 B per hadron of the largest tag: ~3.5 GB for a 15-event file at 400 oversamples                                   |
 | `hadron_distributions.C` (RDataFrame)              | its `threads` argument                                    |                                                                                                                       |

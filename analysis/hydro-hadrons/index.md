@@ -54,7 +54,7 @@ with h5py.File("AuAu_0_10_jet_c1_0001.h5", "r") as f:
 
 - **Read frame by frame.** Each chunk is one event and one τ frame; a frame is ~2 MB.
 - **The grid** (cell centres, steps) is in the attributes; the production grid is 64 × 64 × 32, ±12.2 fm in x and y, ±4.84 in η_s, every 0.1 fm/c from τ = 0.5 fm/c.
-- **The showers** that made the droplets are in `shower/`, read with `jetscape.showers` (`fates`, `segments`, `to_milne`).
+- **The showers** that made the droplets are in `shower/`, read with jetscape.showers (`fates`, `segments`, `to_milne`).
 - **A campaign to one τ length:** `python contribs/PyJetscape/python/jetscape/repad_h5.py FILES` grows `arr` and `arr_bg` in place (a metadata resize), for loaders that need equal shapes.
 - **FNO training:** FNO4d's `read_3d_data_hdf5(files, h5_key="arr"/"arr_bg", unique_bg=...)` reads many pair files lazily; `unique_bg` drops the repeated backgrounds of a reuse campaign.
 
@@ -98,7 +98,7 @@ It takes ~1 min for 300 events at `-j 10`, with ~0.5 GB extra per process for re
 
 ### Matching hadron files to the pair's events
 
-All files of one job share its stem and its event order. Event i of the pair file is event i of the particlize file, unit i of `bulk_jet` and of `jet_frag`; its background in `bulk_bg` is unit `events/bg_unit[i]` of the particlize file (backgrounds are stored once, so their numbering is not the events'). In the pair file `arr_bg[i]` already resolves a shared background. `HadronFileReader` numbers events over the whole campaign, and its `event_info` leads back to the job and the local event:
+All files of one job share its stem and its event order. Event i of the pair file is event i of the particlize file, unit i of `bulk_jet` and of `jet_frag`; its background in `bulk_bg` is unit `events/bg_unit[i]` of the particlize file (backgrounds are stored once, so their numbering is not the events'). In the pair file `arr_bg[i]` already resolves a shared background. HadronFileReader numbers events over the whole campaign, and its `event_info` leads back to the job and the local event:
 
 ```python
 import h5py, hdf5plugin, numpy as np
@@ -217,3 +217,4 @@ The study also lists its limits (the output grid ends at `$|\eta_s|$` = 5, where
 - Jets in the same events, and what the wake does to them: [Jets with FastJet](https://jhputschke.github.io/js-contrib/analysis/jets/index.md).
 - The live FNO hydro these files train: [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md).
 - Making pair files: [Au+Au jets (two stages)](https://jhputschke.github.io/js-contrib/run/auau-jet/index.md).
+- Every reader class and method, with examples: [Python API → Analyse the files](https://jhputschke.github.io/js-contrib/python/api/analyse/index.md).

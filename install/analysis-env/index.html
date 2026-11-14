@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -52,7 +52,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1689,6 +1693,8 @@
       
         
       
+        
+      
     
     
     
@@ -1878,6 +1884,231 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2817,7 +3048,7 @@
 <h1 id="analysis-environment">Analysis environment<a class="headerlink" href="#analysis-environment" title="Permanent link">¶</a></h1>
 <p>The analysis environment is a plain Python venv for reading and analysing the files a
 production writes, on any computer with Python 3.10 or later. It needs no GPU, no X-SCAPE
-build, no compiled <code>pyjetscape_core</code>, no conda and no ROOT. Use it when someone else runs the
+build, no compiled <a class="autorefs autorefs-internal" title="            jetscape.pyjetscape_core" href="../../python/api/core/#jetscape.pyjetscape_core"><code>pyjetscape_core</code></a>, no conda and no ROOT. Use it when someone else runs the
 productions and you get the files (from a disk or from the <a href="../../run/osdf/">OSDF</a>), or when you
 analyse on a laptop and simulate elsewhere. It holds the HDF5 readers of the <code>jetscape</code>
 package, uproot and awkward, FastJet, vector, particle, hist, mplhep, scipy, pandas, Jupyter,
@@ -2841,7 +3072,7 @@ that have neither.</p>
 </thead>
 <tbody>
 <tr>
-<td>every HDF5 file of a production: pair, particlize and hadron files (<code>jetscape.hadrons_h5</code>, <code>jetscape.particlize_h5</code>, <code>jetscape.showers</code>)</td>
+<td>every HDF5 file of a production: pair, particlize and hadron files (<a class="autorefs autorefs-internal" title="            jetscape.hadrons_h5" href="../../python/api/analyse/#jetscape.hadrons_h5"><code>jetscape.hadrons_h5</code></a>, <a class="autorefs autorefs-internal" title="            jetscape.particlize_h5" href="../../python/api/analyse/#jetscape.particlize_h5"><code>jetscape.particlize_h5</code></a>, <a class="autorefs autorefs-internal" title="            jetscape.showers" href="../../python/api/analyse/#jetscape.showers"><code>jetscape.showers</code></a>)</td>
 <td>anything that runs X-SCAPE: <code>run_prod_jet.py</code>, <code>run_jobs.sh</code></td>
 </tr>
 <tr>
@@ -3075,7 +3306,7 @@ of every <a href="https://github.com/jhputschke/xscape-macos/releases">xscape-ma
 installs on any platform, in any Python 3.10+ environment:</p>
 <div class="language-bash highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"pyjetscape[analysis] @ https://github.com/jhputschke/xscape-macos/releases/download/v1.5/pyjetscape-1.5-py3-none-any.whl"</span>
 </code></pre></div>
-<p>Quote the argument: zsh treats <code>[...]</code> as a pattern. The readers, <code>HadronArray</code>, the awkward
+<p>Quote the argument: zsh treats <code>[...]</code> as a pattern. The readers, <a class="autorefs autorefs-internal" title="              HadronArray(pid, pstat, p, x, mass, sample_offsets=None, info=None)" href="../../python/api/analyse/#jetscape.hadron_array.HadronArray"><code>HadronArray</code></a>, the awkward
 views and the notebooks work with it; running X-SCAPE does not. Unlike the setup script, it
 does not install pyvista (pelicanfs is in <code>[analysis]</code> from 1.5; with the older 0.2.0 wheel,
 pyjetscape 1.4, add it with <code>uv pip install pelicanfs "aiowebdav2&lt;1"</code>), and it does not fetch the EoS tables: download both as in the conda tab above and
@@ -3093,7 +3324,7 @@ and keep processes × threads at or below the number of cores.</p>
 </thead>
 <tbody>
 <tr>
-<td><code>HadronFileReader</code></td>
+<td><a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.HadronFileReader(source, *, check_uuid=True)" href="../../python/api/analyse/#jetscape.hadrons_h5.HadronFileReader"><code>HadronFileReader</code></a></td>
 <td>one process; split a campaign by <code>events=</code> over processes</td>
 <td>the units it reads: a background of 2000 oversamples is ~14 M hadrons, ~1.5 GB with the derived kinematics (estimate)</td>
 </tr>
@@ -3388,13 +3619,15 @@ hadrons, jets with FastJet, hydro and hadrons together, O+O, and ROOT.</p><scrip
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">

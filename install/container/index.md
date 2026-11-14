@@ -69,7 +69,7 @@ Everything else on this page follows from four rules.
 1. **The image is read-only; your files live in `/work`.** The X-SCAPE tree is `/opt/X-SCAPE` (read-only in Apptainer, owned by root in Docker). Mount a directory of yours at `/work` (Docker `-v "$PWD/work:/work"`, Apptainer `--bind "$PWD/work:/work"`) and write every output there. A file written anywhere else is gone when the container ends.
 1. **Run as yourself.** With Docker, pass `--user "$(id -u):$(id -g)"`, or the outputs belong to root. Apptainer runs as you anyway.
 1. **GPU access is explicit.** Docker `--gpus all` (or `--gpus device=1`), Apptainer `--nv`. Without it MUSIC falls back to its CPU path: about 10× slower, and its numbers are not the GPU's.
-1. **Everything finds the tree by itself.** `import jetscape` works everywhere; scripts and notebooks find the build through `$XSCAPE=/opt/X-SCAPE` (`jetscape.paths`), and each job runs in a private working directory under its output directory, so jobs never share files and nothing writes into the image. Leave `XSCAPE` and `JETSCAPE_BUILD` as the image sets them.
+1. **Everything finds the tree by itself.** `import jetscape` works everywhere; scripts and notebooks find the build through `$XSCAPE=/opt/X-SCAPE` (jetscape.paths), and each job runs in a private working directory under its output directory, so jobs never share files and nothing writes into the image. Leave `XSCAPE` and `JETSCAPE_BUILD` as the image sets them.
 
 Where things are inside the container:
 
@@ -172,7 +172,7 @@ docker run --rm --user "$(id -u):$(id -g)" -v "$PWD/work:/work" jhputschke/xscap
 docker run ... -e PYTHONPATH=/work/pylib:/opt/X-SCAPE/external_packages/js-contrib/contribs/PyJetscape/python ...
 ```
 
-Don't upgrade numpy or h5py this way: `pyjetscape_core` is compiled against the image's numpy. For a group, a small Dockerfile of your own is cleaner: `FROM jhputschke/xscape-prod:cu126-<date>-<commit>` plus `RUN pip install --no-cache-dir seaborn`.
+Don't upgrade numpy or h5py this way: pyjetscape_core is compiled against the image's numpy. For a group, a small Dockerfile of your own is cleaner: `FROM jhputschke/xscape-prod:cu126-<date>-<commit>` plus `RUN pip install --no-cache-dir seaborn`.
 
 ### Changing js-contrib's Python code
 

@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -52,7 +52,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1701,6 +1705,8 @@
       
         
       
+        
+      
     
     
     
@@ -1890,6 +1896,231 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2875,14 +3106,14 @@ files, and the readers open them side by side as one data set.</p>
 <td>the job, with <code>--write-particlize</code></td>
 <td>both freeze-out surfaces (32 columns per cell), the final partons, the shower initiators, the event table</td>
 <td>~90 MB (15 jets per background)</td>
-<td><code>ParticlizeFile</code></td>
+<td><a class="autorefs autorefs-internal" title="              jetscape.particlize_h5.ParticlizeFile(path)" href="../../python/api/analyse/#jetscape.particlize_h5.ParticlizeFile"><code>ParticlizeFile</code></a></td>
 </tr>
 <tr>
 <td><code>&lt;stem&gt;_hadrons_bulk_jet.h5</code></td>
 <td><code>hadronize.py</code></td>
 <td>iSS on the jet leg's surface: bulk + wake, N oversamples per event</td>
 <td>~0.2 MB per oversample at full precision</td>
-<td><code>HadronFileReader</code></td>
+<td><a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.HadronFileReader(source, *, check_uuid=True)" href="../../python/api/analyse/#jetscape.hadrons_h5.HadronFileReader"><code>HadronFileReader</code></a></td>
 </tr>
 <tr>
 <td><code>&lt;stem&gt;_hadrons_bulk_bg.h5</code></td>
@@ -3028,7 +3259,7 @@ fluctuations to subtract. How to use them: <a href="../hydro-hadrons/">Hydro and
 <tr>
 <td><code>shower/</code></td>
 <td></td>
-<td>the shower graphs (partons, vertices, initiators), read with <code>jetscape.showers</code></td>
+<td>the shower graphs (partons, vertices, initiators), read with <a class="autorefs autorefs-internal" title="            jetscape.showers" href="../../python/api/analyse/#jetscape.showers"><code>jetscape.showers</code></a></td>
 </tr>
 <tr>
 <td><code>diag/</code></td>
@@ -3057,7 +3288,7 @@ fluctuations to subtract. How to use them: <a href="../hydro-hadrons/">Hydro and
 </ul>
 <h2 id="3-particlize-files">3. Particlize files<a class="headerlink" href="#3-particlize-files" title="Permanent link">¶</a></h2>
 <p>The input to hadronization, stored instead of hadrons so that hadronization can run later, on
-CPUs, as often as needed (<code>jetscape.particlize_h5</code>):</p>
+CPUs, as often as needed (<a class="autorefs autorefs-internal" title="            jetscape.particlize_h5" href="../../python/api/analyse/#jetscape.particlize_h5"><code>jetscape.particlize_h5</code></a>):</p>
 <table>
 <thead>
 <tr>
@@ -3116,7 +3347,7 @@ CPUs, as often as needed (<code>jetscape.particlize_h5</code>):</p>
 <code>prod_AuAu_0_10_jet/add_initiators.py</code> copies them in once from the pair files.</p>
 <h2 id="4-hadron-files">4. Hadron files<a class="headerlink" href="#4-hadron-files" title="Permanent link">¶</a></h2>
 <p><code>hadronize.py</code> (or the job itself, in hadrons-only mode) writes one file per <strong>tag</strong>
-(<code>jetscape.hadrons_h5</code>, format <code>xscape/hadrons</code>):</p>
+(<a class="autorefs autorefs-internal" title="            jetscape.hadrons_h5" href="../../python/api/analyse/#jetscape.hadrons_h5"><code>jetscape.hadrons_h5</code></a>, format <code>xscape/hadrons</code>):</p>
 <table>
 <thead>
 <tr>
@@ -3390,6 +3621,7 @@ datasets unless asked:</p>
 <li>Read the hadrons of a campaign: <a href="../hadrons/">Hadrons</a>.</li>
 <li>Read the hydro pair and connect it to the hadrons: <a href="../hydro-hadrons/">Hydro and hadrons together</a>.</li>
 <li>Work in ROOT: <a href="../root/">ROOT and C++</a>.</li>
+<li>The readers of these files, class by class: <a href="../../python/api/analyse/">Python API → Analyse the files</a>.</li>
 </ul><script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
 /* Shared by full pages and Material's instant navigation. */
 (() => {
@@ -3651,13 +3883,15 @@ datasets unless asked:</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">

@@ -12,8 +12,8 @@ flowchart TB
     D --> E["X-SCAPE + MUSIC4GPU, iSS, Pythia, ..."]
 ```
 
-- **`pyjetscape_core`** is the compiled extension: pybind11 bindings of X-SCAPE's classes (`JetScape`, `JetScapePerEvent`, `Parton`, `FourVector`, `PartonShower`, the module base classes, MUSIC, iSS access, ...) with their C++ names and argument order, so C++ code ports line by line. Every module base class has a *trampoline*: a Python subclass runs as a real JETSCAPE module.
-- **The `jetscape` package** is pure Python around it: event-loop drivers (`jetscape.run_jetscape`), the HDF5 writers and readers of the productions, `PyFNOHydro`, conversion helpers (`jetscape.utils`), and `jetscape.paths` / `JobDir`, which find the X-SCAPE tree and give each run a working directory. The HDF5 readers work without the compiled extension; `jetscape.HAS_CORE` says whether it is there.
+- **pyjetscape_core** is the compiled extension: pybind11 bindings of X-SCAPE's classes (`JetScape`, `JetScapePerEvent`, `Parton`, `FourVector`, `PartonShower`, the module base classes, MUSIC, iSS access, ...) with their C++ names and argument order, so C++ code ports line by line. Every module base class has a *trampoline*: a Python subclass runs as a real JETSCAPE module.
+- **The `jetscape` package** is pure Python around it: event-loop drivers (jetscape.run_jetscape), the HDF5 writers and readers of the productions, PyFNOHydro, conversion helpers (jetscape.utils), and jetscape.paths / JobDir, which find the X-SCAPE tree and give each run a working directory. The HDF5 readers work without the compiled extension; `jetscape.HAS_CORE` says whether it is there.
 - **The Pythonic layer** is installed onto the bound classes by `import jetscape`: numpy record arrays instead of column indices, hadrons as one array per field, awkward views with `vector` kinematics, an event loop that is a context manager, and modules that declare their XML parameters. It only adds names, so code written against the bare bindings keeps working.
 
 In code, `import jetscape as js` gives the package and the Pythonic layer; the bound classes themselves are in `jetscape.pyjetscape_core`:
@@ -109,5 +109,6 @@ Mode C is the one to use for analysis and for anything that reads results: only 
 - [Live PyTorch FNO hydro](https://jhputschke.github.io/js-contrib/python/fno/index.md): a PyTorch Fourier neural operator as the hydro module.
 - [FastHydro](https://jhputschke.github.io/js-contrib/python/fasthydro/index.md): MC-Glauber and a 3+1D hydro solver in PyTorch, with jet-deposition pairs.
 - [3D visualization](https://jhputschke.github.io/js-contrib/python/visualization/index.md): the medium and the parton shower in PyVista.
+- [Python API](https://jhputschke.github.io/js-contrib/python/api/index.md): every class and function with its signature and documentation, generated from the source.
 
 The full reference of the bindings and the package is [`contribs/PyJetscape/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/README.md); all examples are listed in [`contribs/PyJetscape/example/README.md`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/README.md).

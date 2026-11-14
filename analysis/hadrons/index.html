@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -52,7 +52,11 @@
       
     
     
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
       <link rel="stylesheet" href="../../assets/extra.css">
+    
+      <link rel="stylesheet" href="../../assets/api.css">
     
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
@@ -1701,6 +1705,8 @@
       
         
       
+        
+      
     
     
     
@@ -1890,6 +1896,231 @@
   
 
       </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7">
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../python/api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Python API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix="">
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/write/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/analyse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/bulk/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ROOT, bulk and FNO files
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../python/api/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    C++ bindings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -2847,8 +3078,8 @@ vetting; they are meant mainly as examples of how to use the simulation outputs.
 </div>
 <p>This page shows how to read the hadron files of a whole campaign as one data set, fill
 histograms with the right per-event statistics, pull out single events, weight pT̂ windows by
-their cross sections, and spot bad runs. The tool for almost all of it is <code>HadronFileReader</code>
-from <code>jetscape.hadrons_h5</code>; lower-level readers and the Pythonic <code>HadronArray</code> are at the end,
+their cross sections, and spot bad runs. The tool for almost all of it is <a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.HadronFileReader(source, *, check_uuid=True)" href="../../python/api/analyse/#jetscape.hadrons_h5.HadronFileReader"><code>HadronFileReader</code></a>
+from <a class="autorefs autorefs-internal" title="            jetscape.hadrons_h5" href="../../python/api/analyse/#jetscape.hadrons_h5"><code>jetscape.hadrons_h5</code></a>; lower-level readers and the Pythonic <a class="autorefs autorefs-internal" title="              HadronArray(pid, pstat, p, x, mass, sample_offsets=None, info=None)" href="../../python/api/analyse/#jetscape.hadron_array.HadronArray"><code>HadronArray</code></a> are at the end,
 for when you need one file, one sample or awkward arrays. It applies to the Au+Au jet
 productions (two stages or hadrons-only jobs), the Z+jet productions and the productions with
 extra hard scatterings or minimum bias; O+O hadron files made in the job by the O+O with ISR
@@ -2911,12 +3142,12 @@ per event, added over events).</p>
 <a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>    <span class="n">full</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">jet_minus_background</span><span class="p">(</span><span class="n">dphi</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="n">soft_charged</span><span class="p">,</span> <span class="n">fragments</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># + jet_frag</span>
 </code></pre></div>
 <ul>
-<li><strong><code>values</code>, <code>mask</code>, <code>weights</code></strong> are either names (an attribute of <code>EventHadrons</code>: <code>pid</code>,
+<li><strong><code>values</code>, <code>mask</code>, <code>weights</code></strong> are either names (an attribute of <a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.EventHadrons(h, u)" href="../../python/api/analyse/#jetscape.hadrons_h5.EventHadrons"><code>EventHadrons</code></a>: <code>pid</code>,
   <code>pstat</code>, <code>p</code>, <code>x</code>, <code>E</code>, <code>px</code>, <code>py</code>, <code>pz</code>, <code>pt</code>, <code>eta</code>, <code>y</code>, <code>phi</code>, <code>charged</code>, <code>sample</code>; for
   <code>mask</code> also <code>"charged"</code> or a species, <code>"pi+"</code>, <code>"K-"</code>, <code>"p"</code>, <code>"pbar"</code>, <code>"pi"</code>, <code>"K"</code>,
   <code>"p+pbar"</code>), or callables <code>f(ev, info)</code> returning one value per hadron. A tuple of names (or a
   callable returning a tuple) gives an N-dimensional histogram.</li>
-<li><strong>Callables get the event's <code>info</code></strong> (<code>EventInfo</code>: <code>event</code>, <code>stem</code>, <code>local_event</code>, <code>bg_unit</code>,
+<li><strong>Callables get the event's <code>info</code></strong> (<a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.EventInfo(reader, g, i, local)" href="../../python/api/analyse/#jetscape.hadrons_h5.EventInfo"><code>EventInfo</code></a>: <code>event</code>, <code>stem</code>, <code>local_event</code>, <code>bg_unit</code>,
   <code>seed</code>, <code>pthat_bin</code>, <code>pthat</code>, <code>n_coll</code>, <code>z</code>, <code>initiators()</code>), which jet-relative observables
   need: above, Δφ to the event's leading initiator.</li>
 <li><strong>Names are faster.</strong> With names only, a background shared by several events is binned once
@@ -3055,7 +3286,7 @@ windows are correlated: the simple sum of variances above is right for <code>jet
 <a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="n">h</span> <span class="o">=</span> <span class="n">Hadrons</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="s2">"&lt;stem&gt;_hadrons_bulk_bg.h5"</span><span class="p">)</span>            <span class="c1"># a whole file in memory</span>
 <a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="n">dn</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">eta</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">h</span><span class="o">.</span><span class="n">charged</span><span class="p">)</span>   <span class="c1"># per sample</span>
 </code></pre></div>
-<p><code>Hadrons</code> carries <code>pt</code>, <code>eta</code>, <code>y</code>, <code>phi</code>, <code>charged</code>, <code>sample</code>, <code>unit</code> as arrays (in float64,
+<p><a class="autorefs autorefs-internal" title="              jetscape.hadrons_h5.Hadrons(pid, pstat, p, x, sample_offsets, unit_offsets, attrs=None, units=None)" href="../../python/api/analyse/#jetscape.hadrons_h5.Hadrons"><code>Hadrons</code></a> carries <code>pt</code>, <code>eta</code>, <code>y</code>, <code>phi</code>, <code>charged</code>, <code>sample</code>, <code>unit</code> as arrays (in float64,
 about 2.4 times the file's memory) and <code>hist</code> / <code>total</code> averaged per sample. <code>units=</code> reads only
 some units.</p>
 <h3 id="the-pythonic-hadronarray">The Pythonic <code>HadronArray</code><a class="headerlink" href="#the-pythonic-hadronarray" title="Permanent link">¶</a></h3>
@@ -3104,6 +3335,7 @@ h5py or <code>HadronArray</code> through <code>fsspec</code>.</p>
 <li>Nch, [pT] and vₙ{2}, and the paired difference to the background: <a href="../bulk/">Bulk and flow</a>.</li>
 <li>The same events in the fluid: <a href="../hydro-hadrons/">Hydro and hadrons together</a>.</li>
 <li>The same in ROOT: <a href="../root/">ROOT and C++</a>.</li>
+<li>Every reader class and method, with examples: <a href="../../python/api/analyse/">Python API → Analyse the files</a>.</li>
 </ul><script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
 /* Shared by full pages and Material's instant navigation. */
 (() => {
@@ -3365,13 +3597,15 @@ h5py or <code>HadronArray</code> through <code>fsspec</code>.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
         <script src="https://unpkg.com/mathjax@3.2.2/es5/tex-mml-chtml.js"></script>
       
         <script src="../../assets/diagram-zoom.js"></script>
+      
+        <script src="../../assets/api-signatures.js"></script>
       
     
   <script data-mkdocs-jupyter-mathjax="{&quot;url&quot;: &quot;https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.js&quot;, &quot;version&quot;: 4}">
