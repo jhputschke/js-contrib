@@ -67,9 +67,14 @@
   font-style: italic;
   font-weight: 400;
   font-size: 0.95em;
-  color: var(--md-default-fg-color--light) !important;
 }
 .md-typeset .doc-symbol-heading::after { color: inherit !important; background: none !important; }
+/* the word takes the colour of its kind, as the badges in the table of contents do */
+.md-typeset .doc-symbol-heading.doc-symbol-class { color: var(--doc-symbol-class-fg-color) !important; }
+.md-typeset .doc-symbol-heading.doc-symbol-function { color: var(--doc-symbol-function-fg-color) !important; }
+.md-typeset .doc-symbol-heading.doc-symbol-method { color: var(--doc-symbol-method-fg-color) !important; }
+.md-typeset .doc-symbol-heading.doc-symbol-attribute { color: var(--doc-symbol-attribute-fg-color) !important; }
+.md-typeset .doc-symbol-heading.doc-symbol-module { color: var(--doc-symbol-module-fg-color) !important; }
 .md-typeset .doc-symbol-heading.doc-symbol-class::after { content: "class"; }
 .md-typeset .doc-symbol-heading.doc-symbol-function::after { content: "function"; }
 .md-typeset .doc-symbol-heading.doc-symbol-method::after { content: "method"; }
