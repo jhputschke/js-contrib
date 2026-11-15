@@ -124,14 +124,15 @@ One event's hadrons (or a whole file's), **one array per field**, grouped into s
 
 ## Nested views: `to_awkward`
 
-`js.to_awkward(obj, position=False, charge=False, by_unit=False)`, also `HadronArray.to_awkward(...)`:
+`js.to_awkward(obj, position=False, charge=False, by_unit=False, charged=False, massless=False, pion_mass=False)`, also `HadronArray.to_awkward(...)` (`charged`, `massless`, `pion_mass`: new after v1.5, in js-contrib's `main` and the releases after it):
 
-| input                                          | result                                 |
-| ---------------------------------------------- | -------------------------------------- |
-| `HadronArray`                                  | samples x hadrons, on the same buffers |
-| `HadronArray.from_h5(...)` with `by_unit=True` | units (events) x samples x hadrons     |
-| final-parton or initiator records              | showers x partons                      |
-| edge, node, hard-parton records                | a flat array of records                |
+| input                                                               | result                                   |
+| ------------------------------------------------------------------- | ---------------------------------------- |
+| `HadronArray`                                                       | samples x hadrons, on the same buffers   |
+| `HadronArray.from_h5(...)` with `by_unit=True`                      | units (events) x samples x hadrons       |
+| HadronFileReader.hadron_array(...) with `by_unit=True` (after v1.5) | the events asked for x samples x hadrons |
+| final-parton or initiator records                                   | showers x partons                        |
+| edge, node, hard-parton records                                     | a flat array of records                  |
 
 The records are `vector` `Momentum4D` objects, so kinematics come on demand:
 
@@ -145,7 +146,8 @@ dndeta = ak.mean(ak.num(mid), axis=0)            # mean over the oversamples
 ```
 
 - `position=True` adds a nested `h.position` (`Vector4D`: `h.position.t`, `h.position.rho`). It is nested on purpose: `vector` would read flat fields named t, x, y, z as the coordinates of the momentum.
-- `charge=True` adds the PDG charge.
+- `charge=True` adds the PDG charge; `charged=True` a boolean `charged` (the stable charged hadrons and leptons, `hadrons_h5.CHARGED`, as `mask="charged"` of the reader; no `particle` needed).
+- `massless=True` replaces E by |p|; `pion_mass=True` gives the charged particles the pion mass and the neutral ones none (every track a pion). Both compute a new float64 E; the other fields stay views. Without either, the stored E.
 - A stored mass appears as the field `rest_mass`; `h.mass` is `vector`'s, computed from E and p.
 - `ak.flatten(a, axis=1)` merges units x samples into samples; `ak.num(a, axis=k)` counts.
 
@@ -221,6 +223,8 @@ bulk_jets = fastjet.ClusterSequence(per_sample[abs(per_sample.eta) < 2],
                                     jdef).inclusive_jets(min_pt=5.0)
 bulk_jets = ak.unflatten(bulk_jets, ak.num(b, axis=1))                 # units x samples x jets
 ```
+
+For chosen events of a campaign, with a hadron selection applied while reading, HadronFileReader.hadron_array gives the same arrays from global event numbers (new after v1.5; [Jets with FastJet](https://jhputschke.github.io/js-contrib/analysis/jets/#5-the-array-interface-awkward)).
 
 The jagged call gives the same jets as a loop over the samples. Jets are `vector` records too (`.pt`, `.eta`, `.phi`, `.m`); `constituent_index()` maps them back to hadrons. Areas, background subtraction and embedding are on [Jets with FastJet](https://jhputschke.github.io/js-contrib/analysis/jets/index.md).
 

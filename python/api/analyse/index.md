@@ -109,6 +109,29 @@ with HadronFileReader("/path/to/campaign") as r:
     jets = fj.sorted_by_pt(cs.inclusive_jets(10.0))         # pT > 10 GeV
 ```
 
+### Many samples at once: arrays for FastJet and awkward
+
+`hadron_array` reads the samples of chosen events as one array, with the same `events` and `mask` as `hist`; only those rows are read, and only the hadrons the mask keeps are stored. `to_awkward` turns it into `vector` four-momenta, and FastJet's array interface clusters every sample in one call:
+
+New after v1.5
+
+`hadron_array` and `to_awkward(charged=, massless=, pion_mass=)` are in js-contrib's `main` after v1.5 and the releases after it, not in v1.5 itself.
+
+```python
+import awkward as ak, vector, fastjet as fj
+vector.register_awkward()
+
+with HadronFileReader("/path/to/campaign") as r:
+    arr = r.hadron_array("bulk_jet", events=range(10), samples=slice(0, 20),
+                         mask=lambda ev, info: ev.charged & (abs(ev.eta) < 1.5) & (ev.pt > 0.15))
+had = arr.to_awkward(by_unit=True, pion_mass=True)  # events x samples x hadrons, tracks as pions
+cs = fj.ClusterSequence(had, fj.JetDefinition(fj.antikt_algorithm, 0.4))
+jets = cs.inclusive_jets(min_pt=10.0)               # events x samples x jets
+arr.info["units"]["event"], arr.info["samples"]     # which event and sample each block is
+```
+
+`samples=k` takes one sample per event; `massless=True` sets E = |p|, `charged=True` adds a `charged` field. Without `by_unit` the samples come in a row, samples x hadrons.
+
 ### One file, or arrays for awkward
 
 ```python
@@ -342,6 +365,21 @@ True if the production file(s) have extra hard scatterings (extra_frag).
 
 Oversample `k` of global `event`'s jet-leg bulk plus a fragmentation, and the extras' fragments if there are any (see `JetEvents.jet_event`).
 
+#### `hadron_array(tag, events=None, samples=None, *, mask=None, positions=None)`
+
+The hadrons of `tag` for `events`, every sample kept apart, as one `HadronArray`: for FastJet's array interface, awkward or numpy analyses of single hadrons that `hist` does not cover. New after v1.5 (js-contrib `main`; not in pyjetscape 1.5, the v1.5 containers or wheel).
+
+```text
+arr = reader.hadron_array("jet_frag", events=0, mask="charged")
+arr = reader.hadron_array("bulk_jet", events=range(100), samples=slice(0, 10),
+                          mask=lambda ev, info: ev.charged & (abs(ev.eta) < 1))
+ev = arr.to_awkward(by_unit=True)     # events x samples x hadrons
+```
+
+Args: tag: one of `TAGS`. events: global event numbers as in `hist` (None: all; an int, a slice or an iterable), returned in ascending order, each once. `bulk_bg` gives each event the background it used, so events sharing a background each get their own copy. samples: the samples of each event: None (all), an int k, a slice or an iterable of sample indices, kept in stored order. An int beyond an event's samples raises, except for an event without samples (an empty surface), which then has none. mask: a hadron selection as in `hist`: a name (`'charged'`, a species or a boolean `EventHadrons` attribute) or a callable `f(ev, info)` returning one bool per hadron of the event's samples, `ev` an `EventHadrons`, `info` an `EventInfo` (jet-relative cuts use `info.initiators()`). Applied while reading: only the hadrons kept are stored; a sample without any stays, empty. positions: also read `x` (None: if every file read has it; True: required; False: never).
+
+Returns: A HadronArray with the stored fields (`p` and `x` as stored, float32) and one sample per selected sample. `info["unit_offsets"]` groups the samples by event, so `to_awkward(by_unit=True)` nests events x samples x hadrons; `info["units"]` has one row per event: `event` (global), `file`, `local_event`, `file_unit` (the unit in the tag's file); `info["samples"]` the sample index k of each sample; `info["tag"]`.
+
 #### `hist(tag, values, bins, *, mask=None, weights=None, events=None, per_event=None)`
 
 Sample-averaged histogram of `tag` over `events` (default all) and its error. See the class docstring for `values`, `mask`, `weights` and `per_event`.
@@ -426,7 +464,7 @@ dndy, err = h.hist(h.y, np.linspace(-1, 1, 11), mask=h.species("charged"))
 
 #### `from_h5(path, units=None)`
 
-Read a file (`units`: an index array/slice to keep only those units).
+Read a file (`units`: an index array/slice to keep only those units; only their rows are read from disk).
 
 #### `unit_index(unit)`
 
@@ -686,7 +724,7 @@ From a bindings hadron dict; the arrays are taken as they are (no copy). `sample
 
 ##### `from_h5(path, units=None) -> 'HadronArray'`
 
-A hadron file (hadrons_h5 format: jet_frag, bulk_bg, ...) as one HadronArray: the stored fields as they are (float32, no derived columns), every sample of every unit in file order. `units`: an index array or slice to read only those units.
+A hadron file (hadrons_h5 format: jet_frag, bulk_bg, ...) as one HadronArray: the stored fields as they are (float32, no derived columns), every sample of every unit in file order. `units`: an index array or slice of unit positions (not the recorded event numbers: `HadronFile.unit_index` maps those) to read only those units; only their rows are read from disk (after v1.5; before, the whole file). For events of a campaign by their number, with samples and a hadron selection, see `HadronFileReader.hadron_array` (new after v1.5).
 
 info: `unit_offsets` (samples of unit u: unit_offsets\[u\]:[u+1]), `units` (the file's per-unit table: event, seed, event_weight, ...), `attrs` (the file's attributes), `path`. The mass is not stored (None).
 
@@ -698,9 +736,13 @@ The bindings' hadron dict (pid, pstat, p, x, mass, sample_counts), the arrays th
 
 -> hadrons_h5.Hadrons (the file's units after from_h5, else all samples as one unit, unless `unit_offsets` says otherwise), for its hist/total. Hadrons computes its derived columns in float64: about 2.4x the memory of this array.
 
-##### `to_awkward(position=False, charge=False, by_unit=False)`
+##### `to_awkward(position=False, charge=False, by_unit=False, charged=False, massless=False, pion_mass=False)`
 
-samples x hadrons as an awkward array of Momentum4D records over these buffers (awkward_views.to_awkward); by_unit (a HadronArray from_h5): units x samples x hadrons.
+samples x hadrons as an awkward array of Momentum4D records over these buffers (awkward_views.to_awkward).
+
+Args: position: add the nested `position` (t, x, y, z). charge: add `charge` [e], the PDG charge (needs `particle`). by_unit: nest by `info["unit_offsets"]`: units x samples x hadrons. A unit is what the array was read by: a file's unit for `from_h5` (an event; for bulk_bg a background), an event for `HadronFileReader.hadron_array`. False: samples x hadrons, all samples in a row. charged: (`charged`, `massless` and `pion_mass` are new after v1.5) add a boolean `charged` field (pid in `hadrons_h5.CHARGED`, as `mask="charged"` of HadronFileReader). massless: E recomputed as |p| in float64 (a new array): massless particles. px, py, pz stay float32 views, so vector's `.mass` shows their rounding (~1e-4 GeV); FastJet works in float64 and sees mass 0. pion_mass: E recomputed in float64 (a new array) with the pion mass (`awkward_views.M_PION`) for the charged particles (as `charged`, leptons included) and no mass for the neutral ones: every track a pion, every neutral massless. Not together with `massless`.
+
+Only `charge`, `charged`, `massless` and `pion_mass` add arrays; the rest are views of this array's buffers.
 
 ### `jetscape.awkward_views`
 
@@ -731,11 +773,11 @@ returns a mask of arr's shape. Species are PDG names as `particle` spells them (
 
 PDG charge [e] per pid (float64; quarks fractional, unknown pids 0).
 
-#### `to_awkward(obj, position=False, charge=False, by_unit=False)`
+#### `to_awkward(obj, position=False, charge=False, by_unit=False, charged=False, massless=False, pion_mass=False)`
 
 The nested awkward view of a HadronArray, a hadron dict or a record table.
 
-position: add the nested `position` (HadronArray; records always carry theirs). charge: add a `charge` field [e] from the PDG (needs `particle`). by_unit: a HadronArray read from a file (from_h5): units x samples x hadrons, over info["unit_offsets"].
+position: add the nested `position` (HadronArray; records always carry theirs). charge: add a `charge` field [e] from the PDG (needs `particle`). by_unit: a HadronArray with info["unit_offsets"] (HadronArray.from_h5: the file's units; HadronFileReader.hadron_array: the events): units x samples x hadrons. False: samples x hadrons, all samples in a row. (charged, massless and pion_mass are new after v1.5) charged: add a boolean `charged` field: the pid is in hadrons_h5.CHARGED, the stable charged hadrons and leptons, as HadronFileReader's mask="charged" (no `particle` needed; `charge` above is the PDG charge, resonances included). massless: E recomputed as |p| (float64, a new array), as for massless particles; the stored E is not used. pion_mass: E recomputed as sqrt(p^2 + m^2) (float64, a new array) with m = M_PION for the charged particles (`charged` above, leptons included) and m = 0 for the neutral ones: every track as a pion, every neutral as massless, the usual assumption of a detector-level analysis. Not together with massless.
 
 #### `select(arr, species)`
 

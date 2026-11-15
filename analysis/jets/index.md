@@ -111,7 +111,32 @@ The reference is the jet of the fragments alone: match the embedded jet to it, a
 
 ## 5. The array interface (awkward)
 
-One `ClusterSequence` call clusters all samples of a unit in C++, with no Python loop (continuing the first block: `np`, `CHARGED_PID`, `r`):
+One `ClusterSequence` call clusters all samples of an event in C++, with no Python loop (continuing the first block: `r`). r.hadron_array reads the samples of the events asked for, with the same `mask` as `hist`, and `to_awkward` makes them `vector` four-momenta:
+
+```python
+import awkward as ak, vector, fastjet as fj
+vector.register_awkward()
+
+def soft_charged(ev, info):                       # the conventions of section 2
+    return ev.charged & (abs(ev.eta) < 1.5) & (ev.pt > 0.15)
+
+arr = r.hadron_array("jet_frag", events=0, mask=soft_charged)            # the jet hadrons alone
+ev = arr.to_awkward(massless=True)                                       # samples * var * Momentum4D
+cs = fj.ClusterSequence(ev, fj.JetDefinition(fj.antikt_algorithm, 0.4))  # all samples at once
+jets = cs.inclusive_jets(min_pt=10.0)                                    # samples * jets
+cons = cs.constituent_index(min_pt=10.0)                                 # indices into ev
+```
+
+- **Which samples and events.** `samples=slice(0, 100)` takes the first 100, `samples=k` one; `events=range(10)` reads ten events, and `arr.to_awkward(by_unit=True)` nests them as events × samples × hadrons: `ClusterSequence` takes that too and returns events × samples × jets. `arr.info["units"]` says which event (and file) each block came from, `arr.info["samples"]` which sample.
+- **Only what is asked for is read:** the rows of those samples, and of them only the hadrons `mask` keeps, so the array is small and packed; no selection after `to_awkward` is needed.
+- **The particles' mass.** `massless=True` sets E = |p| (section 2); `pion_mass=True` gives the charged particles the pion mass and the neutral ones none, every track a pion, as a detector analysis assumes; neither: the stored E.
+- **A whole file:** `jetscape.HadronArray.from_h5(path).to_awkward(by_unit=True)` gives units × samples × hadrons of every unit ([Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/#the-pythonic-hadronarray)).
+
+New after v1.5
+
+`r.hadron_array` and the `charged`, `massless` and `pion_mass` options of `to_awkward` are in js-contrib's `main` after v1.5 and in the releases after it, not in v1.5 itself (pyjetscape 1.5, the `cu*-v1.5` containers, the xscape 1.5 Mac wheel). With v1.5, read the samples of a unit by hand:
+
+With v1.5: the samples by hand
 
 ```python
 import awkward as ak, vector, fastjet as fj
@@ -139,8 +164,6 @@ cs = fj.ClusterSequence(ev, fj.JetDefinition(fj.antikt_algorithm, 0.4))  # all s
 jets = cs.inclusive_jets(min_pt=10.0)                                     # samples * jets
 cons = cs.constituent_index(min_pt=10.0)                                  # indices into ev
 ```
-
-`jetscape.HadronArray.from_h5(path).to_awkward(by_unit=True)` gives the same jagged arrays without writing `samples()` yourself ([Hadrons](https://jhputschke.github.io/js-contrib/analysis/hadrons/#the-pythonic-hadronarray)).
 
 |     | supported                                                                                                                                                                                      |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

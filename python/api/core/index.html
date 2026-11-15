@@ -24771,7 +24771,11 @@ hadrons are one sample.  Other keys go to <code>info</code>.</p>
 
         <p>A hadron file (hadrons_h5 format: jet_frag, bulk_bg, ...) as one HadronArray: the
 stored fields as they are (float32, no derived columns), every sample of every unit
-in file order.  <code>units</code>: an index array or slice to read only those units.</p>
+in file order.  <code>units</code>: an index array or slice of unit positions (not the
+recorded event numbers: <code>HadronFile.unit_index</code> maps those) to read only those
+units; only their rows are read from disk (after v1.5; before, the whole file).
+For events of a campaign by their number, with samples and a hadron selection, see
+<code>HadronFileReader.hadron_array</code> (new after v1.5).</p>
 <p>info: <code>unit_offsets</code> (samples of unit u: unit_offsets[u]:[u+1]), <code>units</code> (the
 file's per-unit table: event, seed, event_weight, ...), <code>attrs</code> (the file's
 attributes), <code>path</code>.  The mass is not stored (None).</p>
@@ -24785,7 +24789,7 @@ attributes), <code>path</code>.  The mass is not stored (None).</p>
 
 
 <h4 id="jetscape.pyjetscape_core.HadronArray.to_awkward" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">to_awkward</span><span class="p">(</span><span class="n">position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">by_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">to_awkward</span><span class="p">(</span><span class="n">position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">by_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charged</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">massless</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pion_mass</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 <a href="#jetscape.pyjetscape_core.HadronArray.to_awkward" class="headerlink" title="Permanent link">¶</a></h4>
 
@@ -24793,8 +24797,27 @@ attributes), <code>path</code>.  The mass is not stored (None).</p>
     <div class="doc doc-contents ">
 
         <p>samples x hadrons as an awkward array of Momentum4D records over these buffers
-(awkward_views.to_awkward); by_unit (a HadronArray from_h5): units x samples x
-hadrons.</p>
+(awkward_views.to_awkward).</p>
+<p>Args:
+    position: add the nested <code>position</code> (t, x, y, z).
+    charge: add <code>charge</code> [e], the PDG charge (needs <code>particle</code>).
+    by_unit: nest by <code>info["unit_offsets"]</code>: units x samples x hadrons.  A unit is
+        what the array was read by: a file's unit for <code>from_h5</code> (an event;
+        for bulk_bg a background), an event for
+        <code>HadronFileReader.hadron_array</code>.  False: samples x hadrons, all samples
+        in a row.
+    charged: (<code>charged</code>, <code>massless</code> and <code>pion_mass</code> are new after v1.5) add a
+        boolean <code>charged</code> field (pid in <code>hadrons_h5.CHARGED</code>, as
+        <code>mask="charged"</code> of HadronFileReader).
+    massless: E recomputed as |p| in float64 (a new array): massless particles.
+        px, py, pz stay float32 views, so vector's <code>.mass</code> shows their rounding
+        (~1e-4 GeV); FastJet works in float64 and sees mass 0.
+    pion_mass: E recomputed in float64 (a new array) with the pion mass
+        (<code>awkward_views.M_PION</code>) for the charged particles (as <code>charged</code>,
+        leptons included) and no mass for the neutral ones: every track a pion,
+        every neutral massless.  Not together with <code>massless</code>.</p>
+<p>Only <code>charge</code>, <code>charged</code>, <code>massless</code> and <code>pion_mass</code> add arrays; the rest are views of
+this array's buffers.</p>
 
 
     </div>
@@ -35940,7 +35963,7 @@ JetScape.Init(), which opens the file.</p>
 
 
 <h3 id="jetscape.pyjetscape_core.to_awkward" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">to_awkward</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">by_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">to_awkward</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">by_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charged</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">massless</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pion_mass</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 <a href="#jetscape.pyjetscape_core.to_awkward" class="headerlink" title="Permanent link">¶</a></h3>
 
@@ -35950,8 +35973,19 @@ JetScape.Init(), which opens the file.</p>
         <p>The nested awkward view of a HadronArray, a hadron dict or a record table.</p>
 <p>position: add the nested <code>position</code> (HadronArray; records always carry theirs).
 charge:   add a <code>charge</code> field [e] from the PDG (needs <code>particle</code>).
-by_unit:  a HadronArray read from a file (from_h5): units x samples x hadrons, over
-          info["unit_offsets"].</p>
+by_unit:  a HadronArray with info["unit_offsets"] (HadronArray.from_h5: the file's
+          units; HadronFileReader.hadron_array: the events): units x samples x hadrons.
+          False: samples x hadrons, all samples in a row.
+(charged, massless and pion_mass are new after v1.5)
+charged:  add a boolean <code>charged</code> field: the pid is in hadrons_h5.CHARGED, the stable
+          charged hadrons and leptons, as HadronFileReader's mask="charged" (no
+          <code>particle</code> needed; <code>charge</code> above is the PDG charge, resonances included).
+massless: E recomputed as |p| (float64, a new array), as for massless particles; the
+          stored E is not used.
+pion_mass: E recomputed as sqrt(p^2 + m^2) (float64, a new array) with m = M_PION
+          for the charged particles (<code>charged</code> above, leptons included) and m = 0 for
+          the neutral ones: every track as a pion, every neutral as massless, the usual
+          assumption of a detector-level analysis.  Not together with massless.</p>
 
 
     </div>

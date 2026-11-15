@@ -2004,6 +2004,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#many-samples-at-once-arrays-for-fastjet-and-awkward" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Many samples at once: arrays for FastJet and awkward
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#one-file-or-arrays-for-awkward" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2235,6 +2246,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;jet_event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jetscape.hadrons_h5.HadronFileReader.hadron_array" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;hadron_array
       
     </span>
   </a>
@@ -4340,6 +4362,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#many-samples-at-once-arrays-for-fastjet-and-awkward" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Many samples at once: arrays for FastJet and awkward
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#one-file-or-arrays-for-awkward" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -4571,6 +4604,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;jet_event
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jetscape.hadrons_h5.HadronFileReader.hadron_array" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-method"></code>&nbsp;hadron_array
       
     </span>
   </a>
@@ -5900,47 +5944,70 @@ medium included, without background subtraction; areas and subtraction are on
 <a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>    <span class="n">cs</span> <span class="o">=</span> <span class="n">fj</span><span class="o">.</span><span class="n">ClusterSequence</span><span class="p">(</span><span class="n">parts</span><span class="p">,</span> <span class="n">fj</span><span class="o">.</span><span class="n">JetDefinition</span><span class="p">(</span><span class="n">fj</span><span class="o">.</span><span class="n">antikt_algorithm</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">))</span>
 <a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>    <span class="n">jets</span> <span class="o">=</span> <span class="n">fj</span><span class="o">.</span><span class="n">sorted_by_pt</span><span class="p">(</span><span class="n">cs</span><span class="o">.</span><span class="n">inclusive_jets</span><span class="p">(</span><span class="mf">10.0</span><span class="p">))</span>         <span class="c1"># pT &gt; 10 GeV</span>
 </code></pre></div>
+<h3 id="many-samples-at-once-arrays-for-fastjet-and-awkward">Many samples at once: arrays for FastJet and awkward<a class="headerlink" href="#many-samples-at-once-arrays-for-fastjet-and-awkward" title="Permanent link">¶</a></h3>
+<p><code>hadron_array</code> reads the samples of chosen events as one array, with the same <code>events</code> and
+<code>mask</code> as <code>hist</code>; only those rows are read, and only the hadrons the mask keeps are stored.
+<code>to_awkward</code> turns it into <code>vector</code> four-momenta, and FastJet's array interface clusters every
+sample in one call:</p>
+<div class="admonition note">
+<p class="admonition-title">New after v1.5</p>
+<p><code>hadron_array</code> and <code>to_awkward(charged=, massless=, pion_mass=)</code> are in js-contrib's <code>main</code>
+after v1.5 and the releases after it, not in v1.5 itself.</p>
+</div>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">awkward</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ak</span><span class="o">,</span><span class="w"> </span><span class="nn">vector</span><span class="o">,</span><span class="w"> </span><span class="nn">fastjet</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">fj</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">vector</span><span class="o">.</span><span class="n">register_awkward</span><span class="p">()</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">with</span> <span class="n">HadronFileReader</span><span class="p">(</span><span class="s2">"/path/to/campaign"</span><span class="p">)</span> <span class="k">as</span> <span class="n">r</span><span class="p">:</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">arr</span> <span class="o">=</span> <span class="n">r</span><span class="o">.</span><span class="n">hadron_array</span><span class="p">(</span><span class="s2">"bulk_jet"</span><span class="p">,</span> <span class="n">events</span><span class="o">=</span><span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span> <span class="n">samples</span><span class="o">=</span><span class="nb">slice</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>                         <span class="n">mask</span><span class="o">=</span><span class="k">lambda</span> <span class="n">ev</span><span class="p">,</span> <span class="n">info</span><span class="p">:</span> <span class="n">ev</span><span class="o">.</span><span class="n">charged</span> <span class="o">&amp;</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">ev</span><span class="o">.</span><span class="n">eta</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">1.5</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">ev</span><span class="o">.</span><span class="n">pt</span> <span class="o">&gt;</span> <span class="mf">0.15</span><span class="p">))</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">had</span> <span class="o">=</span> <span class="n">arr</span><span class="o">.</span><span class="n">to_awkward</span><span class="p">(</span><span class="n">by_unit</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">pion_mass</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># events x samples x hadrons, tracks as pions</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">cs</span> <span class="o">=</span> <span class="n">fj</span><span class="o">.</span><span class="n">ClusterSequence</span><span class="p">(</span><span class="n">had</span><span class="p">,</span> <span class="n">fj</span><span class="o">.</span><span class="n">JetDefinition</span><span class="p">(</span><span class="n">fj</span><span class="o">.</span><span class="n">antikt_algorithm</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">))</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="n">jets</span> <span class="o">=</span> <span class="n">cs</span><span class="o">.</span><span class="n">inclusive_jets</span><span class="p">(</span><span class="n">min_pt</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>               <span class="c1"># events x samples x jets</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="n">arr</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">"units"</span><span class="p">][</span><span class="s2">"event"</span><span class="p">],</span> <span class="n">arr</span><span class="o">.</span><span class="n">info</span><span class="p">[</span><span class="s2">"samples"</span><span class="p">]</span>     <span class="c1"># which event and sample each block is</span>
+</code></pre></div>
+<p><code>samples=k</code> takes one sample per event; <code>massless=True</code> sets E = |p|, <code>charged=True</code> adds a
+<code>charged</code> field. Without <code>by_unit</code> the samples come in a row, samples x hadrons.</p>
 <h3 id="one-file-or-arrays-for-awkward">One file, or arrays for awkward<a class="headerlink" href="#one-file-or-arrays-for-awkward" title="Permanent link">¶</a></h3>
-<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFile</span><span class="p">,</span> <span class="n">Hadrons</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">stem</span> <span class="o">=</span> <span class="s2">"/path/to/campaign/AuAu_0_10_jet_seed0001"</span>
-<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="k">with</span> <span class="n">HadronFile</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">_hadrons_bulk_jet.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">hf</span><span class="p">:</span>     <span class="c1"># one file, nothing loaded</span>
-<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="n">one</span> <span class="o">=</span> <span class="n">hf</span><span class="o">.</span><span class="n">sample_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>                          <span class="c1"># unit 0, sample 17: pid, pstat, p, x</span>
-<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">h</span> <span class="o">=</span> <span class="n">Hadrons</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">_hadrons_bulk_bg.h5"</span><span class="p">)</span>         <span class="c1"># a whole file in memory</span>
-<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="n">dn</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">eta</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">h</span><span class="o">.</span><span class="n">charged</span><span class="p">)</span>   <span class="c1"># averaged per sample</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.hadrons_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">HadronFile</span><span class="p">,</span> <span class="n">Hadrons</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="n">stem</span> <span class="o">=</span> <span class="s2">"/path/to/campaign/AuAu_0_10_jet_seed0001"</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="k">with</span> <span class="n">HadronFile</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">_hadrons_bulk_jet.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">hf</span><span class="p">:</span>     <span class="c1"># one file, nothing loaded</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>    <span class="n">one</span> <span class="o">=</span> <span class="n">hf</span><span class="o">.</span><span class="n">sample_event</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">17</span><span class="p">)</span>                          <span class="c1"># unit 0, sample 17: pid, pstat, p, x</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">h</span> <span class="o">=</span> <span class="n">Hadrons</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">_hadrons_bulk_bg.h5"</span><span class="p">)</span>         <span class="c1"># a whole file in memory</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">dn</span><span class="p">,</span> <span class="n">err</span> <span class="o">=</span> <span class="n">h</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">h</span><span class="o">.</span><span class="n">eta</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">5</span><span class="p">),</span> <span class="n">mask</span><span class="o">=</span><span class="n">h</span><span class="o">.</span><span class="n">charged</span><span class="p">)</span>   <span class="c1"># averaged per sample</span>
 </code></pre></div>
 <p><code>HadronArray</code> turns a file into awkward arrays of <code>vector</code> four-momenta, for selections with
 awkward and FastJet's array interface:</p>
-<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">awkward</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ak</span>
-<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
-<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
-<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="n">bulk</span> <span class="o">=</span> <span class="n">js</span><span class="o">.</span><span class="n">HadronArray</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">_hadrons_bulk_bg.h5"</span><span class="p">)</span>
-<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="n">had</span> <span class="o">=</span> <span class="n">bulk</span><span class="o">.</span><span class="n">to_awkward</span><span class="p">(</span><span class="n">by_unit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>             <span class="c1"># units x samples x hadrons, Momentum4D</span>
-<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="n">charged</span> <span class="o">=</span> <span class="n">had</span><span class="p">[</span><span class="n">js</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">had</span><span class="p">,</span> <span class="s2">"charged"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">had</span><span class="o">.</span><span class="n">eta</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">)]</span>
-<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="n">n_ch</span> <span class="o">=</span> <span class="n">ak</span><span class="o">.</span><span class="n">num</span><span class="p">(</span><span class="n">charged</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>                 <span class="c1"># charged multiplicity per unit and sample</span>
-<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="n">mean_pt</span> <span class="o">=</span> <span class="n">ak</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">charged</span><span class="o">.</span><span class="n">pt</span><span class="p">)</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">awkward</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ak</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">jetscape</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">js</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="n">bulk</span> <span class="o">=</span> <span class="n">js</span><span class="o">.</span><span class="n">HadronArray</span><span class="o">.</span><span class="n">from_h5</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">_hadrons_bulk_bg.h5"</span><span class="p">)</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="n">had</span> <span class="o">=</span> <span class="n">bulk</span><span class="o">.</span><span class="n">to_awkward</span><span class="p">(</span><span class="n">by_unit</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>             <span class="c1"># units x samples x hadrons, Momentum4D</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">charged</span> <span class="o">=</span> <span class="n">had</span><span class="p">[</span><span class="n">js</span><span class="o">.</span><span class="n">select</span><span class="p">(</span><span class="n">had</span><span class="p">,</span> <span class="s2">"charged"</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">had</span><span class="o">.</span><span class="n">eta</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mf">0.5</span><span class="p">)]</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="n">n_ch</span> <span class="o">=</span> <span class="n">ak</span><span class="o">.</span><span class="n">num</span><span class="p">(</span><span class="n">charged</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>                 <span class="c1"># charged multiplicity per unit and sample</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="n">mean_pt</span> <span class="o">=</span> <span class="n">ak</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">charged</span><span class="o">.</span><span class="n">pt</span><span class="p">)</span>
 </code></pre></div>
 <h3 id="freeze-out-surfaces-and-final-partons">Freeze-out surfaces and final partons<a class="headerlink" href="#freeze-out-surfaces-and-final-partons" title="Permanent link">¶</a></h3>
-<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.particlize_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">ParticlizeFile</span>
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="k">with</span> <span class="n">ParticlizeFile</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">_particlize.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">pf</span><span class="p">:</span>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>    <span class="n">cells</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">surface</span><span class="p">(</span><span class="s2">"jet"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>          <span class="c1"># the jet leg's freeze-out cells of event 0, (N, 32)</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>    <span class="n">cells_bg</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">surface</span><span class="p">(</span><span class="s2">"bg"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>        <span class="c1"># the background that event used</span>
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>    <span class="n">partons</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">partons</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>               <span class="c1"># the final partons, (K, 14)</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">jetscape.particlize_h5</span><span class="w"> </span><span class="kn">import</span> <span class="n">ParticlizeFile</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="k">with</span> <span class="n">ParticlizeFile</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">_particlize.h5"</span><span class="p">)</span> <span class="k">as</span> <span class="n">pf</span><span class="p">:</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="n">cells</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">surface</span><span class="p">(</span><span class="s2">"jet"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>          <span class="c1"># the jet leg's freeze-out cells of event 0, (N, 32)</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">cells_bg</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">surface</span><span class="p">(</span><span class="s2">"bg"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>        <span class="c1"># the background that event used</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">partons</span> <span class="o">=</span> <span class="n">pf</span><span class="o">.</span><span class="n">partons</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>               <span class="c1"># the final partons, (K, 14)</span>
 </code></pre></div>
 <p>The columns are <code>SURFACE_COLUMNS</code> and <code>FINAL_PARTON_COLUMNS</code> (below).</p>
 <h3 id="the-hydro-pair">The hydro pair<a class="headerlink" href="#the-hydro-pair" title="Permanent link">¶</a></h3>
 <p>The jet leg <code>arr</code> and its background <code>arr_bg</code>, shape <code>(events, 4, nx, ny, neta, ntau)</code> with the
 channels energy density, vx, vy, vz. Read frame by frame, and compare only frames both legs have:</p>
-<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">hdf5plugin</span>  <span class="c1"># noqa: F401  (the files are Blosc-compressed)</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">.h5"</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>    <span class="n">n</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s2">"ntau_freezeout"</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s2">"ntau_freezeout_bg"</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>    <span class="c1"># frames of event 0 in both legs</span>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>    <span class="n">de</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"arr"</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">f</span><span class="p">[</span><span class="s2">"arr_bg"</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span>   <span class="c1"># energy density, jet - bg</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>    <span class="n">x</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"x_min"</span><span class="p">]</span> <span class="o">+</span> <span class="n">f</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"dx"</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"nx"</span><span class="p">])</span>    <span class="c1"># cell centres [fm]</span>
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>    <span class="n">o</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"source/offsets"</span><span class="p">]</span>
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>    <span class="n">droplets</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"source/droplets"</span><span class="p">][</span><span class="n">o</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">o</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>                     <span class="c1"># tau, x, y, eta, E, px, py, pz</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">h5py</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">hdf5plugin</span>  <span class="c1"># noqa: F401  (the files are Blosc-compressed)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="k">with</span> <span class="n">h5py</span><span class="o">.</span><span class="n">File</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">stem</span><span class="si">}</span><span class="s2">.h5"</span><span class="p">,</span> <span class="s2">"r"</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>    <span class="n">n</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">f</span><span class="p">[</span><span class="s2">"ntau_freezeout"</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">f</span><span class="p">[</span><span class="s2">"ntau_freezeout_bg"</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span>    <span class="c1"># frames of event 0 in both legs</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>    <span class="n">de</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"arr"</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span> <span class="o">-</span> <span class="n">f</span><span class="p">[</span><span class="s2">"arr_bg"</span><span class="p">][</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="o">...</span><span class="p">,</span> <span class="n">n</span> <span class="o">//</span> <span class="mi">2</span><span class="p">]</span>   <span class="c1"># energy density, jet - bg</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>    <span class="n">x</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"x_min"</span><span class="p">]</span> <span class="o">+</span> <span class="n">f</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"dx"</span><span class="p">]</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">attrs</span><span class="p">[</span><span class="s2">"nx"</span><span class="p">])</span>    <span class="c1"># cell centres [fm]</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>    <span class="n">o</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"source/offsets"</span><span class="p">]</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>    <span class="n">droplets</span> <span class="o">=</span> <span class="n">f</span><span class="p">[</span><span class="s2">"source/droplets"</span><span class="p">][</span><span class="n">o</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span><span class="n">o</span><span class="p">[</span><span class="mi">1</span><span class="p">]]</span>                     <span class="c1"># tau, x, y, eta, E, px, py, pz</span>
 </code></pre></div>
 <h2 id="hadron-file-readers">Hadron file readers<a class="headerlink" href="#hadron-file-readers" title="Permanent link">¶</a></h2>
 
@@ -6483,6 +6550,57 @@ the extras' fragments if there are any (see <code>JetEvents.jet_event</code>).</
 <div class="doc doc-object doc-function">
 
 
+<h4 id="jetscape.hadrons_h5.HadronFileReader.hadron_array" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">hadron_array</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="n">events</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">positions</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
+
+<a href="#jetscape.hadrons_h5.HadronFileReader.hadron_array" class="headerlink" title="Permanent link">¶</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>The hadrons of <code>tag</code> for <code>events</code>, every sample kept apart, as one
+<code>HadronArray</code>: for FastJet's array interface, awkward
+or numpy analyses of single hadrons that <code>hist</code> does not cover.  New after v1.5
+(js-contrib <code>main</code>; not in pyjetscape 1.5, the v1.5 containers or wheel).</p>
+<div class="language-text highlight"><pre><span></span><code>arr = reader.hadron_array("jet_frag", events=0, mask="charged")
+arr = reader.hadron_array("bulk_jet", events=range(100), samples=slice(0, 10),
+                          mask=lambda ev, info: ev.charged &amp; (abs(ev.eta) &lt; 1))
+ev = arr.to_awkward(by_unit=True)     # events x samples x hadrons
+</code></pre></div>
+<p>Args:
+    tag: one of <code>TAGS</code>.
+    events: global event numbers as in <code>hist</code> (None: all; an int, a slice or an
+        iterable), returned in ascending order, each once.  <code>bulk_bg</code> gives each
+        event the background it used, so events sharing a background each get
+        their own copy.
+    samples: the samples of each event: None (all), an int k, a slice or an
+        iterable of sample indices, kept in stored order.  An int beyond an event's
+        samples raises, except for an event without samples (an empty surface),
+        which then has none.
+    mask: a hadron selection as in <code>hist</code>: a name (<code>'charged'</code>, a species or a
+        boolean <code>EventHadrons</code> attribute) or a callable <code>f(ev, info)</code>
+        returning one bool per hadron of the event's samples, <code>ev</code> an
+        <code>EventHadrons</code>, <code>info</code> an <code>EventInfo</code> (jet-relative cuts
+        use <code>info.initiators()</code>).  Applied while reading: only the hadrons kept
+        are stored; a sample without any stays, empty.
+    positions: also read <code>x</code> (None: if every file read has it; True: required;
+        False: never).</p>
+<p>Returns:
+    A HadronArray with the stored fields (<code>p</code> and <code>x</code> as stored, float32) and
+    one sample per selected sample.  <code>info["unit_offsets"]</code> groups the samples by
+    event, so <code>to_awkward(by_unit=True)</code> nests events x samples x hadrons;
+    <code>info["units"]</code> has one row per event: <code>event</code> (global), <code>file</code>,
+    <code>local_event</code>, <code>file_unit</code> (the unit in the tag's file);
+    <code>info["samples"]</code> the sample index k of each sample; <code>info["tag"]</code>.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
 <h4 id="jetscape.hadrons_h5.HadronFileReader.hist" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">hist</span><span class="p">(</span><span class="n">tag</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">bins</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">mask</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">weights</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">events</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">per_event</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span></code>
 
@@ -6930,7 +7048,8 @@ its compound-Poisson error.</p>
 
     <div class="doc doc-contents ">
 
-        <p>Read a file (<code>units</code>: an index array/slice to keep only those units).</p>
+        <p>Read a file (<code>units</code>: an index array/slice to keep only those units; only
+their rows are read from disk).</p>
 
 
     </div>
@@ -7988,7 +8107,11 @@ hadrons are one sample.  Other keys go to <code>info</code>.</p>
 
         <p>A hadron file (hadrons_h5 format: jet_frag, bulk_bg, ...) as one HadronArray: the
 stored fields as they are (float32, no derived columns), every sample of every unit
-in file order.  <code>units</code>: an index array or slice to read only those units.</p>
+in file order.  <code>units</code>: an index array or slice of unit positions (not the
+recorded event numbers: <code>HadronFile.unit_index</code> maps those) to read only those
+units; only their rows are read from disk (after v1.5; before, the whole file).
+For events of a campaign by their number, with samples and a hadron selection, see
+<code>HadronFileReader.hadron_array</code> (new after v1.5).</p>
 <p>info: <code>unit_offsets</code> (samples of unit u: unit_offsets[u]:[u+1]), <code>units</code> (the
 file's per-unit table: event, seed, event_weight, ...), <code>attrs</code> (the file's
 attributes), <code>path</code>.  The mass is not stored (None).</p>
@@ -8041,7 +8164,7 @@ derived columns in float64: about 2.4x the memory of this array.</p>
 
 
 <h5 id="jetscape.hadron_array.HadronArray.to_awkward" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">to_awkward</span><span class="p">(</span><span class="n">position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">by_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-method"></code>            <code class="highlight language-python"><span class="n">to_awkward</span><span class="p">(</span><span class="n">position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">by_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charged</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">massless</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pion_mass</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 <a href="#jetscape.hadron_array.HadronArray.to_awkward" class="headerlink" title="Permanent link">¶</a></h5>
 
@@ -8049,8 +8172,27 @@ derived columns in float64: about 2.4x the memory of this array.</p>
     <div class="doc doc-contents ">
 
         <p>samples x hadrons as an awkward array of Momentum4D records over these buffers
-(awkward_views.to_awkward); by_unit (a HadronArray from_h5): units x samples x
-hadrons.</p>
+(awkward_views.to_awkward).</p>
+<p>Args:
+    position: add the nested <code>position</code> (t, x, y, z).
+    charge: add <code>charge</code> [e], the PDG charge (needs <code>particle</code>).
+    by_unit: nest by <code>info["unit_offsets"]</code>: units x samples x hadrons.  A unit is
+        what the array was read by: a file's unit for <code>from_h5</code> (an event;
+        for bulk_bg a background), an event for
+        <code>HadronFileReader.hadron_array</code>.  False: samples x hadrons, all samples
+        in a row.
+    charged: (<code>charged</code>, <code>massless</code> and <code>pion_mass</code> are new after v1.5) add a
+        boolean <code>charged</code> field (pid in <code>hadrons_h5.CHARGED</code>, as
+        <code>mask="charged"</code> of HadronFileReader).
+    massless: E recomputed as |p| in float64 (a new array): massless particles.
+        px, py, pz stay float32 views, so vector's <code>.mass</code> shows their rounding
+        (~1e-4 GeV); FastJet works in float64 and sees mass 0.
+    pion_mass: E recomputed in float64 (a new array) with the pion mass
+        (<code>awkward_views.M_PION</code>) for the charged particles (as <code>charged</code>,
+        leptons included) and no mass for the neutral ones: every track a pion,
+        every neutral massless.  Not together with <code>massless</code>.</p>
+<p>Only <code>charge</code>, <code>charged</code>, <code>massless</code> and <code>pion_mass</code> add arrays; the rest are views of
+this array's buffers.</p>
 
 
     </div>
@@ -8156,7 +8298,7 @@ only; the two agree on decayed hadrons and differ on files with undecayed primar
 
 
 <h4 id="jetscape.awkward_views.to_awkward" class="doc doc-heading">
-<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">to_awkward</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">by_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">to_awkward</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="n">position</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charge</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">by_unit</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">charged</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">massless</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">pion_mass</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></code>
 
 <a href="#jetscape.awkward_views.to_awkward" class="headerlink" title="Permanent link">¶</a></h4>
 
@@ -8166,8 +8308,19 @@ only; the two agree on decayed hadrons and differ on files with undecayed primar
         <p>The nested awkward view of a HadronArray, a hadron dict or a record table.</p>
 <p>position: add the nested <code>position</code> (HadronArray; records always carry theirs).
 charge:   add a <code>charge</code> field [e] from the PDG (needs <code>particle</code>).
-by_unit:  a HadronArray read from a file (from_h5): units x samples x hadrons, over
-          info["unit_offsets"].</p>
+by_unit:  a HadronArray with info["unit_offsets"] (HadronArray.from_h5: the file's
+          units; HadronFileReader.hadron_array: the events): units x samples x hadrons.
+          False: samples x hadrons, all samples in a row.
+(charged, massless and pion_mass are new after v1.5)
+charged:  add a boolean <code>charged</code> field: the pid is in hadrons_h5.CHARGED, the stable
+          charged hadrons and leptons, as HadronFileReader's mask="charged" (no
+          <code>particle</code> needed; <code>charge</code> above is the PDG charge, resonances included).
+massless: E recomputed as |p| (float64, a new array), as for massless particles; the
+          stored E is not used.
+pion_mass: E recomputed as sqrt(p^2 + m^2) (float64, a new array) with m = M_PION
+          for the charged particles (<code>charged</code> above, leptons included) and m = 0 for
+          the neutral ones: every track as a pion, every neutral as massless, the usual
+          assumption of a detector-level analysis.  Not together with massless.</p>
 
 
     </div>

@@ -3164,7 +3164,7 @@ three O+O events through the whole chain, the hadrons written to files and read 
 with errors, FastJet. Its simulation half is the script <code>oo_workflow.py</code>
 (<code>--xml</code>, <code>--events</code>, <code>--seed</code>, <code>--outdir</code>), a template for a production of your own.</p>
 <p><strong>Requirements.</strong> The bound classes need the compiled <a class="autorefs autorefs-internal" title="            jetscape.pyjetscape_core" href="../api/core/#jetscape.pyjetscape_core"><code>pyjetscape_core</code></a>. Records and
-<a class="autorefs autorefs-internal" title="              HadronArray(pid, pstat, p, x, mass, sample_offsets=None, info=None)" href="../api/analyse/#jetscape.hadron_array.HadronArray"><code>HadronArray</code></a> need only numpy (they also work on files without a build); <a class="autorefs autorefs-internal" title="            to_awkward(position=False, charge=False, by_unit=False)" href="../api/analyse/#jetscape.hadron_array.HadronArray.to_awkward"><code>to_awkward()</code></a> needs
+<a class="autorefs autorefs-internal" title="              HadronArray(pid, pstat, p, x, mass, sample_offsets=None, info=None)" href="../api/analyse/#jetscape.hadron_array.HadronArray"><code>HadronArray</code></a> need only numpy (they also work on files without a build); <a class="autorefs autorefs-internal" title="            to_awkward(position=False, charge=False, by_unit=False, charged=False, massless=False, pion_mass=False)" href="../api/analyse/#jetscape.hadron_array.HadronArray.to_awkward"><code>to_awkward()</code></a> needs
 <code>awkward</code> and <code>vector</code>, <a class="autorefs autorefs-internal" title="            select(arr, species)" href="../api/analyse/#jetscape.awkward_views.select"><code>select()</code></a> needs <code>particle</code>, jets need the <code>fastjet</code> Python package, and
 the hadron files need <code>h5py</code>. All are in the container image, the Mac wheel's environment and the
 analysis environment; awkward and vector are imported only when used.</p>
@@ -3422,8 +3422,9 @@ derived columns: pt, eta, phi and rapidity are computed by <code>to_awkward()</c
 <code>to_hadrons()</code> computes them all in float64 (about 2.4x the memory); use it for histograms, not to
 hold many events.</p>
 <h2 id="nested-views-to_awkward">Nested views: <code>to_awkward</code><a class="headerlink" href="#nested-views-to_awkward" title="Permanent link">¶</a></h2>
-<p><code>js.to_awkward(obj, position=False, charge=False, by_unit=False)</code>, also
-<code>HadronArray.to_awkward(...)</code>:</p>
+<p><code>js.to_awkward(obj, position=False, charge=False, by_unit=False, charged=False, massless=False,
+pion_mass=False)</code>, also <code>HadronArray.to_awkward(...)</code> (<code>charged</code>, <code>massless</code>, <code>pion_mass</code>: new after
+v1.5, in js-contrib's <code>main</code> and the releases after it):</p>
 <table>
 <thead>
 <tr>
@@ -3439,6 +3440,10 @@ hold many events.</p>
 <tr>
 <td><code>HadronArray.from_h5(...)</code> with <code>by_unit=True</code></td>
 <td>units (events) x samples x hadrons</td>
+</tr>
+<tr>
+<td><a class="autorefs autorefs-internal" title="            hadron_array(tag, events=None, samples=None, *, mask=None, positions=None)" href="../api/analyse/#jetscape.hadrons_h5.HadronFileReader.hadron_array"><code>HadronFileReader.hadron_array(...)</code></a> with <code>by_unit=True</code> (after v1.5)</td>
+<td>the events asked for x samples x hadrons</td>
 </tr>
 <tr>
 <td>final-parton or initiator records</td>
@@ -3462,7 +3467,12 @@ hold many events.</p>
 <li><code>position=True</code> adds a nested <code>h.position</code> (<code>Vector4D</code>: <code>h.position.t</code>, <code>h.position.rho</code>).
   It is nested on purpose: <code>vector</code> would read flat fields named t, x, y, z as the coordinates
   of the momentum.</li>
-<li><code>charge=True</code> adds the PDG charge.</li>
+<li><code>charge=True</code> adds the PDG charge; <code>charged=True</code> a boolean <code>charged</code> (the stable charged
+  hadrons and leptons, <code>hadrons_h5.CHARGED</code>, as <code>mask="charged"</code> of the reader; no <code>particle</code>
+  needed).</li>
+<li><code>massless=True</code> replaces E by |p|; <code>pion_mass=True</code> gives the charged particles the pion mass
+  and the neutral ones none (every track a pion). Both compute a new float64 E; the other fields
+  stay views. Without either, the stored E.</li>
 <li>A stored mass appears as the field <code>rest_mass</code>; <code>h.mass</code> is <code>vector</code>'s, computed from E and p.</li>
 <li><code>ak.flatten(a, axis=1)</code> merges units x samples into samples; <code>ak.num(a, axis=k)</code> counts.</li>
 </ul>
@@ -3533,6 +3543,9 @@ every oversample.</p>
 <a id="__codelineno-7-20" name="__codelineno-7-20" href="#__codelineno-7-20"></a>                                    <span class="n">jdef</span><span class="p">)</span><span class="o">.</span><span class="n">inclusive_jets</span><span class="p">(</span><span class="n">min_pt</span><span class="o">=</span><span class="mf">5.0</span><span class="p">)</span>
 <a id="__codelineno-7-21" name="__codelineno-7-21" href="#__codelineno-7-21"></a><span class="n">bulk_jets</span> <span class="o">=</span> <span class="n">ak</span><span class="o">.</span><span class="n">unflatten</span><span class="p">(</span><span class="n">bulk_jets</span><span class="p">,</span> <span class="n">ak</span><span class="o">.</span><span class="n">num</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>                 <span class="c1"># units x samples x jets</span>
 </code></pre></div>
+<p>For chosen events of a campaign, with a hadron selection applied while reading,
+<a class="autorefs autorefs-internal" title="            hadron_array(tag, events=None, samples=None, *, mask=None, positions=None)" href="../api/analyse/#jetscape.hadrons_h5.HadronFileReader.hadron_array"><code>HadronFileReader.hadron_array</code></a> gives the
+same arrays from global event numbers (new after v1.5; <a href="../../analysis/jets/#5-the-array-interface-awkward">Jets with FastJet</a>).</p>
 <p>The jagged call gives the same jets as a loop over the samples. Jets are <code>vector</code> records too
 (<code>.pt</code>, <code>.eta</code>, <code>.phi</code>, <code>.m</code>); <code>constituent_index()</code> maps them back to hadrons. Areas,
 background subtraction and embedding are on <a href="../../analysis/jets/">Jets with FastJet</a>.</p>

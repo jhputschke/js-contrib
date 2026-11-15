@@ -767,13 +767,17 @@ From a bindings hadron dict; the arrays are taken as they are (no copy). `sample
 
 #### `from_h5(path, units=None) -> 'HadronArray'`
 
-A hadron file (hadrons_h5 format: jet_frag, bulk_bg, ...) as one HadronArray: the stored fields as they are (float32, no derived columns), every sample of every unit in file order. `units`: an index array or slice to read only those units.
+A hadron file (hadrons_h5 format: jet_frag, bulk_bg, ...) as one HadronArray: the stored fields as they are (float32, no derived columns), every sample of every unit in file order. `units`: an index array or slice of unit positions (not the recorded event numbers: `HadronFile.unit_index` maps those) to read only those units; only their rows are read from disk (after v1.5; before, the whole file). For events of a campaign by their number, with samples and a hadron selection, see `HadronFileReader.hadron_array` (new after v1.5).
 
 info: `unit_offsets` (samples of unit u: unit_offsets\[u\]:[u+1]), `units` (the file's per-unit table: event, seed, event_weight, ...), `attrs` (the file's attributes), `path`. The mass is not stored (None).
 
-#### `to_awkward(position=False, charge=False, by_unit=False)`
+#### `to_awkward(position=False, charge=False, by_unit=False, charged=False, massless=False, pion_mass=False)`
 
-samples x hadrons as an awkward array of Momentum4D records over these buffers (awkward_views.to_awkward); by_unit (a HadronArray from_h5): units x samples x hadrons.
+samples x hadrons as an awkward array of Momentum4D records over these buffers (awkward_views.to_awkward).
+
+Args: position: add the nested `position` (t, x, y, z). charge: add `charge` [e], the PDG charge (needs `particle`). by_unit: nest by `info["unit_offsets"]`: units x samples x hadrons. A unit is what the array was read by: a file's unit for `from_h5` (an event; for bulk_bg a background), an event for `HadronFileReader.hadron_array`. False: samples x hadrons, all samples in a row. charged: (`charged`, `massless` and `pion_mass` are new after v1.5) add a boolean `charged` field (pid in `hadrons_h5.CHARGED`, as `mask="charged"` of HadronFileReader). massless: E recomputed as |p| in float64 (a new array): massless particles. px, py, pz stay float32 views, so vector's `.mass` shows their rounding (~1e-4 GeV); FastJet works in float64 and sees mass 0. pion_mass: E recomputed in float64 (a new array) with the pion mass (`awkward_views.M_PION`) for the charged particles (as `charged`, leptons included) and no mass for the neutral ones: every track a pion, every neutral massless. Not together with `massless`.
+
+Only `charge`, `charged`, `massless` and `pion_mass` add arrays; the rest are views of this array's buffers.
 
 #### `to_dict() -> dict`
 
@@ -2856,11 +2860,11 @@ Use `seed` for the next event's sampling (one-shot) instead of a draw from the m
 
 Samples (oversamples) per event from the next event on (iSS: number_of_repeated_sampling). Call after Init().
 
-### `to_awkward(obj, position=False, charge=False, by_unit=False)`
+### `to_awkward(obj, position=False, charge=False, by_unit=False, charged=False, massless=False, pion_mass=False)`
 
 The nested awkward view of a HadronArray, a hadron dict or a record table.
 
-position: add the nested `position` (HadronArray; records always carry theirs). charge: add a `charge` field [e] from the PDG (needs `particle`). by_unit: a HadronArray read from a file (from_h5): units x samples x hadrons, over info["unit_offsets"].
+position: add the nested `position` (HadronArray; records always carry theirs). charge: add a `charge` field [e] from the PDG (needs `particle`). by_unit: a HadronArray with info["unit_offsets"] (HadronArray.from_h5: the file's units; HadronFileReader.hadron_array: the events): units x samples x hadrons. False: samples x hadrons, all samples in a row. (charged, massless and pion_mass are new after v1.5) charged: add a boolean `charged` field: the pid is in hadrons_h5.CHARGED, the stable charged hadrons and leptons, as HadronFileReader's mask="charged" (no `particle` needed; `charge` above is the PDG charge, resonances included). massless: E recomputed as |p| (float64, a new array), as for massless particles; the stored E is not used. pion_mass: E recomputed as sqrt(p^2 + m^2) (float64, a new array) with m = M_PION for the charged particles (`charged` above, leptons included) and m = 0 for the neutral ones: every track as a pion, every neutral as massless, the usual assumption of a detector-level analysis. Not together with massless.
 
 ### `unregister_module(name: str) -> bool`
 
