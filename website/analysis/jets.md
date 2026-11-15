@@ -138,38 +138,71 @@ the cone. Random cones in `r.background_event(e, k)` give the background's fluct
 
 ## 5. The array interface (awkward)
 
-One `ClusterSequence` call clusters all samples of a unit in C++, with no Python loop
-(continuing the first block: `np`, `CHARGED_PID`, `r`):
+One `ClusterSequence` call clusters all samples of an event in C++, with no Python loop
+(continuing the first block: `r`). [`r.hadron_array`][jetscape.hadrons_h5.HadronFileReader.hadron_array]
+reads the samples of the events asked for, with the same `mask` as `hist`, and `to_awkward`
+makes them `vector` four-momenta:
 
 ```python
 import awkward as ak, vector, fastjet as fj
-from jetscape.hadrons_h5 import HadronFile
 vector.register_awkward()
 
-def samples(path, unit, n=None):
-    """The samples of one unit as samples * var * Momentum4D (massless)."""
-    with HadronFile(path) as hf:
-        u = hf.unit_index(unit)
-        s0, s1 = int(hf.unit_offsets[u]), int(hf.unit_offsets[u + 1])
-        s1 = s1 if n is None else min(s1, s0 + n)
-        so = hf.sample_offsets[s0:s1 + 1]
-        p = hf.f["hadrons/p"][so[0]:so[-1]].astype(np.float64)
-        pid = hf.f["hadrons/pid"][so[0]:so[-1]]
-    rec = ak.zip({"px": p[:, 1], "py": p[:, 2], "pz": p[:, 3],
-                  "E": np.linalg.norm(p[:, 1:], axis=1),
-                  "charged": np.isin(np.abs(pid), CHARGED_PID)}, with_name="Momentum4D")
-    return ak.unflatten(rec, np.diff(so))
+def soft_charged(ev, info):                       # the conventions of section 2
+    return ev.charged & (abs(ev.eta) < 1.5) & (ev.pt > 0.15)
 
-info = r.event_info(0)
-ev = samples(f"{info.stem}_hadrons_jet_frag.h5", info.local_event)      # the jet hadrons alone
-ev = ak.to_packed(ev[(abs(ev.eta) < 1.5) & (ev.pt > 0.15) & ev.charged])
+arr = r.hadron_array("jet_frag", events=0, mask=soft_charged)            # the jet hadrons alone
+ev = arr.to_awkward(massless=True)                                       # samples * var * Momentum4D
 cs = fj.ClusterSequence(ev, fj.JetDefinition(fj.antikt_algorithm, 0.4))  # all samples at once
-jets = cs.inclusive_jets(min_pt=10.0)                                     # samples * jets
-cons = cs.constituent_index(min_pt=10.0)                                  # indices into ev
+jets = cs.inclusive_jets(min_pt=10.0)                                    # samples * jets
+cons = cs.constituent_index(min_pt=10.0)                                 # indices into ev
 ```
 
-`jetscape.HadronArray.from_h5(path).to_awkward(by_unit=True)` gives the same jagged arrays
-without writing `samples()` yourself ([Hadrons](hadrons.md#the-pythonic-hadronarray)).
+- **Which samples and events.** `samples=slice(0, 100)` takes the first 100, `samples=k` one;
+  `events=range(10)` reads ten events, and `arr.to_awkward(by_unit=True)` nests them as
+  events × samples × hadrons: `ClusterSequence` takes that too and returns events × samples ×
+  jets. `arr.info["units"]` says which event (and file) each block came from, `arr.info["samples"]`
+  which sample.
+- **Only what is asked for is read:** the rows of those samples, and of them only the hadrons
+  `mask` keeps, so the array is small and packed; no selection after `to_awkward` is needed.
+- **The particles' mass.** `massless=True` sets E = \|p\| (section 2); `pion_mass=True` gives the
+  charged particles the pion mass and the neutral ones none, every track a pion, as a detector
+  analysis assumes; neither: the stored E.
+- **A whole file:** `jetscape.HadronArray.from_h5(path).to_awkward(by_unit=True)` gives units ×
+  samples × hadrons of every unit ([Hadrons](hadrons.md#the-pythonic-hadronarray)).
+
+!!! note "New after v1.5"
+    `r.hadron_array` and the `charged`, `massless` and `pion_mass` options of `to_awkward` are in
+    js-contrib's `main` after v1.5 and in the releases after it, not in v1.5 itself (pyjetscape
+    1.5, the `cu*-v1.5` containers, the xscape 1.5 Mac wheel). With v1.5, read the samples of a
+    unit by hand:
+
+??? example "With v1.5: the samples by hand"
+    ```python
+    import awkward as ak, vector, fastjet as fj
+    from jetscape.hadrons_h5 import HadronFile
+    vector.register_awkward()
+
+    def samples(path, unit, n=None):
+        """The samples of one unit as samples * var * Momentum4D (massless)."""
+        with HadronFile(path) as hf:
+            u = hf.unit_index(unit)
+            s0, s1 = int(hf.unit_offsets[u]), int(hf.unit_offsets[u + 1])
+            s1 = s1 if n is None else min(s1, s0 + n)
+            so = hf.sample_offsets[s0:s1 + 1]
+            p = hf.f["hadrons/p"][so[0]:so[-1]].astype(np.float64)
+            pid = hf.f["hadrons/pid"][so[0]:so[-1]]
+        rec = ak.zip({"px": p[:, 1], "py": p[:, 2], "pz": p[:, 3],
+                      "E": np.linalg.norm(p[:, 1:], axis=1),
+                      "charged": np.isin(np.abs(pid), CHARGED_PID)}, with_name="Momentum4D")
+        return ak.unflatten(rec, np.diff(so))
+
+    info = r.event_info(0)
+    ev = samples(f"{info.stem}_hadrons_jet_frag.h5", info.local_event)      # the jet hadrons alone
+    ev = ak.to_packed(ev[(abs(ev.eta) < 1.5) & (ev.pt > 0.15) & ev.charged])
+    cs = fj.ClusterSequence(ev, fj.JetDefinition(fj.antikt_algorithm, 0.4))  # all samples at once
+    jets = cs.inclusive_jets(min_pt=10.0)                                     # samples * jets
+    cons = cs.constituent_index(min_pt=10.0)                                  # indices into ev
+    ```
 
 | | supported |
 |---|---|

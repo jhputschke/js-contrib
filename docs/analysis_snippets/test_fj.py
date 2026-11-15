@@ -45,26 +45,19 @@ print(len(pt_sub), "jets", np.round(sorted(pt_sub)[-5:], 1), "rho", rho, time.ti
 # --- array interface ---
 import awkward as ak, vector
 vector.register_awkward()
-from jetscape.hadrons_h5 import HadronFile
 
-def samples(path, unit, n=None):
-    """All samples of one unit as samples * var * Momentum4D (massless)."""
-    with HadronFile(path) as hf:
-        u = hf.unit_index(unit)
-        s0, s1 = int(hf.unit_offsets[u]), int(hf.unit_offsets[u + 1])
-        s1 = s1 if n is None else min(s1, s0 + n)
-        so = hf.sample_offsets[s0:s1 + 1]
-        p = hf.f["hadrons/p"][so[0]:so[-1]].astype(np.float64)
-        pid = hf.f["hadrons/pid"][so[0]:so[-1]]
-    rec = ak.zip({"px": p[:, 1], "py": p[:, 2], "pz": p[:, 3],
-                  "E": np.linalg.norm(p[:, 1:], axis=1),
-                  "charged": np.isin(np.abs(pid), CHARGED_PID)}, with_name="Momentum4D")
-    return ak.unflatten(rec, np.diff(so))
+def soft_charged(ev, info):
+    return ev.charged & (abs(ev.eta) < ETA_MAX) & (ev.pt > 0.15)
 
 t0 = time.time()
-info = r.event_info(0)
-ev = samples(f"{info.stem}_hadrons_bulk_jet.h5", info.local_event, n=100)
-ev = ak.to_packed(ev[(abs(ev.eta) < ETA_MAX) & (ev.pt > 0.15) & ev.charged])
+arr = r.hadron_array("bulk_jet", events=0, samples=slice(0, 100), mask=soft_charged)
+ev = arr.to_awkward(massless=True)
 cs = fj.ClusterSequence(ev, JET_DEF)                       # all 100 samples in one call
 jets = cs.inclusive_jets(min_pt=10.0)
+cons = cs.constituent_index(min_pt=10.0)
 print(ak.num(jets)[:10].tolist(), ak.max(jets.pt), time.time() - t0)
+
+# the same with several events: events x samples x jets
+arr = r.hadron_array("jet_frag", events=range(5), mask=soft_charged)
+jets = fj.ClusterSequence(arr.to_awkward(by_unit=True, pion_mass=True), JET_DEF).inclusive_jets(min_pt=10.0)
+print(jets.type, arr.info["units"]["event"].tolist())

@@ -38,12 +38,14 @@ import sys
 
 import numpy as np
 
-__all__ = ["to_awkward", "select", "pdg_charge", "SPECIES_CLASSES"]
+__all__ = ["to_awkward", "select", "pdg_charge", "SPECIES_CLASSES", "M_PION"]
 
 _MOMENTUM = ("E", "px", "py", "pz")
 _POSITION = ("t", "x", "y", "z")
 #: the field a stored mass gets in the views (vector computes .mass from E and p)
 _REST_MASS = "rest_mass"
+#: the charged pion mass [GeV] (PDG 2024), the mass to_awkward(pion_mass=True) gives tracks
+M_PION = 0.13957039
 _VECTOR_REGISTERED = False
 
 
@@ -88,29 +90,62 @@ def pdg_charge(pid) -> np.ndarray:
     return _per_unique(pid, charge, np.float64)
 
 
-def to_awkward(obj, position=False, charge=False, by_unit=False):
+def to_awkward(obj, position=False, charge=False, by_unit=False, charged=False,
+               massless=False, pion_mass=False):
     """The nested awkward view of a HadronArray, a hadron dict or a record table.
 
     position: add the nested `position` (HadronArray; records always carry theirs).
     charge:   add a `charge` field [e] from the PDG (needs `particle`).
-    by_unit:  a HadronArray read from a file (from_h5): units x samples x hadrons, over
-              info["unit_offsets"].
+    by_unit:  a HadronArray with info["unit_offsets"] (HadronArray.from_h5: the file's
+              units; HadronFileReader.hadron_array: the events): units x samples x hadrons.
+              False: samples x hadrons, all samples in a row.
+    (charged, massless and pion_mass are new after v1.5)
+    charged:  add a boolean `charged` field: the pid is in hadrons_h5.CHARGED, the stable
+              charged hadrons and leptons, as HadronFileReader's mask="charged" (no
+              `particle` needed; `charge` above is the PDG charge, resonances included).
+    massless: E recomputed as |p| (float64, a new array), as for massless particles; the
+              stored E is not used.
+    pion_mass: E recomputed as sqrt(p^2 + m^2) (float64, a new array) with m = M_PION
+              for the charged particles (`charged` above, leptons included) and m = 0 for
+              the neutral ones: every track as a pion, every neutral as massless, the usual
+              assumption of a detector-level analysis.  Not together with massless.
     """
+    if massless and pion_mass:
+        raise ValueError("to_awkward: massless and pion_mass exclude each other")
     ak = _modules()
     from .hadron_array import HadronArray
 
     if isinstance(obj, dict):
         obj = HadronArray.from_dict(obj)
     if isinstance(obj, HadronArray):
-        return _hadrons(ak, obj, position, charge, by_unit)
+        return _hadrons(ak, obj, position, charge, by_unit, charged, massless, pion_mass)
     rec = np.asarray(obj)
     if rec.dtype.names is None:
         raise TypeError("to_awkward takes a HadronArray, a hadron dict or a record array "
                         f"(an *_array() result), not {type(obj).__name__} of {rec.dtype}")
-    return _records(ak, rec, charge)
+    return _records(ak, rec, charge, charged, massless, pion_mass)
 
 
-def _hadrons(ak, h, position, charge, by_unit=False):
+def _charged(pid):
+    from .hadrons_h5 import CHARGED
+
+    return np.isin(np.abs(pid), CHARGED)
+
+
+def _massless_e(px, py, pz):
+    px, py, pz = (np.asarray(a, dtype=np.float64) for a in (px, py, pz))
+    return np.sqrt(px * px + py * py + pz * pz)
+
+
+def _pion_mass_e(px, py, pz, pid):
+    """E with the pion mass for the charged particles (hadrons_h5.CHARGED), 0 otherwise."""
+    m2 = np.where(_charged(pid), M_PION * M_PION, 0.0)
+    px, py, pz = (np.asarray(a, dtype=np.float64) for a in (px, py, pz))
+    return np.sqrt(px * px + py * py + pz * pz + m2)
+
+
+def _hadrons(ak, h, position, charge, by_unit=False, charged=False, massless=False,
+             pion_mass=False):
     names, contents = [], []
 
     def add(name, a):
@@ -118,7 +153,12 @@ def _hadrons(ak, h, position, charge, by_unit=False):
         contents.append(ak.contents.NumpyArray(a))
 
     for i, n in enumerate(_MOMENTUM):
-        add(n, h.p[:, i])
+        if n == "E" and massless:
+            add(n, _massless_e(h.p[:, 1], h.p[:, 2], h.p[:, 3]))
+        elif n == "E" and pion_mass:
+            add(n, _pion_mass_e(h.p[:, 1], h.p[:, 2], h.p[:, 3], h.pid))
+        else:
+            add(n, h.p[:, i])
     add("pid", h.pid)
     add("pstat", h.pstat)
     if h.mass is not None:
@@ -132,6 +172,8 @@ def _hadrons(ak, h, position, charge, by_unit=False):
             length=len(h), parameters={"__record__": "Vector4D"}))
     if charge:
         add("charge", pdg_charge(h.pid))
+    if charged:
+        add("charged", _charged(h.pid))
     record = ak.contents.RecordArray(contents, names, length=len(h),
                                      parameters={"__record__": "Momentum4D"})
     layout = ak.contents.ListOffsetArray(ak.index.Index64(h.sample_offsets), record)
@@ -145,10 +187,16 @@ def _hadrons(ak, h, position, charge, by_unit=False):
     return ak.Array(layout)
 
 
-def _records(ak, rec, charge):
+def _records(ak, rec, charge, charged=False, massless=False, pion_mass=False):
     fields = {n: rec[n] for n in rec.dtype.names}
     if charge and "pid" in fields:
         fields["charge"] = pdg_charge(rec["pid"])
+    if charged and "pid" in fields:
+        fields["charged"] = _charged(rec["pid"])
+    if massless and all(n in fields for n in _MOMENTUM):
+        fields["E"] = _massless_e(rec["px"], rec["py"], rec["pz"])
+    if pion_mass and "pid" in fields and all(n in fields for n in _MOMENTUM):
+        fields["E"] = _pion_mass_e(rec["px"], rec["py"], rec["pz"], rec["pid"])
     has_position = all(n in fields for n in _POSITION)
     if "mass" in fields:                      # vector would read it as a coordinate
         fields = {(_REST_MASS if n == "mass" else n): v for n, v in fields.items()}

@@ -617,34 +617,24 @@ spectrum, edges = np.histogram(pt_sub, np.arange(-20, 104, 4.0), weights=weight)
 
 ### The array interface (awkward) *(tested)*
 
-One `ClusterSequence` call clusters all samples of a unit in C++, with no Python loop
-(continues the block above: `np`, `CHARGED_PID`, `r`):
+One `ClusterSequence` call clusters all samples of an event in C++, with no Python loop
+(continues the block above: `r`). `r.hadron_array` reads the samples of the events asked
+for, with the same `mask` as `hist`, and `to_awkward` makes them `vector` four-momenta
+(new after v1.5: js-contrib `main` and the releases after v1.5, not v1.5 itself; with v1.5
+see [this file at v1.5](https://github.com/jhputschke/js-contrib/blob/v1.5/docs/README_analysis.md)):
 
 ```python
 import awkward as ak, vector, fastjet as fj
-from jetscape.hadrons_h5 import HadronFile
 vector.register_awkward()
 
-def samples(path, unit, n=None):
-    """The samples of one unit as samples * var * Momentum4D (massless)."""
-    with HadronFile(path) as hf:
-        u = hf.unit_index(unit)
-        s0, s1 = int(hf.unit_offsets[u]), int(hf.unit_offsets[u + 1])
-        s1 = s1 if n is None else min(s1, s0 + n)
-        so = hf.sample_offsets[s0:s1 + 1]
-        p = hf.f["hadrons/p"][so[0]:so[-1]].astype(np.float64)
-        pid = hf.f["hadrons/pid"][so[0]:so[-1]]
-    rec = ak.zip({"px": p[:, 1], "py": p[:, 2], "pz": p[:, 3],
-                  "E": np.linalg.norm(p[:, 1:], axis=1),
-                  "charged": np.isin(np.abs(pid), CHARGED_PID)}, with_name="Momentum4D")
-    return ak.unflatten(rec, np.diff(so))
+def soft_charged(ev, info):                       # the conventions of section 2
+    return ev.charged & (abs(ev.eta) < 1.5) & (ev.pt > 0.15)
 
-info = r.event_info(0)
-ev = samples(f"{info.stem}_hadrons_jet_frag.h5", info.local_event)      # the jet hadrons alone
-ev = ak.to_packed(ev[(abs(ev.eta) < 1.5) & (ev.pt > 0.15) & ev.charged])
+arr = r.hadron_array("jet_frag", events=0, mask=soft_charged)            # the jet hadrons alone
+ev = arr.to_awkward(massless=True)                                       # samples * var * Momentum4D
 cs = fj.ClusterSequence(ev, fj.JetDefinition(fj.antikt_algorithm, 0.4))  # all samples at once
-jets = cs.inclusive_jets(min_pt=10.0)                                     # samples * jets
-cons = cs.constituent_index(min_pt=10.0)                                  # indices into ev
+jets = cs.inclusive_jets(min_pt=10.0)                                    # samples * jets
+cons = cs.constituent_index(min_pt=10.0)                                 # indices into ev
 ```
 
 - **Supported:** inclusive and exclusive jets, constituents and their indices
