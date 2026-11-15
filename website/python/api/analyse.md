@@ -133,6 +133,34 @@ with HadronFileReader("/path/to/campaign") as r:
     jets = fj.sorted_by_pt(cs.inclusive_jets(10.0))         # pT > 10 GeV
 ```
 
+### Many samples at once: arrays for FastJet and awkward
+
+`hadron_array` reads the samples of chosen events as one array, with the same `events` and
+`mask` as `hist`; only those rows are read, and only the hadrons the mask keeps are stored.
+`to_awkward` turns it into `vector` four-momenta, and FastJet's array interface clusters every
+sample in one call:
+
+!!! note "New after v1.5"
+    `hadron_array` and `to_awkward(charged=, massless=, pion_mass=)` are in js-contrib's `main`
+    after v1.5 and the releases after it, not in v1.5 itself.
+
+
+```python
+import awkward as ak, vector, fastjet as fj
+vector.register_awkward()
+
+with HadronFileReader("/path/to/campaign") as r:
+    arr = r.hadron_array("bulk_jet", events=range(10), samples=slice(0, 20),
+                         mask=lambda ev, info: ev.charged & (abs(ev.eta) < 1.5) & (ev.pt > 0.15))
+had = arr.to_awkward(by_unit=True, pion_mass=True)  # events x samples x hadrons, tracks as pions
+cs = fj.ClusterSequence(had, fj.JetDefinition(fj.antikt_algorithm, 0.4))
+jets = cs.inclusive_jets(min_pt=10.0)               # events x samples x jets
+arr.info["units"]["event"], arr.info["samples"]     # which event and sample each block is
+```
+
+`samples=k` takes one sample per event; `massless=True` sets E = \|p\|, `charged=True` adds a
+`charged` field. Without `by_unit` the samples come in a row, samples x hadrons.
+
 ### One file, or arrays for awkward
 
 ```python
