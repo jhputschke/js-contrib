@@ -70,7 +70,11 @@ class HadronArray:
     def from_h5(cls, path, units=None) -> "HadronArray":
         """A hadron file (hadrons_h5 format: jet_frag, bulk_bg, ...) as one HadronArray: the
         stored fields as they are (float32, no derived columns), every sample of every unit
-        in file order.  ``units``: an index array or slice to read only those units.
+        in file order.  ``units``: an index array or slice of unit positions (not the
+        recorded event numbers: ``HadronFile.unit_index`` maps those) to read only those
+        units; only their rows are read from disk (after v1.5; before, the whole file).
+        For events of a campaign by their number, with samples and a hadron selection, see
+        ``HadronFileReader.hadron_array`` (new after v1.5).
 
         info: ``unit_offsets`` (samples of unit u: unit_offsets[u]:[u+1]), ``units`` (the
         file's per-unit table: event, seed, event_weight, ...), ``attrs`` (the file's
@@ -78,30 +82,14 @@ class HadronArray:
         import h5py
 
         from . import h5_compression  # noqa: F401  (the Blosc filter)
-        from .hadrons_h5 import FORMAT
+        from .hadrons_h5 import FORMAT, _read_units
 
         with h5py.File(path, "r") as f:
             if f.attrs.get("format") != FORMAT:
                 raise ValueError(f"{path}: not a {FORMAT} file")
-            g = f["hadrons"]
-            so, uo = g["sample_offsets"][:], g["unit_offsets"][:]
-            table = {k: f["units"][k][:] for k in f["units"]} if "units" in f else {}
             attrs = dict(f.attrs)
-            names = ["pid", "pstat", "p"] + (["x"] if "x" in g else [])
-            if units is None:
-                data = {k: g[k][:] for k in names}
-            else:
-                sel = np.arange(len(uo) - 1)[units]
-                rows, s_new, u_new = [], [0], [0]
-                for u in sel:
-                    for s in range(int(uo[u]), int(uo[u + 1])):
-                        rows.append(np.arange(int(so[s]), int(so[s + 1])))
-                        s_new.append(s_new[-1] + int(so[s + 1] - so[s]))
-                    u_new.append(u_new[-1] + int(uo[u + 1] - uo[u]))
-                idx = np.concatenate(rows) if rows else np.zeros(0, dtype=np.int64)
-                data = {k: g[k][:][idx] for k in names}
-                so, uo = np.asarray(s_new, np.int64), np.asarray(u_new, np.int64)
-                table = {k: v[sel] for k, v in table.items()}
+            names = ["pid", "pstat", "p"] + (["x"] if "x" in f["hadrons"] else [])
+            data, so, uo, table = _read_units(f, units, names)
         info = {"unit_offsets": uo, "units": table, "attrs": attrs, "path": str(path)}
         return cls(data["pid"], data["pstat"], data["p"], data.get("x"), None, so, info)
 
@@ -144,10 +132,33 @@ class HadronArray:
                        attrs=attrs if attrs is not None else self.info.get("attrs"),
                        units=self.info.get("units"))
 
-    def to_awkward(self, position=False, charge=False, by_unit=False):
+    def to_awkward(self, position=False, charge=False, by_unit=False, charged=False,
+                   massless=False, pion_mass=False):
         """samples x hadrons as an awkward array of Momentum4D records over these buffers
-        (awkward_views.to_awkward); by_unit (a HadronArray from_h5): units x samples x
-        hadrons."""
+        (awkward_views.to_awkward).
+
+        Args:
+            position: add the nested ``position`` (t, x, y, z).
+            charge: add ``charge`` [e], the PDG charge (needs ``particle``).
+            by_unit: nest by ``info["unit_offsets"]``: units x samples x hadrons.  A unit is
+                what the array was read by: a file's unit for :meth:`from_h5` (an event;
+                for bulk_bg a background), an event for
+                ``HadronFileReader.hadron_array``.  False: samples x hadrons, all samples
+                in a row.
+            charged: (``charged``, ``massless`` and ``pion_mass`` are new after v1.5) add a
+                boolean ``charged`` field (pid in ``hadrons_h5.CHARGED``, as
+                ``mask="charged"`` of HadronFileReader).
+            massless: E recomputed as |p| in float64 (a new array): massless particles.
+                px, py, pz stay float32 views, so vector's ``.mass`` shows their rounding
+                (~1e-4 GeV); FastJet works in float64 and sees mass 0.
+            pion_mass: E recomputed in float64 (a new array) with the pion mass
+                (``awkward_views.M_PION``) for the charged particles (as ``charged``,
+                leptons included) and no mass for the neutral ones: every track a pion,
+                every neutral massless.  Not together with ``massless``.
+
+        Only ``charge``, ``charged``, ``massless`` and ``pion_mass`` add arrays; the rest are views of
+        this array's buffers."""
         from .awkward_views import to_awkward
 
-        return to_awkward(self, position=position, charge=charge, by_unit=by_unit)
+        return to_awkward(self, position=position, charge=charge, by_unit=by_unit,
+                          charged=charged, massless=massless, pion_mass=pion_mass)

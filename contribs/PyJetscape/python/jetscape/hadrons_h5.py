@@ -276,6 +276,82 @@ def _no_positions(n):
     return np.zeros((int(n), 0), np.float32)
 
 
+def _native(a):
+    """``a`` in the machine's byte order, marked as such ('=').  An HDF5 dataset's dtype is
+    marked '<' (little-endian) even on little-endian machines, and so is an array allocated
+    with it; numpy treats both the same, but fastjet 3.5's array interface fails on '<'
+    (its correct_byteorder returns a dtype instead of the array).  h5py's reads are
+    already native; this keeps every array the readers hand out so.  Same memory, no copy,
+    where the order already is native."""
+    if a.dtype.byteorder in ("=", "|"):
+        return a
+    return a.astype(a.dtype.newbyteorder("="), copy=False)
+
+
+def _read_rows(dset, starts, stops):
+    """Rows ``[starts[i], stops[i])`` of an HDF5 dataset, concatenated in the given order.
+
+    Only the stored chunks that hold them are read and decompressed: ranges closer than a
+    chunk are merged into one read, each block is read once (also when several ranges, or
+    the same range twice, fall into it).  A selection of half the dataset or more reads
+    the whole dataset in one go, which is then faster than many reads."""
+    starts = np.asarray(starts, dtype=np.int64)
+    stops = np.asarray(stops, dtype=np.int64)
+    n_out = int(np.sum(np.maximum(stops - starts, 0)))
+    dtype = dset.dtype if dset.dtype.byteorder in ("=", "|") else \
+        dset.dtype.newbyteorder("=")              # as h5py's reads (see _native)
+    out = np.empty((n_out,) + dset.shape[1:], dtype=dtype)
+    if n_out == 0:
+        return out
+    if 2 * n_out >= dset.shape[0]:
+        whole = dset[:]
+        blocks, b0 = [whole], np.zeros(1, dtype=np.int64)
+    else:
+        gap = dset.chunks[0] if dset.chunks else 0
+        merged = []
+        for s in np.argsort(starts, kind="stable"):
+            a, b = int(starts[s]), int(stops[s])
+            if b <= a:
+                continue
+            if merged and a <= merged[-1][1] + gap:
+                merged[-1][1] = max(merged[-1][1], b)
+            else:
+                merged.append([a, b])
+        blocks = [dset[a:b] for a, b in merged]
+        b0 = np.array([a for a, _ in merged], dtype=np.int64)
+    pos = 0
+    for a, b in zip(starts, stops):
+        if b <= a:
+            continue
+        j = int(np.searchsorted(b0, a, side="right")) - 1
+        out[pos:pos + b - a] = blocks[j][a - b0[j]:b - b0[j]]
+        pos += b - a
+    return out
+
+
+def _read_units(f, units, names):
+    """The hadron fields ``names`` of an open hadron file, all units (``units`` None) or
+    those at the positions ``units`` (an index array or slice, in that order; repeats
+    allowed): ``(data, sample_offsets, unit_offsets, units_table)``, offsets and table for
+    the units read.  Only the selected rows are read from disk (:func:`_read_rows`); the
+    arrays come in native byte order (:func:`_native`)."""
+    g = f["hadrons"]
+    so, uo = _native(g["sample_offsets"][:]), _native(g["unit_offsets"][:])
+    table = {k: f["units"][k][:] for k in f["units"]} if "units" in f else {}
+    if units is None:
+        return {k: _native(g[k][:]) for k in names}, so, uo, table
+    sel = np.atleast_1d(np.arange(len(uo) - 1)[units])
+    s0, s1 = uo[sel], uo[sel + 1]                      # each unit's samples
+    data = {k: _read_rows(g[k], so[s0], so[s1]) for k in names}
+    counts = [np.diff(so[a:b + 1]) for a, b in zip(s0, s1)]
+    so_new = np.zeros(int(np.sum(s1 - s0)) + 1, dtype=np.int64)
+    if counts:
+        np.cumsum(np.concatenate(counts), out=so_new[1:])
+    uo_new = np.zeros(len(sel) + 1, dtype=np.int64)
+    np.cumsum(s1 - s0, out=uo_new[1:])
+    return data, so_new, uo_new, {k: v[sel] for k, v in table.items()}
+
+
 def pseudorapidity(p):
     """eta of momenta ``p`` = (N, 4) [E, px, py, pz]; ~+-690 along the beam, 0 for p = 0.
     The one definition used by the writer's cut and by :class:`Hadrons`."""
@@ -519,7 +595,8 @@ class Hadrons:
 
     @classmethod
     def from_h5(cls, path, units=None):
-        """Read a file (``units``: an index array/slice to keep only those units)."""
+        """Read a file (``units``: an index array/slice to keep only those units; only
+        their rows are read from disk)."""
         import h5py
 
         from . import h5_compression  # noqa: F401  (Blosc filter)
@@ -527,33 +604,11 @@ class Hadrons:
         with h5py.File(path, "r") as f:
             if f.attrs.get("format") != FORMAT:
                 raise ValueError(f"{path}: not a {FORMAT} file")
-            g = f["hadrons"]
-            so = g["sample_offsets"][:]
-            uo = g["unit_offsets"][:]
             attrs = dict(f.attrs)
-            utab = {k: f["units"][k][:] for k in f["units"]} if "units" in f else {}
-            has_x = "x" in g
-            if units is None:
-                pid, pstat = g["pid"][:], g["pstat"][:]
-                p = g["p"][:]
-                x = g["x"][:] if has_x else _no_positions(len(pid))
-            else:
-                sel = np.arange(len(uo) - 1)[units]
-                rows, s_new, u_new = [], [0], [0]
-                for u in sel:
-                    s0, s1 = int(uo[u]), int(uo[u + 1])
-                    for s in range(s0, s1):
-                        rows.append((int(so[s]), int(so[s + 1])))
-                        s_new.append(s_new[-1] + int(so[s + 1] - so[s]))
-                    u_new.append(u_new[-1] + (s1 - s0))
-                idx = (np.concatenate([np.arange(a, b) for a, b in rows])
-                       if rows else np.zeros(0, dtype=np.int64))
-                pid, pstat = g["pid"][:][idx], g["pstat"][:][idx]
-                p = g["p"][:][idx]
-                x = g["x"][:][idx] if has_x else _no_positions(len(idx))
-                so, uo = np.asarray(s_new), np.asarray(u_new)
-                utab = {k: v[sel] for k, v in utab.items()}
-        return cls(pid, pstat, p, x, so, uo, attrs=attrs, units=utab)
+            names = ["pid", "pstat", "p"] + (["x"] if "x" in f["hadrons"] else [])
+            d, so, uo, utab = _read_units(f, units, names)
+        x = d["x"] if "x" in d else _no_positions(len(d["pid"]))
+        return cls(d["pid"], d["pstat"], d["p"], x, so, uo, attrs=attrs, units=utab)
 
     @property
     def n_units(self):
@@ -1585,6 +1640,140 @@ class HadronFileReader:
     def iter_jet_events(self, event, frag_sample=None):
         for k in range(self.n_oversamples(event)):
             yield self.jet_event(event, k, frag_sample=frag_sample)
+
+    # ── arrays ──────────────────────────────────────────────────────────────────
+    def hadron_array(self, tag, events=None, samples=None, *, mask=None, positions=None):
+        """The hadrons of ``tag`` for ``events``, every sample kept apart, as one
+        :class:`~jetscape.hadron_array.HadronArray`: for FastJet's array interface, awkward
+        or numpy analyses of single hadrons that ``hist`` does not cover.  New after v1.5
+        (js-contrib ``main``; not in pyjetscape 1.5, the v1.5 containers or wheel).
+
+            arr = reader.hadron_array("jet_frag", events=0, mask="charged")
+            arr = reader.hadron_array("bulk_jet", events=range(100), samples=slice(0, 10),
+                                      mask=lambda ev, info: ev.charged & (abs(ev.eta) < 1))
+            ev = arr.to_awkward(by_unit=True)     # events x samples x hadrons
+
+        Args:
+            tag: one of ``TAGS``.
+            events: global event numbers as in ``hist`` (None: all; an int, a slice or an
+                iterable), returned in ascending order, each once.  ``bulk_bg`` gives each
+                event the background it used, so events sharing a background each get
+                their own copy.
+            samples: the samples of each event: None (all), an int k, a slice or an
+                iterable of sample indices, kept in stored order.  An int beyond an event's
+                samples raises, except for an event without samples (an empty surface),
+                which then has none.
+            mask: a hadron selection as in ``hist``: a name (``'charged'``, a species or a
+                boolean :class:`EventHadrons` attribute) or a callable ``f(ev, info)``
+                returning one bool per hadron of the event's samples, ``ev`` an
+                :class:`EventHadrons`, ``info`` an :class:`EventInfo` (jet-relative cuts
+                use ``info.initiators()``).  Applied while reading: only the hadrons kept
+                are stored; a sample without any stays, empty.
+            positions: also read ``x`` (None: if every file read has it; True: required;
+                False: never).
+
+        Returns:
+            A HadronArray with the stored fields (``p`` and ``x`` as stored, float32) and
+            one sample per selected sample.  ``info["unit_offsets"]`` groups the samples by
+            event, so ``to_awkward(by_unit=True)`` nests events x samples x hadrons;
+            ``info["units"]`` has one row per event: ``event`` (global), ``file``,
+            ``local_event``, ``file_unit`` (the unit in the tag's file);
+            ``info["samples"]`` the sample index k of each sample; ``info["tag"]``.
+        """
+        import h5py
+
+        from .hadron_array import HadronArray
+
+        if tag not in TAGS:
+            raise ValueError(f"tag {tag!r}: one of {TAGS}")
+        g = self.events(events)
+        files = (np.searchsorted(self._offsets, g, side="right") - 1 if len(g)
+                 else np.zeros(0, dtype=np.int64))
+        paths = {int(i): self._path(int(i), tag) for i in np.unique(files)}
+        if positions is None or positions:
+            has_x = []
+            for path in paths.values():
+                with h5py.File(path, "r") as f:
+                    has_x.append("x" in f["hadrons"])
+            if positions and not all(has_x):
+                raise ValueError(f"hadron_array({tag!r}, positions=True): some files were "
+                                 "written without positions (hadronize.py --no-x)")
+            positions = all(has_x)
+        names = ["pid", "pstat", "p"] + (["x"] if positions else [])
+        parts = {k: [] for k in names}
+        counts, ks, per_event = [], [], []
+        table = {"event": [], "file": [], "local_event": [], "file_unit": []}
+        for i, path in paths.items():
+            local = g[files == i] - int(self._offsets[i])
+            units = [self._unit_of(i, tag, e) for e in local]
+            with h5py.File(path, "r") as f:
+                ids = f["units"]["unit"][:] if "units" in f and "unit" in f["units"] else None
+                n_units = len(f["hadrons"]["unit_offsets"]) - 1
+                pos = {}
+                for u in set(units):
+                    try:
+                        pos[u] = _unit_index(ids, u, n_units)
+                    except IndexError:            # not in the file: no samples
+                        pos[u] = None
+                order = sorted({p for p in pos.values() if p is not None})
+                data, so, uo, _ = _read_units(f, np.array(order, dtype=np.int64), names)
+            at = {p: j for j, p in enumerate(order)}
+            h = None
+            if mask is not None and len(order):
+                h = Hadrons(data["pid"], data["pstat"], data["p"],
+                            data["x"] if positions else _no_positions(len(data["pid"])),
+                            so, uo)
+            rows = []
+            for e, u in zip(local, units):
+                ge = self.global_event(i, int(e))
+                for key, val in (("event", ge), ("file", i), ("local_event", int(e)),
+                                 ("file_unit", u)):
+                    table[key].append(val)
+                j = at.get(pos[u])
+                n = 0 if j is None else int(uo[j + 1] - uo[j])
+                if isinstance(samples, (int, np.integer)):
+                    if n and not -n <= samples < n:
+                        raise IndexError(f"event {ge} ({tag}) has {n} sample(s); asked for "
+                                         f"sample {samples}")
+                    want = np.array([samples % n] if n else [], dtype=np.int64)
+                elif samples is None:
+                    want = np.arange(n)
+                else:
+                    want = np.unique(np.arange(n)[samples])
+                if j is None or not len(want):
+                    per_event.append(0)
+                    continue
+                s0 = int(uo[j])
+                a0, a1 = int(so[s0]), int(so[s0 + n])
+                sample_of = np.repeat(np.arange(n), np.diff(so[s0:s0 + n + 1]))
+                keep = np.isin(sample_of, want) if len(want) < n else np.ones(a1 - a0, bool)
+                if mask is not None:
+                    keep &= _select(EventHadrons(h, j), EventInfo(self, ge, i, int(e)), mask)
+                rows.append(a0 + np.flatnonzero(keep))
+                counts.append(np.bincount(sample_of[keep], minlength=n)[want])
+                ks.append(want)
+                per_event.append(len(want))
+            idx = np.concatenate(rows) if rows else np.zeros(0, dtype=np.int64)
+            for k in names:
+                parts[k].append(data[k][idx])
+        so_out = np.zeros(int(sum(per_event)) + 1, dtype=np.int64)
+        if counts:
+            np.cumsum(np.concatenate(counts), out=so_out[1:])
+        uo_out = np.zeros(len(per_event) + 1, dtype=np.int64)
+        np.cumsum(per_event, out=uo_out[1:])
+
+        def joined(k, empty):
+            return np.concatenate(parts[k]) if parts[k] else empty
+
+        p = joined("p", np.zeros((0, 4), np.float32))
+        info = {"unit_offsets": uo_out,
+                "units": {k: np.asarray(v, dtype=np.int64) for k, v in table.items()},
+                "samples": (np.concatenate(ks) if ks else np.zeros(0, dtype=np.int64)),
+                "tag": tag}
+        return HadronArray(joined("pid", np.zeros(0, np.int32)),
+                           joined("pstat", np.zeros(0, np.int32)), p,
+                           joined("x", np.zeros((0, 4), np.float32)) if positions else None,
+                           None, so_out, info)
 
     # ── histograms ──────────────────────────────────────────────────────────────
     def hist(self, tag, values, bins, *, mask=None, weights=None, events=None,
