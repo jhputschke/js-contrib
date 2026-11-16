@@ -15,7 +15,10 @@ build through jetscape.paths ($XSCAPE, $JETSCAPE_BUILD).
 Outputs in OUTDIR: <name>.xml (the job's XML, as run), <name>_hadrons_bulk_bg.h5 (iSS, one
 sample per oversample; only with SoftParticlization in the XML),
 <name>_hadrons_jet_frag.h5 (the jet hadrons and their initiators).  Read them back with
-js.HadronArray.from_h5(...) -- oo_workflow.ipynb, oo_analysis.ipynb, PYTHONIC.md.
+js.HadronArray.from_h5(...) -- oo_workflow.ipynb, oo_analysis.ipynb, PYTHONIC.md -- or as a
+campaign with hadrons_h5.HadronFileReader(OUTDIR): the jet file carries the event record
+as a --hadrons-only job's does (attribute hadrons_only, units/bg_unit: every event its own
+background), so no particlize file is needed.
 
 To make it yours: change the XML, and the per-event block below (what is stored).
 """
@@ -104,7 +107,8 @@ def main() -> int:
             iss.use_compact_output()                   # iSS hands its hadrons over as arrays
         with (HadronH5Writer(bulk_path, tag="bulk_bg", n_samples=n_oversample)
               if iss is not None else nullcontext()) as bulk_w, \
-             HadronH5Writer(jet_path, tag="jet_frag", n_samples=1, initiators=True) as jet_w:
+             HadronH5Writer(jet_path, tag="jet_frag", n_samples=1, initiators=True,
+                            attrs={"hadrons_only": True}) as jet_w:   # HadronFileReader
             for i in driver.events(on_error=lambda i, exc: skipped.append((i, str(exc)))):
                 # ── per event: what is stored ──────────────────────────────────────
                 record = glauber_record()
@@ -121,7 +125,7 @@ def main() -> int:
                 audit = had.colour_audit() if hasattr(had, "colour_audit") else {}
                 initiators = initiator_rows(mgr.initiator_array()) if mgr is not None else None
                 jet_w.append_unit(jet.to_dict(), initiators=initiators, unit=n_done, event=i,
-                                  seed=had.last_random_seed, **record,
+                                  seed=had.last_random_seed, bg_unit=n_done, **record,
                                   **{f"colour_{k}": v for k, v in audit.items()})
                 n_done += 1
                 fp = mgr.final_parton_array() if mgr is not None else np.zeros(0)

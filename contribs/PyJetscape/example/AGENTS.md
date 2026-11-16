@@ -126,7 +126,8 @@ with HadronFileReader("/path/to/campaign") as r:            # a directory, a fil
 - Look at a file first: `h5_inspect.py FILE`. Compare two files or directories bit by bit:
   `h5_compare.py A B --ignore-stamps`. Both are in js-contrib's `utils/`.
 - `HadronFileReader` takes the directory that holds the `_particlize.h5` files with their
-  hadron files next to them (or the hadron files of a `--hadrons-only` job).
+  hadron files next to them (or the hadron files of a `--hadrons-only` job, or of
+  `pythonic/oo_workflow.py`).
 - The analyses need no X-SCAPE and no GPU; `hadronize.py` needs X-SCAPE, but no GPU.
 
 ## 6. Rules
