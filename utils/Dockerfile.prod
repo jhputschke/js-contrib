@@ -34,6 +34,11 @@
 # particlize files are written from Python with h5py.  --build-arg WITH_ROOT=1 adds
 # conda-forge's root_base (ROOT's core libraries, not the full 'root' metapackage).
 #
+# --build-arg WITH_SMASH=1 adds SMASH-3.2.2 and the SMASHInitialCondition chain
+# (example/bes_smash_ic): Pythia is pinned to 8.315, the version SMASH-3.2.2 requires
+# (the default image takes conda-forge's current pythia8), and the NEOS-4D tables (EOS 20)
+# are downloaded.  Needs an X-SCAPE and a MUSIC4GPU with the B, Q, S port (bqs_gpu).
+#
 # Remote storage: Pelican/OSDF always (pelicanfs for Python, the pelican CLI);
 # --build-arg WITH_GCS=1 adds Google Cloud Storage for Python (gcsfs,
 # google-cloud-storage), not the gcloud CLI.
@@ -49,6 +54,7 @@ ARG TARGETARCH
 ARG CUDA_VERSION
 ARG CUDA_ARCHITECTURES="70-real;75-real;80-real;86-real;89-real;90"
 ARG WITH_ROOT=0
+ARG WITH_SMASH=0
 # Sources.  A *_REF is a full 40-character commit hash (GitHub serves single commits only
 # by their full hash), a branch or a tag.  MUSIC4GPU_REF empty: the commit
 # external_packages/get_music4gpu.sh pins (iSS and 3dMCGlauber always use their scripts').
@@ -60,6 +66,10 @@ ARG XSCAPE_REPO=https://github.com/JETSCAPE/X-SCAPE.git
 # The CI (docker-prod.yml) resolves the branch to a commit and passes that.
 ARG XSCAPE_REF=contrib
 ARG MUSIC4GPU_REF=""
+# MUSIC4GPU_REPO non-empty: get_music4gpu.sh clones from there instead of GitHub (a
+# test build of branches not pushed yet, e.g. from a local `git daemon` with
+# docker build --network host)
+ARG MUSIC4GPU_REPO=""
 ARG JS_CONTRIB_REPO=https://github.com/jhputschke/js-contrib.git
 ARG JS_CONTRIB_REF=main
 # Parallel compile jobs (empty: all cores).  nvcc compiles every .cu once per architecture.
@@ -91,10 +101,11 @@ RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64") \
 # CMake 4 refuses.  GCC 14 as for the GB10's build_gpu.  pkg-config: conda's h5c++ wrapper,
 # which trento's CMake runs, calls it.
 RUN CARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "64") \
+  && PYTHIA=$([ "$WITH_SMASH" = 1 ] && echo "pythia8=8.315 eigen" || echo "pythia8") \
   && /opt/miniforge3/bin/mamba create -n xscape -y -c conda-forge \
        python=3.12 "numpy>=2" \
        "cmake>=3.28,<4" make pkg-config "gcc_linux-${CARCH}=14" "gxx_linux-${CARCH}=14" "pybind11>=3.0" \
-       boost-cpp zlib hdf5 gsl pythia8 \
+       boost-cpp zlib hdf5 gsl $PYTHIA \
   && if [ "$WITH_ROOT" = 1 ]; then \
        /opt/miniforge3/bin/mamba install -n xscape -y -c conda-forge root_base ; fi \
   && /opt/miniforge3/bin/conda remove -n xscape --force -y lhapdf \
@@ -130,11 +141,21 @@ WORKDIR /opt/X-SCAPE/external_packages
 # MUSIC4GPU (+ MUSIC's hotQCD EoS tables), iSS (+ HRG and delta-f tables), 3dMCGlauber
 # (+ LHAPDF, compiled here, and the CT10nnlo PDF set), each at the commit its script pins.
 RUN eval "$ACT" \
+  && if [ -n "$MUSIC4GPU_REPO" ]; then \
+       sed -i "s#https://github.com/jhputschke/MUSIC4GPU.git#$MUSIC4GPU_REPO#" get_music4gpu.sh ; fi \
   && bash get_music4gpu.sh \
   && if [ -n "$MUSIC4GPU_REF" ]; then \
        git -C music4gpu fetch -q origin "$MUSIC4GPU_REF" && git -C music4gpu checkout -q FETCH_HEAD ; fi \
   && bash get_iSS.sh \
   && bash get_3dglauber.sh
+
+# WITH_SMASH: SMASH-3.2.2 (shared library), built against the env's Pythia 8.315, and
+# the NEOS-4D tables (UrQMD variant) for EOS 20.
+RUN if [ "$WITH_SMASH" = 1 ]; then eval "$ACT" \
+  && PYTHIA8DIR="$CONDA_PREFIX" EIGEN3_INCLUDE_DIR="$CONDA_PREFIX/include/eigen3" \
+       bash get_smash.sh "${JOBS:-$(nproc)}" \
+  && (cd music4gpu/EOS && bash download_Neos4D.sh UrQMD) \
+  && test -s music4gpu/EOS/neos4D/neos4d_p_b.dat ; fi
 
 # LBT tables (1.2 GB unpacked); the split archives and the extraction dir are dropped.
 RUN bash get_lbtTab.sh \
@@ -154,9 +175,11 @@ RUN cd /opt/X-SCAPE \
 # ── Configure and build ──────────────────────────────────────────────────────────────
 # The tree is called build_gpu, so the production scripts' default --build works as is.
 RUN eval "$ACT" \
+  && export SMASH_DIR=/opt/X-SCAPE/external_packages/smash/smash_code \
   && cmake -S /opt/X-SCAPE -B /opt/X-SCAPE/build_gpu \
        -DCMAKE_BUILD_TYPE=Release \
        -DUSE_CUDA=ON -DUSE_MUSIC=ON -DUSE_ISS=ON -DUSE_3DGlauber=ON \
+       -DUSE_SMASH=$([ "$WITH_SMASH" = 1 ] && echo ON || echo OFF) \
        -DUSE_JS_CONTRIB=ON -DUSE_JS_PYJETSCAPE=ON -DUSE_JS_FNO_HYDRO=OFF \
        -DCMAKE_CUDA_ARCHITECTURES="$CUDA_ARCHITECTURES" \
        -DPYTHON_EXECUTABLE="$CONDA_PREFIX/bin/python" \
@@ -173,13 +196,15 @@ RUN cd /opt/X-SCAPE && eval "$ACT" \
        echo "CUDA $CUDA_VERSION, CMAKE_CUDA_ARCHITECTURES=$CUDA_ARCHITECTURES"; \
        echo "nvcc: $(nvcc --version | tail -1)"; \
        echo "CXX: $($CXX --version | head -1); CUDAHOSTCXX: $($CUDAHOSTCXX --version | head -1)"; \
-       echo "WITH_ROOT=$WITH_ROOT"; \
+       echo "WITH_ROOT=$WITH_ROOT, WITH_SMASH=$WITH_SMASH"; \
      } > BUILD_INFO.txt \
   && conda list -n xscape --explicit > conda-explicit.txt \
   && pip freeze > pip-freeze.txt \
   && cat BUILD_INFO.txt \
   && find build_gpu -name CMakeFiles -type d -prune -exec rm -rf {} + \
   && find build_gpu \( -name '*.o' -o -name '*.a' \) -delete \
+  && if [ -d external_packages/smash/smash_code/build ]; then \
+       find external_packages/smash/smash_code/build -name '*.o' -delete ; fi \
   && find . -name .git -type d -prune -exec rm -rf {} +
 
 # The runtime env: the explicit package list minus the build tools, so every library has
