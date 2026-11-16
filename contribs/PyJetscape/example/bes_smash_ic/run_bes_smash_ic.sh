@@ -24,8 +24,8 @@
 #     --threads T        OMP_NUM_THREADS (default 16)
 #
 # Output in OUTDIR/<tag>/: the final-state hadrons (<tag>_final_state_hadrons.dat),
-# run.log (stdout, each line with the seconds since the start), time.log
-# (/usr/bin/time -v), the XML used, and with --checks charges.txt from
+# run.log (stdout and stderr, each line with the seconds since the start),
+# time.log (wall time, peak memory, exit status; timed_run.py), the XML used, and with --checks charges.txt from
 # bqs_balance.py (B, Q, S from SMASH into the hydro, on the grid, through the
 # surface, in the hadrons). <tag> = s<sqrts>_seed<seed>[_cpu][_diff].
 #
@@ -94,9 +94,8 @@ fi
 
 cd "$work"
 echo "[bes_smash_ic] $tag in $work"
-( /usr/bin/time -v "$exe" "$tag.xml" "$XSCAPE/config/jetscape_main.xml" 2> time.log ) \
-  | perl -MTime::HiRes=time -ne 'BEGIN{$|=1;$t0=time} printf("%9.3f %s", time-$t0, $_)' \
-  > run.log
+python3 "$here/timed_run.py" run.log time.log -- \
+  "$exe" "$tag.xml" "$XSCAPE/config/jetscape_main.xml" || true
 grep -E "Elapsed|Maximum resident|Exit status" time.log
 if [ $checks = 1 ]; then
   python3 "$here/bqs_balance.py" run.log "${tag}_final_state_hadrons.dat" \
