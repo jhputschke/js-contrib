@@ -55,8 +55,25 @@ freeze-out. 67 baryons, net charge 26 deposited.
 | run | MUSIC | wall time | grid N_B, N_Q at the end |
 |---|---|---|---|
 | A0, before the port | CPU (20 threads), EOS 20 | 23 min 15 s | 65.50, 25.03 |
-| A3, `--checks` | GPU, EOS 20 | 19 min 43 s | 65.79, 25.14 |
+| GPU port, `--checks` | GPU, EOS 20 | 19 min 43 s | 65.79, 25.14 |
+| GPU port, production settings | GPU, EOS 20 | 17 min 43 s | |
+| now, `--checks --samples 100` | GPU, EOS 20 | 1 min 29 s | 65.65, 25.03 |
+| now, production settings | GPU, EOS 20 | **1 min 01 s** | |
 
-With `--checks` MUSIC copies the grid to the host every step for its
-diagnostics, which dominates both runs; see BENCHMARK below for production
-settings.
+Production settings: no `--checks`, one iSS sample, SMASH's tabulations already
+in `SMASH_TABULATIONS`. A second event in the same job takes about 50 s: SMASH
+builds its decay-width tables (about 12 s) once per process, so run several
+events per job (`--events`).
+
+Where the time went: the hadronic liquefier's sources were asked at every cell
+of the 150 × 150 × 140 grid in every step (now per droplet, only in the steps it
+deposits), iSS re-read its EOS tables for every surface, MUSIC copied the grid
+to the host after every clock tick and for every freeze-out check, and SMASH
+re-tabulated its integrals at every start. The B, Q, S balance (100 iSS samples):
+through the surface 65.00, 24.94, −0.14; in the samples 64.61, 25.05, −2.2
+(sources 67, 26, 0).
+
+The step-by-step GPU hydro now also starts each clock tick from the real
+previous step, and its viscous regulator treats fast, dilute cells as the CPU
+does; the final state is about twice as close to the CPU's (MUSIC4GPU
+`docs/BQS_GPU.md`).

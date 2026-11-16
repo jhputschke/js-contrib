@@ -85,6 +85,9 @@ sed -e "s#@XSCAPE@#$XSCAPE#g" -e "s#@OUT@#$tag#" -e "s#@SEED@#$seed#" \
     "$here/jetscape_user_bes_smash_ic.xml" > "$work/$tag.xml"
 
 export OMP_NUM_THREADS="$threads"
+# SMASH's tabulated integrals, computed once and shared by the jobs of OUTDIR
+# (about 12 s per job otherwise; needs X-SCAPE's SmashTabulations.h)
+export SMASH_TABULATIONS="${SMASH_TABULATIONS:-$(cd "$outdir" && pwd)/smash_tabulations}"
 export HYDROPROGRAMPATH="$work"
 [ $cpu = 1 ] && export MUSIC_FORCE_CPU=1
 if [ -n "$pythia" ]; then
