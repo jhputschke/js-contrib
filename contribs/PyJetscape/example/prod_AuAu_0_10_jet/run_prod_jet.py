@@ -321,6 +321,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, Matter/LBT")
+    rp.add_active_region_arg(p)
     rp.add_eloss_threads_arg(p)
     rp.add_workdir_args(p)
     rp.add_h5_args(p)
@@ -713,6 +714,7 @@ def job_xml(a, out_h5: str):
             _set(music, "late_delta_tau", a.late_dtau)
         if a.late_tau is not None:
             _set(music, "late_tau_switch", a.late_tau)
+        problems += rp.apply_active_region(a, music, a.main_xml)
         _set(hydros[1], "AddLiquefier", "false" if a.no_deposit else "true")
         # First block: the background leg and the default for every instance; MUSIC_2's
         # own block always gets an explicit value, which overrides it for the jet leg.
