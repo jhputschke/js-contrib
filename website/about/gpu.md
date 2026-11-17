@@ -74,9 +74,40 @@ flowchart LR
   the medium at the 10⁻³ level, below the GPU-vs-CPU difference. The wake field differs cell by
   cell by ~5 %, almost all at scales below ~1 fm; at hadron level no change is seen within
   ±2 %. Keep **one setting per campaign**; `--late-dtau 0` gives a constant step.
+- **Conserving fluxes and the CPU's shear regulator** ([on by default](#the-conservation-fixes-on-by-default)
+  since 2026-11-17): the background loses 0.4 % less energy, the wake changes by ~1 % per event.
 - **Evolving only the region with matter** ([opt-in, off by default](#the-active-region-opt-in)):
   the vacuum around the fireball is kept frozen instead of being evolved. It changes the medium
-  at the level of float rounding, and the wake energy by ~1 % per event.
+  at the level of float rounding, and the wake energy by ~0.8 % per event (with the
+  conservation fixes).
+
+### The conservation fixes (on by default)
+
+Two rules of MUSIC4GPU's step did not conserve what they should. Both are fixed, and the fixes
+are **on by default since 2026-11-17** (X-SCAPE `<Hydro><MUSIC>`):
+
+- **`<symmetric_flux_fallback>1`** (CPU and GPU). The flux through the face between two cells
+  is computed by each of the two. Where the half-cell state could not be reconstructed, each
+  cell used its own state instead, so the two fluxes could differ and energy and charges were
+  lost or gained at that face. Now both cells use the same flux.
+- **`<quest_revert_as_cpu>1`** (GPU). In fast, dilute cells the shear-stress invariant can come
+  out negative in single precision. The GPU then left the shear stress unregulated; now it sets
+  it to zero, as the CPU does.
+
+**What changes** (0–10 % Au+Au, 8 backgrounds, 32 jet events, against the old rules):
+
+| quantity | old rules | fixes (default) |
+|---|---|---|
+| background fluid energy lost by τ = 8 fm/c (cells above 10⁻⁴ GeV/fm³) | 1.3–1.9 % | 0.9–1.5 % |
+| wake energy / deposited energy | 1.022 ± 0.003 | 1.024 ± 0.003 |
+| wake energy, per event | | changes by 0.9 % (median), 2.9 % at the 90th percentile |
+| [active region](#the-active-region-opt-in) vs whole grid, wake energy per event | 1.2 % (median), 5.7 % (90th) | 0.84 % (median), 2.0 % (90th) |
+| time per job | | unchanged |
+
+With SMASH sources on a Cartesian grid the old rule lost about 10 % of the energy and baryon
+number. **Older campaigns** used the old rules: continue them with `--no-hydro-fixes` (all three
+production drivers), and don't mix the two in one data set. Every job's `.json` records the
+setting (`"hydro"`). The Metal kernels have the fixes too, but have not been run on a Mac yet.
 
 ### The active region (opt-in)
 
@@ -122,11 +153,13 @@ frozen. The region is rebuilt every 0.1 fm/c.
 | freeze-out surfaces | within 8 elements per leg |
 | jet showers | identical in all 32 events |
 | wake field δe, cell by cell | 0.2 % (median), at most 1.1 % |
-| wake energy | unbiased (+0.0006 ± 0.0053 of the deposit), but 1.2 % per event (median), 5.8 % at the 90th percentile |
+| wake energy, with the conservation fixes (default) | unbiased (+0.003 ± 0.002 of the deposit), 0.84 % per event (median), 2.0 % at the 90th percentile |
+| wake energy, old rules (`--no-hydro-fixes`) | unbiased (+0.0001 ± 0.005), 1.2 % per event (median), 5.7 % at the 90th percentile |
 | MUSIC_2 restart | unchanged: a checkpoint rebuilds the region, so the jet leg evolves the same blocks as its background |
 
-The per-event wake scatter is larger than that of the late time step (~0.8 %) and comes from the
-dilute outer shell; the hot part of the wake agrees. **Hadron-level checks are still to be
+With the conservation fixes the per-event wake scatter is about that of the late time step
+(~0.8 %) and of the fixes themselves; with the old rules it was larger, from the dilute outer
+shell. The hot part of the wake agrees. **Hadron-level checks are still to be
 done**, so the active region is not used in the production presets. If you use it, keep **one
 setting per campaign**: the job XML records it. Every MUSIC run logs the share of active blocks
 ([Checking a run](../run/clusters.md#checking-a-run)). Details:

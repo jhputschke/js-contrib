@@ -328,6 +328,26 @@ production XMLs of `prod_AuAu_0_10_jet` and `prod_OO_isr`).
 - **In the log**, for every MUSIC run: `late step: delta_tau 0.02 -> 0.05 fm/c at step 130
   (tau = 3 fm/c), facTau 5 -> 2, a frame every 2 steps`.
 
+### MUSIC4GPU's conservation fixes (on by default)
+
+Since 2026-11-17 (X-SCAPE contrib #194) two MUSIC4GPU fixes are on by default:
+`<Hydro><MUSIC><symmetric_flux_fallback>1` (CPU and GPU: a failed KT half-cell reconstruction
+falls back to the cell on its side of the face, so both cells of a face use the same flux and
+energy and charges are conserved) and `<quest_revert_as_cpu>1` (GPU: a negative π^{μν}π_{μν}
+sets W to 0 as on the CPU, instead of leaving W unregulated). MUSIC4GPU `README_CUDA.md` Phase 9.
+- **What changes** (0–10 % Au+Au, 8 backgrounds, 32 jet events, against the old rules): the
+  backgrounds lose 0.4 % less fluid energy by τ = 8 fm/c (0.9–1.5 % instead of 1.3–1.9 %); the
+  wake energy changes by 0.9 % per event (median, 2.9 % at 90 %), wake/deposit stays
+  1.02; the active region's per-event wake scatter halves in its tails (below). No cost in time.
+- **Older campaigns:** files made before the change used the old rules. To continue such a
+  campaign with a new X-SCAPE, pass `--no-hydro-fixes` (all three drivers; it sets both to 0 in
+  the job XML). Don't mix the two in one data set.
+- **Recorded** in every job's `.json` (`"hydro": {"symmetric_flux_fallback": 1,
+  "quest_revert_as_cpu": 1, "active_region_eps": 0.0}`), and in the log of every MUSIC run:
+  `MUSIC: KT flux fallback symmetric, conserving (<symmetric_flux_fallback> 1)` and
+  `MUSIC: GPU shear regulator as on the CPU (<quest_revert_as_cpu> 1)`.
+- **Metal:** the fixed kernels exist for Metal too, but have not been built or run on a Mac yet.
+
 ### The GPU active region (opt-in, off by default)
 
 `--active-region EPS` (all three drivers; `<Hydro><MUSIC><active_region_eps>` in the XML): the GPU
@@ -345,9 +365,11 @@ grid. Not set, or 0: the whole grid, as before.
   smaller fraction (×0.74 against ×0.69), as most constant steps are late ones.
 - **What changes** (against 0, same seeds, 32 Au+Au jet events): backgrounds at the
   float-rounding level (energy-weighted |Δe|/e 1e-6, surfaces within 8 elements); the same
-  showers; the wake field δe within 0.2 % cell by cell; the wake energy unbiased
-  (+0.0006 ± 0.0053 of the deposit) but scattered by 1.2 % per event (median, 5.8 % at 90 %),
-  from the dilute shell (1e-3–0.24 GeV/fm³). Hadron-level checks are still to be done.
+  showers; the wake field δe within 0.2 % cell by cell; the wake energy unbiased. Per event it
+  scatters by 0.84 % of the deposit (median; 2.0 % at 90 %, 4.2 % at most) with the conservation
+  fixes (the default), as much as the fixes themselves change it; with the old rules
+  (`--no-hydro-fixes`) by 1.2 % (5.7 % at 90 %), mostly from the dilute shell
+  (1e-3–0.24 GeV/fm³). Hadron-level checks are still to be done.
 - **One setting per campaign**, as for the late step; the job XML records it.
 - **With the restart:** a checkpoint forces a rebuild of the region, so the jet leg evolves the
   same blocks as its background (leading frames identical, `MUSIC_RESTART_VERIFY=1` as before).

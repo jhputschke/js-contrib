@@ -248,6 +248,7 @@ def parse_args() -> argparse.Namespace:
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, iMATTER, Matter")
     rp.add_active_region_arg(p)
+    rp.add_hydro_fixes_arg(p)
     rp.add_eloss_threads_arg(p, default=ELOSS_THREADS_DEFAULT)
     rp.add_workdir_args(p)
     rp.add_h5_args(p)
@@ -343,6 +344,7 @@ def job_xml(a, out_h5: str):
         if a.late_tau is not None:
             _set(m, "late_tau_switch", a.late_tau)
         problems += rp.apply_active_region(a, m, a.main_xml)
+        problems += rp.apply_hydro_fixes(a, m, a.main_xml)
         surf = not a.no_particlize or a.bulk_hadrons > 0
         _set(m, "freeze_out_surface", int(surf))
         _set(m, "skip_surface", int(not surf))
@@ -938,6 +940,7 @@ def main() -> int:
     summary = {"out": None if writer is None else out_h5, "seed": a.seed, "eos": eos,
                "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
                "grid": a.grid, "system": system, "hard": hard, "bulk_info": a.bulk_info,
+               "hydro": getattr(a, "hydro", None),
                "subtract_hard_momentum": 0 if a.no_subtraction else 1,
                "events_requested": a.events, "events_written": n,
                # run_jobs.sh counts a job complete when written + skipped == requested
