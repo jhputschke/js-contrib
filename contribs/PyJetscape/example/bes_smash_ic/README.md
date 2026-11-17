@@ -111,9 +111,25 @@ its hard strings, about 14 s, once per job): run several events per job. In
 the further events MUSIC takes about 10 s (840 steps of 60³ cells), iSS 3.4 s
 (about 160 surfaces), SMASH about 1 s, the fluidization criterion 0.4 s.
 
-**Not yet conserved.** In 5 events E came out 103–108 % of the nuclei's and
-B 400–421 of 394. The excess comes back through particlization: in seed 1 the
-fluidized hadrons carry B = 299, the particlized ones B = 326, and the final
-state has 27 baryons too many. Cooper–Frye counts only the outgoing part of
-each surface piece (p·dσ > 0); on the surface of a fluid that keeps forming
-from sources, many pieces have spatial normals and inflow, which is dropped.
+**Particlized fluid is drained** (`<BDM><drain_particlized_fluid>1`, the
+default; `--no-drain` turns it off). MUSIC keeps particlized matter on its
+grid; next to a dense region that keeps growing from sources it crosses the
+surface again, inward, and later outward a second time, and iSS drops the
+inward pieces (u·dσ < 0). Without the drain the outflow iSS gets is 5–14 %
+above what was fluidized (seed 1: B 327 of 299) and the final state comes out
+at 107 % in E, B 413–421 of 394. With it MUSIC takes the energy each outgoing
+surface piece emits off the cells next to it, and drained and emitted agree to
+1–3 %. The job prints the books per event:
+
+```
+MUSIC, fluid: drained ... E, B, Q, S; left on the grid: ...
+iSS, surface fluxes: out (...) ...; in (..., dropped) ...
+Dynamic fluidization, event totals: fluidized ...; particlized ...
+```
+
+**Not yet conserved.** With the drain the final states are at 80–83 % in E,
+B 290–294 of 394 (seeds of one job, 3 events). Of the B that was fluidized
+(about 300): 72 % is particlized, about 20 % stays on the grid (fluid that
+never reached the switching density, lost at the end), about 6 % leaves
+through the grid edges; and iSS samples 3–10 % less B than the outflow it
+gets (its hadron gas against NEOS-4D). Details: MUSIC4GPU `docs/CARTESIAN.md`.

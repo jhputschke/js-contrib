@@ -28,6 +28,9 @@
 #                        hydro sources, particlized hadrons enter SMASH every
 #                        step; grid x, y, z +-12 fm in 0.4 fm cells; prints the
 #                        totals of the final state (conservation.py)
+#     --no-drain         with --dynamic: keep the particlized fluid on the grid
+#                        (<BDM><drain_particlized_fluid>0, as before 2026-11-17;
+#                        particlizes it again when the dense region grows back)
 #
 # Output in OUTDIR/<tag>/: the final-state hadrons (<tag>_final_state_hadrons.dat),
 # run.log (stdout and stderr, each line with the seconds since the start),
@@ -44,8 +47,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 XSCAPE="$(cd "$here/../../../../../.." && pwd)"
 build="$XSCAPE/build_gpu"
 events=1 seed=1 sqrts=19.6 bmin=6 bmax=8 cpu=0 diff=0 checks=0 samples=1
-pythia="" threads=16 dynamic=0
-usage() { sed -n '7,36p' "$0"; exit 2; }
+pythia="" threads=16 dynamic=0 drain=1
+usage() { sed -n '7,39p' "$0"; exit 2; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --build) build="$(cd "$2" && pwd)"; shift 2 ;;
@@ -60,6 +63,7 @@ while [ $# -gt 0 ]; do
     --pythia) pythia="$(cd "$2" && pwd)"; shift 2 ;;
     --threads) threads="$2"; shift 2 ;;
     --dynamic) dynamic=1; shift ;;
+    --no-drain) drain=0; shift ;;
     -h|--help) usage ;;
     -*) echo "unknown option $1" >&2; usage ;;
     *) break ;;
@@ -76,6 +80,7 @@ tag="s${sqrts}_seed${seed}"
 [ $cpu = 1 ] && tag="${tag}_cpu"
 [ $diff = 1 ] && tag="${tag}_diff"
 [ $dynamic = 1 ] && tag="${tag}_dyn"
+[ $dynamic = 1 ] && [ $drain = 0 ] && tag="${tag}_nodrain"
 work="$outdir/$tag"
 mkdir -p "$work"
 work="$(cd "$work" && pwd)"
@@ -107,6 +112,9 @@ if [ $dynamic = 1 ]; then
       "$work/$tag.xml"
   n=$(grep -cE "<dynamic_fluidization>1<|grid_max_[xyz]> 12 <|grid_step_[xyz]> 0.4 <|<end_time>40<|<Delta_Time>0.05<|CartesianHydro> true|tau_0>0.0<" "$work/$tag.xml")
   [ "$n" = 11 ] || { echo "--dynamic: the template changed ($n of 11 edits applied)" >&2; exit 1; }
+  if [ $drain = 0 ]; then
+    sed -i 's#</BDM>#  <drain_particlized_fluid>0</drain_particlized_fluid>\n  </BDM>#' "$work/$tag.xml"
+  fi
 fi
 
 export OMP_NUM_THREADS="$threads"
@@ -130,7 +138,7 @@ if [ $checks = 1 ]; then
     | tee charges.txt
 fi
 if [ $dynamic = 1 ]; then
-  grep -E "Dynamic fluidization, (event totals|exchange)|SMASH IC, dynamic|MUSIC, time-stepped|iSS, time-stepped" run.log \
+  grep -E "Dynamic fluidization, (event totals|exchange)|SMASH IC, dynamic|MUSIC, (time-stepped|fluid:)|iSS, (time-stepped|surface fluxes)" run.log \
     | sed -E 's/.*(Dynamic|SMASH IC|MUSIC,|iSS,)/\1/; s/\x1b\[[0-9;]*m//g'
   python3 "$here/conservation.py" "${tag}_final_state_hadrons.dat" --sqrts "$sqrts" \
     | tee conservation.txt

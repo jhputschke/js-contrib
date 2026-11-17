@@ -5,9 +5,12 @@ Totals of a final-state hadron file (JETSCAPE_FINAL_STATE v2) per event: N,
 energy and momentum, net baryon number B, charge Q and strangeness S (from
 the PDG codes), against the colliding nuclei (default Au+Au: A = 197,
 Z = 79; E = A sqrt(s_NN) in the centre-of-mass frame).  For the dynamic
-fluidization runs (SMASH next to a Cartesian MUSIC): B, Q, S must come out
-exactly, E up to what the hydro leaves behind (the fluid below the switching
-density, never particlized).
+fluidization runs (SMASH next to a Cartesian MUSIC).  B, Q and S are not
+exact even in a conserving chain: iSS samples each surface grand-canonically,
+so they hold only on average over events (about +-18 in B per Au+Au event at
+7.7 GeV), and its hadron gas differs from the hydro's EOS.  The run's log
+lines "MUSIC, fluid" and "iSS, surface fluxes" give the books without the
+sampling noise.
 """
 import argparse
 from collections import defaultdict
