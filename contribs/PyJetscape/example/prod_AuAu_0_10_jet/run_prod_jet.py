@@ -322,6 +322,7 @@ def parse_args() -> argparse.Namespace:
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, Matter/LBT")
     rp.add_active_region_arg(p)
+    rp.add_hydro_fixes_arg(p)
     rp.add_eloss_threads_arg(p)
     rp.add_workdir_args(p)
     rp.add_h5_args(p)
@@ -715,6 +716,7 @@ def job_xml(a, out_h5: str):
         if a.late_tau is not None:
             _set(music, "late_tau_switch", a.late_tau)
         problems += rp.apply_active_region(a, music, a.main_xml)
+        problems += rp.apply_hydro_fixes(a, music, a.main_xml)
         _set(hydros[1], "AddLiquefier", "false" if a.no_deposit else "true")
         # First block: the background leg and the default for every instance; MUSIC_2's
         # own block always gets an explicit value, which overrides it for the jet leg.
@@ -1728,7 +1730,7 @@ def main() -> int:
                "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
                "grid": a.grid, "hard": hard_desc,
                "reuse": a.reuse, "deposition": not a.no_deposit, "surface": a.surface,
-               "bulk_info": a.bulk_info,
+               "bulk_info": a.bulk_info, "hydro": getattr(a, "hydro", None),
                "events_requested": a.events, "events_written": n,
                "events_tau0_after_tau_min": late,
                "legs_cut_at_max_ntau": writer.n_clipped,

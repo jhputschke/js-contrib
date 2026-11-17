@@ -277,6 +277,7 @@ In a job log, `OUTDIR/<stem>.log`:
 | `[MUSIC-GPU] host sync: block` | `MUSIC_CUDA_SYNC=block` arrived |
 | `LBT: wrote the table cache …` / `LBT: tables mapped read-only from …` | the LBT cache works (`grep -L "mapped read-only" OUTDIR/*.log` lists jobs without it) |
 | `late step: delta_tau 0.02 -> 0.05 fm/c at step 130 …` | MUSIC's late time step is on |
+| `MUSIC: KT flux fallback symmetric, conserving (<symmetric_flux_fallback> 1)` and `MUSIC: GPU shear regulator as on the CPU (<quest_revert_as_cpu> 1)` | MUSIC4GPU's [conservation fixes](../about/gpu.md#the-conservation-fixes-on-by-default) are on (the default); `… the old rule (… 0)` means `--no-hydro-fixes` or an XML that sets 0 |
 | `MUSIC active region: e > 1e-05 GeV/fm^3, halo 3 cells, …` and `GPU active region (…): 59.8 % of the blocks on average …` | the [active region](../about/gpu.md#the-active-region-opt-in) is on (`--active-region`), with the share of the grid evolved; `… not available on this back-end` means the whole grid (a metallib without the active-region kernels) |
 | `restart  MUSIC_2 starts from MUSIC_1's state …` / `restart  OFF: …` | the MUSIC_2 restart, on or off with the reason |
 | `… done in … s` per event | the speed: events/h = jobs × 3600 / s per event |

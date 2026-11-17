@@ -107,8 +107,11 @@ With pT̂ windows, also run the null test with the windows
 - `--active-region 1e-5` lets the GPU evolve only the region with matter and keep the vacuum
   frozen (MUSIC4GPU `<active_region_eps>`; **off by default**; CUDA, the Metal port not yet validated). GPU kernel time ×0.69
   with the late step, ×0.74 with `--late-dtau 0`. The medium changes at float rounding, the
-  wake energy by ~1 % per event, unbiased; hadron-level checks are still open. One setting per
+  wake energy by ~0.8 % per event, unbiased; hadron-level checks are still open. One setting per
   campaign: [the active region](../about/gpu.md#the-active-region-opt-in).
+- `--no-hydro-fixes` switches off MUSIC4GPU's [conservation fixes](../about/gpu.md#the-conservation-fixes-on-by-default)
+  (on by default since 2026-11-17): only to continue a campaign begun before them. The job's
+  `.json` records the setting (`"hydro"`).
 
 ### What to store
 

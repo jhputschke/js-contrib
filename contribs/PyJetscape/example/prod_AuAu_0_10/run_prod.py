@@ -107,6 +107,7 @@ def parse_args() -> argparse.Namespace:
     add_workdir_args(p)
     add_h5_args(p)
     add_active_region_arg(p)
+    add_hydro_fixes_arg(p)
     return p.parse_args()
 
 
@@ -168,6 +169,46 @@ def apply_active_region(a, music, main_xml: str) -> list:
     if node is None:
         node = ET.SubElement(music, "active_region_eps")
     node.text = f" {a.active_region:g} "
+    return []
+
+
+#: MUSIC4GPU's conservation fixes, on by default in X-SCAPE since 2026-11-17 (contrib #194)
+HYDRO_FIXES = ("symmetric_flux_fallback", "quest_revert_as_cpu")
+
+
+def add_hydro_fixes_arg(p: argparse.ArgumentParser) -> None:
+    """--no-hydro-fixes for the drivers (MUSIC4GPU's two conservation fixes off)."""
+    p.add_argument("--no-hydro-fixes", action="store_true", dest="no_hydro_fixes",
+                   help="MUSIC <symmetric_flux_fallback> and <quest_revert_as_cpu> 0: the "
+                        "old KT flux fallback (not conserving) and the old GPU shear "
+                        "regulator, the X-SCAPE defaults before 2026-11-17. Only to continue "
+                        "a campaign begun with them; new campaigns keep the fixes (the "
+                        "default). The job's .json records the setting (\"hydro\")")
+
+
+def apply_hydro_fixes(a, music, main_xml: str) -> list:
+    """--no-hydro-fixes into the job XML's first <Hydro><MUSIC> block, and the MUSIC
+    settings a job runs with into a.hydro (for the .json): the job XML's value, else the
+    main XML's; a switch neither has is 0 (an X-SCAPE from before the switch).  Returns
+    problems."""
+    main = ET.parse(main_xml).getroot().find("Hydro/MUSIC")
+    if a.no_hydro_fixes:
+        for tag in HYDRO_FIXES:
+            node = music.find(tag)
+            if node is None:
+                node = ET.SubElement(music, tag)
+            node.text = " 0 "
+    hydro = {}
+    for tag, cast in ((t, int) for t in HYDRO_FIXES):
+        node = music.find(tag)
+        if node is None and main is not None:
+            node = main.find(tag)
+        hydro[tag] = cast(node.text.strip()) if node is not None else 0
+    node = music.find("active_region_eps")
+    if node is None and main is not None:
+        node = main.find("active_region_eps")
+    hydro["active_region_eps"] = float(node.text.strip()) if node is not None else 0.0
+    a.hydro = hydro
     return []
 
 
@@ -371,6 +412,7 @@ def job_xml(a, out_h5: str):
         if node is None or node.text.strip() != want:
             sys.exit(f"run_prod.py: {a.user_xml}: <Hydro><MUSIC><{tag}> must be {want}")
     problems = apply_active_region(a, music, a.main_xml)
+    problems += apply_hydro_fixes(a, music, a.main_xml)
     if problems:
         sys.exit(f"run_prod.py: {a.user_xml}: " + "; ".join(problems))
     for tag in ("Eloss", "SoftParticlization", "Afterburner", "RootBulkWriter",
@@ -507,7 +549,7 @@ def main() -> int:
                "campaign": a.campaign, "index": a.index, "grid": a.grid,
                "events_requested": a.events,
                "events_written": n, "events_tau0_after_tau_min": late,
-               "events_cut_at_max_ntau": truncated,
+               "events_cut_at_max_ntau": truncated, "hydro": getattr(a, "hydro", None),
                "wall_s": round(time.time() - t_job, 1)}
     with open(os.path.splitext(out_h5)[0] + ".json", "w") as f:
         json.dump(summary, f, indent=1)
