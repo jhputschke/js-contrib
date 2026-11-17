@@ -22,12 +22,18 @@
 #                        not the one X-SCAPE links (SMASH-3.2.2 needs exactly 8.315):
 #                        preloaded, and its xmldoc used
 #     --threads T        OMP_NUM_THREADS (default 16)
+#     --dynamic          dynamic fluidization (X-SCAPE branch trackB): SMASH runs
+#                        the whole event next to a Cartesian MUSIC from t = 0;
+#                        hadrons that pass the arXiv:2507.19389 criterion become
+#                        hydro sources, particlized hadrons enter SMASH every
+#                        step; grid x, y, z +-12 fm in 0.4 fm cells; prints the
+#                        totals of the final state (conservation.py)
 #
 # Output in OUTDIR/<tag>/: the final-state hadrons (<tag>_final_state_hadrons.dat),
 # run.log (stdout and stderr, each line with the seconds since the start),
 # time.log (wall time, peak memory, exit status; timed_run.py), the XML used, and with --checks charges.txt from
 # bqs_balance.py (B, Q, S from SMASH into the hydro, on the grid, through the
-# surface, in the hadrons). <tag> = s<sqrts>_seed<seed>[_cpu][_diff].
+# surface, in the hadrons). <tag> = s<sqrts>_seed<seed>[_cpu][_diff][_dyn].
 #
 # Needs: a CUDA build of X-SCAPE with -DUSE_SMASH=ON (SMASH-3.2.2), and the
 # NEOS-4D tables in music4gpu/EOS/neos4D (cd external_packages/music4gpu/EOS &&
@@ -38,8 +44,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 XSCAPE="$(cd "$here/../../../../../.." && pwd)"
 build="$XSCAPE/build_gpu"
 events=1 seed=1 sqrts=19.6 bmin=6 bmax=8 cpu=0 diff=0 checks=0 samples=1
-pythia="" threads=16
-usage() { sed -n '7,30p' "$0"; exit 2; }
+pythia="" threads=16 dynamic=0
+usage() { sed -n '7,36p' "$0"; exit 2; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --build) build="$(cd "$2" && pwd)"; shift 2 ;;
@@ -53,6 +59,7 @@ while [ $# -gt 0 ]; do
     --samples) samples="$2"; shift 2 ;;
     --pythia) pythia="$(cd "$2" && pwd)"; shift 2 ;;
     --threads) threads="$2"; shift 2 ;;
+    --dynamic) dynamic=1; shift ;;
     -h|--help) usage ;;
     -*) echo "unknown option $1" >&2; usage ;;
     *) break ;;
@@ -68,6 +75,7 @@ neos="$XSCAPE/external_packages/music4gpu/EOS/neos4D/neos4d_p_b.dat"
 tag="s${sqrts}_seed${seed}"
 [ $cpu = 1 ] && tag="${tag}_cpu"
 [ $diff = 1 ] && tag="${tag}_diff"
+[ $dynamic = 1 ] && tag="${tag}_dyn"
 work="$outdir/$tag"
 mkdir -p "$work"
 work="$(cd "$work" && pwd)"
@@ -83,6 +91,23 @@ sed -e "s#@XSCAPE@#$XSCAPE#g" -e "s#@OUT@#$tag#" -e "s#@SEED@#$seed#" \
     -e "s#@BMAX@#$bmax#" -e "s#@BEAST@#$beast#" -e "s#@DIFF@#$diff#" \
     -e "s#@NSAMPLES@#$samples#" -e "s#@CHARGECHECK@#$checks#" \
     "$here/jetscape_user_bes_smash_ic.xml" > "$work/$tag.xml"
+if [ $dynamic = 1 ]; then
+  # the staged template -> dynamic fluidization: SMASH (the initial-state
+  # module) runs to 40 fm/c, MUSIC in (t, x, y, z) from t = 0 on a coarser,
+  # longer grid, and the BDM exchanges hadrons every clock tick
+  sed -i -e 's#</BDM>#  <dynamic_fluidization>1</dynamic_fluidization>\n  </BDM>#' \
+      -e 's#<grid_max_x> 15 </grid_max_x>#<grid_max_x> 12 </grid_max_x>#' \
+      -e 's#<grid_max_y> 15 </grid_max_y>#<grid_max_y> 12 </grid_max_y>#' \
+      -e 's#<grid_max_z> 7 </grid_max_z>#<grid_max_z> 12 </grid_max_z>#' \
+      -e 's#<grid_step_\([xyz]\)> 0\.[12] </grid_step_\1>#<grid_step_\1> 0.4 </grid_step_\1>#' \
+      -e 's#<end_time>1000</end_time>#<end_time>40</end_time>#' \
+      -e 's#<Delta_Time>0.002</Delta_Time>#<Delta_Time>0.05</Delta_Time>#' \
+      -e 's#<CartesianHydro> false </CartesianHydro>#<CartesianHydro> true </CartesianHydro>#' \
+      -e 's#<Initial_time_tau_0>0.5</Initial_time_tau_0>#<Initial_time_tau_0>0.0</Initial_time_tau_0>#' \
+      "$work/$tag.xml"
+  n=$(grep -cE "<dynamic_fluidization>1<|grid_max_[xyz]> 12 <|grid_step_[xyz]> 0.4 <|<end_time>40<|<Delta_Time>0.05<|CartesianHydro> true|tau_0>0.0<" "$work/$tag.xml")
+  [ "$n" = 11 ] || { echo "--dynamic: the template changed ($n of 11 edits applied)" >&2; exit 1; }
+fi
 
 export OMP_NUM_THREADS="$threads"
 # SMASH's tabulated integrals, computed once and shared by the jobs of OUTDIR
@@ -103,4 +128,10 @@ grep -E "Elapsed|Maximum resident|Exit status" time.log
 if [ $checks = 1 ]; then
   python3 "$here/bqs_balance.py" run.log "${tag}_final_state_hadrons.dat" \
     | tee charges.txt
+fi
+if [ $dynamic = 1 ]; then
+  grep -E "Dynamic fluidization, (event totals|exchange)|SMASH IC, dynamic|MUSIC, time-stepped|iSS, time-stepped" run.log \
+    | sed -E 's/.*(Dynamic|SMASH IC|MUSIC,|iSS,)/\1/; s/\x1b\[[0-9;]*m//g'
+  python3 "$here/conservation.py" "${tag}_final_state_hadrons.dat" --sqrts "$sqrts" \
+    | tee conservation.txt
 fi

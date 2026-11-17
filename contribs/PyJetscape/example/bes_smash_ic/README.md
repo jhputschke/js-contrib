@@ -81,3 +81,39 @@ The step-by-step GPU hydro now also starts each clock tick from the real
 previous step, and its viscous regulator treats fast, dilute cells as the CPU
 does; the final state is about twice as close to the CPU's (MUSIC4GPU
 `docs/BQS_GPU.md`).
+
+## Dynamic fluidization (`--dynamic`, X-SCAPE branch `trackB`)
+
+```bash
+./run_bes_smash_ic.sh --sqrts 7.7 --b 0 3 --seed 1 --dynamic OUT
+```
+
+SMASH runs the whole event (to 40 fm/c) next to a Cartesian MUSIC that starts
+at t = 0 (x, y, z ±12 fm in 0.4 fm cells, Δt = 0.02 fm/c). Every clock tick
+(0.1 fm/c) the hadrons that pass the fluidization criterion of
+[arXiv:2507.19389](https://arxiv.org/abs/2507.19389) leave SMASH and become
+hydro sources (rest-frame energy density of the covariant Gaussian sum, without
+the hadron's own, at least 0.5 GeV/fm³; string fragments only 0.4 fm/c after
+their production; never unscattered nucleons, nor hadrons that came from the
+fluid), and the hadrons iSS samples from the tick's freeze-out surface enter
+SMASH at their own time. MUSIC4GPU runs Cartesian coordinates on the GPU (CUDA).
+The job prints the exchange totals, the time per module and the final state
+against the nuclei (`conservation.py`).
+
+| Au+Au 7.7 GeV, b = 0–3 fm, seed 1, GB10 | wall time |
+|---|---|
+| hydro on the CPU (B3) | 5 min 14 s |
+| hydro on the GPU, first event of a job | 30 s |
+| hydro on the GPU, further events of the job | about 15 s |
+
+The first event pays SMASH's Pythia set-up (one Pythia object per hadron pair of
+its hard strings, about 14 s, once per job): run several events per job. In
+the further events MUSIC takes about 10 s (840 steps of 60³ cells), iSS 3.4 s
+(about 160 surfaces), SMASH about 1 s, the fluidization criterion 0.4 s.
+
+**Not yet conserved.** In 5 events E came out 103–108 % of the nuclei's and
+B 400–421 of 394. The excess comes back through particlization: in seed 1 the
+fluidized hadrons carry B = 299, the particlized ones B = 326, and the final
+state has 27 baryons too many. Cooper–Frye counts only the outgoing part of
+each surface piece (p·dσ > 0); on the surface of a fluid that keeps forming
+from sources, many pieces have spatial normals and inflow, which is dropped.
