@@ -73,6 +73,8 @@ ARG MUSIC4GPU_REF=""
 # local test build of branches not pushed yet, e.g. from a `git daemon` on the build
 # host with docker build --network host)
 ARG MUSIC4GPU_REPO=""
+# ISS_REPO non-empty: the same for get_iSS.sh (jhputschke/iSS)
+ARG ISS_REPO=""
 ARG JS_CONTRIB_REPO=https://github.com/jhputschke/js-contrib.git
 ARG JS_CONTRIB_REF=main
 # Parallel compile jobs (empty: all cores).  nvcc compiles every .cu once per architecture.
@@ -150,6 +152,8 @@ RUN eval "$ACT" \
   && bash get_music4gpu.sh \
   && if [ -n "$MUSIC4GPU_REF" ]; then \
        git -C music4gpu fetch -q origin "$MUSIC4GPU_REF" && git -C music4gpu checkout -q FETCH_HEAD ; fi \
+  && if [ -n "$ISS_REPO" ]; then \
+       sed -i "s#https://github.com/jhputschke/iSS#$ISS_REPO#" get_iSS.sh ; fi \
   && bash get_iSS.sh \
   && bash get_3dglauber.sh
 
