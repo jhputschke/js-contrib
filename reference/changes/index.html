@@ -2993,7 +2993,7 @@
 
 <h1 id="x-scape-changes-since-21">X-SCAPE changes since 2.1<a class="headerlink" href="#x-scape-changes-since-21" title="Permanent link">¶</a></h1>
 <p>The same table is in the X-SCAPE repository as <a href="https://github.com/JETSCAPE/X-SCAPE/blob/contrib/RELEASE_NOTES.md"><code>RELEASE_NOTES.md</code></a>.</p>
-<p>Changes on the <code>contrib</code> branch (<a href="https://github.com/JETSCAPE/X-SCAPE/commit/ef19d7f7"><code>ef19d7f7</code></a>, 2026-11-12) relative to the X-SCAPE 2.1 release (tag <a href="https://github.com/JETSCAPE/X-SCAPE/tree/v2.1"><code>v2.1</code></a>, 2026-03-05). The third-party packages X-SCAPE fetches (iSS, 3dMCGlauber, MUSIC, trento, the LBT tables) are included. MUSIC4GPU's own changes are not listed here; see <a href="https://github.com/jhputschke/MUSIC4GPU">jhputschke/MUSIC4GPU</a>.</p>
+<p>Changes on the <code>contrib</code> branch (<a href="https://github.com/JETSCAPE/X-SCAPE/commit/38679496"><code>38679496</code></a>, 2026-11-17) relative to the X-SCAPE 2.1 release (tag <a href="https://github.com/JETSCAPE/X-SCAPE/tree/v2.1"><code>v2.1</code></a>, 2026-03-05). The third-party packages X-SCAPE fetches (iSS, 3dMCGlauber, MUSIC, trento, the LBT tables) are included. MUSIC4GPU's own changes are not listed here, except for physics bug fixes that X-SCAPE switches; see <a href="https://github.com/jhputschke/MUSIC4GPU">jhputschke/MUSIC4GPU</a>.</p>
 <p>Fixes to code that was added after 2.1 are folded into the feature that added it.</p>
 <ul>
 <li><a href="#physics-bug-fixes">Physics bug fixes</a>: change the physics output of existing setups.</li>
@@ -3076,6 +3076,18 @@
 <td>The flow is built as u = gamma (1, v). Lattice cells are counted with <code>floor(L/d + 1e-4)</code>.</td>
 <td>u.u was 1 - v^4 (13% short at v = 0.7). The last cell in tau, x, y and eta was dropped: on a 4x4x2 grid the surface covered 26 of 32 fm^2. HybridHadronization uses only ratios of u, so u did not change its output.</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/commit/88099402"><code>88099402</code></a></td>
+</tr>
+<tr>
+<td>MUSIC4GPU (CPU, CUDA; Metal not yet validated)</td>
+<td>KT fluxes: a half-cell state that cannot be reconstructed falls back to the cell on its side of the interface, so cells i and i+1 use the same flux through their common face. <strong>Opt-in:</strong> <code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;symmetric_flux_fallback&gt;1</code>; 0, the default, keeps the old fallback (output unchanged). Pin MUSIC4GPU <code>1c99bee</code> to <code>3194cd8</code>.</td>
+<td>The state fell back to the cell computing the flux, so the two cells of a face used different fluxes and energy and charges were not conserved wherever a reconstruction failed. With SMASH sources (Cartesian, dynamic fluidization) about 10% of E and B were lost; in a staged SMASH-IC 19.6 GeV event the grid energy drifted by -3.3% from tau 0.6 to 5 fm/c (within +-0.6% with the fix). In a Milne IP-Glasma event the changes are ~1e-5; jet and O+O setups are not yet measured.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/192">#192</a>, <a href="https://github.com/jhputschke/MUSIC4GPU/pull/25">MUSIC4GPU #25</a></td>
+</tr>
+<tr>
+<td>MUSIC4GPU (CUDA; Metal not yet validated)</td>
+<td>GPU shear regulator: a negative pi^{mu nu} pi_{mu nu} sets W^{mu nu} to 0, as <code>QuestRevert</code> on the CPU does. <strong>Opt-in:</strong> <code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;quest_revert_as_cpu&gt;1</code>; 0, the default, keeps the old GPU rule (output unchanged).</td>
+<td>The GPU clamped the negative invariant (fast, dilute cells, where the float invariant drowns in the cancellation of W's components) to 0 and left W unregulated in that cell, unlike the CPU. Small effect: IP-Glasma to 15 fm/c, mean pT changes by 3e-5.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/192">#192</a>, <a href="https://github.com/jhputschke/MUSIC4GPU/pull/25">MUSIC4GPU #25</a></td>
 </tr>
 <tr>
 <td>MUSIC (CPU)</td>
@@ -3328,6 +3340,11 @@
 <td>Liquefier / MUSIC wrapper</td>
 <td>The jet source of a hydro step is filled from each droplet's light cone instead of asking at every cell (<code>LiquefierBase::get_source_on_grid</code>; used by MUSIC4GPU, bit-identical): 12 to 1.1 ms per fill. With the checkpoint change a Pb+Pb Z+jet job (1 background, 6 jets) takes 118 instead of 146 s.</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/190">#190</a></td>
+</tr>
+<tr>
+<td>MUSIC wrapper</td>
+<td><code>&lt;active_region_eps&gt;</code> (with <code>&lt;active_region_halo&gt;</code>, <code>&lt;active_region_dtau&gt;</code>): MUSIC4GPU's GPU kernels (CUDA; the Metal port is not yet validated) evolve only the blocks of 8 x 8 x 4 cells near matter and keep the vacuum frozen. Opt-in; 0 (the default) evolves the whole grid as before. GPU kernel time x0.69 in 0-10% Au+Au, x0.47 in O+O (GB10); not bit-identical at the vacuum level. Works together with <code>&lt;symmetric_flux_fallback&gt;</code> and <code>&lt;quest_revert_as_cpu&gt;</code> (see the physics bug fixes). Pin MUSIC4GPU <code>3194cd8</code> to <code>3c04d0d</code> (MUSIC4GPU PR #26).</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/193">#193</a></td>
 </tr>
 <tr>
 <td>Soft particlization</td>

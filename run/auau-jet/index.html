@@ -3229,6 +3229,11 @@ directory you can write:</p>
   the showers take ~0.1 s of a ~19 s event. It pays for <a href="../oo-isr/#settings">O+O with ISR</a>,
   where it is the default; details in the
   <a href="https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#parallel-showers">folder's README</a>.</li>
+<li><code>--active-region 1e-5</code> lets the GPU evolve only the region with matter and keep the vacuum
+  frozen (MUSIC4GPU <code>&lt;active_region_eps&gt;</code>; <strong>off by default</strong>; CUDA, the Metal port not yet validated). GPU kernel time ×0.69
+  with the late step, ×0.74 with <code>--late-dtau 0</code>. The medium changes at float rounding, the
+  wake energy by ~1 % per event, unbiased; hadron-level checks are still open. One setting per
+  campaign: <a href="../../about/gpu/#the-active-region-opt-in">the active region</a>.</li>
 </ul>
 <h3 id="what-to-store">What to store<a class="headerlink" href="#what-to-store" title="Permanent link">¶</a></h3>
 <table>

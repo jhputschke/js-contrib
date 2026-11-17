@@ -3553,6 +3553,11 @@ data sets:</p>
 <td><code>&lt;late_delta_tau&gt;</code> in the job XML (<code>prod_user_xml</code>); absent or 0: constant step</td>
 </tr>
 <tr>
+<td><strong>the GPU active region</strong> (opt-in, off by default)</td>
+<td>the vacuum stays frozen: the medium changes only at float rounding, but the wake energy scatters by ~1 % per event (unbiased). Keep one setting per campaign</td>
+<td><code>&lt;active_region_eps&gt;</code> in the job XML (<code>prod_user_xml</code>); absent or 0: the whole grid</td>
+</tr>
+<tr>
 <td>the image or build</td>
 <td>MUSIC on the GPU and on the CPU differ at 2 × 10⁻³: one image per campaign</td>
 <td><code>prod_build</code>, <code>prod_host</code>; the campaign's notes</td>

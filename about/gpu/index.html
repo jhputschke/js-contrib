@@ -708,6 +708,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-active-region-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The active region (opt-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -2962,6 +2973,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#the-active-region-opt-in" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The active region (opt-in)
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -3210,7 +3232,110 @@ jobs share one GPU.</p>
   the medium at the 10⁻³ level, below the GPU-vs-CPU difference. The wake field differs cell by
   cell by ~5 %, almost all at scales below ~1 fm; at hadron level no change is seen within
   ±2 %. Keep <strong>one setting per campaign</strong>; <code>--late-dtau 0</code> gives a constant step.</li>
+<li><strong>Evolving only the region with matter</strong> (<a href="#the-active-region-opt-in">opt-in, off by default</a>):
+  the vacuum around the fireball is kept frozen instead of being evolved. It changes the medium
+  at the level of float rounding, and the wake energy by ~1 % per event.</li>
 </ul>
+<h3 id="the-active-region-opt-in">The active region (opt-in)<a class="headerlink" href="#the-active-region-opt-in" title="Permanent link">¶</a></h3>
+<p>Much of MUSIC's grid is vacuum: in 0–10 % Au+Au only about a third of the cells ever hold
+matter above 10⁻⁵ GeV/fm³. With <code>--active-region 1e-5</code> (all three production drivers; in the XML
+<code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;active_region_eps&gt;1e-5&lt;/active_region_eps&gt;</code>) the CUDA kernels evolve only the
+blocks of 8 × 8 × 4 cells within 3 cells of matter or of a jet source; the others stay
+frozen. The region is rebuilt every 0.1 fm/c.</p>
+<ul>
+<li><strong>Off by default.</strong> Not set, or 0, evolves the whole grid exactly as before. With the region
+  forced to the whole grid the output is bit-identical to off, so the mechanism itself changes
+  nothing; only the frozen vacuum does.</li>
+<li><strong>CUDA builds; Metal not yet validated.</strong> The Metal kernels have it too, but it has not been
+  run on a Mac yet, so the numbers below are CUDA's. The CPU path evolves the whole grid.</li>
+<li><strong>It needs the matching X-SCAPE.</strong> The drivers refuse <code>--active-region</code> when the main XML has
+  no <code>&lt;active_region_eps&gt;</code>.</li>
+</ul>
+<p><strong>Gain</strong> (GPU kernel time per job, GB10):</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th style="text-align: right;">whole grid</th>
+<th style="text-align: right;">active region</th>
+<th style="text-align: right;">factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Au+Au 0–10 %, late time step (the default)</td>
+<td style="text-align: right;">8.73 s</td>
+<td style="text-align: right;">6.00 s</td>
+<td style="text-align: right;">×0.69</td>
+</tr>
+<tr>
+<td>Au+Au 0–10 %, constant step (<code>--late-dtau 0</code>)</td>
+<td style="text-align: right;">17.03 s</td>
+<td style="text-align: right;">12.59 s</td>
+<td style="text-align: right;">×0.74</td>
+</tr>
+<tr>
+<td>O+O (grid ±10.5 fm)</td>
+<td style="text-align: right;">7.20 s</td>
+<td style="text-align: right;">3.40 s</td>
+<td style="text-align: right;">×0.47</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>The two time-step modes.</strong> The active region makes each step cheaper, the late step makes
+  fewer steps, so the two multiply: both together bring Au+Au to ×0.35 of the whole-grid,
+  constant-step GPU time.</li>
+<li><strong>Why it gains less with a constant step.</strong> The share of the grid with matter grows as the
+  fireball expands (Au+Au: 40 % of the blocks before τ = 3 fm/c, 66 % after). Most constant
+  steps are late, dense ones, so the active region saves more GPU time there (4.4 s against 2.7 s
+  per 2-event job) but a smaller fraction.</li>
+<li><strong>Smaller systems gain most:</strong> in O+O only ~30 % of the blocks are active.</li>
+<li><strong>It pays where the GPU is the limit.</strong> A job alone is partly bound by the host CPU and gains
+  less (Au+Au −11 % per MUSIC step, O+O −19 % per job). On a GPU shared by several jobs the
+  kernel time is what counts.</li>
+</ul>
+<p><strong>What changes</strong> (against off, same seeds, 32 Au+Au jet events):</p>
+<table>
+<thead>
+<tr>
+<th>quantity</th>
+<th>active region vs whole grid</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>backgrounds, energy-weighted |Δe|/e</td>
+<td>~10⁻⁶ (float rounding)</td>
+</tr>
+<tr>
+<td>freeze-out surfaces</td>
+<td>within 8 elements per leg</td>
+</tr>
+<tr>
+<td>jet showers</td>
+<td>identical in all 32 events</td>
+</tr>
+<tr>
+<td>wake field δe, cell by cell</td>
+<td>0.2 % (median), at most 1.1 %</td>
+</tr>
+<tr>
+<td>wake energy</td>
+<td>unbiased (+0.0006 ± 0.0053 of the deposit), but 1.2 % per event (median), 5.8 % at the 90th percentile</td>
+</tr>
+<tr>
+<td>MUSIC_2 restart</td>
+<td>unchanged: a checkpoint rebuilds the region, so the jet leg evolves the same blocks as its background</td>
+</tr>
+</tbody>
+</table>
+<p>The per-event wake scatter is larger than that of the late time step (~0.8 %) and comes from the
+dilute outer shell; the hot part of the wake agrees. <strong>Hadron-level checks are still to be
+done</strong>, so the active region is not used in the production presets. If you use it, keep <strong>one
+setting per campaign</strong>: the job XML records it. Every MUSIC run logs the share of active blocks
+(<a href="../../run/clusters/#checking-a-run">Checking a run</a>). Details:
+<a href="https://github.com/jhputschke/js-contrib/blob/main/docs/README_2stage.md#the-gpu-active-region-opt-in-off-by-default"><code>docs/README_2stage.md</code></a>.</p>
 <h2 id="how-close-is-the-gpu-to-cpu-music">How close is the GPU to CPU MUSIC?<a class="headerlink" href="#how-close-is-the-gpu-to-cpu-music" title="Permanent link">¶</a></h2>
 <p><strong>Method.</strong> The same Au+Au 0–10 % jet job (6 jet events on 3 backgrounds, PythiaGun
 p̂<sub>T</sub> 50–70 GeV, Matter + LBT + liquefier) was run twice with identical options, once
