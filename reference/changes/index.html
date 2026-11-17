@@ -3079,15 +3079,15 @@
 </tr>
 <tr>
 <td>MUSIC4GPU (CPU, CUDA; Metal not yet validated)</td>
-<td>KT fluxes: a half-cell state that cannot be reconstructed falls back to the cell on its side of the interface, so cells i and i+1 use the same flux through their common face. <strong>Opt-in:</strong> <code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;symmetric_flux_fallback&gt;1</code>; 0, the default, keeps the old fallback (output unchanged). Pin MUSIC4GPU <code>1c99bee</code> to <code>3194cd8</code>.</td>
-<td>The state fell back to the cell computing the flux, so the two cells of a face used different fluxes and energy and charges were not conserved wherever a reconstruction failed. With SMASH sources (Cartesian, dynamic fluidization) about 10% of E and B were lost; in a staged SMASH-IC 19.6 GeV event the grid energy drifted by -3.3% from tau 0.6 to 5 fm/c (within +-0.6% with the fix). In a Milne IP-Glasma event the changes are ~1e-5; jet and O+O setups are not yet measured.</td>
-<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/192">#192</a>, <a href="https://github.com/jhputschke/MUSIC4GPU/pull/25">MUSIC4GPU #25</a></td>
+<td>KT fluxes: a half-cell state that cannot be reconstructed falls back to the cell on its side of the interface, so cells i and i+1 use the same flux through their common face. <strong>On by default since 2026-11-17</strong> (behaviour change); <code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;symmetric_flux_fallback&gt;0</code> restores the old fallback (to continue a campaign begun with it). Pin MUSIC4GPU <code>1c99bee</code> to <code>3194cd8</code>, then to <code>a84e8a5</code> (MUSIC4GPU #27, its own default 1).</td>
+<td>The state fell back to the cell computing the flux, so the two cells of a face used different fluxes and energy and charges were not conserved wherever a reconstruction failed. With SMASH sources (Cartesian, dynamic fluidization) about 10% of E and B were lost; in a staged SMASH-IC 19.6 GeV event the grid energy drifted by -3.3% from tau 0.6 to 5 fm/c (within +-0.6% with the fix). In a Milne IP-Glasma event the changes are ~1e-5. In 0-10% Au+Au (two-stage, 8 backgrounds, 32 jet events) the backgrounds lose 0.4% less fluid energy by tau = 8 fm/c, the jet wake changes by 0.9% per event (median; no change in wake / deposit), and the per-event scatter between the GPU active region and the whole grid halves in its tails (90%: 5.7% to 2.0% of the deposit). O+O not yet measured.</td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/192">#192</a>, <a href="https://github.com/jhputschke/MUSIC4GPU/pull/25">MUSIC4GPU #25</a>, on by default: <a href="https://github.com/JETSCAPE/X-SCAPE/pull/194">#194</a></td>
 </tr>
 <tr>
 <td>MUSIC4GPU (CUDA; Metal not yet validated)</td>
-<td>GPU shear regulator: a negative pi^{mu nu} pi_{mu nu} sets W^{mu nu} to 0, as <code>QuestRevert</code> on the CPU does. <strong>Opt-in:</strong> <code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;quest_revert_as_cpu&gt;1</code>; 0, the default, keeps the old GPU rule (output unchanged).</td>
+<td>GPU shear regulator: a negative pi^{mu nu} pi_{mu nu} sets W^{mu nu} to 0, as <code>QuestRevert</code> on the CPU does. <strong>On by default since 2026-11-17</strong> (behaviour change); <code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;quest_revert_as_cpu&gt;0</code> restores the old GPU rule.</td>
 <td>The GPU clamped the negative invariant (fast, dilute cells, where the float invariant drowns in the cancellation of W's components) to 0 and left W unregulated in that cell, unlike the CPU. Small effect: IP-Glasma to 15 fm/c, mean pT changes by 3e-5.</td>
-<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/192">#192</a>, <a href="https://github.com/jhputschke/MUSIC4GPU/pull/25">MUSIC4GPU #25</a></td>
+<td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/192">#192</a>, <a href="https://github.com/jhputschke/MUSIC4GPU/pull/25">MUSIC4GPU #25</a>, on by default: <a href="https://github.com/JETSCAPE/X-SCAPE/pull/194">#194</a></td>
 </tr>
 <tr>
 <td>MUSIC (CPU)</td>
@@ -3343,7 +3343,7 @@
 </tr>
 <tr>
 <td>MUSIC wrapper</td>
-<td><code>&lt;active_region_eps&gt;</code> (with <code>&lt;active_region_halo&gt;</code>, <code>&lt;active_region_dtau&gt;</code>): MUSIC4GPU's GPU kernels (CUDA; the Metal port is not yet validated) evolve only the blocks of 8 x 8 x 4 cells near matter and keep the vacuum frozen. Opt-in; 0 (the default) evolves the whole grid as before. GPU kernel time x0.69 in 0-10% Au+Au, x0.47 in O+O (GB10); not bit-identical at the vacuum level. Works together with <code>&lt;symmetric_flux_fallback&gt;</code> and <code>&lt;quest_revert_as_cpu&gt;</code> (see the physics bug fixes). Pin MUSIC4GPU <code>3194cd8</code> to <code>3c04d0d</code> (MUSIC4GPU PR #26).</td>
+<td><code>&lt;active_region_eps&gt;</code> (with <code>&lt;active_region_halo&gt;</code>, <code>&lt;active_region_dtau&gt;</code>): MUSIC4GPU's GPU kernels (CUDA; the Metal port is not yet validated) evolve only the blocks of 8 x 8 x 4 cells near matter and keep the vacuum frozen. Opt-in, off by default: 0 evolves the whole grid as before. GPU kernel time x0.69 in 0-10% Au+Au, x0.47 in O+O (GB10); not bit-identical at the vacuum level. Works together with <code>&lt;symmetric_flux_fallback&gt;</code> and <code>&lt;quest_revert_as_cpu&gt;</code> (see the physics bug fixes). Pin MUSIC4GPU <code>3194cd8</code> to <code>3c04d0d</code> (MUSIC4GPU PR #26).</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/pull/193">#193</a></td>
 </tr>
 <tr>

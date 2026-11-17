@@ -709,6 +709,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-conservation-fixes-on-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The conservation fixes (on by default)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-active-region-opt-in" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -2974,6 +2985,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#the-conservation-fixes-on-by-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The conservation fixes (on by default)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#the-active-region-opt-in" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -3232,10 +3254,66 @@ jobs share one GPU.</p>
   the medium at the 10⁻³ level, below the GPU-vs-CPU difference. The wake field differs cell by
   cell by ~5 %, almost all at scales below ~1 fm; at hadron level no change is seen within
   ±2 %. Keep <strong>one setting per campaign</strong>; <code>--late-dtau 0</code> gives a constant step.</li>
+<li><strong>Conserving fluxes and the CPU's shear regulator</strong> (<a href="#the-conservation-fixes-on-by-default">on by default</a>
+  since 2026-11-17): the background loses 0.4 % less energy, the wake changes by ~1 % per event.</li>
 <li><strong>Evolving only the region with matter</strong> (<a href="#the-active-region-opt-in">opt-in, off by default</a>):
   the vacuum around the fireball is kept frozen instead of being evolved. It changes the medium
-  at the level of float rounding, and the wake energy by ~1 % per event.</li>
+  at the level of float rounding, and the wake energy by ~0.8 % per event (with the
+  conservation fixes).</li>
 </ul>
+<h3 id="the-conservation-fixes-on-by-default">The conservation fixes (on by default)<a class="headerlink" href="#the-conservation-fixes-on-by-default" title="Permanent link">¶</a></h3>
+<p>Two rules of MUSIC4GPU's step did not conserve what they should. Both are fixed, and the fixes
+are <strong>on by default since 2026-11-17</strong> (X-SCAPE <code>&lt;Hydro&gt;&lt;MUSIC&gt;</code>):</p>
+<ul>
+<li><strong><code>&lt;symmetric_flux_fallback&gt;1</code></strong> (CPU and GPU). The flux through the face between two cells
+  is computed by each of the two. Where the half-cell state could not be reconstructed, each
+  cell used its own state instead, so the two fluxes could differ and energy and charges were
+  lost or gained at that face. Now both cells use the same flux.</li>
+<li><strong><code>&lt;quest_revert_as_cpu&gt;1</code></strong> (GPU). In fast, dilute cells the shear-stress invariant can come
+  out negative in single precision. The GPU then left the shear stress unregulated; now it sets
+  it to zero, as the CPU does.</li>
+</ul>
+<p><strong>What changes</strong> (0–10 % Au+Au, 8 backgrounds, 32 jet events, against the old rules):</p>
+<table>
+<thead>
+<tr>
+<th>quantity</th>
+<th>old rules</th>
+<th>fixes (default)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>background fluid energy lost by τ = 8 fm/c (cells above 10⁻⁴ GeV/fm³)</td>
+<td>1.3–1.9 %</td>
+<td>0.9–1.5 %</td>
+</tr>
+<tr>
+<td>wake energy / deposited energy</td>
+<td>1.022 ± 0.003</td>
+<td>1.024 ± 0.003</td>
+</tr>
+<tr>
+<td>wake energy, per event</td>
+<td></td>
+<td>changes by 0.9 % (median), 2.9 % at the 90th percentile</td>
+</tr>
+<tr>
+<td><a href="#the-active-region-opt-in">active region</a> vs whole grid, wake energy per event</td>
+<td>1.2 % (median), 5.7 % (90th)</td>
+<td>0.84 % (median), 2.0 % (90th)</td>
+</tr>
+<tr>
+<td>time per job</td>
+<td></td>
+<td>unchanged</td>
+</tr>
+</tbody>
+</table>
+<p>With SMASH sources on a Cartesian grid the old rule lost about 10 % of the energy and baryon
+number. <strong>Older campaigns</strong> used the old rules: continue them with <code>--no-hydro-fixes</code> (all three
+production drivers), and don't mix the two in one data set. Every job's <code>.json</code> records the
+setting (<code>"hydro"</code>). The Metal kernels have the fixes too, but have not been run on a Mac yet.</p>
 <h3 id="the-active-region-opt-in">The active region (opt-in)<a class="headerlink" href="#the-active-region-opt-in" title="Permanent link">¶</a></h3>
 <p>Much of MUSIC's grid is vacuum: in 0–10 % Au+Au only about a third of the cells ever hold
 matter above 10⁻⁵ GeV/fm³. With <code>--active-region 1e-5</code> (all three production drivers; in the XML
@@ -3321,8 +3399,12 @@ frozen. The region is rebuilt every 0.1 fm/c.</p>
 <td>0.2 % (median), at most 1.1 %</td>
 </tr>
 <tr>
-<td>wake energy</td>
-<td>unbiased (+0.0006 ± 0.0053 of the deposit), but 1.2 % per event (median), 5.8 % at the 90th percentile</td>
+<td>wake energy, with the conservation fixes (default)</td>
+<td>unbiased (+0.003 ± 0.002 of the deposit), 0.84 % per event (median), 2.0 % at the 90th percentile</td>
+</tr>
+<tr>
+<td>wake energy, old rules (<code>--no-hydro-fixes</code>)</td>
+<td>unbiased (+0.0001 ± 0.005), 1.2 % per event (median), 5.7 % at the 90th percentile</td>
 </tr>
 <tr>
 <td>MUSIC_2 restart</td>
@@ -3330,8 +3412,9 @@ frozen. The region is rebuilt every 0.1 fm/c.</p>
 </tr>
 </tbody>
 </table>
-<p>The per-event wake scatter is larger than that of the late time step (~0.8 %) and comes from the
-dilute outer shell; the hot part of the wake agrees. <strong>Hadron-level checks are still to be
+<p>With the conservation fixes the per-event wake scatter is about that of the late time step
+(~0.8 %) and of the fixes themselves; with the old rules it was larger, from the dilute outer
+shell. The hot part of the wake agrees. <strong>Hadron-level checks are still to be
 done</strong>, so the active region is not used in the production presets. If you use it, keep <strong>one
 setting per campaign</strong>: the job XML records it. Every MUSIC run logs the share of active blocks
 (<a href="../../run/clusters/#checking-a-run">Checking a run</a>). Details:

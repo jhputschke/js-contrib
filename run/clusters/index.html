@@ -3372,6 +3372,10 @@ the campaign's command again. <code>slurm_prod_array.sh</code> runs it on each t
 <td>MUSIC's late time step is on</td>
 </tr>
 <tr>
+<td><code>MUSIC: KT flux fallback symmetric, conserving (&lt;symmetric_flux_fallback&gt; 1)</code> and <code>MUSIC: GPU shear regulator as on the CPU (&lt;quest_revert_as_cpu&gt; 1)</code></td>
+<td>MUSIC4GPU's <a href="../../about/gpu/#the-conservation-fixes-on-by-default">conservation fixes</a> are on (the default); <code>… the old rule (… 0)</code> means <code>--no-hydro-fixes</code> or an XML that sets 0</td>
+</tr>
+<tr>
 <td><code>MUSIC active region: e &gt; 1e-05 GeV/fm^3, halo 3 cells, …</code> and <code>GPU active region (…): 59.8 % of the blocks on average …</code></td>
 <td>the <a href="../../about/gpu/#the-active-region-opt-in">active region</a> is on (<code>--active-region</code>), with the share of the grid evolved; <code>… not available on this back-end</code> means the whole grid (a metallib without the active-region kernels)</td>
 </tr>

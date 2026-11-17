@@ -3553,8 +3553,13 @@ data sets:</p>
 <td><code>&lt;late_delta_tau&gt;</code> in the job XML (<code>prod_user_xml</code>); absent or 0: constant step</td>
 </tr>
 <tr>
+<td><strong>MUSIC4GPU's conservation fixes</strong> (on by default since 2026-11-17)</td>
+<td>conserving KT fluxes and the CPU's shear regulator on the GPU: the backgrounds keep 0.4 % more energy, the wake energy changes by ~1 % per event. Files made before the change (or with <code>--no-hydro-fixes</code>) used the old rules: don't mix the two</td>
+<td><code>"hydro"</code> in the job's <code>.json</code>; <code>&lt;symmetric_flux_fallback&gt;</code>, <code>&lt;quest_revert_as_cpu&gt;</code> in the job XML when set there; files from before 2026-11-17 used the old rules</td>
+</tr>
+<tr>
 <td><strong>the GPU active region</strong> (opt-in, off by default)</td>
-<td>the vacuum stays frozen: the medium changes only at float rounding, but the wake energy scatters by ~1 % per event (unbiased). Keep one setting per campaign</td>
+<td>the vacuum stays frozen: the medium changes only at float rounding, but the wake energy scatters by ~0.8 % per event (unbiased; ~1.2 % with the old rules). Keep one setting per campaign</td>
 <td><code>&lt;active_region_eps&gt;</code> in the job XML (<code>prod_user_xml</code>); absent or 0: the whole grid</td>
 </tr>
 <tr>
