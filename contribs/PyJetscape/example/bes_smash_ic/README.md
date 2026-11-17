@@ -59,9 +59,13 @@ freeze-out. 67 baryons, net charge 26 deposited.
 | GPU port, production settings | GPU, EOS 20 | 17 min 43 s | |
 | now, `--checks --samples 100` | GPU, EOS 20 | 1 min 29 s | 65.65, 25.03 |
 | now, production settings | GPU, EOS 20 | **1 min 01 s** | |
+| now, production settings, local arm64 image | GPU, EOS 20 | 0 min 59 s | |
+| now, production settings, `--cpu` | CPU (16 threads), EOS 20 | 16 min 00 s | |
 
 Production settings: no `--checks`, one iSS sample, SMASH's tabulations already
-in `SMASH_TABULATIONS`. A second event in the same job takes about 50 s: SMASH
+in `SMASH_TABULATIONS`. The image (CUDA 13.2.1) and the host build (CUDA 13.0)
+agree within float differences (8 of 580,826 surface cells), so their sampled
+hadrons differ; each is reproducible run to run. A second event in the same job takes about 50 s: SMASH
 builds its decay-width tables (about 12 s) once per process, so run several
 events per job (`--events`).
 
