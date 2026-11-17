@@ -127,9 +127,18 @@ iSS, surface fluxes: out (...) ...; in (..., dropped) ...
 Dynamic fluidization, event totals: fluidized ...; particlized ...
 ```
 
-**Not yet conserved.** With the drain the final states are at 80–83 % in E,
-B 290–294 of 394 (seeds of one job, 3 events). Of the B that was fluidized
-(about 300): 72 % is particlized, about 20 % stays on the grid (fluid that
-never reached the switching density, lost at the end), about 6 % leaves
-through the grid edges; and iSS samples 3–10 % less B than the outflow it
-gets (its hadron gas against NEOS-4D). Details: MUSIC4GPU `docs/CARTESIAN.md`.
+**Conserving fluxes** (`<Hydro><MUSIC><symmetric_flux_fallback>1`, the default;
+`--legacy-fluxes` turns it off). MUSIC's KT flux through an interface is
+computed by both cells, and a half-cell state that could not be reconstructed
+fell back to the computing cell's state, so the two differed. With SMASH's fast
+hadrons in nearly empty cells the grid lost ~10 % of E and B while being fed.
+Now each state falls back to the cell on its side. `--no-drain --legacy-fluxes`
+reproduces the earlier events byte for byte.
+
+**Not yet conserved.** With the drain and conserving fluxes the final states
+are at 78–85 % in E, B 287–314 of 394 (3 events; without the drain 104–105 %,
+B 390–408). About 25 % of the fluidized E and B stays on the grid: only 4 % went
+into cells that stay below the switching density (`MUSIC, sources`), the rest is
+not emitted by the surface, for a reason still open. About 7 % leaves through
+the grid edges, and iSS samples 3–10 % less B than the outflow it gets.
+Details: MUSIC4GPU `docs/CARTESIAN.md`.
