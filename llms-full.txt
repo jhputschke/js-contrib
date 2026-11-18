@@ -19119,7 +19119,7 @@ Two rules of MUSIC4GPU's step did not conserve what they should. Both are fixed,
 | [active region](#the-active-region-opt-in) vs whole grid, wake energy per event | 1.2 % (median), 5.7 % (90th) | 0.84 % (median), 2.0 % (90th)                           |
 | time per job                                                                    |                              | unchanged                                               |
 
-With SMASH sources on a Cartesian grid the old rule lost about 10 % of the energy and baryon number. **Older campaigns** used the old rules: continue them with `--no-hydro-fixes` (all three production drivers), and don't mix the two in one data set. Every job's `.json` records the setting (`"hydro"`). **Metal** (M3 Max) has the fixes too and gives the same picture: with both 0 the output is byte-identical to the old code, and the backgrounds keep 0.33–0.43 % more energy by τ = 8 fm/c ([MUSIC4GPU `README_CUDA.md`, Phase 9](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_CUDA.md)).
+With SMASH sources on a Cartesian grid the old rule lost about 10 % of the energy and baryon number. **Older campaigns** used the old rules: continue them with `--no-hydro-fixes` (all three production drivers), and don't mix the two in one data set. Every job's `.json` records the setting (`"hydro"`). **Metal** (M3 Max) has the fixes too and gives the same picture: with both 0 the output is byte-identical to the old code, and the backgrounds keep 0.33–0.43 % more energy by τ = 8 fm/c. The GB10 and M3 Max results side by side: [MUSIC4GPU `README_CUDA.md`, Phase 9](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_CUDA.md#phase-9--two-conservation-fixes-on-by-default-2026-11-17).
 
 ### The active region (opt-in)
 
