@@ -346,14 +346,16 @@ sets W to 0 as on the CPU, instead of leaving W unregulated). MUSIC4GPU `README_
   "quest_revert_as_cpu": 1, "active_region_eps": 0.0}`), and in the log of every MUSIC run:
   `MUSIC: KT flux fallback symmetric, conserving (<symmetric_flux_fallback> 1)` and
   `MUSIC: GPU shear regulator as on the CPU (<quest_revert_as_cpu> 1)`.
-- **Metal:** the fixed kernels exist for Metal too, but have not been built or run on a Mac yet.
+- **Metal:** validated on an M3 Max (2026-11-17): with both 0 byte-identical to the old code, each
+  switch changes the same files as on CUDA, and the same 32-event study gives the same picture
+  (backgrounds keep 0.33–0.43 % more energy by τ = 8 fm/c; MUSIC4GPU `README_CUDA.md` Phase 9).
 
 ### The GPU active region (opt-in, off by default)
 
 `--active-region EPS` (all three drivers; `<Hydro><MUSIC><active_region_eps>` in the XML): the GPU
 evolves only the blocks of 8 × 8 × 4 cells within 3 cells of matter (e > EPS GeV/fm³, e.g. 1e-5)
 or of a source, and keeps the vacuum frozen (C3, MUSIC4GPU `README_CUDA.md` Phase 8). CUDA builds,
-and Metal (ported, not yet run on a Mac; the numbers below are CUDA's); the CPU evolves the whole
+and Metal (validated on an M3 Max; the numbers below are CUDA's unless stated); the CPU evolves the whole
 grid. Not set, or 0: the whole grid, as before.
 - **Gain** (GPU kernel time, GB10): Au+Au 0–10 % ×0.69 with the late step, ×0.74 with a
   constant step (`--late-dtau 0`); O+O ±10.5 fm ×0.47. It pays where the GPU is the limit; a job
