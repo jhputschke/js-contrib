@@ -348,7 +348,8 @@ sets W to 0 as on the CPU, instead of leaving W unregulated). MUSIC4GPU `README_
   `MUSIC: GPU shear regulator as on the CPU (<quest_revert_as_cpu> 1)`.
 - **Metal:** validated on an M3 Max (2026-11-17): with both 0 byte-identical to the old code, each
   switch changes the same files as on CUDA, and the same 32-event study gives the same picture
-  (backgrounds keep 0.33–0.43 % more energy by τ = 8 fm/c; MUSIC4GPU `README_CUDA.md` Phase 9).
+  (backgrounds keep 0.33–0.43 % more energy by τ = 8 fm/c). GB10 and M3 Max side by side:
+  MUSIC4GPU `README_CUDA.md`, Phase 9.
 
 ### The GPU active region (opt-in, off by default)
 

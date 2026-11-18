@@ -109,7 +109,7 @@ number. **Older campaigns** used the old rules: continue them with `--no-hydro-f
 production drivers), and don't mix the two in one data set. Every job's `.json` records the
 setting (`"hydro"`). **Metal** (M3 Max) has the fixes too and gives the same picture: with both
 0 the output is byte-identical to the old code, and the backgrounds keep 0.33–0.43 % more energy
-by τ = 8 fm/c ([MUSIC4GPU `README_CUDA.md`, Phase 9](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_CUDA.md)).
+by τ = 8 fm/c. The GB10 and M3 Max results side by side: [MUSIC4GPU `README_CUDA.md`, Phase 9](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_CUDA.md#phase-9--two-conservation-fixes-on-by-default-2026-11-17).
 
 ### The active region (opt-in)
 
