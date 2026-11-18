@@ -62,14 +62,14 @@ Two rules of MUSIC4GPU's step did not conserve what they should. Both are fixed,
 | [active region](#the-active-region-opt-in) vs whole grid, wake energy per event | 1.2 % (median), 5.7 % (90th) | 0.84 % (median), 2.0 % (90th)                           |
 | time per job                                                                    |                              | unchanged                                               |
 
-With SMASH sources on a Cartesian grid the old rule lost about 10 % of the energy and baryon number. **Older campaigns** used the old rules: continue them with `--no-hydro-fixes` (all three production drivers), and don't mix the two in one data set. Every job's `.json` records the setting (`"hydro"`). The Metal kernels have the fixes too, but have not been run on a Mac yet.
+With SMASH sources on a Cartesian grid the old rule lost about 10 % of the energy and baryon number. **Older campaigns** used the old rules: continue them with `--no-hydro-fixes` (all three production drivers), and don't mix the two in one data set. Every job's `.json` records the setting (`"hydro"`). **Metal** (M3 Max) has the fixes too and gives the same picture: with both 0 the output is byte-identical to the old code, and the backgrounds keep 0.33–0.43 % more energy by τ = 8 fm/c ([MUSIC4GPU `README_CUDA.md`, Phase 9](https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_CUDA.md)).
 
 ### The active region (opt-in)
 
-Much of MUSIC's grid is vacuum: in 0–10 % Au+Au only about a third of the cells ever hold matter above 10⁻⁵ GeV/fm³. With `--active-region 1e-5` (all three production drivers; in the XML `<Hydro><MUSIC><active_region_eps>1e-5</active_region_eps>`) the CUDA kernels evolve only the blocks of 8 × 8 × 4 cells within 3 cells of matter or of a jet source; the others stay frozen. The region is rebuilt every 0.1 fm/c.
+Much of MUSIC's grid is vacuum: in 0–10 % Au+Au only about a third of the cells ever hold matter above 10⁻⁵ GeV/fm³. With `--active-region 1e-5` (all three production drivers; in the XML `<Hydro><MUSIC><active_region_eps>1e-5</active_region_eps>`) the GPU kernels evolve only the blocks of 8 × 8 × 4 cells within 3 cells of matter or of a jet source; the others stay frozen. The region is rebuilt every 0.1 fm/c.
 
 - **Off by default.** Not set, or 0, evolves the whole grid exactly as before. With the region forced to the whole grid the output is bit-identical to off, so the mechanism itself changes nothing; only the frozen vacuum does.
-- **CUDA builds; Metal not yet validated.** The Metal kernels have it too, but it has not been run on a Mac yet, so the numbers below are CUDA's. The CPU path evolves the whole grid.
+- **CUDA and Metal.** On an M3 Max the region forced to the whole grid is bit-identical to off too, 54–58 % of the Au+Au blocks are active and a job alone is 8 % shorter; the wake energy per event changes by 0.6 % (median, 2.8 % at the 90th) with the fixes on. The numbers below are the GB10's. The CPU path evolves the whole grid.
 - **It needs the matching X-SCAPE.** The drivers refuse `--active-region` when the main XML has no `<active_region_eps>`.
 
 **Gain** (GPU kernel time per job, GB10):

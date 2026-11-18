@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -3313,19 +3313,23 @@ are <strong>on by default since 2026-11-17</strong> (X-SCAPE <code>&lt;Hydro&gt;
 <p>With SMASH sources on a Cartesian grid the old rule lost about 10 % of the energy and baryon
 number. <strong>Older campaigns</strong> used the old rules: continue them with <code>--no-hydro-fixes</code> (all three
 production drivers), and don't mix the two in one data set. Every job's <code>.json</code> records the
-setting (<code>"hydro"</code>). The Metal kernels have the fixes too, but have not been run on a Mac yet.</p>
+setting (<code>"hydro"</code>). <strong>Metal</strong> (M3 Max) has the fixes too and gives the same picture: with both
+0 the output is byte-identical to the old code, and the backgrounds keep 0.33–0.43 % more energy
+by τ = 8 fm/c (<a href="https://github.com/jhputschke/MUSIC4GPU/blob/XSCAPE/README_CUDA.md">MUSIC4GPU <code>README_CUDA.md</code>, Phase 9</a>).</p>
 <h3 id="the-active-region-opt-in">The active region (opt-in)<a class="headerlink" href="#the-active-region-opt-in" title="Permanent link">¶</a></h3>
 <p>Much of MUSIC's grid is vacuum: in 0–10 % Au+Au only about a third of the cells ever hold
 matter above 10⁻⁵ GeV/fm³. With <code>--active-region 1e-5</code> (all three production drivers; in the XML
-<code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;active_region_eps&gt;1e-5&lt;/active_region_eps&gt;</code>) the CUDA kernels evolve only the
+<code>&lt;Hydro&gt;&lt;MUSIC&gt;&lt;active_region_eps&gt;1e-5&lt;/active_region_eps&gt;</code>) the GPU kernels evolve only the
 blocks of 8 × 8 × 4 cells within 3 cells of matter or of a jet source; the others stay
 frozen. The region is rebuilt every 0.1 fm/c.</p>
 <ul>
 <li><strong>Off by default.</strong> Not set, or 0, evolves the whole grid exactly as before. With the region
   forced to the whole grid the output is bit-identical to off, so the mechanism itself changes
   nothing; only the frozen vacuum does.</li>
-<li><strong>CUDA builds; Metal not yet validated.</strong> The Metal kernels have it too, but it has not been
-  run on a Mac yet, so the numbers below are CUDA's. The CPU path evolves the whole grid.</li>
+<li><strong>CUDA and Metal.</strong> On an M3 Max the region forced to the whole grid is bit-identical to off
+  too, 54–58 % of the Au+Au blocks are active and a job alone is 8 % shorter; the wake energy
+  per event changes by 0.6 % (median, 2.8 % at the 90th) with the fixes on. The numbers below
+  are the GB10's. The CPU path evolves the whole grid.</li>
 <li><strong>It needs the matching X-SCAPE.</strong> The drivers refuse <code>--active-region</code> when the main XML has
   no <code>&lt;active_region_eps&gt;</code>.</li>
 </ul>
@@ -4426,7 +4430,7 @@ share gives lower rates than the table above.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       
