@@ -469,7 +469,9 @@ events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 
   the projectile, +z, and target, -z, nucleon), `remnant_E_{proj,targ}` and
   `remnant_pz_{proj,targ}` (the two nucleons' remnants, to the jet hadronization), and
   `strings_E_total`, `strings_pz_net` (the strings and remnant ends MUSIC deposits, its own
-  sum). Per event, exactly: `strings_E_total + isr_sub_E_total + remnant_E_proj +
+  sum; from the initial state in memory, `InitialState.string_array()`, the list MUSIC
+  reads, else, with an older PyJetscape, from 3dMCGlauber's `strings_event_0.dat`, 8 digits).
+  Per event, exactly: `strings_E_total + isr_sub_E_total + remnant_E_proj +
   remnant_E_targ = Npart √s/2` (5-event test: 1855.7 + 89.7 + 54.6 = 2000.0 GeV for
   Npart 20; the subtracted energy was 66-136 GeV, the remnants 24-55 GeV).
 - **Reference without the subtraction: `--no-subtraction`.** Runs the same chain with
