@@ -379,14 +379,14 @@ validation are in js-contrib `docs/Plans/PLAN_pyjetscape_complete.md`.
 
 | stage | base class | override | gets / gives |
 |---|---|---|---|
-| initial state | `InitialState` | `ExecuteTask` (+ `GetNcoll`, `GetNpart`, `SampleABinaryCollisionPoint`) | `set_entropy_density_from_numpy`, `set_num_of_binary_collisions_from_numpy`; the hard vertices |
-| hard process | `HardProcess` | `ExecuteTask` (+ `GetSigmaGen`, `GetPtHat`, `GetEventWeight`) | `AddParton(Parton(...))`, `AddHadron` |
+| initial state | `InitialState` | `ExecuteTask` (+ `GetNcoll`, `GetNpart`, `SampleABinaryCollisionPoint`; 3D: `GetQCDStringList`, `Get_remnant_proj`, … ) | `set_entropy_density_from_numpy`, `set_num_of_binary_collisions_from_numpy`; the hard vertices |
+| hard process | `HardProcess` | `ExecuteTask` (+ `GetSigmaGen`, `GetPtHat`, `GetEventWeight`) | `AddParton(Parton(...))`, `AddHadron`; `NextColorTag`; ISR: `SetTotalMomentum…`, `SetNISRShower` |
 | pre-equilibrium | `PreequilibriumDynamics` | `InitializePreequilibrium`, `EvolvePreequilibrium` | `set_e_numpy`, `set_utau_numpy`, … |
 | hydro | `FluidDynamics` | `InitializeHydro`, `EvolveHydro` | `store_fluid_cells_from_numpy`, the surface |
 | energy loss | `JetEnergyLoss` | `DoEnergyLoss(deltaT, time, Q2, pIn, pOut)` | `pIn`: the parton(s), changed in place; append to `pOut`; `GetHydroCell(t, x, y, z)` |
 | jet hadronization | `Hadronization` | `DoHadronization(shower, hOut, pOut)` | shower: one list of partons per shower; append `Hadron`s to `hOut` |
 | soft particlization | `SoftParticlization` | `ExecuteTask` | `GetHydroHyperSurface()`; `set_hadron_list([[Hadron, ...], ...])` |
-| afterburner | `Afterburner` | `ExecuteTask`, `GetCurrentHadronList` | `GatherAfterburnerHadrons()` |
+| afterburner | `Afterburner` | `ExecuteTask`, `GetCurrentHadronList` | `GatherAfterburnerHadrons()`; time-stepped: `GetTimestepParticlizationHadrons()`, `GetTimestepHadronsToRemove()` |
 | writer | `JetScapeWriter` | `GetStatus`, `Write(obj)`, `WriteEvent` | every `Parton`, `Vertex`, `PartonShower`, `Hadron`, `str`; `GetHeader()` |
 | liquefier | `LiquefierBase` | `smearing_kernel(tau, x, y, eta, droplet)` | `[j^tau, j^x, j^y, j^eta]` |
 | shower growth | `PartonShowerGenerator` | `DoShower(jloss)` | `JetEnergyLoss.AddPartonShowerGenerator(gen)` |
@@ -424,6 +424,18 @@ js.register_module("CustomModuleHalve", Halve, section="Eloss")
   attributes (`__init__` is not called again); override `Clone` for anything deeper. Task
   numbers, and with them the random engines (`self.GetMt19937Generator()`, `.uniform()`),
   follow a C++ run.
+- **3D initial state and ISR.** With 3dMCGlauber the `InitialState` (as `GetTaskList()` or
+  `JetScapeSignalManager.Instance().GetInitialStatePointer()` hands it out) gives the
+  event's QCD strings (`get_qcd_strings_numpy()`, columns `QCD_STRING_COLUMNS`, what
+  MUSIC's string source reads), the nucleon densities and z positions in the lab frame,
+  the valence-quark positions at the hard vertex and, with ISR, the remnants and the hard
+  momentum handed over (`GetHardPartonMomentumProj`, `OutputHardPartonMomentum`). A Python
+  initial state can override the getters, e.g. `GetQCDStringList` to feed MUSIC its own
+  strings. `GenerateStrings` is not bound: it redoes the event's strings. A Python
+  energy-loss module takes colour tags as Matter does:
+  `hard.NextColorTag(self.GetHardScatter(), self.GetColorTagBlock())`, or
+  `self.next_colour_tag()` (Pythonic layer); `InitialState.string_array()` gives the strings
+  as records.
 - **Lists.** The containers C++ passes by reference arrive as lists: the inputs are the C++
   objects (valid during the call only), the outputs are copied back after the call.
 - **Particles.** `Parton(label, id, stat, p, x)` with `p = FourVector(px, py, pz, E)` and

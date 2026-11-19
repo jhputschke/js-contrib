@@ -25,6 +25,8 @@
  *   GetHydroPointer()           → shared_ptr<FluidDynamics>           | None
  *   GetInitialStatePointer()    → shared_ptr<InitialState>            | None
  *   GetPreEquilibriumPointer()  → shared_ptr<PreequilibriumDynamics>  | None
+ *   GetJetEnergyLossManagerPointer(), GetHardProcessPointer(),
+ *   GetSoftParticlizationPointer(), GetHadronizationManagerPointer()
  *   SetHydroPointer(hydro)      → register a FluidDynamics module
  *   SetInitialStatePointer(ini) → register an InitialState module
  *   SetPreEquilibriumPointer(p) → register a PreequilibriumDynamics module
@@ -41,8 +43,11 @@
 
 #include "JetScapeSignalManager.h"
 #include "FluidDynamics.h"
+#include "HadronizationManager.h"
+#include "HardProcess.h"
 #include "InitialState.h"
 #include "PreequilibriumDynamics.h"
+#include "SoftParticlization.h"
 
 namespace py = pybind11;
 using namespace Jetscape;
@@ -115,6 +120,26 @@ void bind_signal_manager(py::module_ &m) {
           },
           "Return the registered JetEnergyLossManager (holds the per-event "
           "parton showers), or None if not set.")
+
+      .def("GetHardProcessPointer",
+          [](JetScapeSignalManager &sm) -> std::shared_ptr<HardProcess> {
+            return sm.GetHardProcessPointer().lock();
+          },
+          "Return the registered HardProcess (the event's hard partons, colour "
+          "tags: NextColorTag), or None if not set.")
+
+      .def("GetSoftParticlizationPointer",
+          [](JetScapeSignalManager &sm) -> std::shared_ptr<SoftParticlization> {
+            return sm.GetSoftParticlizationPointer().lock();
+          },
+          "Return the registered SoftParticlization module, or None if not set.")
+
+      .def("GetHadronizationManagerPointer",
+          [](JetScapeSignalManager &sm)
+              -> std::shared_ptr<HadronizationManager> {
+            return sm.GetHadronizationManagerPointer().lock();
+          },
+          "Return the registered HadronizationManager, or None if not set.")
 
       // ── Module pointer setters ─────────────────────────────────────────────
       // These mirror the C++ API.  In normal use, JetScape::Init() calls them

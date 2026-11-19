@@ -22,7 +22,7 @@ from jetscape.hadron_array import HadronArray  # noqa: E402
 from jetscape.records import (EDGE_DTYPE, FINAL_PARTON_DTYPE, INITIATOR_DTYPE,  # noqa: E402
                               NODE_DTYPE, edge_records, final_parton_records,
                               final_parton_rows, hard_parton_records, initiator_records,
-                              node_records)
+                              node_records, QCD_STRING_DTYPE, qcd_string_records)
 
 rng = np.random.default_rng(7)
 
@@ -443,3 +443,69 @@ def test_the_driver_finds_the_final_state_manager_not_the_isr_one():
     driver.Add(fsr)
     assert pythonic._find_task(driver, core.JetEnergyLossManager,
                                exclude=(core.IsrManager,)) is fsr
+
+
+def test_the_driver_finds_the_hard_process():
+    driver = core.JetScapePerEvent()
+    gun = core.HardProcess()
+    driver.Add(gun)
+    held = core.JetScapeSignalManager.Instance().GetHardProcessPointer()
+    assert driver.hard_process is (held or gun)
+
+
+def test_qcd_string_records_reorder_bit_for_bit():
+    assert QCD_STRING_DTYPE.names == core.QCD_STRING_COLUMNS
+    rows = rng.normal(size=(5, len(core.QCD_STRING_COLUMNS)))
+    rec = qcd_string_records(rows)
+    for i, name in enumerate(core.QCD_STRING_COLUMNS):
+        assert np.array_equal(rec[name], rows[:, i])
+    assert len(qcd_string_records(np.empty((0, 0)))) == 0
+
+
+def test_the_strings_and_isr_of_an_initial_state():
+    ncol = len(core.QCD_STRING_COLUMNS)
+
+    class Strings(core.InitialState):
+        def GetQCDStringList(self):
+            return [[float(i * ncol + j) for j in range(ncol)] for i in range(2)]
+
+    rec = Strings().string_array()
+    assert rec.dtype == QCD_STRING_DTYPE and len(rec) == 2
+    assert list(rec["tau_0"]) == [3.0, ncol + 3.0] and rec["py"][1] == 2 * ncol - 1
+    assert len(core.InitialState().string_array()) == 0
+    isr = core.InitialState().isr                     # no 3dMCGlauber: nothing handed over
+    assert isr["proj"] == [] and isr["subtract"] == -1
+
+
+def test_the_oo_isr_driver_reads_the_strings_from_memory_as_from_the_file(tmp_path, monkeypatch):
+    """run_prod_oo_isr.strings_record: string_array() and 3dMCGlauber's strings file
+    (the fallback) give the same energy and pz; no strings, no record."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "example" / "prod_OO_isr"))
+    prod = pytest.importorskip("run_prod_oo_isr")
+    ncol = len(core.QCD_STRING_COLUMNS)
+    rows = np.zeros((3, ncol))
+    col = {n: i for i, n in enumerate(core.QCD_STRING_COLUMNS)}
+    rows[:, col["mass"]] = [2.0, 3.0, 1.5]
+    rows[:, col["y_f_l"]], rows[:, col["y_f_r"]] = [-1.0, -0.5, 0.2], [1.0, 0.7, 0.9]
+    rows[:, col["y_l_i"]], rows[:, col["y_r_i"]] = [-5.0, -5.0, -4.0], [5.0, 5.0, 4.5]
+    rows[:, col["remnant_l"]] = [1.0, 0.0, 0.0]
+
+    class Strings(core.InitialState):
+        def GetQCDStringList(self):
+            return rows.tolist()
+
+    # the file as 3dMCGlauber writes it: a summary line, the header (the end rapidities
+    # are its second y_l, y_r; positions carry [fm]), one row per string
+    header = ["mass[GeV]", "m_over_sigma[fm]", "tau_form[fm]", "tau_0[fm]", "eta_s_0",
+              "x_perp[fm]", "y_perp[fm]", "x_l[fm]", "y_l[fm]", "x_r[fm]", "y_r[fm]",
+              "eta_s_left", "eta_s_right", "y_l", "y_r"] + list(core.QCD_STRING_COLUMNS[15:])
+    monkeypatch.chdir(tmp_path)
+    with open(prod.GLAUBER_STRINGS, "w") as fh:
+        fh.write("# b = 1 fm Npart = 2\n# " + "  ".join(header) + "\n")
+        np.savetxt(fh, rows, fmt="%.15e")
+    from_memory, from_file = prod.strings_record(Strings()), prod.strings_record()
+    assert set(from_memory) == {"strings_E_total", "strings_pz_net"}
+    for k in from_memory:
+        assert from_memory[k] == pytest.approx(from_file[k], rel=1e-12)
+    assert prod.strings_record(object()) == from_file          # a build without the getter
+    assert prod.strings_record(core.InitialState()) == {}      # no strings in memory

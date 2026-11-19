@@ -17,6 +17,8 @@ uint32: files written before the tag fix hold tags above 2**31).
     EDGE_DTYPE          PartonShower.to_numpy (src, tgt, pid, pstat, px py pz E, x y z t)
     NODE_DTYPE          PartonShower.vertices_to_numpy (id, x, y, z, t)
     HARD_PARTON_DTYPE   hard_partons_numpy (pid, px, py, pz, E, pT, y)
+    QCD_STRING_DTYPE    InitialState.get_qcd_strings_numpy (QCD_STRING_COLUMNS, same
+                        order; 3dMCGlauber's strings, all float64)
 
 Hadrons are not records: they stay one array per field (HadronArray), so iSS's
 arrays are wrapped without a copy.
@@ -29,7 +31,7 @@ import numpy as np
 __all__ = ["FINAL_PARTON_DTYPE", "INITIATOR_DTYPE", "EDGE_DTYPE", "NODE_DTYPE",
            "HARD_PARTON_DTYPE", "final_parton_records", "final_parton_rows",
            "initiator_records", "initiator_rows", "edge_records", "node_records",
-           "hard_parton_records"]
+           "hard_parton_records", "QCD_STRING_DTYPE", "qcd_string_records"]
 
 _MOMENTUM = [("E", "f8"), ("px", "f8"), ("py", "f8"), ("pz", "f8")]
 _POSITION = [("t", "f8"), ("x", "f8"), ("y", "f8"), ("z", "f8")]
@@ -43,6 +45,16 @@ EDGE_DTYPE = np.dtype([("src", "i4"), ("tgt", "i4"), ("pid", "i4"), ("pstat", "i
                        *_MOMENTUM, *_POSITION])
 NODE_DTYPE = np.dtype([("id", "i4"), *_POSITION])
 HARD_PARTON_DTYPE = np.dtype([("pid", "i4"), *_MOMENTUM, ("pt", "f8"), ("y", "f8")])
+# 3dMCGlauber's string record (pyjetscape_core.QCD_STRING_COLUMNS): the strings_event_*.dat
+# header, with the end rapidities y_l, y_r there called y_f_l, y_f_r (the header uses
+# y_l, y_r for the end positions too), plus the string's px, py.  remnant_l/_r are 0 or 1.
+_QCD_STRING_FIELDS = (
+    "mass", "m_over_sigma", "tau_form", "tau_0", "eta_s_0", "x_perp", "y_perp",
+    "x_l", "y_l", "x_r", "y_r", "eta_s_left", "eta_s_right", "y_f_l", "y_f_r",
+    "remnant_l", "remnant_r", "y_l_i", "y_r_i", "eta_s_baryon_left",
+    "eta_s_baryon_right", "y_l_baryon", "y_r_baryon", "baryon_fraction_l",
+    "baryon_fraction_r", "px", "py")
+QCD_STRING_DTYPE = np.dtype([(name, "f8") for name in _QCD_STRING_FIELDS])
 
 # record field <- column of the flat array
 _FINAL_PARTON_SRC = {"shower": 0, "pid": 1, "pstat": 2, "E": 3, "px": 4, "py": 5, "pz": 6,
@@ -53,6 +65,7 @@ _EDGE_SRC = {"src": 0, "tgt": 1, "pid": 2, "pstat": 3, "px": 4, "py": 5, "pz": 6
              "x": 8, "y": 9, "z": 10, "t": 11}
 _NODE_SRC = {"id": 0, "x": 1, "y": 2, "z": 3, "t": 4}
 _HARD_PARTON_SRC = {"pid": 0, "px": 1, "py": 2, "pz": 3, "E": 4, "pt": 5, "y": 6}
+_QCD_STRING_SRC = {name: i for i, name in enumerate(_QCD_STRING_FIELDS)}
 
 
 def _records(rows, dtype, src):
@@ -117,3 +130,8 @@ def node_records(rows) -> np.ndarray:
 def hard_parton_records(rows) -> np.ndarray:
     """hard_partons_numpy's (n, 7) -> HARD_PARTON_DTYPE records (hardest first, as given)."""
     return _records(rows, HARD_PARTON_DTYPE, _HARD_PARTON_SRC)
+
+
+def qcd_string_records(rows) -> np.ndarray:
+    """get_qcd_strings_numpy's (n, 27) -> QCD_STRING_DTYPE records (one per string)."""
+    return _records(rows, QCD_STRING_DTYPE, _QCD_STRING_SRC)

@@ -29,7 +29,7 @@ from jetscape.pythonic import per_event
 import numpy
 import numpy.typing
 import typing
-__all__: list[str] = ['Afterburner', 'CausalLiquefier', 'Droplet', 'ERROR', 'EVOLVING', 'EvolutionHistory', 'FINAL_PARTON_COLUMNS', 'FINISHED', 'FastRootBulkWriter', 'FluidCellInfo', 'FluidDynamics', 'FourVector', 'HAS_GZIP_READER', 'HAS_NEXT_TASK_NUMBER', 'HAS_ROOT', 'Hadron', 'HadronArray', 'Hadronization', 'HadronizationManager', 'HardProcess', 'HydroStatus', 'ICOLORED_HAS_COLOUR_AUDIT', 'ICOLORED_HAS_COLOUR_CLOSURE', 'ICOLORED_HAS_INPUT_RECORD', 'INITIALIZED', 'ISS_DECAYS_SMASH_LIST', 'InitialState', 'IsrJet', 'IsrManager', 'IsrShowerPSG', 'JetEnergyLoss', 'JetEnergyLossManager', 'JetScape', 'JetScapeEventHeader', 'JetScapeModuleBase', 'JetScapeParticleBase', 'JetScapePerEvent', 'JetScapeReaderAscii', 'JetScapeReaderAsciiGZ', 'JetScapeSignalManager', 'JetScapeTask', 'JetScapeWriter', 'LiquefierBase', 'MUSIC_BACKEND', 'MpiMusic', 'Mt19937', 'NOT_START', 'PGUN_HAS_POINTS', 'PYTHIA_GUN_HAS_EXTRA_HARD', 'PYTHIA_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_GUN_HAS_PTHAT_BINS', 'PYTHIA_GUN_HAS_Z_TRIGGER', 'PYTHIA_ISR_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_ISR_GUN_HAS_PTHAT_BINS', 'PYTHIA_VERSION', 'Parameter', 'Parton', 'PartonShower', 'PartonShowerGenerator', 'PartonShowerGeneratorDefault', 'Photon', 'PreequilibriumDynamics', 'SCATTER_COLUMNS', 'SOFT_HAS_PRIMARIES', 'SOFT_HAS_SAMPLE_CELLS', 'SURFACE_CELL_COLUMNS', 'ShowerNode', 'SoftParticlization', 'SurfaceCellInfo', 'TrentoInitial', 'Vertex', 'create_module', 'extra_hard_info', 'hadronization_hadrons_numpy', 'hadronization_input_numpy', 'hadronize_input', 'hadronize_partons', 'hard_partons_numpy', 'hard_process_info', 'iMATTER', 'initial_state_info', 'isr_hard_momentum', 'jet_hadronization_colour_audit', 'jet_hadronization_colour_totals', 'jet_hadronization_last_random_seed', 'jet_hadronization_set_colour_closure', 'load_xml', 'make_hadron', 'make_parton', 'make_photon', 'module', 'next_task_number', 'per_event', 'pgun_points', 'pythia_gun_bins', 'pythia_gun_trigger', 'random_seed', 'register_module', 'registered_modules', 'select', 'set_next_task_number', 'set_writer_output_file', 'soft_hadrons_numpy', 'soft_last_random_seed', 'soft_primaries_numpy', 'soft_sample_cells', 'soft_set_compact_output', 'soft_set_next_random_seed', 'soft_set_number_of_samples', 'to_awkward', 'unregister_module', 'xml_add_user_blocks']
+__all__: list[str] = ['Afterburner', 'CausalLiquefier', 'Droplet', 'ERROR', 'EVOLVING', 'EvolutionHistory', 'FINAL_PARTON_COLUMNS', 'FINISHED', 'FastRootBulkWriter', 'FluidCellInfo', 'FluidDynamics', 'FourVector', 'HAS_GZIP_READER', 'HAS_NEXT_TASK_NUMBER', 'HAS_ROOT', 'Hadron', 'HadronArray', 'Hadronization', 'HadronizationManager', 'HardProcess', 'HydroStatus', 'ICOLORED_HAS_COLOUR_AUDIT', 'ICOLORED_HAS_COLOUR_CLOSURE', 'ICOLORED_HAS_INPUT_RECORD', 'INITIALIZED', 'ISS_DECAYS_SMASH_LIST', 'InitialState', 'IsrJet', 'IsrManager', 'IsrShowerPSG', 'JetEnergyLoss', 'JetEnergyLossManager', 'JetScape', 'JetScapeEventHeader', 'JetScapeModuleBase', 'JetScapeParticleBase', 'JetScapePerEvent', 'JetScapeReaderAscii', 'JetScapeReaderAsciiGZ', 'JetScapeSignalManager', 'JetScapeTask', 'JetScapeWriter', 'LiquefierBase', 'MUSIC_BACKEND', 'MpiMusic', 'Mt19937', 'NOT_START', 'PGUN_HAS_POINTS', 'PYTHIA_GUN_HAS_EXTRA_HARD', 'PYTHIA_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_GUN_HAS_PTHAT_BINS', 'PYTHIA_GUN_HAS_Z_TRIGGER', 'PYTHIA_ISR_GUN_HAS_PARTON_Y_CUT', 'PYTHIA_ISR_GUN_HAS_PTHAT_BINS', 'PYTHIA_VERSION', 'Parameter', 'Parton', 'PartonShower', 'PartonShowerGenerator', 'PartonShowerGeneratorDefault', 'Photon', 'PreequilibriumDynamics', 'QCD_STRING_COLUMNS', 'SCATTER_COLUMNS', 'SOFT_HAS_PRIMARIES', 'SOFT_HAS_SAMPLE_CELLS', 'SURFACE_CELL_COLUMNS', 'ShowerNode', 'SoftParticlization', 'SurfaceCellInfo', 'TrentoInitial', 'Vertex', 'create_module', 'extra_hard_info', 'hadronization_hadrons_numpy', 'hadronization_input_numpy', 'hadronize_input', 'hadronize_partons', 'hard_partons_numpy', 'hard_process_info', 'iMATTER', 'initial_state_info', 'isr_hard_momentum', 'jet_hadronization_colour_audit', 'jet_hadronization_colour_totals', 'jet_hadronization_last_random_seed', 'jet_hadronization_set_colour_closure', 'load_xml', 'make_hadron', 'make_parton', 'make_photon', 'module', 'next_task_number', 'per_event', 'pgun_points', 'pythia_gun_bins', 'pythia_gun_trigger', 'random_seed', 'register_module', 'registered_modules', 'select', 'set_next_task_number', 'set_writer_output_file', 'soft_hadrons_numpy', 'soft_last_random_seed', 'soft_primaries_numpy', 'soft_sample_cells', 'soft_set_compact_output', 'soft_set_next_random_seed', 'soft_set_number_of_samples', 'to_awkward', 'unregister_module', 'xml_add_user_blocks']
 class Mt19937:
     """
     A task's std::mt19937 engine (JetScapeModuleBase.GetMt19937Generator()).
@@ -159,6 +159,14 @@ class JetScapeModuleBase(JetScapeTask):
     def FinishTask(self) -> None:
         """
         End-of-run work (Finish() calls it).
+        """
+    def GetColorTagBlock(self) -> int:
+        """
+        The colour-tag block of this instance (-1: none; >= 0 when the showers run in parallel, <Eloss><nThreads>).  With GetHardScatter() the arguments of HardProcess.NextColorTag().
+        """
+    def GetHardScatter(self) -> int:
+        """
+        The hard scattering whose partons this instance handles (0: the triggering one; > 0: an additional one, <extraHard>).
         """
     def GetMt19937Generator(self) -> Mt19937:
         """
@@ -328,6 +336,11 @@ class JetScapePerEvent(JetScape):
         The HadronizationManager of the task list, or None.
         """
     @property
+    def hard_process(self) -> 'HardProcess | None':
+        """
+        The hard process the signal manager holds (else the task list's), or None.
+        """
+    @property
     def hydro(self) -> 'FluidDynamics | None':
         """
         The hydro the signal manager holds (else the first in the task list), or None.
@@ -365,7 +378,7 @@ class JetScapePerEvent(JetScape):
     def __enter__(self) -> 'JetScapePerEvent':
         """
         Init(), the number of events given to per_event(), ExecInit() (as
-            run_jetscape.per_event_loop).
+        run_jetscape.per_event_loop).
         """
     def __exit__(self, exc_type, exc, tb) -> bool:
         """
@@ -376,14 +389,14 @@ class JetScapePerEvent(JetScape):
     def events(self, n: int | None = None, on_error: 'Callable[[int, Exception], None] | None' = None) -> 'Iterator[int]':
         """
         Yield the event index once per event, after ExecPerEvent() and before
-            ClearPerEvent(), so the event's results can be read; n: at most n events (default
-            GetNumberOfEvents()).  Stops cleanly on break (the event is cleared); Finish() is the
-            context manager's.
+        ClearPerEvent(), so the event's results can be read; n: at most n events (default
+        GetNumberOfEvents()).  Stops cleanly on break (the event is cleared); Finish() is the
+        context manager's.
         
-            on_error: when a module throws inside an event (a C++ exception, e.g. Matter's "minus
-            log of sudakov negative"; the same seed hits it again on a rerun), call
-            on_error(i, exc), clear the event and go on with the next one, as the productions
-            skip such events.  Without it the exception propagates.
+        on_error: when a module throws inside an event (a C++ exception, e.g. Matter's "minus
+        log of sudakov negative"; the same seed hits it again on a rerun), call
+        on_error(i, exc), clear the event and go on with the next one, as the productions
+        skip such events.  Without it the exception propagates.
         """
 class FourVector:
     """
@@ -1188,6 +1201,24 @@ class InitialState(JetScapeModuleBase):
         """
         initial_state_info(): b, Npart, Ncoll, centrality, ... of this event.
         """
+    @property
+    def isr(self) -> dict:
+        """
+        isr_hard_momentum(): with ISR, the hard momentum handed over for subtraction
+            (proj, targ: E, px, py, pz), subtract (1, 0, -1) and the remnants (remnant_proj,
+            remnant_targ); empty lists without.
+        """
+    def ClearHardPartonMomentum(self) -> None:
+        """
+                     ISR: zero the hard momentum handed over so far this event.
+        
+                     Warnings
+                     --------
+                     Changes state: it changes what 3dMCGlauber subtracts from the
+                     colliding nucleons, and so the event's strings, remnants and medium.
+                     For a Python hard process doing ISR; not to be called on a running
+                     production's initial state.
+        """
     def GetEntropyDensityDistribution(self) -> list[float]:
         """
                      Return the entropy density distribution as a flat list.
@@ -1202,6 +1233,14 @@ class InitialState(JetScapeModuleBase):
         """
         Current event ID.
         """
+    def GetHardPartonMomentumProj(self) -> list[float]:
+        """
+        ISR: the hard-parton four-momentum (E, px, py, pz) [GeV] handed over this event for subtraction from the projectile nucleon (empty from a module without it).
+        """
+    def GetHardPartonMomentumTarg(self) -> list[float]:
+        """
+        As GetHardPartonMomentumProj, for the target nucleon.
+        """
     def GetNcoll(self) -> float:
         """
         Number of binary collisions (-1 if not available).
@@ -1214,6 +1253,16 @@ class InitialState(JetScapeModuleBase):
         """
                      Return the un-normalised T_A*T_B binary-collision density as a flat list.
                      Same storage order as GetEntropyDensityDistribution().
+        """
+    def GetQCDStringList(self) -> list[list[float]]:
+        """
+                     The event's QCD strings (3dMCGlauber), one row per string, columns
+                     QCD_STRING_COLUMNS; what MUSIC's string source term reads.  Empty
+                     from a module without strings, or before the initial state ran.
+        """
+    def GetSubtractHardMomentum(self) -> int:
+        """
+        1: the initial state subtracts the hard momentum from the colliding nucleons, 0: not, -1: no such setting.
         """
     def GetTotalEntropy(self) -> float:
         """
@@ -1255,6 +1304,90 @@ class InitialState(JetScapeModuleBase):
         """
         Step size dz (or d-eta) in z direction.
         """
+    def Get_Proj_Remnant(self) -> list[float]:
+        """
+        Get_remnant_proj() of the first-stage 3dMCGlauber, from its string-generating second stage (MCGlauberGenStringWrapper), which iColoredHadronization asks.
+        """
+    def Get_Targ_Remnant(self) -> list[float]:
+        """
+        Get_remnant_targ() through the second stage, as Get_Proj_Remnant.
+        """
+    def Get_projectile_nucleon_density_lab(self, t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float:
+        """
+        Projectile (+z) nucleon density [1/fm^3] at (t, x, y, z), lab frame.
+        """
+    def Get_projectile_nucleon_z_lab(self) -> list[float]:
+        """
+        z [fm] of every projectile nucleon in the lab frame (eight -1 from a module without it).
+        """
+    def Get_quarks_pos_proj_lab(self) -> list[float]:
+        """
+                     Positions of the projectile nucleon of the hard collision's partons:
+                     (x, y, z) of the three valence quarks and of the soft gluon cloud,
+                     flat; empty if no binary collision sits at the hard vertex (nine -1
+                     from a module without it).  3dMCGlauber looks the nucleon up at the
+                     hard vertex the hard process reported (OutputHardCollisionPosition).
+        
+                     Warnings
+                     --------
+                     Changes state: 3dMCGlauber first stores that hard vertex as the hard
+                     collision's position (the same value again: repeated calls give the
+                     same result, but the call is not read-only).
+        """
+    def Get_quarks_pos_targ_lab(self) -> list[float]:
+        """
+                     As Get_quarks_pos_proj_lab, for the target nucleon.
+        
+                     Warnings
+                     --------
+                     Changes state, as Get_quarks_pos_proj_lab: stores the hard vertex.
+        """
+    def Get_remnant_proj(self) -> list[float]:
+        """
+        Four-momentum (E, px, py, pz) [GeV] of the projectile remnant of the hard collision: with ISR (3dMCGlauber subtracting the hard momentum), else [] (four -1 from a module without it).
+        """
+    def Get_remnant_targ(self) -> list[float]:
+        """
+        Four-momentum (E, px, py, pz) [GeV] of the target remnant.
+        """
+    def Get_target_nucleon_density_lab(self, t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float:
+        """
+        Target (-z) nucleon density [1/fm^3] at (t, x, y, z), lab frame.
+        """
+    def Get_target_nucleon_z_lab(self) -> list[float]:
+        """
+        z [fm] of every target nucleon in the lab frame.
+        """
+    def Get_total_nucleon_density_lab(self, t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float:
+        """
+        Projectile + target nucleon density [1/fm^3] at (t, x, y, z) in the lab frame (0 from a module without it).
+        """
+    def OutputHardCollisionPosition(self, t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """
+                     ISR: report the hard vertex (t, x, y, z) [fm] to the initial state,
+                     as PythiaIsrGun does (no-op without 3dMCGlauber).
+        
+                     Warnings
+                     --------
+                     Changes state: it changes what 3dMCGlauber subtracts from the
+                     colliding nucleons, and so the event's strings, remnants and medium.
+                     For a Python hard process doing ISR; not to be called on a running
+                     production's initial state.
+        """
+    def OutputHardPartonMomentum(self, E: typing.SupportsFloat | typing.SupportsIndex, px: typing.SupportsFloat | typing.SupportsIndex, py: typing.SupportsFloat | typing.SupportsIndex, pz: typing.SupportsFloat | typing.SupportsIndex, direction: typing.SupportsInt | typing.SupportsIndex, P_A: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """
+                     ISR: add a hard parton's four-momentum [GeV] to what the initial
+                     state subtracts, from the projectile (direction 1) or the target
+                     (otherwise) nucleon, as PythiaIsrGun does.  3dMCGlauber raises if a
+                     side reaches 0.95 P_A (the beam energy per nucleon).
+        
+                     Warnings
+                     --------
+                     Changes state: it changes what 3dMCGlauber subtracts from the
+                     colliding nucleons, and so the event's strings, remnants and medium.
+                     For a Python hard process doing ISR; not to be called on a running
+                     production's initial state.
+        """
     def SampleABinaryCollisionPoint(self) -> tuple[float, float, float, float]:
         """
         The C++ name of sample_binary_collision_point(): (t, x, y, z) [fm]. A Python initial state overrides it to return its own hard vertices.
@@ -1291,6 +1424,12 @@ class InitialState(JetScapeModuleBase):
                      NOTE: get_entropy_density_numpy() (the 2D convenience view) instead assumes
                      dist[iy*nx + ix] and is documented as valid only for GetZSize() == 1.  For a
                      square boost-invariant grid the two differ by a transpose, so do not mix them.
+        """
+    def get_qcd_strings_numpy(self) -> numpy.typing.NDArray[numpy.float64]:
+        """
+                     GetQCDStringList() as a float64 array of shape (n_strings, n_columns),
+                     columns QCD_STRING_COLUMNS (27 with the pinned 3dMCGlauber); shape
+                     (0, 0) without strings.
         """
     def sample_binary_collision_point(self) -> tuple[float, float, float, float]:
         """
@@ -1330,6 +1469,11 @@ class InitialState(JetScapeModuleBase):
                      ``-n*d/2 + i*d`` axis, while the energy-density grid this contribution uses is
                      cell-centred at ``-(n-1)*d/2 + i*d``.  Sampled vertices therefore sit half a cell
                      from the matching energy-density node.
+        """
+    def string_array(self) -> np.ndarray:
+        """
+        The event's QCD strings (3dMCGlauber) as QCD_STRING_DTYPE records, one per string;
+        empty without strings.
         """
 class Parameter:
     hydro_input_filename: str
@@ -2547,6 +2691,16 @@ class JetEnergyLoss(JetScapeModuleBase):
         """
         The attached liquefier, or None.
         """
+    def next_colour_tag(self) -> int:
+        """
+        A new colour tag, unique in the event, from the hard process, as Matter and LBT take
+        theirs: NextColorTag(GetHardScatter(), GetColorTagBlock()), so additional hard
+        scatterings and parallel showers draw from their own ranges.
+        
+        Warnings
+        --------
+        Changes state: every call takes the next tag of the event's counter.
+        """
 class JetEnergyLossManager(JetScapeModuleBase):
     """
     Energy-loss manager; one JetEnergyLoss child per shower-initiating parton.
@@ -2561,7 +2715,7 @@ class JetEnergyLossManager(JetScapeModuleBase):
     def final_parton_array(self) -> np.ndarray:
         """
         The final partons as FINAL_PARTON_DTYPE records (final_partons_numpy).  After the
-            manager's Exec, before ClearPerEvent.
+        manager's Exec, before ClearPerEvent.
         """
     def final_partons_numpy(self) -> numpy.typing.NDArray[numpy.float64]:
         """
@@ -2578,7 +2732,7 @@ class JetEnergyLossManager(JetScapeModuleBase):
     def initiator_array(self) -> np.ndarray:
         """
         The shower-initiating partons as INITIATOR_DTYPE records
-            (showers.initiators_from_manager).
+        (showers.initiators_from_manager).
         """
     def number_of_showers(self) -> int:
         ...
@@ -2618,6 +2772,10 @@ class HardProcess(JetScapeModuleBase):
         ...
     def GetNHardPartons(self) -> int:
         ...
+    def GetNISRShower(self) -> float:
+        """
+        ISR: number of initial-state showers of the event.
+        """
     def GetNPartonShowers(self) -> int:
         ...
     def GetPartonAt(self, i: typing.SupportsInt | typing.SupportsIndex) -> Parton:
@@ -2628,6 +2786,10 @@ class HardProcess(JetScapeModuleBase):
         """
     def GetPartonShowerAt(self, i: typing.SupportsInt | typing.SupportsIndex) -> PartonShower:
         ...
+    def GetPartonShowerList(self) -> list:
+        """
+        The event's parton showers (the objects, not copies).
+        """
     def GetPtHat(self) -> float:
         ...
     def GetRemnants(self) -> list[Parton]:
@@ -2638,16 +2800,95 @@ class HardProcess(JetScapeModuleBase):
         ...
     def GetSigmaGen(self) -> float:
         ...
+    def GetTotalMomentumFractionNegative(self) -> float:
+        """
+        ISR: momentum fraction taken from the -z beam.
+        """
+    def GetTotalMomentumFractionPositive(self) -> float:
+        """
+        ISR: momentum fraction (sum of x) taken from the +z beam; PythiaIsrGun rejects an event at >= 1.
+        """
+    def GetTotalMomentumNegative(self) -> float:
+        """
+        ISR: energy [GeV] taken from the -z beam.
+        """
+    def GetTotalMomentumPositive(self) -> float:
+        """
+        ISR: energy [GeV] the event's hard partons take from the +z beam.
+        """
+    def NextColorTag(self, scatter: typing.SupportsInt | typing.SupportsIndex = 0, block: typing.SupportsInt | typing.SupportsIndex = -1) -> int:
+        """
+                     A new colour tag, unique in the current event, as Matter and LBT
+                     take theirs: NextColorTag(self.GetHardScatter(),
+                     self.GetColorTagBlock()) from an energy-loss module.  ``scatter`` > 0
+                     (an additional hard scattering) and ``block`` >= 0 (a parallel-shower
+                     block) draw from their own ranges.
+        
+                     Warnings
+                     --------
+                     Changes state: every call takes the next tag of the counter, also one
+                     made only to look.  Tags taken from Python in a C++ run are skipped by
+                     the C++ modules (still unique, the numbers differ from a run without
+                     the calls).
+        """
     def PushRemnants(self, parton: Parton) -> None:
         ...
     def SetMax_Color(self, col: typing.SupportsFloat | typing.SupportsIndex) -> None:
         ...
+    def SetNISRShower(self, n: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """
+                     ISR: set the number of initial-state showers of the event.
+        
+                     Warnings
+                     --------
+                     Changes state: the ISR chain reads it.  For a Python ISR hard process.
+        """
+    def SetTotalMomentumFractionNegative(self, mom: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """
+                     ISR: set the momentum fraction taken from the -z beam.
+        
+                     Warnings
+                     --------
+                     Changes state: iMATTER's backward evolution reads it as what the
+                     hard partons take from the beams.  For a Python ISR hard process
+                     (as PythiaIsrGun sets it); not for a running production's gun.
+        """
+    def SetTotalMomentumFractionPositive(self, mom: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """
+                     ISR: set the momentum fraction taken from the +z beam.
+        
+                     Warnings
+                     --------
+                     Changes state: iMATTER's backward evolution reads it as what the
+                     hard partons take from the beams.  For a Python ISR hard process
+                     (as PythiaIsrGun sets it); not for a running production's gun.
+        """
+    def SetTotalMomentumNegative(self, mom: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """
+                     ISR: set the energy [GeV] taken from the -z beam.
+        
+                     Warnings
+                     --------
+                     Changes state: iMATTER's backward evolution reads it as what the
+                     hard partons take from the beams.  For a Python ISR hard process
+                     (as PythiaIsrGun sets it); not for a running production's gun.
+        """
+    def SetTotalMomentumPositive(self, mom: typing.SupportsFloat | typing.SupportsIndex) -> None:
+        """
+                     ISR: set the energy [GeV] taken from the +z beam.
+        
+                     Warnings
+                     --------
+                     Changes state: iMATTER's backward evolution reads it as what the
+                     hard partons take from the beams.  For a Python ISR hard process
+                     (as PythiaIsrGun sets it); not for a running production's gun.
+        """
     def __init__(self) -> None:
         ...
     def parton_array(self) -> np.ndarray:
         """
         The hard partons as HARD_PARTON_DTYPE records (pid, E px py pz, pt, y), hardest
-            first (hard_partons_numpy).
+        first (hard_partons_numpy).
         """
 class Hadronization(JetScapeModuleBase):
     """
@@ -2706,18 +2947,18 @@ class Hadronization(JetScapeModuleBase):
     def hadron_array(self) -> HadronArray:
         """
         The hadrons this module (or every module of the manager) made this event
-            (hadronization_hadrons_numpy) as a HadronArray (one sample).
+        (hadronization_hadrons_numpy) as a HadronArray (one sample).
         """
     def hadronize(self, partons, seed: int | None = None) -> HadronArray:
         """
         Hadronize stored final partons: FINAL_PARTON_DTYPE records (final_parton_array())
-            or the old (N, 14) array (hadronize_partons).  -> HadronArray; info holds the seed
-            used and n_partons_out.
+        or the old (N, 14) array (hadronize_partons).  -> HadronArray; info holds the seed
+        used and n_partons_out.
         """
     def set_colour_closure(self, mode: str) -> None:
         """
         iColoredHadronization: <colour_closure> by hand (reconnect, reconnect_global,
-            thermal, fake, none).
+        thermal, fake, none).
         """
 class HadronizationManager(JetScapeModuleBase):
     """
@@ -2749,18 +2990,18 @@ class HadronizationManager(JetScapeModuleBase):
     def hadron_array(self) -> HadronArray:
         """
         The hadrons this module (or every module of the manager) made this event
-            (hadronization_hadrons_numpy) as a HadronArray (one sample).
+        (hadronization_hadrons_numpy) as a HadronArray (one sample).
         """
     def hadronize(self, partons, seed: int | None = None) -> HadronArray:
         """
         Hadronize stored final partons: FINAL_PARTON_DTYPE records (final_parton_array())
-            or the old (N, 14) array (hadronize_partons).  -> HadronArray; info holds the seed
-            used and n_partons_out.
+        or the old (N, 14) array (hadronize_partons).  -> HadronArray; info holds the seed
+        used and n_partons_out.
         """
     def set_colour_closure(self, mode: str) -> None:
         """
         iColoredHadronization: <colour_closure> by hand (reconnect, reconnect_global,
-            thermal, fake, none).
+        thermal, fake, none).
         """
 class SoftParticlization(JetScapeModuleBase):
     """
@@ -2799,13 +3040,13 @@ class SoftParticlization(JetScapeModuleBase):
     def hadron_array(self) -> HadronArray:
         """
         This event's hadrons (soft_hadrons_numpy) as a HadronArray, one sample per
-            oversample.  With use_compact_output() the arrays are taken over without a copy:
-            call it once per event.
+        oversample.  With use_compact_output() the arrays are taken over without a copy:
+        call it once per event.
         """
     def primary_array(self) -> 'HadronArray | None':
         """
         The undecayed hadrons of the first N oversamples (soft_primaries_numpy) as a
-            HadronArray; None if none were kept.  Once per event, after hadron_array().
+        HadronArray; None if none were kept.  Once per event, after hadron_array().
         """
     def sample_cells(self, cells, seed: int, n_samples: int) -> HadronArray:
         """
@@ -2848,6 +3089,28 @@ class Afterburner(JetScapeModuleBase):
         ...
     def GetSoftParticlizationHadrons(self) -> list:
         ...
+    def GetTimestepHadronsToRemove(self) -> list:
+        """
+                     Time-stepped running: the hadrons the BulkDynamicsManager scheduled
+                     for removal from the transport since the last call.
+        
+                     Warnings
+                     --------
+                     Changes state, as GetTimestepParticlizationHadrons: takes them; call
+                     it only from the afterburner's own time step, once.
+        """
+    def GetTimestepParticlizationHadrons(self) -> list:
+        """
+                     Time-stepped running: the hadrons the BulkDynamicsManager particlized
+                     since the last call, for this timestep.  Without a
+                     BulkDynamicsManager it warns and returns [].
+        
+                     Warnings
+                     --------
+                     Changes state: takes the hadrons, the manager's list is empty
+                     afterwards.  Call it only from the afterburner's own time step, once;
+                     a call made only to look loses them for the transport.
+        """
     def __init__(self) -> None:
         ...
 class JetScapeEventHeader:
@@ -3117,6 +3380,14 @@ class JetScapeSignalManager:
         """
         Return the singleton JetScapeSignalManager instance.
         """
+    def GetHadronizationManagerPointer(self) -> HadronizationManager:
+        """
+        Return the registered HadronizationManager, or None if not set.
+        """
+    def GetHardProcessPointer(self) -> HardProcess:
+        """
+        Return the registered HardProcess (the event's hard partons, colour tags: NextColorTag), or None if not set.
+        """
     def GetHydroPointer(self) -> FluidDynamics:
         """
         Return the registered FluidDynamics module, or None if not set.
@@ -3144,6 +3415,10 @@ class JetScapeSignalManager:
     def GetPreEquilibriumPointer(self) -> PreequilibriumDynamics:
         """
         Return the registered PreequilibriumDynamics module, or None if not set.
+        """
+    def GetSoftParticlizationPointer(self) -> SoftParticlization:
+        """
+        Return the registered SoftParticlization module, or None if not set.
         """
     def SetHydroPointer(self, hydro: typing.Any) -> None:
         """
@@ -3404,6 +3679,7 @@ PYTHIA_GUN_HAS_Z_TRIGGER: bool = True
 PYTHIA_ISR_GUN_HAS_PARTON_Y_CUT: bool = True
 PYTHIA_ISR_GUN_HAS_PTHAT_BINS: bool = True
 PYTHIA_VERSION: int = 8312
+QCD_STRING_COLUMNS: tuple = ('mass', 'm_over_sigma', 'tau_form', 'tau_0', 'eta_s_0', 'x_perp', 'y_perp', 'x_l', 'y_l', 'x_r', 'y_r', 'eta_s_left', 'eta_s_right', 'y_f_l', 'y_f_r', 'remnant_l', 'remnant_r', 'y_l_i', 'y_r_i', 'eta_s_baryon_left', 'eta_s_baryon_right', 'y_l_baryon', 'y_r_baryon', 'baryon_fraction_l', 'baryon_fraction_r', 'px', 'py')
 SCATTER_COLUMNS: tuple = ('scatter', 'pthat', 'code', 'x', 'y', 'n_partons', 'E', 'pt')
 SOFT_HAS_PRIMARIES: bool = True
 SOFT_HAS_SAMPLE_CELLS: bool = True

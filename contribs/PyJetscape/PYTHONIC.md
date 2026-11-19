@@ -137,6 +137,7 @@ skip such events; without `on_error` the exception propagates.
 | `hadronization_manager` | the `HadronizationManager` | the task list |
 | `soft_particlization` | the first `SoftParticlization` (iSS) | the task list |
 | `hydro` | the hydro the signal manager holds | the signal manager, else the task list |
+| `hard_process` | the hard process (PythiaGun, PythiaIsrGun, ...) | the signal manager, else the task list |
 | `initial_state` | the initial state | the signal manager, else the task list |
 
 Other modules: `driver.GetTaskList()` (top-level tasks, most derived bound types) and
@@ -188,6 +189,8 @@ results are numpy copies or arrays taken over from C++, so they stay valid after
 | `HardProcess` | `parton_array()` | `HARD_PARTON_DTYPE` records, hardest first | `hard_partons_numpy` |
 | | `info` | dict: pthat, sigma_gen, sigma_err, event_weight | `hard_process_info` |
 | `InitialState` | `info` | dict: n_coll, n_part, centrality (what the module reports) | `initial_state_info` |
+| | `isr` | dict, with ISR: the hard momentum handed over (proj, targ), subtract, the remnants (remnant_proj, remnant_targ); empty lists without | `isr_hard_momentum` |
+| | `string_array()` | `QCD_STRING_DTYPE` records, the event's QCD strings (3dMCGlauber; what MUSIC's string source reads) | `get_qcd_strings_numpy` |
 
 Notes:
 
@@ -220,14 +223,20 @@ The small per-event tables are numpy structured arrays: `rec["px"]` instead of
 py, pz, t, x, y, z`. **`EDGE_DTYPE`** (`PartonShower.edge_array()`): `src, tgt, pid, pstat,
 E, px, py, pz, t, x, y, z`, where `src` / `tgt` are vertex ids. **`NODE_DTYPE`**
 (`node_array()`): `id, t, x, y, z`. **`HARD_PARTON_DTYPE`** (`HardProcess.parton_array()`):
-`pid, E, px, py, pz, pt, y`.
+`pid, E, px, py, pz, pt, y`. **`QCD_STRING_DTYPE`** (`InitialState.string_array()`): the 27
+columns `pyjetscape_core.QCD_STRING_COLUMNS`, all float64: `mass, m_over_sigma, tau_form, tau_0,
+eta_s_0, x_perp, y_perp, x_l, y_l, x_r, y_r, eta_s_left, eta_s_right, y_f_l, y_f_r, remnant_l,
+remnant_r, y_l_i, y_r_i, eta_s_baryon_left, eta_s_baryon_right, y_l_baryon, y_r_baryon,
+baryon_fraction_l, baryon_fraction_r, px, py` (3dMCGlauber's `strings_event_*.dat` header, whose
+second `y_l, y_r`, the end rapidities, are `y_f_l, y_f_r` here; `remnant_l/_r` are 0 or 1).
 
 Converters, for arrays from files or older code:
 
 ```python
 from jetscape.records import (final_parton_records, final_parton_rows,
                               initiator_records, initiator_rows,
-                              edge_records, node_records, hard_parton_records)
+                              edge_records, node_records, hard_parton_records,
+                              qcd_string_records)
 
 rec = final_parton_records(rows)        # (N, 14) FINAL_PARTON_COLUMNS -> records
 rows = final_parton_rows(rec)           # records -> (N, 14), what the files store
@@ -544,6 +553,12 @@ engine (`GetMt19937Generator()`) on first use:
 - an attribute of your own (`self.rng = np.random.default_rng(1)`) takes precedence;
 - C++ modules do not have it: on them `rng` raises `AttributeError`, so nothing (not even
   `hasattr`) draws from their engines.
+
+**`self.next_colour_tag()`** (energy loss): a new colour tag, unique in the event, from the
+hard process, as Matter and LBT take theirs:
+`hard.NextColorTag(self.GetHardScatter(), self.GetColorTagBlock())`, so the partons of
+additional hard scatterings (`<extraHard>`) and of parallel showers (`<Eloss><nThreads>`) get
+tags from their own ranges. `RuntimeError` outside an event (no hard process registered).
 
 Everything else about Python modules (ownership, `Clone()`, the lists, the stage table) is in
 the README, "Writing modules in Python". `example/python_modules/toy_modules_pythonic.py`

@@ -411,6 +411,13 @@ void bind_framework(py::module_ &m) {
       .def("GetMt19937Generator", &JetScapeModuleBase::GetMt19937Generator,
            "This task's random engine (made on first use; needs the seed from "
            "JetScape.Init() or load_xml()).")
+      .def("GetHardScatter", &JetScapeModuleBase::GetHardScatter,
+           "The hard scattering whose partons this instance handles (0: the "
+           "triggering one; > 0: an additional one, <extraHard>).")
+      .def("GetColorTagBlock", &JetScapeModuleBase::GetColorTagBlock,
+           "The colour-tag block of this instance (-1: none; >= 0 when the "
+           "showers run in parallel, <Eloss><nThreads>).  With GetHardScatter() "
+           "the arguments of HardProcess.NextColorTag().")
       .def_static("GetCurrentEvent", &JetScapeModuleBase::GetCurrentEvent,
            "Return the framework-global current event number (advanced by "
            "ClearPerEvent() / per-event execution).")

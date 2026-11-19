@@ -189,6 +189,8 @@ struct AfterburnerPublicist : Afterburner {
   using Afterburner::GatherAfterburnerHadrons;
   using Afterburner::GetFragmentationHadrons;
   using Afterburner::GetSoftParticlizationHadrons;
+  using Afterburner::GetTimestepHadronsToRemove;
+  using Afterburner::GetTimestepParticlizationHadrons;
 };
 
 py::list hadron_samples(const std::vector<std::vector<std::shared_ptr<Hadron>>> &v) {
@@ -310,7 +312,96 @@ void bind_stages(py::module_ &m) {
       .def("GetEventWeight", &HardProcess::GetEventWeight)
       .def("GetMax_ColorPerShower", &HardProcess::GetMax_ColorPerShower)
       .def("GetMax_Color", &HardProcess::GetMax_Color)
-      .def("SetMax_Color", &HardProcess::SetMax_Color, py::arg("col"));
+      .def("SetMax_Color", &HardProcess::SetMax_Color, py::arg("col"))
+      .def("GetPartonShowerList",
+           [](HardProcess &h) { return pyjs::ptrs(h.GetPartonShowerList()); },
+           "The event's parton showers (the objects, not copies).")
+      .def("NextColorTag", &HardProcess::NextColorTag,
+           R"pbdoc(
+             A new colour tag, unique in the current event, as Matter and LBT
+             take theirs: NextColorTag(self.GetHardScatter(),
+             self.GetColorTagBlock()) from an energy-loss module.  ``scatter`` > 0
+             (an additional hard scattering) and ``block`` >= 0 (a parallel-shower
+             block) draw from their own ranges.
+
+             Warnings
+             --------
+             Changes state: every call takes the next tag of the counter, also one
+             made only to look.  Tags taken from Python in a C++ run are skipped by
+             the C++ modules (still unique, the numbers differ from a run without
+             the calls).
+           )pbdoc",
+           py::arg("scatter") = 0, py::arg("block") = -1)
+      // ISR (PythiaIsrGun + iMATTER): the momentum the hard partons take from
+      // each beam, which iMATTER's backward evolution must not exceed.
+      .def("GetTotalMomentumPositive", &HardProcess::GetTotalMomentumPositive,
+           "ISR: energy [GeV] the event's hard partons take from the +z beam.")
+      .def("GetTotalMomentumNegative", &HardProcess::GetTotalMomentumNegative,
+           "ISR: energy [GeV] taken from the -z beam.")
+      .def("SetTotalMomentumPositive", &HardProcess::SetTotalMomentumPositive,
+           R"pbdoc(
+             ISR: set the energy [GeV] taken from the +z beam.
+
+             Warnings
+             --------
+             Changes state: iMATTER's backward evolution reads it as what the
+             hard partons take from the beams.  For a Python ISR hard process
+             (as PythiaIsrGun sets it); not for a running production's gun.
+           )pbdoc",
+           py::arg("mom"))
+      .def("SetTotalMomentumNegative", &HardProcess::SetTotalMomentumNegative,
+           R"pbdoc(
+             ISR: set the energy [GeV] taken from the -z beam.
+
+             Warnings
+             --------
+             Changes state: iMATTER's backward evolution reads it as what the
+             hard partons take from the beams.  For a Python ISR hard process
+             (as PythiaIsrGun sets it); not for a running production's gun.
+           )pbdoc",
+           py::arg("mom"))
+      .def("GetTotalMomentumFractionPositive",
+           &HardProcess::GetTotalMomentumFractionPositive,
+           "ISR: momentum fraction (sum of x) taken from the +z beam; PythiaIsrGun "
+           "rejects an event at >= 1.")
+      .def("GetTotalMomentumFractionNegative",
+           &HardProcess::GetTotalMomentumFractionNegative,
+           "ISR: momentum fraction taken from the -z beam.")
+      .def("SetTotalMomentumFractionPositive",
+           &HardProcess::SetTotalMomentumFractionPositive,
+           R"pbdoc(
+             ISR: set the momentum fraction taken from the +z beam.
+
+             Warnings
+             --------
+             Changes state: iMATTER's backward evolution reads it as what the
+             hard partons take from the beams.  For a Python ISR hard process
+             (as PythiaIsrGun sets it); not for a running production's gun.
+           )pbdoc",
+           py::arg("mom"))
+      .def("SetTotalMomentumFractionNegative",
+           &HardProcess::SetTotalMomentumFractionNegative,
+           R"pbdoc(
+             ISR: set the momentum fraction taken from the -z beam.
+
+             Warnings
+             --------
+             Changes state: iMATTER's backward evolution reads it as what the
+             hard partons take from the beams.  For a Python ISR hard process
+             (as PythiaIsrGun sets it); not for a running production's gun.
+           )pbdoc",
+           py::arg("mom"))
+      .def("GetNISRShower", &HardProcess::GetNISRShower,
+           "ISR: number of initial-state showers of the event.")
+      .def("SetNISRShower", &HardProcess::SetNISRShower,
+           R"pbdoc(
+             ISR: set the number of initial-state showers of the event.
+
+             Warnings
+             --------
+             Changes state: the ISR chain reads it.  For a Python ISR hard process.
+           )pbdoc",
+           py::arg("n"));
 
   // ── Hadronization ─────────────────────────────────────────────────────────
   py::class_<Hadronization, JetScapeModuleBase, PyHadronization,
@@ -480,7 +571,37 @@ void bind_stages(py::module_ &m) {
            })
       .def("GetFragmentationHadrons", [](Afterburner &a) {
         return pyjs::ptrs((a.*(&AfterburnerPublicist::GetFragmentationHadrons))());
-      });
+      })
+      .def("GetTimestepParticlizationHadrons",
+           [](Afterburner &a) {
+             return pyjs::ptrs(
+                 (a.*(&AfterburnerPublicist::GetTimestepParticlizationHadrons))());
+           },
+           R"pbdoc(
+             Time-stepped running: the hadrons the BulkDynamicsManager particlized
+             since the last call, for this timestep.  Without a
+             BulkDynamicsManager it warns and returns [].
+
+             Warnings
+             --------
+             Changes state: takes the hadrons, the manager's list is empty
+             afterwards.  Call it only from the afterburner's own time step, once;
+             a call made only to look loses them for the transport.
+           )pbdoc")
+      .def("GetTimestepHadronsToRemove",
+           [](Afterburner &a) {
+             return pyjs::ptrs(
+                 (a.*(&AfterburnerPublicist::GetTimestepHadronsToRemove))());
+           },
+           R"pbdoc(
+             Time-stepped running: the hadrons the BulkDynamicsManager scheduled
+             for removal from the transport since the last call.
+
+             Warnings
+             --------
+             Changes state, as GetTimestepParticlizationHadrons: takes them; call
+             it only from the afterburner's own time step, once.
+           )pbdoc");
 
   // ── JetScapeEventHeader ───────────────────────────────────────────────────
   py::class_<JetScapeEventHeader>(m, "JetScapeEventHeader",
