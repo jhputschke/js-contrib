@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3204,6 +3204,12 @@
 <td><code>dynamic_cast</code> to a writer failed across the Python module boundary.</td>
 <td><a href="https://github.com/JETSCAPE/X-SCAPE/commit/9b3641b5"><code>9b3641b5</code></a></td>
 </tr>
+<tr>
+<td>MUSIC4GPU (Metal)</td>
+<td>A missing or stale <code>music_kernels.metallib</code> (no metallib found, or one without a kernel this libmusic needs) stops the run with exit code 1 and says to rebuild, set <code>MUSIC_METALLIB</code>, or set <code>MUSIC_FORCE_CPU=1</code>. <code>MUSIC_FORCE_CPU=1</code> still runs on the CPU on purpose; no Metal device keeps the CPU fallback. Pin MUSIC4GPU <code>a84e8a5</code> to <code>a31f166</code>.</td>
+<td>A metallib older than libmusic (a stale build, or a Mac wheel whose metallib and library do not match) made MUSIC run the hydro on the CPU with one warning: the job exited 0 and ran 10-15x slower (O+O event 25 s instead of 1.7 s on an M3 Max), and the job output did not say so.</td>
+<td><a href="https://github.com/jhputschke/MUSIC4GPU/commit/a31f166">MUSIC4GPU <code>a31f166</code></a></td>
+</tr>
 </tbody>
 </table>
 <h2 id="enhancements-and-new-features">Enhancements and new features<a class="headerlink" href="#enhancements-and-new-features" title="Permanent link">¶</a></h2>
@@ -3708,7 +3714,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       

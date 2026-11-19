@@ -53,6 +53,7 @@ The run's modules are driver properties (`None` when absent):
 | `hadronization_manager` | the `HadronizationManager`                                                |
 | `soft_particlization`   | the first `SoftParticlization` (iSS)                                      |
 | `hydro`                 | the hydro module                                                          |
+| `hard_process`          | the hard process (PythiaGun, PythiaIsrGun, ...)                           |
 | `initial_state`         | the initial state                                                         |
 
 Anything else: `driver.GetTaskList()` and, for sub-tasks, `task.GetTaskList()`.
@@ -71,21 +72,23 @@ It copies the user XML to `out/`, makes its `../` paths absolute, copies `music_
 
 Each method wraps a function of the bindings, and returns numpy copies or arrays taken over from C++, so the results stay valid after the event is cleared.
 
-| class                                   | member                                                                       | returns                                                                                             |
-| --------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `JetEnergyLossManager`                  | `showers`                                                                    | list of `PartonShower`, one per shower                                                              |
-|                                         | `final_parton_array()`                                                       | final-parton records (what hadronization receives)                                                  |
-|                                         | `initiator_array()`                                                          | the partons that started each shower                                                                |
-| `SoftParticlization` (iSS)              | `hadron_array()`                                                             | `HadronArray`, one sample per oversample                                                            |
-|                                         | `use_compact_output(on=True)`                                                | from the next event on, hadrons as arrays (about 8x less memory)                                    |
-|                                         | `set_number_of_samples(n)`, `set_next_random_seed(seed)`, `last_random_seed` | oversamples and seeds                                                                               |
-|                                         | `primary_array()`                                                            | the undecayed hadrons (iSS `<keep_primaries>`), or `None`                                           |
-| `HadronizationManager`, `Hadronization` | `hadron_array()`                                                             | `HadronArray` of the jet hadrons                                                                    |
-|                                         | `hadronize(partons, seed=None)`                                              | hadronize stored partons again                                                                      |
-|                                         | `last_random_seed`                                                           | the jet hadronization's last seed                                                                   |
-|                                         | `colour_audit()`, `colour_totals()`, `set_colour_closure(mode)`              | iColoredHadronization's colour bookkeeping, on builds that have it (`hasattr(had, "colour_audit")`) |
-| `HardProcess`                           | `parton_array()`, `info`                                                     | hard partons, hardest first; dict with `pthat`, `sigma_gen`, `sigma_err`, `event_weight`            |
-| `InitialState`                          | `info`                                                                       | dict with `n_coll`, `n_part`, `centrality` (what the module reports)                                |
+| class                                   | member                                                                       | returns                                                                                                             |
+| --------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `JetEnergyLossManager`                  | `showers`                                                                    | list of `PartonShower`, one per shower                                                                              |
+|                                         | `final_parton_array()`                                                       | final-parton records (what hadronization receives)                                                                  |
+|                                         | `initiator_array()`                                                          | the partons that started each shower                                                                                |
+| `SoftParticlization` (iSS)              | `hadron_array()`                                                             | `HadronArray`, one sample per oversample                                                                            |
+|                                         | `use_compact_output(on=True)`                                                | from the next event on, hadrons as arrays (about 8x less memory)                                                    |
+|                                         | `set_number_of_samples(n)`, `set_next_random_seed(seed)`, `last_random_seed` | oversamples and seeds                                                                                               |
+|                                         | `primary_array()`                                                            | the undecayed hadrons (iSS `<keep_primaries>`), or `None`                                                           |
+| `HadronizationManager`, `Hadronization` | `hadron_array()`                                                             | `HadronArray` of the jet hadrons                                                                                    |
+|                                         | `hadronize(partons, seed=None)`                                              | hadronize stored partons again                                                                                      |
+|                                         | `last_random_seed`                                                           | the jet hadronization's last seed                                                                                   |
+|                                         | `colour_audit()`, `colour_totals()`, `set_colour_closure(mode)`              | iColoredHadronization's colour bookkeeping, on builds that have it (`hasattr(had, "colour_audit")`)                 |
+| `HardProcess`                           | `parton_array()`, `info`                                                     | hard partons, hardest first; dict with `pthat`, `sigma_gen`, `sigma_err`, `event_weight`                            |
+| `InitialState`                          | `info`                                                                       | dict with `n_coll`, `n_part`, `centrality` (what the module reports)                                                |
+|                                         | `isr`                                                                        | with initial-state radiation: dict with the hard momentum handed over (`proj`, `targ`), `subtract` and the remnants |
+|                                         | `string_array()`                                                             | the event's QCD strings (3dMCGlauber), what MUSIC's string source reads                                             |
 
 Compact output is taken once
 
@@ -95,13 +98,14 @@ After `use_compact_output()`, `hadron_array()` takes iSS's arrays over without a
 
 The small per-event tables are numpy structured arrays (`jetscape.records`): `rec["px"]` instead of `rec[:, 4]`. Each holds exactly the values of the older column array it reorders.
 
-| dtype                | from                         | fields                                                           |
-| -------------------- | ---------------------------- | ---------------------------------------------------------------- |
-| `FINAL_PARTON_DTYPE` | `final_parton_array()`       | `shower, pid, pstat, E, px, py, pz, t, x, y, z, mass, col, acol` |
-| `INITIATOR_DTYPE`    | `initiator_array()`          | `shower, pid, pstat, E, px, py, pz, t, x, y, z`                  |
-| `EDGE_DTYPE`         | `PartonShower.edge_array()`  | `src, tgt, pid, pstat, E, px, py, pz, t, x, y, z`                |
-| `NODE_DTYPE`         | `PartonShower.node_array()`  | `id, t, x, y, z`                                                 |
-| `HARD_PARTON_DTYPE`  | `HardProcess.parton_array()` | `pid, E, px, py, pz, pt, y`                                      |
+| dtype                | from                          | fields                                                                                                                                                                                                                  |
+| -------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FINAL_PARTON_DTYPE` | `final_parton_array()`        | `shower, pid, pstat, E, px, py, pz, t, x, y, z, mass, col, acol`                                                                                                                                                        |
+| `INITIATOR_DTYPE`    | `initiator_array()`           | `shower, pid, pstat, E, px, py, pz, t, x, y, z`                                                                                                                                                                         |
+| `EDGE_DTYPE`         | `PartonShower.edge_array()`   | `src, tgt, pid, pstat, E, px, py, pz, t, x, y, z`                                                                                                                                                                       |
+| `NODE_DTYPE`         | `PartonShower.node_array()`   | `id, t, x, y, z`                                                                                                                                                                                                        |
+| `HARD_PARTON_DTYPE`  | `HardProcess.parton_array()`  | `pid, E, px, py, pz, pt, y`                                                                                                                                                                                             |
+| `QCD_STRING_DTYPE`   | `InitialState.string_array()` | the 27 `pyjetscape_core.QCD_STRING_COLUMNS`: `mass, m_over_sigma, tau_form, tau_0, eta_s_0, x_perp, y_perp, x_l, y_l, x_r, y_r, ...`, the end rapidities `y_f_l, y_f_r`, `remnant_l, remnant_r` (0 or 1), ..., `px, py` |
 
 Records work with the usual tools: `rec[rec["pstat"] >= 0]`, `np.unique(rec["shower"])`, `np.hypot(rec["px"], rec["py"])`, `pandas.DataFrame(rec)`. Converters for arrays from files: `final_parton_records(rows)`, `final_parton_rows(rec)`, `initiator_rows(rec)`, ... in `jetscape.records`.
 

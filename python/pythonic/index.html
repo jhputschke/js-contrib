@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3225,6 +3225,10 @@ analysis environment; awkward and vector are imported only when used.</p>
 <td>the hydro module</td>
 </tr>
 <tr>
+<td><code>hard_process</code></td>
+<td>the hard process (PythiaGun, PythiaIsrGun, ...)</td>
+</tr>
+<tr>
 <td><code>initial_state</code></td>
 <td>the initial state</td>
 </tr>
@@ -3320,6 +3324,16 @@ C++, so the results stay valid after the event is cleared.</p>
 <td><code>info</code></td>
 <td>dict with <code>n_coll</code>, <code>n_part</code>, <code>centrality</code> (what the module reports)</td>
 </tr>
+<tr>
+<td></td>
+<td><code>isr</code></td>
+<td>with initial-state radiation: dict with the hard momentum handed over (<code>proj</code>, <code>targ</code>), <code>subtract</code> and the remnants</td>
+</tr>
+<tr>
+<td></td>
+<td><code>string_array()</code></td>
+<td>the event's QCD strings (3dMCGlauber), what MUSIC's string source reads</td>
+</tr>
 </tbody>
 </table>
 <div class="admonition note">
@@ -3363,6 +3377,11 @@ of <code>rec[:, 4]</code>. Each holds exactly the values of the older column arr
 <td><code>HARD_PARTON_DTYPE</code></td>
 <td><code>HardProcess.parton_array()</code></td>
 <td><code>pid, E, px, py, pz, pt, y</code></td>
+</tr>
+<tr>
+<td><code>QCD_STRING_DTYPE</code></td>
+<td><code>InitialState.string_array()</code></td>
+<td>the 27 <code>pyjetscape_core.QCD_STRING_COLUMNS</code>: <code>mass, m_over_sigma, tau_form, tau_0, eta_s_0, x_perp, y_perp, x_l, y_l, x_r, y_r, ...</code>, the end rapidities <code>y_f_l, y_f_r</code>, <code>remnant_l, remnant_r</code> (0 or 1), ..., <code>px, py</code></td>
 </tr>
 </tbody>
 </table>
@@ -3906,7 +3925,7 @@ old and new calls:
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       

@@ -63,6 +63,8 @@ Exposes C++ classes and the module factory so that Python code can:
 
 ### `PYTHIA_VERSION: int = 8312`
 
+### `QCD_STRING_COLUMNS: tuple = ('mass', 'm_over_sigma', 'tau_form', 'tau_0', 'eta_s_0', 'x_perp', 'y_perp', 'x_l', 'y_l', 'x_r', 'y_r', 'eta_s_left', 'eta_s_right', 'y_f_l', 'y_f_r', 'remnant_l', 'remnant_r', 'y_l_i', 'y_r_i', 'eta_s_baryon_left', 'eta_s_baryon_right', 'y_l_baryon', 'y_r_baryon', 'baryon_fraction_l', 'baryon_fraction_r', 'px', 'py')`
+
 ### `SCATTER_COLUMNS: tuple = ('scatter', 'pthat', 'code', 'x', 'y', 'n_partons', 'E', 'pt')`
 
 ### `SOFT_HAS_PRIMARIES: bool = True`
@@ -88,6 +90,22 @@ The hadrons for the transport: per oversample, the soft and the jet hadrons.
 #### `GetFragmentationHadrons() -> list`
 
 #### `GetSoftParticlizationHadrons() -> list`
+
+#### `GetTimestepHadronsToRemove() -> list`
+
+Time-stepped running: the hadrons the BulkDynamicsManager scheduled for removal from the transport since the last call.
+
+Warnings
+
+Changes state, as GetTimestepParticlizationHadrons: takes them; call it only from the afterburner's own time step, once.
+
+#### `GetTimestepParticlizationHadrons() -> list`
+
+Time-stepped running: the hadrons the BulkDynamicsManager particlized since the last call, for this timestep. Without a BulkDynamicsManager it warns and returns [].
+
+Warnings
+
+Changes state: takes the hadrons, the manager's list is empty afterwards. Call it only from the afterburner's own time step, once; a call made only to look loses them for the transport.
 
 ### `CausalLiquefier()`
 
@@ -915,6 +933,10 @@ hard_process_info(): cross section, weight, pTHat, ... of this event.
 
 #### `GetNHardPartons() -> int`
 
+#### `GetNISRShower() -> float`
+
+ISR: number of initial-state showers of the event.
+
 #### `GetNPartonShowers() -> int`
 
 #### `GetPartonAt(i: typing.SupportsInt | typing.SupportsIndex) -> Parton`
@@ -924,6 +946,10 @@ hard_process_info(): cross section, weight, pTHat, ... of this event.
 The hard partons of the event (the objects, not copies).
 
 #### `GetPartonShowerAt(i: typing.SupportsInt | typing.SupportsIndex) -> PartonShower`
+
+#### `GetPartonShowerList() -> list`
+
+The event's parton showers (the objects, not copies).
 
 #### `GetPtHat() -> float`
 
@@ -935,9 +961,73 @@ The beam remnants (copies), with ISR.
 
 #### `GetSigmaGen() -> float`
 
+#### `GetTotalMomentumFractionNegative() -> float`
+
+ISR: momentum fraction taken from the -z beam.
+
+#### `GetTotalMomentumFractionPositive() -> float`
+
+ISR: momentum fraction (sum of x) taken from the +z beam; PythiaIsrGun rejects an event at >= 1.
+
+#### `GetTotalMomentumNegative() -> float`
+
+ISR: energy [GeV] taken from the -z beam.
+
+#### `GetTotalMomentumPositive() -> float`
+
+ISR: energy [GeV] the event's hard partons take from the +z beam.
+
+#### `NextColorTag(scatter: typing.SupportsInt | typing.SupportsIndex = 0, block: typing.SupportsInt | typing.SupportsIndex = -1) -> int`
+
+A new colour tag, unique in the current event, as Matter and LBT take theirs: NextColorTag(self.GetHardScatter(), self.GetColorTagBlock()) from an energy-loss module. `scatter` > 0 (an additional hard scattering) and `block` >= 0 (a parallel-shower block) draw from their own ranges.
+
+Warnings
+
+Changes state: every call takes the next tag of the counter, also one made only to look. Tags taken from Python in a C++ run are skipped by the C++ modules (still unique, the numbers differ from a run without the calls).
+
 #### `PushRemnants(parton: Parton) -> None`
 
 #### `SetMax_Color(col: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+#### `SetNISRShower(n: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the number of initial-state showers of the event.
+
+Warnings
+
+Changes state: the ISR chain reads it. For a Python ISR hard process.
+
+#### `SetTotalMomentumFractionNegative(mom: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the momentum fraction taken from the -z beam.
+
+Warnings
+
+Changes state: iMATTER's backward evolution reads it as what the hard partons take from the beams. For a Python ISR hard process (as PythiaIsrGun sets it); not for a running production's gun.
+
+#### `SetTotalMomentumFractionPositive(mom: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the momentum fraction taken from the +z beam.
+
+Warnings
+
+Changes state: iMATTER's backward evolution reads it as what the hard partons take from the beams. For a Python ISR hard process (as PythiaIsrGun sets it); not for a running production's gun.
+
+#### `SetTotalMomentumNegative(mom: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the energy [GeV] taken from the -z beam.
+
+Warnings
+
+Changes state: iMATTER's backward evolution reads it as what the hard partons take from the beams. For a Python ISR hard process (as PythiaIsrGun sets it); not for a running production's gun.
+
+#### `SetTotalMomentumPositive(mom: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the energy [GeV] taken from the +z beam.
+
+Warnings
+
+Changes state: iMATTER's backward evolution reads it as what the hard partons take from the beams. For a Python ISR hard process (as PythiaIsrGun sets it); not for a running production's gun.
 
 #### `parton_array() -> np.ndarray`
 
@@ -985,6 +1075,18 @@ Python subclasses can override Init(), Exec(), and Clear() and populate the IC g
 
 initial_state_info(): b, Npart, Ncoll, centrality, ... of this event.
 
+#### `isr: dict`
+
+isr_hard_momentum(): with ISR, the hard momentum handed over for subtraction (proj, targ: E, px, py, pz), subtract (1, 0, -1) and the remnants (remnant_proj, remnant_targ); empty lists without.
+
+#### `ClearHardPartonMomentum() -> None`
+
+ISR: zero the hard momentum handed over so far this event.
+
+Warnings
+
+Changes state: it changes what 3dMCGlauber subtracts from the colliding nucleons, and so the event's strings, remnants and medium. For a Python hard process doing ISR; not to be called on a running production's initial state.
+
 #### `GetEntropyDensityDistribution() -> list[float]`
 
 Return the entropy density distribution as a flat list. Storage order: for z { for y { for x } }. Length = GetXSize() * GetYSize() * GetZSize().
@@ -997,6 +1099,14 @@ Event centrality class (-1 if not available).
 
 Current event ID.
 
+#### `GetHardPartonMomentumProj() -> list[float]`
+
+ISR: the hard-parton four-momentum (E, px, py, pz) [GeV] handed over this event for subtraction from the projectile nucleon (empty from a module without it).
+
+#### `GetHardPartonMomentumTarg() -> list[float]`
+
+As GetHardPartonMomentumProj, for the target nucleon.
+
 #### `GetNcoll() -> float`
 
 Number of binary collisions (-1 if not available).
@@ -1008,6 +1118,14 @@ Number of participant nucleons (-1 if not available).
 #### `GetNumOfBinaryCollisions() -> list[float]`
 
 Return the un-normalised T_A\*T_B binary-collision density as a flat list. Same storage order as GetEntropyDensityDistribution().
+
+#### `GetQCDStringList() -> list[list[float]]`
+
+The event's QCD strings (3dMCGlauber), one row per string, columns QCD_STRING_COLUMNS; what MUSIC's string source term reads. Empty from a module without strings, or before the initial state ran.
+
+#### `GetSubtractHardMomentum() -> int`
+
+1: the initial state subtracts the hard momentum from the colliding nucleons, 0: not, -1: no such setting.
 
 #### `GetTotalEntropy() -> float`
 
@@ -1049,6 +1167,74 @@ Number of grid points in z (1 for boost-invariant).
 
 Step size dz (or d-eta) in z direction.
 
+#### `Get_Proj_Remnant() -> list[float]`
+
+Get_remnant_proj() of the first-stage 3dMCGlauber, from its string-generating second stage (MCGlauberGenStringWrapper), which iColoredHadronization asks.
+
+#### `Get_Targ_Remnant() -> list[float]`
+
+Get_remnant_targ() through the second stage, as Get_Proj_Remnant.
+
+#### `Get_projectile_nucleon_density_lab(t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float`
+
+Projectile (+z) nucleon density [1/fm^3] at (t, x, y, z), lab frame.
+
+#### `Get_projectile_nucleon_z_lab() -> list[float]`
+
+z [fm] of every projectile nucleon in the lab frame (eight -1 from a module without it).
+
+#### `Get_quarks_pos_proj_lab() -> list[float]`
+
+Positions of the projectile nucleon of the hard collision's partons: (x, y, z) of the three valence quarks and of the soft gluon cloud, flat; empty if no binary collision sits at the hard vertex (nine -1 from a module without it). 3dMCGlauber looks the nucleon up at the hard vertex the hard process reported (OutputHardCollisionPosition).
+
+Warnings
+
+Changes state: 3dMCGlauber first stores that hard vertex as the hard collision's position (the same value again: repeated calls give the same result, but the call is not read-only).
+
+#### `Get_quarks_pos_targ_lab() -> list[float]`
+
+As Get_quarks_pos_proj_lab, for the target nucleon.
+
+Warnings
+
+Changes state, as Get_quarks_pos_proj_lab: stores the hard vertex.
+
+#### `Get_remnant_proj() -> list[float]`
+
+Four-momentum (E, px, py, pz) [GeV] of the projectile remnant of the hard collision: with ISR (3dMCGlauber subtracting the hard momentum), else [] (four -1 from a module without it).
+
+#### `Get_remnant_targ() -> list[float]`
+
+Four-momentum (E, px, py, pz) [GeV] of the target remnant.
+
+#### `Get_target_nucleon_density_lab(t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float`
+
+Target (-z) nucleon density [1/fm^3] at (t, x, y, z), lab frame.
+
+#### `Get_target_nucleon_z_lab() -> list[float]`
+
+z [fm] of every target nucleon in the lab frame.
+
+#### `Get_total_nucleon_density_lab(t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float`
+
+Projectile + target nucleon density [1/fm^3] at (t, x, y, z) in the lab frame (0 from a module without it).
+
+#### `OutputHardCollisionPosition(t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: report the hard vertex (t, x, y, z) [fm] to the initial state, as PythiaIsrGun does (no-op without 3dMCGlauber).
+
+Warnings
+
+Changes state: it changes what 3dMCGlauber subtracts from the colliding nucleons, and so the event's strings, remnants and medium. For a Python hard process doing ISR; not to be called on a running production's initial state.
+
+#### `OutputHardPartonMomentum(E: typing.SupportsFloat | typing.SupportsIndex, px: typing.SupportsFloat | typing.SupportsIndex, py: typing.SupportsFloat | typing.SupportsIndex, pz: typing.SupportsFloat | typing.SupportsIndex, direction: typing.SupportsInt | typing.SupportsIndex, P_A: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: add a hard parton's four-momentum [GeV] to what the initial state subtracts, from the projectile (direction 1) or the target (otherwise) nucleon, as PythiaIsrGun does. 3dMCGlauber raises if a side reaches 0.95 P_A (the beam energy per nucleon).
+
+Warnings
+
+Changes state: it changes what 3dMCGlauber subtracts from the colliding nucleons, and so the event's strings, remnants and medium. For a Python hard process doing ISR; not to be called on a running production's initial state.
+
 #### `SampleABinaryCollisionPoint() -> tuple[float, float, float, float]`
 
 The C++ name of sample_binary_collision_point(): (t, x, y, z) [fm]. A Python initial state overrides it to return its own hard vertices.
@@ -1075,6 +1261,10 @@ Storage order is the C-order (nx, ny, neta) ravel, idx = (ny\*neta)\*ix + neta\*
 
 NOTE: get_entropy_density_numpy() (the 2D convenience view) instead assumes dist[iy\*nx + ix] and is documented as valid only for GetZSize() == 1. For a square boost-invariant grid the two differ by a transpose, so do not mix them.
 
+#### `get_qcd_strings_numpy() -> numpy.typing.NDArray[numpy.float64]`
+
+GetQCDStringList() as a float64 array of shape (n_strings, n_columns), columns QCD_STRING_COLUMNS (27 with the pinned 3dMCGlauber); shape (0, 0) without strings.
+
 #### `sample_binary_collision_point() -> tuple[float, float, float, float]`
 
 Draw one hard-scattering vertex, exactly as the hard process does.
@@ -1100,6 +1290,10 @@ Set the Ta\*Tb binary-collision density that hard processes sample vertices from
 Same C-order (nx, ny, neta) ravel as set_entropy_density_from_numpy(). Without it, InitialState::SampleABinaryCollisionPoint() warns and puts every jet at the origin, so all showers start at the fireball centre.
 
 NOTE the half-cell offset: CoordFromIdx() maps index ix to `-grid_max_x + ix*grid_step_x` (InitialState.cc:75-77), i.e. MUSIC's `-n*d/2 + i*d` axis, while the energy-density grid this contribution uses is cell-centred at `-(n-1)*d/2 + i*d`. Sampled vertices therefore sit half a cell from the matching energy-density node.
+
+#### `string_array() -> np.ndarray`
+
+The event's QCD strings (3dMCGlauber) as QCD_STRING_DTYPE records, one per string; empty without strings.
 
 ### `IsrJet()`
 
@@ -1206,6 +1400,14 @@ Attach the liquefier that collects droplets from this shower. The framework call
 #### `get_liquefier() -> LiquefierBase`
 
 The attached liquefier, or None.
+
+#### `next_colour_tag() -> int`
+
+A new colour tag, unique in the event, from the hard process, as Matter and LBT take theirs: NextColorTag(GetHardScatter(), GetColorTagBlock()), so additional hard scatterings and parallel showers draw from their own ranges.
+
+Warnings
+
+Changes state: every call takes the next tag of the event's counter.
 
 ### `JetEnergyLossManager()`
 
@@ -1395,9 +1597,17 @@ End of an event in the time-step loop.
 
 End-of-run work (Finish() calls it).
 
+#### `GetColorTagBlock() -> int`
+
+The colour-tag block of this instance (-1: none; >= 0 when the showers run in parallel, ). With GetHardScatter() the arguments of HardProcess.NextColorTag().
+
 #### `GetCurrentEvent() -> int`
 
 Return the framework-global current event number (advanced by ClearPerEvent() / per-event execution).
+
+#### `GetHardScatter() -> int`
+
+The hard scattering whose partons this instance handles (0: the triggering one; > 0: an additional one, ).
 
 #### `GetMt19937Generator() -> Mt19937`
 
@@ -1606,6 +1816,10 @@ The final-state JetEnergyLossManager (the signal manager's, else the task list's
 
 The HadronizationManager of the task list, or None.
 
+#### `hard_process: 'HardProcess | None'`
+
+The hard process the signal manager holds (else the task list's), or None.
+
 #### `hydro: 'FluidDynamics | None'`
 
 The hydro the signal manager holds (else the first in the task list), or None.
@@ -1642,12 +1856,7 @@ Set the starting event number (default 0). Must be called before the first ExecP
 
 Yield the event index once per event, after ExecPerEvent() and before ClearPerEvent(), so the event's results can be read; n: at most n events (default GetNumberOfEvents()). Stops cleanly on break (the event is cleared); Finish() is the context manager's.
 
-```text
-on_error: when a module throws inside an event (a C++ exception, e.g. Matter's "minus
-log of sudakov negative"; the same seed hits it again on a rerun), call
-on_error(i, exc), clear the event and go on with the next one, as the productions
-skip such events.  Without it the exception propagates.
-```
+on_error: when a module throws inside an event (a C++ exception, e.g. Matter's "minus log of sudakov negative"; the same seed hits it again on a rerun), call on_error(i, exc), clear the event and go on with the next one, as the productions skip such events. Without it the exception propagates.
 
 ### `JetScapeReaderAscii(file_name: str)`
 
@@ -1742,6 +1951,14 @@ Notes
 - The object returned by Instance() is owned by the C++ singleton; do not store it across events or after Finish().
 - All Get\*Pointer() methods lock the stored weak_ptr and return the shared_ptr. They return None if the module was never registered.
 
+#### `GetHadronizationManagerPointer() -> HadronizationManager`
+
+Return the registered HadronizationManager, or None if not set.
+
+#### `GetHardProcessPointer() -> HardProcess`
+
+Return the registered HardProcess (the event's hard partons, colour tags: NextColorTag), or None if not set.
+
 #### `GetHydroPointer() -> FluidDynamics`
 
 Return the registered FluidDynamics module, or None if not set.
@@ -1769,6 +1986,10 @@ Return the number of connected jet signals.
 #### `GetPreEquilibriumPointer() -> PreequilibriumDynamics`
 
 Return the registered PreequilibriumDynamics module, or None if not set.
+
+#### `GetSoftParticlizationPointer() -> SoftParticlization`
+
+Return the registered SoftParticlization module, or None if not set.
 
 #### `Instance() -> JetScapeSignalManager`
 

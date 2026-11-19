@@ -5012,6 +5012,7 @@ The run's modules are driver properties (`None` when absent):
 | `hadronization_manager` | the `HadronizationManager`                                                |
 | `soft_particlization`   | the first `SoftParticlization` (iSS)                                      |
 | `hydro`                 | the hydro module                                                          |
+| `hard_process`          | the hard process (PythiaGun, PythiaIsrGun, ...)                           |
 | `initial_state`         | the initial state                                                         |
 
 Anything else: `driver.GetTaskList()` and, for sub-tasks, `task.GetTaskList()`.
@@ -5030,21 +5031,23 @@ It copies the user XML to `out/`, makes its `../` paths absolute, copies `music_
 
 Each method wraps a function of the bindings, and returns numpy copies or arrays taken over from C++, so the results stay valid after the event is cleared.
 
-| class                                   | member                                                                       | returns                                                                                             |
-| --------------------------------------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `JetEnergyLossManager`                  | `showers`                                                                    | list of `PartonShower`, one per shower                                                              |
-|                                         | `final_parton_array()`                                                       | final-parton records (what hadronization receives)                                                  |
-|                                         | `initiator_array()`                                                          | the partons that started each shower                                                                |
-| `SoftParticlization` (iSS)              | `hadron_array()`                                                             | `HadronArray`, one sample per oversample                                                            |
-|                                         | `use_compact_output(on=True)`                                                | from the next event on, hadrons as arrays (about 8x less memory)                                    |
-|                                         | `set_number_of_samples(n)`, `set_next_random_seed(seed)`, `last_random_seed` | oversamples and seeds                                                                               |
-|                                         | `primary_array()`                                                            | the undecayed hadrons (iSS `<keep_primaries>`), or `None`                                           |
-| `HadronizationManager`, `Hadronization` | `hadron_array()`                                                             | `HadronArray` of the jet hadrons                                                                    |
-|                                         | `hadronize(partons, seed=None)`                                              | hadronize stored partons again                                                                      |
-|                                         | `last_random_seed`                                                           | the jet hadronization's last seed                                                                   |
-|                                         | `colour_audit()`, `colour_totals()`, `set_colour_closure(mode)`              | iColoredHadronization's colour bookkeeping, on builds that have it (`hasattr(had, "colour_audit")`) |
-| `HardProcess`                           | `parton_array()`, `info`                                                     | hard partons, hardest first; dict with `pthat`, `sigma_gen`, `sigma_err`, `event_weight`            |
-| `InitialState`                          | `info`                                                                       | dict with `n_coll`, `n_part`, `centrality` (what the module reports)                                |
+| class                                   | member                                                                       | returns                                                                                                             |
+| --------------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `JetEnergyLossManager`                  | `showers`                                                                    | list of `PartonShower`, one per shower                                                                              |
+|                                         | `final_parton_array()`                                                       | final-parton records (what hadronization receives)                                                                  |
+|                                         | `initiator_array()`                                                          | the partons that started each shower                                                                                |
+| `SoftParticlization` (iSS)              | `hadron_array()`                                                             | `HadronArray`, one sample per oversample                                                                            |
+|                                         | `use_compact_output(on=True)`                                                | from the next event on, hadrons as arrays (about 8x less memory)                                                    |
+|                                         | `set_number_of_samples(n)`, `set_next_random_seed(seed)`, `last_random_seed` | oversamples and seeds                                                                                               |
+|                                         | `primary_array()`                                                            | the undecayed hadrons (iSS `<keep_primaries>`), or `None`                                                           |
+| `HadronizationManager`, `Hadronization` | `hadron_array()`                                                             | `HadronArray` of the jet hadrons                                                                                    |
+|                                         | `hadronize(partons, seed=None)`                                              | hadronize stored partons again                                                                                      |
+|                                         | `last_random_seed`                                                           | the jet hadronization's last seed                                                                                   |
+|                                         | `colour_audit()`, `colour_totals()`, `set_colour_closure(mode)`              | iColoredHadronization's colour bookkeeping, on builds that have it (`hasattr(had, "colour_audit")`)                 |
+| `HardProcess`                           | `parton_array()`, `info`                                                     | hard partons, hardest first; dict with `pthat`, `sigma_gen`, `sigma_err`, `event_weight`                            |
+| `InitialState`                          | `info`                                                                       | dict with `n_coll`, `n_part`, `centrality` (what the module reports)                                                |
+|                                         | `isr`                                                                        | with initial-state radiation: dict with the hard momentum handed over (`proj`, `targ`), `subtract` and the remnants |
+|                                         | `string_array()`                                                             | the event's QCD strings (3dMCGlauber), what MUSIC's string source reads                                             |
 
 Compact output is taken once
 
@@ -5054,13 +5057,14 @@ After `use_compact_output()`, `hadron_array()` takes iSS's arrays over without a
 
 The small per-event tables are numpy structured arrays (`jetscape.records`): `rec["px"]` instead of `rec[:, 4]`. Each holds exactly the values of the older column array it reorders.
 
-| dtype                | from                         | fields                                                           |
-| -------------------- | ---------------------------- | ---------------------------------------------------------------- |
-| `FINAL_PARTON_DTYPE` | `final_parton_array()`       | `shower, pid, pstat, E, px, py, pz, t, x, y, z, mass, col, acol` |
-| `INITIATOR_DTYPE`    | `initiator_array()`          | `shower, pid, pstat, E, px, py, pz, t, x, y, z`                  |
-| `EDGE_DTYPE`         | `PartonShower.edge_array()`  | `src, tgt, pid, pstat, E, px, py, pz, t, x, y, z`                |
-| `NODE_DTYPE`         | `PartonShower.node_array()`  | `id, t, x, y, z`                                                 |
-| `HARD_PARTON_DTYPE`  | `HardProcess.parton_array()` | `pid, E, px, py, pz, pt, y`                                      |
+| dtype                | from                          | fields                                                                                                                                                                                                                  |
+| -------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FINAL_PARTON_DTYPE` | `final_parton_array()`        | `shower, pid, pstat, E, px, py, pz, t, x, y, z, mass, col, acol`                                                                                                                                                        |
+| `INITIATOR_DTYPE`    | `initiator_array()`           | `shower, pid, pstat, E, px, py, pz, t, x, y, z`                                                                                                                                                                         |
+| `EDGE_DTYPE`         | `PartonShower.edge_array()`   | `src, tgt, pid, pstat, E, px, py, pz, t, x, y, z`                                                                                                                                                                       |
+| `NODE_DTYPE`         | `PartonShower.node_array()`   | `id, t, x, y, z`                                                                                                                                                                                                        |
+| `HARD_PARTON_DTYPE`  | `HardProcess.parton_array()`  | `pid, E, px, py, pz, pt, y`                                                                                                                                                                                             |
+| `QCD_STRING_DTYPE`   | `InitialState.string_array()` | the 27 `pyjetscape_core.QCD_STRING_COLUMNS`: `mass, m_over_sigma, tau_form, tau_0, eta_s_0, x_perp, y_perp, x_l, y_l, x_r, y_r, ...`, the end rapidities `y_f_l, y_f_r`, `remnant_l, remnant_r` (0 or 1), ..., `px, py` |
 
 Records work with the usual tools: `rec[rec["pstat"] >= 0]`, `np.unique(rec["shower"])`, `np.hypot(rec["px"], rec["py"])`, `pandas.DataFrame(rec)`. Converters for arrays from files: `final_parton_records(rows)`, `final_parton_rows(rec)`, `initiator_rows(rec)`, ... in `jetscape.records`.
 
@@ -5286,19 +5290,19 @@ Override only what you need: a method you leave out does what the C++ base class
 
 All are in jetscape.pyjetscape_core (below `core`).
 
-| stage               | base class               | override                                                                     | gets / gives                                                                                                                    |
-| ------------------- | ------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| initial state       | `InitialState`           | `ExecuteTask` (+ `GetNcoll`, `GetNpart`, `SampleABinaryCollisionPoint`)      | `set_entropy_density_from_numpy`, `set_num_of_binary_collisions_from_numpy`                                                     |
-| hard process        | `HardProcess`            | `ExecuteTask` (+ `GetSigmaGen`, `GetSigmaErr`, `GetPtHat`, `GetEventWeight`) | `self.AddParton(...)`, `self.AddHadron(...)`                                                                                    |
-| pre-equilibrium     | `PreequilibriumDynamics` | `InitializePreequilibrium`, `EvolvePreequilibrium`                           | `set_e_numpy`, `set_utau_numpy`, ...                                                                                            |
-| hydro               | `FluidDynamics`          | `InitializeHydro`, `EvolveHydro`                                             | `store_fluid_cells_from_numpy`, the freeze-out surface ([example](https://jhputschke.github.io/js-contrib/python/fno/index.md)) |
-| energy loss         | `JetEnergyLoss`          | `DoEnergyLoss(deltaT, time, Q2, pIn, pOut)`                                  | the parton in `pIn`; the partons at `time` out                                                                                  |
-| jet hadronization   | `Hadronization`          | `DoHadronization(shower, hOut, pOut)`                                        | one list of final partons per shower; hadrons out                                                                               |
-| soft particlization | `SoftParticlization`     | `ExecuteTask`                                                                | `self.GetHydroHyperSurface()`; `self.set_hadron_list([[Hadron, ...], ...])`                                                     |
-| afterburner         | `Afterburner`            | `ExecuteTask`, `GetCurrentHadronList`                                        | `self.GatherAfterburnerHadrons()`                                                                                               |
-| writer              | `JetScapeWriter`         | `GetStatus`, `Write(obj)`, `WriteEvent`                                      | every `Parton`, `PartonShower`, `Hadron` the tasks write; `self.GetHeader()`                                                    |
-| liquefier           | `LiquefierBase`          | `smearing_kernel(tau, x, y, eta, droplet)`                                   | `[j^tau, j^x, j^y, j^eta]`                                                                                                      |
-| shower growth       | `PartonShowerGenerator`  | `DoShower(jloss)`                                                            |                                                                                                                                 |
+| stage               | base class               | override                                                                                                                 | gets / gives                                                                                                                    |
+| ------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| initial state       | `InitialState`           | `ExecuteTask` (+ `GetNcoll`, `GetNpart`, `SampleABinaryCollisionPoint`; 3D: `GetQCDStringList`, `Get_remnant_proj`, ...) | `set_entropy_density_from_numpy`, `set_num_of_binary_collisions_from_numpy`                                                     |
+| hard process        | `HardProcess`            | `ExecuteTask` (+ `GetSigmaGen`, `GetSigmaErr`, `GetPtHat`, `GetEventWeight`)                                             | `self.AddParton(...)`, `self.AddHadron(...)`; ISR: `self.SetTotalMomentumPositive(...)`, ...                                    |
+| pre-equilibrium     | `PreequilibriumDynamics` | `InitializePreequilibrium`, `EvolvePreequilibrium`                                                                       | `set_e_numpy`, `set_utau_numpy`, ...                                                                                            |
+| hydro               | `FluidDynamics`          | `InitializeHydro`, `EvolveHydro`                                                                                         | `store_fluid_cells_from_numpy`, the freeze-out surface ([example](https://jhputschke.github.io/js-contrib/python/fno/index.md)) |
+| energy loss         | `JetEnergyLoss`          | `DoEnergyLoss(deltaT, time, Q2, pIn, pOut)`                                                                              | the parton in `pIn`; the partons at `time` out                                                                                  |
+| jet hadronization   | `Hadronization`          | `DoHadronization(shower, hOut, pOut)`                                                                                    | one list of final partons per shower; hadrons out                                                                               |
+| soft particlization | `SoftParticlization`     | `ExecuteTask`                                                                                                            | `self.GetHydroHyperSurface()`; `self.set_hadron_list([[Hadron, ...], ...])`                                                     |
+| afterburner         | `Afterburner`            | `ExecuteTask`, `GetCurrentHadronList`                                                                                    | `self.GatherAfterburnerHadrons()`; time-stepped: `self.GetTimestepParticlizationHadrons()`                                      |
+| writer              | `JetScapeWriter`         | `GetStatus`, `Write(obj)`, `WriteEvent`                                                                                  | every `Parton`, `PartonShower`, `Hadron` the tasks write; `self.GetHeader()`                                                    |
+| liquefier           | `LiquefierBase`          | `smearing_kernel(tau, x, y, eta, droplet)`                                                                               | `[j^tau, j^x, j^y, j^eta]`                                                                                                      |
+| shower growth       | `PartonShowerGenerator`  | `DoShower(jloss)`                                                                                                        |                                                                                                                                 |
 
 [`toy_modules.py`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/python_modules/toy_modules.py) has one template per stage in the plain binding style (`ToyGun`, `ToySplit`, `ToyHadronizer`, `ToySampler`, `ToyAfterburner`, `ToyWriter`); [`toy_modules_pythonic.py`](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/python_modules/toy_modules_pythonic.py) has the same in the Pythonic style used below. The toys are not physics; they show the interface.
 
@@ -5514,6 +5518,15 @@ A module built by hand needs no registration, but register it anyway if it reads
 
   - **Several modules** in `<Eloss>` (Matter then LBT, or yours after Matter) are called in turn on the same lists, as in C++. Leave alone a parton another module handles (`p.GetController()`, `pOut` already filled).
   - **The medium:** `self.GetHydroCell(t, x, y, z)` returns a `FluidCellInfo` (`temperature`, `energy_density`, `pressure`, `vx`, `vy`, `vz`, ...), or `None` without a hydro.
+  - **Colour tags:** a new parton that needs a colour unique in the event takes it from the hard process, as Matter and LBT do: `child.set_color(self.next_colour_tag())`. That is
+
+  ```python
+  hard = core.JetScapeSignalManager.Instance().GetHardProcessPointer()
+  tag = hard.NextColorTag(self.GetHardScatter(), self.GetColorTagBlock())
+  ```
+
+  whose arguments keep additional hard scatterings (`<extraHard>`) and parallel showers (`<Eloss><nThreads>`) in their own ranges.
+
   - **Copies:** the energy-loss manager copies the module once per shower at the start of each event with `Clone()` and drops the copies at the end. The default copy runs the C++ copy constructor and copies the instance attributes *shallowly*; `__init__` and `InitTask` are not called on copies. Override `Clone` for state that must not be shared between showers:
 
   ```python
@@ -5527,7 +5540,8 @@ A module built by hand needs no registration, but register it anyway if it reads
 
 - **Jet hadronization**, `DoHadronization(shower, hOut, pOut)`: once per event, after the energy loss. `shower` is a list with one list of final partons per shower. Return (or append to `hOut`) the hadrons, or a tuple `(hadrons, partons)` for partons you leave unhadronized; for hadrons alone return a list, not a tuple. `self.GetHydroHyperSurface(T)` and `self.GetHydroCell(...)` give the medium.
 - **Soft particlization**, `ExecuteTask()`: `self.GetHydroHyperSurface()` is the freeze-out surface (a list of `SurfaceCellInfo`); store hadrons with `self.set_hadron_list(samples)`, a list of oversamples, each a list of `Hadron`s.
-- **Afterburner**, `ExecuteTask()` and `GetCurrentHadronList()`: `self.GatherAfterburnerHadrons()` gives per oversample the soft hadrons, plus the jet hadrons when `<Afterburner><include_fragmentation_hadrons>` is 1.
+- **Afterburner**, `ExecuteTask()` and `GetCurrentHadronList()`: `self.GatherAfterburnerHadrons()` gives per oversample the soft hadrons, plus the jet hadrons when `<Afterburner><include_fragmentation_hadrons>` is 1. In a time-stepped run with a `BulkDynamicsManager`, `self.GetTimestepParticlizationHadrons()` and `self.GetTimestepHadronsToRemove()` take the hadrons to add and to drop this step (`[]` and a warning without the manager).
+- **3D initial state and ISR**: with 3dMCGlauber the `InitialState` (from `GetTaskList()` or `JetScapeSignalManager.Instance().GetInitialStatePointer()`, or `driver.initial_state`) gives the event's QCD strings (`string_array()`, named records; `get_qcd_strings_numpy()`, columns `core.QCD_STRING_COLUMNS`; what MUSIC's string source reads), the nucleon densities and z positions in the lab frame, the valence-quark positions at the hard vertex and, with ISR, the remnants and the hard momentum handed over. A Python initial state can override these getters, e.g. `GetQCDStringList` to give MUSIC its own strings. A Python ISR gun reports to it with `OutputHardCollisionPosition` and `OutputHardPartonMomentum` and keeps `SetTotalMomentum{Positive,Negative}` and the fractions, which iMATTER reads, as PythiaIsrGun does.
 - **Writer**, `GetStatus()` and `Write(obj)` (+ `WriteEvent()`): per event the header is filled (`self.GetHeader().GetSigmaGen()`, ...), then `Write` receives the hard partons, per shower the initiating `Parton` and the `PartonShower`, then the jet `Hadron`s. Add a writer with `driver.Add(writer)` before `Init()`, also in XML mode. The C++ ASCII writer comes from `core.create_module("JetScapeWriterAscii")` + `core.set_writer_output_file(w, name)`, and `core.JetScapeReaderAscii(name)` reads its file back.
 - **Initial state, pre-equilibrium, hydro, liquefier**: examples in `example/inspect_bulk_info.py` (`GaussianIC`), `python/jetscape/fno_hydro.py` ([PyFNOHydro](https://jhputschke.github.io/js-contrib/python/fno/index.md)), `python/jetscape/surface_replay.py`, FastHydro's `hydro.py` and `initial_state.py` ([FastHydro](https://jhputschke.github.io/js-contrib/python/fasthydro/index.md)).
 
@@ -7956,6 +7970,8 @@ INITIATOR_DTYPE     showers.initiators_from_manager (INITIATOR_COLUMNS)
 EDGE_DTYPE          PartonShower.to_numpy (src, tgt, pid, pstat, px py pz E, x y z t)
 NODE_DTYPE          PartonShower.vertices_to_numpy (id, x, y, z, t)
 HARD_PARTON_DTYPE   hard_partons_numpy (pid, px, py, pz, E, pT, y)
+QCD_STRING_DTYPE    InitialState.get_qcd_strings_numpy (QCD_STRING_COLUMNS, same
+                    order; 3dMCGlauber's strings, all float64)
 ```
 
 Hadrons are not records: they stay one array per field (HadronArray), so iSS's arrays are wrapped without a copy.
@@ -7987,6 +8003,10 @@ PartonShower.vertices_to_numpy's (n, 5) -> NODE_DTYPE records.
 #### `hard_parton_records(rows) -> np.ndarray`
 
 hard_partons_numpy's (n, 7) -> HARD_PARTON_DTYPE records (hardest first, as given).
+
+#### `qcd_string_records(rows) -> np.ndarray`
+
+get_qcd_strings_numpy's (n, 27) -> QCD_STRING_DTYPE records (one per string).
 
 ### `jetscape.particles`
 
@@ -9033,6 +9053,8 @@ Exposes C++ classes and the module factory so that Python code can:
 
 ### `PYTHIA_VERSION: int = 8312`
 
+### `QCD_STRING_COLUMNS: tuple = ('mass', 'm_over_sigma', 'tau_form', 'tau_0', 'eta_s_0', 'x_perp', 'y_perp', 'x_l', 'y_l', 'x_r', 'y_r', 'eta_s_left', 'eta_s_right', 'y_f_l', 'y_f_r', 'remnant_l', 'remnant_r', 'y_l_i', 'y_r_i', 'eta_s_baryon_left', 'eta_s_baryon_right', 'y_l_baryon', 'y_r_baryon', 'baryon_fraction_l', 'baryon_fraction_r', 'px', 'py')`
+
 ### `SCATTER_COLUMNS: tuple = ('scatter', 'pthat', 'code', 'x', 'y', 'n_partons', 'E', 'pt')`
 
 ### `SOFT_HAS_PRIMARIES: bool = True`
@@ -9058,6 +9080,22 @@ The hadrons for the transport: per oversample, the soft and the jet hadrons.
 #### `GetFragmentationHadrons() -> list`
 
 #### `GetSoftParticlizationHadrons() -> list`
+
+#### `GetTimestepHadronsToRemove() -> list`
+
+Time-stepped running: the hadrons the BulkDynamicsManager scheduled for removal from the transport since the last call.
+
+Warnings
+
+Changes state, as GetTimestepParticlizationHadrons: takes them; call it only from the afterburner's own time step, once.
+
+#### `GetTimestepParticlizationHadrons() -> list`
+
+Time-stepped running: the hadrons the BulkDynamicsManager particlized since the last call, for this timestep. Without a BulkDynamicsManager it warns and returns [].
+
+Warnings
+
+Changes state: takes the hadrons, the manager's list is empty afterwards. Call it only from the afterburner's own time step, once; a call made only to look loses them for the transport.
 
 ### `CausalLiquefier()`
 
@@ -9885,6 +9923,10 @@ hard_process_info(): cross section, weight, pTHat, ... of this event.
 
 #### `GetNHardPartons() -> int`
 
+#### `GetNISRShower() -> float`
+
+ISR: number of initial-state showers of the event.
+
 #### `GetNPartonShowers() -> int`
 
 #### `GetPartonAt(i: typing.SupportsInt | typing.SupportsIndex) -> Parton`
@@ -9894,6 +9936,10 @@ hard_process_info(): cross section, weight, pTHat, ... of this event.
 The hard partons of the event (the objects, not copies).
 
 #### `GetPartonShowerAt(i: typing.SupportsInt | typing.SupportsIndex) -> PartonShower`
+
+#### `GetPartonShowerList() -> list`
+
+The event's parton showers (the objects, not copies).
 
 #### `GetPtHat() -> float`
 
@@ -9905,9 +9951,73 @@ The beam remnants (copies), with ISR.
 
 #### `GetSigmaGen() -> float`
 
+#### `GetTotalMomentumFractionNegative() -> float`
+
+ISR: momentum fraction taken from the -z beam.
+
+#### `GetTotalMomentumFractionPositive() -> float`
+
+ISR: momentum fraction (sum of x) taken from the +z beam; PythiaIsrGun rejects an event at >= 1.
+
+#### `GetTotalMomentumNegative() -> float`
+
+ISR: energy [GeV] taken from the -z beam.
+
+#### `GetTotalMomentumPositive() -> float`
+
+ISR: energy [GeV] the event's hard partons take from the +z beam.
+
+#### `NextColorTag(scatter: typing.SupportsInt | typing.SupportsIndex = 0, block: typing.SupportsInt | typing.SupportsIndex = -1) -> int`
+
+A new colour tag, unique in the current event, as Matter and LBT take theirs: NextColorTag(self.GetHardScatter(), self.GetColorTagBlock()) from an energy-loss module. `scatter` > 0 (an additional hard scattering) and `block` >= 0 (a parallel-shower block) draw from their own ranges.
+
+Warnings
+
+Changes state: every call takes the next tag of the counter, also one made only to look. Tags taken from Python in a C++ run are skipped by the C++ modules (still unique, the numbers differ from a run without the calls).
+
 #### `PushRemnants(parton: Parton) -> None`
 
 #### `SetMax_Color(col: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+#### `SetNISRShower(n: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the number of initial-state showers of the event.
+
+Warnings
+
+Changes state: the ISR chain reads it. For a Python ISR hard process.
+
+#### `SetTotalMomentumFractionNegative(mom: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the momentum fraction taken from the -z beam.
+
+Warnings
+
+Changes state: iMATTER's backward evolution reads it as what the hard partons take from the beams. For a Python ISR hard process (as PythiaIsrGun sets it); not for a running production's gun.
+
+#### `SetTotalMomentumFractionPositive(mom: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the momentum fraction taken from the +z beam.
+
+Warnings
+
+Changes state: iMATTER's backward evolution reads it as what the hard partons take from the beams. For a Python ISR hard process (as PythiaIsrGun sets it); not for a running production's gun.
+
+#### `SetTotalMomentumNegative(mom: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the energy [GeV] taken from the -z beam.
+
+Warnings
+
+Changes state: iMATTER's backward evolution reads it as what the hard partons take from the beams. For a Python ISR hard process (as PythiaIsrGun sets it); not for a running production's gun.
+
+#### `SetTotalMomentumPositive(mom: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: set the energy [GeV] taken from the +z beam.
+
+Warnings
+
+Changes state: iMATTER's backward evolution reads it as what the hard partons take from the beams. For a Python ISR hard process (as PythiaIsrGun sets it); not for a running production's gun.
 
 #### `parton_array() -> np.ndarray`
 
@@ -9955,6 +10065,18 @@ Python subclasses can override Init(), Exec(), and Clear() and populate the IC g
 
 initial_state_info(): b, Npart, Ncoll, centrality, ... of this event.
 
+#### `isr: dict`
+
+isr_hard_momentum(): with ISR, the hard momentum handed over for subtraction (proj, targ: E, px, py, pz), subtract (1, 0, -1) and the remnants (remnant_proj, remnant_targ); empty lists without.
+
+#### `ClearHardPartonMomentum() -> None`
+
+ISR: zero the hard momentum handed over so far this event.
+
+Warnings
+
+Changes state: it changes what 3dMCGlauber subtracts from the colliding nucleons, and so the event's strings, remnants and medium. For a Python hard process doing ISR; not to be called on a running production's initial state.
+
 #### `GetEntropyDensityDistribution() -> list[float]`
 
 Return the entropy density distribution as a flat list. Storage order: for z { for y { for x } }. Length = GetXSize() * GetYSize() * GetZSize().
@@ -9967,6 +10089,14 @@ Event centrality class (-1 if not available).
 
 Current event ID.
 
+#### `GetHardPartonMomentumProj() -> list[float]`
+
+ISR: the hard-parton four-momentum (E, px, py, pz) [GeV] handed over this event for subtraction from the projectile nucleon (empty from a module without it).
+
+#### `GetHardPartonMomentumTarg() -> list[float]`
+
+As GetHardPartonMomentumProj, for the target nucleon.
+
 #### `GetNcoll() -> float`
 
 Number of binary collisions (-1 if not available).
@@ -9978,6 +10108,14 @@ Number of participant nucleons (-1 if not available).
 #### `GetNumOfBinaryCollisions() -> list[float]`
 
 Return the un-normalised T_A\*T_B binary-collision density as a flat list. Same storage order as GetEntropyDensityDistribution().
+
+#### `GetQCDStringList() -> list[list[float]]`
+
+The event's QCD strings (3dMCGlauber), one row per string, columns QCD_STRING_COLUMNS; what MUSIC's string source term reads. Empty from a module without strings, or before the initial state ran.
+
+#### `GetSubtractHardMomentum() -> int`
+
+1: the initial state subtracts the hard momentum from the colliding nucleons, 0: not, -1: no such setting.
 
 #### `GetTotalEntropy() -> float`
 
@@ -10019,6 +10157,74 @@ Number of grid points in z (1 for boost-invariant).
 
 Step size dz (or d-eta) in z direction.
 
+#### `Get_Proj_Remnant() -> list[float]`
+
+Get_remnant_proj() of the first-stage 3dMCGlauber, from its string-generating second stage (MCGlauberGenStringWrapper), which iColoredHadronization asks.
+
+#### `Get_Targ_Remnant() -> list[float]`
+
+Get_remnant_targ() through the second stage, as Get_Proj_Remnant.
+
+#### `Get_projectile_nucleon_density_lab(t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float`
+
+Projectile (+z) nucleon density [1/fm^3] at (t, x, y, z), lab frame.
+
+#### `Get_projectile_nucleon_z_lab() -> list[float]`
+
+z [fm] of every projectile nucleon in the lab frame (eight -1 from a module without it).
+
+#### `Get_quarks_pos_proj_lab() -> list[float]`
+
+Positions of the projectile nucleon of the hard collision's partons: (x, y, z) of the three valence quarks and of the soft gluon cloud, flat; empty if no binary collision sits at the hard vertex (nine -1 from a module without it). 3dMCGlauber looks the nucleon up at the hard vertex the hard process reported (OutputHardCollisionPosition).
+
+Warnings
+
+Changes state: 3dMCGlauber first stores that hard vertex as the hard collision's position (the same value again: repeated calls give the same result, but the call is not read-only).
+
+#### `Get_quarks_pos_targ_lab() -> list[float]`
+
+As Get_quarks_pos_proj_lab, for the target nucleon.
+
+Warnings
+
+Changes state, as Get_quarks_pos_proj_lab: stores the hard vertex.
+
+#### `Get_remnant_proj() -> list[float]`
+
+Four-momentum (E, px, py, pz) [GeV] of the projectile remnant of the hard collision: with ISR (3dMCGlauber subtracting the hard momentum), else [] (four -1 from a module without it).
+
+#### `Get_remnant_targ() -> list[float]`
+
+Four-momentum (E, px, py, pz) [GeV] of the target remnant.
+
+#### `Get_target_nucleon_density_lab(t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float`
+
+Target (-z) nucleon density [1/fm^3] at (t, x, y, z), lab frame.
+
+#### `Get_target_nucleon_z_lab() -> list[float]`
+
+z [fm] of every target nucleon in the lab frame.
+
+#### `Get_total_nucleon_density_lab(t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> float`
+
+Projectile + target nucleon density [1/fm^3] at (t, x, y, z) in the lab frame (0 from a module without it).
+
+#### `OutputHardCollisionPosition(t: typing.SupportsFloat | typing.SupportsIndex, x: typing.SupportsFloat | typing.SupportsIndex, y: typing.SupportsFloat | typing.SupportsIndex, z: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: report the hard vertex (t, x, y, z) [fm] to the initial state, as PythiaIsrGun does (no-op without 3dMCGlauber).
+
+Warnings
+
+Changes state: it changes what 3dMCGlauber subtracts from the colliding nucleons, and so the event's strings, remnants and medium. For a Python hard process doing ISR; not to be called on a running production's initial state.
+
+#### `OutputHardPartonMomentum(E: typing.SupportsFloat | typing.SupportsIndex, px: typing.SupportsFloat | typing.SupportsIndex, py: typing.SupportsFloat | typing.SupportsIndex, pz: typing.SupportsFloat | typing.SupportsIndex, direction: typing.SupportsInt | typing.SupportsIndex, P_A: typing.SupportsFloat | typing.SupportsIndex) -> None`
+
+ISR: add a hard parton's four-momentum [GeV] to what the initial state subtracts, from the projectile (direction 1) or the target (otherwise) nucleon, as PythiaIsrGun does. 3dMCGlauber raises if a side reaches 0.95 P_A (the beam energy per nucleon).
+
+Warnings
+
+Changes state: it changes what 3dMCGlauber subtracts from the colliding nucleons, and so the event's strings, remnants and medium. For a Python hard process doing ISR; not to be called on a running production's initial state.
+
 #### `SampleABinaryCollisionPoint() -> tuple[float, float, float, float]`
 
 The C++ name of sample_binary_collision_point(): (t, x, y, z) [fm]. A Python initial state overrides it to return its own hard vertices.
@@ -10045,6 +10251,10 @@ Storage order is the C-order (nx, ny, neta) ravel, idx = (ny\*neta)\*ix + neta\*
 
 NOTE: get_entropy_density_numpy() (the 2D convenience view) instead assumes dist[iy\*nx + ix] and is documented as valid only for GetZSize() == 1. For a square boost-invariant grid the two differ by a transpose, so do not mix them.
 
+#### `get_qcd_strings_numpy() -> numpy.typing.NDArray[numpy.float64]`
+
+GetQCDStringList() as a float64 array of shape (n_strings, n_columns), columns QCD_STRING_COLUMNS (27 with the pinned 3dMCGlauber); shape (0, 0) without strings.
+
 #### `sample_binary_collision_point() -> tuple[float, float, float, float]`
 
 Draw one hard-scattering vertex, exactly as the hard process does.
@@ -10070,6 +10280,10 @@ Set the Ta\*Tb binary-collision density that hard processes sample vertices from
 Same C-order (nx, ny, neta) ravel as set_entropy_density_from_numpy(). Without it, InitialState::SampleABinaryCollisionPoint() warns and puts every jet at the origin, so all showers start at the fireball centre.
 
 NOTE the half-cell offset: CoordFromIdx() maps index ix to `-grid_max_x + ix*grid_step_x` (InitialState.cc:75-77), i.e. MUSIC's `-n*d/2 + i*d` axis, while the energy-density grid this contribution uses is cell-centred at `-(n-1)*d/2 + i*d`. Sampled vertices therefore sit half a cell from the matching energy-density node.
+
+#### `string_array() -> np.ndarray`
+
+The event's QCD strings (3dMCGlauber) as QCD_STRING_DTYPE records, one per string; empty without strings.
 
 ### `IsrJet()`
 
@@ -10176,6 +10390,14 @@ Attach the liquefier that collects droplets from this shower. The framework call
 #### `get_liquefier() -> LiquefierBase`
 
 The attached liquefier, or None.
+
+#### `next_colour_tag() -> int`
+
+A new colour tag, unique in the event, from the hard process, as Matter and LBT take theirs: NextColorTag(GetHardScatter(), GetColorTagBlock()), so additional hard scatterings and parallel showers draw from their own ranges.
+
+Warnings
+
+Changes state: every call takes the next tag of the event's counter.
 
 ### `JetEnergyLossManager()`
 
@@ -10365,9 +10587,17 @@ End of an event in the time-step loop.
 
 End-of-run work (Finish() calls it).
 
+#### `GetColorTagBlock() -> int`
+
+The colour-tag block of this instance (-1: none; >= 0 when the showers run in parallel, ). With GetHardScatter() the arguments of HardProcess.NextColorTag().
+
 #### `GetCurrentEvent() -> int`
 
 Return the framework-global current event number (advanced by ClearPerEvent() / per-event execution).
+
+#### `GetHardScatter() -> int`
+
+The hard scattering whose partons this instance handles (0: the triggering one; > 0: an additional one, ).
 
 #### `GetMt19937Generator() -> Mt19937`
 
@@ -10576,6 +10806,10 @@ The final-state JetEnergyLossManager (the signal manager's, else the task list's
 
 The HadronizationManager of the task list, or None.
 
+#### `hard_process: 'HardProcess | None'`
+
+The hard process the signal manager holds (else the task list's), or None.
+
 #### `hydro: 'FluidDynamics | None'`
 
 The hydro the signal manager holds (else the first in the task list), or None.
@@ -10612,12 +10846,7 @@ Set the starting event number (default 0). Must be called before the first ExecP
 
 Yield the event index once per event, after ExecPerEvent() and before ClearPerEvent(), so the event's results can be read; n: at most n events (default GetNumberOfEvents()). Stops cleanly on break (the event is cleared); Finish() is the context manager's.
 
-```text
-on_error: when a module throws inside an event (a C++ exception, e.g. Matter's "minus
-log of sudakov negative"; the same seed hits it again on a rerun), call
-on_error(i, exc), clear the event and go on with the next one, as the productions
-skip such events.  Without it the exception propagates.
-```
+on_error: when a module throws inside an event (a C++ exception, e.g. Matter's "minus log of sudakov negative"; the same seed hits it again on a rerun), call on_error(i, exc), clear the event and go on with the next one, as the productions skip such events. Without it the exception propagates.
 
 ### `JetScapeReaderAscii(file_name: str)`
 
@@ -10712,6 +10941,14 @@ Notes
 - The object returned by Instance() is owned by the C++ singleton; do not store it across events or after Finish().
 - All Get\*Pointer() methods lock the stored weak_ptr and return the shared_ptr. They return None if the module was never registered.
 
+#### `GetHadronizationManagerPointer() -> HadronizationManager`
+
+Return the registered HadronizationManager, or None if not set.
+
+#### `GetHardProcessPointer() -> HardProcess`
+
+Return the registered HardProcess (the event's hard partons, colour tags: NextColorTag), or None if not set.
+
 #### `GetHydroPointer() -> FluidDynamics`
 
 Return the registered FluidDynamics module, or None if not set.
@@ -10739,6 +10976,10 @@ Return the number of connected jet signals.
 #### `GetPreEquilibriumPointer() -> PreequilibriumDynamics`
 
 Return the registered PreequilibriumDynamics module, or None if not set.
+
+#### `GetSoftParticlizationPointer() -> SoftParticlization`
+
+Return the registered SoftParticlization module, or None if not set.
 
 #### `Instance() -> JetScapeSignalManager`
 
@@ -19794,23 +20035,24 @@ Fixes to code that was added after 2.1 are folded into the feature that added it
 
 ## Technical bug fixes
 
-| Component        | Fix                                                                                                                                                                                                                                                                         | Effect in 2.1                                                                                                                                   | PR / commit                                                                                                                                          |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3dMCGlauber      | The draws for the target's hard-quark position are capped. Pinned from the [jhputschke/3dMCGlauber](https://github.com/jhputschke/3dMCGlauber) fork; upstream PR [chunshen1987/3dMCGlauber#7](https://github.com/chunshen1987/3dMCGlauber/pull/7) was merged on 2026-11-04. | Endless loop in about 1 in 500-1300 O+O events with ISR (issue [#169](https://github.com/JETSCAPE/X-SCAPE/issues/169)).                         | [`21a06787`](https://github.com/JETSCAPE/X-SCAPE/commit/21a06787), [3dMCGlauber `b99d680`](https://github.com/jhputschke/3dMCGlauber/commit/b99d680) |
-| EvolutionHistory | `get` on an empty history returns a vacuum cell.                                                                                                                                                                                                                            | `std::out_of_range` stopped the job, in about 5% of O+O events (events without a medium).                                                       | [`be68bc85`](https://github.com/JETSCAPE/X-SCAPE/commit/be68bc85) ([#165](https://github.com/JETSCAPE/X-SCAPE/pull/165))                             |
-| iSS wrapper      | An event with a hydro but no freeze-out surface gives no hadrons and a warning.                                                                                                                                                                                             | `exit(1)`.                                                                                                                                      | [`b8487c42`](https://github.com/JETSCAPE/X-SCAPE/commit/b8487c42) ([#164](https://github.com/JETSCAPE/X-SCAPE/pull/164))                             |
-| iSS              | Decay channels and sampled-hadron vectors are freed.                                                                                                                                                                                                                        | About 1,900 leaked blocks per event.                                                                                                            | [iSS `98deaff`](https://github.com/jhputschke/iSS/commit/98deaff) ([#171](https://github.com/JETSCAPE/X-SCAPE/pull/171))                             |
-| iSS              | One hadron object is no longer leaked per sampled hadron (part of the yield speed-up).                                                                                                                                                                                      | Memory grew with every sampled hadron.                                                                                                          | [iSS `01f7cf9`](https://github.com/jhputschke/iSS/commit/01f7cf9) ([#149](https://github.com/JETSCAPE/X-SCAPE/pull/149))                             |
-| MUSIC wrapper    | The old framework copy of the evolution is freed before a larger one is allocated.                                                                                                                                                                                          | Peak memory of a 0-10% Au+Au jet job was 20 GiB; now 14 GiB.                                                                                    | [#160](https://github.com/JETSCAPE/X-SCAPE/pull/160)                                                                                                 |
-| PythiaIsrMUSIC   | The example adds the pre-equilibrium module it needs. iMATTER finds the PDFs via `PYTHIA8DATA` (conda).                                                                                                                                                                     | Crash in MUSIC's `InitArena`; iMATTER needed `$PYTHIA8DIR`.                                                                                     | [`5ae7d2a1`](https://github.com/JETSCAPE/X-SCAPE/commit/5ae7d2a1) ([#164](https://github.com/JETSCAPE/X-SCAPE/pull/164))                             |
-| Matter           | No qhat lookup outside the forward light cone.                                                                                                                                                                                                                              | About 500 "Third instance" warnings per O+O event.                                                                                              | [`5900ebd0`](https://github.com/JETSCAPE/X-SCAPE/commit/5900ebd0) ([#164](https://github.com/JETSCAPE/X-SCAPE/pull/164))                             |
-| Liquefier        | The energy-momentum check warns only above 5% of the incoming energy.                                                                                                                                                                                                       | Warned at 1e-10 GeV: 19 warnings for 25 droplets in one Au+Au event.                                                                            | [`d679b204`](https://github.com/JETSCAPE/X-SCAPE/commit/d679b204) ([#142](https://github.com/JETSCAPE/X-SCAPE/pull/142))                             |
-| Build (CMake)    | OpenMP is enabled per language.                                                                                                                                                                                                                                             | On macOS `OPENMP_FOUND` was false: the framework was built without OpenMP and SurfaceFinder and ThermPtnSampler ran on one thread.              | [`3955cef6`](https://github.com/JETSCAPE/X-SCAPE/commit/3955cef6)                                                                                    |
-| Build (CMake)    | libiSS and lib3dMCGlb are linked with `-Bsymbolic`.                                                                                                                                                                                                                         | iSS and MUSIC4GPU both export a different `pretty_ostream`. Built together (CUDA, PyJetscape), iSS aborted in `malloc` on its first allocation. | [`f25ba028`](https://github.com/JETSCAPE/X-SCAPE/commit/f25ba028), [`73996c07`](https://github.com/JETSCAPE/X-SCAPE/commit/73996c07)                 |
-| Build            | `ThermPtnSampler.h` includes `<unordered_map>`.                                                                                                                                                                                                                             | Did not compile with some compilers.                                                                                                            | [`16a658e9`](https://github.com/JETSCAPE/X-SCAPE/commit/16a658e9)                                                                                    |
-| trento           | `hdf5_utils.cxx` fixed.                                                                                                                                                                                                                                                     | Did not compile with newer compilers (Linux arm).                                                                                               | [`9980458c`](https://github.com/JETSCAPE/X-SCAPE/commit/9980458c)                                                                                    |
-| LBT tables       | `get_lbtTab.sh` runs with bash 3.2 and joins the parts in numerical order.                                                                                                                                                                                                  | Failed under macOS's `/bin/bash` (`declare -A`).                                                                                                | [#186](https://github.com/JETSCAPE/X-SCAPE/pull/186)                                                                                                 |
-| JetScapeWriter   | The destructor is defined out of line, so its type information is emitted once.                                                                                                                                                                                             | `dynamic_cast` to a writer failed across the Python module boundary.                                                                            | [`9b3641b5`](https://github.com/JETSCAPE/X-SCAPE/commit/9b3641b5)                                                                                    |
+| Component         | Fix                                                                                                                                                                                                                                                                                                                                                    | Effect in 2.1                                                                                                                                                                                                                                                                          | PR / commit                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3dMCGlauber       | The draws for the target's hard-quark position are capped. Pinned from the [jhputschke/3dMCGlauber](https://github.com/jhputschke/3dMCGlauber) fork; upstream PR [chunshen1987/3dMCGlauber#7](https://github.com/chunshen1987/3dMCGlauber/pull/7) was merged on 2026-11-04.                                                                            | Endless loop in about 1 in 500-1300 O+O events with ISR (issue [#169](https://github.com/JETSCAPE/X-SCAPE/issues/169)).                                                                                                                                                                | [`21a06787`](https://github.com/JETSCAPE/X-SCAPE/commit/21a06787), [3dMCGlauber `b99d680`](https://github.com/jhputschke/3dMCGlauber/commit/b99d680) |
+| EvolutionHistory  | `get` on an empty history returns a vacuum cell.                                                                                                                                                                                                                                                                                                       | `std::out_of_range` stopped the job, in about 5% of O+O events (events without a medium).                                                                                                                                                                                              | [`be68bc85`](https://github.com/JETSCAPE/X-SCAPE/commit/be68bc85) ([#165](https://github.com/JETSCAPE/X-SCAPE/pull/165))                             |
+| iSS wrapper       | An event with a hydro but no freeze-out surface gives no hadrons and a warning.                                                                                                                                                                                                                                                                        | `exit(1)`.                                                                                                                                                                                                                                                                             | [`b8487c42`](https://github.com/JETSCAPE/X-SCAPE/commit/b8487c42) ([#164](https://github.com/JETSCAPE/X-SCAPE/pull/164))                             |
+| iSS               | Decay channels and sampled-hadron vectors are freed.                                                                                                                                                                                                                                                                                                   | About 1,900 leaked blocks per event.                                                                                                                                                                                                                                                   | [iSS `98deaff`](https://github.com/jhputschke/iSS/commit/98deaff) ([#171](https://github.com/JETSCAPE/X-SCAPE/pull/171))                             |
+| iSS               | One hadron object is no longer leaked per sampled hadron (part of the yield speed-up).                                                                                                                                                                                                                                                                 | Memory grew with every sampled hadron.                                                                                                                                                                                                                                                 | [iSS `01f7cf9`](https://github.com/jhputschke/iSS/commit/01f7cf9) ([#149](https://github.com/JETSCAPE/X-SCAPE/pull/149))                             |
+| MUSIC wrapper     | The old framework copy of the evolution is freed before a larger one is allocated.                                                                                                                                                                                                                                                                     | Peak memory of a 0-10% Au+Au jet job was 20 GiB; now 14 GiB.                                                                                                                                                                                                                           | [#160](https://github.com/JETSCAPE/X-SCAPE/pull/160)                                                                                                 |
+| PythiaIsrMUSIC    | The example adds the pre-equilibrium module it needs. iMATTER finds the PDFs via `PYTHIA8DATA` (conda).                                                                                                                                                                                                                                                | Crash in MUSIC's `InitArena`; iMATTER needed `$PYTHIA8DIR`.                                                                                                                                                                                                                            | [`5ae7d2a1`](https://github.com/JETSCAPE/X-SCAPE/commit/5ae7d2a1) ([#164](https://github.com/JETSCAPE/X-SCAPE/pull/164))                             |
+| Matter            | No qhat lookup outside the forward light cone.                                                                                                                                                                                                                                                                                                         | About 500 "Third instance" warnings per O+O event.                                                                                                                                                                                                                                     | [`5900ebd0`](https://github.com/JETSCAPE/X-SCAPE/commit/5900ebd0) ([#164](https://github.com/JETSCAPE/X-SCAPE/pull/164))                             |
+| Liquefier         | The energy-momentum check warns only above 5% of the incoming energy.                                                                                                                                                                                                                                                                                  | Warned at 1e-10 GeV: 19 warnings for 25 droplets in one Au+Au event.                                                                                                                                                                                                                   | [`d679b204`](https://github.com/JETSCAPE/X-SCAPE/commit/d679b204) ([#142](https://github.com/JETSCAPE/X-SCAPE/pull/142))                             |
+| Build (CMake)     | OpenMP is enabled per language.                                                                                                                                                                                                                                                                                                                        | On macOS `OPENMP_FOUND` was false: the framework was built without OpenMP and SurfaceFinder and ThermPtnSampler ran on one thread.                                                                                                                                                     | [`3955cef6`](https://github.com/JETSCAPE/X-SCAPE/commit/3955cef6)                                                                                    |
+| Build (CMake)     | libiSS and lib3dMCGlb are linked with `-Bsymbolic`.                                                                                                                                                                                                                                                                                                    | iSS and MUSIC4GPU both export a different `pretty_ostream`. Built together (CUDA, PyJetscape), iSS aborted in `malloc` on its first allocation.                                                                                                                                        | [`f25ba028`](https://github.com/JETSCAPE/X-SCAPE/commit/f25ba028), [`73996c07`](https://github.com/JETSCAPE/X-SCAPE/commit/73996c07)                 |
+| Build             | `ThermPtnSampler.h` includes `<unordered_map>`.                                                                                                                                                                                                                                                                                                        | Did not compile with some compilers.                                                                                                                                                                                                                                                   | [`16a658e9`](https://github.com/JETSCAPE/X-SCAPE/commit/16a658e9)                                                                                    |
+| trento            | `hdf5_utils.cxx` fixed.                                                                                                                                                                                                                                                                                                                                | Did not compile with newer compilers (Linux arm).                                                                                                                                                                                                                                      | [`9980458c`](https://github.com/JETSCAPE/X-SCAPE/commit/9980458c)                                                                                    |
+| LBT tables        | `get_lbtTab.sh` runs with bash 3.2 and joins the parts in numerical order.                                                                                                                                                                                                                                                                             | Failed under macOS's `/bin/bash` (`declare -A`).                                                                                                                                                                                                                                       | [#186](https://github.com/JETSCAPE/X-SCAPE/pull/186)                                                                                                 |
+| JetScapeWriter    | The destructor is defined out of line, so its type information is emitted once.                                                                                                                                                                                                                                                                        | `dynamic_cast` to a writer failed across the Python module boundary.                                                                                                                                                                                                                   | [`9b3641b5`](https://github.com/JETSCAPE/X-SCAPE/commit/9b3641b5)                                                                                    |
+| MUSIC4GPU (Metal) | A missing or stale `music_kernels.metallib` (no metallib found, or one without a kernel this libmusic needs) stops the run with exit code 1 and says to rebuild, set `MUSIC_METALLIB`, or set `MUSIC_FORCE_CPU=1`. `MUSIC_FORCE_CPU=1` still runs on the CPU on purpose; no Metal device keeps the CPU fallback. Pin MUSIC4GPU `a84e8a5` to `a31f166`. | A metallib older than libmusic (a stale build, or a Mac wheel whose metallib and library do not match) made MUSIC run the hydro on the CPU with one warning: the job exited 0 and ran 10-15x slower (O+O event 25 s instead of 1.7 s on an M3 Max), and the job output did not say so. | [MUSIC4GPU `a31f166`](https://github.com/jhputschke/MUSIC4GPU/commit/a31f166)                                                                        |
 
 ## Enhancements and new features
 

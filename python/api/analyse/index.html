@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3204,6 +3204,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#jetscape.records.qcd_string_records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;qcd_string_records
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -5556,6 +5567,17 @@
     <span class="md-ellipsis">
       
         <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;hard_parton_records
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#jetscape.records.qcd_string_records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        <code class="doc-symbol doc-symbol-toc doc-symbol-function"></code>&nbsp;qcd_string_records
       
     </span>
   </a>
@@ -8382,6 +8404,8 @@ INITIATOR_DTYPE     showers.initiators_from_manager (INITIATOR_COLUMNS)
 EDGE_DTYPE          PartonShower.to_numpy (src, tgt, pid, pstat, px py pz E, x y z t)
 NODE_DTYPE          PartonShower.vertices_to_numpy (id, x, y, z, t)
 HARD_PARTON_DTYPE   hard_partons_numpy (pid, px, py, pz, E, pT, y)
+QCD_STRING_DTYPE    InitialState.get_qcd_strings_numpy (QCD_STRING_COLUMNS, same
+                    order; 3dMCGlauber's strings, all float64)
 </code></pre></div>
 <p>Hadrons are not records: they stay one array per field (HadronArray), so iSS's
 arrays are wrapped without a copy.</p>
@@ -8528,6 +8552,24 @@ INITIATOR_COLUMNS order: what HadronH5Writer.append_unit(initiators=...) takes.<
     <div class="doc doc-contents ">
 
         <p>hard_partons_numpy's (n, 7) -&gt; HARD_PARTON_DTYPE records (hardest first, as given).</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h4 id="jetscape.records.qcd_string_records" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-function"></code>            <code class="highlight language-python"><span class="n">qcd_string_records</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span></code>
+
+<a href="#jetscape.records.qcd_string_records" class="headerlink" title="Permanent link">¶</a></h4>
+
+
+    <div class="doc doc-contents ">
+
+        <p>get_qcd_strings_numpy's (n, 27) -&gt; QCD_STRING_DTYPE records (one per string).</p>
 
 
     </div>
@@ -9301,7 +9343,7 @@ silently wrong number.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../../assets/mathjax.js"></script>
       

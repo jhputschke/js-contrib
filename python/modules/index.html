@@ -22,7 +22,7 @@
       
       
       <link rel="icon" href="../../assets/favicon.svg">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.1">
     
     
       
@@ -3176,14 +3176,14 @@ base explicitly when you extend it, e.g. <code>core.SoftParticlization.ClearTask
 <tr>
 <td>initial state</td>
 <td><code>InitialState</code></td>
-<td><code>ExecuteTask</code> (+ <code>GetNcoll</code>, <code>GetNpart</code>, <code>SampleABinaryCollisionPoint</code>)</td>
+<td><code>ExecuteTask</code> (+ <code>GetNcoll</code>, <code>GetNpart</code>, <code>SampleABinaryCollisionPoint</code>; 3D: <code>GetQCDStringList</code>, <code>Get_remnant_proj</code>, ...)</td>
 <td><code>set_entropy_density_from_numpy</code>, <code>set_num_of_binary_collisions_from_numpy</code></td>
 </tr>
 <tr>
 <td>hard process</td>
 <td><code>HardProcess</code></td>
 <td><code>ExecuteTask</code> (+ <code>GetSigmaGen</code>, <code>GetSigmaErr</code>, <code>GetPtHat</code>, <code>GetEventWeight</code>)</td>
-<td><code>self.AddParton(...)</code>, <code>self.AddHadron(...)</code></td>
+<td><code>self.AddParton(...)</code>, <code>self.AddHadron(...)</code>; ISR: <code>self.SetTotalMomentumPositive(...)</code>, ...</td>
 </tr>
 <tr>
 <td>pre-equilibrium</td>
@@ -3219,7 +3219,7 @@ base explicitly when you extend it, e.g. <code>core.SoftParticlization.ClearTask
 <td>afterburner</td>
 <td><code>Afterburner</code></td>
 <td><code>ExecuteTask</code>, <code>GetCurrentHadronList</code></td>
-<td><code>self.GatherAfterburnerHadrons()</code></td>
+<td><code>self.GatherAfterburnerHadrons()</code>; time-stepped: <code>self.GetTimestepParticlizationHadrons()</code></td>
 </tr>
 <tr>
 <td>writer</td>
@@ -3495,14 +3495,21 @@ time step up to <code>&lt;Eloss&gt;&lt;maxT&gt;</code>, in steps of <code>&lt;El
   (<code>p.GetController()</code>, <code>pOut</code> already filled).
 - <strong>The medium:</strong> <code>self.GetHydroCell(t, x, y, z)</code> returns a <code>FluidCellInfo</code> (<code>temperature</code>,
   <code>energy_density</code>, <code>pressure</code>, <code>vx</code>, <code>vy</code>, <code>vz</code>, ...), or <code>None</code> without a hydro.
+- <strong>Colour tags:</strong> a new parton that needs a colour unique in the event takes it from the hard
+  process, as Matter and LBT do: <code>child.set_color(self.next_colour_tag())</code>. That is</p>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="n">hard</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">JetScapeSignalManager</span><span class="o">.</span><span class="n">Instance</span><span class="p">()</span><span class="o">.</span><span class="n">GetHardProcessPointer</span><span class="p">()</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">tag</span> <span class="o">=</span> <span class="n">hard</span><span class="o">.</span><span class="n">NextColorTag</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">GetHardScatter</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">GetColorTagBlock</span><span class="p">())</span>
+</code></pre></div>
+<p>whose arguments keep additional hard scatterings (<code>&lt;extraHard&gt;</code>) and parallel showers
+(<code>&lt;Eloss&gt;&lt;nThreads&gt;</code>) in their own ranges.
 - <strong>Copies:</strong> the energy-loss manager copies the module once per shower at the start of each
   event with <code>Clone()</code> and drops the copies at the end. The default copy runs the C++ copy
   constructor and copies the instance attributes <em>shallowly</em>; <code>__init__</code> and <code>InitTask</code> are not
   called on copies. Override <code>Clone</code> for state that must not be shared between showers:</p>
-<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">Clone</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>    <span class="n">copy</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">JetEnergyLoss</span><span class="o">.</span><span class="n">Clone</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>   <span class="c1"># the default copy</span>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>    <span class="n">copy</span><span class="o">.</span><span class="n">history</span> <span class="o">=</span> <span class="p">[]</span>                       <span class="c1"># one list per shower</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>    <span class="k">return</span> <span class="n">copy</span>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">Clone</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>    <span class="n">copy</span> <span class="o">=</span> <span class="n">core</span><span class="o">.</span><span class="n">JetEnergyLoss</span><span class="o">.</span><span class="n">Clone</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>   <span class="c1"># the default copy</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>    <span class="n">copy</span><span class="o">.</span><span class="n">history</span> <span class="o">=</span> <span class="p">[]</span>                       <span class="c1"># one list per shower</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>    <span class="k">return</span> <span class="n">copy</span>
 </code></pre></div>
 </li>
 </ul>
@@ -3518,7 +3525,19 @@ time step up to <code>&lt;Eloss&gt;&lt;maxT&gt;</code>, in steps of <code>&lt;El
   list of oversamples, each a list of <code>Hadron</code>s.</li>
 <li><strong>Afterburner</strong>, <code>ExecuteTask()</code> and <code>GetCurrentHadronList()</code>: <code>self.GatherAfterburnerHadrons()</code>
   gives per oversample the soft hadrons, plus the jet hadrons when
-  <code>&lt;Afterburner&gt;&lt;include_fragmentation_hadrons&gt;</code> is 1.</li>
+  <code>&lt;Afterburner&gt;&lt;include_fragmentation_hadrons&gt;</code> is 1. In a time-stepped run with a
+  <code>BulkDynamicsManager</code>, <code>self.GetTimestepParticlizationHadrons()</code> and
+  <code>self.GetTimestepHadronsToRemove()</code> take the hadrons to add and to drop this step (<code>[]</code> and a
+  warning without the manager).</li>
+<li><strong>3D initial state and ISR</strong>: with 3dMCGlauber the <code>InitialState</code> (from <code>GetTaskList()</code> or
+  <code>JetScapeSignalManager.Instance().GetInitialStatePointer()</code>, or <code>driver.initial_state</code>)
+  gives the event's QCD strings (<code>string_array()</code>, named records; <code>get_qcd_strings_numpy()</code>,
+  columns <code>core.QCD_STRING_COLUMNS</code>; what MUSIC's string source reads), the nucleon densities and z positions in the lab frame, the valence-quark positions
+  at the hard vertex and, with ISR, the remnants and the hard momentum handed over. A Python
+  initial state can override these getters, e.g. <code>GetQCDStringList</code> to give MUSIC its own
+  strings. A Python ISR gun reports to it with <code>OutputHardCollisionPosition</code> and
+  <code>OutputHardPartonMomentum</code> and keeps <code>SetTotalMomentum{Positive,Negative}</code> and the
+  fractions, which iMATTER reads, as PythiaIsrGun does.</li>
 <li><strong>Writer</strong>, <code>GetStatus()</code> and <code>Write(obj)</code> (+ <code>WriteEvent()</code>): per event the header is filled
   (<code>self.GetHeader().GetSigmaGen()</code>, ...), then <code>Write</code> receives the hard partons, per shower the
   initiating <code>Parton</code> and the <code>PartonShower</code>, then the jet <code>Hadron</code>s. Add a writer with
@@ -3883,7 +3902,7 @@ one thread (each call takes the GIL).</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "navigation.footer", "navigation.instant", "content.code.copy", "content.code.annotate", "content.tabs.link", "content.action.edit", "toc.follow", "search.suggest", "search.highlight"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
       
         <script src="../../assets/mathjax.js"></script>
       

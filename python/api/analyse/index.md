@@ -797,6 +797,8 @@ INITIATOR_DTYPE     showers.initiators_from_manager (INITIATOR_COLUMNS)
 EDGE_DTYPE          PartonShower.to_numpy (src, tgt, pid, pstat, px py pz E, x y z t)
 NODE_DTYPE          PartonShower.vertices_to_numpy (id, x, y, z, t)
 HARD_PARTON_DTYPE   hard_partons_numpy (pid, px, py, pz, E, pT, y)
+QCD_STRING_DTYPE    InitialState.get_qcd_strings_numpy (QCD_STRING_COLUMNS, same
+                    order; 3dMCGlauber's strings, all float64)
 ```
 
 Hadrons are not records: they stay one array per field (HadronArray), so iSS's arrays are wrapped without a copy.
@@ -828,6 +830,10 @@ PartonShower.vertices_to_numpy's (n, 5) -> NODE_DTYPE records.
 #### `hard_parton_records(rows) -> np.ndarray`
 
 hard_partons_numpy's (n, 7) -> HARD_PARTON_DTYPE records (hardest first, as given).
+
+#### `qcd_string_records(rows) -> np.ndarray`
+
+get_qcd_strings_numpy's (n, 27) -> QCD_STRING_DTYPE records (one per string).
 
 ### `jetscape.particles`
 
