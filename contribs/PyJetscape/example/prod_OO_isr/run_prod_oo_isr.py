@@ -112,7 +112,8 @@ ELOSS_THREADS_DEFAULT = -1
 #: generate_strings rewrites it every event): event_id Npart Ncoll Nstrings b
 GLAUBER_SUMMARY = "events_summary.dat"
 #: its strings of the event (MCGlauberGenString always writes event id 0); the header
-#: line has the strings' total energy and net pz
+#: line has the strings' total energy and net pz.  strings_record reads it only when the
+#: PyJetscape build has no InitialState.string_array()
 GLAUBER_STRINGS = "strings_event_0.dat"
 IS_ID = "MCGlauber"
 
@@ -425,22 +426,37 @@ def hadron_selection(a) -> dict:
             "eta_max": a.eta_max, "charged_only": a.charged, "positions": not a.no_x}
 
 
-def strings_record() -> dict:
+def strings_record(ini=None) -> dict:
     """This event's strings as MUSIC takes them: their energy and pz [GeV], strings plus
     remnant ends, MUSIC's sum (hydro_source_strings.cpp: m [cosh y_i - cosh y] per end
-    plus remnant m cosh y), from 3dMCGlauber's strings file.  (Its header's total_energy
-    is Npart sqrt(s)/2 by construction, before any subtraction.)"""
+    plus remnant m cosh y).  From the initial state in memory (InitialState.string_array(),
+    the list MUSIC reads, full precision), else from 3dMCGlauber's strings file in the
+    working directory (8 digits; its header's total_energy is Npart sqrt(s)/2 by
+    construction, before any subtraction).  No strings: no record, either way."""
     import numpy as np
+    s = None
+    if ini is not None and hasattr(ini, "string_array"):
+        try:
+            s = ini.string_array()
+        except (RuntimeError, ValueError):
+            s = None
     try:
-        with open(GLAUBER_STRINGS) as fh:
-            fh.readline()
-            cols = fh.readline().lstrip("#").split()
-            rows = np.loadtxt(fh, ndmin=2)
-        # exact header tokens: rapidities have no unit ("y_l"), positions do ("y_l[fm]")
-        idx = {c: k for k, c in enumerate(cols)}
-        m, yl, yr = rows[:, idx["mass[GeV]"]], rows[:, idx["y_l"]], rows[:, idx["y_r"]]
-        yli, yri = rows[:, idx["y_l_i"]], rows[:, idx["y_r_i"]]
-        rl, rr = rows[:, idx["remnant_l"]], rows[:, idx["remnant_r"]]
+        if s is not None:
+            if len(s) == 0:
+                return {}
+            m, yl, yr = s["mass"], s["y_f_l"], s["y_f_r"]
+            yli, yri = s["y_l_i"], s["y_r_i"]
+            rl, rr = s["remnant_l"], s["remnant_r"]
+        else:
+            with open(GLAUBER_STRINGS) as fh:
+                fh.readline()
+                cols = fh.readline().lstrip("#").split()
+                rows = np.loadtxt(fh, ndmin=2)
+            # exact header tokens: rapidities have no unit ("y_l"), positions do ("y_l[fm]")
+            idx = {c: k for k, c in enumerate(cols)}
+            m, yl, yr = rows[:, idx["mass[GeV]"]], rows[:, idx["y_l"]], rows[:, idx["y_r"]]
+            yli, yri = rows[:, idx["y_l_i"]], rows[:, idx["y_r_i"]]
+            rl, rr = rows[:, idx["remnant_l"]], rows[:, idx["remnant_r"]]
         e = m * (np.cosh(yli) + np.cosh(yri) - np.cosh(yl) - np.cosh(yr)) \
             + rl * m * np.cosh(yl) + rr * m * np.cosh(yr)
         pz = m * (np.sinh(yli) + np.sinh(yri) - np.sinh(yl) - np.sinh(yr)) \
@@ -825,7 +841,7 @@ def main() -> int:
             ev = {"pthat": float(h["pthat"]), "sigma_gen": float(h["sigma_gen"]),
                   "sigma_err": float(h["sigma_err"]),
                   "event_weight": float(h["event_weight"]), **glauber_record(),
-                  **strings_record(), **isr_record(core, ini),
+                  **strings_record(ini), **isr_record(core, ini),
                   **hard_partons_record(core, gun)}
             if a.pthat_windows:
                 ev["pthat_bin"] = int(core.pythia_gun_bins(gun)["active"])

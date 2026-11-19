@@ -12,6 +12,11 @@
  *     subtraction setting and the hard nucleons' remnants (3dMCGlauber)
  *   - initial_state_info(task): the event's n_coll, n_part, centrality (a task
  *     from GetTaskList(), whose dynamic type pybind11 does not know)
+ *   - The 3D interface (3dMCGlauber): nucleon densities and z, valence-quark
+ *     positions, remnants, the ISR hand-over, GetQCDStringList() and
+ *     get_qcd_strings_numpy() (columns QCD_STRING_COLUMNS); overridable from
+ *     Python. GenerateStrings() and GetHardPartonPosAndMomentum{Proj,Targ}()
+ *     are left out: they redo the event's strings (random numbers, files).
  ******************************************************************************/
 
 #include <pybind11/pybind11.h>
@@ -86,6 +91,55 @@ public:
     x = v[1];
     y = v[2];
     z = v[3];
+  }
+
+  // The 3D initial-state interface (3dMCGlauber in C++): MUSIC's string source
+  // reads GetQCDStringList(), iColoredHadronization the remnants, ISRRotation the
+  // valence-quark positions. A Python initial state may provide any of them.
+  double Get_total_nucleon_density_lab(double t, double x, double y,
+                                       double z) override {
+    PYBIND11_OVERRIDE(double, InitialState, Get_total_nucleon_density_lab, t, x,
+                      y, z);
+  }
+  double Get_target_nucleon_density_lab(double t, double x, double y,
+                                        double z) override {
+    PYBIND11_OVERRIDE(double, InitialState, Get_target_nucleon_density_lab, t,
+                      x, y, z);
+  }
+  double Get_projectile_nucleon_density_lab(double t, double x, double y,
+                                            double z) override {
+    PYBIND11_OVERRIDE(double, InitialState, Get_projectile_nucleon_density_lab,
+                      t, x, y, z);
+  }
+  std::vector<double> Get_projectile_nucleon_z_lab() override {
+    PYBIND11_OVERRIDE(std::vector<double>, InitialState,
+                      Get_projectile_nucleon_z_lab);
+  }
+  std::vector<double> Get_target_nucleon_z_lab() override {
+    PYBIND11_OVERRIDE(std::vector<double>, InitialState,
+                      Get_target_nucleon_z_lab);
+  }
+  std::vector<double> Get_quarks_pos_proj_lab() override {
+    PYBIND11_OVERRIDE(std::vector<double>, InitialState, Get_quarks_pos_proj_lab);
+  }
+  std::vector<double> Get_quarks_pos_targ_lab() override {
+    PYBIND11_OVERRIDE(std::vector<double>, InitialState, Get_quarks_pos_targ_lab);
+  }
+  std::vector<double> Get_remnant_proj() override {
+    PYBIND11_OVERRIDE(std::vector<double>, InitialState, Get_remnant_proj);
+  }
+  std::vector<double> Get_remnant_targ() override {
+    PYBIND11_OVERRIDE(std::vector<double>, InitialState, Get_remnant_targ);
+  }
+  std::vector<double> Get_Proj_Remnant() override {
+    PYBIND11_OVERRIDE(std::vector<double>, InitialState, Get_Proj_Remnant);
+  }
+  std::vector<double> Get_Targ_Remnant() override {
+    PYBIND11_OVERRIDE(std::vector<double>, InitialState, Get_Targ_Remnant);
+  }
+  std::vector<std::vector<double>> GetQCDStringList() override {
+    PYBIND11_OVERRIDE(std::vector<std::vector<double>>, InitialState,
+                      GetQCDStringList);
   }
 
   // Populate entropy_density_distribution_ from a flat or 2-D numpy array.
@@ -309,7 +363,154 @@ void bind_initial_state(py::module_ &m) {
                  boost-invariant storage is ``for y { for x }``, so
                  ``arr[iy, ix]`` maps to index ``iy * nx + ix``.
            )pbdoc",
-           py::arg("arr"));
+           py::arg("arr"))
+      // ── 3D initial state (3dMCGlauber): nucleons, strings, remnants ───────
+      .def("Get_total_nucleon_density_lab",
+           &InitialState::Get_total_nucleon_density_lab,
+           "Projectile + target nucleon density [1/fm^3] at (t, x, y, z) in the "
+           "lab frame (0 from a module without it).",
+           py::arg("t"), py::arg("x"), py::arg("y"), py::arg("z"))
+      .def("Get_projectile_nucleon_density_lab",
+           &InitialState::Get_projectile_nucleon_density_lab,
+           "Projectile (+z) nucleon density [1/fm^3] at (t, x, y, z), lab frame.",
+           py::arg("t"), py::arg("x"), py::arg("y"), py::arg("z"))
+      .def("Get_target_nucleon_density_lab",
+           &InitialState::Get_target_nucleon_density_lab,
+           "Target (-z) nucleon density [1/fm^3] at (t, x, y, z), lab frame.",
+           py::arg("t"), py::arg("x"), py::arg("y"), py::arg("z"))
+      .def("Get_projectile_nucleon_z_lab",
+           &InitialState::Get_projectile_nucleon_z_lab,
+           "z [fm] of every projectile nucleon in the lab frame (eight -1 from a "
+           "module without it).")
+      .def("Get_target_nucleon_z_lab", &InitialState::Get_target_nucleon_z_lab,
+           "z [fm] of every target nucleon in the lab frame.")
+      .def("Get_quarks_pos_proj_lab", &InitialState::Get_quarks_pos_proj_lab,
+           R"pbdoc(
+             Positions of the projectile nucleon of the hard collision's partons:
+             (x, y, z) of the three valence quarks and of the soft gluon cloud,
+             flat; empty if no binary collision sits at the hard vertex (nine -1
+             from a module without it).  3dMCGlauber looks the nucleon up at the
+             hard vertex the hard process reported (OutputHardCollisionPosition).
+
+             Warnings
+             --------
+             Changes state: 3dMCGlauber first stores that hard vertex as the hard
+             collision's position (the same value again: repeated calls give the
+             same result, but the call is not read-only).
+           )pbdoc")
+      .def("Get_quarks_pos_targ_lab", &InitialState::Get_quarks_pos_targ_lab,
+           R"pbdoc(
+             As Get_quarks_pos_proj_lab, for the target nucleon.
+
+             Warnings
+             --------
+             Changes state, as Get_quarks_pos_proj_lab: stores the hard vertex.
+           )pbdoc")
+      .def("Get_remnant_proj", &InitialState::Get_remnant_proj,
+           "Four-momentum (E, px, py, pz) [GeV] of the projectile remnant of the "
+           "hard collision: with ISR (3dMCGlauber subtracting the hard momentum), "
+           "else [] (four -1 from a module without it).")
+      .def("Get_remnant_targ", &InitialState::Get_remnant_targ,
+           "Four-momentum (E, px, py, pz) [GeV] of the target remnant.")
+      .def("Get_Proj_Remnant", &InitialState::Get_Proj_Remnant,
+           "Get_remnant_proj() of the first-stage 3dMCGlauber, from its "
+           "string-generating second stage (MCGlauberGenStringWrapper), which "
+           "iColoredHadronization asks.")
+      .def("Get_Targ_Remnant", &InitialState::Get_Targ_Remnant,
+           "Get_remnant_targ() through the second stage, as Get_Proj_Remnant.")
+      .def("GetHardPartonMomentumProj",
+           &InitialState::GetHardPartonMomentumProj,
+           "ISR: the hard-parton four-momentum (E, px, py, pz) [GeV] handed over "
+           "this event for subtraction from the projectile nucleon (empty from a "
+           "module without it).")
+      .def("GetHardPartonMomentumTarg",
+           &InitialState::GetHardPartonMomentumTarg,
+           "As GetHardPartonMomentumProj, for the target nucleon.")
+      .def("GetSubtractHardMomentum", &InitialState::GetSubtractHardMomentum,
+           "1: the initial state subtracts the hard momentum from the colliding "
+           "nucleons, 0: not, -1: no such setting.")
+      .def("OutputHardCollisionPosition",
+           &InitialState::OutputHardCollisionPosition,
+           R"pbdoc(
+             ISR: report the hard vertex (t, x, y, z) [fm] to the initial state,
+             as PythiaIsrGun does (no-op without 3dMCGlauber).
+
+             Warnings
+             --------
+             Changes state: it changes what 3dMCGlauber subtracts from the
+             colliding nucleons, and so the event's strings, remnants and medium.
+             For a Python hard process doing ISR; not to be called on a running
+             production's initial state.
+           )pbdoc",
+           py::arg("t"), py::arg("x"), py::arg("y"), py::arg("z"))
+      .def("OutputHardPartonMomentum", &InitialState::OutputHardPartonMomentum,
+           R"pbdoc(
+             ISR: add a hard parton's four-momentum [GeV] to what the initial
+             state subtracts, from the projectile (direction 1) or the target
+             (otherwise) nucleon, as PythiaIsrGun does.  3dMCGlauber raises if a
+             side reaches 0.95 P_A (the beam energy per nucleon).
+
+             Warnings
+             --------
+             Changes state: it changes what 3dMCGlauber subtracts from the
+             colliding nucleons, and so the event's strings, remnants and medium.
+             For a Python hard process doing ISR; not to be called on a running
+             production's initial state.
+           )pbdoc",
+           py::arg("E"), py::arg("px"), py::arg("py"), py::arg("pz"),
+           py::arg("direction"), py::arg("P_A"))
+      .def("ClearHardPartonMomentum", &InitialState::ClearHardPartonMomentum,
+           R"pbdoc(
+             ISR: zero the hard momentum handed over so far this event.
+
+             Warnings
+             --------
+             Changes state: it changes what 3dMCGlauber subtracts from the
+             colliding nucleons, and so the event's strings, remnants and medium.
+             For a Python hard process doing ISR; not to be called on a running
+             production's initial state.
+           )pbdoc")
+      .def("GetQCDStringList", &InitialState::GetQCDStringList,
+           R"pbdoc(
+             The event's QCD strings (3dMCGlauber), one row per string, columns
+             QCD_STRING_COLUMNS; what MUSIC's string source term reads.  Empty
+             from a module without strings, or before the initial state ran.
+           )pbdoc")
+      .def("get_qcd_strings_numpy",
+           [](InitialState &ini) -> py::array_t<double> {
+             const auto strings = ini.GetQCDStringList();
+             const std::size_t ncol = strings.empty() ? 0 : strings[0].size();
+             py::array_t<double> arr(
+                 {static_cast<py::ssize_t>(strings.size()),
+                  static_cast<py::ssize_t>(ncol)});
+             auto r = arr.mutable_unchecked<2>();
+             for (std::size_t i = 0; i < strings.size(); ++i) {
+               if (strings[i].size() != ncol)
+                 throw std::runtime_error(
+                     "QCD string " + std::to_string(i) + " has " +
+                     std::to_string(strings[i].size()) + " columns, string 0 has " +
+                     std::to_string(ncol));
+               for (std::size_t j = 0; j < ncol; ++j)
+                 r(i, j) = strings[i][j];
+             }
+             return arr;
+           },
+           R"pbdoc(
+             GetQCDStringList() as a float64 array of shape (n_strings, n_columns),
+             columns QCD_STRING_COLUMNS (27 with the pinned 3dMCGlauber); shape
+             (0, 0) without strings.
+           )pbdoc");
+
+  // 3dMCGlauber's string record (Glauber::prepare_output_QCD_strings): the
+  // strings_event_*.dat header plus the string's transverse momentum. The header
+  // names the end rapidities y_l, y_r like the end positions; here they are
+  // y_f_l, y_f_r (get_y_f_left/right).
+  m.attr("QCD_STRING_COLUMNS") = py::make_tuple(
+      "mass", "m_over_sigma", "tau_form", "tau_0", "eta_s_0", "x_perp", "y_perp",
+      "x_l", "y_l", "x_r", "y_r", "eta_s_left", "eta_s_right", "y_f_l", "y_f_r",
+      "remnant_l", "remnant_r", "y_l_i", "y_r_i", "eta_s_baryon_left",
+      "eta_s_baryon_right", "y_l_baryon", "y_r_baryon", "baryon_fraction_l",
+      "baryon_fraction_r", "px", "py");
 
   // ── The event's geometry, for weighting hard probes in a centrality class ──
   m.def(

@@ -146,13 +146,22 @@ RUN = textwrap.dedent('''
         def GetSigmaGen(self):
             return 2.5
 
+    TAGS = []
+
     class Split(core.JetEnergyLoss):
         def DoEnergyLoss(self, deltaT, time, Q2, pIn, pOut):
             p = pIn[0]
             if time >= 1.0 and p.e() > 30.0:
+                # colour tags as Matter takes them (README, 3D initial state and ISR)
+                hard = core.JetScapeSignalManager.Instance().GetHardProcessPointer()
+                tag = hard.NextColorTag(self.GetHardScatter(), self.GetColorTagBlock())
+                TAGS.append(tag)
+                # the Pythonic layer's shorthand: the same counter
+                TAGS.append(self.next_colour_tag() - tag)
                 for s in (+1, -1):
                     pOut.append(core.Parton(0, p.pid(), 0, core.FourVector(
                         0.5 * p.px(), s * 1.0, 0.5 * p.pz(), 0.5 * p.e()), p.x_in()))
+                    pOut[-1].set_color(tag)
 
     class Hadro(core.Hadronization):
         def DoHadronization(self, shower, hOut, pOut):
@@ -204,6 +213,7 @@ RUN = textwrap.dedent('''
         js.ClearPerEvent()
     js.Finish()
     out["writer"] = writer.events
+    out["tags"] = TAGS
     print("RESULT" + json.dumps(out))
 ''')
 
@@ -248,6 +258,11 @@ def test_every_stage_in_python(tmp_path):
     for ev in out["writer"]:
         assert ev["sigma"] == 2.5                         # the gun's header, via C++
         assert ev["Hadron"] >= 4 and ev["Parton"] >= 4
+    # one tag per split (2 per event), from the gun's counter: 1000 x (2 partons + 1) up;
+    # next_colour_tag() right after it gives the next one
+    tags, steps = out["tags"][0::2], out["tags"][1::2]
+    assert len(tags) == 4 and len(set(tags[:2])) == 2 and all(t > 3000 for t in tags)
+    assert steps == [1] * 4
 
 
 def test_initial_state():
@@ -267,3 +282,83 @@ def test_initial_state():
     assert core.InitialState.GetNcoll(ini) == 12.0
     # the gun's call (C++ SampleABinaryCollisionPoint) reaches the override
     assert ini.sample_binary_collision_point() == (0.0, 1.0, -2.0, 0.5)
+
+
+# ------------------------------------------------- X-SCAPE getters (ISR, strings)
+
+def test_hard_process_isr_bookkeeping_and_colour_tags():
+    g = core.HardProcess()
+    g.SetTotalMomentumPositive(120.0)
+    g.SetTotalMomentumNegative(80.0)
+    g.SetTotalMomentumFractionPositive(0.6)
+    g.SetTotalMomentumFractionNegative(0.4)
+    g.SetNISRShower(2)
+    assert (g.GetTotalMomentumPositive(), g.GetTotalMomentumNegative()) == (120.0, 80.0)
+    assert (g.GetTotalMomentumFractionPositive(),
+            g.GetTotalMomentumFractionNegative()) == (0.6, 0.4)
+    assert g.GetNISRShower() == 2
+    assert g.GetPartonShowerList() == []
+    # no hard partons: the triggering scattering counts from 1000 x (0 + 1)
+    assert [g.NextColorTag(), g.NextColorTag()] == [1001, 1002]
+    assert g.NextColorTag(scatter=1) == 150001           # an additional scattering
+    with pytest.raises(RuntimeError, match="not reserved"):
+        g.NextColorTag(block=0)
+    # what an energy-loss module passes
+    assert (g.GetHardScatter(), g.GetColorTagBlock()) == (0, -1)
+
+
+def test_initial_state_3d_defaults():
+    ini = core.InitialState()
+    assert ini.Get_total_nucleon_density_lab(0.0, 0.0, 0.0, 0.0) == 0.0
+    assert ini.Get_projectile_nucleon_z_lab() == [-1.0] * 8
+    assert ini.Get_quarks_pos_targ_lab() == [-1.0] * 9
+    assert ini.Get_remnant_proj() == [-1.0] * 4 and ini.Get_Targ_Remnant() == [-1.0] * 4
+    assert ini.GetHardPartonMomentumProj() == [] and ini.GetSubtractHardMomentum() == -1
+    ini.OutputHardCollisionPosition(0.0, 1.0, 2.0, 0.0)  # no-ops without 3dMCGlauber
+    ini.OutputHardPartonMomentum(10.0, 1.0, 0.0, 9.9, 1, 100.0)
+    ini.ClearHardPartonMomentum()
+    assert ini.GetQCDStringList() == []
+    assert ini.get_qcd_strings_numpy().shape == (0, 0)
+    cols = core.QCD_STRING_COLUMNS
+    assert len(cols) == 27 and len(set(cols)) == 27 and cols[:2] == ("mass", "m_over_sigma")
+
+
+def test_initial_state_3d_from_python():
+    ncol = len(core.QCD_STRING_COLUMNS)
+
+    class Strings(core.InitialState):
+        rows = [[float(i + j) for j in range(ncol)] for i in range(3)]
+
+        def GetQCDStringList(self):
+            return self.rows
+
+        def Get_Proj_Remnant(self):
+            return [50.0, 0.0, 0.0, 49.0]
+
+    ini = Strings()
+    # the C++ virtuals (MUSIC's string source, iColoredHadronization) reach the overrides
+    assert core.InitialState.GetQCDStringList(ini) == Strings.rows
+    assert core.InitialState.Get_Proj_Remnant(ini) == [50.0, 0.0, 0.0, 49.0]
+    arr = ini.get_qcd_strings_numpy()
+    assert arr.shape == (3, ncol) and arr[2, 1] == 3.0
+    Strings.rows = [[0.0] * ncol, [0.0] * (ncol - 1)]
+    with pytest.raises(RuntimeError, match="columns"):
+        ini.get_qcd_strings_numpy()
+
+
+def test_afterburner_timestep_hooks_without_bulk_manager():
+    class AB(core.Afterburner):
+        def GetCurrentHadronList(self):
+            return []
+
+    ab = AB()
+    assert ab.GetTimestepParticlizationHadrons() == []
+    assert ab.GetTimestepHadronsToRemove() == []
+
+
+def test_signal_manager_hard_process_pointer():
+    sm = core.JetScapeSignalManager.Instance()
+    for name in ("GetHardProcessPointer", "GetSoftParticlizationPointer",
+                 "GetHadronizationManagerPointer"):
+        got = getattr(sm, name)()
+        assert got is None or isinstance(got, core.JetScapeModuleBase)

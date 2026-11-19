@@ -18,6 +18,7 @@ of the same name, as a Python module may set (self.rng = ...), still wins.
 
 from __future__ import annotations
 
+import inspect
 import weakref
 from typing import Any, Callable, Iterator, Sequence
 
@@ -26,7 +27,8 @@ import numpy as np
 from . import pyjetscape_core as core
 from .hadron_array import HadronArray
 from .records import (edge_records, final_parton_records, final_parton_rows,
-                      hard_parton_records, initiator_records, node_records)
+                      hard_parton_records, initiator_records, node_records,
+                      qcd_string_records)
 
 __all__ = ["install", "make_parton", "make_hadron", "make_photon", "module",
            "per_event", "ShowerNode"]
@@ -76,6 +78,14 @@ def _add(target, name: str, value) -> None:
         raise AttributeError(f"pythonic: {tname}.{name} exists; the layer only adds names")
     if isinstance(value, _Prop):
         value.name = name
+    # the docstring dedented (as inspect.getdoc gives it), so help() and the stubs show
+    # numpy-style sections (Warnings, ...) as sections
+    func = value.__func__ if isinstance(value, classmethod) else value
+    if callable(func) and getattr(func, "__doc__", None) and not isinstance(func, type):
+        try:
+            func.__doc__ = inspect.cleandoc(func.__doc__)
+        except (AttributeError, TypeError):
+            pass
     setattr(target, name, value)
     _INSTALLED[(target, name)] = value
 
@@ -440,6 +450,35 @@ def _initial_info(self) -> dict:
     return core.initial_state_info(self)
 
 
+def _initial_isr(self) -> dict:
+    """isr_hard_momentum(): with ISR, the hard momentum handed over for subtraction
+    (proj, targ: E, px, py, pz), subtract (1, 0, -1) and the remnants (remnant_proj,
+    remnant_targ); empty lists without."""
+    return core.isr_hard_momentum(self)
+
+
+def _initial_string_array(self) -> np.ndarray:
+    """The event's QCD strings (3dMCGlauber) as QCD_STRING_DTYPE records, one per string;
+    empty without strings."""
+    return qcd_string_records(self.get_qcd_strings_numpy())
+
+
+def _eloss_next_colour_tag(self) -> int:
+    """A new colour tag, unique in the event, from the hard process, as Matter and LBT take
+    theirs: NextColorTag(GetHardScatter(), GetColorTagBlock()), so additional hard
+    scatterings and parallel showers draw from their own ranges.
+
+    Warnings
+    --------
+    Changes state: every call takes the next tag of the event's counter.
+    """
+    hard = core.JetScapeSignalManager.Instance().GetHardProcessPointer()
+    if hard is None:
+        raise RuntimeError("next_colour_tag(): no hard process registered with the signal "
+                           "manager (call it during the event)")
+    return hard.NextColorTag(self.GetHardScatter(), self.GetColorTagBlock())
+
+
 # ──────────────────────────────────────────────────────────────── writing modules
 _PARAM_TYPES = (bool, int, float, str)
 
@@ -647,6 +686,12 @@ def _driver_hydro(self) -> "core.FluidDynamics | None":
             or _find_task(self, core.FluidDynamics))
 
 
+def _driver_hard_process(self) -> "core.HardProcess | None":
+    """The hard process the signal manager holds (else the task list's), or None."""
+    return (core.JetScapeSignalManager.Instance().GetHardProcessPointer()
+            or _find_task(self, core.HardProcess))
+
+
 def _driver_initial_state(self) -> "core.InitialState | None":
     """The initial state the signal manager holds (else the task list's), or None."""
     return (core.JetScapeSignalManager.Instance().GetInitialStatePointer()
@@ -711,6 +756,9 @@ def install() -> None:
     _add(core.HardProcess, "parton_array", _hard_parton_array)
     _add(core.HardProcess, "info", _Prop(_hard_info))
     _add(core.InitialState, "info", _Prop(_initial_info))
+    _add(core.InitialState, "isr", _Prop(_initial_isr))
+    _add(core.InitialState, "string_array", _initial_string_array)
+    _add(core.JetEnergyLoss, "next_colour_tag", _eloss_next_colour_tag)
 
     _add(core.JetScapeModuleBase, "rng", _Prop(_module_rng))
 
@@ -722,6 +770,7 @@ def install() -> None:
     _add(drv, "hadronization_manager", _Prop(_driver_hadronization_manager))
     _add(drv, "soft_particlization", _Prop(_driver_soft_particlization))
     _add(drv, "hydro", _Prop(_driver_hydro))
+    _add(drv, "hard_process", _Prop(_driver_hard_process))
     _add(drv, "initial_state", _Prop(_driver_initial_state))
 
     from . import awkward_views
