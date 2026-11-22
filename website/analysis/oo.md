@@ -332,8 +332,11 @@ for e in range(n_ev):
 - **Relative to the hard partons:** the initiators of event (file i, unit u) are in the jet file,
   `HadronFile(path).initiators(u)` → `(K, 11)`, columns `shower, pid, pstat, px, py, pz, E, x, y,
   z, t`; the two hardest partons after the ISR are also in `parton_{y,pt}_{lead,sub}`.
-- **A p+p reference** with the same chain (ISR, Matter in vacuum, iColored) is not part of the
-  production.
+- **A p+p reference** with the same chain (ISR, Matter in vacuum, iColored):
+  `run_prod_oo_isr.py --vacuum --user-xml ../config/pp200_isr_vacuum.xml`
+  ([the p+p reference](../run/oo-isr.md#the-pp-reference-vacuum)). Its jet file has this page's
+  layout and per-window cross sections: read and weight it as here, without `glauber_ncoll`.
+  `--vacuum` with the O+O XML gives O+O without a medium.
 
 ## 12. The hydro and particlize files
 

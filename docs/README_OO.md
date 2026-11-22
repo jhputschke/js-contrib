@@ -376,9 +376,10 @@ gives each event's hadrons.)
   file: `HadronFile(path).initiators(u)` → `(K, 11)`, columns `shower, pid, pstat, px, py, pz,
   E, x, y, z, t`; the two hardest hard-process partons after the ISR are also in
   `parton_{y,pt}_{lead,sub}`.
-- **A p+p reference** with the same chain (ISR, Matter in vacuum, iColored) is not part of the
-  production. A user XML with `p` nuclei would give it (no string, so no medium, in most p+p
-  events); untested.
+- **A p+p reference** with the same chain (ISR, Matter in vacuum, iColored):
+  `run_prod_oo_isr.py --vacuum --user-xml ../config/pp200_isr_vacuum.xml` (prod_OO_isr README,
+  "Vacuum"). Its jet file has this layout and per-window cross sections: read and weight it as
+  here, without `glauber_ncoll`. `--vacuum` with the O+O XML gives O+O without a medium.
 
 ## 9. The hydro and particlize files
 

@@ -119,6 +119,47 @@ The bulk made in the job and afterwards are sampled alike (both use `config/hadr
 only the seeds differ. An event at hadron level is unit *i* of the jet file plus unit *i* of
 the bulk file; the bulk's N oversamples share one fluid.
 
+## The p+p reference: `--vacuum`
+
+`--vacuum` runs the same chain without a medium: no pre-equilibrium, MUSIC or LBT, Matter in
+vacuum, no hydro or particlize file. 3D MC-Glauber still runs, because PythiaIsrGun puts the
+hard scattering at a binary collision and iColoredHadronization takes the beam remnants from
+it. p+p and O+O are thus hadronized the same way, which is what R_AA needs, and the jet file
+has the same per-event record and per-window cross sections as the O+O one, so the same
+analysis reads both.
+
+```bash
+python run_prod_oo_isr.py --vacuum --user-xml ../config/pp200_isr_vacuum.xml \
+       --events 2100 --seed 1 --pthat-bins 5-7,7-9,9-11,11-15,15-20,20-30,30-60 \
+       --pythia-line "SigmaProcess:alphaSvalue = 0.13" \
+       --pythia-line "MultipartonInteractions:alphaSvalue = 0.13" \
+       --store-hadronization-input --eloss-threads 0
+./run_jobs.sh -j 16 40 2100 0 out_pp --vacuum --user-xml ../config/pp200_isr_vacuum.xml \
+       --pthat-bins 5-7,7-9,9-11,11-15,15-20,20-30,30-60 --eloss-threads 0
+python run_prod_oo_isr.py --vacuum --events 20 --seed 1 --pthat-bins 10-20,20-40
+            # O+O (the default XML) without a medium: the vacuum reference of the same system
+```
+
+- **`config/pp200_isr_vacuum.xml`**: p+p at 200 GeV with the O+O 3D MC-Glauber settings,
+  pT̂ 5–60 GeV, `MultipartonInteractions:pTmin = 5.0`, Matter `Q0` 2 and `vir_factor` 0.25
+  (iMATTER reads both there), iColored. The windows start at 5 GeV, above iMATTER's floor
+  Q0/√vir_factor (4 GeV at 0.25): below it a hard scattering gets no initial-state radiation.
+  Copy it to change `Q0` or `vir_factor`.
+- **Pythia settings from the command line**: `--pythia-line` goes to the hard process
+  (α_s, the MPI cut, the PDF), `--hadronization-line` to iColored's Pythia (e.g.
+  `"StringFlav:probStoUD = 0.25"`). Both repeat and are recorded in the files.
+- **Fragmentation settings afterwards**: with `--store-hadronization-input`,
+  `rehadronize_jets.py --line "StringFlav:probStoUD = 0.3"` redoes the jet hadrons of the same
+  showers with that setting; with the stored seeds the result is exactly that of a job run with
+  it. A fragmentation parameter can be scanned without rerunning the events.
+- **Output**: only `<proj><targ>_isr_vacuum_seedNNNN_hadrons_jet_frag.h5` and the `.json`.
+  Weight with the per-window cross sections as for O+O
+  ([O+O analysis](../analysis/oo.md)); every event is one hard scattering, no `glauber_ncoll`
+  weight in p+p.
+- **Speed**: about 11 ms per event on one core (GB10, seven windows 5–60 GeV, about 4.6 ms at
+  5–7 GeV), the same as `runJetscape` on the job's XML. Set `OMP_NUM_THREADS=1` and
+  `--eloss-threads 0` and run one job per core; no GPU is used.
+
 ## Settings
 
 | option | default | |
@@ -131,10 +172,13 @@ the bulk file; the bulk's N oversamples share one fluid.
 | `--bulk-hadrons N` | 0 | iSS in the job, N oversamples per event |
 | `--no-particlize`, `--no-hydro-file`, `--no-jet-hadrons` | | leave out the particlize file, the hydro file, the jet hadrons |
 | `--eta-max`, `--charged`, `--no-x`, `--keep-bits-p/-x` | | store less, as for `hadronize.py`, on both in-job hadron files |
+| `--flush-every N` | 100 with `--vacuum`, else 1 | commit the in-job hadron files every N events (offsets, per-event record, flush) instead of every event: the same file, much faster for events of a few ms; after a crash every committed event reads back |
+| `--vacuum` | | no medium: the [p+p reference](#the-pp-reference-vacuum), or O+O without a medium |
+| `--pythia-line LINE`, `--hadronization-line LINE` | | add a Pythia setting to the hard process or to iColored's Pythia (repeatable, recorded) |
 | `--keep-primaries N` | | with `--bulk-hadrons`: also the undecayed bulk hadrons of the first N oversamples, for SMASH later |
 | `--colour-closure MODE` | the XML's (`reconnect`) | how iColored closes colour lines that end in the medium: `reconnect`, `reconnect_global`, `thermal`, `fake`, `none` |
 | `--matter-only` | | Matter alone, no LBT and no recoils: a reference for colour studies |
-| `--store-hadronization-input` | | keep what was handed to Pythia, so `rehadronize_jets.py` can redo the jet hadrons later |
+| `--store-hadronization-input` | | keep what was handed to Pythia, so `rehadronize_jets.py` can redo the jet hadrons later: decays off, new seeds, other Pythia settings (`--line`) |
 | `--no-subtraction` | | the reference without the hard-momentum subtraction (counts the hard pair's energy twice, on purpose); keep it in its own OUTDIR |
 | `--late-dtau 0` | late step on | MUSIC at a constant 0.02 fm/c; keep one setting per campaign |
 | `--eloss-threads 0` | -1: in parallel | the final-state showers of an event run in parallel on `OMP_NUM_THREADS` threads (set it: unset means all cores per job): events ~13 % faster (GB10, 4 threads). 0 runs them serially, N on N threads. Serial and parallel give other showers for a seed, the thread count does not: one setting per campaign |

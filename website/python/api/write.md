@@ -36,6 +36,12 @@ with js.JobDir("out", "oo_workflow.xml") as job, \
   The complete version is `pythonic/oo_workflow.py` in the examples.
 - **Extra keywords** of `append_unit` (`seed=`, `pthat=`, `n_cells=`, ...) are stored per unit,
   in the file's `units/` table.
+- **Cheap events: `flush_every=N`.** By default every `append_unit` writes its unit at once
+  and flushes the file, so a crashed job loses nothing. For events of a few ms (p+p in vacuum)
+  those small writes cost more than the event. With `HadronH5Writer(..., flush_every=100)` the
+  hadrons, the unit offsets, the `units/` table and the flush are written every 100 units, and
+  the rest at `close()`. The file is the same; after a crash every unit up to the last commit
+  reads back. `run_prod_oo_isr.py --flush-every` sets it (100 with `--vacuum`).
 
 ### What the productions write
 
