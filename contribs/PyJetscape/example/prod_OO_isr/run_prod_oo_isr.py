@@ -497,6 +497,44 @@ def hadron_selection(a) -> dict:
             "eta_max": a.eta_max, "charged_only": a.charged, "positions": not a.no_x}
 
 
+#: eta_s windows of the strings' local-energy proxy (strings_eloc_*): STAR's mid-rapidity
+#: multiplicity (|eta| < 0.5 and < 1) and EPD (2.1 < |eta| < 5.1, both sides) acceptances
+ELOC_WINDOWS = {"mid05": ((-0.5, 0.5),), "mid10": ((-1.0, 1.0),),
+                "epd": ((-5.1, -2.1), (2.1, 5.1))}
+
+
+def strings_eloc(s) -> dict:
+    """Centrality-estimator proxy from the strings as MUSIC deposits them
+    (hydro_source_strings.cpp): constant local energy per unit eta_s between eta_s_left and
+    eta_s_right (norm = E_string / int cosh(y(eta_s)) deta_s, y linear from y_f_l to y_f_r),
+    the remnant ends' rest energy remnant * mass at the ends; no smearing.  Per window the
+    local energy [GeV] deposited in it (no hydro: a proxy for the multiplicity there)."""
+    import numpy as np
+    out = {f"strings_eloc_{k}": 0.0 for k in ELOC_WINDOWS}
+    if s is None or len(s) == 0:
+        return out
+    el, er = s["eta_s_left"], s["eta_s_right"]
+    yl, yr, m = s["y_f_l"], s["y_f_r"], s["mass"]
+    e_str = m * (np.cosh(s["y_l_i"]) + np.cosh(s["y_r_i"]) - np.cosh(yl) - np.cosh(yr))
+    lo, hi = np.minimum(el, er), np.maximum(el, er)
+    span = np.maximum(hi - lo, 1e-9)
+    # int_lo^hi cosh(y(eta)) deta with y linear in eta: (sinh yr - sinh yl) span / (yr - yl)
+    dy = yr - yl
+    small = np.abs(dy) < 1e-6
+    integ = np.where(small, np.cosh(yl) * span,
+                     (np.sinh(yr) - np.sinh(yl)) * span / np.where(small, 1.0, dy))
+    norm = e_str / np.maximum(integ, 1e-9)                 # local energy per unit eta_s
+    for key, wins in ELOC_WINDOWS.items():
+        tot = 0.0
+        for a, b in wins:
+            ov = np.clip(np.minimum(hi, b) - np.maximum(lo, a), 0.0, None)
+            tot += float(np.sum(norm * ov))
+            tot += float(np.sum(s["remnant_l"] * m * ((el >= a) & (el < b))))
+            tot += float(np.sum(s["remnant_r"] * m * ((er >= a) & (er < b))))
+        out[f"strings_eloc_{key}"] = tot
+    return out
+
+
 def strings_record(ini=None) -> dict:
     """This event's strings as MUSIC takes them: their energy and pz [GeV], strings plus
     remnant ends, MUSIC's sum (hydro_source_strings.cpp: m [cosh y_i - cosh y] per end
@@ -514,7 +552,7 @@ def strings_record(ini=None) -> dict:
     try:
         if s is not None:
             if len(s) == 0:
-                return {}
+                return strings_eloc(s)
             m, yl, yr = s["mass"], s["y_f_l"], s["y_f_r"]
             yli, yri = s["y_l_i"], s["y_r_i"]
             rl, rr = s["remnant_l"], s["remnant_r"]
@@ -532,7 +570,8 @@ def strings_record(ini=None) -> dict:
             + rl * m * np.cosh(yl) + rr * m * np.cosh(yr)
         pz = m * (np.sinh(yli) + np.sinh(yri) - np.sinh(yl) - np.sinh(yr)) \
             + rl * m * np.sinh(yl) + rr * m * np.sinh(yr)
-        return {"strings_E_total": float(e.sum()), "strings_pz_net": float(pz.sum())}
+        return {"strings_E_total": float(e.sum()), "strings_pz_net": float(pz.sum()),
+                **(strings_eloc(s) if s is not None else {})}
     except (OSError, ValueError, KeyError, IndexError):
         return {}
 

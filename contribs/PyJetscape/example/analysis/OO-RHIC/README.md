@@ -94,6 +94,7 @@ python diag_strings.py $P/best_nompi $P/best $P/best_mpi4 $P/best_mpidef   # res
 python conditional.py --fix Q0=2.0          # posterior at Q0 = 2 (Matter + LBT in O+O), emulator only
 # R3 + R4: p+p reference from the O+O tune XML and the O+O vacuum closure (CPU, ~40 min on 20 cores, 3 GB)
 python closure_oo.py run -j 20 && python closure_oo.py analyse -j 10
+python centrality_proxy.py run -j 20 && python centrality_proxy.py analyse     # R4b part 1 (CPU, ~8 min)
 jupyter nbconvert --to notebook --execute closure_oo.ipynb --output results/closure_oo_executed.ipynb
 jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 ```
@@ -113,6 +114,7 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 | `ue_check.py` | STAR's transverse charged density vs leading jet (R = 0.6) from the runs' hadrons |
 | `diag_strings.py` | the colour-string topology iColored hands to Pythia (stored input) against standalone Pythia's parton level, CR on/off, tune vs default coupling; writes `results/diag_strings.json` for the notebook |
 | `closure_oo.py`, `closure_oo.ipynb` | R3 + R4 of the plan forward: the p+p reference from the O+O tune XML (`config/OO_MCGlauber_MUSIC_isr_rhictune.xml`, projectile/target p) and the O+O vacuum closure in impact-parameter classes; the notebook explains the test and shows the figures (`PROD/closure/`, `results/closure_oo*.{json,npz}`) |
+| `centrality_proxy.py` | R4b part 1: centrality bias from a string local-energy proxy (`run_prod_oo_isr.py`'s `strings_eloc_*` units) in STAR's estimator windows; minimum-bias 3dMCGlauber alone vs N_coll-weighted jet events, subtraction on/off → `results/centrality_proxy.json`; figures in `closure_oo.ipynb` |
 | `conditional.py` | the posterior with a parameter held fixed (emulator only), e.g. Q0 = 2 GeV for Matter + LBT → `results/conditional_Q0_2.json` |
 | `dndeta.py` | charged $dN/d\eta$ over the full η range at fixed pT̂ for all models and MPI settings (own small samples under `PROD/diag/eta/`) |
 | `refs/run_refs.py` | the reference models' events (PP19 via `prod_AuAu_0_10_jet/run_prod_vacuum.py`, Pythia standalone) |
