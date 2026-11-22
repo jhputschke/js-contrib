@@ -16,9 +16,11 @@ analysis/OO-RHIC/closure_oo.py -- steps R3 and R4 of the plan forward (tuning pa
     jupyter nbconvert --to notebook --execute closure_oo.ipynb --output results/closure_oo_executed.ipynb
 
 Samples (all --vacuum, the tune's pTHat windows config.PTHAT_WINDOWS, pi0 and eta undecayed,
-|eta| < config.ETA_MAX stored; seeds 980000 + 1000 * sample + job):
+|eta| < config.ETA_MAX stored; seeds 980000 + 1000 * sample + job, pp_low 979000 + job):
   pp          30 jobs x 30k events (900k)
   OO_b<lo-hi> 10 jobs x 30k events (300k) per class: b in [0,2], [2,4], [4,6], [6,10] fm
+  pp_low      R3's pi0: 60 jobs x 30k events (1.8M) in config.LOW_WINDOWS (5-23 GeV), analysed
+              together with pp (obs closure_pp_all) and in 4 independent subsets (closure_pp_split<i>)
 and, for the eta distributions of the hard event and the remnants, without the eta cut and with
 iColored's input stored: <name>_eta, pTHat 9-11 and 23-30 GeV, 20k events, for pp and each class.
 
@@ -58,6 +60,7 @@ ETA_WINDOWS = [(9, 11), (23, 30)]
 ETA_EVENTS = 20000
 CH_EDGES = np.array([2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 17, 20, 25, 30], dtype=float)
 CLOSURE = C.PROD_DIR / "closure"
+NSPLIT = 4
 XML_DIR = CLOSURE / "xml"
 
 
@@ -69,6 +72,9 @@ def samples():
     for name in list(out):
         sysn, b, _, _, _, _ = out[name]
         out[name + "_eta"] = (sysn, b, 1, ETA_WINDOWS, ETA_EVENTS, True)
+    # R3: more p+p events in the low windows for the pi0 (appended last: the seeds of the
+    # samples above depend on their position)
+    out["pp_low"] = ("pp", None, 60, C.LOW_WINDOWS, EVENTS_PER_JOB, False)
     return out
 
 
@@ -100,7 +106,7 @@ def jobs(names):
         k = list(allm).index(name)
         events -= events % len(windows)
         for j in range(njobs):
-            seed = 980000 + 1000 * k + j
+            seed = 979000 + j if name == "pp_low" else 980000 + 1000 * k + j
             cmd = [sys.executable, str(C.DRIVER), "--vacuum", "--user-xml", str(xmls[sysn]),
                    "--events", str(events), "--seed", str(seed),
                    "--pthat-bins", wtext(windows), "--eloss-threads", "0",
@@ -237,6 +243,20 @@ def eta_sample(name):
     return {"edges": edges.tolist(), **out}
 
 
+def pp_combined(low_files):
+    """R3 with the low-window events: the p+p run and pp_low together (observables.compute
+    matches the windows by their edges), and NSPLIT independent subsets (files round-robin)
+    for the run-to-run scatter of the chi2."""
+    import observables as O
+    base = sorted(glob.glob(str(CLOSURE / "pp" / "*_hadrons_jet_frag.h5")))
+    obs = C.PROD_DIR / "obs"
+    O.process("closure_pp_all", base + low_files, obs / "closure_pp_all.npz")
+    for i in range(NSPLIT):
+        O.process(f"closure_pp_split{i}", base[i::NSPLIT] + low_files[i::NSPLIT],
+                  obs / f"closure_pp_split{i}.npz")
+    return {"n_files_base": len(base), "n_files_low": len(low_files), "n_split": NSPLIT}
+
+
 def analyse_one(name):
     import observables as O
     files = sorted(glob.glob(str(CLOSURE / name / "*_hadrons_jet_frag.h5")))
@@ -244,6 +264,8 @@ def analyse_one(name):
         return name, None
     if name.endswith("_eta"):
         return name, {"eta": eta_sample(name)}
+    if name == "pp_low":
+        return name, {"combined": pp_combined(files)}
     out, n = O.process(f"closure_{name}", files, C.PROD_DIR / "obs" / f"closure_{name}.npz")
     return name, charged_and_events(name)
 
@@ -265,6 +287,9 @@ def analyse(names, nproc):
     for name, r in res.items():
         if "eta" in r:
             summary["samples"][name] = {"eta": r["eta"]}
+            continue
+        if "combined" in r:
+            summary["samples"][name] = r["combined"]
             continue
         u = r["units"]
         s = {"ch": r["ch"].tolist(), "ch_err": r["ch_err"].tolist(), "sigma": r["sigma"].tolist(),

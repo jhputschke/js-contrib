@@ -50,14 +50,19 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import config as C  # noqa: E402
 
-OUT = C.PROD_DIR / "centrality_proxy"
+#: v2 (2026-11-22): + sPHENIX MBD windows and the jet events' charged hadrons to |eta| < 5 (the
+#: first round, EPD and mid-rapidity only, is in centrality_proxy/ itself)
+OUT = C.PROD_DIR / "centrality_proxy" / "v2"
 OO_XML = C.EXAMPLE / "config" / "OO_MCGlauber_MUSIC_isr_rhictune.xml"
 B_MAX = 10.0
 JET_WINDOWS = [(9, 11), (18, 23), (30, 40), (40, 55)]
 JET_JOBS, JET_EVENTS = 10, 20000          # per jet sample: 200k events
 MB_JOBS, MB_EVENTS = 10, 20000            # 200k minimum-bias events
 CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
-ESTIMATORS = ("epd", "mid05", "mid10")
+COIN_THR = (0.0, 0.5, 1.0)                 # GeV of string local energy for an MBD arm to fire
+ESTIMATORS = ("epd", "mid05", "mid10", "mbd")
+ARMS = ("mbd_neg", "mbd_pos")
+MBD_ETA = (3.51, 4.61)
 
 
 def driver_module():
@@ -99,7 +104,8 @@ def mb_job(seed, events, outdir):
     workdir = outdir / "work" / f"mb_seed{seed}"
     main_xml = rp.enter_workdir(a, str(workdir), str(xml))
     import jetscape as js
-    rec = {k: [] for k in ("b", "npart", "ncoll", "nstrings", *[f"eloc_{e}" for e in ESTIMATORS])}
+    rec = {k: [] for k in ("b", "npart", "ncoll", "nstrings",
+                           *[f"eloc_{e}" for e in ESTIMATORS + ARMS])}
     with js.per_event(main_xml, str(xml), n_events=events) as drv:
         for _ in drv.events():
             ini = drv.initial_state
@@ -110,7 +116,7 @@ def mb_job(seed, events, outdir):
             rec["npart"].append(g.get("glauber_npart", -1))
             rec["ncoll"].append(g.get("glauber_ncoll", -1))
             rec["nstrings"].append(g.get("glauber_nstrings", -1))
-            for e in ESTIMATORS:
+            for e in ESTIMATORS + ARMS:
                 rec[f"eloc_{e}"].append(el[f"strings_eloc_{e}"])
     np.savez(outdir / f"mb_seed{seed}.npz", **{k: np.asarray(v) for k, v in rec.items()})
     return 0
@@ -120,7 +126,7 @@ def jet_cmd(name, seed, xml):
     cmd = [sys.executable, str(C.DRIVER), "--vacuum", "--user-xml", str(xml),
            "--events", str(JET_EVENTS - JET_EVENTS % len(JET_WINDOWS)), "--seed", str(seed),
            "--pthat-bins", ",".join(f"{lo}-{hi}" for lo, hi in JET_WINDOWS),
-           "--eloss-threads", "0", "--eta-max", "1.0", "--charged",
+           "--eloss-threads", "0", "--eta-max", "5.0", "--charged",
            "--b-min", "0", "--b-max", f"{B_MAX}", "--outdir", str(OUT / name),
            "--max-skipped", "30"]
     if name == "jet_nosub":
@@ -172,13 +178,21 @@ def load_jet(name):
     import hdf5plugin  # noqa: F401
     import h5py
     keys = ("glauber_b", "glauber_ncoll", "glauber_npart", "glauber_nstrings", "pthat_bin",
-            "strings_E_total", "isr_sub_E_total", *[f"strings_eloc_{e}" for e in ESTIMATORS])
-    out = {k: [] for k in keys}
+            "strings_E_total", "isr_sub_E_total",
+            *[f"strings_eloc_{e}" for e in ESTIMATORS + ARMS])
+    out = {k: [] for k in keys + ("nch_mbd_neg", "nch_mbd_pos")}
+    import observables as O
     for f in sorted(glob.glob(str(OUT / name / "*_hadrons_jet_frag.h5"))):
         with h5py.File(f) as h:
             n = int(h.attrs["nunits_written"])
             for k in keys:
                 out[k].append(h[f"units/{k}"][:n] if f"units/{k}" in h else np.full(n, np.nan))
+        fd = O.read_file(f)                    # charged hadrons of the hard event, |eta| < 5
+        _, _, eta, _ = O._kin(fd["p"])
+        ev = np.repeat(np.arange(len(fd["counts"])), fd["counts"])
+        for arm, sgn in (("nch_mbd_neg", -1), ("nch_mbd_pos", 1)):
+            m = (sgn * eta > MBD_ETA[0]) & (sgn * eta < MBD_ETA[1])
+            out[arm].append(np.bincount(ev[m], minlength=len(fd["counts"])))
     return {k: np.concatenate(v) for k, v in out.items()}
 
 
@@ -230,6 +244,40 @@ def analyse():
                          "mean_eloc_jet": float(np.average(d[f"strings_eloc_{e}"][m], weights=ww))}
             r["per_window"][f"{wdw[0]}-{wdw[1]}"] = rw
         res["jet"][name] = r
+    # sPHENIX's minimum-bias condition, >= 1 hit in each MBD arm: in the proxy an arm fires
+    # if strings deposit local energy above THR in it (minimum bias), or that or a charged
+    # hadron of the hard event is in it (jet events)
+    coin = {"thresholds_GeV": list(COIN_THR), "mb": {}, "jet": {}}
+    nbins = [(1, 1), (2, 2), (3, 4), (5, 8), (9, 1000)]
+    for thr in COIN_THR:
+        fire = (mb["eloc_mbd_neg"] > thr) & (mb["eloc_mbd_pos"] > thr)
+        coin["mb"][str(thr)] = {"all": float(fire.mean()),
+                                "by_ncoll": [float(fire[(mb["ncoll"] >= lo) & (mb["ncoll"] <= hi)].mean())
+                                             for lo, hi in nbins]}
+    for name in ("jet_sub", "jet_nosub"):
+        d = load_jet(name)
+        if not len(d["glauber_ncoll"]):
+            continue
+        w = d["glauber_ncoll"].astype(float)
+        coin["jet"][name] = {}
+        for thr in COIN_THR:
+            arms = [(d[f"strings_eloc_{a}"] > thr) | (d[f"nch_{a}"] > 0) for a in ARMS]
+            strings_only = (d["strings_eloc_mbd_neg"] > thr) & (d["strings_eloc_mbd_pos"] > thr)
+            fire = arms[0] & arms[1]
+            coin["jet"][name][str(thr)] = {
+                "weighted": float(np.average(fire, weights=w)),
+                "weighted_strings_only": float(np.average(strings_only, weights=w)),
+                "by_ncoll": [float(fire[(d["glauber_ncoll"] >= lo) & (d["glauber_ncoll"] <= hi)].mean())
+                             for lo, hi in nbins],
+                "by_ncoll_strings_only": [float(strings_only[(d["glauber_ncoll"] >= lo)
+                                                             & (d["glauber_ncoll"] <= hi)].mean())
+                                          for lo, hi in nbins]}
+    coin["ncoll_bins"] = nbins
+    res["mbd_coincidence"] = coin
+    for thr in COIN_THR:
+        print(f"MBD coincidence (arm threshold {thr} GeV): minimum bias {coin['mb'][str(thr)]['all']:.3f}; "
+              + ", ".join(f"{n} N_coll-weighted {c[str(thr)]['weighted']:.4f} (strings only "
+                          f"{c[str(thr)]['weighted_strings_only']:.3f})" for n, c in coin["jet"].items()))
     path = HERE / "results" / "centrality_proxy.json"
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(res, indent=1))
@@ -237,7 +285,7 @@ def analyse():
     print(f"minimum bias: {res['n_mb']} events, <Ncoll> {res['mb_mean']['ncoll']:.2f}")
     for name, r in res["jet"].items():
         for wkey, rw in r["per_window"].items():
-            for e in ("epd", "mid10"):
+            for e in ("epd", "mid10", "mbd"):
                 print(f"{name:9s} pTHat {wkey:6s} {e:5s} R_AA^vac: "
                       + " ".join(f"{l} {v:.2f}" for l, v in zip(lab, rw[e]["raa_vac"])))
     print("wrote", path)

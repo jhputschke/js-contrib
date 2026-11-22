@@ -498,9 +498,12 @@ def hadron_selection(a) -> dict:
 
 
 #: eta_s windows of the strings' local-energy proxy (strings_eloc_*): STAR's mid-rapidity
-#: multiplicity (|eta| < 0.5 and < 1) and EPD (2.1 < |eta| < 5.1, both sides) acceptances
+#: multiplicity (|eta| < 0.5 and < 1) and EPD (2.1 < |eta| < 5.1, both sides) acceptances,
+#: sPHENIX's MBD (3.51 < |eta| < 4.61, both sides and each arm)
 ELOC_WINDOWS = {"mid05": ((-0.5, 0.5),), "mid10": ((-1.0, 1.0),),
-                "epd": ((-5.1, -2.1), (2.1, 5.1))}
+                "epd": ((-5.1, -2.1), (2.1, 5.1)),
+                "mbd": ((-4.61, -3.51), (3.51, 4.61)),
+                "mbd_neg": ((-4.61, -3.51),), "mbd_pos": ((3.51, 4.61),)}
 
 
 def strings_eloc(s) -> dict:
