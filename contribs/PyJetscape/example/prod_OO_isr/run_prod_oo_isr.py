@@ -48,6 +48,22 @@ One call = one job = one seed.  Each job writes, next to each other:
     python run_prod_oo_isr.py --events 1 --seed 1 --dry-run       # check the XML/grid only
     ./run_jobs.sh 20 25 0                                         # 20 jobs x 25 events
 
+Vacuum (the p+p hard reference, and O+O without a medium).  --vacuum drops the medium:
+no <Preequilibrium>, <Hydro> or <Lbt>, Matter in vacuum (in_vac 1, recoil_on 0), no hydro
+or particlize file.  The rest of the chain stays: 3dMCGlauber (positions, and the beam
+remnants iColored needs), PythiaIsrGun, iMATTER, Matter, iColored.  Only the jet_frag file
+and the .json are written, with the same per-event record and per-window cross sections.
+
+    python run_prod_oo_isr.py --vacuum --user-xml ../config/pp200_isr_vacuum.xml \\
+        --events 100 --seed 1 --pthat-bins 5-7,7-9,9-11,11-15,15-20,20-30,30-60 \\
+        --pythia-line "SigmaProcess:alphaSvalue = 0.13" --store-hadronization-input
+    python run_prod_oo_isr.py --vacuum --events 30 --seed 1 --pthat-bins 10-20,20-40
+                                     # O+O (the default XML) without a medium
+
+--pythia-line and --hadronization-line (repeatable) add Pythia settings to <Hard><PythiaGun>
+<LinesToRead> and <JetHadronization><LinesToRead>, e.g. "StringFlav:probStoUD = 0.25"; the
+latter can also be changed afterwards with rehadronize_jets.py --line.
+
 Jet hadronization seeds.  iColoredHadronization is reseeded every event from the job's
 seed (<reseed_per_event> 1) and the seed is recorded (units/seed of the jet_frag file,
 jet_pythia_seed of every event record): each event's jet hadrons can be reproduced on their
@@ -245,6 +261,24 @@ def parse_args() -> argparse.Namespace:
                    help="an event whose simulation throws (e.g. Matter's 'minus log of "
                         "sudakov negative', ~1 in 400 events) is skipped and recorded; more "
                         "than N skipped events stop the job (default 3)")
+    p.add_argument("--vacuum", action="store_true",
+                   help="no medium: drop <Preequilibrium>, <Hydro> and <Eloss><Lbt>, Matter "
+                        "in vacuum (in_vac 1, recoil_on 0), no hydro or particlize file. "
+                        "3dMCGlauber still runs (positions, beam remnants for iColored). For "
+                        "the p+p hard reference (../config/pp200_isr_vacuum.xml) and O+O "
+                        "without a medium")
+    p.add_argument("--flush-every", type=int, default=None, dest="flush_every", metavar="N",
+                   help="in-job hadron files: commit (unit offsets, per-event record, flush) "
+                        "every N events (default: 100 with --vacuum, where an event takes a "
+                        "few ms and per-event writes would dominate; else 1, every event)")
+    p.add_argument("--pythia-line", action="append", default=[], dest="pythia_lines",
+                   metavar="LINE",
+                   help="add a Pythia setting to <Hard><PythiaGun><LinesToRead>, e.g. "
+                        "'SigmaProcess:alphaSvalue = 0.13' (repeatable)")
+    p.add_argument("--hadronization-line", action="append", default=[],
+                   dest="hadronization_lines", metavar="LINE",
+                   help="add a Pythia setting to <JetHadronization><LinesToRead> (iColored's "
+                        "Pythia), e.g. 'StringFlav:probStoUD = 0.25' (repeatable)")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, iMATTER, Matter")
@@ -269,6 +303,33 @@ def _set(parent, tag, value):
     return n
 
 
+def _add_lines(parent, lines):
+    """Append Pythia settings to parent's <LinesToRead> (created if missing)."""
+    if not lines:
+        return
+    n = parent.find("LinesToRead")
+    if n is None:
+        n = ET.SubElement(parent, "LinesToRead")
+    old = [s.strip() for s in (n.text or "").splitlines() if s.strip()]
+    n.text = "\n" + "".join(f"        {s}\n" for s in old + [s.strip() for s in lines]) + "      "
+
+
+def make_vacuum(root):
+    """--vacuum: no medium.  Drop the pre-equilibrium, hydro and LBT blocks; Matter in
+    vacuum without recoils.  3dMCGlauber stays (binary collisions, beam remnants)."""
+    for tag in ("Preequilibrium", "Hydro"):
+        for n in root.findall(tag):
+            root.remove(n)
+    eloss = root.find("Eloss")
+    if eloss is not None:
+        for n in eloss.findall("Lbt"):
+            eloss.remove(n)
+        m = eloss.find("Matter")
+        if m is not None:
+            _set(m, "in_vac", 1)
+            _set(m, "recoil_on", 0)
+
+
 def job_xml(a, out_h5: str):
     """Check the template, apply this job's settings, write it next to the output."""
     tree = ET.parse(a.user_xml)
@@ -278,6 +339,8 @@ def job_xml(a, out_h5: str):
     _set(root, "nEvents", a.events)
     root.find("Random/seed").text = str(a.seed)
     _set(root, "setReuseHydro", "false")     # every event has its own strings (after ISR)
+    if a.vacuum:
+        make_vacuum(root)
     if a.matter_only and root.find("Eloss") is not None:
         eloss_node = root.find("Eloss")
         if eloss_node.find("Lbt") is not None:
@@ -323,14 +386,19 @@ def job_xml(a, out_h5: str):
             for tag in ("partonYMax", "partonYMode"):   # a template's cut: only with the option
                 if pg.find(tag) is not None:
                     pg.remove(pg.find(tag))
+        _add_lines(pg, a.pythia_lines)
         if len(list(root.find("Hard"))) != 2:
             problems.append("<Hard> takes only <PythiaGun> and <ISR>")
-    if root.find("Preequilibrium/NullPreDynamics") is None:
+    if a.vacuum:
+        pass                                     # no medium: nothing of MUSIC to check
+    elif root.find("Preequilibrium/NullPreDynamics") is None:
         problems.append("need <Preequilibrium><NullPreDynamics> (MUSIC's string source)")
     elif _text(root, "Preequilibrium/evolutionInMemory") != "0":
         problems.append("<Preequilibrium><evolutionInMemory> must be 0")
     hydros = root.findall("Hydro")
-    if [_text(h, "MUSIC/name") for h in hydros] != [HYDRO_ID]:
+    if a.vacuum:
+        pass
+    elif [_text(h, "MUSIC/name") for h in hydros] != [HYDRO_ID]:
         problems.append(f"need exactly one <Hydro><MUSIC> named {HYDRO_ID}")
     else:
         m = hydros[0].find("MUSIC")
@@ -368,6 +436,9 @@ def job_xml(a, out_h5: str):
         _set(jh, "store_input", int(a.store_hadronization_input))
         if a.colour_closure:
             _set(jh, "colour_closure", a.colour_closure)
+        _add_lines(jh, a.hadronization_lines)
+    if a.hadronization_lines and a.no_jet_hadrons:
+        problems.append("--hadronization-line needs the jet hadronization (no --no-jet-hadrons)")
     for tag in ("SoftParticlization", "Afterburner", "Liquefier", "RootBulkWriter",
                 "FastRootBulkWriter"):
         if root.find(tag) is not None:
@@ -534,13 +605,30 @@ def main() -> int:
     if a.parton_ymax is not None and not a.parton_ymax > 0:
         sys.exit(f"run_prod_oo_isr.py: --parton-ymax must be > 0, got {a.parton_ymax:g}")
 
-    grid, max_ntau, grid_text = rp.load_grid_yaml(a.grid)
+    if a.vacuum:
+        if a.bulk_hadrons:
+            sys.exit("run_prod_oo_isr.py: --vacuum has no medium: no --bulk-hadrons")
+        a.no_hydro_file = a.no_particlize = True
+        if a.out is None:
+            # the system in the name: pp_isr_vacuum_seed0001.h5, OO_isr_vacuum_...
+            t = ET.parse(a.user_xml).getroot()
+            proj = (_text(t, "IS/MCGlauber/projectile") or "X").strip()
+            targ = (_text(t, "IS/MCGlauber/target") or "X").strip()
+            name_base = f"{proj}{targ}_isr_vacuum"
+        else:
+            name_base = NAME_BASE
+        grid = max_ntau = None
+        grid_text = ""
+    else:
+        name_base = NAME_BASE
+        grid, max_ntau, grid_text = rp.load_grid_yaml(a.grid)
     os.makedirs(a.outdir, exist_ok=True)
-    out_h5 = os.path.join(a.outdir, rp.output_name(a, NAME_BASE))
+    out_h5 = os.path.join(a.outdir, rp.output_name(a, name_base))
     rp.resolve_seed(a, out_h5, record=not a.dry_run)
     xml, root = job_xml(a, out_h5)
-    box = rp.music_box(root, a.main_xml)
-    rp.check_inside(grid, box)
+    if not a.vacuum:
+        box = rp.music_box(root, a.main_xml)
+        rp.check_inside(grid, box)
     stem = os.path.splitext(out_h5)[0]
     out_particlize = None if a.no_particlize else stem + "_particlize.h5"
     out_frag = None if a.no_jet_hadrons else stem + "_hadrons_jet_frag.h5"
@@ -549,6 +637,11 @@ def main() -> int:
         print(f"run_prod_oo_isr.py: note -- {a.events} events in {len(a.pthat_windows)} "
               "windows: not the same number per window", file=sys.stderr)
     selection = hadron_selection(a)
+    if a.flush_every is None:
+        a.flush_every = 100 if a.vacuum else 1
+    if a.flush_every < 1:
+        sys.exit("run_prod_oo_isr.py: --flush-every must be >= 1")
+    selection["flush_every"] = a.flush_every
     if a.bulk_hadrons < 0:
         sys.exit("run_prod_oo_isr.py: --bulk-hadrons must be >= 0")
     if a.keep_primaries < 0 or (a.keep_primaries and not a.bulk_hadrons):
@@ -564,7 +657,7 @@ def main() -> int:
     mcg = root.find("IS/MCGlauber")
     system = (f"{_text(mcg, 'projectile')}+{_text(mcg, 'target')} "
               f"{float(_text(mcg, 'sqrts')):g} GeV, b in [{_text(mcg, 'b_min')}, "
-              f"{_text(mcg, 'b_max')}] fm")
+              f"{_text(mcg, 'b_max')}] fm" + (", vacuum" if a.vacuum else ""))
     if a.pthat_windows:
         pthat_desc = ("pTHat windows " + ", ".join(f"{lo:g}-{hi:g}" for lo, hi in a.pthat_windows)
                       + " GeV (event i in window i mod "
@@ -583,7 +676,7 @@ def main() -> int:
     print(f"prod_OO_isr: {a.events} event(s), seed {a.seed}"
           + (" (from OS entropy)" if a.seed_source == "os_entropy" else "")
           + (f", campaign {a.campaign} #{a.index}" if a.campaign else "")
-          + f", {system}, {hard}, {eloss} in MUSIC, "
+          + f", {system}, {hard}, {eloss} " + ("in vacuum, " if a.vacuum else "in MUSIC, ")
           + ("no jet hadronization" if a.no_jet_hadrons else "iColored jet hadronization")
           + (f", iSS in the job ({a.bulk_hadrons} oversamples)" if out_bulk else "")
           + (", NO SUBTRACTION (reference)" if a.no_subtraction else ""))
@@ -595,8 +688,9 @@ def main() -> int:
                  if a.eloss_threads < 0 else ""))
     else:
         print("  showers  serial (<Eloss><nThreads> 0)")
-    print(f"  grid     {a.grid}")
-    print(rp.describe(grid, max_ntau))
+    if not a.vacuum:
+        print(f"  grid     {a.grid}")
+        print(rp.describe(grid, max_ntau))
     for path in (None if a.no_hydro_file else out_h5, out_particlize, out_bulk,
                  out_bulk_primary, out_frag):
         if path:
@@ -656,10 +750,14 @@ def main() -> int:
         "prod_hard": hard,
         "prod_bulk_info": a.bulk_info,
         "prod_eloss_threads": a.eloss_threads,
+        "prod_pythia_lines": "\n".join(a.pythia_lines),
+        "prod_hadronization_lines": "\n".join(a.hadronization_lines),
+        "vacuum": int(a.vacuum),
         "system": system,
         "initial_state_kind": "3dMCGlauber_strings_after_ISR",
-        "hydro": rp.hydro_label(a.build),
-        "jet": f"PythiaIsrGun + iMATTER (ISR); {eloss} in MUSIC's medium (FSR)",
+        "hydro": "none (vacuum)" if a.vacuum else rp.hydro_label(a.build),
+        "jet": f"PythiaIsrGun + iMATTER (ISR); {eloss} "
+               + ("in vacuum (FSR)" if a.vacuum else "in MUSIC's medium (FSR)"),
         "eloss": eloss,
         "jet_hadronization": "none" if a.no_jet_hadrons else
                              "iColoredHadronization, in the job (<stem>_hadrons_jet_frag.h5)",
@@ -687,12 +785,15 @@ def main() -> int:
     jetscape.SetXMLUserFileName(xml)
     jetscape.Init()
     tasks = {t.GetId(): t for t in jetscape.GetTaskList()}
-    for tid in ((HYDRO_ID, GUN_ID) + (() if a.no_jet_hadrons else ("HadronizationManager",))
+    for tid in ((() if a.vacuum else (HYDRO_ID,)) + (GUN_ID,)
+                + (() if a.no_jet_hadrons else ("HadronizationManager",))
                 + (("iSS",) if out_bulk else ())):
         if tid not in tasks:
             sys.exit(f"run_prod_oo_isr.py: no task {tid!r} (tasks: {sorted(tasks)}); is "
                      "this X-SCAPE built with <Hard><ISR> (branch oo_isr_test)?")
-    hydro, gun = tasks[HYDRO_ID], tasks[GUN_ID]
+    if a.vacuum and HYDRO_ID in tasks:
+        sys.exit(f"run_prod_oo_isr.py: --vacuum, but the task list has {HYDRO_ID!r}")
+    hydro, gun = tasks.get(HYDRO_ID), tasks[GUN_ID]
     if "IsrManager" not in {t.GetId() for t in gun.GetTaskList()}:
         sys.exit("run_prod_oo_isr.py: the hard process has no IsrManager: this X-SCAPE "
                  "does not build the ISR chain from <Hard><ISR>")
@@ -848,8 +949,8 @@ def main() -> int:
             if not a.no_jet_hadrons and getattr(core, "ICOLORED_HAS_INPUT_RECORD", False):
                 ev["jet_pythia_seed"] = int(core.jet_hadronization_last_random_seed(
                     tasks["HadronizationManager"]))
-            b = hydro.get_bulk_info()
-            medium = bool(b.get_data_size())
+            b = hydro.get_bulk_info() if hydro is not None else None
+            medium = b is not None and bool(b.get_data_size())
             ev["tau0_music"] = float(b.tau_min) if medium else float("nan")
             # explicit: hydro_row is also -1 for every event with --no-hydro-file
             ev["has_medium"] = int(medium)
@@ -903,7 +1004,8 @@ def main() -> int:
                   + (f" (window {ev['pthat_bin']})" if "pthat_bin" in ev else "") + ", "
                   f"Npart {ev.get('glauber_npart', '?')}, Ncoll "
                   f"{ev.get('glauber_ncoll', '?')}, {ev.get('glauber_nstrings', '?')} strings"
-                  + (f", MUSIC tau0 = {ev['tau0_music']:.3f} fm/c" if medium
+                  + (", vacuum" if a.vacuum else
+                     f", MUSIC tau0 = {ev['tau0_music']:.3f} fm/c" if medium
                      else ", NO MEDIUM (no string)")
                   + (f", hydro row {row}" if writer is not None else "")
                   + (f", {bulk_n} bulk hadrons ({a.bulk_hadrons} samples)"
@@ -955,7 +1057,8 @@ def main() -> int:
                                 "events_skipped": len(skipped)})
     summary = {"out": None if writer is None else out_h5, "seed": a.seed, "eos": eos,
                "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
-               "grid": a.grid, "system": system, "hard": hard, "bulk_info": a.bulk_info,
+               "grid": None if a.vacuum else a.grid, "system": system, "hard": hard,
+               "bulk_info": a.bulk_info, "vacuum": int(a.vacuum),
                "hydro": getattr(a, "hydro", None),
                "subtract_hard_momentum": 0 if a.no_subtraction else 1,
                "events_requested": a.events, "events_written": n,

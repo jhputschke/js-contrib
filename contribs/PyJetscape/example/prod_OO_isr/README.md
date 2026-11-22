@@ -44,10 +44,11 @@ the automatic task list to it.
 | file | purpose |
 |---|---|
 | `../config/OO_MCGlauber_MUSIC_isr.xml` | user XML: tuned 3dMCGlauber + MUSIC for O+O, `<Hard>` with `<PythiaGun>` + `<ISR>`, Matter (`recoil_on` 1) + LBT, iColored with `<colour_closure>` |
+| `../config/pp200_isr_vacuum.xml` | user XML for `--vacuum`: p+p 200 GeV hard sector, ISR, Matter in vacuum, iColored ([Vacuum](#vacuum-the-pp-hard-reference-and-oo-without-a-medium)) |
 | `../config/grid_oo.yaml` | output grid of the hydro file: 64 × 64 × 32 at 0.3125 fm × 0.3125 fm × 0.3125 (x, y ±9.84 fm) |
 | `run_prod_oo_isr.py` | one job: one seed, N events |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
-| `rehadronize_jets.py` | hadronize a `--store-hadronization-input` job's jets again from the stored Pythia input: `--check` against the job, or decays off / new seeds ([Redoing the jet hadronization](#redoing-the-jet-hadronization)) |
+| `rehadronize_jets.py` | hadronize a `--store-hadronization-input` job's jets again from the stored Pythia input: `--check` against the job, or decays off / new seeds / other Pythia settings (`--line`) ([Redoing the jet hadronization](#redoing-the-jet-hadronization)) |
 | `hard_sub_compare/` | two campaigns with and without the hard-momentum subtraction, and a notebook comparing their hadrons ([README](hard_sub_compare/README.md)) |
 | `hadro_compare/` | the iColored jet hadrons (Matter only) before vs after the colour fixes, and with the closures reconnect / thermal / fake: five paired campaigns and `compare_hadro.py` ([README](hadro_compare/README.md)) |
 | `oo_isr_overview.ipynb` | one job's output: the medium's energy density at three τ (with the freeze-out contour and the dijet), and η, φ, pT and Δφ-to-the-leading-parton distributions of the bulk and jet hadrons |
@@ -309,7 +310,17 @@ python rehadronize_jets.py out/OO_isr_seed0001_hadrons_jet_frag.h5 --decays off 
        --out out/OO_isr_seed0001_hadrons_jet_frag_nodecay.h5   # the primary hadrons
 python rehadronize_jets.py out/OO_isr_seed0001_hadrons_jet_frag.h5 --new-seeds 7 \
        --out out/OO_isr_seed0001_hadrons_jet_frag_seed7.h5     # another fragmentation
+python rehadronize_jets.py out/OO_isr_seed0001_hadrons_jet_frag.h5 \
+       --line "StringFlav:probStoUD = 0.3" --out out/OO_isr_seed0001_s03.h5
+            # other Lund settings, same seeds (repeatable --line)
 ```
+
+`--line` adds Pythia settings to the stored `<JetHadronization><LinesToRead>` (recorded in the
+output's `extra_lines`). With the stored seeds the result is the job that ran with the same
+setting: in a 140-event p+p test, `--line "StringFlav:probStoUD = 0.4"` gave exactly the
+hadrons of a job run with `--hadronization-line "StringFlav:probStoUD = 0.4"` (kaon fraction
+0.145 instead of 0.085), and `--line` with Pythia's default 0.217 the job's own hadrons. So a
+fragmentation parameter can be scanned on one set of showers.
 
 What it cannot change: anything before the final partons (Matter, the ISR), and the colour
 flow. Hadron positions (for SMASH) are a later step of
@@ -346,6 +357,47 @@ Good to know:
   choice per campaign if jets of different jobs are to be compared event by event.
 - **Events without a medium** (no string, `hydro_row` -1) get an empty bulk unit; the run
   goes on.
+
+## Vacuum: the p+p hard reference (and O+O without a medium)
+
+`--vacuum` runs the same chain without a medium: it removes `<Preequilibrium>`, `<Hydro>`
+and `<Eloss><Lbt>` from the user XML, puts Matter in vacuum (`in_vac` 1, `recoil_on` 0) and
+writes no hydro or particlize file. 3dMCGlauber still runs: PythiaIsrGun puts the hard
+scattering at a binary collision, and iColored takes the beam remnants' momenta from it, so
+p+p and O+O are hadronized the same way and the hadronization cancels in R_AA. Only the jet
+file (`<stem>_hadrons_jet_frag.h5`, named `<proj><targ>_isr_vacuum_...`) and the `.json` are
+written, with the same per-event record (`pthat`, `pthat_bin`, `sigma_gen`, ...) and the
+per-window cross sections (`pthat_bin_sigma_gen`, `pthat_bin_n_accepted`) as the O+O files,
+so the same readers and analysis code take both.
+
+```bash
+python run_prod_oo_isr.py --vacuum --user-xml ../config/pp200_isr_vacuum.xml \
+       --events 2100 --seed 1 --pthat-bins 5-7,7-9,9-11,11-15,15-20,20-30,30-60 \
+       --pythia-line "SigmaProcess:alphaSvalue = 0.13" \
+       --pythia-line "MultipartonInteractions:alphaSvalue = 0.13" \
+       --store-hadronization-input --eloss-threads 0
+python run_prod_oo_isr.py --vacuum --events 20 --seed 1 --pthat-bins 10-20,20-40
+            # O+O (the default XML) without a medium: the strings are made, not evolved
+```
+
+- `../config/pp200_isr_vacuum.xml`: p+p at 200 GeV with the O+O 3dMCGlauber settings, b ≤
+  3 fm, pTHat 5–60 GeV, `MultipartonInteractions:pTmin = 5.0`, Matter `Q0` 2 and
+  `vir_factor` 0.25 (iMATTER reads both from `<Matter>`), iColored. The cut scheme of the
+  RHIC p+p hard tune: windows from 5 GeV (above iMATTER's floor Q0/√vir_factor for
+  vir_factor ≥ 0.16), cross-section weights per window, one fixed MPI cut.
+- `--pythia-line` / `--hadronization-line` (repeatable) add Pythia settings to
+  `<Hard><PythiaGun><LinesToRead>` and `<JetHadronization><LinesToRead>`; they are recorded
+  in the files (`prod_pythia_lines`, `prod_hadronization_lines`, and in the stored
+  `jet_hadronization_xml`). Hadronization settings can also be changed afterwards with
+  `rehadronize_jets.py --line`.
+- `--flush-every N` (default 100 with `--vacuum`, else 1): the jet file is committed (unit
+  offsets, per-event record, flush) every N events. A p+p event takes a few ms, and writing
+  every event cost ~20 ms of HDF5 overhead per event; batched, the file is the same (checked
+  with `h5_compare.py`) and a crashed job keeps every committed event readable.
+- Speed (GB10, one core, `OMP_NUM_THREADS=1`, `--eloss-threads 0`, 2026-11-22): 11.3 ms per
+  event over the seven windows above with `--flush-every 100` (28 ms with 1), the same as
+  `runJetscape` on the job's XML (25 s for the 2100 events, start-up included); about 4.6 ms
+  per event at 5–7 GeV, 10–16 ms at higher pTHat (large seed-to-seed spread).
 
 ## Output
 

@@ -672,6 +672,30 @@ class _ScalarTable:
                 ds.resize((self.n,))
             ds[i] = _cast(v, ds.dtype)
 
+    def extend(self, i0, rows):
+        """Append the rows i0 .. i0+len(rows)-1 at once: one resize and one write per key
+        (append() is one write per key and row).  A key missing in some rows gets its
+        missing value there, as with append()."""
+        if not rows:
+            return
+        self.n = i0 + len(rows)
+        keys = list(dict.fromkeys(k for r in rows for k in r))
+        for key in self.g:
+            ds = self.g[key]
+            if ds.shape[0] < self.n:
+                ds.resize((self.n,))
+        for key in keys:
+            first = next(r[key] for r in rows if key in r)
+            ds = self._ensure(key, first)
+            if ds.shape[0] < self.n:
+                ds.resize((self.n,))
+            fill = ds.fillvalue
+            if ds.dtype.kind in ("O", "S", "U"):
+                vals = np.array([str(r[key]) if key in r else "" for r in rows], dtype=object)
+            else:
+                vals = np.array([r[key] if key in r else fill for r in rows], dtype=ds.dtype)
+            ds[i0:self.n] = vals
+
 
 def h5py_str():
     import h5py

@@ -15,6 +15,8 @@ settings (the jet_frag file's jet_hadronization_xml).
                                     # the primary hadrons (decays off), same seeds
     python rehadronize_jets.py F.h5 --new-seeds 7 --out F_seed7.h5
                                     # another fragmentation of the same partons
+    python rehadronize_jets.py F.h5 --line "StringFlav:probStoUD = 0.25" --out F_s025.h5
+                                    # other Lund settings (a scan of probStoUD), same seeds
 
 --check needs the same Pythia version as the job (the file's pythia_version) and a jet_frag
 file written at full precision without a selection (no --keep-bits, --eta-max, --charged);
@@ -56,6 +58,10 @@ def parse_args(argv=None):
                         "job). 'off' gives the primary hadrons")
     p.add_argument("--new-seeds", type=int, default=None, dest="new_seeds", metavar="BASE",
                    help="seeds derived from (BASE, event) instead of the stored ones")
+    p.add_argument("--line", action="append", default=[], dest="lines", metavar="LINE",
+                   help="add a Pythia setting to the job's <JetHadronization><LinesToRead>, "
+                        "e.g. 'StringFlav:probStoUD = 0.25' (repeatable; a later setting of "
+                        "the same parameter wins, as in Pythia)")
     p.add_argument("--events", default=None, help="unit range a:b (default all)")
     p.add_argument("--build", default=rp.BUILD,
                    help="X-SCAPE build tree (default: $JETSCAPE_BUILD, else build_gpu)")
@@ -74,8 +80,9 @@ def new_seed(base, unit):
     return int(s.generate_state(1, dtype=np.uint32)[0] & 0x7FFFFFFF) or 1
 
 
-def user_xml(jet_hadronization_xml, decays):
-    """A user XML with only the job's effective <JetHadronization>."""
+def user_xml(jet_hadronization_xml, decays, lines=()):
+    """A user XML with only the job's effective <JetHadronization>, plus extra Pythia
+    lines appended to its <LinesToRead>."""
     root = ET.fromstring("<jetscape><enableAutomaticTaskListDetermination>false"
                          "</enableAutomaticTaskListDetermination><nEvents>1</nEvents>"
                          "<vlevel>0</vlevel><Random><seed>1</seed></Random></jetscape>")
@@ -91,6 +98,12 @@ def user_xml(jet_hadronization_xml, decays):
         if w is None:
             w = ET.SubElement(jh, "weak_decays")
         w.text = decays
+    if lines:
+        n = jh.find("LinesToRead")
+        if n is None:
+            n = ET.SubElement(jh, "LinesToRead")
+        old = [s.strip() for s in (n.text or "").splitlines() if s.strip()]
+        n.text = "\n" + "".join(f"  {s}\n" for s in old + [s.strip() for s in lines])
     root.append(jh)
     return root
 
@@ -101,8 +114,9 @@ def main(argv=None):
         setattr(a, k, os.path.abspath(getattr(a, k)))
     if not a.check and not a.out:
         sys.exit("rehadronize_jets.py: nothing to do: pass --check and/or --out")
-    if a.check and (a.decays is not None or a.new_seeds is not None):
-        sys.exit("rehadronize_jets.py: --check replays the job: not with --decays / --new-seeds")
+    if a.check and (a.decays is not None or a.new_seeds is not None or a.lines):
+        sys.exit("rehadronize_jets.py: --check replays the job: not with --decays / "
+                 "--new-seeds / --line")
 
     from jetscape import pyjetscape_core as core
     from jetscape.hadrons_h5 import (HadronFile, HadronH5Writer, hadron_precision,
@@ -148,7 +162,7 @@ def main(argv=None):
         base, "work_rehadronize", os.path.basename(a.jet_frag).replace(".h5", "")))
     os.makedirs(workdir, exist_ok=True)
     job_xml = os.path.join(workdir, "rehadronize.xml")
-    ET.ElementTree(user_xml(jh_xml, a.decays)).write(job_xml)
+    ET.ElementTree(user_xml(jh_xml, a.decays, a.lines)).write(job_xml)
     main_xml = os.path.join(workdir, "jetscape_main.xml")
     rp._absolute_parent_paths(a.main_xml, main_xml, a.build)
     cwd = os.getcwd()
@@ -177,6 +191,7 @@ def main(argv=None):
                            ET.parse(job_xml).getroot().find("JetHadronization"),
                            encoding="unicode"),
                        "decays": a.decays or "as in the job",
+                       "extra_lines": "\n".join(a.lines),
                        "seeds": "stored" if a.new_seeds is None else f"new, base {a.new_seeds}",
                        "pythia_version": have_pythia, "decayed": a.decays != "off"})
         for u in units:

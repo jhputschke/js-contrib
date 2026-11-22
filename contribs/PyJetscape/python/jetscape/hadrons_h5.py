@@ -361,6 +361,37 @@ def pseudorapidity(p):
     return 0.5 * np.log(np.clip(pabs + pz, 1e-300, None) / np.clip(pabs - pz, 1e-300, None))
 
 
+class _UnitBuffer:
+    """Units for one RaggedGroup, held until commit() writes them with one append_many
+    (the file is the same as from one append per unit; see RaggedGroup.append_many)."""
+
+    def __init__(self, group):
+        self.group = group
+        self._arrays, self._counts = [], []
+
+    @property
+    def units_total(self):
+        """Units written plus units held."""
+        return self.group.units_written + len(self._counts)
+
+    def add(self, rows, counts=None):
+        """Hold units: ``rows`` as for RaggedGroup.append_many with ``counts`` (several
+        units), or one unit with ``counts=None``."""
+        arrays, n = self.group._rows(rows, "append_many")
+        counts = [n] if counts is None else [int(c) for c in np.asarray(counts).reshape(-1)]
+        if sum(counts) != n:
+            raise ValueError(f"counts add up to {sum(counts)} but the fields have {n} rows")
+        self._arrays.append(arrays)
+        self._counts.extend(counts)
+
+    def commit(self):
+        if not self._counts:
+            return
+        merged = {k: np.concatenate([a[k] for a in self._arrays]) for k in self._arrays[0]}
+        self.group.append_many(merged, self._counts)
+        self._arrays, self._counts = [], []
+
+
 class HadronH5Writer:
     """Append units of samples of hadrons (see the module docstring).
 
@@ -397,8 +428,18 @@ class HadronH5Writer:
     def __init__(self, path, *, tag, n_samples, attrs=None, compression=DEFAULT_COMPRESSION,
                  force=True, keep_bits=None, initiators=False, eta_max=None,
                  charged_only=False, positions=True, hadronization_input=False,
-                 partons=False, x_had="none", hadron_scatter=False):
+                 partons=False, x_had="none", hadron_scatter=False, flush_every=1):
         import h5py
+
+        if int(flush_every) < 1:
+            raise ValueError(f"flush_every must be >= 1, got {flush_every!r}")
+        #: units per commit: the unit offsets, the units/ scalars, nunits_written and the
+        #: file flush are written every flush_every units (1: every unit, crash-safe per
+        #: unit).  Larger values for cheap events (p+p in vacuum, ~ms each), where the
+        #: per-unit writes dominate; after a crash the units up to the last commit read
+        #: back (readers go through unit_offsets), later rows are unreferenced.
+        self._flush_every = int(flush_every)
+        self._pending = []                  # (unit offset, scalars) not yet committed
 
         if tag not in TAGS + PRIMARY_TAGS:
             raise ValueError(f"tag must be one of {TAGS + PRIMARY_TAGS}, got {tag!r}")
@@ -467,6 +508,11 @@ class HadronH5Writer:
         self._hin = _hadronization_input_group(self.f) if hadronization_input else None
         self._par = _parton_group(self.f, x_had) if partons else None
         self._scat = _scatter_group(self.f) if self._extra else None
+        # the ragged groups' rows, written together at every commit (_commit)
+        self._h_buf = _UnitBuffer(self._h)
+        self._buf = {k: _UnitBuffer(g) for k, g in (("ini", self._ini), ("scat", self._scat),
+                                                    ("hin", self._hin), ("par", self._par))
+                     if g is not None}
         self._u = 0
 
     def append_unit(self, samples, initiators=None, hadronization_input=None, partons=None,
@@ -513,39 +559,61 @@ class HadronH5Writer:
                     rows = {k: np.asarray(v)[keep] for k, v in rows.items()}
         # all samples in one write: one append per sample recompresses the partly
         # filled last chunk every time (most of hadronize.py's write time)
-        self._h.append_many(rows, counts)
+        self._h_buf.add(rows, counts)
+        unit_off = self._h_buf.units_total          # unit_offsets: this unit's end sample
         if self._ini is not None:
             rows = _initiator_rows(initiators)
             if self._extra:
                 rows["scatter"] = np.asarray(
                     np.zeros(len(rows["data"])) if initiator_scatter is None
                     else initiator_scatter, dtype=np.int32).reshape(-1)
-            self._ini.append(rows)
+            self._buf["ini"].add(rows)
         if self._scat is not None:
             from .particlize_h5 import SCATTER_COLUMNS
-            self._scat.append({"data": np.asarray(
+            self._buf["scat"].add({"data": np.asarray(
                 np.zeros((0, len(SCATTER_COLUMNS))) if scatterings is None else scatterings,
                 dtype=np.float64).reshape(-1, len(SCATTER_COLUMNS))})
         if self._hin is not None:
-            self._hin.append({"data": hadronization_input_rows(hadronization_input)})
+            self._buf["hin"].add({"data": hadronization_input_rows(hadronization_input)})
         if self._par is not None:
             rows = (np.zeros((0, len(PARTON_COLUMNS))) if partons is None
                     else np.asarray(partons, dtype=np.float64).reshape(-1, len(PARTON_COLUMNS)))
-            self._par.append({"data": rows})
+            self._buf["par"].add({"data": rows})
         n_samples = len(counts)
-        n = self._unit_off.shape[0]
-        self._unit_off.resize((n + 1,))
-        self._unit_off[n] = self._h.units_written
         u = self._u
-        self._units.append(u, dict(unit_scalars, n_samples=n_samples))
+        self._pending.append((unit_off, dict(unit_scalars, n_samples=n_samples)))
         self._u += 1
+        if len(self._pending) >= self._flush_every:
+            self._commit()
+        return u
+
+    def _commit(self):
+        """Write the pending units' offsets and scalars, nunits_written, and flush."""
+        if not self._pending:
+            return
+        # the rows first, then the offsets and records that point to them: after a crash
+        # every committed unit reads back complete
+        self._h_buf.commit()
+        for b in self._buf.values():
+            b.commit()
+        k = len(self._pending)
+        n = self._unit_off.shape[0]
+        self._unit_off.resize((n + k,))
+        u0 = self._u - k
+        if k == 1:
+            self._unit_off[n] = self._pending[0][0]
+            self._units.append(u0, self._pending[0][1])
+        else:
+            self._unit_off[n:n + k] = np.asarray([o for o, _ in self._pending], dtype=np.int64)
+            self._units.extend(u0, [s for _, s in self._pending])
+        self._pending = []
         self.f.attrs["nunits_written"] = self._u
         self.f.flush()
-        return u
 
     def close(self, complete=True):
         if self.f is None:
             return
+        self._commit()
         self.f.attrs["complete"] = bool(complete)
         self.f.close()
         self.f = None
