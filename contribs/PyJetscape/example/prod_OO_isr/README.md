@@ -44,6 +44,7 @@ the automatic task list to it.
 | file | purpose |
 |---|---|
 | `../config/OO_MCGlauber_MUSIC_isr.xml` | user XML: tuned 3dMCGlauber + MUSIC for O+O, `<Hard>` with `<PythiaGun>` + `<ISR>`, Matter (`recoil_on` 1) + LBT, iColored with `<colour_closure>` |
+| `../config/OO_MCGlauber_MUSIC_isr_rhictune.xml` | the same with the Pythia settings of the RHIC p+p 200 GeV hard tune (`analysis/OO-RHIC`): `PDF:pSet = 20` (iMATTER's NNPDF3.1 NNLO), α<sub>s</sub>(M<sub>Z</sub>) 0.152 for the hard process and the MPI, MPI `pTmin = 5` (~1.7 GeV effective). The default XML runs Pythia's defaults (α<sub>s</sub> 0.130, `pSet` 13, soft MPI with `pTmin` 0.2). Use `--user-xml ../config/OO_MCGlauber_MUSIC_isr_rhictune.xml` for O+O compared with the tune's p+p reference |
 | `../config/pp200_isr_vacuum.xml` | user XML for `--vacuum`: p+p 200 GeV hard sector, ISR, Matter in vacuum, iColored ([Vacuum](#vacuum-the-pp-hard-reference-and-oo-without-a-medium)) |
 | `../config/grid_oo.yaml` | output grid of the hydro file: 64 × 64 × 32 at 0.3125 fm × 0.3125 fm × 0.3125 (x, y ±9.84 fm) |
 | `run_prod_oo_isr.py` | one job: one seed, N events |

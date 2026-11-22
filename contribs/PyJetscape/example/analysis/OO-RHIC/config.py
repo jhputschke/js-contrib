@@ -24,6 +24,9 @@ HERE = Path(__file__).resolve().parent
 EXAMPLE = HERE.parents[1]                      # contribs/PyJetscape/example
 DRIVER = EXAMPLE / "prod_OO_isr" / "run_prod_oo_isr.py"
 TEMPLATE_XML = EXAMPLE / "config" / "pp200_isr_vacuum.xml"
+#: the O+O ISR template: its 3dMCGlauber, pre-equilibrium and MUSIC blocks (the tuned O+O
+#: bulk set, freeze-out at T = 150 MeV) make the medium of the p+p hydro runs (--hydro)
+OO_TEMPLATE_XML = EXAMPLE / "config" / "OO_MCGlauber_MUSIC_isr.xml"
 
 #: where the events and the per-point observables go (override with $OO_RHIC_PROD)
 PROD_DIR = Path(os.environ.get("OO_RHIC_PROD", Path.home() / "prod" / "OO-RHIC_pp_hard"))
@@ -61,6 +64,11 @@ LOW_JOBS_PER_POINT = 6                         # 6 x 30k = 30k more events per l
 REPLACED_SEEDS = {130001: 130010}
 #: validation runs at chosen points (best fit, default): more events
 VALIDATION_JOBS = 30
+#: p+p with a medium (make_design.py --add ... --hydro): events whose 3dMCGlauber leaves a
+#: string (~27 % of the jet-triggered p+p events) get MUSIC; the bulk is sampled in the job
+#: (iSS, HYDRO_BULK_OVERSAMPLES per event, the hadronize.xml settings); jets as in vacuum
+#: (Matter in_vac 1, no LBT), so the hard sector stays the tuned one
+HYDRO_BULK_OVERSAMPLES = 1
 
 # ── the data ─────────────────────────────────────────────────────────────────────────────
 DATA_DIR = HERE / "data"

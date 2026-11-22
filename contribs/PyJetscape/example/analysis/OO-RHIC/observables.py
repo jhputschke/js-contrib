@@ -56,24 +56,45 @@ def load_data():
     return json.loads((C.DATA_DIR / "data.json").read_text())
 
 
-def read_file(path):
+def _read_units(f, n):
+    """pid, p and hadrons per unit of the first n units (all samples of a unit together)."""
+    so = f["hadrons/sample_offsets"][:]
+    uo = f["hadrons/unit_offsets"][: n + 1]
+    stop = int(so[uo[-1]])
+    return (f["hadrons/pid"][:stop], f["hadrons/p"][:stop].astype(np.float64),
+            np.diff(so[uo]))
+
+
+def read_file(path, with_bulk=True):
     """One jet_frag file: hadrons (pid, E, px, py, pz), counts per event, window per event,
-    and the file's per-window cross sections and accepted events."""
+    and the file's per-window cross sections and accepted events.  The jet file has one
+    sample per unit.  With a <stem>_hadrons_bulk_bg.h5 next to it (the p+p hydro runs,
+    --bulk-hadrons 1) and with_bulk, each event's bulk hadrons are added to its jet hadrons
+    (unit i of both files is event i; events without a medium have no bulk sample)."""
     import hdf5plugin  # noqa: F401
     import h5py
     with h5py.File(path, "r") as f:
         n = int(f.attrs["nunits_written"])
-        so = f["hadrons/sample_offsets"][:]
-        uo = f["hadrons/unit_offsets"][: n + 1]
-        stop = int(so[uo[-1]])
-        pid = f["hadrons/pid"][:stop]
-        p = f["hadrons/p"][:stop].astype(np.float64)
-        counts = np.diff(so[uo])                       # one sample per unit
+        pid, p, counts = _read_units(f, n)
         win = f["units/pthat_bin"][:n].astype(np.int64)
         sig = np.asarray(f.attrs["pthat_bin_sigma_gen"], dtype=np.float64)
         nacc = np.asarray(f.attrs["pthat_bin_n_accepted"], dtype=np.int64)
         bins = np.asarray(f.attrs["pthat_bins"], dtype=np.float64)
-    return dict(pid=pid, p=p, counts=counts, win=win, sigma=sig, n_acc=nacc, bins=bins)
+    bulk = str(path).replace("_hadrons_jet_frag.h5", "_hadrons_bulk_bg.h5")
+    n_bulk = None
+    if with_bulk and bulk != str(path) and os.path.exists(bulk):
+        with h5py.File(bulk, "r") as f:
+            if int(f.attrs["nunits_written"]) < n:
+                raise ValueError(f"{bulk}: fewer units than {path}")
+            bpid, bp, bcounts = _read_units(f, n)
+        ev = np.concatenate([np.repeat(np.arange(n), counts), np.repeat(np.arange(n), bcounts)])
+        order = np.argsort(ev, kind="stable")              # per event: jet, then bulk
+        pid = np.concatenate([pid, bpid])[order]
+        p = np.concatenate([p, bp])[order]
+        n_bulk = bcounts
+        counts = counts + bcounts
+    return dict(pid=pid, p=p, counts=counts, win=win, sigma=sig, n_acc=nacc, bins=bins,
+                n_bulk=n_bulk)
 
 
 def _kin(p):

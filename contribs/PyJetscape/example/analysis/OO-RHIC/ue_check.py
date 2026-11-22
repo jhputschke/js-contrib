@@ -19,6 +19,10 @@ dphi = 2 pi / 3 per region (the transverse region is both sides, 60-120 deg; Tra
 TransMin one side each, pi / 3).  Leading-jet bins (centres 6, 8, 10, 13, 17.5, 22.5, 30,
 40 GeV in HEPData) taken as 5-7, 7-9, 9-11, 11-15, 15-20, 20-25, 25-35, 35-45 GeV.
 
+p+p hydro runs (a <stem>_hadrons_bulk_bg.h5 next to the jet file): observables.read_file adds
+each event's bulk hadrons (iSS on MUSIC's surface, events with a string) to its jet hadrons;
+the fraction of events with a medium is printed and stored (has_bulk).
+
 Model: all visible final particles (no neutrinos) for the jets; charged = jetscape's charged
 list.  pi0 and eta are undecayed in these runs (their eta -> 3 pi charged pions are missing,
 a percent-level effect on the densities).  Events weighted by sigma_k / N_k per pTHat window;
@@ -46,7 +50,7 @@ LEAD_EDGES = np.array([5, 7, 9, 11, 15, 20, 25, 35, 45], dtype=np.float64)
 REGIONS = ("toward", "transverse", "away")
 #: quantities per event, accumulated per (window, leading-jet bin)
 QUANT = ("n_toward", "n_transverse", "n_away", "n_trans05", "sumpt_transverse",
-         "n_transmax", "n_transmin")
+         "n_transmax", "n_transmin", "has_bulk")
 
 
 def load_star():
@@ -117,6 +121,9 @@ def file_sums(path):
     s1 = np.bincount(e_ch[tr & (sgn > 0)], minlength=nev)
     s2 = np.bincount(e_ch[tr & (sgn <= 0)], minlength=nev)
     q["n_transmax"], q["n_transmin"] = np.maximum(s1, s2), np.minimum(s1, s2)
+    # p+p hydro runs: did the event have a medium (bulk hadrons from iSS)?
+    q["has_bulk"] = (fd["n_bulk"] > 0 if fd.get("n_bulk") is not None
+                     else np.zeros(nev, dtype=bool))
     win = fd["win"]
     flat = win[good] * nb + lb[good]
     out = {"n": np.bincount(flat, minlength=nwin * nb).reshape(nwin, nb).astype(float)}
@@ -166,7 +173,8 @@ def densities(acc, windows=None):
         var = (S2 - 2 * m * s * S1 + m ** 2 * s ** 2 * n).sum(0)
         err = np.divide(np.sqrt(np.clip(var, 0, None)), W, out=np.full(W.shape, np.nan),
                         where=W > 0)
-        area = area_side if q in ("n_transmax", "n_transmin") else area_reg
+        area = (1.0 if q == "has_bulk" else
+                area_side if q in ("n_transmax", "n_transmin") else area_reg)
         res[q] = (m / area, err / area)
     res["meanpt_transverse"] = (res["sumpt_transverse"][0] / res["n_transverse"][0], None)
     res["n_events"] = acc["n"][k].sum(0)
@@ -196,14 +204,15 @@ def main(argv=None):
         rows = []
         for i in range(len(lo)):
             t, te = d["n_transverse"][0][i], d["n_transverse"][1][i]
+            fb = d["has_bulk"][0][i]
             print(f"  {lo[i]:4.0f}-{hi[i]:<4.0f} {int(d['n_events'][i]):9d}   "
                   f"{d['n_toward'][0][i]:.3f}   {t:.3f}+-{te:.3f} ({star['transverse']['value'][i]:.3f})"
                   f"   {d['n_away'][0][i]:.3f}   {d['n_trans05'][0][i]:.3f} "
                   f"({star['transverse05']['value'][i]:.3f})   {d['n_transmax'][0][i]:.3f}  "
-                  f"{d['n_transmin'][0][i]:.3f}")
+                  f"{d['n_transmin'][0][i]:.3f}" + (f"   with medium {fb:.2f}" if fb > 0 else ""))
             rows.append({k: float(d[k][0][i]) for k in
                          ("n_toward", "n_transverse", "n_away", "n_trans05", "n_transmax",
-                          "n_transmin", "meanpt_transverse")}
+                          "n_transmin", "meanpt_transverse", "has_bulk")}
                         | {"n_transverse_err": float(te), "events": int(d["n_events"][i])})
         summary[run] = rows
         if a.check_truncation:
@@ -216,7 +225,12 @@ def main(argv=None):
                 print("  share of the leading-jet bin from pTHat < 5 GeV: "
                       + " ".join(f"{100 * x:.1f}%" for x in share))
                 summary[run + "_low_share"] = share.tolist()
-    (C.HERE / "results" / "ue_check.json").write_text(json.dumps(
+    res_path = C.HERE / "results" / "ue_check.json"
+    try:                                     # keep the runs of earlier calls
+        summary = json.loads(res_path.read_text())["runs"] | summary
+    except (OSError, ValueError, KeyError):
+        pass
+    res_path.write_text(json.dumps(
         {"star": {k: (v if k == "edges" else {kk: np.asarray(vv).tolist()
                                              for kk, vv in v.items()})
                   for k, v in star.items()}, "runs": summary}, indent=1))

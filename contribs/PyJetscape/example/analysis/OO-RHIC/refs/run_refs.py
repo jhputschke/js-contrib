@@ -10,7 +10,8 @@ tune's file layout under PROD_DIR/events/<name> (observables.py and ue_check.py 
     pythia8_default  standalone Pythia 8.312 as it comes (Monash), refs/pythia_ref.py
     pythia8_detroit  STAR's Detroit tune, refs/pythia_ref.py --tune detroit
 
-    python refs/run_refs.py -j 20               # all three, JOBS x config.EVENTS_PER_JOB each
+    python refs/run_refs.py -j 20               # all, JOBS x config.EVENTS_PER_JOB each
+    python refs/run_refs.py pythia8_nocr --jobs 5 -j 5     # diagnostic: Pythia without CR
     python refs/run_refs.py pp19 --dry-run
 
 The pTHat windows are config.PTHAT_WINDOWS; pi0 and eta undecayed in all.  Resumable (a job
@@ -34,7 +35,8 @@ sys.path.insert(0, str(HERE.parent))
 import config as C  # noqa: E402
 
 JOBS = 20
-REFS = {"pp19": 970000, "pythia8_default": 960000, "pythia8_detroit": 965000}
+REFS = {"pp19": 970000, "pythia8_default": 960000, "pythia8_detroit": 965000,
+        "pythia8_nocr": 975000}                  # diagnostic: default without CR
 VACUUM = C.EXAMPLE / "prod_AuAu_0_10_jet" / "run_prod_vacuum.py"
 
 
@@ -72,7 +74,7 @@ def done(js, events):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("refs", nargs="*", default=list(REFS))
+    p.add_argument("refs", nargs="*", default=["pp19", "pythia8_default", "pythia8_detroit"])
     p.add_argument("--jobs", type=int, default=JOBS, help="jobs per reference")
     p.add_argument("-j", type=int, default=os.cpu_count())
     p.add_argument("--dry-run", action="store_true")

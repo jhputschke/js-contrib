@@ -38,9 +38,28 @@ def lhs_maximin(n, d, seed, tries=2000):
     return best, best_d
 
 
-def write_xml(name, params):
+def write_xml(name, params, hydro=False):
+    """The run's user XML: the p+p vacuum template with Q0 and vir_factor (iMATTER and
+    Matter read them).  hydro: the O+O ISR template's blocks (3dMCGlauber with p+p and
+    nucleon_configuration_from_file 0, MUSIC's grid, pre-equilibrium, MUSIC) with the p+p
+    template's <Hard>, <Eloss> (Matter in vacuum, no LBT) and <JetHadronization>: the same
+    hard sector, plus a medium from the strings 3dMCGlauber leaves."""
     tree = ET.parse(C.TEMPLATE_XML)
-    m = tree.getroot().find("Eloss/Matter")
+    root = tree.getroot()
+    if hydro:
+        oo = ET.parse(C.OO_TEMPLATE_XML).getroot()
+        mcg = oo.find("IS/MCGlauber")
+        mcg.find("projectile").text = "p"
+        mcg.find("target").text = "p"
+        mcg.find("nucleon_configuration_from_file").text = "0"
+        for tag in ("Hard", "Eloss", "JetHadronization"):
+            old = oo.find(tag)
+            idx = list(oo).index(old)
+            oo.remove(old)
+            oo.insert(idx, root.find(tag))
+        root = oo
+        tree = ET.ElementTree(root)
+    m = root.find("Eloss/Matter")
     m.find("Q0").text = f" {params['Q0']:.6g} "
     m.find("vir_factor").text = f" {params['Cv']:.6g} "
     path = DESIGN / "xml" / f"{name}.xml"
@@ -75,6 +94,9 @@ def main(argv=None):
                    help="with --add: extra Pythia lines of the hard process, after the fixed "
                         "ones and alpha_s, e.g. 'MultipartonInteractions:pTmin = 4.0' or "
                         "'PartonLevel:MPI = off' (repeatable)")
+    p.add_argument("--hydro", action="store_true",
+                   help="with --add: p+p with a medium (the O+O 3dMCGlauber/MUSIC blocks with "
+                        "p+p; jets in vacuum; bulk hadrons in the job)")
     a = p.parse_args(argv)
     names = list(C.PARAMETERS)
     if a.add:
@@ -86,12 +108,12 @@ def main(argv=None):
         if not params["Q0"] / np.sqrt(params["Cv"]) <= windows[0][0] + 1e-9:
             sys.exit(f"make_design.py: Q0/sqrt(Cv) = {params['Q0'] / np.sqrt(params['Cv']):.2f} "
                      f"GeV is above the lowest window ({windows[0][0]} GeV)")
-        write_xml(name, params)
+        write_xml(name, params, hydro=a.hydro)
         old = design["extra"].get(name, {})
         base = old.get("seed_base", 900000 + 1000 * len(design["extra"]))
         design["extra"][name] = {"params": params, "jobs": a.jobs or C.VALIDATION_JOBS,
                                  "windows": [list(w) for w in windows], "seed_base": base,
-                                 "pythia_lines": list(a.pythia_lines)}
+                                 "pythia_lines": list(a.pythia_lines), "hydro": a.hydro}
         save(design)
         print(f"added {name}: {params}, {design['extra'][name]['jobs']} jobs")
         return 0

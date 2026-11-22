@@ -77,11 +77,24 @@ python make_design.py --add valley_lo 0.1493 0.16 1.51 --jobs 10
 python make_design.py --add valley_hi 0.1559 0.50 1.49 --jobs 10
 RUNS="best ref best_mpi4 best_nompi valley_lo valley_hi"
 python run_runs.py $RUNS -j 20 && python observables.py $RUNS
+# Pythia's full soft MPI in the X-SCAPE chain (vacuum; ~15x the CPU per event: 20 x 10k events, ~30 min)
+python make_design.py --add best_mpidef 0.1530 0.319 1.52 --jobs 20 --pythia-line "MultipartonInteractions:pTmin = 0.2"
+python run_runs.py best_mpidef --events 10000 -j 20 && python observables.py best_mpidef
 # other p+p models for orientation: JETSCAPE PP19, Pythia 8 default (Monash), Detroit (STAR)
 python refs/run_refs.py -j 20                # 3 x 20 jobs x 30k events, ~10 min
 python observables.py pp19 pythia8_default pythia8_detroit
 python ue_check.py trunc --check-truncation
-python ue_check.py $RUNS pp19 pythia8_default pythia8_detroit -j 16   # results/ue_check.json
+python refs/run_refs.py pythia8_nocr --jobs 10 -j 10      # diagnostic: Pythia default without colour reconnection
+python ue_check.py $RUNS best_mpidef pp19 pythia8_default pythia8_detroit pythia8_nocr -j 16   # results/ue_check.json
+# where in eta the particles are made: full-eta samples at pTHat 9-11 and 23-30 GeV (3000 events each;
+# all models, the four MPI settings, Pythia with the tune's coupling, CR on/off; ~10 min, full MPI the longest)
+python dndeta.py run -j 20 && python dndeta.py analyse                       # results/dndeta.json
+P=$HOME/prod/OO-RHIC_pp_hard/diag/eta/9-11
+python diag_strings.py $P/best_nompi $P/best $P/best_mpi4 $P/best_mpidef   # results/diag_strings.json
+python conditional.py --fix Q0=2.0          # posterior at Q0 = 2 (Matter + LBT in O+O), emulator only
+# R3 + R4: p+p reference from the O+O tune XML and the O+O vacuum closure (CPU, ~40 min on 20 cores, 3 GB)
+python closure_oo.py run -j 20 && python closure_oo.py analyse -j 10
+jupyter nbconvert --to notebook --execute closure_oo.ipynb --output results/closure_oo_executed.ipynb
 jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 ```
 
@@ -98,8 +111,12 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 | `observables.py` | model observables in the data binning, per pT̂ window (π⁰, η/π⁰, STAR jets with off-axis-cone UE subtraction) |
 | `truncation_check.py` | what the 5 GeV lowest window misses |
 | `ue_check.py` | STAR's transverse charged density vs leading jet (R = 0.6) from the runs' hadrons |
+| `diag_strings.py` | the colour-string topology iColored hands to Pythia (stored input) against standalone Pythia's parton level, CR on/off, tune vs default coupling; writes `results/diag_strings.json` for the notebook |
+| `closure_oo.py`, `closure_oo.ipynb` | R3 + R4 of the plan forward: the p+p reference from the O+O tune XML (`config/OO_MCGlauber_MUSIC_isr_rhictune.xml`, projectile/target p) and the O+O vacuum closure in impact-parameter classes; the notebook explains the test and shows the figures (`PROD/closure/`, `results/closure_oo*.{json,npz}`) |
+| `conditional.py` | the posterior with a parameter held fixed (emulator only), e.g. Q0 = 2 GeV for Matter + LBT → `results/conditional_Q0_2.json` |
+| `dndeta.py` | charged $dN/d\eta$ over the full η range at fixed pT̂ for all models and MPI settings (own small samples under `PROD/diag/eta/`) |
 | `refs/run_refs.py` | the reference models' events (PP19 via `prod_AuAu_0_10_jet/run_prod_vacuum.py`, Pythia standalone) |
-| `refs/pythia_ref.py` | standalone Pythia 8 (default or Detroit) in the tune's hadron-file layout |
+| `refs/pythia_ref.py` | standalone Pythia 8 (default, Detroit, no CR; `--windows`, `--eta-max 0`, `--line` for diagnostics) in the tune's hadron-file layout |
 | `refs/pp19_200.xml`, `refs/hadronize_pp19.xml` | PP19 at 200 GeV: PythiaGun + vacuum Matter (Q0 1, C_v 0.25) + Colorless, π⁰ and η undecayed |
 | `tune.py` | emulator, posterior (emcee), design-point χ² |
 | `tune_comparison.ipynb` | posterior, χ² cross-check, data vs model, validation |
