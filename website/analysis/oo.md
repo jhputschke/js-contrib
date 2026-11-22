@@ -64,11 +64,16 @@ The usual production setting is **hadron files only** (`--bulk-hadrons 10 --no-p
 --no-hydro-file`), 0.13 MB per event; the bulk can then not be resampled later. Download a
 campaign with `js_osdf.py download <campaign> --what h5` ([Data on the OSDF](../run/osdf.md)).
 
-!!! warning "Unit i is event i, and [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader] does not apply"
-    Unit i of the jet file and unit i of the bulk file are the same event. Hadron files made in
-    the job have no `source_uuid`, so `HadronFileReader` and `run_h5toROOT.py`, made for the
-    Au+Au pairs, refuse them. Read them as in §5 (or with [`Hadrons`][jetscape.hadrons_h5.Hadrons] / [`HadronFile`][jetscape.hadrons_h5.HadronFile] /
-    [`HadronArray`][jetscape.hadron_array.HadronArray]), and convert them to ROOT as in §13.
+!!! warning "Unit i is event i; [`HadronFileReader`][jetscape.hadrons_h5.HadronFileReader] for hadron-file jobs"
+    Unit i of the jet file and unit i of the bulk file are the same event. A job without a
+    particlize file (`--no-particlize`, `--vacuum`) marks its jet file as a `--hadrons-only`
+    job's (attribute `hadrons_only`, `units/bg_unit` = the event's own unit, as
+    `pythonic/oo_workflow.py` does), so `HadronFileReader(OUTDIR)` reads the campaign, with the
+    pT̂ windows and `pthat_bin_sigma(k)`. Jobs written before 2026-11-22 lack the marker; add it
+    once (the folder's `docs/README_OO.md`, §2), or read them as in §5 (or with
+    [`Hadrons`][jetscape.hadrons_h5.Hadrons] / [`HadronFile`][jetscape.hadrons_h5.HadronFile] /
+    [`HadronArray`][jetscape.hadron_array.HadronArray]). `run_h5toROOT.py`, made for the Au+Au
+    pairs, still refuses them: convert them to ROOT as in §13.
 
 ## 3. The per-event record
 

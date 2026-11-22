@@ -98,9 +98,26 @@ oversamples or other iSS settings may be needed.
 (public, no login; [`README_analysis.md`](README_analysis.md#getting-the-files-the-osdf-and-gcs)).
 `--what h5` brings the hadron files, and the particlize files where there are any.
 
-**Unit i of the jet file and unit i of the bulk file are the same event.** The hadron files
-made in the job have no `source_uuid`, so `HadronFileReader` and `run_h5toROOT.py` (made for
-the Au+Au pairs) do not read them; §5 and §10 have the O+O readers.
+**Unit i of the jet file and unit i of the bulk file are the same event.** A job without a
+particlize file (`--no-particlize`, `--vacuum`) marks its jet file as a `--hadrons-only` job's
+(attribute `hadrons_only`, `units/bg_unit` = the event's own unit; as `pythonic/oo_workflow.py`
+does), so `HadronFileReader(OUTDIR)` reads the campaign: tags `jet_frag` and, with
+`--bulk-hadrons`, `bulk_bg`, the pT̂ windows and `pthat_bin_sigma(k)`. Jobs written before
+2026-11-22 lack the marker; add it once:
+
+```python
+import glob
+import hdf5plugin, h5py, numpy as np
+for p in glob.glob("OUTDIR/*_hadrons_jet_frag.h5"):     # jobs without a particlize file
+    with h5py.File(p, "a") as f:
+        n = int(f.attrs["nunits_written"])
+        f.attrs["hadrons_only"] = True
+        if "bg_unit" not in f["units"]:
+            f["units"].create_dataset("bg_unit", data=np.arange(n, dtype=np.int64))
+```
+
+`run_h5toROOT.py` (made for the Au+Au pairs) still does not read them; §5 and §10 have the
+O+O readers, which work on every O+O file.
 
 ## 3. The per-event record
 
@@ -499,7 +516,7 @@ events. FastJet in C++ takes the hadrons of an entry as in [`README_analysis.md`
 
 | symptom | cause and fix |
 |---|---|
-| `HadronFileReader`: `… was made from particlize file uuid '' …` | hadrons made in the job have no `source_uuid`: read them as in §5 |
+| `HadronFileReader`: `… was made from particlize file uuid '' …` or `no *_particlize.h5 …` | in-job hadron files of a job before 2026-11-22: add the `hadrons_only` marker (§2), or read them as in §5 |
 | `run_h5toROOT.py`: `KeyError: 'seed'` | it is for the Au+Au pairs: §10 |
 | `hadronize.py` refuses `jet_frag` | the O+O jet hadrons are made in the job: `--tags bulk_bg` |
 | NaN in `strings_E_total` | an event without a medium (`has_medium` 0) |

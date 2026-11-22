@@ -390,6 +390,10 @@ python run_prod_oo_isr.py --vacuum --events 20 --seed 1 --pthat-bins 10-20,20-40
   in the files (`prod_pythia_lines`, `prod_hadronization_lines`, and in the stored
   `jet_hadronization_xml`). Hadronization settings can also be changed afterwards with
   `rehadronize_jets.py --line`.
+- **Reading:** `HadronFileReader(OUTDIR)` reads vacuum campaigns, and every job without a
+  particlize file: the jet file carries the event record as a `--hadrons-only` job's
+  (attribute `hadrons_only`, `units/bg_unit` = the event's own unit), as
+  `pythonic/oo_workflow.py`'s does. Older jobs: `docs/README_OO.md` §2 adds the marker.
 - `--flush-every N` (default 100 with `--vacuum`, else 1): the jet file is committed (unit
   offsets, per-event record, flush) every N events. A p+p event takes a few ms, and writing
   every event cost ~20 ms of HDF5 overhead per event; batched, the file is the same (checked

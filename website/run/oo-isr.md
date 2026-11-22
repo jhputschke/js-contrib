@@ -153,7 +153,9 @@ python run_prod_oo_isr.py --vacuum --events 20 --seed 1 --pthat-bins 10-20,20-40
   showers with that setting; with the stored seeds the result is exactly that of a job run with
   it. A fragmentation parameter can be scanned without rerunning the events.
 - **Output**: only `<proj><targ>_isr_vacuum_seedNNNN_hadrons_jet_frag.h5` and the `.json`.
-  Weight with the per-window cross sections as for O+O
+  `HadronFileReader(OUTDIR)` reads the campaign (the jet file is marked as a hadrons-only
+  job's, like every job without a particlize file), with the windows and
+  `pthat_bin_sigma(k)`. Weight with the per-window cross sections as for O+O
   ([O+O analysis](../analysis/oo.md)); every event is one hard scattering, no `glauber_ncoll`
   weight in p+p.
 - **Speed**: about 11 ms per event on one core (GB10, seven windows 5–60 GeV, about 4.6 ms at

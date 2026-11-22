@@ -892,6 +892,11 @@ def main() -> int:
                        "decayed": False, "primaries_of": "bulk_bg",
                        "keep_primaries": int(a.keep_primaries)})
     hwriter = None
+    # Without a particlize file (--vacuum, --no-particlize) the jet file carries the event
+    # record as a run_prod_jet.py --hadrons-only job's does, as pythonic/oo_workflow.py's:
+    # attribute hadrons_only and units/bg_unit (every event its own background), so
+    # HadronFileReader reads the job without a particlize file.
+    hadrons_only = out_particlize is None
     if out_frag:
         hwriter = HadronH5Writer(out_frag, tag="jet_frag", n_samples=1, initiators=True,
                                  hadronization_input=a.store_hadronization_input,
@@ -904,6 +909,7 @@ def main() -> int:
                                             core, "ICOLORED_HAS_INPUT_RECORD", False)),
                                         "hadronization_input_stored":
                                             bool(a.store_hadronization_input),
+                                        **({"hadrons_only": True} if hadrons_only else {}),
                                         "jet_hadronization_xml":
                                             jet_hadronization_settings(root, a.main_xml),
                                         "prod_user_xml": provenance["prod_user_xml"],
@@ -992,7 +998,8 @@ def main() -> int:
                          if getattr(core, "ICOLORED_HAS_COLOUR_AUDIT", False) else {})
                 hwriter.append_unit([frag], initiators=initiators_from_manager(mgr),
                                     hadronization_input=hin, unit=k, event=i, hydro_row=row,
-                                    seed=ev.get("jet_pythia_seed", 0), **ev, **audit)
+                                    seed=ev.get("jet_pythia_seed", 0), **ev, **audit,
+                                    **({"bg_unit": k} if hadrons_only else {}))
             jetscape.ClearPerEvent()
             wall = time.time() - t0
             if pwriter is not None:
