@@ -28,6 +28,7 @@ yield unchanged per hard scattering (R4: within ~2 %).
 
     python centrality_proxy.py run -j 20      # PROD_DIR/centrality_proxy/<sample>
     python centrality_proxy.py analyse        # -> results/centrality_proxy.json
+    python centrality_proxy.py smear          # NBD fluctuations -> results/centrality_proxy_smear.json
 """
 
 from __future__ import annotations
@@ -180,7 +181,7 @@ def load_jet(name):
     keys = ("glauber_b", "glauber_ncoll", "glauber_npart", "glauber_nstrings", "pthat_bin",
             "strings_E_total", "isr_sub_E_total",
             *[f"strings_eloc_{e}" for e in ESTIMATORS + ARMS])
-    out = {k: [] for k in keys + ("nch_mbd_neg", "nch_mbd_pos")}
+    out = {k: [] for k in keys + ("nch_mbd_neg", "nch_mbd_pos", "nch_epd")}
     import observables as O
     for f in sorted(glob.glob(str(OUT / name / "*_hadrons_jet_frag.h5"))):
         with h5py.File(f) as h:
@@ -193,6 +194,8 @@ def load_jet(name):
         for arm, sgn in (("nch_mbd_neg", -1), ("nch_mbd_pos", 1)):
             m = (sgn * eta > MBD_ETA[0]) & (sgn * eta < MBD_ETA[1])
             out[arm].append(np.bincount(ev[m], minlength=len(fd["counts"])))
+        m = (np.abs(eta) > 2.1) & (np.abs(eta) < 5.0)   # EPD (stored hadrons end at |eta| 5)
+        out["nch_epd"].append(np.bincount(ev[m], minlength=len(fd["counts"])))
     return {k: np.concatenate(v) for k, v in out.items()}
 
 
@@ -292,6 +295,95 @@ def analyse():
     return 0
 
 
+# ── step 1 of the plan forward: fluctuations (negative-binomial smearing of the proxy) ─────────
+SMEAR_MU = (0.3, 0.6, 1.0, 2.0)            # charged particles per GeV of string local energy
+SMEAR_KAPPA = (0.1, 0.3, 1.0, 3.0, 1e6)    # NBD shape per GeV (1e6: Poisson)
+SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
+
+
+def nbd(rng, energy, mu, kappa):
+    """Counts per event and arm: NBD with mean mu * E and shape kappa * E (a sum of independent
+    NBDs per GeV, as Glauber + NBD per ancestor); E = 0 gives 0."""
+    e = np.asarray(energy, dtype=float)
+    out = np.zeros(len(e), dtype=np.int64)
+    m = e > 0
+    r = kappa * e[m]
+    out[m] = rng.negative_binomial(r, r / (r + mu * e[m]))
+    return out
+
+
+def smear():
+    """Classes from smeared counts in the MBD (each arm smeared, the sum classifies; >= 1 count
+    in each arm is the minimum-bias coincidence) and in the EPD.  Jet events add their own
+    charged hadrons in the MBD arms and the EPD (no smearing, they are particles).  Without the
+    subtraction the hard pair's remnant is counted twice (in the strings and as iColored's
+    remnant hadrons, as --no-subtraction does on purpose), so that reference is not meaningful
+    here; the subtraction case is consistent.  Per (mu, kappa): the
+    minimum-bias coincidence efficiency (sPHENIX: 0.914), the experiment-style R_AA^vac in
+    sPHENIX's classes for the jet events (subtraction on and off, N_coll-weighted) and R_CP;
+    the minimum-bias classes are built from minimum-bias events passing the coincidence and
+    anchored to all events, as with a trigger efficiency."""
+    rng = np.random.default_rng(7)
+    mb = {}
+    for f in sorted((OUT / "mb").glob("mb_seed*.npz")):
+        d = np.load(f)
+        for k in d.files:
+            mb.setdefault(k, []).append(d[k])
+    mb = {k: np.concatenate(v) for k, v in mb.items()}
+    mb = {k: v[mb["ncoll"] > 0] for k, v in mb.items()}
+    jets = {n: load_jet(n) for n in ("jet_sub", "jet_nosub")}
+    res = {"mu": SMEAR_MU, "kappa": SMEAR_KAPPA, "classes": SPH_CLASSES, "grid": []}
+    nc = len(SPH_CLASSES)
+
+    def classes_from(counts_mb, counts):
+        # percentiles of all minimum-bias events (the Glauber + NBD anchoring), random tie-break
+        xm = counts_mb + rng.random(len(counts_mb))
+        cuts = np.percentile(xm, [100 - hi for _, hi in SPH_CLASSES])
+        def cls(v):
+            c = np.full(len(v), nc - 1)
+            for k in range(nc - 1, -1, -1):
+                c[v >= cuts[k]] = k
+            return c
+        return cls(xm), cls(counts + rng.random(len(counts)))
+
+    for mu in SMEAR_MU:
+        for kappa in SMEAR_KAPPA:
+            row = {"mu": mu, "kappa": kappa}
+            n_neg = nbd(rng, mb["eloc_mbd_neg"], mu, kappa)
+            n_pos = nbd(rng, mb["eloc_mbd_pos"], mu, kappa)
+            row["eps_trig_mb"] = float(np.mean((n_neg > 0) & (n_pos > 0)))
+            n_epd_mb = nbd(rng, mb["eloc_epd"], mu, kappa)
+            for est in ("mbd", "epd"):
+                cnt_mb = n_neg + n_pos if est == "mbd" else n_epd_mb
+                r_est = {}
+                for name, d in jets.items():
+                    w = d["glauber_ncoll"].astype(float)
+                    jn = nbd(rng, d["strings_eloc_mbd_neg"], mu, kappa) + d["nch_mbd_neg"]
+                    jp = nbd(rng, d["strings_eloc_mbd_pos"], mu, kappa) + d["nch_mbd_pos"]
+                    cnt_j = jn + jp if est == "mbd" else nbd(rng, d["strings_eloc_epd"], mu, kappa) + d["nch_epd"]
+                    cm, cj = classes_from(cnt_mb, cnt_j)
+                    fmb = np.array([np.mean(cm == k) for k in range(nc)])
+                    nmb = np.array([mb["ncoll"][cm == k].mean() for k in range(nc)])
+                    fj = np.array([w[cj == k].sum() for k in range(nc)]) / w.sum()
+                    raa = fj / fmb * mb["ncoll"].mean() / nmb
+                    r_est[name] = {"raa_vac": raa.tolist(), "ncoll_mb": nmb.tolist(),
+                                   "rcp_0_20_60_80": float(raa[0] / raa[3]),
+                                   "rcp_0_20_40_60": float(raa[0] / raa[2]),
+                                   "eps_coinc_jet": float(np.average((jn > 0) & (jp > 0), weights=w))}
+                row[est] = r_est
+            res["grid"].append(row)
+            m = row["mbd"]["jet_sub"]
+            print(f"mu {mu:3.1f}/GeV kappa {kappa:7.1f}/GeV: eps_trig(MB) {row['eps_trig_mb']:.3f} | MBD classes, "
+                  f"subtraction: R_AA^vac " + " ".join(f"{v:.2f}" for v in m["raa_vac"][:4])
+                  + f"  R_CP 0-20/60-80 {m['rcp_0_20_60_80']:.2f}, 0-20/40-60 {m['rcp_0_20_40_60']:.2f}"
+                  + f" | no sub {row['mbd']['jet_nosub']['rcp_0_20_60_80']:.2f}"
+                  + f" | EPD sub {row['epd']['jet_sub']['rcp_0_20_60_80']:.2f}", flush=True)
+    path = HERE / "results" / "centrality_proxy_smear.json"
+    path.write_text(json.dumps(res, indent=1))
+    print("wrote", path)
+    return 0
+
+
 def classify(x, cuts):
     """cuts: ascending proxy values at 100-hi percentiles (most active class first)."""
     # class 0 = highest proxy: x >= cuts[0]; class k: cuts[k] <= x < cuts[k-1]
@@ -307,10 +399,12 @@ def main(argv=None):
         return mb_job(int(argv[1]), int(argv[2]), argv[3])
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("step", choices=("run", "analyse"))
+    p.add_argument("step", choices=("run", "analyse", "smear"))
     p.add_argument("names", nargs="*", default=["mb", "jet_sub", "jet_nosub"])
     p.add_argument("-j", type=int, default=os.cpu_count())
     a = p.parse_args(argv)
+    if a.step == "smear":
+        return smear()
     return run(a.j, a.names) if a.step == "run" else analyse()
 
 
