@@ -1,0 +1,6 @@
+# generated: HEPData tables (fetch_data.py), the design and its XMLs (make_design.py),
+# fit and check results (tune.py, truncation_check.py, ue_check.py); results not public yet
+data/
+design/
+results/
+__pycache__/
