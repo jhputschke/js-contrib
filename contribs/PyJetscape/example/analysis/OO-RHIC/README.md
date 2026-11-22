@@ -95,6 +95,8 @@ python conditional.py --fix Q0=2.0          # posterior at Q0 = 2 (Matter + LBT 
 # R3 + R4: p+p reference from the O+O tune XML and the O+O vacuum closure (CPU, ~40 min on 20 cores, 3 GB)
 python closure_oo.py run -j 20 && python closure_oo.py analyse -j 10
 python centrality_proxy.py run -j 20 && python centrality_proxy.py analyse     # R4b part 1 (CPU, ~8 min)
+# with the string switch (X-SCAPE oo_rhic_run): jet samples with --hard-pair-string-veto 0 (closure + subtraction alone)
+python centrality_proxy.py run jet_sub_noveto jet_nosub_noveto -j 20 && python centrality_proxy.py analyse && python centrality_proxy.py smear
 jupyter nbconvert --to notebook --execute closure_oo.ipynb --output results/closure_oo_executed.ipynb
 jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 ```

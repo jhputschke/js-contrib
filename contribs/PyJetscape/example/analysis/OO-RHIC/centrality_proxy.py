@@ -62,6 +62,10 @@ MB_JOBS, MB_EVENTS = 10, 20000            # 200k minimum-bias events
 CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 COIN_THR = (0.0, 0.5, 1.0)                 # GeV of string local energy for an MBD arm to fire
 ESTIMATORS = ("epd", "mid05", "mid10", "mbd")
+#: jet samples; *_noveto with 3dMCGlauber's hard-pair string veto off (--hard-pair-string-veto 0,
+#: needs X-SCAPE oo_rhic_run): the closure of the method (jet_nosub_noveto: strings as minimum
+#: bias at fixed N_coll -> R_AA^vac = 1) and the subtraction alone (jet_sub_noveto)
+JET_SAMPLES = ("jet_sub", "jet_nosub", "jet_sub_noveto", "jet_nosub_noveto")
 ARMS = ("mbd_neg", "mbd_pos")
 MBD_ETA = (3.51, 4.61)
 
@@ -130,8 +134,10 @@ def jet_cmd(name, seed, xml):
            "--eloss-threads", "0", "--eta-max", "5.0", "--charged",
            "--b-min", "0", "--b-max", f"{B_MAX}", "--outdir", str(OUT / name),
            "--max-skipped", "30"]
-    if name == "jet_nosub":
+    if name.startswith("jet_nosub"):
         cmd.append("--no-subtraction")
+    if name.endswith("_noveto"):              # 3dMCGlauber's hard-pair string veto off
+        cmd += ["--hard-pair-string-veto", "0"]
     return cmd
 
 
@@ -142,7 +148,7 @@ def run(nproc, names):
         xml.parent.mkdir(parents=True, exist_ok=True)
         xml.write_text(OO_XML.read_text())
     todo = []
-    for k, name in enumerate(("jet_sub", "jet_nosub")):
+    for k, name in enumerate(JET_SAMPLES):
         if name not in names:
             continue
         for j in range(JET_JOBS):
@@ -221,7 +227,7 @@ def analyse():
                         "ncoll": [float(mb["ncoll"][cls == c].mean()) for c in range(len(CLASSES))],
                         "frac": [float(np.mean(cls == c)) for c in range(len(CLASSES))]}
     res["mb_mean"] = {k: float(np.mean(mb[k])) for k in ("b", "npart", "ncoll", "nstrings")}
-    for name in ("jet_sub", "jet_nosub"):
+    for name in JET_SAMPLES:
         d = load_jet(name)
         if not len(d["glauber_ncoll"]):
             continue
@@ -257,7 +263,7 @@ def analyse():
         coin["mb"][str(thr)] = {"all": float(fire.mean()),
                                 "by_ncoll": [float(fire[(mb["ncoll"] >= lo) & (mb["ncoll"] <= hi)].mean())
                                              for lo, hi in nbins]}
-    for name in ("jet_sub", "jet_nosub"):
+    for name in JET_SAMPLES:
         d = load_jet(name)
         if not len(d["glauber_ncoll"]):
             continue
@@ -331,7 +337,7 @@ def smear():
             mb.setdefault(k, []).append(d[k])
     mb = {k: np.concatenate(v) for k, v in mb.items()}
     mb = {k: v[mb["ncoll"] > 0] for k, v in mb.items()}
-    jets = {n: load_jet(n) for n in ("jet_sub", "jet_nosub")}
+    jets = {n: load_jet(n) for n in JET_SAMPLES if list((OUT / n).glob("*_hadrons_jet_frag.h5"))}
     res = {"mu": SMEAR_MU, "kappa": SMEAR_KAPPA, "classes": SPH_CLASSES, "grid": []}
     nc = len(SPH_CLASSES)
 
@@ -400,7 +406,7 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("step", choices=("run", "analyse", "smear"))
-    p.add_argument("names", nargs="*", default=["mb", "jet_sub", "jet_nosub"])
+    p.add_argument("names", nargs="*", default=["mb", *JET_SAMPLES])
     p.add_argument("-j", type=int, default=os.cpu_count())
     a = p.parse_args(argv)
     if a.step == "smear":

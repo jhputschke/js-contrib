@@ -531,6 +531,13 @@ events, CUDA MPS, `OMP_NUM_THREADS` = 20 cores / j (2026-10-10, GB10: 20 cores, 
   Per event, exactly: `strings_E_total + isr_sub_E_total + remnant_E_proj +
   remnant_E_targ = Npart √s/2` (5-event test: 1855.7 + 89.7 + 54.6 = 2000.0 GeV for
   Npart 20; the subtracted energy was 66-136 GeV, the remnants 24-55 GeV).
+- **The hard pair's string: `--hard-pair-string-veto {0,1}`** (needs X-SCAPE and its 3dMCGlauber
+  fork at `oo_rhic_run`). 3dMCGlauber's `<hard_pair_string_veto>`: 1 (its default, commit
+  `09e0a7e`) counts the hard scattering as one of a hard-collided nucleon's connections and lets
+  the two nucleons of the hard scattering make no string with each other, so a jet-triggered
+  p+p event can come without a string; 0 restores the behaviour before it (JETSCAPE's
+  small-systems paper). The default reproduces earlier builds bit for bit. Recorded as
+  `hard_pair_string_veto` in every file and the `.json`.
 - **Reference without the subtraction: `--no-subtraction`.** Runs the same chain with
   `Subtract_hard_momentum` 0 and still hadronizes the jets (iColored): the strings keep the
   full Npart √s/2 while the jet hadrons also carry the hard partons and the hard pair's

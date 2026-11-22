@@ -257,6 +257,14 @@ def parse_args() -> argparse.Namespace:
                         "compare ensembles, not events.  Recorded as "
                         "subtract_hard_momentum = 0 in every file and the .json; keep these "
                         "jobs in their own OUTDIR (or --campaign nosub)")
+    p.add_argument("--hard-pair-string-veto", type=int, choices=(0, 1), default=None,
+                   dest="hard_pair_string_veto",
+                   help="3dMCGlauber's <hard_pair_string_veto>: 1 (its default) a hard-collided "
+                        "nucleon counts the hard scattering as a connection and the hard pair "
+                        "makes no string with each other (3dMCGlauber 09e0a7e: a jet-triggered "
+                        "p+p event can come without a string); 0 the behaviour before it (the "
+                        "small-systems paper). Default: the XML's (needs a 3dMCGlauber with the "
+                        "switch, X-SCAPE oo_rhic_run)")
     p.add_argument("--max-skipped", type=int, default=3, dest="max_skipped", metavar="N",
                    help="an event whose simulation throws (e.g. Matter's 'minus log of "
                         "sudakov negative', ~1 in 400 events) is skipped and recorded; more "
@@ -362,6 +370,9 @@ def job_xml(a, out_h5: str):
         # 0 only as the --no-subtraction reference (energy counted twice, on purpose)
         _set(mcg, "Subtract_hard_momentum", 0 if a.no_subtraction else 1).text = \
             "0" if a.no_subtraction else "1"
+        if a.hard_pair_string_veto is not None:
+            _set(mcg, "hard_pair_string_veto", a.hard_pair_string_veto).text = \
+                str(a.hard_pair_string_veto)
         for tag, v in (("sqrts", a.sqrts), ("b_min", a.b_min), ("b_max", a.b_max)):
             if v is not None:
                 _set(mcg, tag, f"{v:g}")
@@ -809,6 +820,9 @@ def main() -> int:
         "T_fo": float(_text(root, "Hydro/MUSIC/freezeout_temperature") or 0.15),
         "eos": eos,
         "subtract_hard_momentum": 0 if a.no_subtraction else 1,
+        # 3dMCGlauber's hard-pair string veto as the job ran it (the XML's, else its default 1)
+        "hard_pair_string_veto": int(float(_text(root, "IS/MCGlauber/hard_pair_string_veto")
+                                           or 1)),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
            if a.parton_ymax is not None else {}),
     }
@@ -920,7 +934,8 @@ def main() -> int:
                    "decayed": iss_decays != "none",
                    **{k: v for k, v in provenance.items()
                       if k in ("prod", "prod_seed", "system", "prod_hard",
-                                 "subtract_hard_momentum", "eos", "eloss")}})
+                                 "subtract_hard_momentum", "hard_pair_string_veto",
+                                 "eos", "eloss")}})
         if out_bulk_primary:
             # full precision, positions, no selection: what SMASH needs
             pbwriter = HadronH5Writer(
@@ -958,6 +973,7 @@ def main() -> int:
                                         **{k: v for k, v in provenance.items()
                                            if k in ("prod", "prod_seed", "system",
                                                     "prod_hard", "subtract_hard_momentum",
+                                                    "hard_pair_string_veto",
                                                     "eos", "eloss", "prod_eloss_threads")}})
 
     n = n_hydro = no_medium = 0
@@ -1110,6 +1126,7 @@ def main() -> int:
                "bulk_info": a.bulk_info, "vacuum": int(a.vacuum),
                "hydro": getattr(a, "hydro", None),
                "subtract_hard_momentum": 0 if a.no_subtraction else 1,
+               "hard_pair_string_veto": provenance["hard_pair_string_veto"],
                "events_requested": a.events, "events_written": n,
                # run_jobs.sh counts a job complete when written + skipped == requested
                "events_skipped": len(skipped),
