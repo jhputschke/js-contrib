@@ -1,0 +1,58 @@
+<?xml version="1.0"?>
+<!--
+  analysis/OO-RHIC/refs/pp19_200.xml: JETSCAPE's PP19 p+p tune (arXiv:1910.05481, Table I and
+  section II.E) at sqrt(s) = 200 GeV for prod_AuAu_0_10_jet/run_prod_vacuum.py (which takes
+  from a user XML the general settings, <Hard><PythiaGun> and <Eloss> with Matter; in_vac 1
+  and recoil_on 0 forced; Colorless from the hadronize XML).
+
+    Pythia (8.312 defaults: PDF pSet 13, alpha_s 0.130, Monash MPI): ISR on, MPI on, FSR off
+    hard QCD; partons pT > 2 GeV (status 62) to Matter (softMomentumCutoff 2.0)
+    Matter in vacuum: Q_ini = 0.5 pT (vir_factor 0.25), Q0 = 1 GeV, Lambda_QCD 0.2
+    Colorless hadronization (refs/hadronize_pp19.xml: eCMforHadronization 200, pi0 and eta
+    undecayed as in the tune's runs)
+  The pTHat windows come from the command line (config.PTHAT_WINDOWS).
+-->
+<jetscape>
+  <debug> off </debug>
+  <remark> off </remark>
+  <vlevel> 0 </vlevel>
+  <nEvents_printout> 1000 </nEvents_printout>
+  <enableAutomaticTaskListDetermination> true </enableAutomaticTaskListDetermination>
+
+  <Hard>
+    <PythiaGun>
+      <name>PythiaGun</name>
+      <FSR_on>0</FSR_on>
+      <pTHatMin>5</pTHatMin>
+      <pTHatMax>80</pTHatMax>
+      <eCM>200</eCM>
+      <softMomentumCutoff>2.0</softMomentumCutoff>
+      <LinesToRead>
+        HardQCD:all = on
+        PartonLevel:ISR = on
+        PartonLevel:MPI = on
+      </LinesToRead>
+    </PythiaGun>
+  </Hard>
+
+  <Eloss>
+    <deltaT> 0.1 </deltaT>
+    <maxT> 20 </maxT>
+    <tStart> 0.5 </tStart>
+    <mutex> ON </mutex>
+    <Matter>
+      <name> Matter </name>
+      <matter_on> 1 </matter_on>
+      <Q0> 1.0 </Q0>
+      <vir_factor> 0.25 </vir_factor>
+      <in_vac> 1 </in_vac>
+      <recoil_on> 0 </recoil_on>
+      <broadening_on> 0 </broadening_on>
+      <brick_med> 0 </brick_med>
+      <hydro_Tc> 0.16 </hydro_Tc>
+      <qhat0> -2.0 </qhat0>
+      <alphas> 0.25 </alphas>
+      <QhatParametrizationType> 1 </QhatParametrizationType>
+    </Matter>
+  </Eloss>
+</jetscape>

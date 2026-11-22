@@ -16,6 +16,7 @@ with any number taken from here.
 | fixed | `PDF:pSet = 20` (NNPDF3.1 NNLO, the set iMATTER has hard-coded), Λ_QCD = 0.2 GeV, `probStoUD` 0.217 (Pythia's default), `MultipartonInteractions:pTmin = 5`, which Pythia lowers to 1.7 GeV at 200 GeV (its MPI needs σ_int > 1.1 σ_ND; `best_mpi4` = `best`) |
 | cut scheme | pT̂ windows 5–7, 7–9, 9–11, 11–14, 14–18, 18–23, 23–30, 30–40, 40–55, 55–80 GeV, weighted by Pythia's cross section per window; 5 GeV is above iMATTER's floor Q0/√C_v for every design point |
 | fit data | PHENIX π⁰ E d³σ/dp³, \|η\| < 0.35, 6–20 GeV (PRD 76, 051106; HEPData ins749394); STAR inclusive jets R = 0.5, d²σ/dp_T dη, \|η\| < 0.5 and 0.5 < \|η\| < 0.9, 8.2–52 GeV (arXiv:2603.28695; ins3137518) |
+| references | JETSCAPE PP19 (arXiv:1910.05481) at 200 GeV, Pythia 8.312 default (Monash) and STAR's Detroit tune, same windows and observables (not tuned) |
 | validation | STAR π⁰ and η/π⁰, 0 < η < 1 (PRC 81, 064904; ins840766); STAR underlying event vs leading jet (PRD 101, 052004; ins1771348), `ue_check.py` |
 | method | maximin Latin hypercube of 32 points × 300k events (+180k in the windows 5–23 GeV, for the π⁰ statistics in PHENIX's 0.5 GeV bins); Gaussian-process emulator per bin (ln σ); emulator σ scaled to leave-one-out pull rms 1; posterior with emcee; χ² of the simulated design points as a cross-check; validation runs at the posterior median (`best`), a reference point (`ref`), the ends of the α_s–C_v valley and with other MPI settings |
 
@@ -76,7 +77,11 @@ python make_design.py --add valley_lo 0.1493 0.16 1.51 --jobs 10
 python make_design.py --add valley_hi 0.1559 0.50 1.49 --jobs 10
 RUNS="best ref best_mpi4 best_nompi valley_lo valley_hi"
 python run_runs.py $RUNS -j 20 && python observables.py $RUNS
-python ue_check.py trunc --check-truncation && python ue_check.py $RUNS -j 16   # results/ue_check.json
+# other p+p models for orientation: JETSCAPE PP19, Pythia 8 default (Monash), Detroit (STAR)
+python refs/run_refs.py -j 20                # 3 x 20 jobs x 30k events, ~10 min
+python observables.py pp19 pythia8_default pythia8_detroit
+python ue_check.py trunc --check-truncation
+python ue_check.py $RUNS pp19 pythia8_default pythia8_detroit -j 16   # results/ue_check.json
 jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 ```
 
@@ -93,6 +98,9 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 | `observables.py` | model observables in the data binning, per pT̂ window (π⁰, η/π⁰, STAR jets with off-axis-cone UE subtraction) |
 | `truncation_check.py` | what the 5 GeV lowest window misses |
 | `ue_check.py` | STAR's transverse charged density vs leading jet (R = 0.6) from the runs' hadrons |
+| `refs/run_refs.py` | the reference models' events (PP19 via `prod_AuAu_0_10_jet/run_prod_vacuum.py`, Pythia standalone) |
+| `refs/pythia_ref.py` | standalone Pythia 8 (default or Detroit) in the tune's hadron-file layout |
+| `refs/pp19_200.xml`, `refs/hadronize_pp19.xml` | PP19 at 200 GeV: PythiaGun + vacuum Matter (Q0 1, C_v 0.25) + Colorless, π⁰ and η undecayed |
 | `tune.py` | emulator, posterior (emcee), design-point χ² |
 | `tune_comparison.ipynb` | posterior, χ² cross-check, data vs model, validation |
 | `results/` | `summary.json` (MAP, intervals, χ²), `design_chi2.json`, `chains.npz`, `posterior_predictive.npz`, `emulator.pkl`, `truncation.json` |
