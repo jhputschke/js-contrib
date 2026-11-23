@@ -24,7 +24,9 @@ event: the physical fluctuations), --vacuum-jet, charged hadrons with |eta| < 5.
                event's hadrons counted
   jets_noveto  the same with the veto off (--hard-pair-string-veto 0)
   jets_quench  as jets, the same seeds, but without --vacuum-jet: the jet sees the medium (LBT,
-               Matter in medium); R_CP(jets_quench) / R_CP(jets) per class is the quenching
+               Matter in medium); R_CP(jets_quench) / R_CP(jets) per class is the quenching.
+               Stores all hadrons (no --charged), for full jets as sPHENIX's calorimeter jets;
+               the other samples store charged hadrons (estimator counts are charged in all)
 Jet events in the pTHat windows 9-11, 18-23, 30-40 and 40-55 GeV, each weighted with its N_coll
 (the generator puts exactly one hard scattering in every event).
 
@@ -70,6 +72,9 @@ SAMPLES = {
 SEED_BASE = {"mb": 700000, "jets": 710000, "jets_noveto": 720000, "jets_quench": 710000}
 #: samples whose jet sees the medium (LBT, Matter in medium); all others run with --vacuum-jet
 QUENCHED = {"jets_quench"}
+#: samples that store all hadrons (full jets as sPHENIX's calorimeter jets); all others --charged.
+#: The estimator counts use charged hadrons in either case (_units selects them by species).
+ALL_HADRONS = {"jets_quench"}
 EPD, MBD = (2.1, 5.1), (3.51, 4.61)
 STAR_CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
@@ -84,7 +89,8 @@ def jobs(name):
         cmd = [sys.executable, str(C.DRIVER), "--user-xml", str(OO_XML), "--events", str(per_job),
                "--seed", str(seed), "--pthat-bins", ",".join(f"{lo}-{hi}" for lo, hi in windows),
                "--b-min", "0", "--b-max", f"{B_MAX}", *([] if name in QUENCHED else ["--vacuum-jet"]), "--bulk-hadrons", "1",
-               "--no-particlize", "--no-hydro-file", "--eta-max", "5.2", "--charged",
+               "--no-particlize", "--no-hydro-file", "--eta-max", "5.2",
+               *([] if name in ALL_HADRONS else ["--charged"]),
                "--outdir", str(OUT / name), "--max-skipped", "30", *extra]
         out.append((name, seed, per_job, cmd))
     return out
@@ -137,11 +143,34 @@ def run(names, nproc, mps, omp):
 
 
 # ── analysis ────────────────────────────────────────────────────────────────────────────────
-def _units(f, n):
+_CHARGED = None
+
+
+def charged_ids():
+    """|PDG id| of the charged final-state particles (jetscape.hadrons_h5.CHARGED)."""
+    global _CHARGED
+    if _CHARGED is None:
+        sys.path.insert(0, str(C.EXAMPLE.parent / "python"))
+        from jetscape.hadrons_h5 import CHARGED
+        _CHARGED = np.asarray(sorted({abs(int(x)) for x in CHARGED}))
+    return _CHARGED
+
+
+def _units(f, n, charged=True, with_pid=False):
+    """Momenta (E, px, py, pz) and particles per unit of the first n units.  charged=True keeps the
+    charged particles only (files written with --charged hold nothing else; files with all hadrons
+    are filtered by species), so the estimator counts mean the same for both kinds of file."""
     so = f["hadrons/sample_offsets"][:]
     uo = f["hadrons/unit_offsets"][: n + 1]
     stop = int(so[uo[-1]])
-    return f["hadrons/p"][:stop].astype(np.float64), np.diff(so[uo])
+    p = f["hadrons/p"][:stop].astype(np.float64)
+    counts = np.diff(so[uo])
+    pid = f["hadrons/pid"][:stop] if (with_pid or (charged and not bool(f.attrs.get("charged_only", False)))) else None
+    if charged and not bool(f.attrs.get("charged_only", False)):
+        keep = np.isin(np.abs(pid), charged_ids())
+        ev = np.repeat(np.arange(n), counts)
+        p, pid, counts = p[keep], pid[keep], np.bincount(ev[keep], minlength=n)
+    return (p, counts, pid) if with_pid else (p, counts)
 
 
 def counts_of(p, counts):
@@ -240,7 +269,7 @@ def analyse():
                  "mean_counts": {k: float(mb[f"n_{k}"].mean()) for k in ("epd", "mbd", "mid05", "mid10")}}
     print(f"minimum bias: {res['n_mb']} events, <N_coll> {res['mb']['ncoll_mean']:.2f}, MBD coincidence "
           f"{res['mb']['eps_mbd_coincidence']:.3f} (sPHENIX 0.914), with medium {res['mb']['has_medium']:.3f}")
-    for name in ("jets", "jets_noveto"):
+    for name in ("jets", "jets_noveto", "jets_quench"):
         jet = load(name)
         if not jet:
             continue

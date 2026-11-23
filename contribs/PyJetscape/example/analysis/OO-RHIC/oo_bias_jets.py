@@ -7,12 +7,15 @@ instead of the hard scattering itself.
 
     python oo_bias_jets.py                 # -> results/oo_bias_jets.json
     python oo_bias_jets.py --out DIR       # another output root of oo_bias.py (DIR/jets, DIR/mb)
+    python oo_bias_jets.py --sample jets_quench   # the jet in the medium -> results/oo_bias_jets_jets_quench.json
 
 Jets: anti-kT R = 0.4 (FastJet) on the hard event's hadrons (the jet_frag files: shower and
 iColored remnant hadrons, no bulk; the jet is in vacuum, so there is nothing to subtract),
-|eta_jet| < 0.7 as sPHENIX's.  The files hold charged hadrons only, so these are charged-particle
-jets (constituents pT > 0.2 GeV): their pT is roughly 0.6-0.7 of a full (calorimeter) jet's, so
-sPHENIX's 19-60 GeV correspond to about 12-40 GeV here.
+|eta_jet| < 0.7 as sPHENIX's, constituents pT > 0.2 GeV.  Which particles depends on the files:
+samples stored with --charged (mb, jets) give charged-particle jets, whose pT is roughly 0.6-0.7 of
+a full jet's (sPHENIX's 19-60 GeV correspond to about 12-40 GeV); samples with all hadrons
+(jets_quench) give full jets, all final-state particles except neutrinos, as sPHENIX's calorimeter
+jets.
 
 Per jet-pT bin each jet counts with its event's weight N_coll x sigma_k / N_k (k = the pTHat
 window; Pythia's cross section per window over the window's events): R_AA^vac per class =
@@ -42,6 +45,7 @@ sys.path.insert(0, str(HERE))
 import hstat as H  # noqa: E402
 import oo_bias as B  # noqa: E402
 
+INVISIBLE = (12, 14, 16)                              # neutrinos
 JET_R = 0.4
 JET_ETA = 0.7
 CONST_PTMIN = 0.2
@@ -59,7 +63,8 @@ def file_jets(path):
     import h5py
     with h5py.File(path) as h:
         n = int(h.attrs["nunits_written"])
-        p, counts = B._units(h, n)
+        charged_only = bool(h.attrs.get("charged_only", False))
+        p, counts, pid = B._units(h, n, charged=False, with_pid=True)
         win = h["units/pthat_bin"][:n].astype(np.int64)
         sig = np.asarray(h.attrs["pthat_bin_sigma_gen"], float)
         nacc = np.asarray(h.attrs["pthat_bin_n_accepted"], float)
@@ -67,7 +72,7 @@ def file_jets(path):
     pt = np.hypot(px, py)
     pa = np.sqrt(px * px + py * py + pz * pz)
     eta = 0.5 * np.log(np.clip(pa + pz, 1e-12, None) / np.clip(pa - pz, 1e-12, None))
-    keep = (pt > CONST_PTMIN) & (np.abs(eta) < JET_ETA + JET_R + 0.1)
+    keep = (pt > CONST_PTMIN) & (np.abs(eta) < JET_ETA + JET_R + 0.1) & ~np.isin(np.abs(pid), INVISIBLE)
     ev = np.repeat(np.arange(n), counts)[keep]
     cnt = np.bincount(ev, minlength=n)
     P = p[keep]
@@ -86,7 +91,7 @@ def file_jets(path):
         ib = np.digitize(jpt, PT_EDGES) - 1
         ok = (np.abs(jeta) < JET_ETA) & (ib >= 0) & (ib < len(PT_EDGES) - 1)
         np.add.at(out, (jev[ok], ib[ok]), 1.0)
-    return out, win, sig, nacc
+    return out, win, sig, nacc, charged_only
 
 
 def classes(x_mb, x_jet, cls_def, rng):
@@ -122,26 +127,33 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=None, help="output root of oo_bias.py (default its OUT)")
     ap.add_argument("-j", type=int, default=8)
+    ap.add_argument("--sample", default="jets", help="jet sample of oo_bias.py (jets, jets_quench, ...)")
     a = ap.parse_args(argv)
     if a.out:
         B.OUT = Path(a.out)
-    files = sorted(glob.glob(str(B.OUT / "jets" / "*_hadrons_jet_frag.h5")))
+    files = sorted(glob.glob(str(B.OUT / a.sample / "*_hadrons_jet_frag.h5")))
     if not files:
-        sys.exit(f"oo_bias_jets.py: no jet files under {B.OUT / 'jets'}")
-    mb, jet = B.load("mb"), B.load("jets")         # the estimator counts, same file order as below
+        sys.exit(f"oo_bias_jets.py: no jet files under {B.OUT / a.sample}")
+    mb, jet = B.load("mb"), B.load(a.sample)       # the estimator counts, same file order as below
     with ProcessPoolExecutor(max_workers=a.j) as ex:
         res = list(ex.map(file_jets, files))
     jets_ev = np.concatenate([r[0] for r in res])
     win = np.concatenate([r[1] for r in res])
     if len(win) != len(jet["glauber_ncoll"]) or not np.array_equal(win, jet["pthat_bin"]):
-        sys.exit("oo_bias_jets.py: the jet files and oo_bias.load('jets') do not line up")
+        sys.exit(f"oo_bias_jets.py: the jet files and oo_bias.load('{a.sample}') do not line up")
+    kinds = {r[4] for r in res}
+    if len(kinds) != 1:
+        sys.exit("oo_bias_jets.py: the sample mixes charged-only and all-hadron files")
+    charged_only = kinds.pop()
     nacc = np.sum([r[3] for r in res], axis=0)
     sigma = np.sum([r[2] * r[3] for r in res], axis=0) / np.maximum(nacc, 1)
     nev = np.bincount(win, minlength=len(sigma)).astype(float)
     s_k = sigma / np.maximum(nev, 1)
     w_all = jet["glauber_ncoll"] * s_k[win]
     rng = np.random.default_rng(11)
-    out = {"jet_def": {"R": JET_R, "eta_max": JET_ETA, "const_ptmin": CONST_PTMIN, "charged_only": True},
+    out = {"sample": a.sample,
+           "jet_def": {"R": JET_R, "eta_max": JET_ETA, "const_ptmin": CONST_PTMIN, "charged_only": charged_only,
+                       "particles": "charged" if charged_only else "all but neutrinos"},
            "pt_edges": PT_EDGES.tolist(), "windows": B.JET_WINDOWS, "sigma": sigma.tolist(),
            "n_events": {"mb": int(len(mb["glauber_ncoll"])), "jets": int(len(win))},
            "events_per_window": nev.astype(int).tolist(), "estimators": {}}
@@ -155,15 +167,16 @@ def main(argv=None):
             e["per_window"][f"{lo}-{hi}"] = per_bin(cm, mb["glauber_ncoll"], cj[m], jet["glauber_ncoll"][m].astype(float),
                                                     jets_ev[m], cls_def, pairs)
         out["estimators"][key] = e
-    path = Path(os.environ.get("OO_BIAS_JETS_JSON", HERE / "results" / "oo_bias_jets.json"))
+    default = HERE / "results" / ("oo_bias_jets.json" if a.sample == "jets" else f"oo_bias_jets_{a.sample}.json")
+    path = Path(os.environ.get("OO_BIAS_JETS_JSON", default))
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(out, indent=1))
     lab = [f"{lo:g}-{hi:g}" for lo, hi in zip(PT_EDGES[:-1], PT_EDGES[1:])]
     print(f"minimum bias {out['n_events']['mb']}, jet events {out['n_events']['jets']} "
-          f"(per window {out['events_per_window']}); charged jets R = {JET_R}, |eta| < {JET_ETA}")
+          f"(per window {out['events_per_window']}); {'charged' if charged_only else 'full'} jets R = {JET_R}, |eta| < {JET_ETA}")
     for key in ("mbd", "epd_sph"):
         r = out["estimators"][key]["all"]
-        print(f"{key}: R_CP(0-20/60-80) vs charged-jet pT [GeV] (all windows, sigma-weighted)")
+        print(f"{key}: R_CP(0-20/60-80) vs {'charged' if charged_only else 'full'}-jet pT [GeV] (all windows, sigma-weighted)")
         for l, (v, er), nj in zip(lab, r["rcp"]["0-20/60-80"], r["n_jets"]):
             print(f"   {l:>6s}  {v:6.3f} ± {er:5.3f}   ({nj} jets)")
     print("wrote", path)
