@@ -188,6 +188,8 @@ def main(argv=None):
     p.add_argument("-j", type=int, default=8)
     p.add_argument("--check-truncation", action="store_true",
                    help="also the share of the lowest pTHat window (run 'trunc')")
+    p.add_argument("--cached", action="store_true",
+                   help="use the sums of an earlier call (results/ue_<run>.npz) instead of the files")
     a = p.parse_args(argv)
     star = load_star()
     (C.HERE / "results").mkdir(exist_ok=True)
@@ -196,8 +198,12 @@ def main(argv=None):
           + " ".join(f"{v:.3f}" for v in star["transverse"]["value"]))
     summary = {}
     for run in a.runs:
-        acc = run_sums(run, a.j)
-        np.savez(C.HERE / "results" / f"ue_{run}.npz", **acc)
+        npz = C.HERE / "results" / f"ue_{run}.npz"
+        if a.cached and npz.exists():
+            acc = dict(np.load(npz))
+        else:
+            acc = run_sums(run, a.j)
+            np.savez(npz, **acc)
         d = densities(acc)
         print(f"\n{run}: leading jet [GeV]   events   toward  transverse (STAR)   away   "
               "trans pT>0.5 (STAR)  TransMax TransMin")
@@ -213,7 +219,8 @@ def main(argv=None):
             rows.append({k: float(d[k][0][i]) for k in
                          ("n_toward", "n_transverse", "n_away", "n_trans05", "n_transmax",
                           "n_transmin", "meanpt_transverse", "has_bulk")}
-                        | {"n_transverse_err": float(te), "events": int(d["n_events"][i])})
+                        | {f"{k}_err": float(d[k][1][i]) for k in QUANT if k in d and d[k][1] is not None}
+                        | {"events": int(d["n_events"][i])})
         summary[run] = rows
         if a.check_truncation:
             low = [i for i, w in enumerate(acc["pthat_bins"].tolist()) if w[0] < 5]

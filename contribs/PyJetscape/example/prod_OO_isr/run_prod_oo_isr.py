@@ -218,6 +218,11 @@ def parse_args() -> argparse.Namespace:
                         "partons, beam remnants, colour-balancing parton) in the jet_frag "
                         "file (hadronization_input/), so rehadronize_jets.py can redo the "
                         "jet hadrons later (other settings, decays off, positions)")
+    p.add_argument("--vacuum-jet", action="store_true", dest="vacuum_jet",
+                   help="the medium is made (MUSIC, and iSS with --bulk-hadrons) but the jet does "
+                        "not see it: no <Eloss><Lbt>, Matter in vacuum (in_vac 1, recoil_on 0). "
+                        "For selection-bias studies: any change of the jet yield with the event "
+                        "class is then the selection's, not quenching")
     p.add_argument("--matter-only", action="store_true", dest="matter_only",
                    help="Matter alone (no <Eloss><Lbt>, Matter's recoil_on 0): the energy "
                         "loss before 2026-10-21, when LBT's partons had no colour. For an "
@@ -349,6 +354,13 @@ def job_xml(a, out_h5: str):
     _set(root, "setReuseHydro", "false")     # every event has its own strings (after ISR)
     if a.vacuum:
         make_vacuum(root)
+    if a.vacuum_jet and not a.vacuum and root.find("Eloss") is not None:
+        eloss_node = root.find("Eloss")
+        for n in eloss_node.findall("Lbt"):
+            eloss_node.remove(n)
+        if eloss_node.find("Matter") is not None:
+            _set(eloss_node.find("Matter"), "in_vac", 1)
+            _set(eloss_node.find("Matter"), "recoil_on", 0)
     if a.matter_only and root.find("Eloss") is not None:
         eloss_node = root.find("Eloss")
         if eloss_node.find("Lbt") is not None:
@@ -823,6 +835,7 @@ def main() -> int:
         # 3dMCGlauber's hard-pair string veto as the job ran it (the XML's, else its default 1)
         "hard_pair_string_veto": int(float(_text(root, "IS/MCGlauber/hard_pair_string_veto")
                                            or 1)),
+        "vacuum_jet": int(bool(a.vacuum_jet)),
         **({"parton_ymax": a.parton_ymax, "parton_y_mode": a.parton_y_mode}
            if a.parton_ymax is not None else {}),
     }
@@ -1127,6 +1140,7 @@ def main() -> int:
                "hydro": getattr(a, "hydro", None),
                "subtract_hard_momentum": 0 if a.no_subtraction else 1,
                "hard_pair_string_veto": provenance["hard_pair_string_veto"],
+               "vacuum_jet": int(bool(a.vacuum_jet)),
                "events_requested": a.events, "events_written": n,
                # run_jobs.sh counts a job complete when written + skipped == requested
                "events_skipped": len(skipped),

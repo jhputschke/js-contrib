@@ -86,6 +86,7 @@ python observables.py pp19 pythia8_default pythia8_detroit
 python ue_check.py trunc --check-truncation
 python refs/run_refs.py pythia8_nocr --jobs 10 -j 10      # diagnostic: Pythia default without colour reconnection
 python ue_check.py $RUNS best_mpidef pp19 pythia8_default pythia8_detroit pythia8_nocr -j 16   # results/ue_check.json
+python ue_check.py $RUNS best_mpidef pp19 pythia8_default pythia8_detroit pythia8_nocr --cached   # again from results/ue_<run>.npz
 # where in eta the particles are made: full-eta samples at pTHat 9-11 and 23-30 GeV (3000 events each;
 # all models, the four MPI settings, Pythia with the tune's coupling, CR on/off; ~10 min, full MPI the longest)
 python dndeta.py run -j 20 && python dndeta.py analyse                       # results/dndeta.json
@@ -98,6 +99,12 @@ python centrality_proxy.py run -j 20 && python centrality_proxy.py analyse     #
 # with the string switch (X-SCAPE oo_rhic_run): jet samples with --hard-pair-string-veto 0 (closure + subtraction alone)
 python centrality_proxy.py run jet_sub_noveto jet_nosub_noveto -j 20 && python centrality_proxy.py analyse && python centrality_proxy.py smear
 jupyter nbconvert --to notebook --execute closure_oo.ipynb --output results/closure_oo_executed.ipynb
+# R4b full test and R4c (GPU, O+O with hydro; oo_bias.py --help): minimum bias, jets in vacuum, jets quenched
+python oo_bias.py run mb -j 8 --mps && python oo_bias.py run jets -j 8 --mps     # ~9 h on the GB10
+python oo_bias.py run jets_quench -j 8 --mps                                     # the jet in the medium
+python oo_bias.py analyse && python oo_bias_jets.py && python oo_bulk.py analyse
+jupyter nbconvert --to notebook --execute oo_centrality_bias.ipynb --output-dir results --output oo_centrality_bias_executed.ipynb
+jupyter nbconvert --to notebook --execute oo_bulk_comparison.ipynb --output-dir results --output oo_bulk_comparison_executed.ipynb
 jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 ```
 
@@ -117,6 +124,10 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 | `diag_strings.py` | the colour-string topology iColored hands to Pythia (stored input) against standalone Pythia's parton level, CR on/off, tune vs default coupling; writes `results/diag_strings.json` for the notebook |
 | `closure_oo.py`, `closure_oo.ipynb` | R3 + R4 of the plan forward: the p+p reference from the O+O tune XML (`config/OO_MCGlauber_MUSIC_isr_rhictune.xml`, projectile/target p) and the O+O vacuum closure in impact-parameter classes; the notebook explains the test and shows the figures (`PROD/closure/`, `results/closure_oo*.{json,npz}`) |
 | `centrality_proxy.py` | R4b part 1: centrality bias from a string local-energy proxy (`smear`: negative-binomial fluctuations anchored to sPHENIX's MBD efficiency) (`run_prod_oo_isr.py`'s `strings_eloc_*` units) in STAR's estimator windows; minimum-bias 3dMCGlauber alone vs N_coll-weighted jet events, subtraction on/off → `results/centrality_proxy.json`; figures in `closure_oo.ipynb` |
+| `oo_bias.py`, `oo_centrality_bias.ipynb` | R4b full test: O+O with hydro and one iSS sample per event, minimum bias and N_coll-weighted jet events (jet in vacuum: `--vacuum-jet`; `jets_quench`: in the medium), classes from the multiplicity in STAR's EPD, mid-rapidity and sPHENIX's MBD; R_AA^vac, bias factor, R_CP with errors → `results/oo_bias.json` |
+| `oo_bias_jets.py` | the same against the jet p_T: charged-particle jets (anti-k_T R = 0.4, \|η\| < 0.7, the files hold charged hadrons) on the hard event's hadrons, per p̂_T window → `results/oo_bias_jets.json` |
+| `oo_bulk.py`, `oo_bulk_comparison.ipynb` | R4c: the O+O bulk of the same events against STAR (p(N_ch), ⟨N_ch⟩ vs centrality, EPD nMIP of minimum-bias and triggered events) → `results/oo_bulk.json` |
+| `refs/star_oo/` | STAR O+O references read from the vector figures of arXiv:2510.19645 and 2604.13935 (`extract_star_oo.py` → `star_oo_bulk.json`; no HEPData) |
 | `conditional.py` | the posterior with a parameter held fixed (emulator only), e.g. Q0 = 2 GeV for Matter + LBT → `results/conditional_Q0_2.json` |
 | `dndeta.py` | charged $dN/d\eta$ over the full η range at fixed pT̂ for all models and MPI settings (own small samples under `PROD/diag/eta/`) |
 | `refs/run_refs.py` | the reference models' events (PP19 via `prod_AuAu_0_10_jet/run_prod_vacuum.py`, Pythia standalone) |
@@ -124,10 +135,15 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 | `refs/pp19_200.xml`, `refs/hadronize_pp19.xml` | PP19 at 200 GeV: PythiaGun + vacuum Matter (Q0 1, C_v 0.25) + Colorless, π⁰ and η undecayed |
 | `tune.py` | emulator, posterior (emcee), design-point χ² |
 | `tune_comparison.ipynb` | posterior, χ² cross-check, data vs model, validation |
+| `hstat.py` | statistical errors for the analyses and notebooks (hist `Weight`/`Mean` storages): histograms, means per bin or class (weighted with importance weights), per-event particle histograms (event-to-event spread), class fractions, experiment-style R_AA^vac and R_CP of N_coll-weighted jet events; plotting helpers (bands, error bars) |
 | `results/` | `summary.json` (MAP, intervals, χ²), `design_chi2.json`, `chains.npz`, `posterior_predictive.npz`, `emulator.pkl`, `truncation.json` |
 
 ## Definitions and caveats
 
+- Statistical errors: every model point carries one (`hstat.py`). Each event has one sample (no
+  hydro or iSS oversampling), so events are independent; particle distributions take the
+  event-to-event spread (√N of particles is too small: particles of one event are correlated),
+  weighted quantities use Σw². The bands of the posterior are not statistical errors.
 - Model jets: anti-k_T R = 0.5 (FastJet) on all visible final particles with p_T > 0.2 GeV
   (stored |η| < 1.5), ≥ 1 charged constituent, p_T corrected with STAR's off-axis cones (two
   cones of radius R at the jet's η and φ ± π/2, A_jet = πR²). In vacuum mode there is no bulk;

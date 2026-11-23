@@ -212,34 +212,46 @@ def charged_and_events(name):
 
 def eta_sample(name):
     """dN/deta (all charged, all pT) of the hard event per window; parton y of iColored's
-    input; the remnant partons' share."""
+    input; per-event histograms, so the errors are the event-to-event spread (hstat.event_mean)."""
     import hdf5plugin  # noqa: F401
     import h5py
+    import hstat as H
     import observables as O
     charged = O._charged_ids()
     edges = np.arange(-8, 8.0001, 0.25)
+    nb = len(edges) - 1
     out = {}
     files = sorted(glob.glob(str(CLOSURE / name / "*_hadrons_jet_frag.h5")))
+
+    def per_event(x, ev, n):
+        ib = np.digitize(x, edges) - 1
+        ok = (ib >= 0) & (ib < nb)
+        a = np.zeros((n, nb))
+        np.add.at(a, (ev[ok], ib[ok]), 1.0)
+        return a
     for k, wdw in enumerate(ETA_WINDOWS):
-        hs, ys, n = np.zeros(len(edges) - 1), np.zeros(len(edges) - 1), 0
+        hs, ys = [], []
         for f in files:
             fd = O.read_file(f)
             m_ev = fd["win"] == k
-            ev = np.repeat(np.arange(len(fd["counts"])), fd["counts"])
+            nev = len(fd["counts"])
+            ev = np.repeat(np.arange(nev), fd["counts"])
             _, _, eta, _ = O._kin(fd["p"])
-            sel = np.isin(np.abs(fd["pid"]), charged) & m_ev[ev]
-            hs += np.histogram(eta[sel], edges)[0]
-            n += int(m_ev.sum())
+            sel = np.isin(np.abs(fd["pid"]), charged)
+            hs.append(per_event(eta[sel], ev[sel], nev)[m_ev])
             with h5py.File(f) as h:
                 d = h["hadronization_input/data"][:]
                 off = h["hadronization_input/offsets"][:]
             pev = np.repeat(np.arange(len(off) - 1), np.diff(off))
             E, pz = d[:, 3], d[:, 6]
             y = 0.5 * np.log(np.maximum(E + pz, 1e-9) / np.maximum(E - pz, 1e-9))
-            ys += np.histogram(y[m_ev[pev]], edges)[0]
-        out[wtext([wdw])] = {"dndeta": (hs / max(n, 1) / np.diff(edges)).tolist(),
-                              "parton_dndy": (ys / max(n, 1) / np.diff(edges)).tolist(),
-                              "n_events": n}
+            ys.append(per_event(y, pev, len(off) - 1)[m_ev[:len(off) - 1]])
+        hs, ys = np.concatenate(hs), np.concatenate(ys)
+        (dn, dn_e), (py, py_e) = H.event_mean(hs), H.event_mean(ys)
+        bw = np.diff(edges)
+        out[wtext([wdw])] = {"dndeta": (dn / bw).tolist(), "dndeta_err": (dn_e / bw).tolist(),
+                             "parton_dndy": (py / bw).tolist(), "parton_dndy_err": (py_e / bw).tolist(),
+                             "n_events": int(len(hs))}
     return {"edges": edges.tolist(), **out}
 
 

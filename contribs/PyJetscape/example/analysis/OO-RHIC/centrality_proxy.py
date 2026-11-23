@@ -50,6 +50,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import config as C  # noqa: E402
+import hstat as H  # noqa: E402
 
 #: v2 (2026-11-22): + sPHENIX MBD windows and the jet events' charged hadrons to |eta| < 5 (the
 #: first round, EPD and mid-rapidity only, is in centrality_proxy/ itself)
@@ -216,16 +217,17 @@ def analyse():
     mb = {k: v[ok] for k, v in mb.items()}
     res = {"windows": JET_WINDOWS, "classes": CLASSES, "b_max": B_MAX,
            "n_mb": int(ok.sum()), "mb": {}, "jet": {}}
-    edges = {}
+    edges, mb_cls = {}, {}
     for e in ESTIMATORS:
         x = mb[f"eloc_{e}"]
         # class c = percentile range of the minimum-bias proxy, most active first
         cuts = np.percentile(x, [100 - hi for _, hi in CLASSES])
         edges[e] = cuts
         cls = classify(x, cuts)
-        res["mb"][e] = {"cuts": cuts.tolist(),
-                        "ncoll": [float(mb["ncoll"][cls == c].mean()) for c in range(len(CLASSES))],
+        nm, nme = H.class_mean(cls, mb["ncoll"], len(CLASSES))
+        res["mb"][e] = {"cuts": cuts.tolist(), "ncoll": nm.tolist(), "ncoll_err": nme.tolist(),
                         "frac": [float(np.mean(cls == c)) for c in range(len(CLASSES))]}
+        mb_cls[e] = cls
     res["mb_mean"] = {k: float(np.mean(mb[k])) for k in ("b", "npart", "ncoll", "nstrings")}
     for name in JET_SAMPLES:
         d = load_jet(name)
@@ -240,16 +242,16 @@ def analyse():
                 cls = classify(d[f"strings_eloc_{e}"][m], edges[e])
                 ww = w[m]
                 frac_jet = np.array([ww[cls == c].sum() for c in range(len(CLASSES))]) / ww.sum()
-                ncoll_jet = np.array([np.average(d["glauber_ncoll"][m][cls == c], weights=ww[cls == c])
-                                      if (cls == c).any() else np.nan for c in range(len(CLASSES))])
+                ncoll_jet, ncoll_jet_e = H.class_mean(cls, d["glauber_ncoll"][m], len(CLASSES), ww)
                 ncoll_mb = np.asarray(res["mb"][e]["ncoll"])
-                frac_mb = np.asarray(res["mb"][e]["frac"])
                 # experiment-style R_AA^vac per class: jet yield per MB event in c / (<Ncoll>_MB,c
                 # x yield per binary collision); with N_coll-weighted sampling:
                 # = (frac_jet,c / frac_MB,c) * <Ncoll>_MB / <Ncoll>_MB,c  (N_coll-weighted jets)
-                raa = frac_jet / frac_mb * np.mean(mb["ncoll"]) / ncoll_mb
+                rv = H.raa_vac(mb_cls[e], mb["ncoll"], cls, ww, len(CLASSES))
+                bias, bias_e = H.ratio(ncoll_jet, ncoll_jet_e, ncoll_mb, res["mb"][e]["ncoll_err"])
                 rw[e] = {"frac_jet": frac_jet.tolist(), "ncoll_jet": ncoll_jet.tolist(),
-                         "bias": (ncoll_jet / ncoll_mb).tolist(), "raa_vac": raa.tolist(),
+                         "ncoll_jet_err": ncoll_jet_e.tolist(), "bias": bias.tolist(), "bias_err": bias_e.tolist(),
+                         "raa_vac": rv["raa"].tolist(), "raa_err": rv["err"].tolist(),
                          "mean_eloc_jet": float(np.average(d[f"strings_eloc_{e}"][m], weights=ww))}
             r["per_window"][f"{wdw[0]}-{wdw[1]}"] = rw
         res["jet"][name] = r
@@ -260,9 +262,9 @@ def analyse():
     nbins = [(1, 1), (2, 2), (3, 4), (5, 8), (9, 1000)]
     for thr in COIN_THR:
         fire = (mb["eloc_mbd_neg"] > thr) & (mb["eloc_mbd_pos"] > thr)
-        coin["mb"][str(thr)] = {"all": float(fire.mean()),
-                                "by_ncoll": [float(fire[(mb["ncoll"] >= lo) & (mb["ncoll"] <= hi)].mean())
-                                             for lo, hi in nbins]}
+        bn = [H.fraction(fire[(mb["ncoll"] >= lo) & (mb["ncoll"] <= hi)]) for lo, hi in nbins]
+        coin["mb"][str(thr)] = {"all": float(fire.mean()), "all_err": H.fraction(fire)[1],
+                                "by_ncoll": [v for v, _ in bn], "by_ncoll_err": [e for _, e in bn]}
     for name in JET_SAMPLES:
         d = load_jet(name)
         if not len(d["glauber_ncoll"]):
@@ -273,8 +275,10 @@ def analyse():
             arms = [(d[f"strings_eloc_{a}"] > thr) | (d[f"nch_{a}"] > 0) for a in ARMS]
             strings_only = (d["strings_eloc_mbd_neg"] > thr) & (d["strings_eloc_mbd_pos"] > thr)
             fire = arms[0] & arms[1]
+            bn = [H.fraction(fire[(d["glauber_ncoll"] >= lo) & (d["glauber_ncoll"] <= hi)]) for lo, hi in nbins]
             coin["jet"][name][str(thr)] = {
-                "weighted": float(np.average(fire, weights=w)),
+                "weighted": float(np.average(fire, weights=w)), "weighted_err": H.fraction(fire, w)[1],
+                "by_ncoll_err": [e for _, e in bn],
                 "weighted_strings_only": float(np.average(strings_only, weights=w)),
                 "by_ncoll": [float(fire[(d["glauber_ncoll"] >= lo) & (d["glauber_ncoll"] <= hi)].mean())
                              for lo, hi in nbins],
@@ -368,13 +372,13 @@ def smear():
                     jp = nbd(rng, d["strings_eloc_mbd_pos"], mu, kappa) + d["nch_mbd_pos"]
                     cnt_j = jn + jp if est == "mbd" else nbd(rng, d["strings_eloc_epd"], mu, kappa) + d["nch_epd"]
                     cm, cj = classes_from(cnt_mb, cnt_j)
-                    fmb = np.array([np.mean(cm == k) for k in range(nc)])
                     nmb = np.array([mb["ncoll"][cm == k].mean() for k in range(nc)])
-                    fj = np.array([w[cj == k].sum() for k in range(nc)]) / w.sum()
-                    raa = fj / fmb * mb["ncoll"].mean() / nmb
-                    r_est[name] = {"raa_vac": raa.tolist(), "ncoll_mb": nmb.tolist(),
-                                   "rcp_0_20_60_80": float(raa[0] / raa[3]),
-                                   "rcp_0_20_40_60": float(raa[0] / raa[2]),
+                    rv = H.raa_vac(cm, mb["ncoll"], cj, w, nc)
+                    (r03, e03), (r02, e02) = H.rcp(rv, 0, 3), H.rcp(rv, 0, 2)
+                    r_est[name] = {"raa_vac": rv["raa"].tolist(), "raa_err": rv["err"].tolist(),
+                                   "ncoll_mb": nmb.tolist(),
+                                   "rcp_0_20_60_80": r03, "rcp_0_20_60_80_err": e03,
+                                   "rcp_0_20_40_60": r02, "rcp_0_20_40_60_err": e02,
                                    "eps_coinc_jet": float(np.average((jn > 0) & (jp > 0), weights=w))}
                 row[est] = r_est
             res["grid"].append(row)
