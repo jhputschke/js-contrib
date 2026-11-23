@@ -131,7 +131,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
     if a.out:
         B.OUT = Path(a.out)
-    files = sorted(glob.glob(str(B.OUT / a.sample / "*_hadrons_jet_frag.h5")))
+    files = [f for f in sorted(glob.glob(str(B.OUT / a.sample / "*_hadrons_jet_frag.h5")))
+             if os.path.exists(f.replace("_hadrons_jet_frag.h5", ".json"))]   # finished jobs, as oo_bias.load
     if not files:
         sys.exit(f"oo_bias_jets.py: no jet files under {B.OUT / a.sample}")
     mb, jet = B.load("mb"), B.load(a.sample)       # the estimator counts, same file order as below

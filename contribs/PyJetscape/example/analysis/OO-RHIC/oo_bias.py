@@ -198,6 +198,8 @@ def load(name):
     rec = {}
     for jf in sorted(glob.glob(str(OUT / name / "*_hadrons_jet_frag.h5"))):
         bf = jf.replace("_hadrons_jet_frag.h5", "_hadrons_bulk_bg.h5")
+        if not os.path.exists(jf.replace("_hadrons_jet_frag.h5", ".json")):
+            continue  # job still running (the summary is written at the end)
         with h5py.File(jf) as h:
             n = int(h.attrs["nunits_written"])
             u = {k: h[f"units/{k}"][:n] for k in ("glauber_ncoll", "glauber_npart", "glauber_b",
