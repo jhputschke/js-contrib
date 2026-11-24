@@ -32,11 +32,33 @@
   X-SCAPE builds this chain from <Hard><ISR> (JetScape::DetermineTaskListFromXML, branch
   oo_isr_test).  The order of the blocks matters: <IS> before <Hard>.
 
-  The 3dMCGlauber and MUSIC settings are the tuned O+O set of X-SCAPE's
-  config/BulkFastTest/OO_one_event.xml (tuned at 200 GeV; O16 from nucleusConfigs,
-  tau_form_mean 0.5, EOS 91), except Subtract_hard_momentum 1 (ISR: the hard partons'
-  momentum is taken from the colliding nucleons), generateOnlyPositions 1 for the ISR and
-  b <= 3 fm.  (EOS 9 before 2026-10, when iSS could not decay the SMASH list.)
+  The MUSIC settings are the tuned O+O set of X-SCAPE's config/BulkFastTest/OO_one_event.xml
+  (tuned at 200 GeV; EOS 91), and so were the 3dMCGlauber ones until the revision below
+  (O16 from nucleusConfigs, tau_form_mean 0.5), except Subtract_hard_momentum 1 (ISR: the hard
+  partons' momentum is taken from the colliding nucleons), generateOnlyPositions 1 for the ISR
+  and b <= 3 fm.  (EOS 9 before 2026-10, when iSS could not decay the SMASH list.)
+
+  Revision 2026-11-24, the RHIC bulk tune (analysis/OO-RHIC: oo_bias.py, set g_v045_n215;
+  bulk_tune_screening.ipynb).  In this chain (ISR, no UrQMD, iSS at T 0.15) the JETSCAPE MAP
+  of 2601.17234 that this file had made too few particles: p+p NSD dN/deta(|eta| < 0.5) 1.74
+  against UA5's 2.50, O+O <N_ch> 0.85 of STAR's (central) to 0.50 (60-70 %), d+Au mid-rapidity
+  0.84 of PHENIX's (0-20 %).  Minimum-bias screening (10k events per sample, the bulk hadrons
+  of iSS) of the MAP, of 2407.17443's p+p set and of 2211.16376's method 3, then a grid around
+  2407.17443's set, gave the 3dMCGlauber block below: 2407.17443's p+p set (yloss nodes
+  1.6 / 2.15 / 2.15 / 2.15 at y_init 2 / 4 / 6 / 10, shadowing 0.45, BG 5) with the yloss
+  variance 0.45 instead of 0.5 (0.5 makes p+p P(N_ch) ~10 % wider than UA5 and the O+O tail
+  too long; 0.3 makes it too short).  Changed: ylossParam4At2 1.610 -> 1.6, At4 and At6
+  1.685 -> 2.15, At10 2.95 -> 2.15, ylossParam4var 0.682 -> 0.45, shadowing_factor 0 -> 0.45,
+  BG 3.96 -> 5.0.  remnant_energy_loss_fraction stays 0.536 (a scan 0.4-1.0 found it the best
+  match to PHOBOS's p+p dN/deta shape).  Result (model, not vetted): p+p NSD 2.44 (UA5 2.50),
+  P(N_ch) width 1.07 x UA5; O+O <N_ch> 1.01 x STAR with its classes as the top 85.5 % of the
+  model's events, p(N_ch) tail (N_ch > 120) 1.04; d+Au mid-rapidity 1.02-1.09 (PHENIX, central),
+  1.07 (STAR minimum bias), d-going side ~1.0.  Known misses: the Au-going side of d+Au is 16-57 %
+  high (more toward peripheral; shadowing is the untested handle), and p+p dN/deta is 10-15 % low
+  at |eta| 1.5-3 and high beyond 3.5.  Only charged yields and dN/deta were tuned: no <p_T>,
+  identified particles or flow; MUSIC is unchanged.  Samples made with this file before
+  2026-11-24 (centrality_proxy.py, closure_oo.py) used the MAP block: oo_bias.py's MAP options
+  restore it.
 
   Jet energy loss: Matter above Q0 = 2 GeV and LBT below, Matter with recoils (recoil_on 1),
   the settings of the Au+Au and Pb+Pb jet productions.  LBT's partons and Matter's recoils
@@ -107,12 +129,12 @@
       <nucleon_configuration_from_file>1</nucleon_configuration_from_file> <!--1: O16 configurations from nucleusConfigs (PGCM, with alpha clustering)-->
       <useQuarks>1</useQuarks> <!--Switch to use valence quarks-->
       <Q2>1.0</Q2> <!--Scale when evaluating the PDF-->
-      <shadowing_factor>0.0</shadowing_factor> <!--Shadowing factor for producing strings from multiple scatterings-->
+      <shadowing_factor>0.45</shadowing_factor> <!--Shadowing factor for producing strings from multiple scatterings (RHIC bulk tune 2026-11-24; MAP 0.0)-->
       <baryon_junctions>0</baryon_junctions> <!--0: baryon number assumed to be at string end, 1: baryon number transported assuming baryon junctions (at smaller x) see arXiv:nucl-th/9602027-->
       <N_sea_partons>1</N_sea_partons> <!--Number of allowed soft partons-->
       <d_min>0.9</d_min> <!--Minimum distance between two nucleons in fm-->
       <lambdaB>0.2</lambdaB> <!--Strength of the baryon junction stopping-->
-      <BG>3.960</BG> <!--Gaussian width square for sampling the valence quark positions (GeV^2)-->
+      <BG>5.0</BG> <!--Gaussian width square for sampling the valence quark positions (GeV^2; RHIC bulk tune 2026-11-24; MAP 3.96)-->
       <!--1 with ISR: the hard partons' momentum is taken from the colliding nucleons
           (valence quark; their remnants go to the jet hadronization, not to strings).
           0 (config/BulkFastTest, no ISR) would count that energy twice.-->
@@ -123,11 +145,13 @@
       <QCD_string_production_mode>1</QCD_string_production_mode> <!--1: strings are produced randomly in the binary collision list, 2: strings are produced at the last binary collision-->
       <!--Rapidity loss parameters (only mode 4 supported in XML, other modes have to be set in mcglauber.input)-->
       <rapidity_loss_method>4</rapidity_loss_method>
-      <ylossParam4At2>1.610</ylossParam4At2>
-      <ylossParam4At4>1.685</ylossParam4At4>
-      <ylossParam4At6>1.685</ylossParam4At6>
-      <ylossParam4At10>2.95</ylossParam4At10>
-      <ylossParam4var>0.682</ylossParam4var>
+      <!--RHIC bulk tune 2026-11-24 (set g_v045_n215, see the header); MAP: 1.610 / 1.685 /
+          1.685 / 2.95, variance 0.682-->
+      <ylossParam4At2>1.6</ylossParam4At2>
+      <ylossParam4At4>2.15</ylossParam4At4>
+      <ylossParam4At6>2.15</ylossParam4At6>
+      <ylossParam4At10>2.15</ylossParam4At10>
+      <ylossParam4var>0.45</ylossParam4var>
       <remnant_energy_loss_fraction>0.536</remnant_energy_loss_fraction> <!--Nucleon remnant's energy loss fraction (fraction of string's y_loss) [0, 1]-->
       <fluctuation_remnant_energy_loss_fraction>0</fluctuation_remnant_energy_loss_fraction>
       <remnant_energy_loss_fraction_var>0.4</remnant_energy_loss_fraction_var>

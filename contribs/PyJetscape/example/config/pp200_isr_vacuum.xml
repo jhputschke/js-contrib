@@ -12,8 +12,15 @@
   No <Preequilibrium>, <Hydro> or <Lbt>: the vacuum option removes them from any template
   (the O+O one too); this file simply has none.  3dMCGlauber runs because iColored takes
   the beam remnants' momenta from it.
-  The 3dMCGlauber settings are the O+O ones (OO_MCGlauber_MUSIC_isr.xml) with p+p, so that
-  the remnants are made the same way in both systems.  b <= 3 fm covers the p+p collisions.
+  The 3dMCGlauber settings are the O+O ones of OO_MCGlauber_MUSIC_isr_rhictune.xml with p+p, so
+  that the remnants are made the same way in both systems.  b <= 3 fm covers the p+p collisions.
+  Revision 2026-11-24: the 3dMCGlauber block follows that file's RHIC bulk tune (set
+  g_v045_n215, the reasons in its header): ylossParam4At2 1.610 -> 1.6, At4 and At6 1.685 -> 2.15,
+  At10 2.95 -> 2.15, ylossParam4var 0.682 -> 0.45, shadowing_factor 0 -> 0.45 (no effect in p+p:
+  one collision per nucleon), BG 3.96 -> 5.0.  The RHIC p+p hard tune (2026-11-22: alpha_s 0.152,
+  vir_factor 0.25, Q0 2) was made with the earlier block (the JETSCAPE MAP of 2601.17234), which
+  shapes the beam remnants iColored hadronizes; its effect on the tune's jet observables is not
+  yet checked.
   Cut scheme of the hard tune (RHIC tuning page, step 1): pTHat windows from 5 GeV (above
   iMATTER's floor Q0/sqrt(vir_factor) for vir_factor >= 0.16 at Q0 = 2), cross-section
   weights per window (no bias2Selection), one fixed MPI cut of 5 GeV.  Tune parameters go
@@ -67,12 +74,12 @@
       <nucleon_configuration_from_file>0</nucleon_configuration_from_file>
       <useQuarks>1</useQuarks> <!--Switch to use valence quarks-->
       <Q2>1.0</Q2> <!--Scale when evaluating the PDF-->
-      <shadowing_factor>0.0</shadowing_factor>
+      <shadowing_factor>0.45</shadowing_factor> <!--RHIC bulk tune 2026-11-24; before 0.0-->
       <baryon_junctions>0</baryon_junctions>
       <N_sea_partons>1</N_sea_partons>
       <d_min>0.9</d_min>
       <lambdaB>0.2</lambdaB>
-      <BG>3.960</BG> <!--Gaussian width square for sampling the valence quark positions (GeV^2)-->
+      <BG>5.0</BG> <!--Gaussian width square for sampling the valence quark positions (GeV^2; RHIC bulk tune 2026-11-24; before 3.96)-->
       <!--1 with ISR: the hard partons' momentum is taken from the colliding nucleons; what is
           left goes to strings (if any) and to the beam remnants of the jet hadronization-->
       <Subtract_hard_momentum>1</Subtract_hard_momentum>
@@ -81,11 +88,12 @@
       <fluct_Nstrings_per_NN_collision>1</fluct_Nstrings_per_NN_collision>
       <QCD_string_production_mode>1</QCD_string_production_mode>
       <rapidity_loss_method>4</rapidity_loss_method>
-      <ylossParam4At2>1.610</ylossParam4At2>
-      <ylossParam4At4>1.685</ylossParam4At4>
-      <ylossParam4At6>1.685</ylossParam4At6>
-      <ylossParam4At10>2.95</ylossParam4At10>
-      <ylossParam4var>0.682</ylossParam4var>
+      <!--RHIC bulk tune 2026-11-24 (before: 1.610 / 1.685 / 1.685 / 2.95, variance 0.682)-->
+      <ylossParam4At2>1.6</ylossParam4At2>
+      <ylossParam4At4>2.15</ylossParam4At4>
+      <ylossParam4At6>2.15</ylossParam4At6>
+      <ylossParam4At10>2.15</ylossParam4At10>
+      <ylossParam4var>0.45</ylossParam4var>
       <remnant_energy_loss_fraction>0.536</remnant_energy_loss_fraction>
       <fluctuation_remnant_energy_loss_fraction>0</fluctuation_remnant_energy_loss_fraction>
       <remnant_energy_loss_fraction_var>0.4</remnant_energy_loss_fraction_var>

@@ -44,7 +44,7 @@ the automatic task list to it.
 | file | purpose |
 |---|---|
 | `../config/OO_MCGlauber_MUSIC_isr.xml` | user XML: tuned 3dMCGlauber + MUSIC for O+O, `<Hard>` with `<PythiaGun>` + `<ISR>`, Matter (`recoil_on` 1) + LBT, iColored with `<colour_closure>` |
-| `../config/OO_MCGlauber_MUSIC_isr_rhictune.xml` | the same with the Pythia settings of the RHIC p+p 200 GeV hard tune (`analysis/OO-RHIC`): `PDF:pSet = 20` (iMATTER's NNPDF3.1 NNLO), α<sub>s</sub>(M<sub>Z</sub>) 0.152 for the hard process and the MPI, MPI `pTmin = 5` (~1.7 GeV effective). The default XML runs Pythia's defaults (α<sub>s</sub> 0.130, `pSet` 13, soft MPI with `pTmin` 0.2). Use `--user-xml ../config/OO_MCGlauber_MUSIC_isr_rhictune.xml` for O+O compared with the tune's p+p reference |
+| `../config/OO_MCGlauber_MUSIC_isr_rhictune.xml` | the same with the Pythia settings of the RHIC p+p 200 GeV hard tune (`analysis/OO-RHIC`): `PDF:pSet = 20` (iMATTER's NNPDF3.1 NNLO), α<sub>s</sub>(M<sub>Z</sub>) 0.152 for the hard process and the MPI, MPI `pTmin = 5` (~1.7 GeV effective). The default XML runs Pythia's defaults (α<sub>s</sub> 0.130, `pSet` 13, soft MPI with `pTmin` 0.2). Since 2026-11-24 also the RHIC bulk tune in `<IS><MCGlauber>` (`analysis/OO-RHIC`, set `g_v045_n215`: yloss nodes 1.6 / 2.15 / 2.15 / 2.15, variance 0.45, shadowing 0.45, BG 5; the default XML keeps the JETSCAPE MAP, which makes 15–30 % too few particles in this chain); the reasons and results are in the file's header. Use `--user-xml ../config/OO_MCGlauber_MUSIC_isr_rhictune.xml` for O+O compared with the tune's p+p reference |
 | `../config/pp200_isr_vacuum.xml` | user XML for `--vacuum`: p+p 200 GeV hard sector, ISR, Matter in vacuum, iColored ([Vacuum](#vacuum-the-pp-hard-reference-and-oo-without-a-medium)) |
 | `../config/grid_oo.yaml` | output grid of the hydro file: 64 × 64 × 32 at 0.3125 fm × 0.3125 fm × 0.3125 (x, y ±9.84 fm) |
 | `run_prod_oo_isr.py` | one job: one seed, N events |
@@ -431,7 +431,7 @@ python run_prod_oo_isr.py --vacuum --events 20 --seed 1 --pthat-bins 10-20,20-40
             # O+O (the default XML) without a medium: the strings are made, not evolved
 ```
 
-- `../config/pp200_isr_vacuum.xml`: p+p at 200 GeV with the O+O 3dMCGlauber settings, b ≤
+- `../config/pp200_isr_vacuum.xml`: p+p at 200 GeV with the 3dMCGlauber settings of the O+O tune XML (the RHIC bulk tune since 2026-11-24), b ≤
   3 fm, pTHat 5–60 GeV, `MultipartonInteractions:pTmin = 5.0`, Matter `Q0` 2 and
   `vir_factor` 0.25 (iMATTER reads both from `<Matter>`), iColored. The cut scheme of the
   RHIC p+p hard tune: windows from 5 GeV (above iMATTER's floor Q0/√vir_factor for
