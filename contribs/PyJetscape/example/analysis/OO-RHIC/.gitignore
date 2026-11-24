@@ -4,3 +4,7 @@ data/
 design/
 results/
 __pycache__/
+# HEPData tables downloaded by pp_bulk.py fetch (UA5, refs/ua5_200/)
+refs/**/*.yaml
+# the STAR d+Au FTPC figure (not public): local only; its extracted points, star_dau_ftpc.json, are committed
+refs/dau_200/*.pdf

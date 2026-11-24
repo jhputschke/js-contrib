@@ -111,6 +111,20 @@ python validate_holes.py
 jupyter nbconvert --to notebook --execute oo_centrality_bias.ipynb --output-dir results --output oo_centrality_bias_executed.ipynb
 jupyter nbconvert --to notebook --execute oo_bulk_comparison.ipynb --output-dir results --output oo_bulk_comparison_executed.ipynb
 jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
+# p+p / O+O bulk tune, step A (screening) and follow-ups, on a multi-GPU Docker host (one container per GPU)
+./oo_bias_docker.sh --dev /data/OO-RHIC_bulk screen      # map, pp2407, m3: 10k p+p + 10k O+O each
+./oo_bias_docker.sh --dev /data/OO-RHIC_bulk var         # pp2407 with yloss variance 0.3
+./oo_bias_docker.sh --dev /data/OO-RHIC_bulk grid        # variance 0.4/0.45 x nodes 2.15/2.25
+./oo_bias_docker.sh --dev /data/OO-RHIC_bulk rem         # alpha_rem 0.4/0.65/0.8/1.0 on g_v045_n215 (p+p)
+./oo_bias_docker.sh --dev /data/OO-RHIC_bulk dau_map dau_g_v045_n215   # d+Au, the MAP's calibration data
+python pp_bulk.py fetch && python pp_bulk.py analyse --out /data/OO-RHIC_bulk   # UA5 + refs/rhic_pp200 (PHOBOS, STAR, PHENIX)
+python oo_bulk.py analyse --sample oo_pp2407 --out /data/OO-RHIC_bulk          # per O+O sample
+python centrality_norm.py
+python dau_bulk.py fetch && python dau_bulk.py analyse --out /data/OO-RHIC_bulk   # d+Au vs PHENIX, STAR (TPC, FTPC), BRAHMS
+# the adopted set g_v045_n215 is the 3dMCGlauber block of config/OO_MCGlauber_MUSIC_isr_rhictune.xml and
+# config/pp200_isr_vacuum.xml since 2026-11-24 (mb, jets, jets_quench run with it); the screening sets
+# name every parameter they change (map: oo_bias.MAP), so their samples are unchanged
+jupyter nbconvert --to notebook --execute bulk_tune_screening.ipynb --output-dir results --output bulk_tune_screening_executed.ipynb
 ```
 
 `run_runs.py` is resumable (finished jobs are skipped) and gives every job its own seed.
@@ -133,6 +147,13 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 | `oo_bias_jets.py` | the same against the jet p_T and the charged-hadron p_T: anti-k_T R = 0.4 jets (\|η\| < 0.7; charged jets for `--charged` samples, full jets for `jets_quench`) and charged hadrons (\|η\| < 1) on the hard event's hadrons, per p̂_T window and stitched over the windows (a window enters a bin only with ≥ `--min-entries` (10) raw entries in every class); class sums for quenched/vacuum double ratios; LBT hole energies of the colour audit → `results/oo_bias_jets.json`, `results/oo_bias_jets_jets_quench.json` |
 | `validate_holes.py` | validation of the hole and partner treatment on the `jets_holes` sample (made with `--store-partons --store-hadronization-input`, negative hadrons from `prod_OO_isr/negative_hadrons.py`): bookkeeping against iColored's colour audit, hole and partner energy per class, full-jet R<sub>CP</sub> uncorrected / parton-level subtraction / negative hadrons, charged jets, leading hadrons → `results/validate_holes.json` |
 | `oo_bulk.py`, `oo_bulk_comparison.ipynb` | R4c: the O+O bulk of the same events against STAR (p(N_ch), ⟨N_ch⟩ vs centrality, EPD nMIP of minimum-bias and triggered events) → `results/oo_bulk.json` |
+| `oo_bias_docker.sh` | `oo_bias.py` on a multi-GPU Docker host: one container per GPU, each its shard (`--shard g/N`), the settings benchmarked on the 2 × RTX 3090 (8 jobs per GPU, OMP 3, MPS); `--dev` mounts this checkout's `example/` over the image's |
+| `pp_bulk.py` | p+p 200 GeV bulk of the `pp_<set>` samples against UA5 (dN/dη NSD and inelastic, NSD P(n) in four η windows; HEPData ins233599, ins267179 → `refs/ua5_200/`) → `results/pp_bulk.json` |
+| `centrality_norm.py` | how STAR's O+O centrality classes map onto the model's: STAR's normalisation from its own Fig. 5a/5b, the model centrality at STAR's N_ch and EPD edges, the flattest normalisation f, STAR's minimum-bias trigger emulated (from `oo_bulk.py`'s quantiles) → `results/centrality_norm.json` |
+| `bulk_tune_screening.ipynb` | the bulk parameter exploration (step A of the p+p / O+O bulk tune and its follow-ups): the sets and why, p+p against UA5, O+O p(N_ch) shape, ⟨N_ch⟩ vs centrality with and without the normalisation, the summary and the grid |
+| `refs/rhic_pp200/` | RHIC p+p 200 GeV multiplicity references besides UA5 (none on HEPData): PHOBOS inelastic dN/dη for \|η\| ≤ 5.3 read from the vector figure of arXiv:1011.1940 (Fig. 28a, 90 % C.L. band), STAR NSD and PHENIX minimum-bias mid-rapidity values (`extract_rhic_pp200.py --phobos <source dir>` → `rhic_pp200.json`); used by `pp_bulk.py` |
+| `dau_bulk.py` | d+Au 200 GeV minimum-bias bulk (`oo_bias.py` samples `dau_<set>`: d on Au, b < 12 fm) against PHENIX (dN/dη, \|η\| < 2.6, six classes from the Au-going BBC; HEPData ins1684475), STAR (\|η\| < 1 in Au-going FTPC classes, ins656934; FTPC points at 3.0 ≤ \|η\| ≤ 3.5 in \|η\| < 0.5 classes) and BRAHMS (minimum bias to η = 4.2, ins643085): the check that a bulk set does not break the MAP's calibration → `results/dau_bulk.json` |
+| `refs/dau_200/` | d+Au references: the HEPData tables (fetched, git-ignored) and `extract_star_ftpc_dau.py` → `star_dau_ftpc.json`, STAR's FTPC d+Au dN/dη read from a ROOT figure of the d+Au FTPC analysis (2004; the figure is not public and stays local, git-ignored; its 40–100 % and minimum-bias points are rescaled to the published \|η\| < 1 normalisation) |
 | `refs/star_oo/` | STAR O+O references read from the vector figures of arXiv:2510.19645 and 2604.13935 (`extract_star_oo.py` → `star_oo_bulk.json`; no HEPData) |
 | `conditional.py` | the posterior with a parameter held fixed (emulator only), e.g. Q0 = 2 GeV for Matter + LBT → `results/conditional_Q0_2.json` |
 | `dndeta.py` | charged $dN/d\eta$ over the full η range at fixed pT̂ for all models and MPI settings (own small samples under `PROD/diag/eta/`) |

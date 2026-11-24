@@ -5,6 +5,8 @@ the O+O tune XML does on STAR's multiplicity distributions, from the events of t
 test (oo_bias.py); no new events.
 
     python oo_bulk.py analyse          # -> results/oo_bulk.json
+    python oo_bulk.py analyse --sample oo_pp2407 [--out ROOT]   # a screening sample of oo_bias.py
+                                       # -> results/oo_bulk_oo_pp2407.json (no jets)
     jupyter nbconvert --to notebook --execute oo_bulk_comparison.ipynb --output results/oo_bulk_comparison_executed.ipynb
 
 Model events (oo_bias.py): minimum bias = the `mb` stand-in (ISR chain without the subtraction and
@@ -110,10 +112,11 @@ def load(name, with_jet):
 
 
 def percentile_classes(x, classes, rng):
-    """Class index per event from percentiles of x (high x = central), random tie-break."""
+    """Class index per event from percentiles of x (high x = central), random tie-break; -1 for
+    events below the last class (e.g. 80-100 % when the classes end at 80 %)."""
     xr = x + rng.random(len(x))
     cuts = np.percentile(xr, [100 - hi for _, hi in classes])
-    c = np.full(len(x), len(classes) - 1)
+    c = np.full(len(x), -1)
     for k in range(len(classes) - 1, -1, -1):
         c[xr >= cuts[k]] = k
     return c, cuts
@@ -163,10 +166,10 @@ def fit_k(n_epd, star_mb, rng, widths=(0.0, 0.5, 1.0)):
     return best
 
 
-def analyse():
+def analyse(sample="mb"):
     rng = np.random.default_rng(23)
     star = json.loads(STAR.read_text())
-    mb = load("mb", with_jet=False)
+    mb = load(sample, with_jet=False)
     if not mb:
         sys.exit("oo_bulk.py: no minimum-bias events")
     nmb = len(mb["nch_flow"])
@@ -178,6 +181,31 @@ def analyse():
     res["pnch"] = {"edges": edges.tolist(), "counts": h.tolist(), "counts_err": he.tolist(),
                    "mean": float(mb["nch_flow"].mean()),
                    "mean_err": float(mb["nch_flow"].std() / np.sqrt(nmb))}
+
+    # quantiles of the two centrality estimators (for centrality_norm.py: classes with another
+    # normalisation of the total cross section without reloading the events)
+    q = np.arange(0, 100.0001, 0.25)
+    res["quantiles"] = {"pct": q.tolist(),
+                        "nch_flow": np.percentile(mb["nch_flow"], q).tolist(),
+                        "n_epd": np.percentile(mb["n_epd"], q).tolist()}
+
+    # STAR's minimum-bias trigger, emulated from the per-event dN/deta (0.2-wide bins): hits in TOF
+    # (|eta| < 1) and in the forward detectors on both sides (VPD 4.2 < |eta| < 5.2, or the EPD
+    # 2.2 < |eta| < 5.0).  Bulk hadrons only; the beam remnants are in the bulk (3dMCGlauber's
+    # remnant strings, deposited in MUSIC), but forward hydro is least certain and there is no
+    # diffraction, so the forward hits carry a model uncertainty.  Quantiles of N_ch of the triggered events for centrality_norm.py
+    ec = 0.5 * (ETA_EDGES[1:] + ETA_EDGES[:-1])
+    def _n(lo, hi, side=0):
+        a = np.abs(ec) if side == 0 else side * ec
+        return mb["deta"][:, (a > lo) & (a < hi)].sum(1)
+    tof = _n(0, 1.0)
+    trig = {"tof1_vpd": (tof >= 1) & (_n(4.2, 5.2, 1) >= 1) & (_n(4.2, 5.2, -1) >= 1),
+            "tof1_epd": (tof >= 1) & (_n(2.2, 5.0, 1) >= 1) & (_n(2.2, 5.0, -1) >= 1),
+            "tof2_epd": (tof >= 2) & (_n(2.2, 5.0, 1) >= 1) & (_n(2.2, 5.0, -1) >= 1),
+            "tof1": tof >= 1}
+    res["trigger"] = {k: {"eff": float(m.mean()), "eff_err": float(np.sqrt(m.mean() * (1 - m.mean()) / nmb)),
+                          "nch_flow_q": np.percentile(mb["nch_flow"][m], q).tolist()}
+                      for k, m in trig.items()}
 
     # 2. <N_ch> per centrality class, centrality from N_ch itself (as STAR does)
     c, cuts = percentile_classes(mb["nch_flow"], FIG5B_CLASSES, rng)
@@ -230,7 +258,7 @@ def analyse():
     res["dndeta"] = D
 
     # 5. trigger-selected EPD distributions (jets, production settings), when present
-    jets = load("jets", with_jet=True)
+    jets = load("jets", with_jet=True) if sample == "mb" else None
     if jets:
         w = jets["glauber_ncoll"].astype(float)
         n_j = smear(jets["n_epd"], k_best, float(s_best), np.random.default_rng(6))
@@ -248,8 +276,10 @@ def analyse():
             out["per_trigger"][name] = {"n": int(m.sum()), "h": v.tolist(), "h_err": e.tolist()}
         out["mean_n_epd_weighted"] = float(np.average(jets["n_epd"], weights=w))
         res["jets"] = out
-    OUT_JSON.parent.mkdir(exist_ok=True)
-    OUT_JSON.write_text(json.dumps(res, indent=1))
+    out_json = OUT_JSON if sample == "mb" else OUT_JSON.with_name(f"oo_bulk_{sample}.json")
+    res["sample"] = sample
+    out_json.parent.mkdir(exist_ok=True)
+    out_json.write_text(json.dumps(res, indent=1))
     print(f"minimum bias: {nmb} events, <N_ch>(|eta|<1.5, 0.2-2 GeV) {res['pnch']['mean']:.1f}, "
           f"<N_ch,EPD> {res['epd']['mean_n_epd']:.1f}")
     print("  <N_ch> 0-1 % / 0-10 % / 70-80 %: model {:.1f} / {:.1f} / {:.1f}".format(
@@ -257,11 +287,17 @@ def analyse():
     print(f"  nMIP scale: k {k_best:.2f} (width {s_best}); from the class edges: "
           + ", ".join(f"{k} {v:.2f}" for k, v in res["epd"]["k_from_edges"].items()))
     print("  jets:", "yes" if jets else "not yet")
-    print("wrote", OUT_JSON)
+    print("wrote", out_json)
     return 0
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2 or sys.argv[1] != "analyse":
-        sys.exit(__doc__)
-    sys.exit(analyse())
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("step", choices=("analyse",))
+    ap.add_argument("--sample", default="mb", help="minimum-bias sample of oo_bias.py (mb, oo_map, oo_pp2407, ...)")
+    ap.add_argument("--out", default=None, help="output root of oo_bias.py (default its OUT)")
+    args = ap.parse_args()
+    if args.out:
+        B.OUT = Path(args.out)
+    sys.exit(analyse(args.sample))

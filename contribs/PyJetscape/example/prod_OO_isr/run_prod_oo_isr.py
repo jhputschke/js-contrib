@@ -66,6 +66,19 @@ and the .json are written, with the same per-event record and per-window cross s
 <LinesToRead> and <JetHadronization><LinesToRead>, e.g. "StringFlav:probStoUD = 0.25"; the
 latter can also be changed afterwards with rehadronize_jets.py --line.
 
+Bulk variants without a new XML (the p+p / O+O bulk screening, analysis/OO-RHIC/oo_bias.py).
+--xml-set PATH=VALUE sets any element of the user XML (3dMCGlauber's yloss nodes, shadowing,
+BG, the system, MUSIC's viscosities ...); --mcglauber-param KEY=VALUE what only 3dMCGlauber's
+input file holds (rapidity_loss_method 3 and its yloss_param_*), through a job copy of
+mcglauber.input; --music-param KEY=VALUE what only MUSIC's music_input holds (the string tilt
+stringTransverseShiftFrac), in the job's private music_input.  All three are recorded in the
+.json and the files' attributes.
+
+    python run_prod_oo_isr.py --events 5 --seed 1 --vacuum-jet --bulk-hadrons 1 \\
+        --xml-set IS/MCGlauber/projectile=p --xml-set IS/MCGlauber/target=p \\
+        --xml-set IS/MCGlauber/nucleon_configuration_from_file=0 \\
+        --mcglauber-param rapidity_loss_method=3 --music-param stringTransverseShiftFrac=0.477
+
 Jet hadronization seeds.  iColoredHadronization is reseeded every event from the job's
 seed (<reseed_per_event> 1) and the seed is recorded (units/seed of the jet_frag file,
 jet_pythia_seed of every event record): each event's jet hadrons can be reproduced on their
@@ -299,6 +312,30 @@ def parse_args() -> argparse.Namespace:
                    dest="hadronization_lines", metavar="LINE",
                    help="add a Pythia setting to <JetHadronization><LinesToRead> (iColored's "
                         "Pythia), e.g. 'StringFlav:probStoUD = 0.25' (repeatable)")
+    p.add_argument("--xml-set", action="append", default=[], dest="xml_set",
+                   metavar="PATH=VALUE",
+                   help="set an element of the user XML before the job's own settings, e.g. "
+                        "'IS/MCGlauber/shadowing_factor=0.45' or 'IS/MCGlauber/projectile=p' "
+                        "(repeatable; the parent must exist, the element is created if "
+                        "missing and must then be known to the main XML). The driver's own "
+                        "options (--b-max, --sqrts, ...) are applied afterwards and win")
+    p.add_argument("--mcglauber-param", action="append", default=[], dest="mcglauber_params",
+                   metavar="KEY=VALUE",
+                   help="set a 3dMCGlauber input-file parameter the XML does not carry, e.g. "
+                        "'rapidity_loss_method=3', 'yloss_param_alpha2=0.34' (repeatable). The "
+                        "job gets its own copy of the build's mcglauber.input with these "
+                        "values (<workdir>/xscape_data, through $XSCAPE_DATA_DIR; X-SCAPE "
+                        "refuses <mcglauber_input_file> in a user XML because the main XML "
+                        "has no such element). Keys the wrapper sets from the XML are refused: "
+                        "use --xml-set. rapidity_loss_method other than 4 is also written to "
+                        "the job XML, so the wrapper does not set method 4's nodes over it")
+    p.add_argument("--music-param", action="append", default=[], dest="music_params",
+                   metavar="KEY=VALUE",
+                   help="set a parameter in the job's private music_input that X-SCAPE's "
+                        "MusicWrapper does not pass from the XML, e.g. "
+                        "'stringTransverseShiftFrac=0.477' (the string tilt alpha_shift; "
+                        "repeatable). Keys of <Hydro><MUSIC> are refused (the wrapper "
+                        "overrides them from the XML): use --xml-set")
     p.add_argument("--dry-run", action="store_true", dest="dry_run",
                    help="check the XML and grid, write the job XML, print the plan; do not run")
     rp.add_seed_args(p, "3dMCGlauber, Pythia, iMATTER, Matter")
@@ -334,6 +371,94 @@ def _add_lines(parent, lines):
     n.text = "\n" + "".join(f"        {s}\n" for s in old + [s.strip() for s in lines]) + "      "
 
 
+def _key_values(items, opt):
+    """['K=V', ...] -> [(K, V), ...]; K without spaces, V not empty."""
+    out = []
+    for s in items:
+        k, sep, v = s.partition("=")
+        k, v = k.strip(), v.strip()
+        if not sep or not k or not v or any(c.isspace() for c in k):
+            sys.exit(f"run_prod_oo_isr.py: {opt} wants KEY=VALUE, got {s!r}")
+        out.append((k, v))
+    return out
+
+
+def edit_param_text(text, pairs, end_marker=None, case_insensitive=False):
+    """A 'key value  # comment' parameter file with the keys of ``pairs`` set: every line
+    whose first word is the key is replaced; a key not in the file is added at the end, or
+    before the ``end_marker`` line (MUSIC's EndOfData, after which nothing is read).
+    3dMCGlauber's reader matches keys exactly, MUSIC's (StringFind4) ignoring case."""
+    norm = (lambda s: s.lower()) if case_insensitive else (lambda s: s)
+    lines = text.splitlines()
+    for key, value in pairs:
+        hit = False
+        for i, line in enumerate(lines):
+            words = line.split("#", 1)[0].split()
+            if words and norm(words[0]) == norm(key):
+                lines[i] = f"{key} {value}    # set by run_prod_oo_isr.py"
+                hit = True
+        if hit:
+            continue
+        new = f"{key} {value}    # added by run_prod_oo_isr.py"
+        if end_marker is None:
+            lines.append(new)
+        else:
+            ends = [i for i, s in enumerate(lines) if s.strip().lower() == end_marker.lower()]
+            if not ends:
+                sys.exit(f"run_prod_oo_isr.py: no {end_marker} line in the parameter file")
+            lines.insert(ends[0], new)
+    return "\n".join(lines) + "\n"
+
+
+def _tags_below(root, path):
+    """Lower-case tags of the children of root/path (empty if missing)."""
+    n = root.find(path) if root is not None else None
+    return set() if n is None else {c.tag.lower() for c in n if isinstance(c.tag, str)}
+
+
+def apply_xml_set(a, root):
+    """--xml-set PATH=VALUE on the parsed user XML -> problems.  The value is the exact
+    text (no padding: names such as a projectile 'p' are compared as written)."""
+    problems = []
+    for path, value in a.xml_set_pairs:
+        parent_path, _, tag = path.strip("/").rpartition("/")
+        parent = root.find(parent_path) if parent_path else root
+        if parent is None or not tag:
+            problems.append(f"--xml-set {path}: no <{parent_path.replace('/', '><')}> in the "
+                            "user XML")
+            continue
+        n = parent.find(tag)
+        if n is None:
+            n = ET.SubElement(parent, tag)
+        n.text = value
+    return problems
+
+
+def override_problems(a, root):
+    """--mcglauber-param / --music-param keys that the wrappers would overwrite from the XML."""
+    main = ET.parse(a.main_xml).getroot()
+    problems = []
+    if a.mcglauber_pairs:
+        xml_keys = (_tags_below(root, "IS/MCGlauber") | _tags_below(main, "IS/MCGlauber")
+                    | {"projectile", "target", "roots"}) - {"rapidity_loss_method"}
+        bad = [k for k, _ in a.mcglauber_pairs if k.lower() in xml_keys]
+        if bad:
+            problems.append(f"--mcglauber-param {', '.join(bad)}: set from the XML by "
+                            "MCGlauberWrapper, use --xml-set IS/MCGlauber/<tag>=VALUE")
+    if a.music_pairs:
+        if a.vacuum:
+            problems.append("--music-param: --vacuum runs no MUSIC")
+        xml_keys = _tags_below(root, "Hydro/MUSIC") | _tags_below(main, "Hydro/MUSIC")
+        bad = [k for k, _ in a.music_pairs if k.lower() in xml_keys]
+        if bad:
+            problems.append(f"--music-param {', '.join(bad)}: a <Hydro><MUSIC> element, which "
+                            "MusicWrapper sets from the XML; use --xml-set Hydro/MUSIC/<tag>=VALUE")
+    if (a.mcglauber_pairs or a.music_pairs) and a.in_build:
+        problems.append("--mcglauber-param / --music-param need the job's own working "
+                        "directory (not --in-build, where the input files are shared)")
+    return problems
+
+
 def make_vacuum(root):
     """--vacuum: no medium.  Drop the pre-equilibrium, hydro and LBT blocks; Matter in
     vacuum without recoils.  3dMCGlauber stays (binary collisions, beam remnants)."""
@@ -354,7 +479,16 @@ def job_xml(a, out_h5: str):
     """Check the template, apply this job's settings, write it next to the output."""
     tree = ET.parse(a.user_xml)
     root = tree.getroot()
-    problems = []
+    problems = apply_xml_set(a, root)
+    problems += override_problems(a, root)
+    method = dict(a.mcglauber_pairs).get("rapidity_loss_method")
+    if method is not None and root.find("IS/MCGlauber") is not None:
+        # MCGlauberWrapper sets method 4 and its nodes only when the XML says 4; any other
+        # value it leaves to the input file (with a warning), so the XML must agree
+        n = root.find("IS/MCGlauber/rapidity_loss_method")
+        if n is None:
+            n = ET.SubElement(root.find("IS/MCGlauber"), "rapidity_loss_method")
+        n.text = method
 
     _set(root, "nEvents", a.events)
     root.find("Random/seed").text = str(a.seed)
@@ -662,6 +796,17 @@ def main() -> int:
     for k in ("events",):
         if getattr(a, k) < 1:
             sys.exit(f"run_prod_oo_isr.py: --{k} must be >= 1")
+    a.xml_set_pairs = _key_values(a.xml_set, "--xml-set")
+    a.mcglauber_pairs = _key_values(a.mcglauber_params, "--mcglauber-param")
+    a.music_pairs = _key_values(a.music_params, "--music-param")
+    # the job's own input files (written into its working directory after enter_workdir)
+    a.mcglauber_input_text = (edit_param_text(open(os.path.join(a.build, "mcglauber.input")).read(),
+                                              a.mcglauber_pairs)
+                              if a.mcglauber_pairs else None)
+    a.music_input_text = (edit_param_text(open(os.path.join(a.build, "music_input")).read(),
+                                          a.music_pairs, end_marker="EndOfData",
+                                          case_insensitive=True)
+                          if a.music_pairs else None)
 
     a.pthat_windows = None
     if a.pthat_bins is not None:
@@ -684,7 +829,8 @@ def main() -> int:
         if a.out is None:
             # the system in the name: pp_isr_vacuum_seed0001.h5, OO_isr_vacuum_...
             t = ET.parse(a.user_xml).getroot()
-            proj = (_text(t, "IS/MCGlauber/projectile") or "X").strip()
+            apply_xml_set(a, t)                   # --xml-set IS/MCGlauber/projectile=p ...
+            proj =(_text(t, "IS/MCGlauber/projectile") or "X").strip()
             targ = (_text(t, "IS/MCGlauber/target") or "X").strip()
             name_base = f"{proj}{targ}_isr_vacuum"
         else:
@@ -757,6 +903,10 @@ def main() -> int:
           + (", NO SUBTRACTION (reference)" if a.no_subtraction else ""))
     print(f"  build    {a.build}")
     print(f"  job XML  {xml}")
+    for label, pairs in (("xml-set ", a.xml_set_pairs), ("3dMCGlb ", a.mcglauber_pairs),
+                         ("music   ", a.music_pairs)):
+        if pairs:
+            print(f"  {label} " + ", ".join(f"{k} = {v}" for k, v in pairs))
     if a.eloss_threads:
         print(f"  showers  in parallel, <Eloss><nThreads> {a.eloss_threads}"
               + (f" (OMP_NUM_THREADS={os.environ.get('OMP_NUM_THREADS', 'unset')})"
@@ -827,6 +977,11 @@ def main() -> int:
         "prod_eloss_threads": a.eloss_threads,
         "prod_pythia_lines": "\n".join(a.pythia_lines),
         "prod_hadronization_lines": "\n".join(a.hadronization_lines),
+        # the overrides (the job XML above already has the --xml-set values)
+        "prod_xml_set": "\n".join(f"{k}={v}" for k, v in a.xml_set_pairs),
+        "prod_mcglauber_params": "\n".join(f"{k}={v}" for k, v in a.mcglauber_pairs),
+        "prod_music_params": "\n".join(f"{k}={v}" for k, v in a.music_pairs),
+        **({"prod_mcglauber_input": a.mcglauber_input_text} if a.mcglauber_input_text else {}),
         "vacuum": int(a.vacuum),
         "system": system,
         "initial_state_kind": "3dMCGlauber_strings_after_ISR",
@@ -858,6 +1013,22 @@ def main() -> int:
     else:
         workdir = rp.job_workdir(a, out_h5)
         main_xml = rp.enter_workdir(a, workdir, xml)
+        if a.music_input_text:
+            # the private copy enter_workdir made; MusicWrapper reads it (and rewrites only
+            # the lines of EOS_to_use / Include_Bulk_Visc_Yes_1_No_0)
+            with open(os.path.join(workdir, "music_input"), "w") as f:
+                f.write(a.music_input_text)
+        if a.mcglauber_input_text:
+            # MCGlauberWrapper reads $XSCAPE_DATA_DIR/mcglauber.input; X-SCAPE's only other
+            # use of XSCAPE_DATA_DIR is the LBT-tables fallback (LBT_TABLES_PATH is set)
+            data = os.path.join(workdir, "xscape_data")
+            os.makedirs(data, exist_ok=True)
+            with open(os.path.join(data, "mcglauber.input"), "w") as f:
+                f.write(a.mcglauber_input_text)
+            lbt = os.path.join(data, "LBT-tables")
+            if os.path.exists(os.path.join(a.build, "LBT-tables")) and not os.path.lexists(lbt):
+                os.symlink(os.path.join(a.build, "LBT-tables"), lbt)
+            os.environ["XSCAPE_DATA_DIR"] = data
     print(f"  workdir  {workdir}")
     jetscape = js.JetScapePerEvent()
     jetscape.SetXMLMainFileName(main_xml)
@@ -1154,6 +1325,9 @@ def main() -> int:
                "subtract_hard_momentum": 0 if a.no_subtraction else 1,
                "hard_pair_string_veto": provenance["hard_pair_string_veto"],
                "vacuum_jet": int(bool(a.vacuum_jet)),
+               "xml_set": [f"{k}={v}" for k, v in a.xml_set_pairs],
+               "mcglauber_params": [f"{k}={v}" for k, v in a.mcglauber_pairs],
+               "music_params": [f"{k}={v}" for k, v in a.music_pairs],
                "events_requested": a.events, "events_written": n,
                # run_jobs.sh counts a job complete when written + skipped == requested
                "events_skipped": len(skipped),

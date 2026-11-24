@@ -11,6 +11,17 @@ then selection bias.
     python oo_bias.py analyse                     # -> results/oo_bias.json
     jupyter nbconvert --to notebook --execute oo_centrality_bias.ipynb --output results/oo_centrality_bias_executed.ipynb
 
+The bulk screening (plan A of the p+p / O+O bulk tune): minimum-bias stand-ins as `mb`, for p+p
+and O+O, with the 3dMCGlauber sets of BULK_SETS (map, pp2407, m3; xsdef on request), 10k events
+per sample in 250-event jobs, the samples interleaved so that an early stop leaves them even:
+
+    python oo_bias.py run screen --list                       # the jobs and their commands
+    python oo_bias.py run screen -j 8 --mps --omp 3 --limit 8 # a timing test (8 jobs)
+    python oo_bias.py run screen -j 8 --mps --omp 3 --shard 0/2   # GPU 0; 1/2 on GPU 1
+    python oo_bias.py run screen --events 5000 ...            # 5k per sample; 10k later adds
+    python oo_bulk.py analyse --sample oo_pp2407              # O+O against STAR
+On the 2 x RTX 3090 box: oo_bias_docker.sh (one container per GPU, the benchmarked settings).
+
 Samples (O+O 200 GeV, config/OO_MCGlauber_MUSIC_isr_rhictune.xml, b in [0, 10] fm as 3dMCGlauber
 samples it, run_prod_oo_isr.py with MUSIC and iSS in the job: --bulk-hadrons 1 (one sample per
 event: the physical fluctuations), --vacuum-jet, charged hadrons with |eta| < 5.2 stored):
@@ -73,6 +84,95 @@ SAMPLES = {
 }
 #: jets_quench reuses the seeds of jets (same geometry and hard scatterings, the jet now sees the medium)
 SEED_BASE = {"mb": 700000, "jets": 710000, "jets_noveto": 720000, "jets_quench": 710000, "jets_holes": 730000}
+
+# ── the bulk screening (plan A of the p+p / O+O bulk tune on the tuning page) ─────────────
+#: 3dMCGlauber sets, as driver options on top of OO_XML.  The screening ran when OO_XML's own set
+#: was the JETSCAPE MAP of 2601.17234 with shadowing 0; since 2026-11-24 OO_XML carries the
+#: adopted set g_v045_n215, so the MAP is given explicitly (MAP below) and every set below names
+#: all the parameters it differs from the XML in -- each sample runs as it did in the screening.
+#: The input-file defaults of 3dMCGlauber are already the 2211.16376 method-3 values; they are
+#: given explicitly so that the files record them.
+MAP = [f"--xml-set=IS/MCGlauber/{k}={v}" for k, v in (
+    ("ylossParam4At2", 1.61), ("ylossParam4At4", 1.685), ("ylossParam4At6", 1.685),
+    ("ylossParam4At10", 2.95), ("ylossParam4var", 0.682), ("shadowing_factor", 0.0),
+    ("BG", 3.96))]
+BULK_SETS = {
+    "map": MAP,
+    # 2407.17443 p+p (Figs. 3-7): method 4, nodes 1.6 / 2.15 / 2.15 / 2.15, variance 0.5,
+    # shadowing 0.45, BG 5 (its mcglauber.input); the rest as the MAP
+    "pp2407": [f"--xml-set=IS/MCGlauber/{k}={v}" for k, v in (
+        ("ylossParam4At2", 1.6), ("ylossParam4At4", 2.15), ("ylossParam4At6", 2.15),
+        ("ylossParam4At10", 2.15), ("ylossParam4var", 0.5), ("shadowing_factor", 0.45),
+        ("BG", 5.0))],
+    # method 3 (2211.16376: A 1.32, alpha1 1.8, alpha2 0.34, variance 0.4), shadowing 0.45,
+    # alpha_rem 0.5; the rest (BG, tau_form, hydro) as the MAP
+    "m3": MAP + [f"--mcglauber-param={k}={v}" for k, v in (
+        ("rapidity_loss_method", 3), ("yloss_param_slope", 1.32), ("yloss_param_alpha1", 1.8),
+        ("yloss_param_alpha2", 0.34), ("yloss_param_fluct_var_RHIC", 0.4))]
+        + [f"--xml-set=IS/MCGlauber/{k}={v}" for k, v in (
+            ("shadowing_factor", 0.45), ("remnant_energy_loss_fraction", 0.5))],
+    # X-SCAPE's default set (jetscape_main.xml): not in the default screening
+    "xsdef": [f"--xml-set=IS/MCGlauber/{k}={v}" for k, v in (
+        ("ylossParam4At2", 1.6), ("ylossParam4At4", 2.15), ("ylossParam4At6", 2.45),
+        ("ylossParam4At10", 2.95), ("ylossParam4var", 0.5), ("shadowing_factor", 0.6),
+        ("BG", 5.0))],
+}
+# follow-up of the screening (2026-11-23): pp2407 with a smaller yloss variance; the screening
+# found its p+p P(N_ch) ~10 % too wide and its O+O p(N_ch) tail (N_ch > 120) too long
+BULK_SETS["pp2407v03"] = [o for o in BULK_SETS["pp2407"] if "ylossParam4var" not in o] + [
+    "--xml-set=IS/MCGlauber/ylossParam4var=0.3"]
+# grid around it (2026-11-23): variance 0.4 / 0.45 x nodes At4 = At6 = At10 = 2.15 / 2.25; var 0.3
+# fixed the p+p P(n) widths but lowered the yield 8-9 % and made the O+O tail too short
+for _v in (0.4, 0.45):
+    for _n in (2.15, 2.25):
+        BULK_SETS[f"g_v{_v:g}_n{_n:g}".replace(".", "")] = [
+            o for o in BULK_SETS["pp2407"]
+            if not any(k in o for k in ("ylossParam4var", "At4=", "At6=", "At10="))] + [
+            f"--xml-set=IS/MCGlauber/ylossParam4var={_v}"] + [
+            f"--xml-set=IS/MCGlauber/ylossParam4At{y}={_n}" for y in (4, 6, 10)]
+# remnant scan (2026-11-23) on the grid's best set g_v045_n215: the remnant string runs from the
+# remnant's rapidity y_rem to y_rem - alpha_rem * y_loss (3dMCGlauber Glauber.cpp, string mode -4),
+# so a larger alpha_rem moves remnant energy from |eta| > 3.5 toward mid-rapidity; all sets were
+# above PHOBOS's p+p dN/deta beyond |eta| 3.5 and below it at 1.5-3 (XML value 0.536)
+REM_BASE = "g_v045_n215"
+for _a in (0.4, 0.65, 0.8, 1.0):
+    BULK_SETS[f"rem{round(_a * 100):03d}"] = BULK_SETS[REM_BASE] + [
+        f"--xml-set=IS/MCGlauber/remnant_energy_loss_fraction={_a}"]
+REM_SETS = tuple(s for s in BULK_SETS if s.startswith("rem"))
+GRID_SETS = tuple(s for s in BULK_SETS if s.startswith("g_"))
+#: the sets run by default ("screen" on the command line): MAP, 2407.17443 p+p, method 3
+SCREEN_SETS = ("map", "pp2407", "m3")
+#: p+p with the O+O XML's chain (as make_design.py --hydro): one nucleon each, no O16
+#: configurations, b <= 3 fm (as the p+p hard tune; the NN overlap ends well before)
+PP = ["--xml-set=IS/MCGlauber/projectile=p", "--xml-set=IS/MCGlauber/target=p",
+      "--xml-set=IS/MCGlauber/nucleon_configuration_from_file=0", "--b-max", "3"]
+#: d+Au with the same chain (dau_bulk.py: the check against the MAP's own calibration data,
+#: PHENIX/BRAHMS dN/deta): deuteron (Hulthen) on Au (Woods-Saxon, no configuration file), b < 12 fm
+#: (the participants stay near the Au surface, inside MUSIC's +-10 fm box); target moves to -z
+DAU = ["--xml-set=IS/MCGlauber/projectile=d", "--xml-set=IS/MCGlauber/target=Au",
+       "--xml-set=IS/MCGlauber/nucleon_configuration_from_file=0", "--b-max", "12"]
+#: minimum-bias stand-in as `mb` (no subtraction, veto off, bulk hadrons only)
+MB_OPTS = ["--no-subtraction", "--hard-pair-string-veto", "0"]
+SCREEN_EVENTS, SCREEN_PER_JOB = 10000, 250
+for _s, _opts in BULK_SETS.items():
+    SAMPLES[f"oo_{_s}"] = (SCREEN_EVENTS, SCREEN_PER_JOB, [(9, 11)], MB_OPTS + _opts, False)
+    SAMPLES[f"pp_{_s}"] = (SCREEN_EVENTS, SCREEN_PER_JOB, [(9, 11)], MB_OPTS + PP + _opts, False)
+    # every set uses the same seeds per system: the same geometries and hard scatterings as
+    # far as the set does not change them, so set-to-set differences are less noisy
+    # (jets_holes also starts at 730000: a separate validation sample with other options, run
+    # elsewhere; kept as both have run)
+    SEED_BASE[f"oo_{_s}"] = 730000
+    SEED_BASE[f"pp_{_s}"] = 740000
+    SAMPLES[f"dau_{_s}"] = (SCREEN_EVENTS, SCREEN_PER_JOB, [(9, 11)], MB_OPTS + DAU + _opts, False)
+    SEED_BASE[f"dau_{_s}"] = 750000
+#: name groups on the command line
+GROUPS = {"screen": [f"{sys_}_{s}" for s in SCREEN_SETS for sys_ in ("pp", "oo")],
+          "var": ["pp_pp2407v03", "oo_pp2407v03"],
+          "grid": [f"{sys_}_{s}" for s in GRID_SETS for sys_ in ("pp", "oo")],
+          "rem": [f"pp_{s}" for s in REM_SETS],          # step 1: p+p only (the forward shape)
+          "bias": ["mb", "jets", "jets_noveto", "jets_quench"],
+          "holes": ["jets_holes"]}
+
 #: samples whose jet sees the medium (LBT, Matter in medium); all others run with --vacuum-jet
 QUENCHED = {"jets_quench", "jets_holes"}
 #: samples that store all hadrons (full jets as sPHENIX's calorimeter jets); all others --charged.
@@ -83,8 +183,12 @@ STAR_CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 
 
-def jobs(name):
+def jobs(name, events=None):
+    """The jobs of a sample: (name, seed, events, command).  The sample's extra options come
+    last, so they win over the defaults here (--b-max for p+p).  events: another total for
+    the sample (the first jobs of the same seed list, so a larger total extends a smaller)."""
     total, per_job, windows, extra, _ = SAMPLES[name]
+    total = events or total
     per_job -= per_job % len(windows)
     out = []
     for j in range(total // per_job):
@@ -109,9 +213,23 @@ def done(name, seed, events):
     return False
 
 
-def run(names, nproc, mps, omp):
-    todo = [t for n in names for t in jobs(n) if not done(*t[:3])]
-    print(f"oo_bias.py: {len(todo)} jobs, {nproc} at a time -> {OUT}", flush=True)
+def job_list(names, events=None, shard=(0, 1), limit=None):
+    """The pending jobs, the samples interleaved (job 0 of every sample, then job 1, ...), so
+    that a run stopped early has about the same number of events in each sample.  Shard (i, n)
+    takes job k of every sample with k % n == i: disjoint shards (one container per GPU, or
+    per machine) that never run the same job twice, each with every sample."""
+    per = [jobs(n, events) for n in names]
+    i, n = shard
+    mine = [p[k] for k in range(i, max(map(len, per), default=0), n) for p in per if k < len(p)]
+    todo = [t for t in mine if not done(*t[:3])]
+    return todo[:limit] if limit else todo
+
+
+def run(names, nproc, mps, omp, events=None, shard=(0, 1), limit=None):
+    todo = job_list(names, events, shard, limit)
+    print(f"oo_bias.py: {len(todo)} jobs" + (f" (shard {shard[0]}/{shard[1]})" if shard[1] > 1 else "")
+          + f", {nproc} at a time, OMP_NUM_THREADS {omp}"
+          + f", MUSIC_CUDA_SYNC {os.environ.get('MUSIC_CUDA_SYNC', 'unset')} -> {OUT}", flush=True)
     env = dict(os.environ, OMP_NUM_THREADS=str(omp))
     mps_dir = None
     if mps:
@@ -315,14 +433,36 @@ def main(argv=None):
     p.add_argument("--mps", action="store_true", help="share the GPU through a CUDA MPS daemon")
     p.add_argument("--omp", type=int, default=2, help="OMP_NUM_THREADS per job (default 2)")
     p.add_argument("--out", default=None, help="output root (default ~/prod/OO-RHIC_OO/bias)")
+    p.add_argument("--shard", default="0/1", metavar="I/N",
+                   help="run every N-th job of the list, starting at I (0-based): one container "
+                        "per GPU, e.g. --shard 0/2 on GPU 0 and --shard 1/2 on GPU 1")
+    p.add_argument("--limit", type=int, default=None, metavar="K",
+                   help="run at most K of the pending jobs (a timing test)")
+    p.add_argument("--events", type=int, default=None, metavar="N",
+                   help="events per sample instead of the sample's total (the first jobs of its "
+                        "seed list; a larger N later adds the rest)")
+    p.add_argument("--list", action="store_true", help="print the pending jobs and exit")
     a = p.parse_args(argv)
     global OUT
     if a.out:
         OUT = Path(a.out)
-    bad = [n for n in a.names if n not in SAMPLES]
+    names = [x for n in a.names for x in GROUPS.get(n, [n])] if a.names else GROUPS["bias"]
+    bad = [n for n in names if n not in SAMPLES]
     if bad:
-        sys.exit(f"oo_bias.py: unknown samples {bad}; known {list(SAMPLES)}")
-    return run(a.names, a.j, a.mps, a.omp) if a.step == "run" else analyse()
+        sys.exit(f"oo_bias.py: unknown samples {bad}; known {list(SAMPLES)} and the groups "
+                 f"{list(GROUPS)}")
+    try:
+        i, n = (int(x) for x in a.shard.split("/"))
+        assert n >= 1 and 0 <= i < n
+    except (ValueError, AssertionError):
+        sys.exit(f"oo_bias.py: --shard wants I/N with 0 <= I < N, got {a.shard}")
+    if a.list:
+        for name, seed, ev, cmd in job_list(names, a.events, (i, n), a.limit):
+            print(name, seed, ev, " ".join(cmd))
+        return 0
+    if a.step == "run":
+        return run(names, a.j, a.mps, a.omp, a.events, (i, n), a.limit)
+    return analyse()
 
 
 if __name__ == "__main__":
