@@ -38,13 +38,13 @@ def lhs_maximin(n, d, seed, tries=2000):
     return best, best_d
 
 
-def write_xml(name, params, hydro=False):
+def write_xml(name, params, hydro=False, template=None):
     """The run's user XML: the p+p vacuum template with Q0 and vir_factor (iMATTER and
     Matter read them).  hydro: the O+O ISR template's blocks (3dMCGlauber with p+p and
     nucleon_configuration_from_file 0, MUSIC's grid, pre-equilibrium, MUSIC) with the p+p
     template's <Hard>, <Eloss> (Matter in vacuum, no LBT) and <JetHadronization>: the same
     hard sector, plus a medium from the strings 3dMCGlauber leaves."""
-    tree = ET.parse(C.TEMPLATE_XML)
+    tree = ET.parse(template or C.TEMPLATE_XML)
     root = tree.getroot()
     if hydro:
         oo = ET.parse(C.OO_TEMPLATE_XML).getroot()
@@ -97,6 +97,12 @@ def main(argv=None):
     p.add_argument("--hydro", action="store_true",
                    help="with --add: p+p with a medium (the O+O 3dMCGlauber/MUSIC blocks with "
                         "p+p; jets in vacuum; bulk hadrons in the job)")
+    p.add_argument("--template", default=None,
+                   help="with --add: another p+p vacuum template instead of config.TEMPLATE_XML, "
+                        "e.g. an earlier revision of it (recorded in design.json)")
+    p.add_argument("--seeds-of", default=None, dest="seeds_of", metavar="RUN",
+                   help="with --add: the seeds of this earlier run (a paired comparison: same "
+                        "events up to what the template or settings change)")
     a = p.parse_args(argv)
     names = list(C.PARAMETERS)
     if a.add:
@@ -108,12 +114,17 @@ def main(argv=None):
         if not params["Q0"] / np.sqrt(params["Cv"]) <= windows[0][0] + 1e-9:
             sys.exit(f"make_design.py: Q0/sqrt(Cv) = {params['Q0'] / np.sqrt(params['Cv']):.2f} "
                      f"GeV is above the lowest window ({windows[0][0]} GeV)")
-        write_xml(name, params, hydro=a.hydro)
+        write_xml(name, params, hydro=a.hydro, template=a.template)
         old = design["extra"].get(name, {})
         base = old.get("seed_base", 900000 + 1000 * len(design["extra"]))
+        if a.seeds_of:
+            if a.seeds_of not in design["extra"]:
+                sys.exit(f"make_design.py: --seeds-of {a.seeds_of}: no such run in design.json")
+            base = design["extra"][a.seeds_of]["seed_base"]
         design["extra"][name] = {"params": params, "jobs": a.jobs or C.VALIDATION_JOBS,
                                  "windows": [list(w) for w in windows], "seed_base": base,
-                                 "pythia_lines": list(a.pythia_lines), "hydro": a.hydro}
+                                 "pythia_lines": list(a.pythia_lines), "hydro": a.hydro,
+                                 **({"template": str(a.template)} if a.template else {})}
         save(design)
         print(f"added {name}: {params}, {design['extra'][name]['jobs']} jobs")
         return 0

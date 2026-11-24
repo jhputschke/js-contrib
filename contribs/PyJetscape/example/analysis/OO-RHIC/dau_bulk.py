@@ -38,6 +38,11 @@ Data (HEPData):
 Model classes: percentiles of the model's charged multiplicity in the Au-going BBC acceptance
 among all its events (each has >= 1 NN collision; no diffraction), random tie-break; PHENIX's
 classes are percentiles of the full inelastic cross section, so no trigger normalisation enters.
+--class-frac F tests that: the model's events as a fraction F of the cross section the classes
+refer to (F < 1: classes among the model's highest-F events, as STAR O+O; F > 1: the model
+misses part of it) -> results/dau_bulk_f<F>.json.  2026-11-24: F < 1 steepens the peripheral
+rise of g_v045_n215; F ~ 1.05-1.10 flattens mid-rapidity and the d side, the central
+Au-side excess (~1.15-1.2 vs PHENIX) stays for every F.
 Model results, not vetted physics results; statistical errors only.
 """
 
@@ -155,11 +160,15 @@ def load(name):
     return np.concatenate(hs), np.concatenate(bbc), np.concatenate(ftpc), np.concatenate(mid)
 
 
+CLASS_FRAC = 1.0                        # --class-frac
+
+
 def classes(x, cls, seed=1):
-    """Class index per event from percentiles of x (highest first), random tie-break."""
+    """Class index per event from percentiles of x (highest first), random tie-break; the
+    model's events are a fraction CLASS_FRAC of the cross section the classes refer to."""
     rng = np.random.default_rng(seed)
     order = np.lexsort((rng.random(len(x)), -x))          # descending x, ties at random
-    rank = np.empty(len(x)); rank[order] = (np.arange(len(x)) + 0.5) / len(x) * 100
+    rank = np.empty(len(x)); rank[order] = (np.arange(len(x)) + 0.5) / len(x) * 100 / CLASS_FRAC
     c = np.full(len(x), -1)
     for i, (a, b) in enumerate(cls):
         c[(rank >= a) & (rank < b)] = i
@@ -176,7 +185,8 @@ def mean_in(h, mask, lo, hi):
 def analyse(names):
     D = data()
     ph, br, st = D["phenix"], D["brahms"], D["star"]
-    res = {"note": "model, not vetted; see the module docstring", "samples": {}}
+    res = {"note": "model, not vetted; see the module docstring", "class_frac": CLASS_FRAC, "samples": {}}
+    out_json = OUT_JSON if CLASS_FRAC == 1.0 else OUT_JSON.with_name(f"dau_bulk_f{CLASS_FRAC:g}.json")
     for name in names:
         h, bbc, ftpc, nmid = load(name)
         if h is None:
@@ -254,13 +264,13 @@ def analyse(names):
         rb = np.array(o["brahms_minbias"]["ratio"])
         print("   BRAHMS min. bias model/data at eta " + ", ".join(
             f"{e:.1f}: {x:.2f}" for e, x in zip(be, rb) if any(abs(e - t) < 0.15 for t in (-2.0, 0.0, 2.0, 3.0, 3.6, 4.2))))
-    OUT_JSON.parent.mkdir(exist_ok=True)
-    if OUT_JSON.exists():                                  # keep samples analysed earlier
-        old = json.loads(OUT_JSON.read_text())
+    out_json.parent.mkdir(exist_ok=True)
+    if out_json.exists():                                  # keep samples analysed earlier
+        old = json.loads(out_json.read_text())
         old.get("samples", {}).update(res["samples"])
         res["samples"] = old.get("samples", res["samples"])
-    OUT_JSON.write_text(json.dumps(res, indent=1))
-    print("wrote", OUT_JSON)
+    out_json.write_text(json.dumps(res, indent=1))
+    print("wrote", out_json)
     return 0
 
 
@@ -269,7 +279,11 @@ def main(argv=None):
     p.add_argument("cmd", choices=["fetch", "analyse"])
     p.add_argument("samples", nargs="*")
     p.add_argument("--out", default=None, help="output root of oo_bias.py (default its OUT)")
+    p.add_argument("--class-frac", type=float, default=1.0, dest="class_frac",
+                   help="the model's events as this fraction of the classes' cross section (default 1)")
     a = p.parse_intermixed_args(argv)
+    global CLASS_FRAC
+    CLASS_FRAC = a.class_frac
     if a.out:
         B.OUT = Path(a.out)
     if a.cmd == "fetch":

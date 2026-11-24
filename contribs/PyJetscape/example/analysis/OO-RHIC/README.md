@@ -117,13 +117,24 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 ./oo_bias_docker.sh --dev /data/OO-RHIC_bulk grid        # variance 0.4/0.45 x nodes 2.15/2.25
 ./oo_bias_docker.sh --dev /data/OO-RHIC_bulk rem         # alpha_rem 0.4/0.65/0.8/1.0 on g_v045_n215 (p+p)
 ./oo_bias_docker.sh --dev /data/OO-RHIC_bulk dau_map dau_g_v045_n215   # d+Au, the MAP's calibration data
+./oo_bias_docker.sh --dev /data/OO-RHIC_bulk shad        # shadowing 0.6/0.8, ylossParam4At2 1.1 (d+Au, O+O)
+./oo_bias_docker.sh --dev /data/OO-RHIC_bulk tau         # tau_form_mean 0.424 = the final XML (p+p, O+O, d+Au)
 python pp_bulk.py fetch && python pp_bulk.py analyse --out /data/OO-RHIC_bulk   # UA5 + refs/rhic_pp200 (PHOBOS, STAR, PHENIX)
 python oo_bulk.py analyse --sample oo_pp2407 --out /data/OO-RHIC_bulk          # per O+O sample
 python centrality_norm.py
 python dau_bulk.py fetch && python dau_bulk.py analyse --out /data/OO-RHIC_bulk   # d+Au vs PHENIX, STAR (TPC, FTPC), BRAHMS
+python dau_bulk.py analyse --out /data/OO-RHIC_bulk --class-frac 1.1 dau_g_v045_n215   # classes as the top 110 %
+python pt_bulk.py fetch && python pt_bulk.py analyse g_v045_n215 tau0424 map --out /data/OO-RHIC_bulk   # identified pT, <pT> vs STAR
 # the adopted set g_v045_n215 is the 3dMCGlauber block of config/OO_MCGlauber_MUSIC_isr_rhictune.xml and
-# config/pp200_isr_vacuum.xml since 2026-11-24 (mb, jets, jets_quench run with it); the screening sets
-# name every parameter they change (map: oo_bias.MAP), so their samples are unchanged
+# config/pp200_isr_vacuum.xml since 2026-11-24, with tau_form_mean 0.424 (= sample tau0424; mb, jets,
+# jets_quench run with it); the earlier sets name every parameter they change (map: oo_bias.MAP, and
+# tau_form_mean 0.5), so their samples are unchanged
+# hard-tune recheck with the new vacuum XML: the reference point with the new and the old block, same seeds
+git show a3bb4c2:contribs/PyJetscape/example/config/pp200_isr_vacuum.xml > design/pp200_isr_vacuum_mapbulk.xml
+python make_design.py --add ref_tune 0.15 0.25 2.0 --jobs 10
+python make_design.py --add ref_mapbulk 0.15 0.25 2.0 --jobs 10 --seeds-of ref_tune --template design/pp200_isr_vacuum_mapbulk.xml
+python run_runs.py ref_tune ref_mapbulk -j 12 && python observables.py ref_tune ref_mapbulk
+python hard_recheck.py ref_tune ref_mapbulk && python ue_check.py ref_tune ref_mapbulk
 jupyter nbconvert --to notebook --execute bulk_tune_screening.ipynb --output-dir results --output bulk_tune_screening_executed.ipynb
 ```
 
@@ -150,9 +161,11 @@ jupyter nbconvert --to notebook --execute bulk_tune_screening.ipynb --output-dir
 | `oo_bias_docker.sh` | `oo_bias.py` on a multi-GPU Docker host: one container per GPU, each its shard (`--shard g/N`), the settings benchmarked on the 2 × RTX 3090 (8 jobs per GPU, OMP 3, MPS); `--dev` mounts this checkout's `example/` over the image's |
 | `pp_bulk.py` | p+p 200 GeV bulk of the `pp_<set>` samples against UA5 (dN/dη NSD and inelastic, NSD P(n) in four η windows; HEPData ins233599, ins267179 → `refs/ua5_200/`) → `results/pp_bulk.json` |
 | `centrality_norm.py` | how STAR's O+O centrality classes map onto the model's: STAR's normalisation from its own Fig. 5a/5b, the model centrality at STAR's N_ch and EPD edges, the flattest normalisation f, STAR's minimum-bias trigger emulated (from `oo_bulk.py`'s quantiles) → `results/centrality_norm.json` |
-| `bulk_tune_screening.ipynb` | the bulk parameter exploration (step A of the p+p / O+O bulk tune and its follow-ups): the sets and why, p+p against UA5, O+O p(N_ch) shape, ⟨N_ch⟩ vs centrality with and without the normalisation, the summary and the grid |
+| `bulk_tune_screening.ipynb` | the bulk parameter exploration (step A of the p+p / O+O bulk tune and its follow-ups): the sets and why, p+p against UA5 and the RHIC data, O+O p(N_ch) shape, ⟨N_ch⟩ vs centrality with and without the normalisation, the summary and the grid, α<sub>rem</sub>, d+Au, shadowing and the y<sub>init</sub> = 2 node (section 8), the formation time (section 9), identified p<sub>T</sub> spectra and ⟨p<sub>T</sub>⟩ (section 10) |
+| `pt_bulk.py` | identified π±, K±, p, p̄ spectra, ⟨p<sub>T</sub>⟩ and dN/dy of the bulk samples (p+p, d+Au, O+O) against STAR: TOF spectra in NSD p+p and d+Au classes (nucl-ex/0309012, ins628232), dE/dx in d+Au (0808.2041, ins793126, and its ⟨p<sub>T</sub>⟩ / dN/dy tables transcribed in `refs/pt_200/star_0808_2041_tables.json`), p+p charged ⟨p<sub>T</sub>⟩ vs multiplicity (nucl-ex/0606028, ins719969); each experiment's trigger and centrality estimator emulated → `results/pt_bulk.json` |
+| `hard_recheck.py` | two hard-tune runs compared bin by bin (ratio, largest pull) and each run's χ² against the fit bins: the check that the bulk revision of `pp200_isr_vacuum.xml` leaves the hard tune unchanged (2026-11-24: χ² 35.4 vs 33.8 over 35 bins) |
 | `refs/rhic_pp200/` | RHIC p+p 200 GeV multiplicity references besides UA5 (none on HEPData): PHOBOS inelastic dN/dη for \|η\| ≤ 5.3 read from the vector figure of arXiv:1011.1940 (Fig. 28a, 90 % C.L. band), STAR NSD and PHENIX minimum-bias mid-rapidity values (`extract_rhic_pp200.py --phobos <source dir>` → `rhic_pp200.json`); used by `pp_bulk.py` |
-| `dau_bulk.py` | d+Au 200 GeV minimum-bias bulk (`oo_bias.py` samples `dau_<set>`: d on Au, b < 12 fm) against PHENIX (dN/dη, \|η\| < 2.6, six classes from the Au-going BBC; HEPData ins1684475), STAR (\|η\| < 1 in Au-going FTPC classes, ins656934; FTPC points at 3.0 ≤ \|η\| ≤ 3.5 in \|η\| < 0.5 classes) and BRAHMS (minimum bias to η = 4.2, ins643085): the check that a bulk set does not break the MAP's calibration → `results/dau_bulk.json` |
+| `dau_bulk.py` | d+Au 200 GeV minimum-bias bulk (`oo_bias.py` samples `dau_<set>`: d on Au, b < 12 fm) against PHENIX (dN/dη, \|η\| < 2.6, six classes from the Au-going BBC; HEPData ins1684475), STAR (\|η\| < 1 in Au-going FTPC classes, ins656934; FTPC points at 3.0 ≤ \|η\| ≤ 3.5 in \|η\| < 0.5 classes) and BRAHMS (minimum bias to η = 4.2, ins643085): the check that a bulk set does not break the MAP's calibration → `results/dau_bulk.json`; `--class-frac F`: the model's classes as fractions of its highest F of events (→ `results/dau_bulk_f<F>.json`) |
 | `refs/dau_200/` | d+Au references: the HEPData tables (fetched, git-ignored) and `extract_star_ftpc_dau.py` → `star_dau_ftpc.json`, STAR's FTPC d+Au dN/dη read from a ROOT figure of the d+Au FTPC analysis (2004; the figure is not public and stays local, git-ignored; its 40–100 % and minimum-bias points are rescaled to the published \|η\| < 1 normalisation) |
 | `refs/star_oo/` | STAR O+O references read from the vector figures of arXiv:2510.19645 and 2604.13935 (`extract_star_oo.py` → `star_oo_bulk.json`; no HEPData) |
 | `conditional.py` | the posterior with a parameter held fixed (emulator only), e.g. Q0 = 2 GeV for Matter + LBT → `results/conditional_Q0_2.json` |

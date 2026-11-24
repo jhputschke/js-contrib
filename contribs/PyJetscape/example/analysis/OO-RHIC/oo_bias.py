@@ -139,6 +139,24 @@ for _a in (0.4, 0.65, 0.8, 1.0):
     BULK_SETS[f"rem{round(_a * 100):03d}"] = BULK_SETS[REM_BASE] + [
         f"--xml-set=IS/MCGlauber/remnant_energy_loss_fraction={_a}"]
 REM_SETS = tuple(s for s in BULK_SETS if s.startswith("rem"))
+# Au-going side of d+Au (2026-11-24): g_v045_n215 is 16-57 % high there, more toward peripheral,
+# while mid-rapidity and the d side agree.  Shadowing and the y_init = 2 node act only on the
+# strings of a nucleon's second and later collisions (which pile up on the Au side; p+p hardly
+# changes): shadowing 0.6 (X-SCAPE's default) and 0.8, and At2 1.1 (2407.17443's p+Pb value)
+for _k, _o in (("shad060", "shadowing_factor=0.6"), ("shad080", "shadowing_factor=0.8"),
+               ("at2_110", "ylossParam4At2=1.1")):
+    BULK_SETS[_k] = BULK_SETS[REM_BASE] + [f"--xml-set=IS/MCGlauber/{_o}"]
+SHAD_SETS = ("shad060", "shad080", "at2_110")
+# formation time (2026-11-24): the RHIC O+O XMLs (from X-SCAPE's BulkFastTest/OO_one_event.xml)
+# had tau_form_mean 0.5 and the MAP's 0.424 only in MUSIC's Initial_time_tau_0, which MUSIC
+# overwrites with the string source; the Au+Au / LHC XMLs have tau_form_mean 0.424.  All sets
+# above ran with 0.5; since the second revision of 2026-11-24 OO_XML has 0.424, so they pin 0.5
+# (first, so that a set's own options still win) and run as they did.  tau0424 is the adopted
+# set with 0.424, i.e. OO_XML as it is now (dau_tau0424 the d+Au check of the final XML).
+TAU_OLD = "--xml-set=IS/MCGlauber/tau_form_mean=0.5"
+for _s in BULK_SETS:
+    BULK_SETS[_s] = [TAU_OLD] + BULK_SETS[_s]
+BULK_SETS["tau0424"] = BULK_SETS[REM_BASE] + ["--xml-set=IS/MCGlauber/tau_form_mean=0.424"]
 GRID_SETS = tuple(s for s in BULK_SETS if s.startswith("g_"))
 #: the sets run by default ("screen" on the command line): MAP, 2407.17443 p+p, method 3
 SCREEN_SETS = ("map", "pp2407", "m3")
@@ -170,6 +188,8 @@ GROUPS = {"screen": [f"{sys_}_{s}" for s in SCREEN_SETS for sys_ in ("pp", "oo")
           "var": ["pp_pp2407v03", "oo_pp2407v03"],
           "grid": [f"{sys_}_{s}" for s in GRID_SETS for sys_ in ("pp", "oo")],
           "rem": [f"pp_{s}" for s in REM_SETS],          # step 1: p+p only (the forward shape)
+          "shad": [f"{sys_}_{s}" for s in SHAD_SETS for sys_ in ("dau", "oo")],
+          "tau": ["pp_tau0424", "oo_tau0424", "dau_tau0424"],
           "bias": ["mb", "jets", "jets_noveto", "jets_quench"],
           "holes": ["jets_holes"]}
 
