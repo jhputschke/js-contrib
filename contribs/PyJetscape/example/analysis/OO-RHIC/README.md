@@ -102,7 +102,7 @@ jupyter nbconvert --to notebook --execute closure_oo.ipynb --output results/clos
 # R4b full test and R4c (GPU, O+O with hydro; oo_bias.py --help): minimum bias, jets in vacuum, jets quenched
 python oo_bias.py run mb -j 8 --mps && python oo_bias.py run jets -j 8 --mps     # ~9 h on the GB10
 python oo_bias.py run jets_quench -j 8 --mps                                     # the jet in the medium
-python oo_bias.py analyse && python oo_bias_jets.py && python oo_bulk.py analyse
+python oo_bias.py analyse && python oo_bias_jets.py && python oo_bias_jets.py --sample jets_quench && python oo_bulk.py analyse
 jupyter nbconvert --to notebook --execute oo_centrality_bias.ipynb --output-dir results --output oo_centrality_bias_executed.ipynb
 jupyter nbconvert --to notebook --execute oo_bulk_comparison.ipynb --output-dir results --output oo_bulk_comparison_executed.ipynb
 jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
@@ -125,7 +125,7 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 | `closure_oo.py`, `closure_oo.ipynb` | R3 + R4 of the plan forward: the p+p reference from the O+O tune XML (`config/OO_MCGlauber_MUSIC_isr_rhictune.xml`, projectile/target p) and the O+O vacuum closure in impact-parameter classes; the notebook explains the test and shows the figures (`PROD/closure/`, `results/closure_oo*.{json,npz}`) |
 | `centrality_proxy.py` | R4b part 1: centrality bias from a string local-energy proxy (`smear`: negative-binomial fluctuations anchored to sPHENIX's MBD efficiency) (`run_prod_oo_isr.py`'s `strings_eloc_*` units) in STAR's estimator windows; minimum-bias 3dMCGlauber alone vs N_coll-weighted jet events, subtraction on/off → `results/centrality_proxy.json`; figures in `closure_oo.ipynb` |
 | `oo_bias.py`, `oo_centrality_bias.ipynb` | R4b full test: O+O with hydro and one iSS sample per event, minimum bias and N_coll-weighted jet events (jet in vacuum: `--vacuum-jet`; `jets_quench`: in the medium), classes from the multiplicity in STAR's EPD, mid-rapidity and sPHENIX's MBD; R_AA^vac, bias factor, R_CP with errors → `results/oo_bias.json` |
-| `oo_bias_jets.py` | the same against the jet p_T: charged-particle jets (anti-k_T R = 0.4, \|η\| < 0.7, the files hold charged hadrons) on the hard event's hadrons, per p̂_T window → `results/oo_bias_jets.json` |
+| `oo_bias_jets.py` | the same against the jet p_T and the charged-hadron p_T: anti-k_T R = 0.4 jets (\|η\| < 0.7; charged jets for `--charged` samples, full jets for `jets_quench`) and charged hadrons (\|η\| < 1) on the hard event's hadrons, per p̂_T window and stitched over the windows (a window enters a bin only with ≥ `--min-entries` (10) raw entries in every class); class sums for quenched/vacuum double ratios; LBT hole energies of the colour audit → `results/oo_bias_jets.json`, `results/oo_bias_jets_jets_quench.json` |
 | `oo_bulk.py`, `oo_bulk_comparison.ipynb` | R4c: the O+O bulk of the same events against STAR (p(N_ch), ⟨N_ch⟩ vs centrality, EPD nMIP of minimum-bias and triggered events) → `results/oo_bulk.json` |
 | `refs/star_oo/` | STAR O+O references read from the vector figures of arXiv:2510.19645 and 2604.13935 (`extract_star_oo.py` → `star_oo_bulk.json`; no HEPData) |
 | `conditional.py` | the posterior with a parameter held fixed (emulator only), e.g. Q0 = 2 GeV for Matter + LBT → `results/conditional_Q0_2.json` |
