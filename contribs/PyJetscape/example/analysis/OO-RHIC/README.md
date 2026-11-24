@@ -129,6 +129,11 @@ python pt_bulk.py fetch && python pt_bulk.py analyse g_v045_n215 tau0424 map --o
 # config/pp200_isr_vacuum.xml since 2026-11-24, with tau_form_mean 0.424 (= sample tau0424; mb, jets,
 # jets_quench run with it); the earlier sets name every parameter they change (map: oo_bias.MAP, and
 # tau_form_mean 0.5), so their samples are unchanged
+# the physics run (tuning page "Physics run plan"): phase 1 + 2 (mb, MPI check), phase 3 after gate G2
+./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys1      # mb first (its analysis runs during phys2)
+./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys2      # after docker rm oo_bias_gpu0 oo_bias_gpu1
+./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3
+OO_PHYS_CENTRAL_BMAX=<b_max of 0-20 %> ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_central
 # hard-tune recheck with the new vacuum XML: the reference point with the new and the old block, same seeds
 git show a3bb4c2:contribs/PyJetscape/example/config/pp200_isr_vacuum.xml > design/pp200_isr_vacuum_mapbulk.xml
 python make_design.py --add ref_tune 0.15 0.25 2.0 --jobs 10
