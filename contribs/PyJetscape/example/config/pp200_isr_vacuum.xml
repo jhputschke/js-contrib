@@ -19,8 +19,12 @@
   At10 2.95 -> 2.15, ylossParam4var 0.682 -> 0.45, shadowing_factor 0 -> 0.45 (no effect in p+p:
   one collision per nucleon), BG 3.96 -> 5.0.  The RHIC p+p hard tune (2026-11-22: alpha_s 0.152,
   vir_factor 0.25, Q0 2) was made with the earlier block (the JETSCAPE MAP of 2601.17234), which
-  shapes the beam remnants iColored hadronizes; its effect on the tune's jet observables is not
-  yet checked.
+  shapes the beam remnants iColored hadronizes.  Checked 2026-11-24: of the changed parameters
+  only BG reaches this chain (same-seed test: the others give identical hadrons); the hard
+  tune's reference point with the new and the old block (300k events each) agrees within
+  statistics (chi2 against the 35 fit bins 35.4 vs 33.8, underlying event 0.31 in both), so the
+  hard tune stands.  Revision 2026-11-24 (2): tau_form_mean 0.5 -> 0.424, as in the O+O file
+  (no effect here).
   Cut scheme of the hard tune (RHIC tuning page, step 1): pTHat windows from 5 GeV (above
   iMATTER's floor Q0/sqrt(vir_factor) for vir_factor >= 0.16 at Q0 = 2), cross-section
   weights per window (no bias2Selection), one fixed MPI cut of 5 GeV.  Tune parameters go
@@ -98,7 +102,7 @@
       <fluctuation_remnant_energy_loss_fraction>0</fluctuation_remnant_energy_loss_fraction>
       <remnant_energy_loss_fraction_var>0.4</remnant_energy_loss_fraction_var>
       <evolve_QCD_string_mode>4</evolve_QCD_string_mode>
-      <tau_form_mean>0.5</tau_form_mean>
+      <tau_form_mean>0.424</tau_form_mean> <!--as the O+O file since 2026-11-24 (before 0.5); no effect in vacuum-->
       <tau_form_fluct_gamma_beta>1.0</tau_form_fluct_gamma_beta>
     </MCGlauber>
   </IS>

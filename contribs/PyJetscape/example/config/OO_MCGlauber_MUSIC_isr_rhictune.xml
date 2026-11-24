@@ -34,7 +34,7 @@
 
   The MUSIC settings are the tuned O+O set of X-SCAPE's config/BulkFastTest/OO_one_event.xml
   (tuned at 200 GeV; EOS 91), and so were the 3dMCGlauber ones until the revision below
-  (O16 from nucleusConfigs, tau_form_mean 0.5), except Subtract_hard_momentum 1 (ISR: the hard
+  (O16 from nucleusConfigs; tau_form_mean 0.5 until the second revision below), except Subtract_hard_momentum 1 (ISR: the hard
   partons' momentum is taken from the colliding nucleons), generateOnlyPositions 1 for the ISR
   and b <= 3 fm.  (EOS 9 before 2026-10, when iSS could not decay the SMASH list.)
 
@@ -54,11 +54,25 @@
   P(N_ch) width 1.07 x UA5; O+O <N_ch> 1.01 x STAR with its classes as the top 85.5 % of the
   model's events, p(N_ch) tail (N_ch > 120) 1.04; d+Au mid-rapidity 1.02-1.09 (PHENIX, central),
   1.07 (STAR minimum bias), d-going side ~1.0.  Known misses: the Au-going side of d+Au is 16-57 %
-  high (more toward peripheral; shadowing is the untested handle), and p+p dN/deta is 10-15 % low
+  high (more toward peripheral; not the centrality classes, and shadowing 0.6 / 0.8 or ylossParam4At2
+  1.1 do not remove it: the analysis notebook, section 8), and p+p dN/deta is 10-15 % low
   at |eta| 1.5-3 and high beyond 3.5.  Only charged yields and dN/deta were tuned: no <p_T>,
   identified particles or flow; MUSIC is unchanged.  Samples made with this file before
   2026-11-24 (centrality_proxy.py, closure_oo.py) used the MAP block: oo_bias.py's MAP options
   restore it.
+
+  Revision 2026-11-24 (2), the formation time: tau_form_mean 0.5 -> 0.424.  3dMCGlauber's
+  tau_form_mean is the effective formation time of this chain (every string decelerates over
+  it; MUSIC deposits the strings and, with initial profile 131, overwrites Initial_time_tau_0
+  with the earliest string start).  0.424 fm/c is the MAP's tau_form (2601.17234, Table IV: the
+  time after which the string energy is deposited) and the value of the Au+Au, Pb+Pb and LHC
+  O+O / Ne+Ne XMLs; 0.5 was the default inherited from OO_one_event.xml, with the MAP's 0.424
+  only in Initial_time_tau_0.  Checked with the tuned set (oo_bias.py tau0424, same seeds,
+  10k events each): p+p NSD dN/deta 2.48 against 2.44 with 0.5, O+O <N_ch> 37.3 against 37.5
+  (1.003 x STAR with f 0.860, tail 1.01), d+Au within 1 % (PHENIX 0-20 % Au side / mid / d side
+  1.18 / 1.06 / 0.99 of the data, as with 0.5), identified <pT> within 2 % (bulk_tune_screening.ipynb
+  sections 9-10).  Changes of 1-2 %, so the bulk parameters above stay; the vacuum chain does not
+  depend on it.
 
   Jet energy loss: Matter above Q0 = 2 GeV and LBT below, Matter with recoils (recoil_on 1),
   the settings of the Au+Au and Pb+Pb jet productions.  LBT's partons and Matter's recoils
@@ -161,7 +175,7 @@
       <!--3: deceleration with LEXUS/parameterized rapidity loss (m/sigma = 1 fm, dtau fluctuates)-->
       <!--4: deceleration with LEXUS/parameterized rapidity loss (dtau = tau_form, m/sigma fluctuates)-->
       <evolve_QCD_string_mode>4</evolve_QCD_string_mode>
-      <tau_form_mean>0.5</tau_form_mean> <!--Mean value for tau_form [fm]-->
+      <tau_form_mean>0.424</tau_form_mean> <!--Mean value for tau_form [fm]; the MAP's 0.424 since 2026-11-24 (before 0.5)-->
       <tau_form_fluct_gamma_beta>1.0</tau_form_fluct_gamma_beta> <!--Fluctuation parameter for the gamma distribution-->
     </MCGlauber>
 
