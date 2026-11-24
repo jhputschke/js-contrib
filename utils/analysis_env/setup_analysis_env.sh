@@ -129,6 +129,52 @@ pip_install "${REQS[@]}"
 echo "==> installing PyJetscape (editable, $PYJETSCAPE)"
 pip_install --no-deps -e "$PYJETSCAPE"
 
+# ── fastjet: the wheel's own libraries ──────────────────────────────────────────────────
+# The fastjet wheel finds its bundled libfastjet*.so / libsiscone*.so by RUNPATH ($ORIGIN),
+# which LD_LIBRARY_PATH beats: with another FastJet in, e.g., /usr/local/lib (a JETSCAPE
+# build) libfastjetcontribfragile.so gets that libfastjet and fails to load ("undefined
+# symbol ..._ensure_valid_rap_phi"). A .pth file loads the wheel's copies first at every
+# interpreter start (shell, Jupyter kernel, scripts), when LD_LIBRARY_PATH is set on Linux;
+# the later lookups by soname then reuse them. Nothing else on LD_LIBRARY_PATH changes.
+echo "==> pinning fastjet to the libraries of its wheel (.pth preload)"
+"$VPY" - <<'PY'
+import os, sysconfig
+site = sysconfig.get_paths()["purelib"]
+open(os.path.join(site, "_js_analysis_fastjet_preload.py"), "w").write('''\
+"""Written by setup_analysis_env.sh: load the fastjet wheel's bundled libraries before an
+LD_LIBRARY_PATH entry with another FastJet can shadow them (LD_LIBRARY_PATH beats RUNPATH)."""
+import os
+import sys
+
+
+def _preload():
+    if not sys.platform.startswith("linux") or not os.environ.get("LD_LIBRARY_PATH"):
+        return
+    import ctypes
+    here = os.path.dirname(os.path.abspath(__file__))
+    for sub in ("lib64", "lib"):
+        libdir = os.path.join(here, "fastjet", sub)
+        if os.path.isfile(os.path.join(libdir, "libfastjet.so")):
+            break
+    else:
+        return
+    # dependency order: each one's fastjet/siscone NEEDED entries are already loaded
+    for name in ("libsiscone.so", "libsiscone_spherical.so", "libfastjet.so",
+                 "libfastjettools.so", "libfastjetplugins.so", "libfastjetcontribfragile.so"):
+        path = os.path.join(libdir, name)
+        if os.path.isfile(path):
+            ctypes.CDLL(path)
+
+
+try:
+    _preload()
+except Exception:  # noqa: BLE001 -- never break interpreter start; check_env.py reports it
+    pass
+''')
+open(os.path.join(site, "_js_analysis_fastjet_preload.pth"), "w").write(
+    "import _js_analysis_fastjet_preload\n")
+PY
+
 if [ "$FASTHYDRO" = 1 ]; then
     echo "==> installing FastHydro (editable, $CONTRIBS/FastHydro)"
     pip_install -e "$CONTRIBS/FastHydro[viz]"

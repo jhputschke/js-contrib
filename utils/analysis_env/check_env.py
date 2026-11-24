@@ -115,7 +115,11 @@ def check_packages():
         np.testing.assert_allclose(jets.inclusive_jets()[0].pt(), 15.0)
         ok("fastjet clusters")
     except Exception as exc:  # noqa: BLE001
-        fail(f"fastjet clustering: {exc}")
+        hint = ""
+        if "undefined symbol" in str(exc) and os.environ.get("LD_LIBRARY_PATH"):
+            hint = (" -- another FastJet on LD_LIBRARY_PATH shadows the wheel's libraries; "
+                    "re-run setup_analysis_env.sh (it adds a .pth preload)")
+        fail(f"fastjet clustering: {exc}{hint}")
 
 
 def check_pyroot():
