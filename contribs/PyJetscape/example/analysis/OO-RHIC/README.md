@@ -103,6 +103,11 @@ jupyter nbconvert --to notebook --execute closure_oo.ipynb --output results/clos
 python oo_bias.py run mb -j 8 --mps && python oo_bias.py run jets -j 8 --mps     # ~9 h on the GB10
 python oo_bias.py run jets_quench -j 8 --mps                                     # the jet in the medium
 python oo_bias.py analyse && python oo_bias_jets.py && python oo_bias_jets.py --sample jets_quench && python oo_bulk.py analyse
+# holes and partners: 4,500 quenched events with --store-partons --store-hadronization-input (~50 min on the GB10),
+# negative hadrons per job (CPU), then the validation
+python oo_bias.py run jets_holes -j 8 --mps
+for f in ~/prod/OO-RHIC_OO/bias/jets_holes/*_hadrons_jet_frag.h5; do python ../../prod_OO_isr/negative_hadrons.py "$f"; done
+python validate_holes.py
 jupyter nbconvert --to notebook --execute oo_centrality_bias.ipynb --output-dir results --output oo_centrality_bias_executed.ipynb
 jupyter nbconvert --to notebook --execute oo_bulk_comparison.ipynb --output-dir results --output oo_bulk_comparison_executed.ipynb
 jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
@@ -126,6 +131,7 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 | `centrality_proxy.py` | R4b part 1: centrality bias from a string local-energy proxy (`smear`: negative-binomial fluctuations anchored to sPHENIX's MBD efficiency) (`run_prod_oo_isr.py`'s `strings_eloc_*` units) in STAR's estimator windows; minimum-bias 3dMCGlauber alone vs N_coll-weighted jet events, subtraction on/off → `results/centrality_proxy.json`; figures in `closure_oo.ipynb` |
 | `oo_bias.py`, `oo_centrality_bias.ipynb` | R4b full test: O+O with hydro and one iSS sample per event, minimum bias and N_coll-weighted jet events (jet in vacuum: `--vacuum-jet`; `jets_quench`: in the medium), classes from the multiplicity in STAR's EPD, mid-rapidity and sPHENIX's MBD; R_AA^vac, bias factor, R_CP with errors → `results/oo_bias.json` |
 | `oo_bias_jets.py` | the same against the jet p_T and the charged-hadron p_T: anti-k_T R = 0.4 jets (\|η\| < 0.7; charged jets for `--charged` samples, full jets for `jets_quench`) and charged hadrons (\|η\| < 1) on the hard event's hadrons, per p̂_T window and stitched over the windows (a window enters a bin only with ≥ `--min-entries` (10) raw entries in every class); class sums for quenched/vacuum double ratios; LBT hole energies of the colour audit → `results/oo_bias_jets.json`, `results/oo_bias_jets_jets_quench.json` |
+| `validate_holes.py` | validation of the hole and partner treatment on the `jets_holes` sample (made with `--store-partons --store-hadronization-input`, negative hadrons from `prod_OO_isr/negative_hadrons.py`): bookkeeping against iColored's colour audit, hole and partner energy per class, full-jet R<sub>CP</sub> uncorrected / parton-level subtraction / negative hadrons, charged jets, leading hadrons → `results/validate_holes.json` |
 | `oo_bulk.py`, `oo_bulk_comparison.ipynb` | R4c: the O+O bulk of the same events against STAR (p(N_ch), ⟨N_ch⟩ vs centrality, EPD nMIP of minimum-bias and triggered events) → `results/oo_bulk.json` |
 | `refs/star_oo/` | STAR O+O references read from the vector figures of arXiv:2510.19645 and 2604.13935 (`extract_star_oo.py` → `star_oo_bulk.json`; no HEPData) |
 | `conditional.py` | the posterior with a parameter held fixed (emulator only), e.g. Q0 = 2 GeV for Matter + LBT → `results/conditional_Q0_2.json` |
@@ -140,6 +146,16 @@ jupyter nbconvert --to notebook --execute --inplace tune_comparison.ipynb
 
 ## Definitions and caveats
 
+- **Holes and partners (the jet in the medium).** Matter (`recoil_on` 1) and LBT leave holes
+  (pstat −1) that iColored drops, and for part of them it inserts colour partners with the
+  hole's three-momentum. **The physics runs store both with `--store-partons
+  --store-hadronization-input`** (rule and details: `prod_OO_isr/README.md`, "Holes and
+  partners: what a physics run must store"). Then: full jets subtract holes + partners at
+  parton level in the cone; leading hadrons above 3 GeV need nothing; charged jets, hadrons
+  below 3 GeV, substructure, soft and recoil observables subtract the negative hadrons of
+  `negative_hadrons.py`. The 50k `jets_quench` sample has neither: its full-jet and
+  charged-jet R<sub>CP</sub> carry a ≈ 2 % systematic (too high in central events; from
+  `validate_holes.py`), its hadron R<sub>CP</sub> above 3 GeV none.
 - Statistical errors: every model point carries one (`hstat.py`). Each event has one sample (no
   hydro or iSS oversampling), so events are independent; particle distributions take the
   event-to-event spread (√N of particles is too small: particles of one event are correlated),

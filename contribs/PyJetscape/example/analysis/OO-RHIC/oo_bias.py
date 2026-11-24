@@ -67,14 +67,17 @@ SAMPLES = {
     "jets": (50000, 500, JET_WINDOWS, [], True),
     "jets_noveto": (30000, 500, JET_WINDOWS, ["--hard-pair-string-veto", "0"], True),
     "jets_quench": (50000, 500, JET_WINDOWS, [], True),
+    # validation of the hole/partner treatment (negative hadrons): the jet in the medium with
+    # its final partons (holes) and iColored's Pythia input (partners) stored
+    "jets_holes": (4500, 450, JET_WINDOWS[1:], ["--store-partons", "--store-hadronization-input"], True),
 }
 #: jets_quench reuses the seeds of jets (same geometry and hard scatterings, the jet now sees the medium)
-SEED_BASE = {"mb": 700000, "jets": 710000, "jets_noveto": 720000, "jets_quench": 710000}
+SEED_BASE = {"mb": 700000, "jets": 710000, "jets_noveto": 720000, "jets_quench": 710000, "jets_holes": 730000}
 #: samples whose jet sees the medium (LBT, Matter in medium); all others run with --vacuum-jet
-QUENCHED = {"jets_quench"}
+QUENCHED = {"jets_quench", "jets_holes"}
 #: samples that store all hadrons (full jets as sPHENIX's calorimeter jets); all others --charged.
 #: The estimator counts use charged hadrons in either case (_units selects them by species).
-ALL_HADRONS = {"jets_quench"}
+ALL_HADRONS = {"jets_quench", "jets_holes"}
 EPD, MBD = (2.1, 5.1), (3.51, 4.61)
 STAR_CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]

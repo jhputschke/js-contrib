@@ -50,6 +50,7 @@ the automatic task list to it.
 | `run_prod_oo_isr.py` | one job: one seed, N events |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `rehadronize_jets.py` | hadronize a `--store-hadronization-input` job's jets again from the stored Pythia input: `--check` against the job, or decays off / new seeds / other Pythia settings (`--line`) ([Redoing the jet hadronization](#redoing-the-jet-hadronization)) |
+| `negative_hadrons.py` | the medium's holes plus copies of their colour partners hadronized as **negative hadrons** (pstat −1) into `<stem>_hadrons_jet_neg.h5`, for a job made with `--store-partons --store-hadronization-input`; an analysis subtracts them ([Holes and partners](#holes-and-partners-what-a-physics-run-must-store)) |
 | `hard_sub_compare/` | two campaigns with and without the hard-momentum subtraction, and a notebook comparing their hadrons ([README](hard_sub_compare/README.md)) |
 | `hadro_compare/` | the iColored jet hadrons (Matter only) before vs after the colour fixes, and with the closures reconnect / thermal / fake: five paired campaigns and `compare_hadro.py` ([README](hadro_compare/README.md)) |
 | `oo_isr_overview.ipynb` | one job's output: the medium's energy density at three τ (with the freeze-out contour and the dijet), and η, φ, pT and Δφ-to-the-leading-parton distributions of the bulk and jet hadrons |
@@ -241,6 +242,7 @@ Options for the hadrons made in the job:
 | `--colour-closure MODE` | iColored's `<colour_closure>` for the job (reconnect, reconnect_global, thermal, fake, none; default the XML's, reconnect) |
 | `--matter-only` | Matter alone (no `<Lbt>`, `recoil_on` 0), the energy loss before 2026-10-21. With a current X-SCAPE this is the reference for the colour studies: unique tags and iColored's checks, no hole, so the closure never acts (add `--colour-closure none` to make an open line throw). Also for an X-SCAPE without the colour closure, and to extend Matter-only campaigns |
 | `--store-hadronization-input` | opt-in: also store each event's Pythia input of the jet hadronization in the jet file (`hadronization_input/`, ~2 kB per event), so `rehadronize_jets.py` can redo the jet hadrons later |
+| `--store-partons` | opt-in: also store each event's final partons in the jet file (`partons/`, `jetscape.hadrons_h5.PARTON_COLUMNS`; `HadronFileReader`/`Hadrons.partons(unit)`): what the jet hadronization is handed, shower partons, recoils and the medium's holes (pstat −1, which iColored does not hadronize), e.g. to subtract the holes from jets. With `--store-hadronization-input` the colour partners iColored inserts for holes are in `hadronization_input/` (the same 3-momentum as their hole). **Use both for every physics run with the jet in the medium** ([Holes and partners](#holes-and-partners-what-a-physics-run-must-store)) |
 | `--keep-primaries N` | with `--bulk-hadrons`: also write the undecayed bulk hadrons of the first N oversamples → `<stem>_hadrons_bulk_bg_primary.h5`, for SMASH later (full precision, positions, no selection; the decayed hadrons are the same with or without it) |
 | `--eloss-threads N` | the final-state showers of an event in parallel (X-SCAPE `<Eloss><nThreads>`; **-1, this driver's default**: `OMP_NUM_THREADS` threads; N > 0: N threads; 0: serial, X-SCAPE's own default and that of the Au+Au drivers). Set `OMP_NUM_THREADS` (≈ cores / jobs at a time): unset, every job takes all cores for its showers, and the driver warns. The events do not depend on N but differ from 0 (own random streams and colour tags per shower): one setting per campaign, so `--eloss-threads 0` to continue or compare with files made serially; recorded as `prod_eloss_threads`. An `<nThreads>` in the user XML's `<Eloss>` wins over the default, the option over both. On an X-SCAPE without the setting (before branch `eloss_omp`) the default runs serially with a note and records 0; asking for threads there stops the job. GB10, 40 events, `OMP_NUM_THREADS=4`: energy loss (final state + the serial ISR) 18.1 → 6.2 s, events 13 % faster |
 | `--eos 9\|91` | MUSIC's EOS (default: the XML's, 91); 9 only to rerun older campaigns |
@@ -293,6 +295,54 @@ reproduced event by event and differ from a rerun with this driver.
   medium scatterings is that of Beraudo, Milhano, Wiedemann, Phys. Rev. C 85 (2012) 031901.
   References and differences: [`PLAN_lbt_colour_tags.md`](../../../../docs/Plans/PLAN_lbt_colour_tags.md),
   "Related work and references".
+
+### Holes and partners: what a physics run must store
+
+**Every O+O run with the jet in the medium that is meant for physics runs with
+`--store-partons --store-hadronization-input`.** Without both, the holes and their partners
+cannot be treated afterwards: iColored drops the holes, and the job does not keep them.
+
+Why. Matter with `recoil_on` 1 and LBT (always) make, per elastic scattering in the medium,
+a recoil (pstat 1, hadronized) and a hole (pstat −1, the medium's lost four-momentum). The
+hydro does not take the hole back, so the event balances only as recoil − hole. iColored
+hadronizes the recoils, drops the holes, and for a hole whose colour line stays open after
+the reconnection inserts a colour partner with the hole's three-momentum into the strings.
+An event therefore carries (recoil + partner) instead of (recoil − hole). `--matter-only`
+(`recoil_on` 0, no LBT) is the only setting without holes and partners.
+
+What the two flags store and what they make possible:
+
+| flag | stores | needed for |
+|---|---|---|
+| `--store-partons` | the final partons, with the holes (`partons/`, pstat −1) | subtracting the holes |
+| `--store-hadronization-input` | what iColored handed to Pythia (`hadronization_input/`), with the partners (found by the hole's three-momentum; not every hole has one) | subtracting the partners; `negative_hadrons.py`; `rehadronize_jets.py` |
+
+What each observable needs (validated 2026-11-23 on 4,500 O+O events, p̂<sub>T</sub> 18–55 GeV,
+`analysis/OO-RHIC/validate_holes.py`; holes carry 6.1 GeV and partners 2.4 GeV per event in
+0–20 %, 0.25 + 0.16 GeV in 80–100 %, mostly outside a jet cone):
+
+| observable | treatment | size without it |
+|---|---|---|
+| full jets (R = 0.4) | holes + partners subtracted at parton level in the cone (ΔR < R) | −0.12 GeV per jet in 0–20 %, ≈ 2 % on R<sub>CP</sub> |
+| leading charged hadrons, p<sub>T</sub> ≥ 3 GeV | none | 0 (no negative hadron above 3–4 GeV) |
+| charged hadrons 2–3 GeV | negative hadrons | ≈ 2.6 % of the hard event's hadrons in 0–20 % |
+| charged hadrons < 2 GeV, the soft activity around jets | negative hadrons | 11–17 % of the hard event's hadrons in 0–20 % |
+| charged jets | negative charged hadrons in the cone (2/3 of the parton-level subtraction agrees within the errors) | ≈ 2 % |
+| jet substructure, shapes, soft fragmentation, recoil and wide-angle hadron–jet correlations | negative hadrons | not quantified; the holes sit at wide angles and low p<sub>T</sub> |
+
+Negative hadrons, per job, after the run (CPU, minutes):
+
+```bash
+python negative_hadrons.py OUT/OO_isr_seed0001_hadrons_jet_frag.h5   # -> ..._hadrons_jet_neg.h5
+```
+
+They are made separately: the event's hadrons are not touched, and the negative system sums
+exactly to holes + partner copies. Subtraction removes the partners' momentum, not their
+effect on how the jet's strings fragment; that is iColored's model.
+
+Runs made without the two flags (e.g. the 50k `jets_quench` of `analysis/OO-RHIC`) can only
+quote the sizes above as a systematic: full jets and charged jets ≈ 2 %, hadrons above 3 GeV
+unaffected, soft observables not usable.
 
 ### Redoing the jet hadronization
 

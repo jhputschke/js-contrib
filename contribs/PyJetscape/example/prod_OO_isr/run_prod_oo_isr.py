@@ -27,7 +27,9 @@ One call = one job = one seed.  Each job writes, next to each other:
                                  (it needs the event's beam remnants), jetscape.hadrons_h5;
                                  with --store-hadronization-input also the parton list
                                  handed to Pythia per event (hadronization_input/), so
-                                 rehadronize_jets.py can hadronize the jets again later
+                                 rehadronize_jets.py can hadronize the jets again later;
+                                 with --store-partons the event's final partons (partons/:
+                                 shower, recoils and the medium's holes, pstat -1)
     <stem>_hadrons_bulk_bg_primary.h5
                                  with --bulk-hadrons and --keep-primaries N: the undecayed
                                  bulk hadrons of the first N oversamples (for SMASH later)
@@ -218,6 +220,11 @@ def parse_args() -> argparse.Namespace:
                         "partons, beam remnants, colour-balancing parton) in the jet_frag "
                         "file (hadronization_input/), so rehadronize_jets.py can redo the "
                         "jet hadrons later (other settings, decays off, positions)")
+    p.add_argument("--store-partons", action="store_true", dest="store_partons",
+                   help="store each event's final partons (the energy-loss manager's, what "
+                        "the jet hadronization is handed: shower partons, recoils and the "
+                        "medium's holes, pstat -1, which iColored does not hadronize) in the "
+                        "jet_frag file (partons/), e.g. to subtract the holes from jets")
     p.add_argument("--vacuum-jet", action="store_true", dest="vacuum_jet",
                    help="the medium is made (MUSIC, and iSS with --bulk-hadrons) but the jet does "
                         "not see it: no <Eloss><Lbt>, Matter in vacuum (in_vac 1, recoil_on 0). "
@@ -711,6 +718,9 @@ def main() -> int:
         sys.exit("run_prod_oo_isr.py: --bulk-hadrons must be >= 0")
     if a.keep_primaries < 0 or (a.keep_primaries and not a.bulk_hadrons):
         sys.exit("run_prod_oo_isr.py: --keep-primaries N needs N >= 0 and --bulk-hadrons")
+    if a.store_partons and a.no_jet_hadrons:
+        sys.exit("run_prod_oo_isr.py: --store-partons needs the jet_frag file (drop "
+                 "--no-jet-hadrons)")
     if a.store_hadronization_input and a.no_jet_hadrons:
         sys.exit("run_prod_oo_isr.py: --store-hadronization-input needs the jet "
                  "hadronization (drop --no-jet-hadrons)")
@@ -970,7 +980,7 @@ def main() -> int:
     if out_frag:
         hwriter = HadronH5Writer(out_frag, tag="jet_frag", n_samples=1, initiators=True,
                                  hadronization_input=a.store_hadronization_input,
-                                 **selection,
+                                 partons=a.store_partons, **selection,
                                  attrs={"inline": True, "module": "iColoredHadronization",
                                         "source": os.path.basename(stem) + ".h5", **uuid_attr,
                                         "pythia_version": int(getattr(core, "PYTHIA_VERSION",
@@ -979,6 +989,7 @@ def main() -> int:
                                             core, "ICOLORED_HAS_INPUT_RECORD", False)),
                                         "hadronization_input_stored":
                                             bool(a.store_hadronization_input),
+                                        "partons_stored": bool(a.store_partons),
                                         **({"hadrons_only": True} if hadrons_only else {}),
                                         "jet_hadronization_xml":
                                             jet_hadronization_settings(root, a.main_xml),
@@ -1067,8 +1078,10 @@ def main() -> int:
                           core.jet_hadronization_colour_audit(
                               tasks["HadronizationManager"]).items()}
                          if getattr(core, "ICOLORED_HAS_COLOUR_AUDIT", False) else {})
+                fparts = (np.asarray(mgr.final_partons_numpy(), dtype=np.float64)
+                          if a.store_partons else None)
                 hwriter.append_unit([frag], initiators=initiators_from_manager(mgr),
-                                    hadronization_input=hin, unit=k, event=i, hydro_row=row,
+                                    hadronization_input=hin, partons=fparts, unit=k, event=i, hydro_row=row,
                                     seed=ev.get("jet_pythia_seed", 0), **ev, **audit,
                                     **({"bg_unit": k} if hadrons_only else {}))
             jetscape.ClearPerEvent()
