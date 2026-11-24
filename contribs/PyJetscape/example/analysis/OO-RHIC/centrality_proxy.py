@@ -66,7 +66,17 @@ ESTIMATORS = ("epd", "mid05", "mid10", "mbd")
 #: jet samples; *_noveto with 3dMCGlauber's hard-pair string veto off (--hard-pair-string-veto 0,
 #: needs X-SCAPE oo_rhic_run): the closure of the method (jet_nosub_noveto: strings as minimum
 #: bias at fixed N_coll -> R_AA^vac = 1) and the subtraction alone (jet_sub_noveto)
-JET_SAMPLES = ("jet_sub", "jet_nosub", "jet_sub_noveto", "jet_nosub_noveto")
+JET_SAMPLES = ("jet_sub", "jet_nosub", "jet_sub_noveto", "jet_nosub_noveto", "jet_sub_mpioff",
+               "jet_sub_mpi14")
+#: variants of jet_sub on its seeds: extra Pythia lines (MPI pre-look, 2026-11-24)
+VARIANT_LINES = {"_mpioff": ["PartonLevel:MPI = off"],
+                 # soft MPI at the U1 setting that gives STAR's p+p UE level (vacuum chain)
+                 "_mpi14": ["MultipartonInteractions:alphaSvalue = 0.130",
+                            "MultipartonInteractions:pTmin = 0.2",
+                            "MultipartonInteractions:ecmRef = 200",
+                            "MultipartonInteractions:pT0Ref = 1.4"]}
+#: where analyse/smear write (default results/; another directory keeps earlier results)
+RES_DIR = Path(os.environ.get("CENTRALITY_PROXY_RESULTS", str(HERE / "results")))
 ARMS = ("mbd_neg", "mbd_pos")
 MBD_ETA = (3.51, 4.61)
 
@@ -139,6 +149,10 @@ def jet_cmd(name, seed, xml):
         cmd.append("--no-subtraction")
     if name.endswith("_noveto"):              # 3dMCGlauber's hard-pair string veto off
         cmd += ["--hard-pair-string-veto", "0"]
+    for suffix, lines in VARIANT_LINES.items():
+        if name.endswith(suffix):
+            for line in lines:
+                cmd += ["--pythia-line", line]
     return cmd
 
 
@@ -152,8 +166,10 @@ def run(nproc, names):
     for k, name in enumerate(JET_SAMPLES):
         if name not in names:
             continue
+        base = next((name[:-len(s)] for s in VARIANT_LINES if name.endswith(s)), name)
+        kk = JET_SAMPLES.index(base)              # a variant runs on its base sample's seeds
         for j in range(JET_JOBS):
-            seed = 990000 + 1000 * k + j
+            seed = 990000 + 1000 * kk + j
             if not list((OUT / name).glob(f"*_seed{seed:04d}.json")):
                 todo.append((name, seed, jet_cmd(name, seed, xml), C.DRIVER.parent))
     if "mb" in names:
@@ -190,7 +206,10 @@ def load_jet(name):
             *[f"strings_eloc_{e}" for e in ESTIMATORS + ARMS])
     out = {k: [] for k in keys + ("nch_mbd_neg", "nch_mbd_pos", "nch_epd")}
     import observables as O
-    for f in sorted(glob.glob(str(OUT / name / "*_hadrons_jet_frag.h5"))):
+    files = sorted(glob.glob(str(OUT / name / "*_hadrons_jet_frag.h5")))
+    if not files:                              # sample not run: empty arrays
+        return {k: np.zeros(0) for k in out}
+    for f in files:
         with h5py.File(f) as h:
             n = int(h.attrs["nunits_written"])
             for k in keys:
@@ -291,8 +310,8 @@ def analyse():
         print(f"MBD coincidence (arm threshold {thr} GeV): minimum bias {coin['mb'][str(thr)]['all']:.3f}; "
               + ", ".join(f"{n} N_coll-weighted {c[str(thr)]['weighted']:.4f} (strings only "
                           f"{c[str(thr)]['weighted_strings_only']:.3f})" for n, c in coin["jet"].items()))
-    path = HERE / "results" / "centrality_proxy.json"
-    path.parent.mkdir(exist_ok=True)
+    path = RES_DIR / "centrality_proxy.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(res, indent=1))
     lab = [f"{lo}-{hi}%" for lo, hi in CLASSES]
     print(f"minimum bias: {res['n_mb']} events, <Ncoll> {res['mb_mean']['ncoll']:.2f}")
@@ -386,9 +405,9 @@ def smear():
             print(f"mu {mu:3.1f}/GeV kappa {kappa:7.1f}/GeV: eps_trig(MB) {row['eps_trig_mb']:.3f} | MBD classes, "
                   f"subtraction: R_AA^vac " + " ".join(f"{v:.2f}" for v in m["raa_vac"][:4])
                   + f"  R_CP 0-20/60-80 {m['rcp_0_20_60_80']:.2f}, 0-20/40-60 {m['rcp_0_20_40_60']:.2f}"
-                  + f" | no sub {row['mbd']['jet_nosub']['rcp_0_20_60_80']:.2f}"
+                  + (f" | no sub {row['mbd']['jet_nosub']['rcp_0_20_60_80']:.2f}" if "jet_nosub" in row["mbd"] else "")
                   + f" | EPD sub {row['epd']['jet_sub']['rcp_0_20_60_80']:.2f}", flush=True)
-    path = HERE / "results" / "centrality_proxy_smear.json"
+    path = RES_DIR / "centrality_proxy_smear.json"
     path.write_text(json.dumps(res, indent=1))
     print("wrote", path)
     return 0

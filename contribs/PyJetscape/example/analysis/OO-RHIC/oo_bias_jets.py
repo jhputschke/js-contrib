@@ -10,6 +10,18 @@ scattering itself.
     python oo_bias_jets.py --out DIR       # another output root of oo_bias.py (DIR/jets, DIR/mb)
     python oo_bias_jets.py --sample jets_quench   # the jet in the medium -> results/oo_bias_jets_jets_quench.json
     python oo_bias_jets.py --min-entries 20       # the stitching threshold (default 10, see below)
+    python oo_bias_jets.py --out /data/OO-RHIC_phys --sample jets_vac   # a physics-run family (below)
+    python oo_bias_jets.py --out /data/OO-RHIC_phys --sample jets_med_w18_23,jets_med_w30_40
+
+Samples.  --sample is one oo_bias.py sample (its directory, its own pTHat windows), a comma-separated
+list of samples, or a physics-run family: NAME stands for every sub-sample NAME_w<lo>_<hi> of
+oo_bias.py (one pTHat window each, its own directory and seeds; jets_vac, jets_med,
+jets_vac_central, jets_vac_mpioff, ...) that has finished jobs.  The windows of all components are
+put on one global list (sorted, each window once) and the files' window indices mapped onto it, so
+the cross section per window (sum over files of sigma_k N_acc,k / N_acc,k), the weights sigma_k / N_k
+and the stitching below work across directories as within one file.  The minimum-bias reference is
+--mb (default phys_mb for physics-run samples, mb otherwise).  Output:
+results/oo_bias_jets_<sample>.json (OO_BIAS_JETS_JSON overrides).
 
 Jets: anti-kT R = 0.4 (FastJet) on the hard event's hadrons (the jet_frag files: shower and
 iColored remnant hadrons, no bulk; the jet is in vacuum, so there is nothing to subtract),
@@ -46,6 +58,7 @@ import argparse
 import glob
 import json
 import os
+import re
 import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
@@ -120,6 +133,36 @@ def file_jets(path):
     return out, win, sig, nacc, charged_only, had, holes
 
 
+def finished_files(name):
+    """The jet files of the finished jobs of one oo_bias.py sample (the job summary is written at
+    the end), in oo_bias.load's order."""
+    return [f for f in sorted(glob.glob(str(B.OUT / name / "*_hadrons_jet_frag.h5")))
+            if os.path.exists(f.replace("_hadrons_jet_frag.h5", ".json"))]
+
+
+def components(sample):
+    """[(oo_bias.py sample, its pTHat windows)] and the global window list for --sample: one sample,
+    a comma-separated list, or a physics-run family NAME (its sub-samples NAME_w<lo>_<hi> with
+    finished jobs)."""
+    if "," in sample:
+        names = [n for n in sample.split(",") if n]
+    elif sample in B.SAMPLES:
+        names = [sample]
+    else:
+        pat = re.compile(rf"{re.escape(sample)}_w(\d+)_(\d+)")
+        names = sorted((n for n in B.SAMPLES if pat.fullmatch(n) and finished_files(n)),
+                       key=lambda n: B.SAMPLES[n][2][0])
+        if not names:
+            sys.exit(f"oo_bias_jets.py: no sample {sample} and no finished sub-samples {sample}_w<lo>_<hi> "
+                     f"under {B.OUT}")
+    bad = [n for n in names if n not in B.SAMPLES]
+    if bad:
+        sys.exit(f"oo_bias_jets.py: unknown samples {bad}")
+    comps = [(n, [tuple(w) for w in B.SAMPLES[n][2]]) for n in names]
+    windows = sorted({w for _, ws in comps for w in ws})
+    return comps, windows
+
+
 def classes(x_mb, x_jet, cls_def, rng, jitter=True):
     """Class index per event from percentiles of x_mb (larger x = more central); integer counts get a
     uniform jitter so that ties split at the percentile, continuous x (-b) none."""
@@ -169,8 +212,9 @@ def per_bin(cm, ncoll_mb, cj, w_ev, counts_ev, cls_def, pairs, win, nwin, n_min)
     return out
 
 
-def estimator_block(cm, ncoll_mb, cj, w_all, ncoll_jet, win, counts_ev, cls_def, pairs, n_min):
-    nwin = len(B.JET_WINDOWS)
+def estimator_block(cm, ncoll_mb, cj, w_all, ncoll_jet, win, counts_ev, cls_def, pairs, n_min, windows=None):
+    windows = B.JET_WINDOWS if windows is None else windows
+    nwin = len(windows)
     Wm, W2m = H.class_sums(cm, len(cls_def), ncoll_mb)
     nm, nme = H.class_mean(cm, ncoll_mb, len(cls_def))
     nj, nje = H.class_mean(cj, ncoll_jet, len(cls_def), w=w_all)      # the jets' geometry (hard-scattering weighted)
@@ -178,7 +222,7 @@ def estimator_block(cm, ncoll_mb, cj, w_all, ncoll_jet, win, counts_ev, cls_def,
          "ncoll_mb": nm.tolist(), "ncoll_mb_err": nme.tolist(), "ncoll_jet": nj.tolist(), "ncoll_jet_err": nje.tolist(),
          "all": per_bin(cm, ncoll_mb, cj, w_all, counts_ev, cls_def, pairs, win, nwin, n_min),
          "per_window": {}}
-    for k, (lo, hi) in enumerate(B.JET_WINDOWS):
+    for k, (lo, hi) in enumerate(windows):
         m = win == k
         e["per_window"][f"{lo}-{hi}"] = per_bin(cm, ncoll_mb, cj[m], ncoll_jet[m].astype(float), counts_ev[m], cls_def,
                                                 pairs, np.zeros(int(m.sum()), np.int64), 1, n_min)
@@ -189,40 +233,58 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=None, help="output root of oo_bias.py (default its OUT)")
     ap.add_argument("-j", type=int, default=8)
-    ap.add_argument("--sample", default="jets", help="jet sample of oo_bias.py (jets, jets_quench, ...)")
+    ap.add_argument("--sample", default="jets",
+                    help="jet sample of oo_bias.py (jets, jets_quench, ...), a comma-separated list, or a "
+                         "physics-run family (jets_vac, jets_med, ...: its _w<lo>_<hi> sub-samples stitched)")
+    ap.add_argument("--mb", default=None,
+                    help="minimum-bias sample (default phys_mb for physics-run samples, else mb)")
     ap.add_argument("--min-entries", type=int, default=MIN_ENTRIES,
                     help=f"raw entries a window needs in a bin (every class) to enter it (default {MIN_ENTRIES})")
     a = ap.parse_args(argv)
     if a.out:
         B.OUT = Path(a.out)
-    files = [f for f in sorted(glob.glob(str(B.OUT / a.sample / "*_hadrons_jet_frag.h5")))
-             if os.path.exists(f.replace("_hadrons_jet_frag.h5", ".json"))]   # finished jobs, as oo_bias.load
-    if not files:
-        sys.exit(f"oo_bias_jets.py: no jet files under {B.OUT / a.sample}")
-    mb, jet = B.load("mb"), B.load(a.sample)       # the estimator counts, same file order as below
+    comps, windows = components(a.sample)
+    phys = any(re.search(r"_w\d+_\d+$", n) for n, _ in comps)
+    mb_name = a.mb or ("phys_mb" if phys else "mb")
+    files, gidx = [], []                           # per file: its component's local -> global window index
+    for name, ws in comps:
+        fs = finished_files(name)
+        if not fs:
+            sys.exit(f"oo_bias_jets.py: no finished jet files under {B.OUT / name}")
+        files += fs
+        gidx += [np.array([windows.index(w) for w in ws])] * len(fs)
+    mb = B.load(mb_name)
+    # the estimator counts, same file order as above (oo_bias.load reads the finished jobs sorted)
+    parts = [B.load(name) for name, _ in comps]
+    jet = {k: np.concatenate([d[k] for d in parts]) for k in parts[0]}
     with ProcessPoolExecutor(max_workers=a.j) as ex:
         res = list(ex.map(file_jets, files))
     jets_ev = np.concatenate([r[0] for r in res])
     had_ev = np.concatenate([r[5] for r in res])
     had_wide = np.stack([had_ev[:, (HAD_EDGES[:-1] >= lo) & (HAD_EDGES[1:] <= hi)].sum(1) for lo, hi in HAD_WIDE], axis=1)
     holes = np.concatenate([r[6] for r in res])
-    win = np.concatenate([r[1] for r in res])
-    if len(win) != len(jet["glauber_ncoll"]) or not np.array_equal(win, jet["pthat_bin"]):
-        sys.exit(f"oo_bias_jets.py: the jet files and oo_bias.load('{a.sample}') do not line up")
+    win_local = np.concatenate([r[1] for r in res])
+    if len(win_local) != len(jet["glauber_ncoll"]) or not np.array_equal(win_local, jet["pthat_bin"]):
+        sys.exit(f"oo_bias_jets.py: the jet files and oo_bias.load of {[n for n, _ in comps]} do not line up")
+    win = np.concatenate([g[r[1]] for g, r in zip(gidx, res)])        # global window index per event
     kinds = {r[4] for r in res}
     if len(kinds) != 1:
         sys.exit("oo_bias_jets.py: the sample mixes charged-only and all-hadron files")
     charged_only = kinds.pop()
-    nacc = np.sum([r[3] for r in res], axis=0)
-    sigma = np.sum([r[2] * r[3] for r in res], axis=0) / np.maximum(nacc, 1)
-    nev = np.bincount(win, minlength=len(sigma)).astype(float)
+    nacc = np.zeros(len(windows))
+    sig_n = np.zeros(len(windows))
+    for g, r in zip(gidx, res):
+        np.add.at(nacc, g, r[3])
+        np.add.at(sig_n, g, r[2] * r[3])
+    sigma = sig_n / np.maximum(nacc, 1)
+    nev = np.bincount(win, minlength=len(windows)).astype(float)
     s_k = sigma / np.maximum(nev, 1)
     w_all = jet["glauber_ncoll"] * s_k[win]
     rng = np.random.default_rng(11)
-    out = {"sample": a.sample,
+    out = {"sample": a.sample, "components": [n for n, _ in comps], "mb_sample": mb_name,
            "jet_def": {"R": JET_R, "eta_max": JET_ETA, "const_ptmin": CONST_PTMIN, "charged_only": charged_only,
                        "particles": "charged" if charged_only else "all but neutrinos"},
-           "pt_edges": PT_EDGES.tolist(), "windows": B.JET_WINDOWS, "sigma": sigma.tolist(),
+           "pt_edges": PT_EDGES.tolist(), "windows": [list(w) for w in windows], "sigma": sigma.tolist(),
            "min_entries": a.min_entries,
            "n_events": {"mb": int(len(mb["glauber_ncoll"])), "jets": int(len(win))},
            "events_per_window": nev.astype(int).tolist(), "estimators": {},
@@ -236,11 +298,11 @@ def main(argv=None):
             cm, cj = classes(mb[f"n_{est}"], jet[f"n_{est}"], cls_def, rng)
         pairs = RCP_PAIRS["sph" if cls_def is B.SPH_CLASSES else "star"]
         out["estimators"][key] = estimator_block(cm, mb["glauber_ncoll"], cj, w_all, ncoll, win, jets_ev, cls_def,
-                                                 pairs, a.min_entries)
+                                                 pairs, a.min_entries, windows)
         out["hadrons"]["estimators"][key] = estimator_block(cm, mb["glauber_ncoll"], cj, w_all, ncoll, win, had_ev,
-                                                            cls_def, pairs, a.min_entries)
+                                                            cls_def, pairs, a.min_entries, windows)
         out["hadrons"]["wide"]["estimators"][key] = estimator_block(cm, mb["glauber_ncoll"], cj, w_all, ncoll, win, had_wide,
-                                                                    cls_def, pairs, a.min_entries)
+                                                                    cls_def, pairs, a.min_entries, windows)
         if key == "mbd":
             cj_mbd = cj
     if holes.any():     # the medium's holes (dropped by iColored) and the partners put in for them, per event
@@ -252,13 +314,15 @@ def main(argv=None):
                         "partner_E": pv.tolist(), "partner_E_err": pe_.tolist(),
                         "mbd_classes": B.SPH_CLASSES, "hole_E_class": hc.tolist(), "hole_E_class_err": hce.tolist(),
                         "partner_E_class": pc_.tolist(), "partner_E_class_err": pce.tolist()}
-    default = HERE / "results" / ("oo_bias_jets.json" if a.sample == "jets" else f"oo_bias_jets_{a.sample}.json")
+    tag = a.sample.replace(",", "+")
+    default = HERE / "results" / ("oo_bias_jets.json" if a.sample == "jets" else f"oo_bias_jets_{tag}.json")
     path = Path(os.environ.get("OO_BIAS_JETS_JSON", default))
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(out, indent=1))
     lab = [f"{lo:g}-{hi:g}" for lo, hi in zip(PT_EDGES[:-1], PT_EDGES[1:])]
     hlab = [f"{lo:g}-{hi:g}" for lo, hi in zip(HAD_EDGES[:-1], HAD_EDGES[1:])]
-    print(f"minimum bias {out['n_events']['mb']}, jet events {out['n_events']['jets']} "
+    print(f"components {out['components']} (windows {[f'{lo}-{hi}' for lo, hi in windows]}), minimum bias {mb_name}: "
+          f"{out['n_events']['mb']} events, jet events {out['n_events']['jets']} "
           f"(per window {out['events_per_window']}); {'charged' if charged_only else 'full'} jets R = {JET_R}, |eta| < {JET_ETA}; "
           f"windows stitched with >= {a.min_entries} entries per bin and class")
     for what, blk, labs_ in (("jet", out["estimators"], lab), ("charged-hadron", out["hadrons"]["estimators"], hlab)):
