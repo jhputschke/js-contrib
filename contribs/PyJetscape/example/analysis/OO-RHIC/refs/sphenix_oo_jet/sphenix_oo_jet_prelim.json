@@ -1,0 +1,375 @@
+{
+ "source": "sPHENIX, sPH-CONF-JET-2026-02 (preliminary, June 2026), https://www.sphenix.bnl.gov/PublicResults/sPH-CONF-JET-2026-02",
+ "method": "points, statistical bars and systematic boxes read from the note's vector figures (pdftocairo -svg), mapped with the axes' major ticks; preliminary, for comparison only",
+ "jets": "anti-kT R = 0.4, |eta| < 0.7, calorimeter jets, unfolded; MBD centrality",
+ "caveat": "the lowest pT bins show the same statistical bar (+-0.017-0.018) in every panel: probably the drawing's minimum, so an upper bound there; values from the marker's bar, systematics asymmetric from the boxes",
+ "ncoll": {
+  "0-20": [
+   22.49,
+   0.94
+  ],
+  "20-40": [
+   12.16,
+   0.66
+  ],
+  "40-60": [
+   6.02,
+   0.33
+  ],
+  "60-80": [
+   2.92,
+   0.15
+  ]
+ },
+ "rcp_vs_60_80": {
+  "red": [
+   {
+    "lo": 19.0,
+    "hi": 24.0,
+    "value": 0.6857,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0325,
+    "sys_hi": 0.0335
+   },
+   {
+    "lo": 24.0,
+    "hi": 30.0,
+    "value": 0.6274,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.045,
+    "sys_hi": 0.0483
+   },
+   {
+    "lo": 30.0,
+    "hi": 36.0,
+    "value": 0.6196,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.071,
+    "sys_hi": 0.0818
+   },
+   {
+    "lo": 36.0,
+    "hi": 43.0,
+    "value": 0.6439,
+    "stat_lo": 0.0277,
+    "stat_hi": 0.0277,
+    "sys_lo": 0.0844,
+    "sys_hi": 0.1136
+   },
+   {
+    "lo": 43.0,
+    "hi": 51.0,
+    "value": 0.5558,
+    "stat_lo": 0.0648,
+    "stat_hi": 0.0648,
+    "sys_lo": 0.0494,
+    "sys_hi": 0.1321
+   },
+   {
+    "lo": 51.0,
+    "hi": 60.0,
+    "value": 0.3452,
+    "stat_lo": 0.0799,
+    "stat_hi": 0.0799,
+    "sys_lo": 0.0778,
+    "sys_hi": 0.1463
+   }
+  ],
+  "blue": [
+   {
+    "lo": 19.0,
+    "hi": 24.0,
+    "value": 0.8524,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0401,
+    "sys_hi": 0.0403
+   },
+   {
+    "lo": 24.0,
+    "hi": 30.0,
+    "value": 0.8146,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0516,
+    "sys_hi": 0.0552
+   },
+   {
+    "lo": 30.0,
+    "hi": 36.0,
+    "value": 0.7849,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0722,
+    "sys_hi": 0.089
+   },
+   {
+    "lo": 36.0,
+    "hi": 43.0,
+    "value": 0.7835,
+    "stat_lo": 0.038,
+    "stat_hi": 0.038,
+    "sys_lo": 0.0888,
+    "sys_hi": 0.1093
+   },
+   {
+    "lo": 43.0,
+    "hi": 51.0,
+    "value": 0.6547,
+    "stat_lo": 0.0815,
+    "stat_hi": 0.0815,
+    "sys_lo": 0.093,
+    "sys_hi": 0.1224
+   },
+   {
+    "lo": 51.0,
+    "hi": 60.0,
+    "value": 0.3699,
+    "stat_lo": 0.0916,
+    "stat_hi": 0.0916,
+    "sys_lo": 0.1109,
+    "sys_hi": 0.1657
+   }
+  ],
+  "green": [
+   {
+    "lo": 19.0,
+    "hi": 24.0,
+    "value": 0.9551,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0264,
+    "sys_hi": 0.0274
+   },
+   {
+    "lo": 24.0,
+    "hi": 30.0,
+    "value": 0.9464,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0343,
+    "sys_hi": 0.0381
+   },
+   {
+    "lo": 30.0,
+    "hi": 36.0,
+    "value": 0.964,
+    "stat_lo": 0.0195,
+    "stat_hi": 0.0195,
+    "sys_lo": 0.0738,
+    "sys_hi": 0.0807
+   },
+   {
+    "lo": 36.0,
+    "hi": 43.0,
+    "value": 1.0151,
+    "stat_lo": 0.0439,
+    "stat_hi": 0.0439,
+    "sys_lo": 0.0753,
+    "sys_hi": 0.0868
+   },
+   {
+    "lo": 43.0,
+    "hi": 51.0,
+    "value": 0.8958,
+    "stat_lo": 0.0993,
+    "stat_hi": 0.0994,
+    "sys_lo": 0.0773,
+    "sys_hi": 0.0802
+   },
+   {
+    "lo": 51.0,
+    "hi": 60.0,
+    "value": 0.5708,
+    "stat_lo": 0.1249,
+    "stat_hi": 0.1249,
+    "sys_lo": 0.1517,
+    "sys_hi": 0.1623
+   }
+  ],
+  "classes": {
+   "red": "0-20/60-80",
+   "blue": "20-40/60-80",
+   "green": "40-60/60-80"
+  }
+ },
+ "rcp_vs_40_60": {
+  "red": [
+   {
+    "lo": 19.0,
+    "hi": 24.0,
+    "value": 0.7179,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0232,
+    "sys_hi": 0.0206
+   },
+   {
+    "lo": 24.0,
+    "hi": 30.0,
+    "value": 0.663,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0354,
+    "sys_hi": 0.0334
+   },
+   {
+    "lo": 30.0,
+    "hi": 36.0,
+    "value": 0.6427,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0347,
+    "sys_hi": 0.0345
+   },
+   {
+    "lo": 36.0,
+    "hi": 43.0,
+    "value": 0.6343,
+    "stat_lo": 0.0221,
+    "stat_hi": 0.0221,
+    "sys_lo": 0.0394,
+    "sys_hi": 0.0594
+   },
+   {
+    "lo": 43.0,
+    "hi": 51.0,
+    "value": 0.6204,
+    "stat_lo": 0.0514,
+    "stat_hi": 0.0514,
+    "sys_lo": 0.0531,
+    "sys_hi": 0.1201
+   },
+   {
+    "lo": 51.0,
+    "hi": 60.0,
+    "value": 0.6048,
+    "stat_lo": 0.1025,
+    "stat_hi": 0.1024,
+    "sys_lo": 0.0738,
+    "sys_hi": 0.1911
+   }
+  ],
+  "blue": [
+   {
+    "lo": 19.0,
+    "hi": 24.0,
+    "value": 0.8925,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0352,
+    "sys_hi": 0.0335
+   },
+   {
+    "lo": 24.0,
+    "hi": 30.0,
+    "value": 0.8608,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0381,
+    "sys_hi": 0.0355
+   },
+   {
+    "lo": 30.0,
+    "hi": 36.0,
+    "value": 0.8142,
+    "stat_lo": 0.0181,
+    "stat_hi": 0.0181,
+    "sys_lo": 0.0294,
+    "sys_hi": 0.031
+   },
+   {
+    "lo": 36.0,
+    "hi": 43.0,
+    "value": 0.7718,
+    "stat_lo": 0.0313,
+    "stat_hi": 0.0313,
+    "sys_lo": 0.0483,
+    "sys_hi": 0.0466
+   },
+   {
+    "lo": 43.0,
+    "hi": 51.0,
+    "value": 0.7309,
+    "stat_lo": 0.0687,
+    "stat_hi": 0.0687,
+    "sys_lo": 0.0884,
+    "sys_hi": 0.1021
+   },
+   {
+    "lo": 51.0,
+    "hi": 60.0,
+    "value": 0.6481,
+    "stat_lo": 0.1224,
+    "stat_hi": 0.1225,
+    "sys_lo": 0.1092,
+    "sys_hi": 0.2019
+   }
+  ],
+  "classes": {
+   "red": "0-20/40-60",
+   "blue": "20-40/40-60"
+  }
+ },
+ "raa_0_100": {
+  "black": [
+   {
+    "lo": 19.0,
+    "hi": 24.0,
+    "value": 0.8109,
+    "stat_lo": 0.0171,
+    "stat_hi": 0.0171,
+    "sys_lo": 0.0418,
+    "sys_hi": 0.0426
+   },
+   {
+    "lo": 24.0,
+    "hi": 30.0,
+    "value": 0.8173,
+    "stat_lo": 0.0171,
+    "stat_hi": 0.0171,
+    "sys_lo": 0.0686,
+    "sys_hi": 0.0697
+   },
+   {
+    "lo": 30.0,
+    "hi": 36.0,
+    "value": 0.8107,
+    "stat_lo": 0.0171,
+    "stat_hi": 0.0171,
+    "sys_lo": 0.0483,
+    "sys_hi": 0.0479
+   },
+   {
+    "lo": 36.0,
+    "hi": 43.0,
+    "value": 0.7868,
+    "stat_lo": 0.0171,
+    "stat_hi": 0.0171,
+    "sys_lo": 0.0687,
+    "sys_hi": 0.0688
+   },
+   {
+    "lo": 43.0,
+    "hi": 51.0,
+    "value": 0.7138,
+    "stat_lo": 0.0384,
+    "stat_hi": 0.0384,
+    "sys_lo": 0.0926,
+    "sys_hi": 0.0935
+   },
+   {
+    "lo": 51.0,
+    "hi": 60.0,
+    "value": 0.6551,
+    "stat_lo": 0.0863,
+    "stat_hi": 0.0863,
+    "sys_lo": 0.1107,
+    "sys_hi": 0.1105
+   }
+  ]
+ }
+}
