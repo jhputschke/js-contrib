@@ -29,7 +29,7 @@ sub-sample per pTHat window (<sample>_w<lo>_<hi>, continuous 5-80 GeV), into a n
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys2            # docker rm: the MPI check (~3.5 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys2_soft       # the soft-MPI check (~1.2 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3            # after gate G2 (~15 h)
-    OO_PHYS_CENTRAL_BMAX=<b> ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_central
+    ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_icp        # afterwards: +15k per arm, 7-18 GeV (~6 h)
 A group entry NAME:EVENTS runs the first jobs of NAME only.  Phases 1-2 ran with the old MPI;
 phase 3 (oo_vac_*, oo_med_*, pp_ref_*) with soft MPI, under new names and seeds, the p+p
 reference from config/pp200_isr_rhictune.xml.  The old-MPI samples that depend on the MPI are
@@ -235,6 +235,8 @@ PHYS_WINDOWS = {(5, 7): 15000, (7, 9): 20000, (9, 11): 20000, (11, 14): 20000, (
 #: every event of the 0-20 % class is inside.  B_MAX_CENTRAL is read off phys_mb's b distribution
 #: in the EPD classes before the pair runs (environment OO_PHYS_CENTRAL_BMAX until then).
 CENTRAL_WINDOWS = {(7, 9): 15000, (9, 11): 15000, (11, 14): 15000, (14, 18): 15000}
+#: events added per window and arm by phys3_icp (the central pair's 15k, unrestricted in b)
+ICP_EXTRA = 15000
 B_MAX_CENTRAL = float(os.environ.get("OO_PHYS_CENTRAL_BMAX", "nan"))
 PHYS_PER_JOB = 500
 STORE = ["--store-partons", "--store-hadronization-input"]      # the holes rule (a3bb4c2)
@@ -314,6 +316,12 @@ GROUPS.update({
     # phase 3 (soft MPI): vacuum and medium interleaved job by job, then the p+p reference
     "phys3": [f"{s}_{w}" for w in _W for s in ("oo_vac", "oo_med")] + [f"pp_ref_{w}" for w in _W],
     "phys3_central": [f"{s}_central_{_w(lo, hi)}" for lo, hi in CENTRAL_WINDOWS for s in ("oo_vac", "oo_med")],
+    # the I_CP add-on after phase 3 (instead of the b-restricted central pair, whose enrichment
+    # is only 1.28x): the same samples extended by ICP_EXTRA events in the trigger windows 7-18
+    # GeV.  NAME:EVENTS takes the first jobs of NAME's seed list, so the jobs phase 3 ran are
+    # skipped and only the new ones (the next seeds, vacuum and medium still paired) run.
+    "phys3_icp": [f"{s}_{_w(lo, hi)}:{PHYS_WINDOWS[(lo, hi)] + ICP_EXTRA}" for lo, hi in CENTRAL_WINDOWS
+                  for s in ("oo_vac", "oo_med")],
 })
 QUENCHED |= {n for n in SAMPLES if n.startswith("oo_med_")}
 #: the physics run stores all hadrons (full jets, sPHENIX), the minimum-bias reference too
