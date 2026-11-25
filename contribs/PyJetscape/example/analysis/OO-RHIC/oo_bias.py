@@ -227,6 +227,16 @@ B_MAX_CENTRAL = float(os.environ.get("OO_PHYS_CENTRAL_BMAX", "nan"))
 PHYS_PER_JOB = 500
 STORE = ["--store-partons", "--store-hadronization-input"]      # the holes rule (a3bb4c2)
 MPI_OFF = ["--pythia-line", "PartonLevel:MPI = off"]           # appended after the XML's lines
+#: soft MPI (tuning page, "G2 input"): Pythia's soft MPI with the reference energy at 200 GeV,
+#: pT0 = pT0Ref there; the check after G2 brackets pT0Ref (the response is steep).  Appended after
+#: the XML's lines, so they override its MPI alpha_s 0.152 and pTmin 5.
+SOFT_PT0REF = (1.42, 1.48)
+
+
+def soft_mpi(pt0ref):
+    return [x for v in ("MultipartonInteractions:alphaSvalue = 0.130", "MultipartonInteractions:pTmin = 0.2",
+                        "MultipartonInteractions:ecmRef = 200", f"MultipartonInteractions:pT0Ref = {pt0ref:.2f}")
+            for x in ("--pythia-line", v)]
 
 
 def _w(lo, hi):
@@ -244,7 +254,9 @@ for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
     _pb = 840000 + 1000 * _k
     for _name, _opts in ((f"pp_bulk_{_w(_lo, _hi)}", PP + STORE),
                          (f"pp_bulk_mpioff_{_w(_lo, _hi)}", PP + STORE + MPI_OFF),
-                         (f"pp_bulk_switch_{_w(_lo, _hi)}", PP + STORE + ["--hard-pair-string-veto", "0"])):
+                         (f"pp_bulk_switch_{_w(_lo, _hi)}", PP + STORE + ["--hard-pair-string-veto", "0"]),
+                         *((f"pp_bulk_soft{round(100 * _p)}_{_w(_lo, _hi)}", PP + STORE + soft_mpi(_p))
+                           for _p in SOFT_PT0REF)):
         SAMPLES[_name] = (5000, PHYS_PER_JOB, [(_lo, _hi)], _opts, True)
         SEED_BASE[_name] = _pb
 for _k, ((_lo, _hi), _n) in enumerate(CENTRAL_WINDOWS.items()):
@@ -264,6 +276,8 @@ GROUPS.update({
     "phys2": ([f"pp_bulk_{w}:3000" for w in _W_UE] + [f"pp_bulk_mpioff_{w}:3000" for w in _W_UE]
               + [f"pp_bulk_switch_{w}:3000" for w in _W_UE]
               + [f"{s}_{w}:5000" for w in ("w18_23", "w30_40") for s in ("jets_vac", "jets_vac_mpioff")]),
+    # the soft-MPI check after G2: p+p with hydro at two pT0Ref, 1.5k per window each
+    "phys2_soft": [f"pp_bulk_soft{round(100 * p)}_{w}:1500" for w in _W_UE for p in SOFT_PT0REF],
     # phase 3 (after gate G2; with MPI off at G2 the samples get MPI_OFF first): vacuum and
     # medium interleaved job by job, then p+p
     "phys3": [f"{s}_{w}" for w in _W for s in ("jets_vac", "jets_med")] + [f"pp_bulk_{w}" for w in _W],
