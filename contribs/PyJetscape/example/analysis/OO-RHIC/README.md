@@ -151,6 +151,20 @@ python make_design.py --add ref_mapbulk 0.15 0.25 2.0 --jobs 10 --seeds-of ref_t
 python run_runs.py ref_tune ref_mapbulk -j 12 && python observables.py ref_tune ref_mapbulk
 python hard_recheck.py ref_tune ref_mapbulk && python ue_check.py ref_tune ref_mapbulk
 jupyter nbconvert --to notebook --execute bulk_tune_screening.ipynb --output-dir results --output bulk_tune_screening_executed.ipynb
+# why the vacuum UE is flat (ue_trend_cv.ipynb): standalone Pythia with ISR off, and the decomposition
+# MPI off -> FSR off (matter_on 0) -> bare (also Q0 50: no iMATTER ISR), on best_nompi's XML and seeds
+for ts in default:981000 detroit:982000; do t=${ts%:*}; for j in $(seq 0 9); do s=$((${ts#*:} + j)); \
+  python refs/pythia_ref.py --tune $t --events 30000 --seed $s --line "PartonLevel:ISR = off" \
+  --out $OO_RHIC_PROD/events/pythia8_${t}_isroff/pythia8_${t}_isroff_seed${s}_hadrons_jet_frag.h5; done; done
+#   (the same with MPI off, + FSR off, + ISR off: runs pythia8_default_nompi, _nompi_fsroff, _nompi_bare)
+python make_design.py --add best_nompi_fsroff 0.153 0.319 1.52 --jobs 10 --seeds-of best_nompi --pythia-line "PartonLevel:MPI = off"
+python make_design.py --add best_nompi_bare 0.153 0.319 1.52 --jobs 10 --seeds-of best_nompi --pythia-line "PartonLevel:MPI = off"
+for n in best_nompi_fsroff best_nompi_bare; do cp design/xml/best_nompi.xml design/xml/$n.xml; \
+  sed -i 's|<matter_on> 1 </matter_on>|<matter_on> 0 </matter_on>|' design/xml/$n.xml; done
+sed -i 's|<Q0> 1.52 </Q0>|<Q0> 50 </Q0>|' design/xml/best_nompi_bare.xml
+python run_runs.py best_nompi_fsroff best_nompi_bare -j 20
+python ue_check.py best_nompi_fsroff best_nompi_bare pythia8_default_isroff pythia8_detroit_isroff -j 16
+jupyter nbconvert --to notebook --execute ue_trend_cv.ipynb --output results/ue_trend_cv_executed.ipynb
 ```
 
 `run_runs.py` is resumable (finished jobs are skipped) and gives every job its own seed.
@@ -190,6 +204,7 @@ jupyter nbconvert --to notebook --execute bulk_tune_screening.ipynb --output-dir
 | `conditional.py` | the posterior with a parameter held fixed (emulator only), e.g. Q0 = 2 GeV for Matter + LBT → `results/conditional_Q0_2.json` |
 | `dndeta.py` | charged $dN/d\eta$ over the full η range at fixed pT̂ for all models and MPI settings (own small samples under `PROD/diag/eta/`) |
 | `refs/run_refs.py` | the reference models' events (PP19 via `prod_AuAu_0_10_jet/run_prod_vacuum.py`, Pythia standalone) |
+| `ue_trend_cv.ipynb` | why the vacuum p+p UE is flat while STAR's falls (tuning page, "Why the UE is flat" and "UE trend vs C_v", 2026-11-24): standalone Pythia with ISR off keeps the fall; the decomposition (MPI off, FSR off, ISR off) of the chain and of Pythia Monash; ⟨N<sub>MPI</sub>⟩ vs p̂<sub>T</sub> (parton level, run in the notebook); the 32 design points' trend UE(11&ndash;15)/UE(35&ndash;45) against C<sub>v</sub>, &alpha;<sub>s</sub>, Q<sub>0</sub> and Pythia's &sigma;<sub>int</sub> (read from the job logs: with pTmin 5 it steps between 31 and 53 mb), fitted along the valley, and the STAR jets at 37&ndash;52 GeV. Reads the `ue_check.py` sums (`results/ue_<run>.npz`; recomputed when missing), the runs' observables and `results/design_chi2.json`; old MPI, vacuum chain. Model result: remnants and MPI fall as in Pythia, iMATTER ISR and MATTER FSR rise with jet p<sub>T</sub>; trend 1.17 at C<sub>v</sub> 0.16 to 0.82 at 0.50 (STAR 1.34), jets 0.70&ndash;0.76 along the valley, set by &alpha;<sub>s</sub> |
 | `refs/pythia_ref.py` | standalone Pythia 8 (default, Detroit, no CR; `--windows`, `--eta-max 0`, `--line` for diagnostics) in the tune's hadron-file layout |
 | `refs/pp19_200.xml`, `refs/hadronize_pp19.xml` | PP19 at 200 GeV: PythiaGun + vacuum Matter (Q0 1, C_v 0.25) + Colorless, π⁰ and η undecayed |
 | `tune.py` | emulator, posterior (emcee), design-point χ² |
