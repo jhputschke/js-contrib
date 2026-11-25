@@ -335,9 +335,38 @@ GROUPS.update({
     # p+p jet events and is much smaller than O+O's)
     "phys3_ppmed": [f"pp_med_{w}" for w in _W],
 })
+#: phase 4 (tuning page "Phase 4", 2026-11-25; OPTIONAL, defined, not run): the vacuum arms in the
+#: A+A scheme.  Matter with in_vac 0 showers partons outside a medium down to QS 0.9 GeV (the medium
+#: arm's vacuum shower), with in_vac 1 (--vacuum-jet, the hard tune) only to Q0 2 GeV.  The final
+#: A+A-scheme recheck (scheme_recheck.ipynb, 294k events per arm in the vacuum chain): jets unchanged
+#: (1.00 within 1-2 %), pi0 0.97-0.98 at 2-4 GeV, 0.87-0.95 +- 0.05 at 4-6 GeV, consistent with 1 above;
+#: equal chi2 in both schemes.  So the scheme mismatch of oo_med against oo_vac / pp_ref is a
+#: systematic of a few percent at most, measured by 3c (pp_med against pp_ref); these arms would remove
+#: it for the hadron R_AA and h-h I_CP.  AA_VAC is the full-chain arm of the recheck (aa_vac_h): Matter
+#: alone (no LBT, no recoils) and a medium Matter never sees (T0 = hydro_Tc = 100 GeV: no qhat), the
+#: medium itself still made (MUSIC, iSS: the classes need the bulk), not the driver's --aa-vacuum (that
+#: goes with --vacuum, no medium); the same seeds as oo_vac / pp_ref; 4b extends oo_vac_aa in 7-18 GeV
+#: with 3b's seeds.
+AA_VAC = ["--matter-only", "--xml-set=Eloss/Matter/T0=100", "--xml-set=Eloss/Matter/hydro_Tc=100"]
+AA_SCHEME = set()
+for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
+    _name = f"oo_vac_aa_{_w(_lo, _hi)}"
+    SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], STORE + AA_VAC, True)
+    SEED_BASE[_name] = 870000 + 1000 * _k
+    _name = f"pp_ref_aa_{_w(_lo, _hi)}"
+    SAMPLES[_name] = (5000, PHYS_PER_JOB, [(_lo, _hi)], PP_REF + STORE + AA_VAC, True)
+    SEED_BASE[_name] = 880000 + 1000 * _k
+    XML_OF[_name] = PP_XML
+AA_SCHEME |= {n for n in SAMPLES if n.startswith(("oo_vac_aa_", "pp_ref_aa_"))}
+GROUPS.update({
+    # 4a: the A+A-scheme vacuum arms, O+O and p+p
+    "phys4": [f"oo_vac_aa_{w}" for w in _W] + [f"pp_ref_aa_{w}" for w in _W],
+    # 4b: oo_vac_aa extended in the trigger windows 7-18 GeV, as phys3_icp
+    "phys4_icp": [f"oo_vac_aa_{_w(lo, hi)}:{PHYS_WINDOWS[(lo, hi)] + ICP_EXTRA}" for lo, hi in CENTRAL_WINDOWS],
+})
 QUENCHED |= {n for n in SAMPLES if n.startswith(("oo_med_", "pp_med_"))}
 #: the physics run stores all hadrons (full jets, sPHENIX), the minimum-bias reference too
-ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("jets_vac_", "oo_vac_", "oo_med_", "pp_bulk_", "pp_ref_", "pp_med_", "phys_"))}
+ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("jets_vac_", "oo_vac_", "oo_med_", "pp_bulk_", "pp_ref_", "pp_med_", "phys_"))}   # incl. *_aa_
 STAR_CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 
@@ -356,7 +385,7 @@ def jobs(name, events=None):
         seed = SEED_BASE[name] + j
         cmd = [sys.executable, str(C.DRIVER), "--user-xml", str(XML_OF.get(name, OO_XML)), "--events", str(per_job),
                "--seed", str(seed), "--pthat-bins", ",".join(f"{lo}-{hi}" for lo, hi in windows),
-               "--b-min", "0", "--b-max", f"{B_MAX}", *([] if name in QUENCHED else ["--vacuum-jet"]), "--bulk-hadrons", "1",
+               "--b-min", "0", "--b-max", f"{B_MAX}", *([] if name in QUENCHED or name in AA_SCHEME else ["--vacuum-jet"]), "--bulk-hadrons", "1",
                "--no-particlize", "--no-hydro-file", "--eta-max", "5.2",
                *([] if name in ALL_HADRONS else ["--charged"]),
                "--outdir", str(OUT / name), "--max-skipped", "30", *extra]
