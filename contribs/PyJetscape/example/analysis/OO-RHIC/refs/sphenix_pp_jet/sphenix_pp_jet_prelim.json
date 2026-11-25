@@ -1,0 +1,89 @@
+{
+ "source": "sPHENIX, sPH-CONF-JET-2025-03 (preliminary, April 2025), https://www.sphenix.bnl.gov/sites/default/files/2025-04/sPH-CONF-JET-2025-03.pdf",
+ "observable": "d2sigma/(deta dpT) [pb/GeV], anti-kT R = 0.4, |eta_jet| < 0.7, p+p 200 GeV, 16.6 pb^-1, unfolded to particle level",
+ "method": "Fig. 5 read from the vector graphics (pdftocairo -svg): marker centre = value, bars = stat, boxes = syst (asymmetric in log), box extent = bin; axes from the major ticks",
+ "caveat": "the drawn statistical bars have the same length in every bin (+-0.074 in log10, +-17 %): a drawing size rather than the error (the note: statistical errors often smaller than the marker, about 20 % above 50 GeV), so an upper bound; the systematic boxes are largely correlated between bins (JES 6 %, unfolding prior)",
+ "rows": [
+  {
+   "lo": 15.0,
+   "hi": 19.0,
+   "value": 22610.0,
+   "stat_lo": 3550.0,
+   "stat_hi": 4200.0,
+   "sys_lo": 5850.0,
+   "sys_hi": 11300.0
+  },
+  {
+   "lo": 19.0,
+   "hi": 23.5,
+   "value": 5178.0,
+   "stat_lo": 812.0,
+   "stat_hi": 965.0,
+   "sys_lo": 1550.0,
+   "sys_hi": 3070.0
+  },
+  {
+   "lo": 23.5,
+   "hi": 28.5,
+   "value": 1193.0,
+   "stat_lo": 187.0,
+   "stat_hi": 222.0,
+   "sys_lo": 425.0,
+   "sys_hi": 769.0
+  },
+  {
+   "lo": 28.5,
+   "hi": 34.0,
+   "value": 286.7,
+   "stat_lo": 45.0,
+   "stat_hi": 53.3,
+   "sys_lo": 119.0,
+   "sys_hi": 187.0
+  },
+  {
+   "lo": 34.0,
+   "hi": 40.0,
+   "value": 59.92,
+   "stat_lo": 9.4,
+   "stat_hi": 11.2,
+   "sys_lo": 28.0,
+   "sys_hi": 41.3
+  },
+  {
+   "lo": 40.0,
+   "hi": 47.0,
+   "value": 9.582,
+   "stat_lo": 1.5,
+   "stat_hi": 1.78,
+   "sys_lo": 5.02,
+   "sys_hi": 7.82
+  },
+  {
+   "lo": 47.0,
+   "hi": 54.5,
+   "value": 1.184,
+   "stat_lo": 0.186,
+   "stat_hi": 0.22,
+   "sys_lo": 0.709,
+   "sys_hi": 1.24
+  },
+  {
+   "lo": 54.5,
+   "hi": 63.0,
+   "value": 0.109,
+   "stat_lo": 0.0171,
+   "stat_hi": 0.0203,
+   "sys_lo": 0.0736,
+   "sys_hi": 0.142
+  },
+  {
+   "lo": 63.0,
+   "hi": 72.0,
+   "value": 0.007235,
+   "stat_lo": 0.00113,
+   "stat_hi": 0.00135,
+   "sys_lo": 0.00538,
+   "sys_hi": 0.0105
+  }
+ ]
+}

@@ -154,6 +154,37 @@ def _jets(p, ev, n, R, eta_part, ptmin=1.0, full=False):
     return np.repeat(np.arange(n), nj), pt, eta, phi
 
 
+def hard_partons(h, n):
+    """Per event the outgoing partons of the hard scattering (initiators/, pstat 1000: the showers'
+    initiators after ISR): rows (event, pid, eta, phi)."""
+    if "initiators" not in h:
+        return np.zeros((0, 4))
+    off = h["initiators/offsets"][: n + 1]
+    d = h["initiators/data"][: off[-1]]
+    ev = np.repeat(np.arange(n), np.diff(off))
+    m = d[:, 2] == 1000
+    px, py, pz = d[m, 3], d[m, 4], d[m, 5]
+    pt = np.hypot(px, py)
+    return np.stack([ev[m], d[m, 1], np.arcsinh(pz / np.maximum(pt, 1e-9)), np.arctan2(py, px)], axis=1)
+
+
+def jet_flavour(je, jeta, jphi, hard, R):
+    """Per jet 1 (quark or antiquark) or 2 (gluon) from the nearest hard outgoing parton of its event
+    within dR < R; 0 when none is that close."""
+    fl = np.zeros(len(je), int)
+    if not len(je) or not len(hard):
+        return fl
+    for i in range(len(je)):
+        hp = hard[hard[:, 0] == je[i]]
+        if not len(hp):
+            continue
+        dr = np.hypot(hp[:, 2] - jeta[i], _dphi(hp[:, 3], jphi[i]))
+        k = np.argmin(dr)
+        if dr[k] < R:
+            fl[i] = 2 if int(hp[k, 1]) == 21 else 1
+    return fl
+
+
 def negative_partons(h, n):
     """Per event the medium's holes (partons/, pstat -1) and the copies of their colour partners
     (hadronization_input/ entries with the hole's three-momentum, as negative_hadrons.py finds
@@ -226,6 +257,7 @@ def file_obs(path):
         bins = [tuple(map(float, w)) for w in np.asarray(h.attrs["pthat_bins"]).reshape(-1, 2)]
         pa, ca, pid = B._units(h, n, charged=False, with_pid=True)
         neg = negative_partons(h, n)
+        hard = hard_partons(h, n)
     try:
         with h5py.File(bf) as h:
             pb, cb = B._units(h, n)                                   # bulk, charged only
@@ -255,6 +287,9 @@ def file_obs(path):
     k = np.abs(jeta) < SPH_ETA
     out["sph_jet"] = _hist(je[k], jpt_sub[k], SPH_EDGES, n)
     out["sph_jet_raw"] = _hist(je[k], jpt[k], SPH_EDGES, n)
+    fl = jet_flavour(je[k], jeta[k], jphi[k], hard, SPH_R)
+    out["sph_jet_q"] = _hist(je[k][fl == 1], jpt_sub[k][fl == 1], SPH_EDGES, n)
+    out["sph_jet_g"] = _hist(je[k][fl == 2], jpt_sub[k][fl == 2], SPH_EDGES, n)
     out["neg_pt_in_jets"] = np.bincount(je[k], weights=(jpt - jpt_sub)[k], minlength=n) if len(je) else np.zeros(n)
     out["neg_n"] = np.bincount(neg[:, 0].astype(int), minlength=n).astype(float) if len(neg) else np.zeros(n)
     # STAR charged jets (inclusive) and the charged particles for the h+jet
@@ -357,7 +392,14 @@ def load_family(fam, j):
         comps, windows = J.components(fam)
     except SystemExit:
         return None
-    files = [f for name, _ in comps for f in J.finished_files(name)]
+    if PHASE3_ONLY:
+        hij = {f"{s}_{B._w(lo, hi)}" for lo, hi in getattr(B, "HIJET_WINDOWS", {}) for s in FAMILIES}
+        comps = [(nm, w) for nm, w in comps if WITH_3E or nm not in hij]
+        seeds = {nm: {s for _, s, _, _ in B.jobs(nm)} for nm, _ in comps}
+        files = [f for nm, _ in comps for f in J.finished_files(nm)
+                 if int(f.rsplit("_seed", 1)[1].split("_")[0]) in seeds[nm]]
+    else:
+        files = [f for name, _ in comps for f in J.finished_files(name)]
     if not files:
         return None
     with ProcessPoolExecutor(max_workers=j) as ex:
@@ -403,7 +445,13 @@ def classify(mb, ev, est, rng):
 
 
 # ── observables ──────────────────────────────────────────────────────────────────────────────
-HIST_OBS = ("had", "sph_jet", "sph_jet_raw", "ch_jet_R0.2", "ch_jet_R0.5", "ch_jet_R0.2_raw", "ch_jet_R0.5_raw")
+HIST_OBS = ("had", "sph_jet", "sph_jet_raw", "ch_jet_R0.2", "ch_jet_R0.5", "ch_jet_R0.2_raw", "ch_jet_R0.5_raw",
+            "sph_jet_q", "sph_jet_g")
+#: --phase3: only the jobs of phase 3 (each sample's defined size, no NAME:EVENTS extensions such as
+#: 3b, no 3e samples), so that results stay comparable while later add-ons are still arriving
+PHASE3_ONLY = False
+#: with PHASE3_ONLY: keep the 3e samples (HIJET_WINDOWS) too (--with-3e), still without the 3b extensions
+WITH_3E = False
 
 
 def global_windows(fams):
@@ -679,18 +727,27 @@ def main(argv=None):
     ap.add_argument("--mb-root", default=None, help="root holding phys_mb (default --out)")
     ap.add_argument("-j", type=int, default=16)
     ap.add_argument("--cached", action="store_true")
+    ap.add_argument("--phase3", action="store_true", help="only the jobs of phase 3 (no 3b extensions, no 3e "
+                    "samples); caches and the default JSON get the suffix _phase3")
+    ap.add_argument("--with-3e", action="store_true", help="with --phase3: also the 3e samples (narrow high "
+                    "pTHat windows); outputs with the suffix _phase3e")
     ap.add_argument("--split-at", default="", help="extra pTHat split points, comma-separated (closure test of the "
                     "piecewise stitching; re-reads the files and writes no cache)")
     ap.add_argument("--json", default=str(HERE / "results" / "oo_analysis_rhic.json"))
     a = ap.parse_args(argv)
-    global SPLIT_AT
+    global SPLIT_AT, PHASE3_ONLY, WITH_3E
     SPLIT_AT = tuple(float(x) for x in a.split_at.split(",") if x)
+    PHASE3_ONLY = a.phase3
+    WITH_3E = a.phase3 and a.with_3e
+    sfx = ("_phase3e" if WITH_3E else "_phase3") if a.phase3 else ""
+    if a.phase3 and a.json == str(HERE / "results" / "oo_analysis_rhic.json"):
+        a.json = str(HERE / "results" / f"oo_analysis_rhic{sfx}.json")
     if SPLIT_AT:
         a.cached = False
     (HERE / "results").mkdir(exist_ok=True)
     fams = {}
     for f in FAMILIES:
-        cache = HERE / "results" / f"oo_analysis_rhic_{f}.npz"
+        cache = HERE / "results" / f"oo_analysis_rhic_{f}{sfx}.npz"
         if a.cached and cache.exists():
             ev = dict(np.load(cache))
             if str(ev.get("root", "")) == str(Path(a.out).resolve()):  # only a cache of this root
