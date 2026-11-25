@@ -83,7 +83,7 @@ CONST_PTMIN = 0.2
 HAD_ETA = 1.0
 HAD_EDGES = np.array([2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30.0])
 SPH_R, SPH_ETA = 0.4, 0.7
-SPH_EDGES = np.array([10, 12, 15, 19, 23, 28, 34, 41, 50, 60.0])
+SPH_EDGES = np.array([10, 12, 15, 19, 24, 30, 36, 43, 51, 60.0])   # above 19 GeV: sPHENIX's bins (sPH-CONF-JET-2026-02)
 CH_RS = (0.2, 0.5)
 CH_EDGES = np.array([5, 8, 10, 12, 15, 19, 25, 30, 40.0])
 TRIG = (7.0, 30.0)
@@ -342,17 +342,26 @@ def classify(mb, ev, est, rng):
 HIST_OBS = ("had", "sph_jet", "sph_jet_raw", "ch_jet_R0.2", "ch_jet_R0.5", "ch_jet_R0.2_raw", "ch_jet_R0.5_raw")
 
 
-def class_hist(ev, cj, nc, key, oo):
-    """Per window, class and bin: the weighted sums S, S2 and the raw entries."""
+def global_windows(fams):
+    """The union of the families' pTHat windows and, per family, its window index -> global index
+    (families can have different windows finished)."""
+    wl = sorted({tuple(map(float, w)) for ev in fams.values() for w in ev["windows"]})
+    return wl, {f: np.array([wl.index(tuple(map(float, w))) for w in ev["windows"]]) for f, ev in fams.items()}
+
+
+def class_hist(ev, cj, nc, key, oo, wmap=None, nw=None):
+    """Per window, class and bin: the weighted sums S, S2 and the raw entries (windows mapped to a
+    global list with wmap)."""
     h = ev[key]
     W = ev["w"] * (ev["ncoll"] if oo else 1.0)
-    nw = len(ev["windows"])
+    win = ev["win"] if wmap is None else wmap[ev["win"]]
+    nw = len(ev["windows"]) if nw is None else nw
     S = np.zeros((nw, nc, h.shape[1]))
     S2 = np.zeros_like(S)
     N = np.zeros_like(S)
-    np.add.at(S, (ev["win"], cj), W[:, None] * h)
-    np.add.at(S2, (ev["win"], cj), (W[:, None] * h) ** 2)
-    np.add.at(N, (ev["win"], cj), h)
+    np.add.at(S, (win, cj), W[:, None] * h)
+    np.add.at(S2, (win, cj), (W[:, None] * h) ** 2)
+    np.add.at(N, (win, cj), h)
     return S, S2, N
 
 
@@ -362,26 +371,33 @@ def stitched_raa(fams, pp, mb, est, key, rng):
     _, cls_def = ESTIMATORS[est]
     nc = len(cls_def)
     width = np.array([(hi - lo) / 100.0 for lo, hi in cls_def])
+    wl, wmap = global_windows(fams)
     sums = {}
     for f, ev in fams.items():
         cm, cj = classify(mb, ev, est, rng)
-        sums[f] = class_hist(ev, cj, nc, key, True)
+        sums[f] = class_hist(ev, cj, nc, key, True, wmap[f], len(wl))
     # <N_coll> per class of minimum bias
     cm, _ = classify(mb, fams[next(iter(fams))], est, rng)
     nmb = np.array([mb["ncoll"][cm == c].mean() if (cm == c).any() else np.nan for c in range(nc)])
-    Sp, S2p, Np = class_hist(pp, np.zeros(len(pp["w"]), int), 1, key, False)
-    # windows: the O+O families' list (the same windows by construction) mapped onto p+p's
-    wl = [tuple(w) for w in fams[next(iter(fams))]["windows"]]
-    pl = [tuple(w) for w in pp["windows"]]
-    use = np.ones((len(wl), Sp.shape[2]), bool)
+    nbins = next(iter(sums.values()))[0].shape[2]
+    use = np.ones((len(wl), nbins), bool)
     for f, (S, S2, N) in sums.items():
         use &= N.min(axis=1) >= MIN_ENTRIES
-    pidx = np.array([pl.index(w) if w in pl else -1 for w in wl])
-    use &= (pidx >= 0)[:, None]
-    use &= np.where(pidx[:, None] >= 0, Np[np.clip(pidx, 0, None), 0, :] >= MIN_ENTRIES, False)
-    ppS = np.where(use, Sp[np.clip(pidx, 0, None), 0, :], 0).sum(0)
-    ppE2 = np.where(use, S2p[np.clip(pidx, 0, None), 0, :], 0).sum(0)
-    out = {"classes": cls_def, "ncoll_mb": nmb.tolist(), "pp": ppS.tolist(), "windows_used": use.sum(0).tolist()}
+    if pp is None:
+        # no p+p yet: unit reference -> "raa" is the N_coll-scaled yield per class; R_CP and
+        # med/vac are unaffected (the reference cancels), R_AA itself is not available
+        ppS, ppE2 = np.ones(nbins), np.zeros(nbins)
+    else:
+        Sp, S2p, Np = class_hist(pp, np.zeros(len(pp["w"]), int), 1, key, False)
+        # windows: the O+O families' list (the same windows by construction) mapped onto p+p's
+        pl = [tuple(map(float, w)) for w in pp["windows"]]
+        pidx = np.array([pl.index(w) if w in pl else -1 for w in wl])
+        use &= (pidx >= 0)[:, None]
+        use &= np.where(pidx[:, None] >= 0, Np[np.clip(pidx, 0, None), 0, :] >= MIN_ENTRIES, False)
+        ppS = np.where(use, Sp[np.clip(pidx, 0, None), 0, :], 0).sum(0)
+        ppE2 = np.where(use, S2p[np.clip(pidx, 0, None), 0, :], 0).sum(0)
+    out = {"classes": cls_def, "ncoll_mb": nmb.tolist(), "pp": ppS.tolist(), "windows_used": use.sum(0).tolist(),
+           "pp_missing": pp is None}
     for f, (S, S2, N) in sums.items():
         A = np.where(use[:, None, :], S, 0).sum(0)                    # (class, bin)
         A2 = np.where(use[:, None, :], S2, 0).sum(0)
@@ -441,14 +457,14 @@ def icp(fams, pp, mb, rng):
     ref = cls_def.index(ICP_REF)
     res = {"classes": cls_def, "ref": list(ICP_REF)}
     cls = {f: classify(mb, ev, "epd", rng)[1] for f, ev in fams.items()}
-    wl = [tuple(w) for w in fams[next(iter(fams))]["windows"]]
+    wl, wmap = global_windows(fams)
     ok = np.ones(len(wl), bool)
     for f, ev in fams.items():
         n = np.zeros((len(wl), len(cls_def)))
-        np.add.at(n, (ev["win"], cls[f]), ev["ntrig"])
+        np.add.at(n, (wmap[f][ev["win"]], cls[f]), ev["ntrig"])
         ok &= n.min(axis=1) >= MIN_ENTRIES
     if pp is not None:
-        pl = [tuple(w) for w in pp["windows"]]
+        pl = [tuple(map(float, w)) for w in pp["windows"]]
         npp = np.bincount(pp["win"], weights=pp["ntrig"], minlength=len(pl))
         ok &= np.array([w in pl and npp[pl.index(w)] >= MIN_ENTRIES for w in wl])
         pp_ok = np.array([w in [x for x, k in zip(wl, ok) if k] for w in pl])
@@ -457,7 +473,7 @@ def icp(fams, pp, mb, rng):
     res["pp"] = ppy
     for f, ev in fams.items():
         cj = cls[f]
-        inw = ok[ev["win"]]
+        inw = ok[wmap[f][ev["win"]]]
         ys = [per_trigger(ev, (cj == c) & inw, True) for c in range(len(cls_def))]
         yall = per_trigger(ev, inw, True)
         r = {"yields": ys, "mb": yall, "icp": {}, "iaa": {}}
@@ -554,13 +570,18 @@ def main(argv=None):
     for f in FAMILIES:
         cache = HERE / "results" / f"oo_analysis_rhic_{f}.npz"
         if a.cached and cache.exists():
-            fams[f] = dict(np.load(cache))
-            continue
+            ev = dict(np.load(cache))
+            if str(ev.get("root", "")) == str(Path(a.out).resolve()):  # only a cache of this root
+                fams[f] = ev
+                continue
+            print(f"oo_analysis_rhic.py: {cache.name} is of another root ({ev.get('root', '?')}), re-reading")
         B.OUT = Path(a.out)
         ev = load_family(f, a.j)
         if ev is None:
             print(f"oo_analysis_rhic.py: no finished files for {f} under {a.out}")
+            cache.unlink(missing_ok=True)                                # no stale cache of another root
             continue
+        ev["root"] = np.array(str(Path(a.out).resolve()))
         np.savez(cache, **ev)
         fams[f] = ev
         print(f"{f}: {len(ev['w'])} events, {int(ev['files'][0])} files, windows "
@@ -575,10 +596,11 @@ def main(argv=None):
                      "hjet": HJET_EDGES.tolist()},
            "star_icp_data": STAR_ICP, "data": load_data(), "raa": {}, "icp": {}}
     rng = np.random.default_rng(11)
-    if oo and "pp_ref" in fams:
+    res["inputs"]["pp_missing"] = "pp_ref" not in fams
+    if oo:
         for est in ESTIMATORS:
-            res["raa"][est] = {key: stitched_raa(oo, fams["pp_ref"], mb, est, key, rng) for key in HIST_OBS}
-        res["icp"] = icp(oo, fams["pp_ref"], mb, rng)
+            res["raa"][est] = {key: stitched_raa(oo, fams.get("pp_ref"), mb, est, key, rng) for key in HIST_OBS}
+        res["icp"] = icp(oo, fams.get("pp_ref"), mb, rng)
     if "pp_med" in fams and "pp_ref" in fams:
         res["qs_check"] = qs_check(fams["pp_ref"], fams["pp_med"])
         res["pp_med_over_ref"] = {key: pp_ratio(fams["pp_med"], fams["pp_ref"], key) for key in HIST_OBS}
@@ -590,7 +612,8 @@ def main(argv=None):
             if f not in res["raa"]["epd"]["had"]:
                 continue
             r = res["raa"]["epd"]["had"][f]
-            print(f"{f} charged-hadron R_AA (EPD), classes x pT bins:")
+            print(f"{f} charged-hadron " + ("N_coll-scaled yield (no p+p yet)" if res["inputs"]["pp_missing"] else "R_AA")
+                  + " (EPD), classes x pT bins:")
             for c, (lo, hi) in enumerate(res["raa"]["epd"]["had"]["classes"]):
                 print(f"  {lo:3d}-{hi:<3d}% " + " ".join(f"{x:5.2f}" for x in r["raa"][c]))
     if res["icp"]:
