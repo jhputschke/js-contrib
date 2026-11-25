@@ -40,6 +40,13 @@ Diagnostics per bin: the share of each family's yield in the windows left out (d
 flagged above DROP_FLAG), and the share of the lowest generated window (lowest_window_share): above
 INCOMPLETE_SHARE the bin is marked incomplete (complete = False), since pTHat below the lowest
 window is not generated and would contribute too (the charged hadrons below ~7 GeV).
+Overlapping windows (3e, oo_bias.py HIJET_WINDOWS: narrow 35-40 and 47-55 GeV samples inside the
+wide 30-40 and 40-55 windows): every window is cut at all window edges into pieces; each piece's
+cross section is the event-count-weighted mean of the covering windows' estimates sigma_k n_kj / N_k,
+and each of its events gets sigma_piece / (all events in the piece) (stitch_pieces).  Without
+overlaps the weights are exactly sigma_k / N_k (closure checked to 1e-15 on the full phase 3, also
+with extra split points, --split-at); unbiased in a synthetic test with a falling spectrum.  The
+stitching rule and the class sums keep the wide windows as groups.
 Histograms: hist (boost-histogram) per window x class x bin, Weight storage (sum w, sum w^2 per
 event and bin) and the raw entries; filled from per-event arrays, as the classes are assigned later.
 
@@ -213,7 +220,7 @@ def file_obs(path):
     bf = path.replace("_hadrons_jet_frag.h5", "_hadrons_bulk_bg.h5")
     with h5py.File(path) as h:
         n = int(h.attrs["nunits_written"])
-        u = {k: h[f"units/{k}"][:n] for k in ("glauber_ncoll", "glauber_b", "pthat_bin", "has_medium", "seed")}
+        u = {k: h[f"units/{k}"][:n] for k in ("glauber_ncoll", "glauber_b", "pthat_bin", "has_medium", "seed", "pthat")}
         sig = np.asarray(h.attrs["pthat_bin_sigma_gen"], float)
         nacc = np.asarray(h.attrs["pthat_bin_n_accepted"], float)
         bins = [tuple(map(float, w)) for w in np.asarray(h.attrs["pthat_bins"]).reshape(-1, 2)]
@@ -236,6 +243,7 @@ def file_obs(path):
     vis = ~np.isin(np.abs(pid), INVISIBLE) & (pt > CONST_PTMIN)
     out = {"ncoll": u["glauber_ncoll"].astype(float), "b": u["glauber_b"].astype(float),
            "win": u["pthat_bin"].astype(int), "has_medium": u["has_medium"].astype(int),
+           "pthat": u["pthat"].astype(float),
            "n_epd": est["epd"], "n_mbd": est["mbd"], "n_mid10": est["mid10"]}
     # inclusive charged hadrons
     m = ch & (np.abs(eta) < HAD_ETA)
@@ -305,9 +313,46 @@ def file_obs(path):
 
 
 # ── per family ────────────────────────────────────────────────────────────────────────────────
+#: extra split points in pTHat (GeV) for the closure test of the piecewise stitching (no effect on
+#: the weights without overlapping samples; set by --split-at)
+SPLIT_AT = ()
+
+
+def stitch_pieces(wins, win, pthat, sigma, extra=()):
+    """Weights for samples whose pTHat windows may overlap (3e: narrow windows inside wide ones).
+    Every window is cut at all window edges (and at extra), into pieces j.  A window k with N_k
+    events estimates the piece's cross section as sigma_k n_kj / N_k (n_kj of its events fall in j);
+    the windows covering j are combined weighted by n_kj, and each event in j gets
+    sigma_j / n_j (n_j = all events in j).  Without overlaps every event keeps sigma_k / N_k exactly.
+    Returns the weights, the piece index per event, the pieces, and per event the rule group: the
+    widest window containing its piece (for the stitching rule and the class sums, as before)."""
+    wins = [tuple(map(float, w)) for w in wins]
+    cuts = sorted({x for w in wins for x in w} | {float(x) for x in extra
+                                                    if any(lo < x < hi for lo, hi in wins)})
+    pieces = [(a, b) for a, b in zip(cuts[:-1], cuts[1:]) if any(lo <= a and b <= hi for lo, hi in wins)]
+    pl = np.array([a for a, _ in pieces])
+    j = np.clip(np.searchsorted(pl, pthat, side="right") - 1, 0, len(pieces) - 1)
+    # an event's piece must lie inside its own window (pTHat exactly on an edge)
+    lo_w = np.array([wins[k][0] for k in win]); hi_w = np.array([wins[k][1] for k in win])
+    j = np.where(np.array([pieces[x][0] for x in j]) < lo_w, j + 1, j)
+    j = np.where(np.array([pieces[x][1] for x in j]) > hi_w, j - 1, j)
+    nk = np.bincount(win, minlength=len(wins)).astype(float)
+    nkj = np.zeros((len(wins), len(pieces)))
+    np.add.at(nkj, (win, j), 1.0)
+    est = sigma[:, None] * nkj / np.maximum(nk, 1)[:, None]          # window k's estimate of sigma_j
+    nj = nkj.sum(0)
+    sig_j = np.where(nj > 0, (nkj * est).sum(0) / np.maximum(nj, 1), 0.0)
+    w = (sig_j / np.maximum(nj, 1))[j]
+    wide = [k for k, (lo, hi) in enumerate(wins)
+            if not any((l2 <= lo and hi <= h2) and (l2, h2) != (lo, hi) for l2, h2 in wins)]
+    group_of_piece = np.array([next(g for g in wide if wins[g][0] <= a and b <= wins[g][1]) for a, b in pieces])
+    return w, j, pieces, group_of_piece[j], [wins[g] for g in wide], wide
+
+
 def load_family(fam, j):
     """All finished files of the family's window sub-samples, stitched: per-event arrays with the
-    global window index and the weight sigma_k / N_k."""
+    rule-group (window) index and the weight; overlapping narrow windows (3e) combined piecewise
+    (stitch_pieces)."""
     try:
         comps, windows = J.components(fam)
     except SystemExit:
@@ -329,9 +374,14 @@ def load_family(fam, j):
         parts.append(o)
     ev = {k: np.concatenate([p[k] for p in parts]) for k in parts[0]}
     sigma = sig_n / np.maximum(nacc, 1)
-    n_win = np.bincount(ev["win"], minlength=len(wl)).astype(float)
-    ev["w"] = (sigma / np.maximum(n_win, 1))[ev["win"]]
-    ev["windows"] = np.asarray(wl)
+    w, piece, pieces, group, groups, wide = stitch_pieces(wl, ev["win"], ev["pthat"], sigma, SPLIT_AT)
+    ev["w"] = w
+    ev["piece"] = piece
+    ev["pieces"] = np.asarray(pieces)
+    pos = np.full(len(wl), -1)
+    pos[wide] = np.arange(len(wide))
+    ev["win"] = pos[group]                                              # index into the rule groups
+    ev["windows"] = np.asarray(groups)
     ev["files"] = np.array([len(files)])
     return ev
 
@@ -629,8 +679,14 @@ def main(argv=None):
     ap.add_argument("--mb-root", default=None, help="root holding phys_mb (default --out)")
     ap.add_argument("-j", type=int, default=16)
     ap.add_argument("--cached", action="store_true")
+    ap.add_argument("--split-at", default="", help="extra pTHat split points, comma-separated (closure test of the "
+                    "piecewise stitching; re-reads the files and writes no cache)")
     ap.add_argument("--json", default=str(HERE / "results" / "oo_analysis_rhic.json"))
     a = ap.parse_args(argv)
+    global SPLIT_AT
+    SPLIT_AT = tuple(float(x) for x in a.split_at.split(",") if x)
+    if SPLIT_AT:
+        a.cached = False
     (HERE / "results").mkdir(exist_ok=True)
     fams = {}
     for f in FAMILIES:
@@ -648,7 +704,8 @@ def main(argv=None):
             cache.unlink(missing_ok=True)                                # no stale cache of another root
             continue
         ev["root"] = np.array(str(Path(a.out).resolve()))
-        np.savez(cache, **ev)
+        if not SPLIT_AT:
+            np.savez(cache, **ev)
         fams[f] = ev
         print(f"{f}: {len(ev['w'])} events, {int(ev['files'][0])} files, windows "
               + " ".join(f"{lo:g}-{hi:g}" for lo, hi in ev["windows"]))

@@ -32,6 +32,7 @@ sub-sample per pTHat window (<sample>_w<lo>_<hi>, continuous 5-80 GeV), into a n
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_icp        # afterwards: +15k per arm, 7-18 GeV (~6 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_ppmed      # 3c: p+p with the jet in its medium (~1.5 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_ppref      # 3d, optional: pp_ref +10k per window (~1.7 h)
+    ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_icp phys3_hijet   # 3b with 3e: high-pT jets (~6 h together)
 A group entry NAME:EVENTS runs the first jobs of NAME only.  Phases 1-2 ran with the old MPI;
 phase 3 (oo_vac_*, oo_med_*, pp_ref_*) with soft MPI, under new names and seeds, the p+p
 reference from config/pp200_isr_rhictune.xml.  The old-MPI samples that depend on the MPI are
@@ -241,6 +242,16 @@ CENTRAL_WINDOWS = {(7, 9): 15000, (9, 11): 15000, (11, 14): 15000, (14, 18): 150
 ICP_EXTRA = 15000
 #: events added per window to pp_ref by the optional 3d (phys3_ppref)
 PP_EXTRA = 10000
+#: 3e (2026-11-25): narrow pTHat windows at the upper ends of the wide high windows.  Inside a
+#: window the events follow dsigma/dpTHat, so the 30-40 and 40-55 windows put 82 / 78 % of their
+#: events in their lowest 5 GeV and only 558 / 431 (of 10k) at 37.5-40 / 50-55 GeV.  Those few
+#: carry a large share of the sPHENIX bins across the window edges (51-60 GeV: 43 % of the yield
+#: from 95 jets of the 40-55 window), and with it the error.  The narrow samples overlap the wide
+#: windows; oo_analysis_rhic.py splits every window at all window edges and combines the events of
+#: each piece (weight sigma_piece / all events in the piece).  Samples <family>_w35_40, _w47_55
+#: (family oo_vac, oo_med, pp_ref), seeds 900000 + 1000 i (O+O, vacuum and medium alike) and
+#: 910000 + 1000 i (p+p), i = 0, 1.
+HIJET_WINDOWS = {(35, 40): 10000, (47, 55): 10000}
 B_MAX_CENTRAL = float(os.environ.get("OO_PHYS_CENTRAL_BMAX", "nan"))
 PHYS_PER_JOB = 500
 STORE = ["--store-partons", "--store-hadronization-input"]      # the holes rule (a3bb4c2)
@@ -313,6 +324,13 @@ for _k, ((_lo, _hi), _n) in enumerate(CENTRAL_WINDOWS.items()):
     for _name in (f"oo_vac_central_{_w(_lo, _hi)}", f"oo_med_central_{_w(_lo, _hi)}"):
         SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], STORE + ["--b-max", f"{B_MAX_CENTRAL}"], True)
         SEED_BASE[_name] = 890000 + 1000 * _k
+for _i, ((_lo, _hi), _n) in enumerate(HIJET_WINDOWS.items()):
+    for _name in (f"oo_vac_{_w(_lo, _hi)}", f"oo_med_{_w(_lo, _hi)}"):
+        SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], STORE, True)
+        SEED_BASE[_name] = 900000 + 1000 * _i
+    SAMPLES[f"pp_ref_{_w(_lo, _hi)}"] = (_n, PHYS_PER_JOB, [(_lo, _hi)], PP_REF + STORE, True)
+    SEED_BASE[f"pp_ref_{_w(_lo, _hi)}"] = 910000 + 1000 * _i
+    XML_OF[f"pp_ref_{_w(_lo, _hi)}"] = PP_XML
 GROUPS.update({
     # phase 1: the minimum-bias reference (bulk hadrons only, so valid for either MPI)
     "phys1": ["phys_mb"],
@@ -347,6 +365,9 @@ GROUPS.update({
     # phase 3 ran are skipped, the next 20 seeds per window run.  pp_med keeps 5k per window
     # unless extended the same way.
     "phys3_ppref": [f"pp_ref_{w}:{5000 + PP_EXTRA}" for w in _W],
+    # 3e (2026-11-25): the narrow high windows (HIJET_WINDOWS), O+O vacuum and medium and p+p; run
+    # with 3b (./oo_bias_docker.sh ... phys3_icp phys3_hijet)
+    "phys3_hijet": [f"{s}_{_w(lo, hi)}" for lo, hi in HIJET_WINDOWS for s in ("oo_vac", "oo_med", "pp_ref")],
 })
 #: phase 4 (tuning page "Phase 4", 2026-11-25; OPTIONAL, defined, not run): the vacuum arms in the
 #: A+A scheme.  Matter with in_vac 0 showers partons outside a medium down to QS 0.9 GeV (the medium
