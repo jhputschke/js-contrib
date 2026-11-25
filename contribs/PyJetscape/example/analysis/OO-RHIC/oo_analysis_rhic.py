@@ -29,8 +29,19 @@ minimum-bias event (sigma_NN cancels), a p+p event for sigma_k / N_k.  Per class
     selection  = R_AA^c of oo_vac (1 = no bias; the b classes check the normalisation)
     quenching  Q^c = R_AA^c(oo_med) / R_AA^c(oo_vac)   (the same classes, the normalisations cancel)
     R_CP = R_AA^a / R_AA^b.
-Stitching: a window enters a bin only where every class of every compared family has at least
-MIN_ENTRIES raw entries (oo_bias_jets.py's rule), the same windows in numerator and denominator.
+Stitching: a window enters a bin where every compared family has at least MIN_ENTRIES raw entries
+there, pooled over the classes; one choice per observable and bin, the same for every class,
+estimator and family (numerator and denominator).  The rule keeps out a low window's rare entries
+with their large weight; pooling keeps in a window that carries a real share of the yield but is
+thin in a sparse class (that class just gets the larger error, from the sum of squared weights).
+Until 2026-11-25 the minimum over the classes decided, which dropped windows carrying up to half of
+a bin's yield (the 7-9 GeV window, a quarter of the 7-30 GeV triggers; the 5-7 GeV window at 5-6 GeV).
+Diagnostics per bin: the share of each family's yield in the windows left out (dropped_share,
+flagged above DROP_FLAG), and the share of the lowest generated window (lowest_window_share): above
+INCOMPLETE_SHARE the bin is marked incomplete (complete = False), since pTHat below the lowest
+window is not generated and would contribute too (the charged hadrons below ~7 GeV).
+Histograms: hist (boost-histogram) per window x class x bin, Weight storage (sum w, sum w^2 per
+event and bin) and the raw entries; filled from per-event arrays, as the classes are assigned later.
 
 Observables (on the hard event's hadrons, the jet_frag file, as oo_bias_jets.py: no bulk, so no
 background subtraction; the medium response (recoils) is included):
@@ -67,6 +78,7 @@ import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
+import hist
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
@@ -78,6 +90,8 @@ FAMILIES = ("oo_vac", "oo_med", "pp_ref", "pp_med")
 OO_FAMILIES, PP_FAMILIES = ("oo_vac", "oo_med"), ("pp_ref", "pp_med")
 MB_SAMPLE = "phys_mb"
 MIN_ENTRIES = 10
+DROP_FLAG = 0.02            # a bin whose dropped windows carry more than this share of a family's yield is flagged
+INCOMPLETE_SHARE = 0.02     # a bin whose lowest generated window carries more than this share is incomplete
 INVISIBLE = (12, 14, 16)
 CONST_PTMIN = 0.2
 HAD_ETA = 1.0
@@ -349,20 +363,63 @@ def global_windows(fams):
     return wl, {f: np.array([wl.index(tuple(map(float, w))) for w in ev["windows"]]) for f, ev in fams.items()}
 
 
-def class_hist(ev, cj, nc, key, oo, wmap=None, nw=None):
-    """Per window, class and bin: the weighted sums S, S2 and the raw entries (windows mapped to a
-    global list with wmap)."""
+def edges_of(key):
+    return HAD_EDGES if key == "had" else SPH_EDGES if key.startswith("sph_jet") else CH_EDGES
+
+
+def class_hists(ev, cj, nc, key, oo, wmap=None, nw=None):
+    """hist histograms window x class x bin of observable key: the weighted one (Weight storage; one
+    entry per event and bin with weight w x count, so the variance is the sum over events of (w x
+    count)^2) and the raw entries.  Windows mapped to a global list with wmap; weights N_coll x
+    sigma_k / N_k for O+O (oo), sigma_k / N_k for p+p."""
     h = ev[key]
     W = ev["w"] * (ev["ncoll"] if oo else 1.0)
     win = ev["win"] if wmap is None else wmap[ev["win"]]
     nw = len(ev["windows"]) if nw is None else nw
-    S = np.zeros((nw, nc, h.shape[1]))
-    S2 = np.zeros_like(S)
-    N = np.zeros_like(S)
-    np.add.at(S, (win, cj), W[:, None] * h)
-    np.add.at(S2, (win, cj), (W[:, None] * h) ** 2)
-    np.add.at(N, (win, cj), h)
-    return S, S2, N
+    edges = edges_of(key)
+    axes = (hist.axis.Integer(0, nw, name="window", label="pTHat window", underflow=False, overflow=False),
+            hist.axis.Integer(0, nc, name="cls", label="class", underflow=False, overflow=False),
+            hist.axis.Variable(edges, name="x", label=key, underflow=False, overflow=False))
+    hw = hist.Hist(*axes, storage=hist.storage.Weight())
+    hn = hist.Hist(*axes, storage=hist.storage.Double())
+    e, b = np.nonzero(h)
+    xc = 0.5 * (edges[b] + edges[b + 1])
+    hw.fill(window=win[e], cls=np.asarray(cj)[e], x=xc, weight=W[e] * h[e, b])
+    hn.fill(window=win[e], cls=np.asarray(cj)[e], x=xc, weight=h[e, b])
+    return hw, hn
+
+
+def class_hist(ev, cj, nc, key, oo, wmap=None, nw=None):
+    """(S, S2, N) arrays window x class x bin: the weighted sums, the sums of squared weights and the
+    raw entries, from class_hists."""
+    hw, hn = class_hists(ev, cj, nc, key, oo, wmap, nw)
+    return hw.values(), hw.variances(), hn.values()
+
+
+def window_use(pooled):
+    """The stitching rule: window k enters bin b where every family's raw entries, pooled over the
+    classes, reach MIN_ENTRIES (pooled: arrays window x bin, one per family)."""
+    use = np.ones(pooled[0].shape, bool)
+    for N in pooled:
+        use &= N >= MIN_ENTRIES
+    return use
+
+
+def stitch_diag(yields, use):
+    """Per family the share of its yield (window x bin, pooled over the classes) in the windows left
+    out, and the largest share of the lowest generated window (index 0) over the families."""
+    drop, low = {}, np.zeros(use.shape[1:] if use.ndim > 1 else ())
+    for f, Y in yields.items():
+        tot = Y.sum(0)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            drop[f] = np.where(tot > 0, np.where(use, 0, Y).sum(0) / tot, 0.0)
+            low = np.maximum(low, np.where(tot > 0, Y[0] / tot, 0.0))
+    flag = np.zeros_like(low, bool)
+    for d in drop.values():
+        flag |= d > DROP_FLAG
+    return {"dropped_share": {f: np.round(d, 4).tolist() for f, d in drop.items()},
+            "lowest_window_share": np.round(low, 4).tolist(), "complete": (low <= INCOMPLETE_SHARE).tolist(),
+            "flag_dropped": flag.tolist()}
 
 
 def stitched_raa(fams, pp, mb, est, key, rng):
@@ -380,24 +437,26 @@ def stitched_raa(fams, pp, mb, est, key, rng):
     cm, _ = classify(mb, fams[next(iter(fams))], est, rng)
     nmb = np.array([mb["ncoll"][cm == c].mean() if (cm == c).any() else np.nan for c in range(nc)])
     nbins = next(iter(sums.values()))[0].shape[2]
-    use = np.ones((len(wl), nbins), bool)
-    for f, (S, S2, N) in sums.items():
-        use &= N.min(axis=1) >= MIN_ENTRIES
+    pooled = [N.sum(1) for S, S2, N in sums.values()]                 # window x bin, all classes
+    yields = {f: S.sum(1) for f, (S, S2, N) in sums.items()}
     if pp is None:
         # no p+p yet: unit reference -> "raa" is the N_coll-scaled yield per class; R_CP and
         # med/vac are unaffected (the reference cancels), R_AA itself is not available
+        use = window_use(pooled)
         ppS, ppE2 = np.ones(nbins), np.zeros(nbins)
     else:
         Sp, S2p, Np = class_hist(pp, np.zeros(len(pp["w"]), int), 1, key, False)
-        # windows: the O+O families' list (the same windows by construction) mapped onto p+p's
+        # windows: the O+O families' list mapped onto p+p's (a window p+p lacks is left out)
         pl = [tuple(map(float, w)) for w in pp["windows"]]
         pidx = np.array([pl.index(w) if w in pl else -1 for w in wl])
-        use &= (pidx >= 0)[:, None]
-        use &= np.where(pidx[:, None] >= 0, Np[np.clip(pidx, 0, None), 0, :] >= MIN_ENTRIES, False)
-        ppS = np.where(use, Sp[np.clip(pidx, 0, None), 0, :], 0).sum(0)
-        ppE2 = np.where(use, S2p[np.clip(pidx, 0, None), 0, :], 0).sum(0)
+        have = (pidx >= 0)[:, None]
+        k = np.clip(pidx, 0, None)
+        use = window_use(pooled + [np.where(have, Np[k, 0, :], 0)])
+        yields["pp_ref"] = np.where(have, Sp[k, 0, :], 0)
+        ppS = np.where(use, Sp[k, 0, :], 0).sum(0)
+        ppE2 = np.where(use, S2p[k, 0, :], 0).sum(0)
     out = {"classes": cls_def, "ncoll_mb": nmb.tolist(), "pp": ppS.tolist(), "windows_used": use.sum(0).tolist(),
-           "pp_missing": pp is None}
+           "pp_missing": pp is None, "stitch": stitch_diag(yields, use)}
     for f, (S, S2, N) in sums.items():
         A = np.where(use[:, None, :], S, 0).sum(0)                    # (class, bin)
         A2 = np.where(use[:, None, :], S2, 0).sum(0)
@@ -451,24 +510,30 @@ def per_trigger(ev, sel, oo):
 def icp(fams, pp, mb, rng):
     """I_CP in STAR's EPD classes (each class over 40-60 %) and I_AA (0-100 % O+O over p+p).
     Triggers from a pTHat window count only where that window has at least MIN_ENTRIES triggers in
-    every class of every O+O family and in p+p (the stitching rule; a low window's rare 7-30 GeV
-    trigger would otherwise carry a huge weight)."""
+    every O+O family and in p+p, pooled over the classes (the stitching rule; a low window's rare
+    7-30 GeV trigger would otherwise carry a huge weight)."""
     _, cls_def = ESTIMATORS["epd"]
     ref = cls_def.index(ICP_REF)
     res = {"classes": cls_def, "ref": list(ICP_REF)}
     cls = {f: classify(mb, ev, "epd", rng)[1] for f, ev in fams.items()}
     wl, wmap = global_windows(fams)
-    ok = np.ones(len(wl), bool)
+    pooled, tw = [], {}
     for f, ev in fams.items():
-        n = np.zeros((len(wl), len(cls_def)))
-        np.add.at(n, (wmap[f][ev["win"]], cls[f]), ev["ntrig"])
-        ok &= n.min(axis=1) >= MIN_ENTRIES
+        pooled.append(np.bincount(wmap[f][ev["win"]], weights=ev["ntrig"], minlength=len(wl)))
+        tw[f] = np.bincount(wmap[f][ev["win"]], weights=ev["w"] * ev["ncoll"] * ev["ntrig"], minlength=len(wl))
     if pp is not None:
         pl = [tuple(map(float, w)) for w in pp["windows"]]
         npp = np.bincount(pp["win"], weights=pp["ntrig"], minlength=len(pl))
-        ok &= np.array([w in pl and npp[pl.index(w)] >= MIN_ENTRIES for w in wl])
+        wpp = np.bincount(pp["win"], weights=pp["w"] * pp["ntrig"], minlength=len(pl))
+        pooled.append(np.array([npp[pl.index(w)] if w in pl else 0 for w in wl]))
+        tw["pp_ref"] = np.array([wpp[pl.index(w)] if w in pl else 0 for w in wl])
+    ok = window_use(pooled)
+    if pp is not None:
         pp_ok = np.array([w in [x for x, k in zip(wl, ok) if k] for w in pl])
     res["windows_used"] = [list(map(float, w)) for w, k in zip(wl, ok) if k]
+    res["stitch"] = stitch_diag(tw, ok)
+    res["stitch"]["trigger_share_per_window"] = {f: np.round(t / max(t.sum(), 1e-300), 4).tolist() for f, t in tw.items()}
+    res["stitch"]["windows"] = [list(map(float, w)) for w in wl]
     ppy = per_trigger(pp, pp_ok[pp["win"]], False) if pp is not None else None
     res["pp"] = ppy
     for f, ev in fams.items():
@@ -525,11 +590,12 @@ def pp_ratio(num, den, key):
     la, lb = [tuple(w) for w in num["windows"]], [tuple(w) for w in den["windows"]]
     common = [w for w in la if w in lb]
     ia, ib = [la.index(w) for w in common], [lb.index(w) for w in common]
-    use = (Na[ia, 0, :] >= MIN_ENTRIES) & (Nb[ib, 0, :] >= MIN_ENTRIES)
+    use = window_use([Na[ia, 0, :], Nb[ib, 0, :]])
     A, A2 = np.where(use, Sa[ia, 0, :], 0).sum(0), np.where(use, S2a[ia, 0, :], 0).sum(0)
     Bs, B2 = np.where(use, Sb[ib, 0, :], 0).sum(0), np.where(use, S2b[ib, 0, :], 0).sum(0)
     r, e = ratio(A, np.sqrt(A2), Bs, np.sqrt(B2))
-    return {"ratio": r.tolist(), "err": e.tolist(), "windows_used": use.sum(0).tolist()}
+    return {"ratio": r.tolist(), "err": e.tolist(), "windows_used": use.sum(0).tolist(),
+            "stitch": stitch_diag({"pp_med": Sa[ia, 0, :], "pp_ref": Sb[ib, 0, :]}, use)}
 
 
 def qs_check(pp_ref, pp_med):
@@ -616,6 +682,17 @@ def main(argv=None):
                   + " (EPD), classes x pT bins:")
             for c, (lo, hi) in enumerate(res["raa"]["epd"]["had"]["classes"]):
                 print(f"  {lo:3d}-{hi:<3d}% " + " ".join(f"{x:5.2f}" for x in r["raa"][c]))
+    if "mbd" in res["raa"]:
+        print("stitching (pooled rule; the same for every estimator): per bin the largest dropped share over "
+              f"the families, '*' = incomplete (lowest window > {INCOMPLETE_SHARE:.0%})")
+        for key in ("had", "sph_jet", "ch_jet_R0.5"):
+            st = res["raa"]["mbd"][key]["stitch"]
+            d = np.max(np.array(list(st["dropped_share"].values())), axis=0)
+            print(f"  {key:12s} " + " ".join(f"{x:.3f}{'*' if not c else ' '}" for x, c in zip(d, st["complete"])))
+    if res["icp"] and "stitch" in res["icp"]:
+        st = res["icp"]["stitch"]
+        print("  triggers: windows used " + " ".join(f"{lo:g}-{hi:g}" for lo, hi in res["icp"]["windows_used"])
+              + "; dropped share " + ", ".join(f"{f} {d:.3f}" for f, d in st["dropped_share"].items()))
     if res["icp"]:
         for f in OO_FAMILIES:
             if f in res["icp"]:

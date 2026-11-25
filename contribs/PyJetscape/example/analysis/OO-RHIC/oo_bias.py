@@ -31,6 +31,7 @@ sub-sample per pTHat window (<sample>_w<lo>_<hi>, continuous 5-80 GeV), into a n
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3            # after gate G2 (~15 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_icp        # afterwards: +15k per arm, 7-18 GeV (~6 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_ppmed      # 3c: p+p with the jet in its medium (~1.5 h)
+    ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_ppref      # 3d, optional: pp_ref +10k per window (~1.7 h)
 A group entry NAME:EVENTS runs the first jobs of NAME only.  Phases 1-2 ran with the old MPI;
 phase 3 (oo_vac_*, oo_med_*, pp_ref_*) with soft MPI, under new names and seeds, the p+p
 reference from config/pp200_isr_rhictune.xml.  The old-MPI samples that depend on the MPI are
@@ -238,6 +239,8 @@ PHYS_WINDOWS = {(5, 7): 15000, (7, 9): 20000, (9, 11): 20000, (11, 14): 20000, (
 CENTRAL_WINDOWS = {(7, 9): 15000, (9, 11): 15000, (11, 14): 15000, (14, 18): 15000}
 #: events added per window and arm by phys3_icp (the central pair's 15k, unrestricted in b)
 ICP_EXTRA = 15000
+#: events added per window to pp_ref by the optional 3d (phys3_ppref)
+PP_EXTRA = 10000
 B_MAX_CENTRAL = float(os.environ.get("OO_PHYS_CENTRAL_BMAX", "nan"))
 PHYS_PER_JOB = 500
 STORE = ["--store-partons", "--store-hadronization-input"]      # the holes rule (a3bb4c2)
@@ -334,6 +337,16 @@ GROUPS.update({
     # quenches in p+p, for a consistent reference (expected small: the medium exists in ~35 % of
     # p+p jet events and is much smaller than O+O's)
     "phys3_ppmed": [f"pp_med_{w}" for w in _W],
+    # 3d, OPTIONAL (2026-11-25): pp_ref extended by PP_EXTRA events per window, 5k -> 15k, about
+    # O+O's statistics after 3b (12.5-13.5k per window, 28k in 7-18 GeV).  For the precision of what
+    # is divided by p+p: R_AA (with 5k p+p events per window against O+O's 12.5k the p+p reference is
+    # probably the larger part of the minimum-bias R_AA error), I_AA, and pp_med / pp_ref (3c).  Not
+    # R_CP or I_CP (p+p cancels), and not the stitching: the windows the pooled rule leaves out
+    # (oo_analysis_rhic.py) are thin in the O+O arms as well, so 3x pp_ref alone recovers only
+    # hadrons 15-20 GeV and charged R = 0.2 jets 8-12 GeV.  NAME:EVENTS, as phys3_icp: the 10 jobs
+    # phase 3 ran are skipped, the next 20 seeds per window run.  pp_med keeps 5k per window
+    # unless extended the same way.
+    "phys3_ppref": [f"pp_ref_{w}:{5000 + PP_EXTRA}" for w in _W],
 })
 #: phase 4 (tuning page "Phase 4", 2026-11-25; OPTIONAL, defined, not run): the vacuum arms in the
 #: A+A scheme.  Matter with in_vac 0 showers partons outside a medium down to QS 0.9 GeV (the medium
