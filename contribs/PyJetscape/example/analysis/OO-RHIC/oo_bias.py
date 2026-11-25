@@ -30,6 +30,7 @@ sub-sample per pTHat window (<sample>_w<lo>_<hi>, continuous 5-80 GeV), into a n
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys2_soft       # the soft-MPI check (~1.2 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3            # after gate G2 (~15 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_icp        # afterwards: +15k per arm, 7-18 GeV (~6 h)
+    ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_ppmed      # 3c: p+p with the jet in its medium (~1.5 h)
 A group entry NAME:EVENTS runs the first jobs of NAME only.  Phases 1-2 ran with the old MPI;
 phase 3 (oo_vac_*, oo_med_*, pp_ref_*) with soft MPI, under new names and seeds, the p+p
 reference from config/pp200_isr_rhictune.xml.  The old-MPI samples that depend on the MPI are
@@ -288,16 +289,23 @@ for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
         FROZEN |= {f"pp_bulk_{_ww}", f"pp_bulk_switch_{_ww}"}
 SAMPLES["phys_mb"] = (50000, PHYS_PER_JOB, [(9, 11)], MB_OPTS, False)    # bulk only: MPI-free
 SEED_BASE["phys_mb"] = 860000
-#: phase 3 (soft MPI): O+O vacuum and medium share the seeds per window (870000 + 1000 k), p+p
+#: phase 3 (soft MPI): O+O vacuum and medium use the same seeds per window (870000 + 1000 k; not
+#: event-paired: LBT in the task list shifts the random stream, so the events differ and the
+#: med/vac errors are independent; GB10 pp_med test 2026-11-24), p+p
 #: reference 880000 + 1000 k, the central pair 890000 + 1000 k
 for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
     for _name in (f"oo_vac_{_w(_lo, _hi)}", f"oo_med_{_w(_lo, _hi)}"):
         SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], STORE, True)
         SEED_BASE[_name] = 870000 + 1000 * _k
-    _name = f"pp_ref_{_w(_lo, _hi)}"
-    SAMPLES[_name] = (5000, PHYS_PER_JOB, [(_lo, _hi)], PP_REF + STORE, True)
-    SEED_BASE[_name] = 880000 + 1000 * _k
-    XML_OF[_name] = PP_XML
+    # p+p reference with the jet in vacuum, and (3c) the same events with the jet in p+p's own
+    # medium (Matter + LBT where the event has a string and MUSIC ran), the same seeds (not the
+    # same events, as for O+O).  With in_vac 0 Matter showers partons outside a medium (T <= T0)
+    # down to QS 0.9 GeV, with in_vac 1 (pp_ref, oo_vac, the hard tune) only to Q0 2 GeV: pp_med
+    # shares that cutoff with oo_med, pp_med / pp_ref measures it together with p+p quenching
+    for _name in (f"pp_ref_{_w(_lo, _hi)}", f"pp_med_{_w(_lo, _hi)}"):
+        SAMPLES[_name] = (5000, PHYS_PER_JOB, [(_lo, _hi)], PP_REF + STORE, True)
+        SEED_BASE[_name] = 880000 + 1000 * _k
+        XML_OF[_name] = PP_XML
 for _k, ((_lo, _hi), _n) in enumerate(CENTRAL_WINDOWS.items()):
     for _name in (f"oo_vac_central_{_w(_lo, _hi)}", f"oo_med_central_{_w(_lo, _hi)}"):
         SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], STORE + ["--b-max", f"{B_MAX_CENTRAL}"], True)
@@ -319,13 +327,17 @@ GROUPS.update({
     # the I_CP add-on after phase 3 (instead of the b-restricted central pair, whose enrichment
     # is only 1.28x): the same samples extended by ICP_EXTRA events in the trigger windows 7-18
     # GeV.  NAME:EVENTS takes the first jobs of NAME's seed list, so the jobs phase 3 ran are
-    # skipped and only the new ones (the next seeds, vacuum and medium still paired) run.
+    # skipped and only the new ones (the next seeds, vacuum and medium on the same seeds) run.
     "phys3_icp": [f"{s}_{_w(lo, hi)}:{PHYS_WINDOWS[(lo, hi)] + ICP_EXTRA}" for lo, hi in CENTRAL_WINDOWS
                   for s in ("oo_vac", "oo_med")],
+    # 3c: the p+p reference with the jet in p+p's medium (pp_ref's seeds): how much the model
+    # quenches in p+p, for a consistent reference (expected small: the medium exists in ~35 % of
+    # p+p jet events and is much smaller than O+O's)
+    "phys3_ppmed": [f"pp_med_{w}" for w in _W],
 })
-QUENCHED |= {n for n in SAMPLES if n.startswith("oo_med_")}
+QUENCHED |= {n for n in SAMPLES if n.startswith(("oo_med_", "pp_med_"))}
 #: the physics run stores all hadrons (full jets, sPHENIX), the minimum-bias reference too
-ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("jets_vac_", "oo_vac_", "oo_med_", "pp_bulk_", "pp_ref_", "phys_"))}
+ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("jets_vac_", "oo_vac_", "oo_med_", "pp_bulk_", "pp_ref_", "pp_med_", "phys_"))}
 STAR_CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 
