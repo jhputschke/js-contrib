@@ -168,6 +168,24 @@ sed -i 's|<Q0> 1.52 </Q0>|<Q0> 50 </Q0>|' design/xml/best_nompi_bare.xml
 python run_runs.py best_nompi_fsroff best_nompi_bare -j 20
 python ue_check.py best_nompi_fsroff best_nompi_bare pythia8_default_isroff pythia8_detroit_isroff -j 16
 jupyter nbconvert --to notebook --execute ue_trend_cv.ipynb --output results/ue_trend_cv_executed.ipynb
+# the hard tune in the A+A jet scheme (scheme_recheck.ipynb), at the tune XML point, OO_RHIC_PROD=~/prod/OO-RHIC_aascheme_recheck
+# (from example/, R=$OO_RHIC_PROD). Vacuum chain, pi0/eta undecayed; the pSet/alpha_s lines are needed (the vacuum XML has neither):
+W=5-7,7-9,9-11,11-14,14-18,18-23,23-30
+C0="--vacuum --user-xml config/pp200_isr_vacuum.xml --events 29400 --pthat-bins $W --eta-max 1.5 --max-skipped 30 --eloss-threads 0 \
+  --hadronization-line 111:mayDecay=off --hadronization-line 221:mayDecay=off --pythia-line 'PDF:pSet = 20' --pythia-line 'SigmaProcess:alphaSvalue = 0.152'"
+for j in $(seq 0 9); do s=$((933000 + j)); \
+  eval python prod_OO_isr/run_prod_oo_isr.py $C0 --seed $s --outdir $R/events/vc_ref2; \
+  eval python prod_OO_isr/run_prod_oo_isr.py $C0 --aa-vacuum --seed $s --outdir $R/events/vc_aa2; done
+# full chain (2000 events per job, 4 jobs per arm): tune scheme (--vacuum-jet) against no QGP anywhere (Matter T0 = hydro_Tc = 100)
+W=5-7,7-9,9-11,11-14,14-18,18-23,23-30,30-40,40-55,55-80
+COMMON="--user-xml config/pp200_isr_rhictune.xml --events 2000 --pthat-bins $W --b-min 0 --b-max 3 --bulk-hadrons 1 --no-particlize \
+  --no-hydro-file --eta-max 5.2 --max-skipped 30 --eloss-threads 0"
+for j in 0 1 2 3; do s=$((930000 + j)); \
+  python prod_OO_isr/run_prod_oo_isr.py $COMMON --seed $s --vacuum-jet --outdir $R/events/aa_ref_h; \
+  python prod_OO_isr/run_prod_oo_isr.py $COMMON --seed $s --matter-only --xml-set Eloss/Matter/T0=100 \
+    --xml-set Eloss/Matter/hydro_Tc=100 --outdir $R/events/aa_vac_h; done
+python observables.py vc_ref2 vc_aa2 aa_ref_h aa_vac_h -j 2
+jupyter nbconvert --to notebook --execute scheme_recheck.ipynb --output-dir results --output scheme_recheck_executed.ipynb
 ```
 
 `run_runs.py` is resumable (finished jobs are skipped) and gives every job its own seed.
@@ -211,6 +229,7 @@ jupyter nbconvert --to notebook --execute ue_trend_cv.ipynb --output results/ue_
 | `dndeta.py` | charged $dN/d\eta$ over the full η range at fixed pT̂ for all models and MPI settings (own small samples under `PROD/diag/eta/`) |
 | `refs/run_refs.py` | the reference models' events (PP19 via `prod_AuAu_0_10_jet/run_prod_vacuum.py`, Pythia standalone) |
 | `ue_trend_cv.ipynb` | why the vacuum p+p UE is flat while STAR's falls (tuning page, "Why the UE is flat" and "UE trend vs C_v", 2026-11-24): standalone Pythia with ISR off keeps the fall; the decomposition (MPI off, FSR off, ISR off) of the chain and of Pythia Monash; ⟨N<sub>MPI</sub>⟩ vs p̂<sub>T</sub> (parton level, run in the notebook); the 32 design points' trend UE(11&ndash;15)/UE(35&ndash;45) against C<sub>v</sub>, &alpha;<sub>s</sub>, Q<sub>0</sub> and Pythia's &sigma;<sub>int</sub> (read from the job logs: with pTmin 5 it steps between 31 and 53 mb), fitted along the valley, and the STAR jets at 37&ndash;52 GeV. Reads the `ue_check.py` sums (`results/ue_<run>.npz`; recomputed when missing), the runs' observables and `results/design_chi2.json`; old MPI, vacuum chain. Model result: remnants and MPI fall as in Pythia, iMATTER ISR and MATTER FSR rise with jet p<sub>T</sub>; trend 1.17 at C<sub>v</sub> 0.16 to 0.82 at 0.50 (STAR 1.34), jets 0.70&ndash;0.76 along the valley, set by &alpha;<sub>s</sub> |
+| `scheme_recheck.ipynb` | the p+p hard tune in the A+A jet scheme (tuning page, "Phase 4", 2026-11-25): MATTER down to QS = 0.9 outside the QGP (`in_vac 0`, as in the O+O and `pp_med` runs) against the tune's vacuum mode (down to Q<sub>0</sub>), at the tune XML point. Vacuum chain (`--vacuum` vs `--vacuum --aa-vacuum`, 294k events per arm, π⁰ undecayed) and full chain (`--vacuum-jet` vs `--matter-only` with T<sub>0</sub> = hydro_Tc = 100, 8k per arm): A+A/tune ratio per bin and, for the π⁰, in wide p<sub>T</sub> ranges (job-to-job spread); model/data and χ² (tune.py's covariance) for PHENIX and STAR π⁰ and the STAR jets. Reads the runs' observables and the vacuum-chain event files. Model result: π⁰ 0.97&ndash;0.98 at 2&ndash;4 GeV, consistent with 1 above 6 GeV; jets unchanged; equal χ² in both schemes |
 | `refs/pythia_ref.py` | standalone Pythia 8 (default, Detroit, no CR; `--windows`, `--eta-max 0`, `--line` for diagnostics) in the tune's hadron-file layout |
 | `refs/pp19_200.xml`, `refs/hadronize_pp19.xml` | PP19 at 200 GeV: PythiaGun + vacuum Matter (Q0 1, C_v 0.25) + Colorless, π⁰ and η undecayed |
 | `tune.py` | emulator, posterior (emcee), design-point χ² |

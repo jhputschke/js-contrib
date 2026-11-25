@@ -300,6 +300,13 @@ def parse_args() -> argparse.Namespace:
                         "3dMCGlauber still runs (positions, beam remnants for iColored). For "
                         "the p+p hard reference (../config/pp200_isr_vacuum.xml) and O+O "
                         "without a medium")
+    p.add_argument("--aa-vacuum", action="store_true", dest="aa_vacuum",
+                   help="with --vacuum: the jet shower of the A+A scheme instead of the vacuum "
+                        "mode. Matter keeps in_vac 0 (no recoils, no LBT) over a <Hydro><Brick> "
+                        "at T = 0, so it finds no QGP anywhere and showers down to <QS>, as "
+                        "Matter + LBT do outside the medium (in_vac 1 stops at <Q0>). No MUSIC: "
+                        "vacuum-chain speed. For p+p references and hard-tune checks consistent "
+                        "with the medium runs' vacuum showers")
     p.add_argument("--flush-every", type=int, default=None, dest="flush_every", metavar="N",
                    help="in-job hadron files: commit (unit offsets, per-event record, flush) "
                         "every N events (default: 100 with --vacuum, where an event takes a "
@@ -459,9 +466,11 @@ def override_problems(a, root):
     return problems
 
 
-def make_vacuum(root):
+def make_vacuum(root, aa=False):
     """--vacuum: no medium.  Drop the pre-equilibrium, hydro and LBT blocks; Matter in
-    vacuum without recoils.  3dMCGlauber stays (binary collisions, beam remnants)."""
+    vacuum without recoils.  3dMCGlauber stays (binary collisions, beam remnants).
+    aa (--aa-vacuum): Matter stays in the medium mode (in_vac 0) over a brick at T = 0 in
+    place of the hydro, so it showers down to QS everywhere (the A+A scheme's vacuum)."""
     for tag in ("Preequilibrium", "Hydro"):
         for n in root.findall(tag):
             root.remove(n)
@@ -471,8 +480,17 @@ def make_vacuum(root):
             eloss.remove(n)
         m = eloss.find("Matter")
         if m is not None:
-            _set(m, "in_vac", 1)
+            _set(m, "in_vac", 0 if aa else 1)
             _set(m, "recoil_on", 0)
+            _set(m, "brick_med", 0)
+    if aa:
+        hydro = ET.Element("Hydro")
+        brick = ET.SubElement(hydro, "Brick")
+        for tag, val in (("name", "Brick"), ("T", "0.0"), ("v_x", "0.0"), ("v_y", "0.0"),
+                         ("v_z", "0.0")):
+            ET.SubElement(brick, tag).text = val
+        idx = list(root).index(eloss) if eloss is not None else len(root)
+        root.insert(idx, hydro)
 
 
 def job_xml(a, out_h5: str):
@@ -494,7 +512,7 @@ def job_xml(a, out_h5: str):
     root.find("Random/seed").text = str(a.seed)
     _set(root, "setReuseHydro", "false")     # every event has its own strings (after ISR)
     if a.vacuum:
-        make_vacuum(root)
+        make_vacuum(root, aa=a.aa_vacuum)
     if a.vacuum_jet and not a.vacuum and root.find("Eloss") is not None:
         eloss_node = root.find("Eloss")
         for n in eloss_node.findall("Lbt"):
@@ -822,6 +840,8 @@ def main() -> int:
     if a.parton_ymax is not None and not a.parton_ymax > 0:
         sys.exit(f"run_prod_oo_isr.py: --parton-ymax must be > 0, got {a.parton_ymax:g}")
 
+    if a.aa_vacuum and not a.vacuum:
+        sys.exit("run_prod_oo_isr.py: --aa-vacuum goes with --vacuum")
     if a.vacuum:
         if a.bulk_hadrons:
             sys.exit("run_prod_oo_isr.py: --vacuum has no medium: no --bulk-hadrons")
@@ -982,7 +1002,7 @@ def main() -> int:
         "prod_mcglauber_params": "\n".join(f"{k}={v}" for k, v in a.mcglauber_pairs),
         "prod_music_params": "\n".join(f"{k}={v}" for k, v in a.music_pairs),
         **({"prod_mcglauber_input": a.mcglauber_input_text} if a.mcglauber_input_text else {}),
-        "vacuum": int(a.vacuum),
+        "vacuum": int(a.vacuum), "aa_vacuum": int(a.aa_vacuum),
         "system": system,
         "initial_state_kind": "3dMCGlauber_strings_after_ISR",
         "hydro": "none (vacuum)" if a.vacuum else rp.hydro_label(a.build),
@@ -1320,7 +1340,7 @@ def main() -> int:
     summary = {"out": None if writer is None else out_h5, "seed": a.seed, "eos": eos,
                "seed_source": a.seed_source, "campaign": a.campaign, "index": a.index,
                "grid": None if a.vacuum else a.grid, "system": system, "hard": hard,
-               "bulk_info": a.bulk_info, "vacuum": int(a.vacuum),
+               "bulk_info": a.bulk_info, "vacuum": int(a.vacuum), "aa_vacuum": int(a.aa_vacuum),
                "hydro": getattr(a, "hydro", None),
                "subtract_hard_momentum": 0 if a.no_subtraction else 1,
                "hard_pair_string_veto": provenance["hard_pair_string_veto"],
