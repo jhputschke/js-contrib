@@ -27,10 +27,13 @@ sub-sample per pTHat window (<sample>_w<lo>_<hi>, continuous 5-80 GeV), into a n
 
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys1            # mb (~2.5 h); then, after
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys2            # docker rm: the MPI check (~3.5 h)
+    ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys2_soft       # the soft-MPI check (~1.2 h)
     ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3            # after gate G2 (~15 h)
     OO_PHYS_CENTRAL_BMAX=<b> ./oo_bias_docker.sh --dev /data/OO-RHIC_phys phys3_central
-A group entry NAME:EVENTS runs the first jobs of NAME only (phys2's "on" arms are the start of
-pp_bulk_* and jets_vac_*, so they count towards them later).
+A group entry NAME:EVENTS runs the first jobs of NAME only.  Phases 1-2 ran with the old MPI;
+phase 3 (oo_vac_*, oo_med_*, pp_ref_*) with soft MPI, under new names and seeds, the p+p
+reference from config/pp200_isr_rhictune.xml.  The old-MPI samples that depend on the MPI are
+frozen (FROZEN; job_list refuses them).
 
 Samples (O+O 200 GeV, config/OO_MCGlauber_MUSIC_isr_rhictune.xml, b in [0, 10] fm as 3dMCGlauber
 samples it, run_prod_oo_isr.py with MUSIC and iSS in the job: --bulk-hadrons 1 (one sample per
@@ -211,12 +214,21 @@ ALL_HADRONS = {"jets_quench", "jets_holes"}
 EPD, MBD = (2.1, 5.1), (3.51, 4.61)
 
 # ── the physics run (tuning page, "Physics run plan", 2026-11-24) ─────────────────────────
-#: Selection bias vs quenching with the frozen tune XML (788ca1e: g_v045_n215, tau_form 0.424).
-#: One sub-sample per pTHat window (the driver puts the same number of events in every window
-#: of a job, the plan wants more at low pTHat): <sample>_w<lo>_<hi>, its own directory and
-#: seeds, stitched by the windows' cross sections in the analysis.  The windows are continuous,
-#: 5-80 GeV, so inclusive hadron, trigger and jet spectra have no gaps.  Run them into a new
-#: output root (oo_bias_docker.sh /data/OO-RHIC_phys ...), not over the R4b samples.
+#: Selection bias vs quenching with the tune XMLs.  One sub-sample per pTHat window (the driver
+#: puts the same number of events in every window of a job, the plan wants more at low pTHat):
+#: <sample>_w<lo>_<hi>, its own directory and seeds, stitched by the windows' cross sections in
+#: the analysis.  The windows are continuous, 5-80 GeV, so inclusive hadron, trigger and jet
+#: spectra have no gaps.  Run them into a new output root (oo_bias_docker.sh /data/OO-RHIC_phys
+#: ...), not over the R4b samples.
+#:
+#: Two generations of samples (tuning page, "G2, soft MPI"):
+#:   phases 1-2 (phys_mb; pp_bulk_*, jets_vac_* ...): the tune XML of 788ca1e, MPI alpha_s 0.152,
+#:     pTmin 5 (Pythia: ~1.7 GeV), the p+p ones as the O+O XML with the p+p options (PP).  The
+#:     samples whose physics depends on that MPI are FROZEN (below): they are the paper-scheme
+#:     (old-MPI) systematic and cannot be run again with today's XML under the same name.
+#:   phase 3 (oo_vac_*, oo_med_*, pp_ref_*): the XMLs with soft MPI (pT0Ref 1.48, revision
+#:     2026-11-24 (3)), new names and seeds; p+p from config/pp200_isr_rhictune.xml (made from
+#:     the O+O XML by rhictune_xml.py; the same job XMLs as the O+O XML with PP, checked).
 PHYS_WINDOWS = {(5, 7): 15000, (7, 9): 20000, (9, 11): 20000, (11, 14): 20000, (14, 18): 15000,
                 (18, 23): 12500, (23, 30): 10000, (30, 40): 10000, (40, 55): 10000, (55, 80): 10000}
 #: the central-enriched pair (STAR's I_CP): triggers come from pTHat 7-18; b restricted so that
@@ -229,8 +241,15 @@ STORE = ["--store-partons", "--store-hadronization-input"]      # the holes rule
 MPI_OFF = ["--pythia-line", "PartonLevel:MPI = off"]           # appended after the XML's lines
 #: soft MPI (tuning page, "G2 input"): Pythia's soft MPI with the reference energy at 200 GeV,
 #: pT0 = pT0Ref there; the check after G2 brackets pT0Ref (the response is steep).  Appended after
-#: the XML's lines, so they override its MPI alpha_s 0.152 and pTmin 5.
-SOFT_PT0REF = (1.42, 1.48)
+#: the XML's lines, so they override its MPI settings (since revision (3) the XML has 1.48 itself).
+SOFT_PT0REF = (1.42, 1.45, 1.48)
+#: the full-chain p+p XML (generated from OO_XML; rhictune_xml.py) and its options: b <= 3 fm
+PP_XML = C.EXAMPLE / "config" / "pp200_isr_rhictune.xml"
+PP_REF = ["--b-max", "3"]
+#: sample -> user XML when not OO_XML
+XML_OF = {}
+#: samples that ran with the MPI of 788ca1e and depend on it: not to be run again (job_list)
+FROZEN = set()
 
 
 def soft_mpi(pt0ref):
@@ -243,49 +262,62 @@ def _w(lo, hi):
     return f"w{lo:02d}_{hi:02d}"
 
 
-#: name -> seed base; vacuum and medium share the seeds per window, the test "on" arms are the
-#: first jobs of the physics samples (the same names), the "off" arms reuse those seeds
-for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
-    _sb = 800000 + 1000 * _k
-    for _name, _opts in ((f"jets_vac_{_w(_lo, _hi)}", STORE), (f"jets_med_{_w(_lo, _hi)}", STORE),
-                         (f"jets_vac_mpioff_{_w(_lo, _hi)}", STORE + MPI_OFF)):
-        SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], _opts, True)
-        SEED_BASE[_name] = _sb
-    _pb = 840000 + 1000 * _k
-    for _name, _opts in ((f"pp_bulk_{_w(_lo, _hi)}", PP + STORE),
-                         (f"pp_bulk_mpioff_{_w(_lo, _hi)}", PP + STORE + MPI_OFF),
-                         (f"pp_bulk_switch_{_w(_lo, _hi)}", PP + STORE + ["--hard-pair-string-veto", "0"]),
-                         *((f"pp_bulk_soft{round(100 * _p)}_{_w(_lo, _hi)}", PP + STORE + soft_mpi(_p))
-                           for _p in SOFT_PT0REF)):
-        SAMPLES[_name] = (5000, PHYS_PER_JOB, [(_lo, _hi)], _opts, True)
-        SEED_BASE[_name] = _pb
-for _k, ((_lo, _hi), _n) in enumerate(CENTRAL_WINDOWS.items()):
-    for _name in (f"jets_vac_central_{_w(_lo, _hi)}", f"jets_med_central_{_w(_lo, _hi)}"):
-        SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], STORE + ["--b-max", f"{B_MAX_CENTRAL}"], True)
-        SEED_BASE[_name] = 820000 + 1000 * _k
-SAMPLES["phys_mb"] = (50000, PHYS_PER_JOB, [(9, 11)], MB_OPTS, False)
-SEED_BASE["phys_mb"] = 860000
 _W = [_w(lo, hi) for lo, hi in PHYS_WINDOWS]
 _W_UE = _W[:9]                                                  # 5-55 GeV: leading jets 6-40 GeV
+_W_VAC2 = ("w18_23", "w30_40")                                  # the O+O MPI check of phase 2
+#: phases 1-2 (old MPI; seeds 800000 + 1000 k for O+O, 840000 + 1000 k for p+p, k = window index).
+#: Only what ran is defined.  MPI off and the explicit soft-MPI lines do not depend on the XML's
+#: MPI, so those stay runnable; MPI on (pp_bulk, jets_vac) and the string switch are frozen.
+for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
+    _ww = _w(_lo, _hi)
+    if _ww in _W_VAC2:
+        for _name, _opts in ((f"jets_vac_{_ww}", STORE), (f"jets_vac_mpioff_{_ww}", STORE + MPI_OFF)):
+            SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], _opts, True)
+            SEED_BASE[_name] = 800000 + 1000 * _k
+        FROZEN.add(f"jets_vac_{_ww}")
+    if _ww in _W_UE:
+        for _name, _opts in ((f"pp_bulk_{_ww}", PP + STORE),
+                             (f"pp_bulk_mpioff_{_ww}", PP + STORE + MPI_OFF),
+                             (f"pp_bulk_switch_{_ww}", PP + STORE + ["--hard-pair-string-veto", "0"]),
+                             *((f"pp_bulk_soft{round(100 * _p)}_{_ww}", PP + STORE + soft_mpi(_p))
+                               for _p in SOFT_PT0REF)):
+            SAMPLES[_name] = (5000, PHYS_PER_JOB, [(_lo, _hi)], _opts, True)
+            SEED_BASE[_name] = 840000 + 1000 * _k
+        FROZEN |= {f"pp_bulk_{_ww}", f"pp_bulk_switch_{_ww}"}
+SAMPLES["phys_mb"] = (50000, PHYS_PER_JOB, [(9, 11)], MB_OPTS, False)    # bulk only: MPI-free
+SEED_BASE["phys_mb"] = 860000
+#: phase 3 (soft MPI): O+O vacuum and medium share the seeds per window (870000 + 1000 k), p+p
+#: reference 880000 + 1000 k, the central pair 890000 + 1000 k
+for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
+    for _name in (f"oo_vac_{_w(_lo, _hi)}", f"oo_med_{_w(_lo, _hi)}"):
+        SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], STORE, True)
+        SEED_BASE[_name] = 870000 + 1000 * _k
+    _name = f"pp_ref_{_w(_lo, _hi)}"
+    SAMPLES[_name] = (5000, PHYS_PER_JOB, [(_lo, _hi)], PP_REF + STORE, True)
+    SEED_BASE[_name] = 880000 + 1000 * _k
+    XML_OF[_name] = PP_XML
+for _k, ((_lo, _hi), _n) in enumerate(CENTRAL_WINDOWS.items()):
+    for _name in (f"oo_vac_central_{_w(_lo, _hi)}", f"oo_med_central_{_w(_lo, _hi)}"):
+        SAMPLES[_name] = (_n, PHYS_PER_JOB, [(_lo, _hi)], STORE + ["--b-max", f"{B_MAX_CENTRAL}"], True)
+        SEED_BASE[_name] = 890000 + 1000 * _k
 GROUPS.update({
-    # phase 1: the minimum-bias reference with the final XML
+    # phase 1: the minimum-bias reference (bulk hadrons only, so valid for either MPI)
     "phys1": ["phys_mb"],
-    # phase 2, the MPI check (NAME:EVENTS takes the first jobs of NAME): p+p MPI on (= the start
-    # of pp_bulk), off, and with a string in every jet event; O+O vacuum jets on (= the start of
-    # jets_vac) and off in two windows
+    # phase 2, the MPI check with the old MPI (NAME:EVENTS takes the first jobs of NAME): p+p
+    # MPI on, off, and with a string in every jet event; O+O vacuum jets on and off in two
+    # windows.  Done; the "on" arms are frozen.
     "phys2": ([f"pp_bulk_{w}:3000" for w in _W_UE] + [f"pp_bulk_mpioff_{w}:3000" for w in _W_UE]
               + [f"pp_bulk_switch_{w}:3000" for w in _W_UE]
-              + [f"{s}_{w}:5000" for w in ("w18_23", "w30_40") for s in ("jets_vac", "jets_vac_mpioff")]),
-    # the soft-MPI check after G2: p+p with hydro at two pT0Ref, 1.5k per window each
+              + [f"{s}_{w}:5000" for w in _W_VAC2 for s in ("jets_vac", "jets_vac_mpioff")]),
+    # the soft-MPI check after G2: p+p with hydro at three pT0Ref (1.45 added after the first two), 1.5k per window each
     "phys2_soft": [f"pp_bulk_soft{round(100 * p)}_{w}:1500" for w in _W_UE for p in SOFT_PT0REF],
-    # phase 3 (after gate G2; with MPI off at G2 the samples get MPI_OFF first): vacuum and
-    # medium interleaved job by job, then p+p
-    "phys3": [f"{s}_{w}" for w in _W for s in ("jets_vac", "jets_med")] + [f"pp_bulk_{w}" for w in _W],
-    "phys3_central": [f"{s}_central_{_w(lo, hi)}" for lo, hi in CENTRAL_WINDOWS for s in ("jets_vac", "jets_med")],
+    # phase 3 (soft MPI): vacuum and medium interleaved job by job, then the p+p reference
+    "phys3": [f"{s}_{w}" for w in _W for s in ("oo_vac", "oo_med")] + [f"pp_ref_{w}" for w in _W],
+    "phys3_central": [f"{s}_central_{_w(lo, hi)}" for lo, hi in CENTRAL_WINDOWS for s in ("oo_vac", "oo_med")],
 })
-QUENCHED |= {n for n in SAMPLES if n.startswith("jets_med_")}
+QUENCHED |= {n for n in SAMPLES if n.startswith("oo_med_")}
 #: the physics run stores all hadrons (full jets, sPHENIX), the minimum-bias reference too
-ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("jets_vac_", "jets_med_", "pp_bulk_", "phys_"))}
+ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("jets_vac_", "oo_vac_", "oo_med_", "pp_bulk_", "pp_ref_", "phys_"))}
 STAR_CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 
@@ -302,7 +334,7 @@ def jobs(name, events=None):
     out = []
     for j in range(total // per_job):
         seed = SEED_BASE[name] + j
-        cmd = [sys.executable, str(C.DRIVER), "--user-xml", str(OO_XML), "--events", str(per_job),
+        cmd = [sys.executable, str(C.DRIVER), "--user-xml", str(XML_OF.get(name, OO_XML)), "--events", str(per_job),
                "--seed", str(seed), "--pthat-bins", ",".join(f"{lo}-{hi}" for lo, hi in windows),
                "--b-min", "0", "--b-max", f"{B_MAX}", *([] if name in QUENCHED else ["--vacuum-jet"]), "--bulk-hadrons", "1",
                "--no-particlize", "--no-hydro-file", "--eta-max", "5.2",
@@ -335,6 +367,15 @@ def job_list(names, events=None, shard=(0, 1), limit=None):
     that a run stopped early has about the same number of events in each sample.  Shard (i, n)
     takes job k of every sample with k % n == i: disjoint shards (one container per GPU, or
     per machine) that never run the same job twice, each with every sample."""
+    frozen = sorted({_split(n, events)[0] for n in names} & FROZEN)
+    if frozen:
+        sys.exit("oo_bias.py: these samples ran with the MPI of 788ca1e and are frozen (the "
+                 "tune XML has soft MPI since revision (3); phase 3 runs oo_vac_*, oo_med_*, "
+                 "pp_ref_*): " + ", ".join(frozen))
+    if any(XML_OF.get(_split(n, events)[0]) == PP_XML for n in names):
+        import rhictune_xml
+        if rhictune_xml.check(quiet=True):
+            sys.exit("oo_bias.py: config/pp200_isr_rhictune.xml is not the O+O XML with p+p nuclei")
     per = [jobs(*_split(n, events)) for n in names]
     i, n = shard
     mine = [p[k] for k in range(i, max(map(len, per), default=0), n) for p in per if k < len(p)]

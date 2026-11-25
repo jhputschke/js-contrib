@@ -62,9 +62,19 @@ XML = B.C.EXAMPLE / "config" / "OO_MCGlauber_MUSIC_isr_rhictune.xml"
 
 
 # ── settings: what the samples ran with ──────────────────────────────────────────────────────
+#: the XML commit phases 1-2 ran with (the MPI of the tune before revision (3), soft MPI)
+G2_XML_COMMIT = "788ca1e"
+
+
 def settings():
-    """The hard and bulk tune values as they stand in the XML (read, not assumed), and its commit."""
-    x = XML.read_text()
+    """The hard and bulk tune values of the XML the G2 samples ran with (commit G2_XML_COMMIT,
+    read from git, not assumed; the file itself has soft MPI since revision (3))."""
+    rel = XML.relative_to(B.C.EXAMPLE.parent.parent.parent)
+    try:
+        x = subprocess.run(["git", "show", f"{G2_XML_COMMIT}:{rel}"], cwd=HERE, capture_output=True,
+                           text=True, check=True).stdout
+    except (OSError, subprocess.CalledProcessError):
+        sys.exit(f"g2_check.py: cannot read {rel} at {G2_XML_COMMIT} from git")
     x_nc = re.sub(r"<!--.*?-->", "", x, flags=re.S)
 
     def tag(name, block=None):
@@ -86,15 +96,9 @@ def settings():
     bulk = {k: tag(k) for k in ("ylossParam4At2", "ylossParam4At4", "ylossParam4At6", "ylossParam4At10",
                                 "ylossParam4var", "shadowing_factor", "BG", "remnant_energy_loss_fraction",
                                 "tau_form_mean", "freezeout_temperature")}
-    try:
-        commit = subprocess.run(["git", "log", "-1", "--format=%h %ad %s", "--date=short", "--", str(XML)],
-                                cwd=HERE, capture_output=True, text=True).stdout.strip()
-        dirty = subprocess.run(["git", "status", "--porcelain", "--", str(XML)], cwd=HERE,
-                               capture_output=True, text=True).stdout.strip()
-    except OSError:
-        commit, dirty = "", ""
-    return {"xml": str(XML.relative_to(B.C.EXAMPLE.parent.parent.parent)), "xml_commit": commit,
-            "xml_modified_since": bool(dirty), "hard": hard, "bulk": bulk}
+    commit = subprocess.run(["git", "log", "-1", "--format=%h %ad %s", "--date=short", G2_XML_COMMIT],
+                            cwd=HERE, capture_output=True, text=True).stdout.strip()
+    return {"xml": str(rel), "xml_commit": commit, "xml_modified_since": False, "hard": hard, "bulk": bulk}
 
 
 def job_settings(out, sample):

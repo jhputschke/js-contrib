@@ -74,6 +74,19 @@
   sections 9-10).  Changes of 1-2 %, so the bulk parameters above stay; the vacuum chain does not
   depend on it.
 
+  Revision 2026-11-24 (3), soft MPI: Pythia's MPI as in its default description, with the
+  regularisation scale tuned to STAR's p+p underlying event (UE) at 200 GeV, replacing the hard
+  tune's MPI cut (alpha_s 0.152, pTmin 5, which Pythia lowered to ~1.7 GeV).  Reason (gate G2 of
+  the physics run, analysis/OO-RHIC g2_mpi_check.ipynb, Parts 1, 3, 4): in this chain with
+  strings and hydro the old MPI gave a transverse UE of only 0.68-0.70 x STAR (PRD 101, 052004)
+  at leading-jet pT 6-15 GeV; the UE level matters for mid-rapidity activity estimators and
+  event-wise observables in jet events (background rho, activity-differential observables).
+  The forward centrality acceptances (EPD, MBD) hardly depend on it (fwd_check.py), so the
+  selection bias of the forward classes is unchanged within the statistics.  The lines and the
+  value are explained at <Hard><PythiaGun> below; the hard process (alpha_s 0.152, PDF, Q0,
+  vir_factor) is unchanged.  Minimum-bias samples (bulk hadrons only, no hard scattering:
+  oo_bias.py phys_mb and the bulk tune) do not depend on it.
+
   Jet energy loss: Matter above Q0 = 2 GeV and LBT below, Matter with recoils (recoil_on 1),
   the settings of the Au+Au and Pb+Pb jet productions.  LBT's partons and Matter's recoils
   carry the colour flow of every scattering, and the iColored hadronization closes the colour
@@ -204,15 +217,54 @@
       <pTHatMax>40</pTHatMax>
       <eCM>200</eCM>
       <!-- The RHIC p+p 200 GeV hard tune (analysis/OO-RHIC), at Q0 = 2 and vir_factor 0.25
-           (the Matter/LBT settings below): alpha_s(MZ) 0.152 for the hard process and the MPI,
-           iMATTER's PDF (NNPDF3.1 NNLO), the tune's MPI (pTmin 5, which Pythia lowers to
-           ~1.7 GeV at 200 GeV: ~0.6 MPI per event besides the hard scattering). -->
+           (the Matter/LBT settings below): alpha_s(MZ) 0.152 for the hard process, iMATTER's
+           PDF (NNPDF3.1 NNLO).
+
+           MPI (revision 2026-11-24 (3); until then alpha_s 0.152 and pTmin 5, which Pythia
+           lowered to ~1.7 GeV at 200 GeV).  Pythia's soft MPI: alpha_s 0.130 and pTmin 0.2
+           (Pythia's defaults), the MPI cross section regularised below pT0, with
+           pT0(sqrt s) = pT0Ref (sqrt s / ecmRef)^ecmPow.  ecmRef = 200 puts the reference at
+           RHIC, so pT0 = pT0Ref here and ecmPow drops out.  pT0Ref = 1.48 GeV is tuned to
+           STAR's p+p UE (transverse charged density, pT > 0.2 GeV, |eta| < 1, vs leading-jet
+           pT; PRD 101, 052004) in this chain with strings and hydro (oo_bias.py phys2_soft,
+           soft_mpi_check.py, 13.5k events per point): chi2 over the five complete leading-jet
+           bins 11-45 GeV 30.9 / 16.1 / 8.1 at pT0Ref 1.42 / 1.45 / 1.48 (the old MPI 26.3);
+           at 1.48 the UE is 0.87-0.94 x STAR at 11-20 GeV and 1.06-1.19 x above.  The model
+           UE is flat with the leading-jet pT where STAR's falls, so no single value fits both
+           ends: STAR's level at 11-20 GeV alone would be pT0Ref ~1.465, over all complete
+           bins ~1.49 (chi2 minimum ~1.50, an extrapolation); 1.48 is the simulated point
+           closest to that minimum.  The response is steep (0.03 in pT0Ref ~ 10 % in the UE).
+           Pythia accepts 1.48 (it lowers pT0 only above ~1.62, where sigma_int < 1.1
+           sigma_ND).  Not fixed by it: the transverse <pT> (~0.8 x STAR) and the trend, which
+           comes from iMATTER ISR and MATTER FSR rising with the jet pT (both set by vir_factor).
+
+           Why soft MPI, unlike the small-systems paper (MPI cut 8 GeV at 5.02 TeV) and the d+Au
+           branch of R. Dolan (5 GeV), whose soft event comes from the strings and hydro alone:
+           (1) at 200 GeV Pythia does not keep such a cut (5 GeV became ~1.7 GeV, ~0.5 MPI per
+           event against ~3.4 in Pythia's standard description); (2) the strings and hydro are
+           tuned to minimum bias and cannot make STAR's pedestal (jet events at 2.15 -> 1.60 x
+           minimum bias): hydro only passes on a correlation of the initial state, and in
+           3dMCGlauber p+p nothing ties the strings to the hard scattering.  Measured in this
+           chain (p+p with strings and hydro): with MPI off, jet events sit exactly at the
+           minimum-bias level.  The pedestal is the hard-soft correlation of the MPI.
+           So pT0Ref 1.48 is an effective parameter of this hybrid, not Pythia's value (its
+           default gives pT0 ~1.06 GeV at 200 GeV): minimum-bias events have no Pythia and no
+           MPI, jet events get the strings plus MPI, and the tuned pT0Ref (fewer MPI than
+           Pythia alone) absorbs the overlap the paper's cut avoids.
+           Hard tune with it (vacuum chain, same seeds as the reference point alpha_s 0.15,
+           vir_factor 0.25, Q0 2, 300k events): STAR jets x1.018 / x1.002 (|eta| < 0.5 / 0.5-0.9),
+           PHENIX pi0 x1.10 within the statistics (pulls < 1.6 sigma), chi2 against the 35 fit
+           bins 41.2 vs 35.4: the hard tune stands.  In O+O the MPI initiators are subtracted
+           from the hard nucleon pair with the hard partons.  Details: analysis/OO-RHIC
+           g2_mpi_check.ipynb (Parts 1, 3, 4) and the RHIC tuning page, "G2, soft MPI". -->
       <LinesToRead>
         HardQCD:all = on
         PDF:pSet = 20
         SigmaProcess:alphaSvalue = 0.152
-        MultipartonInteractions:alphaSvalue = 0.152
-        MultipartonInteractions:pTmin = 5.0
+        MultipartonInteractions:alphaSvalue = 0.130
+        MultipartonInteractions:pTmin = 0.2
+        MultipartonInteractions:ecmRef = 200
+        MultipartonInteractions:pT0Ref = 1.48
       </LinesToRead>
     </PythiaGun>
     <ISR>

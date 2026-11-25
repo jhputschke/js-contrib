@@ -24,10 +24,20 @@
   tune's reference point with the new and the old block (300k events each) agrees within
   statistics (chi2 against the 35 fit bins 35.4 vs 33.8, underlying event 0.31 in both), so the
   hard tune stands.  Revision 2026-11-24 (2): tau_form_mean 0.5 -> 0.424, as in the O+O file
-  (no effect here).
+  (no effect here).  Revision 2026-11-24 (3): soft MPI as in the O+O file (MPI alpha_s 0.130,
+  pTmin 0.2, ecmRef 200, pT0Ref 1.48: STAR's p+p underlying event in the chain with strings and
+  hydro; the reasons and the value at the O+O file's <Hard><PythiaGun>), replacing the MPI cut
+  of 5 GeV below.  The hard tune's design runs (run_runs.py) still append alpha_s for the hard
+  process and the MPI per design point after these lines: runs with the soft MPI pass the four
+  MPI lines again with pythia-line (make_design.py option pythia-line), as the recheck ref_softmpi.  Recheck (ref_softmpi vs ref_tune, same seeds, 300k events): STAR jets x1.018 / x1.002, PHENIX
+  pi0 within the statistics, chi2 against the 35 fit bins 41.2 vs 35.4: the hard tune stands.
+  pT0Ref was tuned in the chain with strings and hydro; this chain has neither, so its underlying
+  event (0.47-0.48 at leading jet 11-45 GeV, ~0.1 below the full chain) is not the tuned
+  quantity.
   Cut scheme of the hard tune (RHIC tuning page, step 1): pTHat windows from 5 GeV (above
   iMATTER's floor Q0/sqrt(vir_factor) for vir_factor >= 0.16 at Q0 = 2), cross-section
-  weights per window (no bias2Selection), one fixed MPI cut of 5 GeV.  Tune parameters go
+  weights per window (no bias2Selection), one fixed MPI cut of 5 GeV (soft MPI since revision
+  (3)).  Tune parameters go
   in with the driver's options pythia-line (alpha_s), hadronization-line (probStoUD) or
   edits of a copy of this file (vir_factor, Q0 in <Eloss><Matter>; iMATTER reads them there).
   <nEvents>, <Random><seed>, <Hard><PythiaGun> pTHatMin/pTHatMax/pTHatBins/eCM and
@@ -108,8 +118,10 @@
   </IS>
 
   <!-- Hard process.  PythiaIsrGun reads the PythiaGun block; <ISR> switches the ISR chain on
-       (maxT/deltaT: 0 = the <Eloss> values).  MPI cut 5 GeV: below the lowest window's
-       lower edge (with the MPI cut at 8 GeV Pythia switches MPI off at 200 GeV). -->
+       (maxT/deltaT: 0 = the <Eloss> values).  MPI: Pythia's soft MPI with pT0 = pT0Ref =
+       1.48 GeV at 200 GeV (ecmRef 200), tuned to STAR's p+p underlying event; the value is
+       explained in OO_MCGlauber_MUSIC_isr_rhictune.xml at <Hard><PythiaGun>.  Before revision
+       (3): MultipartonInteractions:pTmin = 5.0 (Pythia lowered it to ~1.7 GeV). -->
   <Hard>
     <PythiaGun>
       <name>PythiaGun</name>
@@ -119,7 +131,10 @@
       <eCM>200</eCM>
       <LinesToRead>
         HardQCD:all = on
-        MultipartonInteractions:pTmin = 5.0
+        MultipartonInteractions:alphaSvalue = 0.130
+        MultipartonInteractions:pTmin = 0.2
+        MultipartonInteractions:ecmRef = 200
+        MultipartonInteractions:pT0Ref = 1.48
       </LinesToRead>
     </PythiaGun>
     <ISR>
