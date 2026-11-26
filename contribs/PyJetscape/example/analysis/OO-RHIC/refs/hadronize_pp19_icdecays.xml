@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- analysis/OO-RHIC/refs/hadronize_pp19_icdecays.xml: hadronize_pp19.xml with pi0 and eta decayed,
+     i.e. config/hadronize.xml's Colorless block with iColored's decays (HadronLevel:Decay on,
+     ParticleDecays:limitTau0 on, tau0Max 10 mm: pi0, eta and resonances decay, K0S, Lambda, Sigma,
+     Xi, Omega do not), for the like-for-like p+p reference comparison (pp_ref_check.py). -->
+<jetscape>
+  <JetHadronization>
+    <name>colorless</name>
+    <take_recoil>1</take_recoil>
+    <eCMforHadronization>200</eCMforHadronization>
+    <pythia_decays>on</pythia_decays>
+    <tau0Max>10.0</tau0Max>
+    <!-- 1: every event reseeds Pythia from the module's generator and records the seed,
+         so an event can be reproduced on its own (hadronize.py always passes a seed) -->
+    <reseed_per_event>1</reseed_per_event>
+  </JetHadronization>
+</jetscape>

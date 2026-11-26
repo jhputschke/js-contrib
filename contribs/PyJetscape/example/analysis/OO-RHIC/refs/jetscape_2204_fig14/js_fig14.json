@@ -1,0 +1,228 @@
+{
+ "source": "JETSCAPE, arXiv:2204.01163 (PRC 107, 054901), Fig. 14, read from the vector figure",
+ "model": "MATTER+LBT, q-hat Type 3 (HTL running x f(Q^2)), alpha_s^fix 0.3, Q_sw 2 GeV, tau0 0.6 fm/c, T_c 160 MeV; TRENTo + free streaming + VISHNU; PP19 p+p, Colorless; no retuning at RHIC",
+ "observables": {
+  "chjet_R*": "charged-jet R_AA, anti-kT, |eta_jet| < 1 - R, p_T,lead,ch > 5 GeV, Au+Au 0-10 %",
+  "pion": "(pi+ + pi-)/2 R_AA, |y| < 0.35, Au+Au 0-10 % (compared with PHENIX pi0)"
+ },
+ "panels": {
+  "chjet_R0.2": [
+   {
+    "lo": 8.0,
+    "hi": 10.0,
+    "value": 0.2208,
+    "err_lo": 0.0136,
+    "err_hi": 0.0136
+   },
+   {
+    "lo": 10.0,
+    "hi": 12.0,
+    "value": 0.2404,
+    "err_lo": 0.0109,
+    "err_hi": 0.011
+   },
+   {
+    "lo": 12.0,
+    "hi": 14.0,
+    "value": 0.3079,
+    "err_lo": 0.0155,
+    "err_hi": 0.0155
+   },
+   {
+    "lo": 14.0,
+    "hi": 16.0,
+    "value": 0.2647,
+    "err_lo": 0.0119,
+    "err_hi": 0.0119
+   },
+   {
+    "lo": 16.0,
+    "hi": 20.0,
+    "value": 0.2775,
+    "err_lo": 0.0103,
+    "err_hi": 0.0104
+   },
+   {
+    "lo": 20.0,
+    "hi": 25.0,
+    "value": 0.2886,
+    "err_lo": 0.0104,
+    "err_hi": 0.0103
+   },
+   {
+    "lo": 25.0,
+    "hi": 30.0,
+    "value": 0.311,
+    "err_lo": 0.0128,
+    "err_hi": 0.0128
+   }
+  ],
+  "chjet_R0.3": [
+   {
+    "lo": 8.0,
+    "hi": 10.0,
+    "value": 0.2031,
+    "err_lo": 0.0126,
+    "err_hi": 0.0126
+   },
+   {
+    "lo": 10.0,
+    "hi": 12.0,
+    "value": 0.2586,
+    "err_lo": 0.0145,
+    "err_hi": 0.0144
+   },
+   {
+    "lo": 12.0,
+    "hi": 14.0,
+    "value": 0.2679,
+    "err_lo": 0.0128,
+    "err_hi": 0.0128
+   },
+   {
+    "lo": 14.0,
+    "hi": 16.0,
+    "value": 0.2588,
+    "err_lo": 0.0105,
+    "err_hi": 0.0105
+   },
+   {
+    "lo": 16.0,
+    "hi": 20.0,
+    "value": 0.2815,
+    "err_lo": 0.0092,
+    "err_hi": 0.0092
+   },
+   {
+    "lo": 20.0,
+    "hi": 25.0,
+    "value": 0.2829,
+    "err_lo": 0.009,
+    "err_hi": 0.009
+   },
+   {
+    "lo": 25.0,
+    "hi": 30.0,
+    "value": 0.2872,
+    "err_lo": 0.0111,
+    "err_hi": 0.0111
+   }
+  ],
+  "chjet_R0.4": [
+   {
+    "lo": 8.0,
+    "hi": 10.0,
+    "value": 0.1872,
+    "err_lo": 0.0124,
+    "err_hi": 0.0124
+   },
+   {
+    "lo": 10.0,
+    "hi": 12.0,
+    "value": 0.2534,
+    "err_lo": 0.0152,
+    "err_hi": 0.0152
+   },
+   {
+    "lo": 12.0,
+    "hi": 14.0,
+    "value": 0.2638,
+    "err_lo": 0.0127,
+    "err_hi": 0.0127
+   },
+   {
+    "lo": 14.0,
+    "hi": 16.0,
+    "value": 0.2537,
+    "err_lo": 0.0104,
+    "err_hi": 0.0104
+   },
+   {
+    "lo": 16.0,
+    "hi": 20.0,
+    "value": 0.2704,
+    "err_lo": 0.0088,
+    "err_hi": 0.0088
+   },
+   {
+    "lo": 20.0,
+    "hi": 25.0,
+    "value": 0.2913,
+    "err_lo": 0.0092,
+    "err_hi": 0.0091
+   },
+   {
+    "lo": 25.0,
+    "hi": 30.0,
+    "value": 0.2781,
+    "err_lo": 0.0104,
+    "err_hi": 0.0104
+   }
+  ],
+  "pion": [
+   {
+    "lo": 8.0,
+    "hi": 8.5,
+    "value": 0.2161,
+    "err_lo": 0.046,
+    "err_hi": 0.046
+   },
+   {
+    "lo": 8.5,
+    "hi": 9.0,
+    "value": 0.1855,
+    "err_lo": 0.0319,
+    "err_hi": 0.0319
+   },
+   {
+    "lo": 9.0,
+    "hi": 9.5,
+    "value": 0.182,
+    "err_lo": 0.0454,
+    "err_hi": 0.0454
+   },
+   {
+    "lo": 9.5,
+    "hi": 10.0,
+    "value": 0.2143,
+    "err_lo": 0.0462,
+    "err_hi": 0.0461
+   },
+   {
+    "lo": 10.0,
+    "hi": 12.0,
+    "value": 0.2466,
+    "err_lo": 0.0307,
+    "err_hi": 0.0307
+   },
+   {
+    "lo": 12.0,
+    "hi": 14.0,
+    "value": 0.2183,
+    "err_lo": 0.0257,
+    "err_hi": 0.0257
+   },
+   {
+    "lo": 14.0,
+    "hi": 16.0,
+    "value": 0.2757,
+    "err_lo": 0.0396,
+    "err_hi": 0.0396
+   },
+   {
+    "lo": 16.0,
+    "hi": 18.0,
+    "value": 0.2337,
+    "err_lo": 0.0371,
+    "err_hi": 0.037
+   },
+   {
+    "lo": 18.0,
+    "hi": 20.0,
+    "value": 0.2229,
+    "err_lo": 0.043,
+    "err_hi": 0.043
+   }
+  ]
+ }
+}

@@ -401,6 +401,35 @@ GROUPS.update({
 QUENCHED |= {n for n in SAMPLES if n.startswith(("oo_med_", "pp_med_"))}
 #: the physics run stores all hadrons (full jets, sPHENIX), the minimum-bias reference too
 ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("jets_vac_", "oo_vac_", "oo_med_", "pp_bulk_", "pp_ref_", "pp_med_", "phys_"))}   # incl. *_aa_
+#: Au+Au energy-loss calibration (2026-11-25; tuning page "A3 and the proposed runs",
+#: auau_bulk_phobos.ipynb): the O+O chain (OO_XML: the RHIC bulk tune, ISR, strings, MUSIC, iSS,
+#: Matter + LBT, iColored) with Au + Au, generated nucleon positions, MUSIC grid +-13 fm (no
+#: boundary hit in the tests), 0-10 % by b (4.7 fm, geometric), hard partons |y| < 1.0 (either
+#: one: no mid-rapidity jet is lost; the driver records the acceptance per window).  Jet in the
+#: medium.  B1 auau_med: the current energy-loss setting (Matter QhatParametrizationType 1 = the
+#: Type 2 of 2204.01163, alpha_s 0.25, Lbt 0.25).  B2 auau_t3: 2204.01163's default Type 3
+#: (type 5, alpha_s 0.3, qhatA 10, qhatB 100, Lbt alpha_s 0.3).  The same seeds (920000 + 1000 k).
+#: 2k events per window in jobs of 50 (~15 s per event with 10 jobs per GPU).  Groups auau_b1 /
+#: auau_b2 list the windows in the order to run them with --sequential: 23-80 GeV first (the
+#: per-parton jet loss), then 9-23 (PHENIX pi0, STAR charged jets), then 5-9 (the low-pT bins).
+AUAU = ["--xml-set=IS/MCGlauber/projectile=Au", "--xml-set=IS/MCGlauber/target=Au",
+        "--xml-set=IS/MCGlauber/nucleon_configuration_from_file=0",
+        "--xml-set=IS/grid_max_x=13", "--xml-set=IS/grid_max_y=13",
+        "--b-max", "4.7", "--parton-ymax", "1.0", "--parton-y-mode", "any"]
+TYPE3 = ["--xml-set=Eloss/Matter/QhatParametrizationType=5", "--xml-set=Eloss/Matter/alphas=0.3",
+         "--xml-set=Eloss/Matter/qhatA=10", "--xml-set=Eloss/Matter/qhatB=100",
+         "--xml-set=Eloss/Lbt/alphas=0.3"]
+AUAU_EVENTS, AUAU_PER_JOB = 2000, 50
+for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
+    for _fam, _opts in (("auau_med", []), ("auau_t3", TYPE3)):
+        _name = f"{_fam}_{_w(_lo, _hi)}"
+        SAMPLES[_name] = (AUAU_EVENTS, AUAU_PER_JOB, [(_lo, _hi)], STORE + AUAU + _opts, True)
+        SEED_BASE[_name] = 920000 + 1000 * _k
+_AUAU_ORDER = ["w23_30", "w30_40", "w40_55", "w55_80", "w09_11", "w11_14", "w14_18", "w18_23", "w05_07", "w07_09"]
+GROUPS.update({"auau_b1": [f"auau_med_{w}" for w in _AUAU_ORDER],
+               "auau_b2": [f"auau_t3_{w}" for w in _AUAU_ORDER]})
+QUENCHED |= {n for n in SAMPLES if n.startswith(("auau_med_", "auau_t3_"))}
+ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("auau_med_", "auau_t3_"))}
 STAR_CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 
@@ -445,9 +474,10 @@ def _split(n, events=None):
     return n, events
 
 
-def job_list(names, events=None, shard=(0, 1), limit=None):
+def job_list(names, events=None, shard=(0, 1), limit=None, sequential=False):
     """The pending jobs, the samples interleaved (job 0 of every sample, then job 1, ...), so
-    that a run stopped early has about the same number of events in each sample.  Shard (i, n)
+    that a run stopped early has about the same number of events in each sample; with
+    sequential, sample after sample in the given order (the first samples finish first).  Shard (i, n)
     takes job k of every sample with k % n == i: disjoint shards (one container per GPU, or
     per machine) that never run the same job twice, each with every sample."""
     frozen = sorted({_split(n, events)[0] for n in names} & FROZEN)
@@ -461,13 +491,16 @@ def job_list(names, events=None, shard=(0, 1), limit=None):
             sys.exit("oo_bias.py: config/pp200_isr_rhictune.xml is not the O+O XML with p+p nuclei")
     per = [jobs(*_split(n, events)) for n in names]
     i, n = shard
-    mine = [p[k] for k in range(i, max(map(len, per), default=0), n) for p in per if k < len(p)]
+    if sequential:
+        mine = [p[k] for p in per for k in range(i, len(p), n)]
+    else:
+        mine = [p[k] for k in range(i, max(map(len, per), default=0), n) for p in per if k < len(p)]
     todo = [t for t in mine if not done(*t[:3])]
     return todo[:limit] if limit else todo
 
 
-def run(names, nproc, mps, omp, events=None, shard=(0, 1), limit=None):
-    todo = job_list(names, events, shard, limit)
+def run(names, nproc, mps, omp, events=None, shard=(0, 1), limit=None, sequential=False, stagger=0):
+    todo = job_list(names, events, shard, limit, sequential)
     print(f"oo_bias.py: {len(todo)} jobs" + (f" (shard {shard[0]}/{shard[1]})" if shard[1] > 1 else "")
           + f", {nproc} at a time, OMP_NUM_THREADS {omp}"
           + f", MUSIC_CUDA_SYNC {os.environ.get('MUSIC_CUDA_SYNC', 'unset')} -> {OUT}", flush=True)
@@ -483,8 +516,10 @@ def run(names, nproc, mps, omp, events=None, shard=(0, 1), limit=None):
             sys.exit("oo_bias.py: could not start the CUDA MPS daemon")
     t0 = time.time()
 
-    def one(t):
-        name, seed, events, cmd = t
+    def one(it):
+        idx, (name, seed, events, cmd) = it
+        if idx < nproc and stagger:
+            time.sleep(idx * stagger)           # the first round starts staggered
         (OUT / name).mkdir(parents=True, exist_ok=True)
         with open(OUT / name / f"run_seed{seed}.log", "w") as log:
             r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=env,
@@ -494,7 +529,7 @@ def run(names, nproc, mps, omp, events=None, shard=(0, 1), limit=None):
     nfail = 0
     try:
         with ThreadPoolExecutor(max_workers=nproc) as ex:
-            for k, (name, seed, rc) in enumerate(ex.map(one, todo), 1):
+            for k, (name, seed, rc) in enumerate(ex.map(one, enumerate(todo)), 1):
                 nfail += rc != 0
                 print(f"[{k}/{len(todo)}] {name} seed {seed}: {'ok' if rc == 0 else f'FAILED ({rc})'}"
                       f", {time.time() - t0:.0f} s", flush=True)
@@ -683,6 +718,10 @@ def main(argv=None):
                    help="events per sample instead of the sample's total (the first jobs of its "
                         "seed list; a larger N later adds the rest)")
     p.add_argument("--list", action="store_true", help="print the pending jobs and exit")
+    p.add_argument("--sequential", action="store_true",
+                   help="run the samples one after the other in the given order (default: interleaved)")
+    p.add_argument("--stagger", type=float, default=0, metavar="S",
+                   help="start the first round of jobs S seconds apart")
     a = p.parse_args(argv)
     global OUT
     if a.out:
@@ -698,11 +737,11 @@ def main(argv=None):
     except (ValueError, AssertionError):
         sys.exit(f"oo_bias.py: --shard wants I/N with 0 <= I < N, got {a.shard}")
     if a.list:
-        for name, seed, ev, cmd in job_list(names, a.events, (i, n), a.limit):
+        for name, seed, ev, cmd in job_list(names, a.events, (i, n), a.limit, a.sequential):
             print(name, seed, ev, " ".join(cmd))
         return 0
     if a.step == "run":
-        return run(names, a.j, a.mps, a.omp, a.events, (i, n), a.limit)
+        return run(names, a.j, a.mps, a.omp, a.events, (i, n), a.limit, a.sequential, a.stagger)
     return analyse()
 
 

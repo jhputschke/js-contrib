@@ -17,7 +17,9 @@
 # --dev: mount this checkout's example/ over the image's (code newer than the image; pure
 #        Python changes only, the compiled core stays the image's).
 # Environment: IMAGE (jhputschke/xscape-prod:cu124-oo_rhic_run), GPUS ("0 1"), JOBS_PER_GPU (8),
-#              OMP_THREADS (3), MUSIC_CUDA_SYNC (block).
+#              OMP_THREADS (3), MUSIC_CUDA_SYNC (block), LBT_CACHE (host path of an LBT table cache
+#              file, e.g. ~/prod_test/lbt_cache/lbt_tables_v1.bin: mounted read-only, passed as
+#              LBT_TABLE_CACHE; unset: LBT parses its tables).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXAMPLE_HOST="$(cd "$HERE/../.." && pwd)"
@@ -37,7 +39,12 @@ mkdir -p "$OUTROOT"
 
 read -r -a gpus <<< "$GPUS"
 N=${#gpus[@]}
-common=(--user "$(id -u):$(id -g)" -e OMP_WAIT_POLICY=passive -e MUSIC_CUDA_SYNC="$SYNC"
+lbt=()
+if [ -n "${LBT_CACHE:-}" ]; then
+  [ -f "$LBT_CACHE" ] || { echo "LBT_CACHE: no file $LBT_CACHE" >&2; exit 2; }
+  lbt=(-v "$(dirname "$LBT_CACHE"):/work/lbt_cache:ro" -e LBT_TABLE_CACHE="/work/lbt_cache/$(basename "$LBT_CACHE")")
+fi
+common=(--user "$(id -u):$(id -g)" -e OMP_WAIT_POLICY=passive -e MUSIC_CUDA_SYNC="$SYNC" ${lbt[@]+"${lbt[@]}"}
         -v "$OUTROOT:$OUTROOT" ${dev[@]+"${dev[@]}"} -w "$EXAMPLE_IMG/analysis/OO-RHIC")
 args=(run "$@" --out "$OUTROOT" -j "$J" --mps --omp "$OMP")
 

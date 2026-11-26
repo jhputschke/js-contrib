@@ -71,7 +71,7 @@ On the Mac wheel, `xscape-selftest` checks the installation itself.
 |---|---|
 | `pythonic/` | the Pythonic interface (`import jetscape as js`): `oo_workflow.py`, its XML, notebooks |
 | `prod_AuAu_0_10/` | Au+Au 0–10 % hydro only: `run_prod.py`, `run_jobs.sh` |
-| `prod_AuAu_0_10_jet/` | Au+Au (and Pb+Pb, Z+jet) with a jet, two hydro legs per event: `run_prod_jet.py`, `run_jobs.sh`, `hadronize.py`, `run_hadronize.py`, `run_h5toROOT.py` |
+| `prod_AuAu_0_10_jet/` | Au+Au (and Pb+Pb, Z+jet) with a jet, two hydro legs per event: `run_prod_jet.py`, `run_jobs.sh`, `hadronize.py`, `run_hadronize.py`, `run_h5toROOT.py`; one leg without the medium response (hydro reused): `run_prod_jet_single.py`; the p+p reference: `run_prod_vacuum.py` |
 | `prod_OO_isr/` | O+O (and Ne+Ne) with initial-state radiation: `run_prod_oo_isr.py`, `run_jobs.sh` |
 | `analysis/`, `analysis_root/` | Python and ROOT/C++ analyses of the production files |
 | `python_modules/`, the scripts at the top | X-SCAPE modules written in Python; single features of the bindings |

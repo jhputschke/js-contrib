@@ -52,12 +52,61 @@ same initial condition, and before the first droplet deposits they are bit-ident
 | `run_prod_jet.py` | one job: one seed, N events, one `.h5` file |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
 | `run_prod_vacuum.py` | the pp (vacuum) reference: the user XML's PythiaGun (windows, cuts, trigger) and Matter in vacuum, no medium; Colorless `--n-frag` times per event → a `--hadrons-only`-style `jet_frag` file (eCMforHadronization from the PythiaGun's eCM) |
+| `run_prod_jet_single.py` | **one hydro leg**: the user XML's initial state and first MUSIC block (the background leg) as the medium, reused for `--reuse N` jets; Matter + LBT in it with recoils and holes; no liquefier, no jet leg, no iSS; Colorless in the job → a `jet_frag` file with the holes in `partons/` (pstat −1). For jet and hadron suppression without the medium's hydrodynamic response (JETSCAPE's recoil + hole picture). See [One hydro leg](#one-hydro-leg-run_prod_jet_singlepy) |
 | `hadronize.py` | offline: iSS on the stored surfaces, Colorless on the stored partons → hadron files |
 | `run_hadronize.py` | `hadronize.py` over a whole campaign, `-j P` at a time; `--follow` runs it alongside `run_jobs.sh` |
 | `add_initiators.py` | makes older particlize files (before 2026-10-01) self-contained: copies the shower initiators in from their pair files |
 | `paired_noise.py` | noise of jet − background per oversample, independent vs correlated legs (`--correlated`), and each leg's physics in both modes ([`PLAN_iSS_optim.md`](../../../../docs/Plans/PLAN_iSS_optim.md), Part B) |
 | `../config/hadronize.xml` | the iSS and jet-hadronization settings of every system (used by `hadronize.py`, `--hadrons-only`, `--validate-inline` and `run_prod_vacuum.py`; `eCMforHadronization` is always set to the job's collision energy) |
 | `jet_wake.ipynb` | one pair, from the energy density (§1–9) to hadrons (§10) |
+
+## One hydro leg (`run_prod_jet_single.py`)
+
+When the medium's response to the jet is not needed (inclusive jet and hadron R<sub>AA</sub> with
+recoils and holes, as in JETSCAPE's MATTER + LBT studies, arXiv:2204.01163), the second leg and
+the liquefier are wasted, and the medium does not depend on the jet, so one hydro event can serve
+many jets. `run_prod_jet_single.py` builds that job from any user XML with `<IS>`,
+`<Hard><PythiaGun>`, a `<Hydro><MUSIC>` block and `<Eloss>`:
+
+```
+IS (3dMCGlauber) -> Hard (PythiaGun; Pythia's ISR/MPI from its LinesToRead) -> MUSIC (once per --reuse jets)
+   -> Matter + LBT in MUSIC's medium (recoils, holes)          -> final partons
+   -> Colorless (run_prod_vacuum.py's code, in the job)          -> <stem>_hadrons_jet_frag.h5
+```
+
+- The first `<Hydro><MUSIC>` block is kept (MUSIC_1), every other `<Hydro>`, `<Liquefier>`,
+  `<JetHadronization>` and `<SoftParticlization>` is dropped; `AddLiquefier` false, Matter and
+  LBT `in_vac 0`, MUSIC keeps its evolution in memory and builds no freeze-out surface.
+- `--reuse N` sets `setReuseHydro`: event i uses hydro event i // N (and pTHat window i mod K), so
+  `--events` must be a multiple of both. Valid because the medium does not depend on the jet (not
+  so with iMATTER ISR, where the hard scattering takes its momentum from the strings: there use
+  `../prod_OO_isr/run_prod_oo_isr.py`).
+- `--xml-set PATH=VALUE` (repeatable) changes the user XML first, e.g.
+  `--xml-set Eloss/Matter/QhatParametrizationType=5`.
+- Output: the jet's hadrons per fragmentation (recoils included) with `units/` (pthat, window,
+  weight, leading partons), `initiators/`, and `partons/` with the holes (pstat −1) for the hole
+  subtraction; the summary `.json` records the reuse, the `--xml-set` lines and the holes per event.
+- The p+p reference is `run_prod_vacuum.py` with the same PythiaGun and hadronization XML.
+
+```bash
+# JETSCAPE's MATTER+LBT default (2204.01163, Type 3) on the RHIC-tune Au+Au 0-10 % medium
+python run_prod_jet_single.py --events 200 --seed 1 --reuse 10 \
+    --pthat-bins 5-7,7-9,9-11,11-14,14-18,18-23,23-30,30-40,40-55,55-80 --parton-ymax 1 --parton-y-mode any \
+    --hadronize-xml ../analysis/OO-RHIC/refs/hadronize_pp19_icdecays.xml --eta-max 1.5 \
+    --xml-set IS/MCGlauber/BG=5.0 --xml-set IS/MCGlauber/shadowing_factor=0.45 \
+    --xml-set IS/MCGlauber/ylossParam4At2=1.6 --xml-set IS/MCGlauber/ylossParam4At4=2.15 \
+    --xml-set IS/MCGlauber/ylossParam4At6=2.15 --xml-set IS/MCGlauber/ylossParam4At10=2.15 \
+    --xml-set IS/MCGlauber/ylossParam4var=0.45 --xml-set IS/grid_max_x=13 --xml-set IS/grid_max_y=13 \
+    --xml-set Eloss/Matter/vir_factor=0.25 --xml-set Eloss/Matter/QhatParametrizationType=5 \
+    --xml-set Eloss/Matter/alphas=0.3 --xml-set Eloss/Matter/qhatA=10 --xml-set Eloss/Matter/qhatB=100 \
+    --xml-set Eloss/Lbt/alphas=0.3 --outdir OUT
+python run_prod_jet_single.py --events 1 --seed 1 --dry-run      # check, print the plan
+```
+
+Status (2026-11-26): new; dry run checked (one MUSIC, no liquefier, reuse, the `--xml-set`
+values in the job XML), not yet run on a GPU. Things to confirm in the first run: one hydro per
+`--reuse` jets, holes in `partons/`, and whether Colorless writes negative (pstat −1) hadrons
+that an analysis must drop.
 
 Design notes and measurements are in [js-contrib `docs/`](../../../../docs/README.md): the hadron-level path
 ([`PLAN_particlize_h5.md`](../../../../docs/Plans/PLAN_particlize_h5.md)), faster iSS and correlated
