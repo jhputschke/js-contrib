@@ -58,12 +58,14 @@ YMAX = 1.0
 LEAD = 5.0
 
 
-def files(root, prefix):
-    out = []
-    for d in sorted(glob.glob(str(root / f"{prefix}_w*"))):
-        out += [f for f in sorted(glob.glob(f"{d}/*_hadrons_jet_frag.h5"))
-                if os.path.exists(f.replace("_hadrons_jet_frag.h5", ".json"))]
-    return out
+def files(root, prefix, pattern=None):
+    """Finished jobs' jet_frag files: <root>/<prefix>_w*/ (oo_bias.py samples) or a glob."""
+    if pattern:
+        cand = sorted(glob.glob(pattern))
+    else:
+        cand = [f for d in sorted(glob.glob(str(root / f"{prefix}_w*")))
+                for f in sorted(glob.glob(f"{d}/*_hadrons_jet_frag.h5"))]
+    return [f for f in cand if os.path.exists(f.replace("_hadrons_jet_frag.h5", ".json"))]
 
 
 def lead_ok(je, jeta, jphi, ev_c, pt_c, eta_c, phi_c, R):
@@ -93,28 +95,44 @@ def one_file(path):
         yl, ys = h["units/parton_y_lead"][:n], h["units/parton_y_sub"][:n]
         ycut = "parton_ymax" in h.attrs
         pa, ca, pid = B._units(h, n, charged=False, with_pid=True)
+        so, uo = h["hadrons/sample_offsets"][:], h["hadrons/unit_offsets"][: n + 1]
+        pst = (h["hadrons/pstat"][: int(so[uo[-1]])] if "hadrons/pstat" in h
+               else np.zeros(len(pa), int))
         neg = A.negative_partons(h, n)
     # the |y| < 1 "any" cut: already applied in the Au+Au jobs; applied here to p+p
     keep = np.ones(n, bool) if ycut else (np.abs(yl) < YMAX) | (np.abs(ys) < YMAX)
     ev = np.repeat(np.arange(n), ca)
     pt, eta, phi = A._kin(pa)
     ch = np.isin(np.abs(pid), B.charged_ids())
-    out = {}
+    # holes: iColored (B1/B2) drops them -> parton-level subtraction (holes + partner copies); X-SCAPE's
+    # Colorless (run_prod_jet_single.py) hadronizes them into hadrons with pstat -1 (E > 0) -> JETSCAPE's
+    # hadron-level subtraction: spectra positive - negative, jets of the positive hadrons minus the negative
+    # hadrons in the cone (charged ones for charged jets, exactly; visible ones for full jets)
+    hneg = pst == -1
+    hadron_holes = bool(hneg.any())
+    sgn = np.where(hneg, -1.0, 1.0)
+    pos = ~hneg
+    def neg_rows(sel):
+        return np.column_stack([ev[sel], pa[sel]]) if sel.any() else np.zeros((0, 5))
+    out = {"_hole_mode": np.array([[1.0 if hadron_holes else 0.0]] * n)}
     m = (np.abs(pid) == 211) & (np.abs(eta) < 0.35)
-    out["pion"] = A._hist(ev[m], pt[m], PI_EDGES, n) / 2.0
+    out["pion"] = A._hist(ev[m], pt[m], PI_EDGES, n, sgn[m]) / 2.0
     m = ch & (np.abs(eta) < 1.0)
-    out["had"] = A._hist(ev[m], pt[m], HAD_EDGES, n)
+    out["had"] = A._hist(ev[m], pt[m], HAD_EDGES, n, sgn[m])
     # STAR's acceptances: pi+- |y| < 0.5 (1110.0579), (h+ + h-)/2 |eta| < 0.5 (nucl-ex/0305015)
     E_, pz_ = pa[:, 0], pa[:, 3]
     y = 0.5 * np.log(np.clip(E_ + pz_, 1e-12, None) / np.clip(E_ - pz_, 1e-12, None))
     m = (np.abs(pid) == 211) & (np.abs(y) < 0.5)
-    out["pion_star"] = A._hist(ev[m], pt[m], STAR_PI_EDGES, n) / 2.0
+    out["pion_star"] = A._hist(ev[m], pt[m], STAR_PI_EDGES, n, sgn[m]) / 2.0
     m = ch & (np.abs(eta) < 0.5)
-    out["had_star"] = A._hist(ev[m], pt[m], STAR_H_EDGES, n) / 2.0
+    out["had_star"] = A._hist(ev[m], pt[m], STAR_H_EDGES, n, sgn[m]) / 2.0
     mc = ch & (pt > A.CONST_PTMIN) & (np.abs(eta) < 1.0)
+    mneg_c = mc & hneg
+    mc = mc & pos
     for R in (0.2, 0.3, 0.4):
         je, jpt, jeta, jphi, jx, jy = A._jets(pa[mc], ev[mc], n, R, None, ptmin=CHJ_EDGES[0] * 0.5, full=True)
-        jsub = A.subtract_negatives(je, jeta, jphi, jx, jy, neg, R, frac=A.CHARGED_FRAC)
+        jsub = (A.subtract_negatives(je, jeta, jphi, jx, jy, neg_rows(mneg_c), R) if hadron_holes
+                else A.subtract_negatives(je, jeta, jphi, jx, jy, neg, R, frac=A.CHARGED_FRAC))
         k = np.abs(jeta) < 1.0 - R
         out[f"chjet_R{R}"] = A._hist(je[k], jsub[k], CHJ_EDGES, n)
         out[f"chjet_R{R}_raw"] = A._hist(je[k], jpt[k], CHJ_EDGES, n)              # holes not subtracted
@@ -122,8 +140,11 @@ def one_file(path):
         out[f"chjet_R{R}_lead5"] = A._hist(je[k & lk], jsub[k & lk], CHJ_EDGES, n)
         out[f"chjet_R{R}_lead5_raw"] = A._hist(je[k & lk], jpt[k & lk], CHJ_EDGES, n)
     vis = ~np.isin(np.abs(pid), A.INVISIBLE) & (pt > A.CONST_PTMIN) & (np.abs(eta) < 1.0)
+    vneg = vis & hneg
+    vis = vis & pos
     je, jpt, jeta, jphi, jx, jy = A._jets(pa[vis], ev[vis], n, 0.4, None, ptmin=FJ_EDGES[0] * 0.5, full=True)
-    jsub = A.subtract_negatives(je, jeta, jphi, jx, jy, neg, 0.4)
+    jsub = (A.subtract_negatives(je, jeta, jphi, jx, jy, neg_rows(vneg), 0.4) if hadron_holes
+            else A.subtract_negatives(je, jeta, jphi, jx, jy, neg, 0.4))
     k = np.abs(jeta) < 0.5
     out["fjet_R0.4"] = A._hist(je[k], jsub[k], FJ_EDGES, n)
     out["fjet_R0.4_raw"] = A._hist(je[k], jpt[k], FJ_EDGES, n)                     # holes not subtracted
@@ -166,17 +187,27 @@ def collect(fs, j):
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--family", default="auau_med")
+    ap.add_argument("--family", default="auau_med",
+                    help="oo_bias.py sample prefix (<family>_w* in /data/AuAu-RHIC_phys), or the output tag with --auau-glob")
+    ap.add_argument("--auau-glob", default=None, dest="auau_glob",
+                    help="glob of Au+Au jet_frag files instead (e.g. run_prod_jet_single.py's output)")
+    ap.add_argument("--pp-glob", default=None, dest="pp_glob",
+                    help="glob of the p+p jet_frag files (default: pp_ref_w* in /data/OO-RHIC_phys)")
     ap.add_argument("-j", type=int, default=8)
     a = ap.parse_args(argv)
-    fa, fp = files(AUAU_ROOT, a.family), files(PP_ROOT, "pp_ref")
+    fa, fp = files(AUAU_ROOT, a.family, a.auau_glob), files(PP_ROOT, "pp_ref", a.pp_glob)
     if not fa:
         sys.exit(f"auau_raa.py: no finished {a.family} jobs in {AUAU_ROOT}")
     SA, na, _, wla, bulk = collect(fa, a.j)
     SP, npp, npk, wlp, _ = collect(fp, a.j)
     edges = {"pion": PI_EDGES, "had": HAD_EDGES, "fjet_R0.4": FJ_EDGES, "pion_star": STAR_PI_EDGES, "had_star": STAR_H_EDGES}
+    if not fp:
+        sys.exit("auau_raa.py: no p+p files")
+    hm_a, hm_p = SA.pop("_hole_mode"), SP.pop("_hole_mode")
     out = {"family": a.family, "auau_events": na, "auau_files": len(fa), "auau_windows": wla,
-           "pp_events": npp, "pp_events_in_cut": npk, "raa": {}}
+           "pp_events": npp, "pp_events_in_cut": npk, "auau_glob": a.auau_glob, "pp_glob": a.pp_glob,
+           "hole_subtraction": "hadron level (pstat -1 hadrons)" if hm_a[0].max() > 0 else
+                               "parton level (holes + partner copies; charged x 2/3)", "raa": {}}
     for k in SA:
         e = edges.get(k, CHJ_EDGES)
         a_, ea = SA[k]; p_, ep = SP[k]

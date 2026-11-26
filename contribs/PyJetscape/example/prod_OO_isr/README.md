@@ -654,6 +654,19 @@ python run_prod_oo_isr.py --events 20 --seed 1 --outdir out_nosub --bulk-hadrons
   not merged) changes iMATTER's sibling-pT and recoil kinematics; this branch runs iMATTER as
   it is on `contrib`.
 
+## Re-hadronizing the stored partons with Colorless (`rehadronize_colorless.py`)
+
+`rehadronize_colorless.py IN_hadrons_jet_frag.h5 --out OUT_hadrons_jet_frag.h5 [--hadronize-xml X]`
+hadronizes a job's stored final partons (`partons/`, needs `--store-partons`) again with
+ColorlessHadronization, offline on a CPU: the companion of `rehadronize_jets.py` (iColored from
+`hadronization_input/`). Same events and partons, the other hadronization. Status 1000 (PythiaIsrGun's
+hard partons and their Matter daughters, see below) is relabelled 0 first, and eCMforHadronization is
+the job's collision energy (problems 1 and 2 below), so Colorless takes every final parton; holes come
+out as pstat −1 hadrons for the hadron-level subtraction. The output keeps the source's event record,
+cross sections and parton cut. Used in `analysis/OO-RHIC` (Au+Au B1, 2026-11-26): on the same partons
+iColored gives about twice the high-p<sub>T</sub> hadrons of Colorless in the medium (and the same in
+vacuum), i.e. charged-jet R<sub>AA</sub> 0.51 → 0.23 (`auau_jet_raa.ipynb`, Figs. 6–7).
+
 ## Not working yet: Matter + LBT with ColorlessHadronization
 
 The Au+Au production's combination, Matter + LBT with ColorlessHadronization (here without
