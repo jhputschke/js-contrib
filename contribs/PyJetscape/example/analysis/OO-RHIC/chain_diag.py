@@ -12,6 +12,9 @@ Per sample and pTHat window, per event (|eta| < 1 where noted):
 - had_pt8 / had_pt12: charged hadrons (pstat >= 0, |eta| < 1) above 8 / 12 GeV; neg_pt8: hole hadrons
   (pstat -1, Colorless) above 8 GeV;
 - had_per_par = had_pt12 / par_pt15: high-p_T hadrons per high-p_T parton, the hadronization's yield.
+T1 (GB10, 2026-11-26): B1's Au+Au job with --matter-only (no LBT, no recoils, no holes, no closure), windows
+18-23 / 23-30 / 30-40 GeV, 500 events each, /data/AuAu-RHIC_phys/hadtests; T2 the same with --colour-closure
+thermal (GB10); T3 with --colour-closure fake (3090s, oo_bias.py hadtest_t3, /data/AuAu-RHIC_phys/auau_fake_w*).
 Parton counts compare only within one shower scheme: the A+A scheme (Matter in_vac 0) showers to QS
 0.9 GeV, pp_ref's vacuum scheme (in_vac 1) to Q0 2 GeV, PP19 to Q0 1 GeV.  Finished jobs only (.json).
 Model results, not vetted.
@@ -38,6 +41,13 @@ SAMPLES = {
     "B1 (our chain, Type 2, iColored)": f"{R}/auau_med_w*/*_hadrons_jet_frag.h5",
     "B1 rehadronized with Colorless": f"{R}/rehad_colorless/auau_med_w*/*_hadrons_jet_frag.h5",
     "B2 (our chain, Type 3, iColored)": f"{R}/auau_t3_w*/*_hadrons_jet_frag.h5",
+    "B2 rehadronized with Colorless": f"{R}/rehad_colorless/auau_t3_w*/*_hadrons_jet_frag.h5",
+    "T1 (our chain, MATTER only, iColored)": f"{R}/hadtests/auau_matteronly_w*/*_hadrons_jet_frag.h5",
+    "T1 rehadronized with Colorless": f"{R}/hadtests/rehad/auau_matteronly_w*/*_hadrons_jet_frag.h5",
+    "T2 (our chain, closure thermal, iColored)": f"{R}/hadtests/auau_thermal_w*/*_hadrons_jet_frag.h5",
+    "T2 rehadronized with Colorless": f"{R}/hadtests/rehad/auau_thermal_w*/*_hadrons_jet_frag.h5",
+    "T3 (our chain, closure fake, iColored)": f"{R}/auau_fake_w*/*_hadrons_jet_frag.h5",
+    "T3 rehadronized with Colorless": f"{R}/hadtests/rehad/auau_fake_w*/*_hadrons_jet_frag.h5",
     "run C (JETSCAPE chain, Type 3, Colorless)": f"{R}/js_chain_t3/*_hadrons_jet_frag.h5",
     "pp_ref (iColored, vacuum)": "/data/OO-RHIC_phys/pp_ref_w*/*_hadrons_jet_frag.h5",
     "pp_ref rehadronized with Colorless": f"{R}/rehad_colorless/pp_ref_w*/*_hadrons_jet_frag.h5",

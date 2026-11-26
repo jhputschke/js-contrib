@@ -430,6 +430,19 @@ GROUPS.update({"auau_b1": [f"auau_med_{w}" for w in _AUAU_ORDER],
                "auau_b2": [f"auau_t3_{w}" for w in _AUAU_ORDER]})
 QUENCHED |= {n for n in SAMPLES if n.startswith(("auau_med_", "auau_t3_"))}
 ALL_HADRONS |= {n for n in SAMPLES if n.startswith(("auau_med_", "auau_t3_"))}
+#: hadronization tests (2026-11-26, auau_jet_raa.ipynb "Where B1's under-quenching comes from"): B1's job with one
+#: change, B1's seeds, windows 18-23 / 23-30 / 30-40 GeV, 500 events each.  T1 (--matter-only) and T2
+#: (--colour-closure thermal) ran on the GB10 (~/prod/AuAu-RHIC_hadtests); T3 (--colour-closure fake) here.
+HADTEST_WINDOWS = [(18, 23), (23, 30), (30, 40)]
+for _k, ((_lo, _hi), _n) in enumerate(PHYS_WINDOWS.items()):
+    if (_lo, _hi) not in HADTEST_WINDOWS:
+        continue
+    _name = f"auau_fake_{_w(_lo, _hi)}"
+    SAMPLES[_name] = (500, AUAU_PER_JOB, [(_lo, _hi)], STORE + AUAU + ["--colour-closure", "fake"], True)
+    SEED_BASE[_name] = 920000 + 1000 * _k
+GROUPS["hadtest_t3"] = [f"auau_fake_{_w(lo, hi)}" for lo, hi in HADTEST_WINDOWS]
+QUENCHED |= {n for n in SAMPLES if n.startswith("auau_fake_")}
+ALL_HADRONS |= {n for n in SAMPLES if n.startswith("auau_fake_")}
 STAR_CLASSES = [(0, 10), (10, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 SPH_CLASSES = [(0, 20), (20, 40), (40, 60), (60, 80), (80, 100)]
 

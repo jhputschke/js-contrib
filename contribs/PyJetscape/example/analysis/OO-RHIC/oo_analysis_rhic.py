@@ -244,11 +244,23 @@ def _dphi(a, b):
     return np.abs((a - b + np.pi) % (2 * np.pi) - np.pi)
 
 
+#: re-hadronized samples (rehadronize_colorless.py): the root they were read from (--out) and the root of
+#: the original files (--est-root), whose centrality estimators and bulk are used, so that every event
+#: keeps its class and its h-h background whatever the jet hadronization
+EST_ROOT = None
+OUT_ROOT = None
+
+
 def file_obs(path):
-    """Per event of one jet_frag file (and its bulk_bg file): units, estimators and observables."""
+    """Per event of one jet_frag file (and its bulk_bg file): units, estimators and observables.  Holes:
+    iColored files carry none among the hadrons (subtracted at parton level, negative_partons);
+    Colorless files (rehadronize_colorless.py, run_prod_jet_single.py) carry them as pstat -1 hadrons,
+    subtracted at hadron level (JETSCAPE's): signed spectra and h-h counts, jets of the positive hadrons
+    minus the negative ones in the cone, triggers from the positive hadrons only."""
     import h5py
     import hdf5plugin  # noqa: F401
-    bf = path.replace("_hadrons_jet_frag.h5", "_hadrons_bulk_bg.h5")
+    orig = path if EST_ROOT is None else str(Path(EST_ROOT) / Path(path).relative_to(OUT_ROOT))
+    bf = orig.replace("_hadrons_jet_frag.h5", "_hadrons_bulk_bg.h5")
     with h5py.File(path) as h:
         n = int(h.attrs["nunits_written"])
         u = {k: h[f"units/{k}"][:n] for k in ("glauber_ncoll", "glauber_b", "pthat_bin", "has_medium", "seed", "pthat")}
@@ -256,6 +268,8 @@ def file_obs(path):
         nacc = np.asarray(h.attrs["pthat_bin_n_accepted"], float)
         bins = [tuple(map(float, w)) for w in np.asarray(h.attrs["pthat_bins"]).reshape(-1, 2)]
         pa, ca, pid = B._units(h, n, charged=False, with_pid=True)
+        so, uo = h["hadrons/sample_offsets"][:], h["hadrons/unit_offsets"][: n + 1]
+        pst = h["hadrons/pstat"][: int(so[uo[-1]])] if "hadrons/pstat" in h else np.zeros(len(pa), int)
         neg = negative_partons(h, n)
         hard = hard_partons(h, n)
     try:
@@ -266,10 +280,22 @@ def file_obs(path):
     ev_a = np.repeat(np.arange(n), ca)
     ev_b = np.repeat(np.arange(n), cb)
     ch = np.isin(np.abs(pid), B.charged_ids())
-    # estimators: bulk + the hard event's charged hadrons (as oo_bias.load)
+    hneg = pst == -1
+    hadron_holes = bool(hneg.any())
+    pos = ~hneg
+    sgn = np.where(hneg, -1.0, 1.0)
+    # estimators: bulk + the hard event's charged hadrons (as oo_bias.load); of the original file with EST_ROOT
     est = {k: v.astype(float) for k, v in B.counts_of(pb, cb).items()}
-    for k, v in B.counts_of(pa[ch], np.bincount(ev_a[ch], minlength=n)).items():
-        est[k] += v
+    if orig != path:
+        with h5py.File(orig) as h:
+            po_, co_, pido_ = B._units(h, n, charged=False, with_pid=True)
+        cho = np.isin(np.abs(pido_), B.charged_ids())
+        evo = np.repeat(np.arange(n), co_)
+        for k, v in B.counts_of(po_[cho], np.bincount(evo[cho], minlength=n)).items():
+            est[k] += v
+    else:
+        for k, v in B.counts_of(pa[ch & pos], np.bincount(ev_a[ch & pos], minlength=n)).items():
+            est[k] += v
     est["mbd"] = est["mbd_neg"] + est["mbd_pos"]
     pt, eta, phi = _kin(pa)
     vis = ~np.isin(np.abs(pid), INVISIBLE) & (pt > CONST_PTMIN)
@@ -279,11 +305,14 @@ def file_obs(path):
            "n_epd": est["epd"], "n_mbd": est["mbd"], "n_mid10": est["mid10"]}
     # inclusive charged hadrons
     m = ch & (np.abs(eta) < HAD_ETA)
-    out["had"] = _hist(ev_a[m], pt[m], HAD_EDGES, n)
-    # sPHENIX full jets, with the holes and partner copies in the cone subtracted at parton level
+    out["had"] = _hist(ev_a[m], pt[m], HAD_EDGES, n, sgn[m] if hadron_holes else None)
+    def neg_rows(sel):
+        return np.column_stack([ev_a[sel], pa[sel]]) if sel.any() else np.zeros((0, 5))
+    # sPHENIX full jets, with the holes and partner copies in the cone subtracted at parton level (iColored)
+    # or the hole hadrons at hadron level (Colorless)
     m = vis & (np.abs(eta) < SPH_ETA + SPH_R + 0.1)
-    je, jpt, jeta, jphi, jx, jy = _jets(pa[m], ev_a[m], n, SPH_R, None, ptmin=SPH_EDGES[0], full=True)
-    jpt_sub = subtract_negatives(je, jeta, jphi, jx, jy, neg, SPH_R)
+    je, jpt, jeta, jphi, jx, jy = _jets(pa[m & pos], ev_a[m & pos], n, SPH_R, None, ptmin=SPH_EDGES[0], full=True)
+    jpt_sub = subtract_negatives(je, jeta, jphi, jx, jy, neg_rows(m & hneg) if hadron_holes else neg, SPH_R)
     k = np.abs(jeta) < SPH_ETA
     out["sph_jet"] = _hist(je[k], jpt_sub[k], SPH_EDGES, n)
     out["sph_jet_raw"] = _hist(je[k], jpt[k], SPH_EDGES, n)
@@ -296,15 +325,17 @@ def file_obs(path):
     mc = ch & (pt > CONST_PTMIN) & (np.abs(eta) < TRIG_ETA)
     cjets = {}
     for R in CH_RS:
-        je, jpt, jeta, jphi, jx, jy = _jets(pa[mc], ev_a[mc], n, R, None, ptmin=CH_EDGES[0] * 0.5, full=True)
-        # the holes + partners subtracted with the charged fraction 2/3 (inclusive and recoil jets)
-        jpt_sub = subtract_negatives(je, jeta, jphi, jx, jy, neg, R, CHARGED_FRAC)
+        je, jpt, jeta, jphi, jx, jy = _jets(pa[mc & pos], ev_a[mc & pos], n, R, None, ptmin=CH_EDGES[0] * 0.5, full=True)
+        # the holes + partners subtracted with the charged fraction 2/3 (inclusive and recoil jets); with hole
+        # hadrons the charged ones, exactly
+        jpt_sub = (subtract_negatives(je, jeta, jphi, jx, jy, neg_rows(mc & hneg), R) if hadron_holes
+                   else subtract_negatives(je, jeta, jphi, jx, jy, neg, R, CHARGED_FRAC))
         cjets[R] = (je, jpt, jeta, jphi, jpt_sub)
         k = np.abs(jeta) < 1.0 - R
         out[f"ch_jet_R{R}"] = _hist(je[k], jpt_sub[k], CH_EDGES, n)
         out[f"ch_jet_R{R}_raw"] = _hist(je[k], jpt[k], CH_EDGES, n)
     # one random trigger per event (seeded per event: reproducible)
-    tm = ch & (pt > TRIG[0]) & (pt < TRIG[1]) & (np.abs(eta) < TRIG_ETA)
+    tm = ch & pos & (pt > TRIG[0]) & (pt < TRIG[1]) & (np.abs(eta) < TRIG_ETA)
     tphi = np.full(n, np.nan)
     tidx = np.flatnonzero(tm)
     if len(tidx):
@@ -328,14 +359,17 @@ def file_obs(path):
     a_eta = np.concatenate([eta, etab])
     a_phi = np.concatenate([phi, phib])
     a_ch = np.concatenate([ch, np.ones(len(pb), bool)])
+    a_sg = np.concatenate([sgn, np.ones(len(pb))])                    # hole hadrons count -1
     a_row = np.concatenate([np.arange(len(pa)), np.full(len(pb), -2)])
     am = a_ch & (a_pt > ASSOC[0]) & (a_pt < ASSOC[1]) & (np.abs(a_eta) < TRIG_ETA) & np.isfinite(tphi[a_ev]) \
         & (a_row != trig_row[a_ev])
     d = _dphi(a_phi[am], tphi[a_ev[am]])
     ev_am = a_ev[am]
-    out["hh_near"] = np.bincount(ev_am[d < NEAR], minlength=n).astype(float)
-    out["hh_recoil"] = np.bincount(ev_am[d > np.pi - RECOIL], minlength=n).astype(float)
-    out["hh_bg"] = np.bincount(ev_am[(d > BG[0]) & (d < BG[1])], minlength=n).astype(float)
+    sg_am = a_sg[am]
+    out["hh_near"] = np.bincount(ev_am[d < NEAR], weights=sg_am[d < NEAR], minlength=n).astype(float)
+    out["hh_recoil"] = np.bincount(ev_am[d > np.pi - RECOIL], weights=sg_am[d > np.pi - RECOIL], minlength=n).astype(float)
+    bgm = (d > BG[0]) & (d < BG[1])
+    out["hh_bg"] = np.bincount(ev_am[bgm], weights=sg_am[bgm], minlength=n).astype(float)
     # h+jet: recoil charged jets
     for R in CH_RS:
         je, jpt, jeta, jphi, jpt_sub = cjets[R]
@@ -734,13 +768,19 @@ def main(argv=None):
     ap.add_argument("--split-at", default="", help="extra pTHat split points, comma-separated (closure test of the "
                     "piecewise stitching; re-reads the files and writes no cache)")
     ap.add_argument("--json", default=str(HERE / "results" / "oo_analysis_rhic.json"))
+    ap.add_argument("--est-root", default=None, dest="est_root",
+                    help="re-hadronized samples under --out: take the centrality estimators and the bulk from "
+                         "the original files under this root (every event keeps its class)")
+    ap.add_argument("--tag", default="", help="suffix of the caches and of the default --json (e.g. colorless)")
     a = ap.parse_args(argv)
-    global SPLIT_AT, PHASE3_ONLY, WITH_3E
+    global SPLIT_AT, PHASE3_ONLY, WITH_3E, EST_ROOT, OUT_ROOT
+    EST_ROOT = a.est_root
+    OUT_ROOT = str(Path(a.out).resolve()) if a.est_root else None
     SPLIT_AT = tuple(float(x) for x in a.split_at.split(",") if x)
     PHASE3_ONLY = a.phase3
     WITH_3E = a.phase3 and a.with_3e
-    sfx = ("_phase3e" if WITH_3E else "_phase3") if a.phase3 else ""
-    if a.phase3 and a.json == str(HERE / "results" / "oo_analysis_rhic.json"):
+    sfx = (("_phase3e" if WITH_3E else "_phase3") if a.phase3 else "") + (f"_{a.tag}" if a.tag else "")
+    if (a.phase3 or a.tag) and a.json == str(HERE / "results" / "oo_analysis_rhic.json"):
         a.json = str(HERE / "results" / f"oo_analysis_rhic{sfx}.json")
     if SPLIT_AT:
         a.cached = False
