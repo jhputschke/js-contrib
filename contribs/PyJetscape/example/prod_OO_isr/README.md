@@ -665,7 +665,26 @@ the job's collision energy (problems 1 and 2 below), so Colorless takes every fi
 out as pstat −1 hadrons for the hadron-level subtraction. The output keeps the source's event record,
 cross sections and parton cut. Used in `analysis/OO-RHIC` (Au+Au B1, 2026-11-26): on the same partons
 iColored gives about twice the high-p<sub>T</sub> hadrons of Colorless in the medium (and the same in
-vacuum), i.e. charged-jet R<sub>AA</sub> 0.51 → 0.23 (`auau_jet_raa.ipynb`, Figs. 6–7).
+vacuum), i.e. charged-jet R<sub>AA</sub> 0.51 → 0.23 (`auau_jet_raa.ipynb`, Figs. 6–7). **Most of that is
+Colorless's close-pair shift** (ColorlessHadronization.cc, "Making collinear partons not collinear": every pair
+of partons closer than 4 Λ<sub>QCD</sub> gets ±0.8 GeV in p<sub>z</sub>, not energy-conserving; ≈ 2/3 of the
+hadronized energy in central Au+Au, < 1 % in vacuum). A switch `<JetHadronization><close_pair_shift>0` exists
+only as a patch (`analysis/OO-RHIC/refs/colorless_close_pair_shift.diff`, X-SCAPE 299fd3f, not in X-SCAPE);
+`auau_jet_raa.ipynb` Fig. 8.
+
+## Re-hadronizing the stored partons with iColored, without remnants (`rehadronize_icolored.py`)
+
+`rehadronize_icolored.py IN_hadrons_jet_frag.h5 --out OUT_hadrons_jet_frag.h5 --colour-closure fake|reconnect|...
+[--beam-ends none|sqrts6] [--colour-duplicates fail|relabel]` hadronizes stored final partons with our
+iColored through its stored-parton path (no beam remnants, no `hadronization_input/` needed: e.g. the files of
+`run_prod_jet_single.py` with Colorless, or PP19 from `run_prod_vacuum.py`), with the O+O production's iColored
+settings. Without remnants the hard partons' beam-side colour lines are open: by default the closure ends them on
+iColored's 1 GeV fake quarks, which makes ≈ 6 GeV strings and too hard a vacuum fragmentation;
+**`--beam-ends sqrts6` ends each on its own quark at p<sub>z</sub> = ±√s/6** (as Colorless and `colored`) first,
+leaving only the holes' lines to the closure (PP19 then agrees with PP19 Colorless within 5–10 %). Holes are
+dropped (parton-level subtraction in the analysis; partner copies are not stored). The per-event colour audit
+and the beam ends are stored in `units/`. Events Pythia cannot fragment are retried with 5 other seeds, then
+written without hadrons (`units/colour_failed`).
 
 ## Not working yet: Matter + LBT with ColorlessHadronization
 

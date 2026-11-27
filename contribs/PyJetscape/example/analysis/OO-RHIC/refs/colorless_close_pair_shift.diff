@@ -1,0 +1,64 @@
+diff --git a/config/jetscape_main.xml b/config/jetscape_main.xml
+index 77a58dbd..942c953f 100644
+--- a/config/jetscape_main.xml
++++ b/config/jetscape_main.xml
+@@ -888,6 +888,8 @@
+    <JetHadronization>
+        <name>colored/colorless/hybrid</name>
+        <take_recoil>1</take_recoil>
++       <!--colorless only: 1 = shift pz by 4 lambdaQCD for every pair of partons closer than that (as before), 0 = no shift-->
++       <close_pair_shift>1</close_pair_shift>
+        <!--use eCMforHadronization only for pp collisions to introduce beam partons-->
+        <!--recommended value for e+e- and AA = 0-->
+        <!--in all hadronization modules put the full eCM here, this is distributed to the beam partons (1/6 for each one)-->
+diff --git a/src/hadronization/ColorlessHadronization.cc b/src/hadronization/ColorlessHadronization.cc
+index 65d1a9c5..3007981b 100644
+--- a/src/hadronization/ColorlessHadronization.cc
++++ b/src/hadronization/ColorlessHadronization.cc
+@@ -122,6 +122,16 @@ void ColorlessHadronization::InitTask() {
+ 
+   Lambda_QCD = GetXMLElementDouble({"Eloss", "lambdaQCD"});
+ 
++  {
++    const std::string cps =
++        GetXMLElementText({"JetHadronization", "close_pair_shift"}, false);
++    close_pair_shift_ =
++        cps.find_first_not_of(" \t\n\r") == std::string::npos ||
++        std::stoi(cps) != 0;
++    JSINFO << "ColorlessHadronization: close-pair shift "
++           << (close_pair_shift_ ? "on" : "off (<close_pair_shift>0)");
++  }
++
+   reseed_per_event_ =
+       GetXMLElementInt({"JetHadronization", "reseed_per_event"}, false) == 1;
+   if (reseed_per_event_) {
+@@ -424,9 +434,11 @@ void ColorlessHadronization::DoHadronization(
+     // Making collinear partons not collinear
+     //
+     // Could have dangerous effects, yet to be tested....
++    // (<close_pair_shift>0</close_pair_shift> skips it)
+     //
+ 
+-    for (unsigned int ipart = 0; ipart < pIn.size(); ++ipart) {
++    for (unsigned int ipart = 0; close_pair_shift_ && ipart < pIn.size();
++         ++ipart) {
+       double px = pIn[ipart]->px();
+       double py = pIn[ipart]->py();
+       double pz = pIn[ipart]->pz();
+diff --git a/src/hadronization/ColorlessHadronization.h b/src/hadronization/ColorlessHadronization.h
+index d5175957..ac6a4ab1 100644
+--- a/src/hadronization/ColorlessHadronization.h
++++ b/src/hadronization/ColorlessHadronization.h
+@@ -53,6 +53,12 @@ class ColorlessHadronization
+   bool take_recoil;
+   double Lambda_QCD;
+ 
++  // <JetHadronization><close_pair_shift> 1 (default): the 'Making collinear
++  // partons not collinear' loop of DoHadronization shifts pz by 4 Lambda_QCD
++  // for every pair of partons closer than that in 3-momentum (not energy
++  // conserving). 0: no shift.
++  bool close_pair_shift_ = true;
++
+   // <JetHadronization><reseed_per_event> 1: every event draws a seed from the
+   // module's generator and reseeds with it, so each event can be reproduced
+   // on its own (GetLastRandomSeed). 0 (default): Pythia runs on unbroken.
