@@ -44,12 +44,13 @@ _spec.loader.exec_module(rp)                 # also puts PyJetscape/python on sy
 #: event-record columns carried over (when the source has them)
 UNIT_KEYS = ("pthat", "pthat_bin", "event_weight", "parton_pt_lead", "parton_pt_sub", "parton_y_lead",
              "parton_y_sub", "glauber_b", "glauber_ncoll", "glauber_npart", "has_medium", "tau0_music",
-             "sigma_gen", "sigma_err")
+             "sigma_gen", "sigma_err", "hydro_event", "hydro_ran", "reuse_index")
 #: file attributes carried over
 ATTR_KEYS = ("pthat_bins", "pthat_bin_sigma_gen", "pthat_bin_sigma_err", "pthat_bin_n_accepted",
              "pthat_bin_sigma_gen_raw", "pthat_bin_sigma_err_raw", "pthat_bin_acceptance", "pthat_bin_n_tried",
              "pthat_bin_n_kept", "pthat_bin_seeds", "parton_ymax", "parton_y_mode", "prod_user_xml",
-             "prod_hard", "system", "eloss", "prod_seed", "subtract_hard_momentum", "hard_pair_string_veto")
+             "prod_hard", "system", "eloss", "prod_seed", "subtract_hard_momentum", "hard_pair_string_veto",
+             "reuse")
 
 
 def parse_args(argv=None):

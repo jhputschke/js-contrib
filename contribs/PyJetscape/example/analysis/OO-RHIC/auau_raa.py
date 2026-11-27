@@ -99,6 +99,14 @@ def one_file(path):
         pst = (h["hadrons/pstat"][: int(so[uo[-1]])] if "hadrons/pstat" in h
                else np.zeros(len(pa), int))
         neg = A.negative_partons(h, n)
+        # the medium an event's jet ran in: with hydro reuse (run_prod_jet_single.py --reuse, attribute reuse;
+        # run_prod_oo_isr.py --reuse, units/hydro_event) events share a medium, so they are one error group
+        if "units/hydro_event" in h:
+            grp = h["units/hydro_event"][:n].astype(np.int64)
+        elif int(h.attrs.get("reuse", 1)) > 1:
+            grp = np.arange(n) // int(h.attrs["reuse"])
+        else:
+            grp = np.arange(n)
     # the |y| < 1 "any" cut: already applied in the Au+Au jobs; applied here to p+p
     keep = np.ones(n, bool) if ycut else (np.abs(yl) < YMAX) | (np.abs(ys) < YMAX)
     # fragmentation oversamples (--n-frag): every sample is hadronized from the same partons, so each is
@@ -184,7 +192,7 @@ def one_file(path):
         for nm, code in (("pi", 211), ("K", 321), ("p", 2212)):
             s = mid & (np.abs(pidb) == code)
             bulk[f"{nm}_n"] = float(s.sum()); bulk[f"{nm}_pt"] = float(ptb[s].sum())
-    return bins, sig, nacc, win, pthat, keep, out, bulk
+    return bins, sig, nacc, win, pthat, keep, out, bulk, grp
 
 
 def collect(fs, j):
@@ -192,11 +200,12 @@ def collect(fs, j):
         res = list(ex.map(one_file, fs))
     wl = sorted({w for r in res for w in r[0]})
     sig_n, nacc = np.zeros(len(wl)), np.zeros(len(wl))
-    win, pth, keep, H, bulk = [], [], [], {}, []
-    for bins, sig, na, w, p, kp, o, bk in res:
+    win, pth, keep, H, bulk, grp = [], [], [], {}, [], []
+    for fi, (bins, sig, na, w, p, kp, o, bk, gr) in enumerate(res):
         g = np.array([wl.index(x) for x in bins])
         sig_n[g] += sig * na; nacc[g] += na
         win.append(g[w]); pth.append(p); keep.append(kp)
+        grp.append(np.stack([np.full(len(gr), fi), gr], 1))
         for k, v in o.items():
             H.setdefault(k, []).append(v)
         if bk:
@@ -204,7 +213,17 @@ def collect(fs, j):
     win, pth, keep = np.concatenate(win), np.concatenate(pth), np.concatenate(keep)
     w, *_ = A.stitch_pieces(wl, win, pth, sig_n / np.maximum(nacc, 1))
     w = w * keep
-    spec = {k: ((w[:, None] * np.concatenate(v)).sum(0), np.sqrt(((w[:, None] * np.concatenate(v)) ** 2).sum(0)))
+    # errors: the weighted contributions summed per error group (an event, or the events sharing one reused
+    # medium), then added in quadrature over the groups; one event per group = the per-event formula
+    _, gidx = np.unique(np.concatenate(grp), axis=0, return_inverse=True)
+    gidx = gidx.ravel()
+    ng = int(gidx.max()) + 1 if len(gidx) else 0
+    def _err(x):
+        if ng == len(x):
+            return np.sqrt((x ** 2).sum(0))                  # one event per group: as before
+        g = np.zeros((ng, x.shape[1])); np.add.at(g, gidx, x)
+        return np.sqrt((g ** 2).sum(0))
+    spec = {k: ((w[:, None] * np.concatenate(v)).sum(0), _err(w[:, None] * np.concatenate(v)))
             for k, v in H.items()}
     return spec, len(win), int(keep.sum()), wl, bulk
 
