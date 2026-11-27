@@ -59,6 +59,9 @@ def parse_args(argv=None):
     p.add_argument("--hadronize-xml", default=os.path.join(os.path.dirname(HERE), "config", "hadronize.xml"),
                    dest="hadronize_xml", help="its <JetHadronization> (name colorless)")
     p.add_argument("--seed", type=int, default=1, help="base seed of the fragmentation (default 1)")
+    p.add_argument("--n-frag", type=int, default=1, dest="n_frag",
+                   help="fragmentations per event (oversamples of the same partons; default 1). Sample 0 has "
+                        "the seed of a 1-sample run; analyses average the samples per event")
     p.add_argument("--build", default=rp.BUILD)
     p.add_argument("--main-xml", default=rp.MAIN_XML, dest="main_xml")
     p.add_argument("--workdir", default=None, help="scratch directory (default: next to --out)")
@@ -118,9 +121,9 @@ def main(argv=None) -> int:
         h = hz.Hadronizer(core, colorless=colorless, base_seed=a.seed, prod=key)
         meta = {**attrs, "source": os.path.basename(src), "rehadronized_from": src, "hadronization": "colorless",
                 "hadronize_xml": had_text, "base_seed": a.seed, "seed_scheme": "production_file",
-                "hadrons_only": True, "legs": ["jet"], "music_input": "", "x_had": "none",
+                "hadrons_only": True, "legs": ["jet"], "music_input": "", "x_had": "none", "n_frag": a.n_frag,
                 **hz.tag_attrs("jet_frag", core, {})}
-        h.open("jet_frag", out, n_samples=1, attrs=meta, keep_bits={"p": None, "x": None},
+        h.open("jet_frag", out, n_samples=a.n_frag, attrs=meta, keep_bits={"p": None, "x": None},
                eta_max=None, charged_only=False, positions=False, initiators=ini is not None, partons=True)
         n_neg = n_pos = 0
         try:
@@ -132,16 +135,19 @@ def main(argv=None) -> int:
                 p_i[p_i[:, 2] == 1000, 2] = 0
                 ini_i = ini[io[i]: io[i + 1]] if ini is not None else None
                 sc = {k: (v[i].item() if hasattr(v[i], "item") else v[i]) for k, v in units.items()}
-                frags = h.fragments(i, p_i, [h.seed("jet_frag", i, 0)], initiators=ini_i, **sc)
-                ps = np.asarray(frags[0]["pstat"]) if len(frags[0]["pid"]) else np.zeros(0)
-                n_neg += int((ps == -1).sum()); n_pos += int((ps != -1).sum())
+                frags = h.fragments(i, p_i, [h.seed("jet_frag", i, k) for k in range(a.n_frag)],
+                                    initiators=ini_i, **sc)
+                for fr in frags:
+                    ps = np.asarray(fr["pstat"]) if len(fr["pid"]) else np.zeros(0)
+                    n_neg += int((ps == -1).sum()); n_pos += int((ps != -1).sum())
             h.set_attrs({"nevents": n, "complete_job": True})
         finally:
             h.close(complete=True)
     finally:
         os.chdir(cwd)
     print(f"rehadronize_colorless.py: {os.path.basename(src)} -> {out}: {n} events, "
-          f"{n_pos / max(n, 1):.1f} hadrons and {n_neg / max(n, 1):.1f} hole hadrons (pstat -1) per event")
+          f"{n_pos / max(n * a.n_frag, 1):.1f} hadrons and {n_neg / max(n * a.n_frag, 1):.1f} hole hadrons (pstat -1) "
+          f"per event and fragmentation, {a.n_frag} fragmentation(s)")
     return 0
 
 

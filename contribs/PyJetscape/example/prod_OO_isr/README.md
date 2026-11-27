@@ -686,6 +686,16 @@ dropped (parton-level subtraction in the analysis; partner copies are not stored
 and the beam ends are stored in `units/`. Events Pythia cannot fragment are retried with 5 other seeds, then
 written without hadrons (`units/colour_failed`).
 
+**Oversampling (`--n-frag N`, all three re-hadronization tools).** `rehadronize_colorless.py`,
+`rehadronize_icolored.py` and `rehadronize_jets.py` write N fragmentations of the same input per event
+(samples of one unit). Sample 0 has the seed of a 1-sample run and reproduces it exactly; the others
+have seeds derived from it. `rehadronize_jets.py` (iColored with the job's real remnants, from
+`hadronization_input/`) now also copies the source's `units/` event record, cross-section attributes and
+`partons/` (the holes), so its output is read by `analysis/OO-RHIC/auau_raa.py` like a job's file (B2 at
+one fragmentation reproduces the job's R_AA bit for bit). `auau_raa.py` analyses every sample as a
+sub-event (jets clustered per sample, the event's holes and partners subtracted in each) and averages the
+samples per event (weight 1/N), so errors stay per event.
+
 ## Not working yet: Matter + LBT with ColorlessHadronization
 
 The Au+Au production's combination, Matter + LBT with ColorlessHadronization (here without

@@ -101,6 +101,20 @@ def one_file(path):
         neg = A.negative_partons(h, n)
     # the |y| < 1 "any" cut: already applied in the Au+Au jobs; applied here to p+p
     keep = np.ones(n, bool) if ycut else (np.abs(yl) < YMAX) | (np.abs(ys) < YMAX)
+    # fragmentation oversamples (--n-frag): every sample is hadronized from the same partons, so each is
+    # analysed as a sub-event (jets clustered per sample, the event's holes and partners subtracted in
+    # each) and the samples of an event are averaged with weight 1/N_samples into the event's row: the
+    # errors stay per event (AGENTS.md rule 4).  One sample per event: ns = n, identical to before.
+    nsu = np.diff(uo).astype(int)                       # samples per unit
+    ns = int(uo[n])                                     # samples in the file (first n units)
+    unit_of = np.repeat(np.arange(n), nsu)              # unit of each sample
+    ca = np.diff(so[: ns + 1]).astype(int)              # particles per sample
+    if len(neg) and ns != n:                            # copy each unit's negatives to all its samples
+        u = neg[:, 0].astype(int); reps = nsu[u]
+        neg = np.repeat(neg, reps, axis=0)
+        k_in = np.arange(len(neg)) - np.repeat(np.cumsum(reps) - reps, reps)
+        neg[:, 0] = uo[np.repeat(u, reps)] + k_in
+    n_units, n = n, ns                                  # below, "events" are samples
     ev = np.repeat(np.arange(n), ca)
     pt, eta, phi = A._kin(pa)
     ch = np.isin(np.abs(pid), B.charged_ids())
@@ -148,6 +162,16 @@ def one_file(path):
     k = np.abs(jeta) < 0.5
     out["fjet_R0.4"] = A._hist(je[k], jsub[k], FJ_EDGES, n)
     out["fjet_R0.4_raw"] = A._hist(je[k], jpt[k], FJ_EDGES, n)                     # holes not subtracted
+    if ns != n_units:                                   # samples -> events, weight 1/N_samples
+        wsamp = 1.0 / nsu[unit_of]
+        for key, v in out.items():
+            if key == "_hole_mode":
+                out[key] = v[:n_units]
+                continue
+            r = np.zeros((n_units, v.shape[1]))
+            np.add.at(r, unit_of, v * wsamp[:, None])
+            out[key] = r
+    n = n_units
     # bulk at mid-rapidity (Au+Au only): charged dN/deta |eta| < 0.5, <pT> of pi, K, p (|y| < 0.5 ~ |eta|)
     bulk = None
     if ycut and os.path.exists(bf):

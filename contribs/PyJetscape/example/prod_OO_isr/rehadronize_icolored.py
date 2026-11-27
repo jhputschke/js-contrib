@@ -105,6 +105,10 @@ def parse_args(argv=None):
                         "--colour-closure.  Recorded in units/beam_ends, units/beam_end_energy, units/open_tags_before. "
                         "partons/ stores the original partons (without the beam ends)")
     p.add_argument("--seed", type=int, default=1, help="base seed of the fragmentation (default 1)")
+    p.add_argument("--n-frag", type=int, default=1, dest="n_frag",
+                   help="fragmentations per event (oversamples of the same partons; default 1). Sample 0 has the "
+                        "seeds of a 1-sample run (identical result); sample j uses seed indices 100 j + retry. The "
+                        "colour audit is sample 0's; analyses average the samples per event")
     p.add_argument("--build", default=rp.BUILD)
     p.add_argument("--main-xml", default=rp.MAIN_XML, dest="main_xml")
     p.add_argument("--workdir", default=None, help="scratch directory (default: next to --out)")
@@ -195,9 +199,9 @@ def main(argv=None) -> int:
         h = hz.Hadronizer(core, colorless=icolored, base_seed=a.seed, prod=key)   # hadronize_partons dispatches
         meta = {**attrs, "source": os.path.basename(src), "rehadronized_from": src, "hadronization": "icolored", "colour_closure": a.closure, "beam_ends": a.beam_ends,
                 "hadronize_xml": had_text, "base_seed": a.seed, "seed_scheme": "production_file",
-                "hadrons_only": True, "legs": ["jet"], "music_input": "", "x_had": "none",
+                "hadrons_only": True, "legs": ["jet"], "music_input": "", "x_had": "none", "n_frag": a.n_frag,
                 **hz.tag_attrs("jet_frag", core, {})}
-        h.open("jet_frag", out, n_samples=1, attrs=meta, keep_bits={"p": None, "x": None},
+        h.open("jet_frag", out, n_samples=a.n_frag, attrs=meta, keep_bits={"p": None, "x": None},
                eta_max=None, charged_only=False, positions=False, initiators=ini is not None, partons=True)
         n_neg = n_pos = 0
         audits = []
@@ -221,22 +225,27 @@ def main(argv=None) -> int:
                     p_had = p_i
                 w = h.writers["jet_frag"]
                 kw = {"partons": p_i} if getattr(w, "_par", None) is not None else {}   # partons/: the originals
-                failed = 0
-                for k in range(MAX_RESEED + 1):
-                    seed = int(h.seed("jet_frag", i, k))
-                    try:
-                        frags = [core.hadronize_partons(icolored, p_had, seed) if len(p_had) else hz._empty_hadrons()]
-                        break
-                    except RuntimeError as err:
-                        print(f"rehadronize_icolored.py: unit {i}, seed {k}: {err}", file=sys.stderr)
-                        if "Pythia could not hadronize" not in str(err):
-                            raise
-                        if k == MAX_RESEED:
-                            failed = 1
-                            frags = [hz._empty_hadrons()]
+                frags, seed, k0, failed, aud = [], None, 0, 0, {}
+                for j in range(a.n_frag):
+                    f_j, fail_j = None, 0
+                    for k in range(MAX_RESEED + 1):
+                        seed_k = int(h.seed("jet_frag", i, 100 * j + k))
+                        try:
+                            f_j = core.hadronize_partons(icolored, p_had, seed_k) if len(p_had) else hz._empty_hadrons()
+                            break
+                        except RuntimeError as err:
+                            print(f"rehadronize_icolored.py: unit {i}, sample {j}, seed {k}: {err}", file=sys.stderr)
+                            if "Pythia could not hadronize" not in str(err):
+                                raise
+                            if k == MAX_RESEED:
+                                fail_j = 1
+                                f_j = hz._empty_hadrons()
+                    if j == 0:                     # sample 0: the seed, retries and colour audit of the event
+                        seed, k0, failed = seed_k, k, fail_j
+                        aud = {} if fail_j else dict(core.jet_hadronization_colour_audit(icolored))
+                    frags.append(f_j)
                 w.append_unit(frags, ini_i, **kw, unit=i, event=i, seed=seed, n_partons=len(p_i), **sc)
-                aud = {} if failed else dict(core.jet_hadronization_colour_audit(icolored))
-                aud["reseeded"] = k
+                aud["reseeded"] = k0
                 aud["failed"] = failed
                 audits.append([float(aud.get(k_, 0)) for k_ in AUDIT_KEYS])
                 ps = np.asarray(frags[0]["pstat"]) if len(frags[0]["pid"]) else np.zeros(0)

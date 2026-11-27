@@ -22,9 +22,12 @@ settings (the jet_frag file's jet_hadronization_xml).
 file written at full precision without a selection (no --keep-bits, --eta-max, --charged);
 it compares pid, pstat and p of every event and exits 1 on a difference.
 
-Output (--out): a jet_frag file (jetscape.hadrons_h5) with one sample per event, the seeds
-in units/seed, the source file's initiators/ and hadronization_input/, and the settings used
-(decays, pythia_version, rehadronized_from).  Positions are zero, as in the job: hadron
+Output (--out): a jet_frag file (jetscape.hadrons_h5) with --n-frag samples per event (default
+one), the seeds in units/seed (sample 0's), the source file's initiators/, hadronization_input/,
+partons/ (the holes, for the analyses' subtraction), event record (units/: pthat, window,
+weights, the hard partons' rapidities, Glauber values) and cross-section attributes, and the
+settings used (decays, pythia_version, rehadronized_from, n_frag).  Sample 0 has the stored seed
+(or --new-seeds'), so it is the 1-sample result; samples 1.. have seeds derived from it.  Positions are zero, as in the job: hadron
 positions are a later step (PLAN_smash_ready_hadrons.md 2.2-2.3).
 """
 
@@ -62,6 +65,9 @@ def parse_args(argv=None):
                    help="add a Pythia setting to the job's <JetHadronization><LinesToRead>, "
                         "e.g. 'StringFlav:probStoUD = 0.25' (repeatable; a later setting of "
                         "the same parameter wins, as in Pythia)")
+    p.add_argument("--n-frag", type=int, default=1, dest="n_frag",
+                   help="fragmentations per event (oversamples of the same input; default 1). Sample 0 "
+                        "uses the stored (or --new-seeds) seed; analyses average the samples per event")
     p.add_argument("--events", default=None, help="unit range a:b (default all)")
     p.add_argument("--build", default=rp.BUILD,
                    help="X-SCAPE build tree (default: $JETSCAPE_BUILD, else build_gpu)")
@@ -78,6 +84,25 @@ def new_seed(base, unit):
     """Independent, reproducible 31-bit seed per (base, unit)."""
     s = np.random.SeedSequence([int(base), 2, int(unit)])
     return int(s.generate_state(1, dtype=np.uint32)[0] & 0x7FFFFFFF) or 1
+
+
+def sample_seed(seed0, k):
+    """Seed of oversample k of an event whose sample 0 has seed0 (k = 0: seed0 itself)."""
+    if k == 0:
+        return int(seed0)
+    s = np.random.SeedSequence([int(seed0), 3, int(k)])
+    return int(s.generate_state(1, dtype=np.uint32)[0] & 0x7FFFFFFF) or 1
+
+
+#: event-record columns carried over from the source (when present), as rehadronize_colorless.py
+UNIT_KEYS = ("pthat", "pthat_bin", "event_weight", "parton_pt_lead", "parton_pt_sub", "parton_y_lead",
+             "parton_y_sub", "glauber_b", "glauber_ncoll", "glauber_npart", "has_medium", "tau0_music",
+             "sigma_gen", "sigma_err")
+#: file attributes carried over (the analyses' window weights and parton cut)
+ATTR_KEYS = ("pthat_bins", "pthat_bin_sigma_gen", "pthat_bin_sigma_err", "pthat_bin_n_accepted",
+             "pthat_bin_sigma_gen_raw", "pthat_bin_sigma_err_raw", "pthat_bin_acceptance", "pthat_bin_n_tried",
+             "pthat_bin_n_kept", "pthat_bin_seeds", "parton_ymax", "parton_y_mode", "prod_user_xml",
+             "prod_hard", "system", "eloss", "prod_seed", "subtract_hard_momentum", "hard_pair_string_veto")
 
 
 def user_xml(jet_hadronization_xml, decays, lines=()):
@@ -114,9 +139,11 @@ def main(argv=None):
         setattr(a, k, os.path.abspath(getattr(a, k)))
     if not a.check and not a.out:
         sys.exit("rehadronize_jets.py: nothing to do: pass --check and/or --out")
-    if a.check and (a.decays is not None or a.new_seeds is not None or a.lines):
+    if a.check and (a.decays is not None or a.new_seeds is not None or a.lines or a.n_frag != 1):
         sys.exit("rehadronize_jets.py: --check replays the job: not with --decays / "
-                 "--new-seeds / --line")
+                 "--new-seeds / --line / --n-frag")
+    if a.n_frag < 1:
+        sys.exit("rehadronize_jets.py: --n-frag must be >= 1")
 
     from jetscape import pyjetscape_core as core
     from jetscape.hadrons_h5 import (HadronFile, HadronH5Writer, hadron_precision,
@@ -180,11 +207,12 @@ def main(argv=None):
         module.Init()
         if out:
             writer = HadronH5Writer(
-                out, tag="jet_frag", n_samples=1, initiators=hf.has_initiators,
-                hadronization_input=True,
+                out, tag="jet_frag", n_samples=a.n_frag, initiators=hf.has_initiators,
+                hadronization_input=True, partons=hf.has_partons,
                 attrs={**{k: v for k, v in hf.attrs.items()
                           if k in ("prod", "prod_seed", "system", "prod_hard", "eos",
-                                   "subtract_hard_momentum", "source", "prod_user_xml")},
+                                   "subtract_hard_momentum", "source", "prod_user_xml") + ATTR_KEYS},
+                       "n_frag": a.n_frag,
                        "module": "iColoredHadronization (rehadronize_jets.py)",
                        "rehadronized_from": os.path.basename(a.jet_frag),
                        "jet_hadronization_xml": ET.tostring(
@@ -198,8 +226,9 @@ def main(argv=None):
             unit = int(hf.units["unit"][u]) if "unit" in hf.units else u
             inp = hf.hadronization_input(unit)
             seed = (int(seeds[u]) if a.new_seeds is None else new_seed(a.new_seeds, unit))
-            d = core.hadronize_input(module, inp["pid"], inp["col"], inp["acol"], inp["p"],
-                                     inp["mass"], seed)
+            frags = [core.hadronize_input(module, inp["pid"], inp["col"], inp["acol"], inp["p"],
+                                          inp["mass"], sample_seed(seed, k)) for k in range(a.n_frag)]
+            d = frags[0]
             if a.check:
                 old = hf.sample_event(unit, 0)
                 same = (np.array_equal(old["pid"], d["pid"])
@@ -212,9 +241,12 @@ def main(argv=None):
             else:
                 print(f"  unit {unit}: {len(d['pid'])} hadrons, seed {seed}", flush=True)
             if writer is not None:
-                writer.append_unit([d], initiators=hf.initiators(unit), hadronization_input=inp,
+                sc = {k: (hf.units[k][u].item() if hasattr(hf.units[k][u], "item") else hf.units[k][u])
+                      for k in UNIT_KEYS if k in hf.units}
+                kw = {"partons": hf.partons(unit)} if hf.has_partons else {}
+                writer.append_unit(frags, initiators=hf.initiators(unit), hadronization_input=inp,
                                    unit=unit, event=int(hf.units.get("event", units)[u]),
-                                   seed=seed)
+                                   seed=seed, **kw, **sc)
         jetscape.Finish()
         finished = True
     finally:
