@@ -30,6 +30,18 @@ taken as safe from ~6 GeV on.
 Also the bulk (iSS) at mid-rapidity, 0-10 %: charged dN/deta |eta| < 0.5 and <pT> of pi, K, p.
 Errors: "err" per error group (events sharing a reused hydro are one group: units/hydro_event, else
 unit // reuse), "err_event" per event; equal without hydro reuse.
+Stitching rule (optional, --min-entries N; off by default, then every window enters every bin): as
+oo_analysis_rhic.py's MIN_ENTRIES, a window enters a bin only where the p+p reference has at least N
+events with entries there (--min-entries-on both: Au+Au and p+p, oo_analysis_rhic.py's choice), the
+same windows in numerator and denominator; it acts on the rule groups (the widest window containing
+an event's piece, so pp_ref's narrow 3e windows go with their wide window).  Counting the Au+Au
+entries biases R_AA upward: a strongly suppressed window has few Au+Au entries because of the
+suppression itself and is dropped (Colorless with the shift, run C: 0.214 -> 0.248), hence p+p by
+default.  Reported per bin: the share of each sample's yield left out (dropped_share_auau/_pp,
+flag_dropped above DROP_FLAG) and R_AA without the rule (raa_norule): in Au+Au the low windows can
+carry tens of percent of a hadron bin, so the rule is a diagnostic here, not a correction.
+Per bin also the effective number of events n_eff = (sum w)^2 / sum w^2 (neff_auau, neff_pp): where
+it is small (below ~20), a few events from the low windows carry the bin and its error is unreliable.
 Model results, not vetted.
 """
 from __future__ import annotations
@@ -213,24 +225,50 @@ def collect(fs, j):
         if bk:
             bulk.append(bk)
     win, pth, keep = np.concatenate(win), np.concatenate(pth), np.concatenate(keep)
-    w, *_ = A.stitch_pieces(wl, win, pth, sig_n / np.maximum(nacc, 1))
+    # gwin: the event's rule group, the widest window containing its piece (index into wl; = its own
+    # window without overlaps), the unit of the minimum-entries rule (as oo_analysis_rhic.py)
+    w, _, _, gwin, _, _ = A.stitch_pieces(wl, win, pth, sig_n / np.maximum(nacc, 1))
     w = w * keep
     # errors: the weighted contributions summed per error group (an event, or the events sharing one reused
     # medium), then added in quadrature over the groups; one event per group = the per-event formula
     _, gidx = np.unique(np.concatenate(grp), axis=0, return_inverse=True)
     gidx = gidx.ravel()
-    ng = int(gidx.max()) + 1 if len(gidx) else 0
-    def _err(x):
-        if ng == len(x):
-            return np.sqrt((x ** 2).sum(0))                  # one event per group: as before
-        g = np.zeros((ng, x.shape[1])); np.add.at(g, gidx, x)
-        return np.sqrt((g ** 2).sum(0))
-    # (sum, error per error group, error per event): with hydro reuse both are reported (err, err_event)
-    spec = {}
-    for k, v in H.items():
-        x = w[:, None] * np.concatenate(v)
-        spec[k] = (x.sum(0), _err(x), np.sqrt((x ** 2).sum(0)))
-    return spec, len(win), int(keep.sum()), wl, bulk
+    raw = {"w": w, "keep": keep, "gwin": np.asarray(gwin, int), "wl": wl, "gidx": gidx,
+           "ng": int(gidx.max()) + 1 if len(gidx) else 0, "rows": {k: np.concatenate(v) for k, v in H.items()}}
+    return raw, len(win), int(keep.sum()), wl, bulk
+
+
+def entries(raw, key):
+    """Raw entries per rule group (window edges -> per bin): the events (in the cut) with a non-zero
+    entry in the bin.  With fragmentation oversampling an event counts once (its samples are not
+    independent)."""
+    nz = (raw["rows"][key] != 0) & raw["keep"][:, None]
+    N = np.zeros((len(raw["wl"]), nz.shape[1]))
+    np.add.at(N, raw["gwin"], nz)
+    return {raw["wl"][g]: N[g] for g in np.unique(raw["gwin"])}
+
+
+def window_use(na, np_, nmin, on="pp"):
+    """The stitching rule (oo_analysis_rhic.py's, per rule group): a group enters a bin where the p+p
+    sample (on="both": also the Au+Au sample) has at least nmin raw entries there; a group missing in
+    either is left out of both (numerator and denominator use the same windows)."""
+    def ok(e):
+        return (np_[e] >= nmin) & ((na[e] >= nmin) if on == "both" else True)
+    return {e: ok(e) if e in na and e in np_ else np.zeros(len(v), bool) for e, v in {**na, **np_}.items()}
+
+
+def spectrum(raw, key, use=None):
+    """(sum, error per error group, error per event) of the weighted rows; with use, only the rule
+    groups and bins it allows."""
+    x = raw["w"][:, None] * raw["rows"][key]
+    if use is not None:
+        m = np.array([use.get(e, np.zeros(x.shape[1], bool)) for e in raw["wl"]], float)
+        x = x * m[raw["gwin"]]
+    ev = np.sqrt((x ** 2).sum(0))
+    if raw["ng"] == len(x):
+        return x.sum(0), ev, ev                              # one event per group: as before
+    g = np.zeros((raw["ng"], x.shape[1])); np.add.at(g, raw["gidx"], x)
+    return x.sum(0), np.sqrt((g ** 2).sum(0)), ev
 
 
 def main(argv=None):
@@ -242,47 +280,65 @@ def main(argv=None):
     ap.add_argument("--pp-glob", default=None, dest="pp_glob",
                     help="glob of the p+p jet_frag files (default: pp_ref_w* in /data/OO-RHIC_phys)")
     ap.add_argument("-j", type=int, default=8)
+    ap.add_argument("--min-entries", type=int, default=0, dest="min_entries",
+                    help="stitching rule (oo_analysis_rhic.py's MIN_ENTRIES): a window (rule group) enters a bin "
+                         "only where Au+Au and p+p both have at least this many events with entries there; "
+                         "0 = off (every window in every bin, as before). Output results/auau_raa_<family>_min<N>[both].json")
+    ap.add_argument("--min-entries-on", choices=("pp", "both"), default="pp", dest="min_on",
+                    help="which samples' entries the rule counts: the p+p reference (default; counting the "
+                         "suppressed Au+Au entries biases R_AA upward) or both (oo_analysis_rhic.py's choice)")
     a = ap.parse_args(argv)
     fa, fp = files(AUAU_ROOT, a.family, a.auau_glob), files(PP_ROOT, "pp_ref", a.pp_glob)
     if not fa:
         sys.exit(f"auau_raa.py: no finished {a.family} jobs in {AUAU_ROOT}")
-    SA, na, _, wla, bulk = collect(fa, a.j)
-    SP, npp, npk, wlp, _ = collect(fp, a.j)
-    edges = {"pion": PI_EDGES, "had": HAD_EDGES, "fjet_R0.4": FJ_EDGES, "pion_star": STAR_PI_EDGES, "had_star": STAR_H_EDGES}
+    RA, na, _, wla, bulk = collect(fa, a.j)
     if not fp:
         sys.exit("auau_raa.py: no p+p files")
-    hm_a, hm_p = SA.pop("_hole_mode"), SP.pop("_hole_mode")
+    RP, npp, npk, wlp, _ = collect(fp, a.j)
+    edges = {"pion": PI_EDGES, "had": HAD_EDGES, "fjet_R0.4": FJ_EDGES, "pion_star": STAR_PI_EDGES, "had_star": STAR_H_EDGES}
+    hole_hadrons = RA["rows"]["_hole_mode"].max() > 0
     out = {"family": a.family, "auau_events": na, "auau_files": len(fa), "auau_windows": wla,
            "pp_events": npp, "pp_events_in_cut": npk, "auau_glob": a.auau_glob, "pp_glob": a.pp_glob,
-           "hole_subtraction": "hadron level (pstat -1 hadrons)" if hm_a[0].max() > 0 else
-                               "parton level (holes + partner copies; charged x 2/3)", "raa": {}}
-    for k in SA:
-        e = edges.get(k, CHJ_EDGES)
-        a_, ea, ea_ev = SA[k]; p_, ep, ep_ev = SP[k]
+           "hole_subtraction": "hadron level (pstat -1 hadrons)" if hole_hadrons else
+                               "parton level (holes + partner copies; charged x 2/3)",
+           "min_entries": a.min_entries, "min_entries_on": a.min_on if a.min_entries > 0 else None, "raa": {}}
+    # STAR's R_AA^Pythia (2006.00582 Sec. X B): the leading-track cut on the Au+Au jets only, "No p_T,lead
+    # cut is imposed on this reference jet population" -> Au+Au (lead > 5) / p+p (no lead cut)
+    pairs = [(k, k, k) for k in RA["rows"] if k != "_hole_mode"]
+    pairs += [(f"chjet_R{R}_star{sfx}", f"chjet_R{R}_lead5{sfx}", f"chjet_R{R}{sfx}")
+              for R in (0.2, 0.3, 0.4) for sfx in ("", "_raw")]
+    for name, ka, kp in pairs:
+        e = edges.get(ka, CHJ_EDGES)
+        use = window_use(entries(RA, ka), entries(RP, kp), a.min_entries, a.min_on) if a.min_entries > 0 else None
+        a_, ea, ea_ev = spectrum(RA, ka, use); p_, ep, ep_ev = spectrum(RP, kp, use)
         r = np.divide(a_, p_, out=np.full_like(a_, np.nan), where=p_ > 0)
         er, er_ev = (r * np.sqrt(np.divide(x, a_, out=np.zeros_like(a_), where=a_ > 0) ** 2
                                  + np.divide(y, p_, out=np.zeros_like(p_), where=p_ > 0) ** 2)
                      for x, y in ((ea, ep), (ea_ev, ep_ev)))
-        out["raa"][k] = {"edges": e.tolist(), "raa": r.tolist(), "err": er.tolist(), "err_event": er_ev.tolist(),
-                         "auau": a_.tolist(), "pp": p_.tolist()}
-    # STAR's R_AA^Pythia (2006.00582 Sec. X B): the leading-track cut on the Au+Au jets only, "No p_T,lead
-    # cut is imposed on this reference jet population" -> Au+Au (lead > 5) / p+p (no lead cut)
-    for R in (0.2, 0.3, 0.4):
-        for sfx in ("", "_raw"):
-            a_, ea, ea_ev = SA[f"chjet_R{R}_lead5{sfx}"]; p_, ep, ep_ev = SP[f"chjet_R{R}{sfx}"]
-            r = np.divide(a_, p_, out=np.full_like(a_, np.nan), where=p_ > 0)
-            er, er_ev = (r * np.sqrt(np.divide(x, a_, out=np.zeros_like(a_), where=a_ > 0) ** 2
-                                     + np.divide(y, p_, out=np.zeros_like(p_), where=p_ > 0) ** 2)
-                         for x, y in ((ea, ep), (ea_ev, ep_ev)))
-            out["raa"][f"chjet_R{R}_star{sfx}"] = {"edges": CHJ_EDGES.tolist(), "raa": r.tolist(), "err": er.tolist(),
-                                                   "err_event": er_ev.tolist(), "auau": a_.tolist(), "pp": p_.tolist()}
+        res = {"edges": e.tolist(), "raa": r.tolist(), "err": er.tolist(), "err_event": er_ev.tolist(),
+               "auau": a_.tolist(), "pp": p_.tolist()}
+        # effective number of events per bin, (sum w)^2 / sum w^2: few events with large weights (a low
+        # window's rare entries) give a small n_eff, and there the error from the squared weights is unreliable
+        for tag, s_, e_ in (("auau", a_, ea_ev), ("pp", p_, ep_ev)):
+            res[f"neff_{tag}"] = np.round(np.divide(s_ ** 2, e_ ** 2, out=np.zeros_like(s_), where=e_ > 0), 1).tolist()
+        if use is not None:      # diagnostics: the share of each sample's yield in the windows left out
+            tots = {}
+            for tag, R_, k_, s_ in (("auau", RA, ka, a_), ("pp", RP, kp, p_)):
+                tot = tots[tag] = spectrum(R_, k_)[0]
+                res[f"dropped_share_{tag}"] = np.round(np.divide(tot - s_, tot, out=np.zeros_like(tot),
+                                                                 where=tot != 0), 4).tolist()
+            res["flag_dropped"] = [max(x, y) > A.DROP_FLAG for x, y in
+                                   zip(res["dropped_share_auau"], res["dropped_share_pp"])]
+            res["raa_norule"] = np.divide(tots["auau"], tots["pp"], out=np.full_like(a_, np.nan),
+                                          where=tots["pp"] > 0).tolist()
+        out["raa"][name] = res
     if bulk:
         nev = sum(b["n_ev"] for b in bulk)
         out["bulk_0_10"] = {"events": nev, "dnch_deta_mid": sum(b["nch_mid"] for b in bulk) / nev,
                             **{f"mean_pt_{nm}": sum(b[f"{nm}_pt"] for b in bulk) / max(sum(b[f"{nm}_n"] for b in bulk), 1)
                                for nm in ("pi", "K", "p")}}
     (HERE / "results").mkdir(exist_ok=True)
-    fn = HERE / "results" / f"auau_raa_{a.family}.json"
+    fn = HERE / "results" / (f"auau_raa_{a.family}.json" if a.min_entries <= 0 else f"auau_raa_{a.family}_min{a.min_entries}{'both' if a.min_on == 'both' else ''}.json")
     fn.write_text(json.dumps(out, indent=1))
     print(f"{a.family}: {na} Au+Au events ({len(fa)} files, windows {wla}); pp_ref {npp} events ({npk} in |y| < {YMAX:g}) -> {fn}")
     for k, v in out["raa"].items():
