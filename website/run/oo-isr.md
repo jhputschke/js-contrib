@@ -162,6 +162,31 @@ python run_prod_oo_isr.py --vacuum --events 20 --seed 1 --pthat-bins 10-20,20-40
   5–7 GeV), the same as `runJetscape` on the job's XML. Set `OMP_NUM_THREADS=1` and
   `--eloss-threads 0` and run one job per core; no GPU is used.
 
+## Au+Au with the same chain
+
+The O+O chain runs Au+Au too, with one MUSIC run per event and no hydro reuse, so jets and
+the medium come from the same nucleon–nucleon collisions as in O+O: ISR, strings, iColored with
+the real beam remnants. Use it to test an O+O setting (energy loss, hadronization) against Au+Au
+data. Add to the O+O command:
+
+```bash
+python run_prod_oo_isr.py --user-xml ../config/OO_MCGlauber_MUSIC_isr_rhictune.xml \
+    --events 50 --seed 1 --pthat-bins 23-30 --b-min 0 --b-max 4.7 \
+    --xml-set=IS/MCGlauber/projectile=Au --xml-set=IS/MCGlauber/target=Au \
+    --xml-set=IS/MCGlauber/nucleon_configuration_from_file=0 \
+    --xml-set=IS/grid_max_x=13 --xml-set=IS/grid_max_y=13 \
+    --parton-ymax 1.0 --parton-y-mode any \
+    --no-particlize --no-hydro-file --eta-max 5.2 \
+    --store-partons --store-hadronization-input --outdir OUT
+```
+
+- `--b-max 4.7` is 0–10 % of the Au+Au cross section (geometric); the generated nucleon
+  positions replace O+O's from file, and MUSIC's grid is ±13 fm.
+- `--store-partons --store-hadronization-input` keep the holes and the hadronization input, for
+  the hole subtraction and for re-hadronizing the same partons later.
+- An Au+Au event is much heavier than an O+O one: about 3,000 events/h on 2 × RTX 3090
+  (10 jobs per GPU), against O+O's 13,700.
+
 ## Settings
 
 | option | default | |

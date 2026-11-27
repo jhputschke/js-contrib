@@ -376,6 +376,45 @@ On a cluster, the sizing per GPU type and a 12,000-event SLURM example are in
     image made them. Run the whole campaign on GPUs: MUSIC's CPU path differs systematically
     (~0.2 % in multiplicity).
 
+## One hydro leg with reuse (`run_prod_jet_single.py`)
+
+When the medium's response to the jet is not needed (inclusive jet and hadron R<sub>AA</sub> with
+recoils and holes, as in JETSCAPE's MATTER + LBT studies,
+[arXiv:2204.01163](https://arxiv.org/abs/2204.01163)), the second hydro leg and the liquefier
+are not needed, and the medium does not depend on the jet, so one hydro event serves many jets.
+`run_prod_jet_single.py` builds that job from the same user XML:
+
+```text
+IS (3dMCGlauber) -> Hard (PythiaGun) -> MUSIC (once per --reuse jets)
+   -> Matter + LBT in MUSIC's medium (recoils, holes)   -> final partons
+   -> Colorless, in the job                             -> <stem>_hadrons_jet_frag.h5
+```
+
+- `--reuse N`: event i uses hydro event i // N. With `--pthat-bins`, event i is in window
+  i mod K, so N must be a multiple of the number of windows K, and `--events` of N.
+- `--xml-set PATH=VALUE` (repeatable) changes the user XML first, e.g. the energy-loss setting.
+- Output: the jet's hadrons (recoils included), `partons/` with the holes (pstat −1) for the
+  hole subtraction, and the event record in `units/`; no hydro or particlize files. The summary
+  `.json` records the reuse and the holes per event.
+- The p+p reference is `run_prod_vacuum.py` with the same PythiaGun and hadronization XML.
+- Rate: about 23,000 events/h of 0–10 % Au+Au with `--reuse 20` on the GB10 (6 jobs, MPS).
+
+```bash
+# JETSCAPE's MATTER + LBT Type 3 setting (arXiv:2204.01163) in a 0-10 % Au+Au medium
+python run_prod_jet_single.py --events 200 --seed 1 --reuse 20 \
+    --pthat-bins 5-7,7-9,9-11,11-14,14-18,18-23,23-30,30-40,40-55,55-80 \
+    --parton-ymax 1 --parton-y-mode any --eta-max 1.5 \
+    --xml-set Eloss/Matter/QhatParametrizationType=5 --xml-set Eloss/Matter/alphas=0.3 \
+    --xml-set Eloss/Matter/qhatA=10 --xml-set Eloss/Matter/qhatB=100 --xml-set Eloss/Lbt/alphas=0.3 \
+    --outdir OUT
+python run_prod_jet_single.py --events 1 --seed 1 --dry-run     # check the XML, print the plan
+```
+
+Campaigns go through `run_jobs.sh` as above, with
+`PROD_SCRIPT=$PWD/run_prod_jet_single.py TAG_PREFIX=single_jet_seed`. The driver's options and
+details are in the folder's
+[README](https://github.com/jhputschke/js-contrib/blob/main/contribs/PyJetscape/example/prod_AuAu_0_10_jet/README.md#one-hydro-leg-run_prod_jet_singlepy).
+
 ## After the campaign
 
 - **Watch and check it:** `utils/jobmon.py OUTDIR --watch`, and the deposition check

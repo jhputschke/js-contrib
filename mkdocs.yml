@@ -191,8 +191,8 @@ plugins:
           - install/source.md: building X-SCAPE contrib with js-contrib in the js_fno conda environment
         Run:
           - run/index.md: what a production is, the drivers and run_jobs.sh, seeds and campaigns
-          - run/auau-jet.md: the main production, Au+Au 0-10 % with a jet in two hydro legs; run_prod_jet.py, run_jobs.sh, hadronize.py
-          - run/oo-isr.md: O+O at 200 GeV with initial-state radiation; run_prod_oo_isr.py
+          - run/auau-jet.md: the main production, Au+Au 0-10 % with a jet in two hydro legs; run_prod_jet.py, run_jobs.sh, hadronize.py; one hydro leg with reuse, run_prod_jet_single.py
+          - run/oo-isr.md: O+O at 200 GeV with initial-state radiation; run_prod_oo_isr.py; Au+Au with the same chain
           - run/zjet-other.md: Z+jet, Pb+Pb and other systems by changing the user XML
           - run/extra-hard.md: extra hard scatterings per event, O+O and Ne+Ne, minimum bias
           - run/clusters.md: jobs per GPU, SLURM, several GPUs, jobmon, checking a run, troubleshooting
