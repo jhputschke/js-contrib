@@ -57,7 +57,10 @@ _PY = None
 def charged_ids():
     global CHARGED
     if CHARGED is None:
-        import pythia8
+        try:
+            import pythia8
+        except ImportError:  # the analysis environment's PyPI wheel (pythia8mc)
+            import pythia8mc as pythia8
         p = pythia8.Pythia("", False)
         ids = [i for i in range(1, 6000) if p.particleData.isParticle(i)
                and p.particleData.charge(i) != 0 and p.particleData.isHadron(i)] + [11, 13]
@@ -68,7 +71,10 @@ def charged_ids():
 def pythia():
     global _PY
     if _PY is None:
-        import pythia8
+        try:
+            import pythia8
+        except ImportError:  # the analysis environment's PyPI wheel (pythia8mc)
+            import pythia8mc as pythia8
         _PY = pythia8.Pythia("", False)
         for s in ("ProcessLevel:all = off", "PartonLevel:FSR=off", "HadronLevel:Decay = on",
                   "ParticleDecays:limitTau0 = on", "ParticleDecays:tau0Max = 10.0", "Print:quiet = on"):

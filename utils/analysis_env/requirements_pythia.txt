@@ -1,0 +1,6 @@
+# Pythia 8 for the analysis venv (setup_analysis_env.sh installs it by default; --no-pythia skips it).
+# The official PyPI wheel imports as `pythia8mc`; analysis/OO-RHIC's colorless_emul.py,
+# icolored_diag.py and diag_strings.py fall back to it when there is no `pythia8` module.
+# Pinned to the production image's Pythia (8.312). NOT for the production image: X-SCAPE's own
+# Pythia lives in the same prefix (share/Pythia8), which this wheel would overwrite.
+pythia8mc==8.312.1

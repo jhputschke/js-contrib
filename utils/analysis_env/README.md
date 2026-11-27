@@ -28,6 +28,7 @@ tested on an M3 Max, 2026-10-29).
 | `setup_analysis_env.sh` | makes or updates the venv, gets MUSIC's EoS tables (EOS 9 and 91), runs `check_env.py` |
 | `requirements.txt` | HDF5 readers, uproot, the analysis notebooks (fastjet, vector, particle, hist, mplhep), Jupyter, pelicanfs for the OSDF |
 | `requirements_viz.txt` | pyvista (+ vtk), imageio, imageio-ffmpeg for `contribs/Visualization`, installed by default (`--no-viz` skips it) |
+| `requirements_pythia.txt` | Pythia 8 as the PyPI wheel `pythia8mc` (8.312, the image's version), for quick Pythia studies and `analysis/OO-RHIC`'s string diagnostics; installed by default as a separate, wheels-only step that never stops the setup: skipped with a note where there is no wheel (wheels: Linux x86_64 Python 3.9–3.13, Apple-silicon macOS ≥ 13 Python 3.9–3.12) and where a `pythia8` module already exists (the Mac wheel's environment, a JETSCAPE build); `--no-pythia` skips it. Not for the production image, whose own Pythia shares the prefix |
 | `requirements_pelican.txt` | Pelican/OSDF (pelicanfs) alone, for the production image (the venv has it from `requirements.txt`), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
 | `requirements_gcs.txt` | optional: Google Cloud Storage (gcsfs, google-cloud-storage), see [Remote files](#remote-files-google-cloud-storage-and-pelicanosdf) |
 | `check_env.py` | checks the packages, the Blosc filter, PyROOT, the EoS tables and off-screen rendering; with a directory, opens its pair, hadron and ROOT files |
@@ -65,6 +66,7 @@ evolve a live event. The ROOT macros and the C++ reader in
 | `--uv` | make the venv and install with [uv](https://docs.astral.sh/uv/), much faster |
 | `--system-site-packages` | let the venv see the packages of the Python it is made from, e.g. PyROOT of a conda env with ROOT ([With ROOT](#with-root)). On an existing venv, it switches this on. |
 | `--no-viz` | skip `requirements_viz.txt` (pyvista/vtk/ffmpeg: ~0.6 GB of the ~1.6 GB) |
+| `--no-pythia` | skip `requirements_pythia.txt` (Pythia 8, `pythia8mc`) |
 | `--with-fasthydro` | also install [FastHydro](../../contribs/FastHydro/README.md) (`jetscape-fasthydro`), for FastHydro's own files and readers (`fast_data`, `fasthydro.browse`). **Not needed for the `prod_AuAu_0_10_jet` files**; the visualization falls back to `jetscape.showers` without it. The FastHydro solver also needs `pip install torch`. |
 | `--with-gcs` | also install the Google Cloud Storage interfaces, `requirements_gcs.txt`: gcsfs (`gs://` URLs for fsspec, h5py and uproot) and Google's `google-cloud-storage` client |
 | `--no-pelican` | ignored: pelicanfs (`osdf://` and `pelican://` URLs for fsspec, h5py and uproot) is in `requirements.txt` since 2026-11 |

@@ -115,7 +115,10 @@ TUNE_COUPLING = ["PDF:pSet = 20", "SigmaProcess:alphaSvalue = 0.153",
 
 def pythia(cr, n=3000, window=(9, 11), coupling=TUNE_COUPLING):
     """coupling: the tune's PDF and alpha_s (as the X-SCAPE runs), or [] for Pythia's defaults."""
-    import pythia8
+    try:
+        import pythia8
+    except ImportError:  # the analysis environment's PyPI wheel (pythia8mc)
+        import pythia8mc as pythia8
     py = pythia8.Pythia("", False)
     for s in ["Beams:eCM = 200", "HardQCD:all = on", f"PhaseSpace:pTHatMin = {window[0]}",
               f"PhaseSpace:pTHatMax = {window[1]}", *coupling,

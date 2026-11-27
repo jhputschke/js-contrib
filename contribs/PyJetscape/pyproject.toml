@@ -59,6 +59,9 @@ analysis = [
     "pelicanfs>=1.0",
     "aiowebdav2<1",
 ]
+# Pythia 8 for the analysis venv (utils/analysis_env/requirements_pythia.txt; not for the production
+# image, whose X-SCAPE Pythia shares the prefix)
+pythia = ["pythia8mc==8.312.1"]
 
 [project.scripts]
 # a writable copy of example/ (the installed or image tree is read-only)

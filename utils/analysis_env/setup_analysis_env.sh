@@ -13,6 +13,7 @@
 #                        from, e.g. PyROOT of a conda env with ROOT (run from that env, so
 #                        python3 is its Python). run_h5toROOT.py then writes with ROOT.
 #   --no-viz             skip pyvista/vtk (requirements_viz.txt)
+#   --no-pythia          skip Pythia 8 (requirements_pythia.txt: the pythia8mc wheel)
 #   --with-fasthydro     also install FastHydro (jetscape-fasthydro), for FastHydro's own
 #                        files and readers (fast_data, fasthydro.browse); not needed for the
 #                        prod_AuAu_0_10_jet files. The solver also needs `pip install torch`.
@@ -45,6 +46,7 @@ PY=python3
 USE_UV=0
 SYSSITE=0
 VIZ=1
+PYTHIA=1
 FASTHYDRO=0
 GCS=0
 PELICAN=1
@@ -62,6 +64,7 @@ while [ $# -gt 0 ]; do
         --uv)              USE_UV=1; shift ;;
         --system-site-packages) SYSSITE=1; shift ;;
         --no-viz)          VIZ=0; shift ;;
+        --no-pythia)       PYTHIA=0; shift ;;
         --with-fasthydro)  FASTHYDRO=1; shift ;;
         --with-gcs)        GCS=1; shift ;;
         --no-pelican)      echo "note: --no-pelican is ignored: pelicanfs is in requirements.txt" >&2; shift ;;
@@ -123,6 +126,21 @@ EXTRA=""
 [ "$PELICAN" = 1 ] && { REQS+=(-r "$HERE/requirements_pelican.txt"); EXTRA+=" + Pelican/OSDF"; }
 echo "==> installing the analysis packages$EXTRA"
 pip_install "${REQS[@]}"
+
+# Pythia 8 (requirements_pythia.txt): its own step, wheels only and never fatal. pythia8mc
+# 8.312.1 has wheels for Linux x86_64 (Python 3.9-3.13) and Apple-silicon macOS >= 13
+# (3.9-3.12); elsewhere it is skipped with a note instead of compiling from source. Skipped as
+# well where a pythia8 module is already there (the Mac wheel's environment, a JETSCAPE or
+# X-SCAPE build with --system-site-packages): two Pythias in one prefix share share/Pythia8.
+if [ "$PYTHIA" = 1 ]; then
+    if "$VPY" -c "import pythia8" 2>/dev/null; then
+        echo "==> Pythia 8: a pythia8 module is already in this environment; not installing pythia8mc"
+    else
+        echo "==> installing Pythia 8 (pythia8mc)"
+        pip_install --only-binary pythia8mc -r "$HERE/requirements_pythia.txt" \
+            || echo "setup_analysis_env: note: no pythia8mc wheel for this platform/Python; Pythia 8 skipped (--no-pythia silences this)" >&2
+    fi
+fi
 
 # PyJetscape's Python package (jetscape.*: the HDF5 readers), editable from this checkout.
 # Its dependencies are all in requirements.txt, so the heavy pyproject list is not pulled.
