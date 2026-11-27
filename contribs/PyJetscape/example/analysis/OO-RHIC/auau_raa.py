@@ -28,6 +28,8 @@ Every jet spectrum also without the subtraction (key suffix _raw), to show its s
 observables are not hole-subtracted (negative_hadrons.py); the holes and partners are soft, so this is
 taken as safe from ~6 GeV on.
 Also the bulk (iSS) at mid-rapidity, 0-10 %: charged dN/deta |eta| < 0.5 and <pT> of pi, K, p.
+Errors: "err" per error group (events sharing a reused hydro are one group: units/hydro_event, else
+unit // reuse), "err_event" per event; equal without hydro reuse.
 Model results, not vetted.
 """
 from __future__ import annotations
@@ -223,8 +225,11 @@ def collect(fs, j):
             return np.sqrt((x ** 2).sum(0))                  # one event per group: as before
         g = np.zeros((ng, x.shape[1])); np.add.at(g, gidx, x)
         return np.sqrt((g ** 2).sum(0))
-    spec = {k: ((w[:, None] * np.concatenate(v)).sum(0), _err(w[:, None] * np.concatenate(v)))
-            for k, v in H.items()}
+    # (sum, error per error group, error per event): with hydro reuse both are reported (err, err_event)
+    spec = {}
+    for k, v in H.items():
+        x = w[:, None] * np.concatenate(v)
+        spec[k] = (x.sum(0), _err(x), np.sqrt((x ** 2).sum(0)))
     return spec, len(win), int(keep.sum()), wl, bulk
 
 
@@ -253,22 +258,24 @@ def main(argv=None):
                                "parton level (holes + partner copies; charged x 2/3)", "raa": {}}
     for k in SA:
         e = edges.get(k, CHJ_EDGES)
-        a_, ea = SA[k]; p_, ep = SP[k]
+        a_, ea, ea_ev = SA[k]; p_, ep, ep_ev = SP[k]
         r = np.divide(a_, p_, out=np.full_like(a_, np.nan), where=p_ > 0)
-        er = r * np.sqrt(np.divide(ea, a_, out=np.zeros_like(a_), where=a_ > 0) ** 2
-                         + np.divide(ep, p_, out=np.zeros_like(p_), where=p_ > 0) ** 2)
-        out["raa"][k] = {"edges": e.tolist(), "raa": r.tolist(), "err": er.tolist(),
+        er, er_ev = (r * np.sqrt(np.divide(x, a_, out=np.zeros_like(a_), where=a_ > 0) ** 2
+                                 + np.divide(y, p_, out=np.zeros_like(p_), where=p_ > 0) ** 2)
+                     for x, y in ((ea, ep), (ea_ev, ep_ev)))
+        out["raa"][k] = {"edges": e.tolist(), "raa": r.tolist(), "err": er.tolist(), "err_event": er_ev.tolist(),
                          "auau": a_.tolist(), "pp": p_.tolist()}
     # STAR's R_AA^Pythia (2006.00582 Sec. X B): the leading-track cut on the Au+Au jets only, "No p_T,lead
     # cut is imposed on this reference jet population" -> Au+Au (lead > 5) / p+p (no lead cut)
     for R in (0.2, 0.3, 0.4):
         for sfx in ("", "_raw"):
-            a_, ea = SA[f"chjet_R{R}_lead5{sfx}"]; p_, ep = SP[f"chjet_R{R}{sfx}"]
+            a_, ea, ea_ev = SA[f"chjet_R{R}_lead5{sfx}"]; p_, ep, ep_ev = SP[f"chjet_R{R}{sfx}"]
             r = np.divide(a_, p_, out=np.full_like(a_, np.nan), where=p_ > 0)
-            er = r * np.sqrt(np.divide(ea, a_, out=np.zeros_like(a_), where=a_ > 0) ** 2
-                             + np.divide(ep, p_, out=np.zeros_like(p_), where=p_ > 0) ** 2)
+            er, er_ev = (r * np.sqrt(np.divide(x, a_, out=np.zeros_like(a_), where=a_ > 0) ** 2
+                                     + np.divide(y, p_, out=np.zeros_like(p_), where=p_ > 0) ** 2)
+                         for x, y in ((ea, ep), (ea_ev, ep_ev)))
             out["raa"][f"chjet_R{R}_star{sfx}"] = {"edges": CHJ_EDGES.tolist(), "raa": r.tolist(), "err": er.tolist(),
-                                                   "auau": a_.tolist(), "pp": p_.tolist()}
+                                                   "err_event": er_ev.tolist(), "auau": a_.tolist(), "pp": p_.tolist()}
     if bulk:
         nev = sum(b["n_ev"] for b in bulk)
         out["bulk_0_10"] = {"events": nev, "dnch_deta_mid": sum(b["nch_mid"] for b in bulk) / nev,
