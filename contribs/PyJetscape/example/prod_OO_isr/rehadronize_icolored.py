@@ -3,7 +3,8 @@
 example/prod_OO_isr/rehadronize_icolored.py
 
 Hadronize the jets of a jet_frag file again with our iCOLORED (X-SCAPE iColoredHadronization: Lund strings
-along the stored colour tags), from the final partons the file stored (partons/), WITHOUT beam remnants:
+along the stored colour tags), from the final partons the file stored (partons/), without beam remnants (or with the job's real ones,
+--beam-ends stored):
 iColored's stored-parton path (pyjetscape hadronize_partons -> HadronizePartons), which closes every open
 colour line with <colour_closure> (fake: a soft end parton of 1 GeV along the beam, E = |p| = 1 GeV, not
 sqrt(s)/6; reconnect: open ends joined within a shower by smallest invariant mass, then partners on the
@@ -98,13 +99,15 @@ def parse_args(argv=None):
                    help="iColored <colour_closure> (default fake)")
     p.add_argument("--colour-duplicates", default="fail", dest="duplicates", choices=("fail", "relabel"),
                    help="iColored <colour_duplicates> (default fail, as in production)")
-    p.add_argument("--beam-ends", default="none", dest="beam_ends", choices=("none", "sqrts6"),
+    p.add_argument("--beam-ends", default="none", dest="beam_ends", choices=("none", "sqrts6", "stored"),
                    help="sqrts6: before iColored, end every open colour line of the kept partons (pstat >= 0) whose "
                         "tag is not on a hole with a remnant-like beam parton (dbar for an open colour, d for an open "
                         "anticolour; (0, 0, +-sqrt(s)/6), E = sqrt(s)/6, massless, sign from the open parton's pz; own "
                         "shower index), as Colorless's / Colored's fake remnants; the holes' lines are left to "
                         "--colour-closure.  Recorded in units/beam_ends, units/beam_end_energy, units/open_tags_before. "
-                        "partons/ stores the original partons (without the beam ends)")
+                        "partons/ stores the original partons (without the beam ends).  stored: the job's real beam "
+                        "remnants instead (files with hadronization_input/, run_prod_oo_isr.py), so iColored sees the "
+                        "job's input before its closure and --colour-closure can be varied; see stored_remnants")
     p.add_argument("--seed", type=int, default=1, help="base seed of the fragmentation (default 1)")
     p.add_argument("--n-frag", type=int, default=1, dest="n_frag",
                    help="fragmentations per event (oversamples of the same partons; default 1). Sample 0 has the "
@@ -147,6 +150,36 @@ def add_beam_ends(p, ecm):
     return out, len(rows), len(rows) * e, len(open_col) + len(open_acol)
 
 
+def stored_remnants(p, inp):
+    """The job's beam remnants from its stored Pythia input inp (hadronization_input/ of a run_prod_oo_isr.py
+    file: what iColored handed Pythia AFTER its colour closure), as parton rows to add to the stored partons p
+    (N, 14).  inp = the jet partons (pstat >= 0, matched by momentum; the closure may have retagged them), the
+    closure's partner copies (on the holes' momenta), the remnants and the colour-balancing parton (the rest:
+    massless, along the beam).  The partons as stored plus these rows are iColored's input before the closure:
+    open colour lines are the holes' and the few the job's closure also had to close with partners or ends
+    (returned: open tags not on a hole, informational).
+    Returns (rows, number of remnants, their energy, open tags before the closure, open tags not on a hole)."""
+    P = np.asarray(inp["p"], float).reshape(-1, 4)
+    key = lambda x: tuple(np.round(x, 6))                     # noqa: E731
+    kept = {key(r[4:7]) for r in p[p[:, 2] >= 0]}
+    holes = p[p[:, 2] == -1]
+    on_hole = {key(r[4:7]) for r in holes}
+    # the closure's 1 GeV soft end partons (a job event that needed the fake fallback): E = |p| = 1 along the beam
+    fake = (np.abs(P[:, 0] - 1.0) < 1e-9) & (np.hypot(P[:, 1], P[:, 2]) < 1e-9)
+    rem = np.array([key(q[1:4]) not in kept and key(q[1:4]) not in on_hole for q in P], bool) & ~fake
+    shower = (p[:, 0].max() + 1) if len(p) else 0
+    rows = np.zeros((int(rem.sum()), 14))
+    rows[:, 0], rows[:, 1], rows[:, 2] = shower, np.asarray(inp["pid"])[rem], 0
+    rows[:, 3:7] = P[rem]
+    rows[:, 12], rows[:, 13] = np.asarray(inp["col"])[rem], np.asarray(inp["acol"])[rem]
+    allp = np.vstack([p[p[:, 2] >= 0], rows]) if len(rows) else p[p[:, 2] >= 0]
+    from collections import Counter
+    cc = Counter(int(c) for c in allp[:, 12] if c); ca = Counter(int(t) for t in allp[:, 13] if t)
+    open_t = [c for c in cc if cc[c] > ca.get(c, 0)] + [t for t in ca if ca[t] > cc.get(t, 0)]
+    hole_tags = set(holes[:, 12].astype(int)) | set(holes[:, 13].astype(int))
+    return rows, len(rows), float(P[rem, 0].sum()), len(open_t), sum(t not in hole_tags for t in open_t)
+
+
 def main(argv=None) -> int:
     a = parse_args(argv)
     import h5py
@@ -168,6 +201,18 @@ def main(argv=None) -> int:
         units = {k: h[f"units/{k}"][:n] for k in UNIT_KEYS if f"units/{k}" in h}
         attrs = {k: h.attrs[k] for k in ATTR_KEYS if k in h.attrs}
         ecm = hz.collision_ecm(str(h.attrs.get("prod_user_xml", "")))
+        unit_ids = h["units/unit"][:n] if "units/unit" in h else np.arange(n)
+        jh_stored = str(h.attrs.get("jet_hadronization_xml", ""))
+    hf_in = None
+    if a.beam_ends == "stored":
+        from jetscape.hadrons_h5 import HadronFile
+        hf_in = HadronFile(src)
+        if not hf_in.has_hadronization_input:
+            sys.exit(f"rehadronize_icolored.py: --beam-ends stored needs hadronization_input/ in {src}")
+        try:                                     # the job's own eCMforHadronization, as close to the job as possible
+            ecm = float(ET.fromstring(jh_stored).findtext("eCMforHadronization").strip())
+        except (ET.ParseError, AttributeError, ValueError):
+            pass
 
     had = ET.fromstring(ICOLORED_XML)
     had.find("colour_closure").text = a.closure
@@ -222,6 +267,11 @@ def main(argv=None) -> int:
                 if a.beam_ends == "sqrts6":
                     p_had, nb, eb, n_open = add_beam_ends(p_i, ecm or 200.0)
                     sc = {**sc, "beam_ends": nb, "beam_end_energy": eb, "open_tags_before": n_open}
+                elif a.beam_ends == "stored":
+                    rows, nb, eb, n_open, n_bad = stored_remnants(p_i, hf_in.hadronization_input(int(unit_ids[i])))
+                    p_had = np.vstack([p_i, rows]) if len(rows) else p_i
+                    sc = {**sc, "beam_ends": nb, "beam_end_energy": eb, "open_tags_before": n_open,
+                          "open_tags_not_holes": n_bad}
                 else:
                     p_had = p_i
                 w = h.writers["jet_frag"]

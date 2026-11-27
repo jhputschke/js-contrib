@@ -686,6 +686,15 @@ dropped (parton-level subtraction in the analysis; partner copies are not stored
 and the beam ends are stored in `units/`. Events Pythia cannot fragment are retried with 5 other seeds, then
 written without hadrons (`units/colour_failed`).
 
+**`--beam-ends stored`: iColored with the job's real remnants, closure varied.** The stored `hadronization_input/`
+of a `run_prod_oo_isr.py` file is recorded after iColored's colour closure, so `rehadronize_jets.py` cannot vary the
+closure. `--beam-ends stored` rebuilds the job's input from before the closure: the stored partons (`partons/`,
+original colour tags, holes) plus the real remnants from `hadronization_input/` (the entries that match neither a
+kept parton nor a hole's momentum, i.e. not the closure's partner copies; 1 GeV fake ends excluded), with the job's
+own `eCMforHadronization`. iColored then closes the holes' lines with `--colour-closure`. With `reconnect` it
+reproduces the job (the same partners per event, hadrons and high-p<sub>T</sub> yields within statistics).
+`units/open_tags_not_holes` counts open lines that are not the holes'; the job's closure closed those too.
+
 **Oversampling (`--n-frag N`, all three re-hadronization tools).** `rehadronize_colorless.py`,
 `rehadronize_icolored.py` and `rehadronize_jets.py` write N fragmentations of the same input per event
 (samples of one unit). Sample 0 has the seed of a 1-sample run and reproduces it exactly; the others
