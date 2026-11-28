@@ -26,7 +26,8 @@ IS: 3dMCGlauber (O16, positions only)
 - **One MUSIC run per event, no pair.** The medium is made from what each event's hard
   scattering left (its partons' momentum is subtracted from the colliding nucleons), so a
   medium belongs to one hard event: there is no background leg, no jet − background, no
-  hydro reuse, and no jet deposition into the fluid.
+  hydro reuse (Au+Au can opt in: [below](#auau-with-the-same-chain)), and no jet deposition into
+  the fluid.
 - **Every event is hard-triggered:** exactly one hard scattering, at a binary collision drawn
   uniformly. `glauber_ncoll` is recorded per event to weight the geometry
   ([O+O analysis](../analysis/oo.md)). Centrality comes from the impact parameter: the
@@ -164,7 +165,7 @@ python run_prod_oo_isr.py --vacuum --events 20 --seed 1 --pthat-bins 10-20,20-40
 
 ## Au+Au with the same chain
 
-The O+O chain runs Au+Au too, with one MUSIC run per event and no hydro reuse, so jets and
+The O+O chain runs Au+Au too, by default with one MUSIC run per event, so jets and
 the medium come from the same nucleon–nucleon collisions as in O+O: ISR, strings, iColored with
 the real beam remnants. Use it to test an O+O setting (energy loss, hadronization) against Au+Au
 data. Add to the O+O command:
@@ -187,12 +188,33 @@ python run_prod_oo_isr.py --user-xml ../config/OO_MCGlauber_MUSIC_isr_rhictune.x
 - An Au+Au event is much heavier than an O+O one: about 3,000 events/h on 2 × RTX 3090
   (10 jobs per GPU), against O+O's 13,700.
 
+**Hydro reuse for Au+Au (`--reuse N`, opt-in).** In Au+Au the hard-momentum subtraction changes the
+bulk by about 0.1 %, so a medium made for one hard event can serve others. `--reuse N` runs MUSIC once
+every N events; 3dMCGlauber, the ISR, the hard scattering and its strings and remnants still run
+every event, so each jet keeps its own nucleon configuration and production point, but the
+medium was made for another event. Add `--reuse 20` (and `--events` a multiple of 20) to the
+command above.
+
+- Needs X-SCAPE with the `<allowReuseWithISR>` opt-in (`oo_rhic_run` 3306f45c and later; images
+  `cu124-oo_rhic_run` from 2026-11-28, `cu124-20261128-3306f45`). The driver sets it with
+  `setReuseHydro` and `nReuseHydro`; without the opt-in X-SCAPE refuses reuse with ISR.
+- Implies `--no-particlize --no-hydro-file`; not with `--vacuum`, `--bulk-hadrons` or
+  `--keep-primaries`: jets and jet hadrons only, no bulk observables.
+- Events that share a medium are correlated: group them for the errors. `units/` records
+  `hydro_event` (the medium's index in the job), `reuse_index`, `hydro_ran` and the medium's
+  Glauber values (`hydro_glauber_b`, `_npart`, `_ncoll`) next to the jet event's (`glauber_*`).
+- Not for O+O: there the hard scattering changes the medium noticeably, so every event keeps its
+  own MUSIC run. Checked for central Au+Au against one MUSIC run per event; for other centralities
+  check it again (the jet's production point no longer follows the medium's hot spots).
+- About 25,000 events/h of 0–10 % Au+Au with `--reuse 20` on the GB10 (10 jobs).
+
 ## Settings
 
 | option | default | |
 |---|---|---|
 | `--pthat-min`, `--pthat-max` | 20, 40 GeV | one pT̂ window |
 | `--pthat-bins A-B,C-D,…` | | K windows in one job, one Pythia each, event *i* in window *i* mod K; no background is shared. Use a multiple of K events |
+| `--reuse N` | 1 | Au+Au only: one MUSIC run per N events (opt-in, X-SCAPE with `<allowReuseWithISR>`): [hydro reuse](#auau-with-the-same-chain). `--events` a multiple of N; any N works with `--pthat-bins` |
 | `--parton-ymax Y`, `--parton-y-mode {both,any}` | off, `both` | regenerate the event until the two outgoing partons of the hard scattering have \|y\| < Y; cross sections corrected by the acceptance |
 | `--b-min`, `--b-max` | 0, 3 fm | the impact-parameter range (centrality) |
 | `--sqrts` | 200 GeV | the collision energy (the parameters are tuned at 200 GeV) |

@@ -99,11 +99,19 @@ for the ISR partons before t = 0, fixed in X-SCAPE `8c975d37` ([Physics
 notes](#physics-notes-and-limits)); with the fix, two runs of 100 events had no skip and were
 bit-identical. Images up to `cu124-final_optim` still have the skips.
 
-**No hydro reuse, also with pT̂ windows.** With ISR the strings, and so the medium, are made
+**No hydro reuse by default, also with pT̂ windows.** With ISR the strings, and so the medium, are made
 from what each event's hard scattering left (its partons' momentum is subtracted from the
 colliding nucleons), so a medium belongs to one hard event. Every event runs the whole chain
 (3dMCGlauber, ISR, strings, MUSIC, Matter, hadronization); X-SCAPE refuses
-`<setReuseHydro>` with ISR (`JetScape::Init`), and this driver has no `--reuse`.
+`<setReuseHydro>` with ISR (`JetScape::Init`) unless `<allowReuseWithISR>` is 1.
+**`--reuse N` (opt-in, for Au+Au)** sets that opt-in (X-SCAPE `oo_rhic_run` 3306f45c and later) and
+runs MUSIC once every N events; 3dMCGlauber, the ISR, the hard scattering and its strings and
+remnants still run every event, only the medium is shared. In Au+Au the hard-soft subtraction
+is ~0.1 % of the bulk; not for O+O. It implies `--no-particlize --no-hydro-file` (no
+`--vacuum`, `--bulk-hadrons`, `--keep-primaries`), `--events` must be a multiple of N, and
+`units/` records `reuse_index`, `hydro_event`, `hydro_ran` and the medium's Glauber values
+(`hydro_glauber_b`, `_npart`, `_ncoll`): analyses group events by `hydro_event` for the errors
+(`analysis/OO-RHIC/auau_calibration/auau_raa.py` does).
 `--pthat-bins 10-20,20-40,40-60` runs one Pythia per window (PythiaIsrGun's `<pTHatBins>`,
 as PythiaGun's) and event *i* uses window *i* mod K; unlike the Au+Au `--pthat-bins`, no
 background is shared between the windows. Per event `pthat_bin` is recorded (`diag/`,
