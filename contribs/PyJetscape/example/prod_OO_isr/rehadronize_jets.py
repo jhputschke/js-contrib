@@ -27,7 +27,13 @@ one), the seeds in units/seed (sample 0's), the source file's initiators/, hadro
 partons/ (the holes, for the analyses' subtraction), event record (units/: pthat, window,
 weights, the hard partons' rapidities, Glauber values) and cross-section attributes, and the
 settings used (decays, pythia_version, rehadronized_from, n_frag).  Sample 0 has the stored seed
-(or --new-seeds'), so it is the 1-sample result; samples 1.. have seeds derived from it.  Positions are zero, as in the job: hadron
+(or --new-seeds'), so it is the 1-sample result; samples 1.. have seeds derived from it.
+
+Pythia can fail to fragment a configuration (iColored throws "Pythia could not hadronize").  A
+sample that fails is retried with up to --max-reseed other seeds (derived from its own); one that
+fails with every seed is written with no hadrons, so one bad event no longer costs the file.  Per
+event, units/reseeded is sample 0's number of retries and units/failed_samples the number of empty
+samples; the run ends with a count of both.  --check does not retry (a retry is not the job).  Positions are zero, as in the job: hadron
 positions are a later step (PLAN_smash_ready_hadrons.md 2.2-2.3).
 """
 
@@ -68,6 +74,9 @@ def parse_args(argv=None):
     p.add_argument("--n-frag", type=int, default=1, dest="n_frag",
                    help="fragmentations per event (oversamples of the same input; default 1). Sample 0 "
                         "uses the stored (or --new-seeds) seed; analyses average the samples per event")
+    p.add_argument("--max-reseed", type=int, default=MAX_RESEED, dest="max_reseed",
+                   help=f"other seeds tried when Pythia cannot hadronize a sample (default {MAX_RESEED}); "
+                        "a sample that fails with every seed is written empty")
     p.add_argument("--events", default=None, help="unit range a:b (default all)")
     p.add_argument("--build", default=rp.BUILD,
                    help="X-SCAPE build tree (default: $JETSCAPE_BUILD, else build_gpu)")
@@ -78,6 +87,10 @@ def parse_args(argv=None):
                         "input)")
     p.add_argument("--force", action="store_true", help="overwrite --out")
     return p.parse_args(argv)
+
+
+#: retries when Pythia cannot hadronize a sample (as rehadronize_icolored.py)
+MAX_RESEED = 5
 
 
 def new_seed(base, unit):
@@ -92,6 +105,31 @@ def sample_seed(seed0, k):
         return int(seed0)
     s = np.random.SeedSequence([int(seed0), 3, int(k)])
     return int(s.generate_state(1, dtype=np.uint32)[0] & 0x7FFFFFFF) or 1
+
+
+def retry_seed(seed, r):
+    """Seed of retry r of a sample whose first try had seed (r = 0: seed itself)."""
+    if r == 0:
+        return int(seed)
+    s = np.random.SeedSequence([int(seed), 4, int(r)])
+    return int(s.generate_state(1, dtype=np.uint32)[0] & 0x7FFFFFFF) or 1
+
+
+def hadronize_retry(core, module, inp, seed, max_reseed, label):
+    """Hadronize inp with seed, then with up to max_reseed other seeds if Pythia cannot.
+    Returns (hadrons, retries, failed); failed: every seed failed, hadrons empty."""
+    for r in range(max_reseed + 1):
+        try:
+            d = core.hadronize_input(module, inp["pid"], inp["col"], inp["acol"], inp["p"],
+                                     inp["mass"], retry_seed(seed, r))
+            return d, r, False
+        except RuntimeError as err:
+            if "could not hadronize" not in str(err):
+                raise
+            print(f"rehadronize_jets.py: {label}, try {r}: {err}", file=sys.stderr, flush=True)
+    empty = {"pid": np.zeros(0, np.int32), "pstat": np.zeros(0, np.int32),
+             "p": np.zeros((0, 4)), "x": np.zeros((0, 4))}
+    return empty, max_reseed, True
 
 
 #: event-record columns carried over from the source (when present), as rehadronize_colorless.py
@@ -145,6 +183,8 @@ def main(argv=None):
                  "--new-seeds / --line / --n-frag")
     if a.n_frag < 1:
         sys.exit("rehadronize_jets.py: --n-frag must be >= 1")
+    if a.max_reseed < 0:
+        sys.exit("rehadronize_jets.py: --max-reseed must be >= 0")
 
     from jetscape import pyjetscape_core as core
     from jetscape.hadrons_h5 import (HadronFile, HadronH5Writer, hadron_precision,
@@ -198,6 +238,7 @@ def main(argv=None):
 
     writer = None
     n_bad = 0
+    n_reseeded = n_failed_ev = n_failed_samples = 0
     finished = False
     try:
         jetscape = core.JetScapePerEvent()
@@ -227,9 +268,19 @@ def main(argv=None):
             unit = int(hf.units["unit"][u]) if "unit" in hf.units else u
             inp = hf.hadronization_input(unit)
             seed = (int(seeds[u]) if a.new_seeds is None else new_seed(a.new_seeds, unit))
-            frags = [core.hadronize_input(module, inp["pid"], inp["col"], inp["acol"], inp["p"],
-                                          inp["mass"], sample_seed(seed, k)) for k in range(a.n_frag)]
+            res = [hadronize_retry(core, module, inp, sample_seed(seed, k),
+                                   0 if a.check else a.max_reseed, f"unit {unit}, sample {k}")
+                   for k in range(a.n_frag)]
+            frags = [f for f, _, _ in res]
+            retries0 = res[0][1]
+            n_fail = sum(bad for _, _, bad in res)
+            n_reseeded += retries0 > 0
+            n_failed_ev += n_fail > 0
+            n_failed_samples += n_fail
             d = frags[0]
+            note = ((f", reseeded {retries0}x" if retries0 and not res[0][2] else "")
+                    + (f", {n_fail} of {a.n_frag} sample(s) EMPTY (Pythia failed with every seed)"
+                       if n_fail else ""))
             if a.check:
                 old = hf.sample_event(unit, 0)
                 same = (np.array_equal(old["pid"], d["pid"])
@@ -238,16 +289,16 @@ def main(argv=None):
                 n_bad += not same
                 print(f"  unit {unit}: {len(d['pid'])} hadrons, seed {seed}: "
                       + ("same as the job" if same else
-                         f"DIFFERENT ({len(old['pid'])} in the job)"), flush=True)
+                         f"DIFFERENT ({len(old['pid'])} in the job)") + note, flush=True)
             else:
-                print(f"  unit {unit}: {len(d['pid'])} hadrons, seed {seed}", flush=True)
+                print(f"  unit {unit}: {len(d['pid'])} hadrons, seed {seed}{note}", flush=True)
             if writer is not None:
                 sc = {k: (hf.units[k][u].item() if hasattr(hf.units[k][u], "item") else hf.units[k][u])
                       for k in UNIT_KEYS if k in hf.units}
                 kw = {"partons": hf.partons(unit)} if hf.has_partons else {}
                 writer.append_unit(frags, initiators=hf.initiators(unit), hadronization_input=inp,
                                    unit=unit, event=int(hf.units.get("event", units)[u]),
-                                   seed=seed, **kw, **sc)
+                                   seed=seed, reseeded=retries0, failed_samples=n_fail, **kw, **sc)
         jetscape.Finish()
         finished = True
     finally:
@@ -260,6 +311,8 @@ def main(argv=None):
             os.rmdir(os.path.dirname(workdir))
         except OSError:
             pass
+    print(f"rehadronize_jets.py: {len(units)} event(s); reseeded (sample 0) {n_reseeded}; "
+          f"with empty samples {n_failed_ev} ({n_failed_samples} sample(s), Pythia failed with every seed)")
     if a.check:
         print(f"rehadronize_jets.py: {len(units) - n_bad} of {len(units)} event(s) "
               f"reproduce the job's jet hadrons" + ("" if not n_bad else " -- MISMATCH"))

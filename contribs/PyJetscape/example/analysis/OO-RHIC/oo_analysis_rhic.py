@@ -244,6 +244,38 @@ def _dphi(a, b):
     return np.abs((a - b + np.pi) % (2 * np.pi) - np.pi)
 
 
+def samples_of(so, uo, n):
+    """Fragmentation oversamples (--n-frag) of the first n units: samples per unit, the unit of each
+    sample, particles per sample, and per particle its sample and whether that is its unit's first."""
+    nsu = np.diff(uo[: n + 1]).astype(int)
+    ns = int(uo[n])
+    unit_of = np.repeat(np.arange(n), nsu)
+    cs = np.diff(so[: ns + 1]).astype(int)
+    samp = np.repeat(np.arange(ns), cs)
+    return nsu, ns, unit_of, cs, samp, samp == np.asarray(uo)[unit_of[samp]]
+
+
+def rows_to_samples(unit, nsu, uo):
+    """Rows tagged with a unit index, copied to every sample of that unit: (row index, sample index)."""
+    unit = np.asarray(unit, int)
+    reps = nsu[unit]
+    idx = np.repeat(np.arange(len(unit)), reps)
+    k_in = np.arange(len(idx)) - np.repeat(np.cumsum(reps) - reps, reps)
+    return idx, np.asarray(uo)[unit[idx]] + k_in
+
+
+def samples_to_units(v, unit_of, cs, n):
+    """Per-sample observable rows averaged into their unit's row.  Samples without any hadron (Pythia
+    could not hadronize them with any seed: rehadronize_jets.py, rehadronize_icolored.py) are left out
+    of the average; a unit with no hadronized sample contributes zero."""
+    good = cs > 0
+    ng = np.bincount(unit_of[good], minlength=n).astype(float)
+    w = np.where(good, 1.0 / np.maximum(ng[unit_of], 1.0), 0.0)
+    r = np.zeros((n,) + v.shape[1:])
+    np.add.at(r, unit_of, v * w.reshape((-1,) + (1,) * (v.ndim - 1)))
+    return r
+
+
 #: re-hadronized samples (rehadronize_colorless.py): the root they were read from (--out) and the root of
 #: the original files (--est-root), whose centrality estimators and bulk are used, so that every event
 #: keeps its class and its h-h background whatever the jet hadronization
@@ -256,7 +288,12 @@ def file_obs(path):
     iColored files carry none among the hadrons (subtracted at parton level, negative_partons);
     Colorless files (rehadronize_colorless.py, run_prod_jet_single.py) carry them as pstat -1 hadrons,
     subtracted at hadron level (JETSCAPE's): signed spectra and h-h counts, jets of the positive hadrons
-    minus the negative ones in the cone, triggers from the positive hadrons only."""
+    minus the negative ones in the cone, triggers from the positive hadrons only.
+    Fragmentation oversamples (--n-frag of the rehadronize tools): every sample is a sub-event (jets
+    clustered and a trigger chosen per sample; the event's holes, partners, hard partons and bulk
+    copied to each), and the samples' observables are averaged into the event's row (samples_to_units),
+    as auau_raa.py: the errors stay per event.  The centrality estimators are the event's: bulk +
+    the first sample's charged hadrons.  One sample per event: as before, bit for bit."""
     import h5py
     import hdf5plugin  # noqa: F401
     orig = path if EST_ROOT is None else str(Path(EST_ROOT) / Path(path).relative_to(OUT_ROOT))
@@ -272,12 +309,13 @@ def file_obs(path):
         pst = h["hadrons/pstat"][: int(so[uo[-1]])] if "hadrons/pstat" in h else np.zeros(len(pa), int)
         neg = negative_partons(h, n)
         hard = hard_partons(h, n)
+    nsu, ns, unit_of, cs, samp, first = samples_of(so, uo, n)
     try:
         with h5py.File(bf) as h:
             pb, cb = B._units(h, n)                                   # bulk, charged only
     except OSError:
         pb, cb = np.zeros((0, 4)), np.zeros(n, int)
-    ev_a = np.repeat(np.arange(n), ca)
+    ev_u = np.repeat(np.arange(n), ca)                                # unit of each hadron
     ev_b = np.repeat(np.arange(n), cb)
     ch = np.isin(np.abs(pid), B.charged_ids())
     hneg = pst == -1
@@ -289,20 +327,42 @@ def file_obs(path):
     if orig != path:
         with h5py.File(orig) as h:
             po_, co_, pido_ = B._units(h, n, charged=False, with_pid=True)
-        cho = np.isin(np.abs(pido_), B.charged_ids())
+            fo_ = samples_of(h["hadrons/sample_offsets"][:], h["hadrons/unit_offsets"][: n + 1], n)[5]
+        cho = np.isin(np.abs(pido_), B.charged_ids()) & fo_
         evo = np.repeat(np.arange(n), co_)
         for k, v in B.counts_of(po_[cho], np.bincount(evo[cho], minlength=n)).items():
             est[k] += v
     else:
-        for k, v in B.counts_of(pa[ch & pos], np.bincount(ev_a[ch & pos], minlength=n)).items():
+        m = ch & pos & first
+        for k, v in B.counts_of(pa[m], np.bincount(ev_u[m], minlength=n)).items():
             est[k] += v
+    # from here on the events are the samples (one per unit without oversamples)
+    n_units, n = n, ns
+    ev_a = samp
+    unit_keys = {"neg_n": np.bincount(neg[:, 0].astype(int), minlength=n_units).astype(float)
+                 if len(neg) else np.zeros(n_units)}
+    if ns != n_units:                       # the unit's holes + partners, hard partons and bulk in each sample
+        if len(neg):
+            i, sj = rows_to_samples(neg[:, 0], nsu, uo)
+            neg = neg[i]
+            neg[:, 0] = sj
+        if len(hard):
+            i, sj = rows_to_samples(hard[:, 0], nsu, uo)
+            hard = hard[i]
+            hard[:, 0] = sj
+        if len(pb):                         # only the h-h associated range is needed per sample
+            ptb_, etab_, _ = _kin(pb)
+            mb_ = (ptb_ > ASSOC[0]) & (ptb_ < ASSOC[1]) & (np.abs(etab_) < TRIG_ETA)
+            i, ev_b = rows_to_samples(ev_b[mb_], nsu, uo)
+            pb = pb[mb_][i]
     est["mbd"] = est["mbd_neg"] + est["mbd_pos"]
     pt, eta, phi = _kin(pa)
     vis = ~np.isin(np.abs(pid), INVISIBLE) & (pt > CONST_PTMIN)
-    out = {"ncoll": u["glauber_ncoll"].astype(float), "b": u["glauber_b"].astype(float),
-           "win": u["pthat_bin"].astype(int), "has_medium": u["has_medium"].astype(int),
-           "pthat": u["pthat"].astype(float),
-           "n_epd": est["epd"], "n_mbd": est["mbd"], "n_mid10": est["mid10"]}
+    per_unit = {"ncoll": u["glauber_ncoll"].astype(float), "b": u["glauber_b"].astype(float),
+                "win": u["pthat_bin"].astype(int), "has_medium": u["has_medium"].astype(int),
+                "pthat": u["pthat"].astype(float),
+                "n_epd": est["epd"], "n_mbd": est["mbd"], "n_mid10": est["mid10"]}
+    out = {}
     # inclusive charged hadrons
     m = ch & (np.abs(eta) < HAD_ETA)
     out["had"] = _hist(ev_a[m], pt[m], HAD_EDGES, n, sgn[m] if hadron_holes else None)
@@ -320,7 +380,6 @@ def file_obs(path):
     out["sph_jet_q"] = _hist(je[k][fl == 1], jpt_sub[k][fl == 1], SPH_EDGES, n)
     out["sph_jet_g"] = _hist(je[k][fl == 2], jpt_sub[k][fl == 2], SPH_EDGES, n)
     out["neg_pt_in_jets"] = np.bincount(je[k], weights=(jpt - jpt_sub)[k], minlength=n) if len(je) else np.zeros(n)
-    out["neg_n"] = np.bincount(neg[:, 0].astype(int), minlength=n).astype(float) if len(neg) else np.zeros(n)
     # STAR charged jets (inclusive) and the charged particles for the h+jet
     mc = ch & (pt > CONST_PTMIN) & (np.abs(eta) < TRIG_ETA)
     cjets = {}
@@ -378,7 +437,9 @@ def file_obs(path):
             k &= np.abs(_dphi(jphi, tphi[je]) - np.pi) < HJET_DPHI
         out[f"hjet_R{R}"] = _hist(je[k], jpt_sub[k], HJET_EDGES, n)
         out[f"hjet_R{R}_raw"] = _hist(je[k], jpt[k], HJET_EDGES, n)
-    return bins, sig, nacc, out
+    if ns != n_units:                                                 # samples -> events
+        out = {k: samples_to_units(v, unit_of, cs, n_units) for k, v in out.items()}
+    return bins, sig, nacc, {**per_unit, **out, **unit_keys}
 
 
 # ── per family ────────────────────────────────────────────────────────────────────────────────

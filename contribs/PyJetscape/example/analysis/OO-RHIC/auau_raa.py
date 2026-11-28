@@ -127,6 +127,8 @@ def one_file(path):
     # analysed as a sub-event (jets clustered per sample, the event's holes and partners subtracted in
     # each) and the samples of an event are averaged with weight 1/N_samples into the event's row: the
     # errors stay per event (AGENTS.md rule 4).  One sample per event: ns = n, identical to before.
+    # Samples without any hadron (Pythia could not hadronize them with any seed) are left out of the
+    # average (oo_analysis_rhic.samples_to_units).
     nsu = np.diff(uo).astype(int)                       # samples per unit
     ns = int(uo[n])                                     # samples in the file (first n units)
     unit_of = np.repeat(np.arange(n), nsu)              # unit of each sample
@@ -184,15 +186,9 @@ def one_file(path):
     k = np.abs(jeta) < 0.5
     out["fjet_R0.4"] = A._hist(je[k], jsub[k], FJ_EDGES, n)
     out["fjet_R0.4_raw"] = A._hist(je[k], jpt[k], FJ_EDGES, n)                     # holes not subtracted
-    if ns != n_units:                                   # samples -> events, weight 1/N_samples
-        wsamp = 1.0 / nsu[unit_of]
+    if ns != n_units:                                   # samples -> events, weight 1/N_hadronized samples
         for key, v in out.items():
-            if key == "_hole_mode":
-                out[key] = v[:n_units]
-                continue
-            r = np.zeros((n_units, v.shape[1]))
-            np.add.at(r, unit_of, v * wsamp[:, None])
-            out[key] = r
+            out[key] = v[:n_units] if key == "_hole_mode" else A.samples_to_units(v, unit_of, ca, n_units)
     n = n_units
     # bulk at mid-rapidity (Au+Au only): charged dN/deta |eta| < 0.5, <pT> of pi, K, p (|y| < 0.5 ~ |eta|)
     bulk = None

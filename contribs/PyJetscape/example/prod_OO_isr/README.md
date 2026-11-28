@@ -49,7 +49,7 @@ the automatic task list to it.
 | `../config/grid_oo.yaml` | output grid of the hydro file: 64 × 64 × 32 at 0.3125 fm × 0.3125 fm × 0.3125 (x, y ±9.84 fm) |
 | `run_prod_oo_isr.py` | one job: one seed, N events |
 | `run_jobs.sh` | many jobs, `-j P` at a time, resumable (wraps `../prod_AuAu_0_10/run_jobs.sh`) |
-| `rehadronize_jets.py` | hadronize a `--store-hadronization-input` job's jets again from the stored Pythia input: `--check` against the job, or decays off / new seeds / other Pythia settings (`--line`) ([Redoing the jet hadronization](#redoing-the-jet-hadronization)) |
+| `rehadronize_jets.py` | hadronize a `--store-hadronization-input` job's jets again from the stored Pythia input: `--check` against the job, or decays off / new seeds / other Pythia settings (`--line`), `--n-frag N` oversamples; a sample Pythia cannot fragment is retried with up to `--max-reseed` (5) other seeds and written empty if every seed fails (`units/reseeded`, `units/failed_samples`) ([Redoing the jet hadronization](#redoing-the-jet-hadronization)) |
 | `negative_hadrons.py` | the medium's holes plus copies of their colour partners hadronized as **negative hadrons** (pstat −1) into `<stem>_hadrons_jet_neg.h5`, for a job made with `--store-partons --store-hadronization-input`; an analysis subtracts them ([Holes and partners](#holes-and-partners-what-a-physics-run-must-store)) |
 | `hard_sub_compare/` | two campaigns with and without the hard-momentum subtraction, and a notebook comparing their hadrons ([README](hard_sub_compare/README.md)) |
 | `hadro_compare/` | the iColored jet hadrons (Matter only) before vs after the colour fixes, and with the closures reconnect / thermal / fake: five paired campaigns and `compare_hadro.py` ([README](hadro_compare/README.md)) |
