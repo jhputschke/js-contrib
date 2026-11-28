@@ -93,9 +93,12 @@ EOS.  The production XML runs MUSIC with EOS 91 (hotQCD + the SMASH hadron list,
 the tunes); --eos 9 reruns older EOS 9 campaigns.  With EOS 91 iSS decays the SMASH list
 itself (hadronize.xml <decay_smash_list> 1, iSS from smash_ready on).
 
-The hydro is never reused: with ISR the strings, and so the medium, are made from what each
-event's hard scattering left, so every event (also with --pthat-bins) runs the whole chain.
-X-SCAPE refuses <setReuseHydro> with ISR.
+By default the hydro is never reused: with ISR the strings, and so the medium, are made from
+what each event's hard scattering left, so every event (also with --pthat-bins) runs the whole
+chain, and X-SCAPE refuses <setReuseHydro> with ISR.  --reuse N (prototype, X-SCAPE with the
+<allowReuseWithISR> opt-in) runs MUSIC every N events and keeps 3dMCGlauber, the ISR, the hard
+scattering and the remnants per event: for Au+Au, where the hard-soft subtraction is ~0.1 % of
+the bulk.
 
 Needs X-SCAPE with <Hard><ISR> in the automatic task list (branch oo_isr_test), built with
 3dMCGlauber and MUSIC (music4gpu), and PyJetscape built against it.  iMATTER reads Pythia's
@@ -154,6 +157,14 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, allow_abbrev=False,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--events", type=int, default=10, help="events in this job (default 10)")
+    p.add_argument("--reuse", type=int, default=1, metavar="N",
+                   help="one MUSIC event per N jet events (setReuseHydro + <allowReuseWithISR> 1, X-SCAPE "
+                        "with that opt-in): every event still runs 3dMCGlauber, the ISR, the hard scattering "
+                        "and its strings/remnants, only the hydro is reused, i.e. the medium was made for "
+                        "another hard event (Au+Au: the hard-soft subtraction is ~0.1 %% of the bulk; not for "
+                        "O+O).  Implies --no-particlize --no-hydro-file, no --bulk-hadrons; --events a multiple "
+                        "of N.  units/ record reuse_index, hydro_event and the hydro event's Glauber values "
+                        "(hydro_glauber_b, _npart, _ncoll) next to the jet event's (glauber_*)")
     p.add_argument("--grid", default=GRID_YAML,
                    help="output grid YAML of the hydro file (default: ../config/grid_oo.yaml)")
     p.add_argument("--outdir", default=os.path.join(HERE, "out"),
@@ -527,6 +538,10 @@ def job_xml(a, out_h5: str):
         if eloss_node.find("Matter") is not None:
             _set(eloss_node.find("Matter"), "recoil_on", 0)
     _set(root, "nReuseHydro", 1)
+    if a.reuse > 1:                           # --reuse: X-SCAPE oo_rhic_run 3306f45c and later (JetScape.cc)
+        _set(root, "setReuseHydro", "true")
+        _set(root, "nReuseHydro", a.reuse)
+        _set(root, "allowReuseWithISR", 1)
 
     tags = [c.tag for c in root]
     if "IS" not in tags or "Hard" not in tags or tags.index("IS") > tags.index("Hard"):
@@ -840,6 +855,14 @@ def main() -> int:
     if a.parton_ymax is not None and not a.parton_ymax > 0:
         sys.exit(f"run_prod_oo_isr.py: --parton-ymax must be > 0, got {a.parton_ymax:g}")
 
+    if a.reuse < 1:
+        sys.exit("run_prod_oo_isr.py: --reuse must be >= 1")
+    if a.reuse > 1:
+        if a.vacuum or a.bulk_hadrons or a.keep_primaries:
+            sys.exit("run_prod_oo_isr.py: --reuse goes without --vacuum, --bulk-hadrons, --keep-primaries")
+        if a.events % a.reuse:
+            sys.exit(f"run_prod_oo_isr.py: --events {a.events} must be a multiple of --reuse {a.reuse}")
+        a.no_hydro_file = a.no_particlize = True
     if a.aa_vacuum and not a.vacuum:
         sys.exit("run_prod_oo_isr.py: --aa-vacuum goes with --vacuum")
     if a.vacuum:
@@ -1192,6 +1215,8 @@ def main() -> int:
                                                     "eos", "eloss", "prod_eloss_threads")}})
 
     n = n_hydro = no_medium = 0
+    reuse_state = {"hydro_event": -1, "reuse_index": -1, "hydro_glauber_b": float("nan"),
+                   "hydro_glauber_npart": -1, "hydro_glauber_ncoll": -1}
     colour_totals = None          # iColored's colour audits added up (the log summary)
     skipped = []                  # (event, error) of events whose simulation threw
     t_job = time.time()
@@ -1199,6 +1224,9 @@ def main() -> int:
         jetscape.ExecInit()
         for i in range(jetscape.GetNumberOfEvents()):
             t0 = time.time()
+            # --reuse: MUSIC runs in this event if it is active now (X-SCAPE deactivates it after
+            # each event and activates it before every N-th)
+            hydro_runs = bool(hydro.GetActive()) if (a.reuse > 1 and hydro is not None) else True
             try:
                 jetscape.ExecPerEvent()
             except RuntimeError as exc:
@@ -1225,6 +1253,14 @@ def main() -> int:
                   **hard_partons_record(core, gun)}
             if a.pthat_windows:
                 ev["pthat_bin"] = int(core.pythia_gun_bins(gun)["active"])
+            if a.reuse > 1:
+                if hydro_runs:
+                    reuse_state.update(hydro_event=reuse_state["hydro_event"] + 1, reuse_index=-1,
+                                       hydro_glauber_b=ev.get("glauber_b", float("nan")),
+                                       hydro_glauber_npart=ev.get("glauber_npart", -1),
+                                       hydro_glauber_ncoll=ev.get("glauber_ncoll", -1))
+                reuse_state["reuse_index"] += 1
+                ev.update(reuse_state, hydro_ran=int(hydro_runs))
             if not a.no_jet_hadrons and getattr(core, "ICOLORED_HAS_INPUT_RECORD", False):
                 ev["jet_pythia_seed"] = int(core.jet_hadronization_last_random_seed(
                     tasks["HadronizationManager"]))
@@ -1353,6 +1389,7 @@ def main() -> int:
                "events_skipped": len(skipped),
                "skipped": [{"event": e, "error": m} for e, m in skipped],
                "hydro_events_written": n_hydro, "events_without_medium": no_medium,
+               "reuse": a.reuse, "hydro_runs": reuse_state["hydro_event"] + 1 if a.reuse > 1 else None,
                **{k: v.tolist() if hasattr(v, "tolist") else v for k, v in final.items()},
                "wall_s": round(time.time() - t_job, 1)}
     if pwriter is not None:
