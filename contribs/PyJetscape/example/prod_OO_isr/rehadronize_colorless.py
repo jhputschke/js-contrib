@@ -16,7 +16,7 @@ Colorless (X-SCAPE ColorlessHadronization) takes the <JetHadronization> block of
 hadronizes the positive partons (pstat 0, 1; the O+O chain's status 1000, PythiaIsrGun's hard partons and
 their Matter daughters, is relabelled 0 first, else Colorless drops them) and, separately, the holes into
 hadrons with pstat -1
-(stored with E > 0): an analysis subtracts those (analysis/OO-RHIC/auau_raa.py does).  The beam
+(stored with E > 0): an analysis subtracts those (analysis/OO-RHIC/auau_calibration/auau_raa.py does).  The beam
 remnants and the colour-balancing partons of iColored (hadronization_input/) are not used.
 
 Output: a jet_frag file (jetscape.hadrons_h5) with one sample per event, the source's units/ event

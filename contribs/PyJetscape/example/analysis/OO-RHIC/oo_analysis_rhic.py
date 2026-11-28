@@ -90,6 +90,7 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+import _paths  # noqa: E402,F401  (analysis/OO-RHIC and its test directories on sys.path)
 import oo_bias as B  # noqa: E402
 import oo_bias_jets as J  # noqa: E402
 

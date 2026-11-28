@@ -37,6 +37,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import _paths  # noqa: E402,F401  (analysis/OO-RHIC and its test directories on sys.path)
 import config as C  # noqa: E402
 
 TUNES = {

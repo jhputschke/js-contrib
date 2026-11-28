@@ -8,3 +8,5 @@ __pycache__/
 refs/**/*.yaml
 # the STAR d+Au FTPC figure (not public): local only; its extracted points, star_dau_ftpc.json, are committed
 refs/dau_200/*.pdf
+# physics results, kept local until public (phys_readme.md next to each README)
+phys_readme.md

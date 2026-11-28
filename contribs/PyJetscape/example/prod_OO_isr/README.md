@@ -318,7 +318,7 @@ What the two flags store and what they make possible:
 | `--store-hadronization-input` | what iColored handed to Pythia (`hadronization_input/`), with the partners (found by the hole's three-momentum; not every hole has one) | subtracting the partners; `negative_hadrons.py`; `rehadronize_jets.py` |
 
 What each observable needs (validated 2026-11-23 on 4,500 O+O events, p̂<sub>T</sub> 18–55 GeV,
-`analysis/OO-RHIC/validate_holes.py`; holes carry 6.1 GeV and partners 2.4 GeV per event in
+`analysis/OO-RHIC/closure_bias/validate_holes.py`; holes carry 6.1 GeV and partners 2.4 GeV per event in
 0–20 %, 0.25 + 0.16 GeV in 80–100 %, mostly outside a jet cone):
 
 | observable | treatment | size without it |
@@ -663,14 +663,11 @@ ColorlessHadronization, offline on a CPU: the companion of `rehadronize_jets.py`
 hard partons and their Matter daughters, see below) is relabelled 0 first, and eCMforHadronization is
 the job's collision energy (problems 1 and 2 below), so Colorless takes every final parton; holes come
 out as pstat −1 hadrons for the hadron-level subtraction. The output keeps the source's event record,
-cross sections and parton cut. Used in `analysis/OO-RHIC` (Au+Au B1, 2026-11-26): on the same partons
-iColored gives about twice the high-p<sub>T</sub> hadrons of Colorless in the medium (and the same in
-vacuum), i.e. charged-jet R<sub>AA</sub> 0.51 → 0.23 (`auau_jet_raa.ipynb`, Figs. 6–7). **Most of that is
-Colorless's close-pair shift** (ColorlessHadronization.cc, "Making collinear partons not collinear": every pair
-of partons closer than 4 Λ<sub>QCD</sub> gets ±0.8 GeV in p<sub>z</sub>, not energy-conserving; ≈ 2/3 of the
-hadronized energy in central Au+Au, < 1 % in vacuum). A switch `<JetHadronization><close_pair_shift>0` exists
-only as a patch (`analysis/OO-RHIC/refs/colorless_close_pair_shift.diff`, X-SCAPE 299fd3f, not in X-SCAPE);
-`auau_jet_raa.ipynb` Fig. 8.
+cross sections and parton cut. Colorless contains a close-pair loop (ColorlessHadronization.cc, "Making collinear partons not collinear": every pair
+of partons closer than 4 Λ<sub>QCD</sub> gets ±0.8 GeV in p<sub>z</sub>, not energy-conserving). A switch
+`<JetHadronization><close_pair_shift>0` exists only as a patch
+(`analysis/OO-RHIC/hadronization/colorless_close_pair_shift.diff`, X-SCAPE 299fd3f, not in X-SCAPE); its use is in
+`analysis/OO-RHIC/hadronization/`.
 
 ## Re-hadronizing the stored partons with iColored, without remnants (`rehadronize_icolored.py`)
 
@@ -700,7 +697,7 @@ reproduces the job (the same partners per event, hadrons and high-p<sub>T</sub> 
 (samples of one unit). Sample 0 has the seed of a 1-sample run and reproduces it exactly; the others
 have seeds derived from it. `rehadronize_jets.py` (iColored with the job's real remnants, from
 `hadronization_input/`) now also copies the source's `units/` event record, cross-section attributes and
-`partons/` (the holes), so its output is read by `analysis/OO-RHIC/auau_raa.py` like a job's file (B2 at
+`partons/` (the holes), so its output is read by `analysis/OO-RHIC/auau_calibration/auau_raa.py` like a job's file (B2 at
 one fragmentation reproduces the job's R_AA bit for bit). `auau_raa.py` analyses every sample as a
 sub-event (jets clustered per sample, the event's holes and partners subtracted in each) and averages the
 samples per event (weight 1/N), so errors stay per event.

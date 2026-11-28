@@ -32,6 +32,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+import _paths  # noqa: E402,F401  (analysis/OO-RHIC and its test directories on sys.path)
 import config as C  # noqa: E402
 
 JOBS = 20
